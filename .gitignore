@@ -1,5 +1,7 @@
 .vs/
 .dotnet/
+.tmp/
+.buildverify/
 bin/
 obj/
 **/bin/

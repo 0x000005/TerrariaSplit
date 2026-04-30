@@ -3,7 +3,8 @@ namespace TerrariaSplit;
 internal sealed record BossSplitDefinition(
     BossSplitName Name,
     string DisplayName,
-    IReadOnlyList<BossFlag> RequiredFlags)
+    IReadOnlyList<BossFlag> RequiredFlags,
+    IReadOnlyList<string> IconFileNames)
 {
     public bool IsComplete(TerrariaBossStates states)
     {

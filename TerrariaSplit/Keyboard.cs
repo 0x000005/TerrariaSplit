@@ -1,29 +1,18 @@
 using System.Runtime.InteropServices;
+using System.Windows.Forms;
 
 namespace TerrariaSplit;
 
 internal static class Keyboard
 {
-    private const int RKey = 0x52;
-    private const int TKey = 0x54;
-    private static bool rWasDown;
-    private static bool tWasDown;
+    private static readonly Dictionary<Keys, bool> KeyStates = new();
 
-    public static bool PollRPressed()
+    public static bool PollPressed(Keys key)
     {
-        return PollPressed(RKey, ref rWasDown);
-    }
-
-    public static bool PollTPressed()
-    {
-        return PollPressed(TKey, ref tWasDown);
-    }
-
-    private static bool PollPressed(int virtualKey, ref bool wasDown)
-    {
-        bool isDown = (GetAsyncKeyState(virtualKey) & 0x8000) != 0;
+        bool isDown = (GetAsyncKeyState((int)key) & 0x8000) != 0;
+        KeyStates.TryGetValue(key, out bool wasDown);
         bool pressed = isDown && !wasDown;
-        wasDown = isDown;
+        KeyStates[key] = isDown;
         return pressed;
     }
 
