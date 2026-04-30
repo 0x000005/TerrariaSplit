@@ -20,7 +20,7 @@ internal sealed class SplitTimer
     {
         SplitTimerPhase.Running => elapsedBeforePause + ElapsedSince(runningSinceTimestamp),
         SplitTimerPhase.Paused => elapsedBeforePause,
-        _ => TimeSpan.Zero
+        _ => elapsedBeforePause
     };
 
     public void Start()
@@ -35,6 +35,23 @@ internal sealed class SplitTimer
         elapsedBeforePause = TimeSpan.Zero;
         runningSinceTimestamp = 0;
         Phase = SplitTimerPhase.NotStarted;
+    }
+
+    public void SetPracticeElapsed(TimeSpan elapsed)
+    {
+        elapsedBeforePause = elapsed < TimeSpan.Zero ? TimeSpan.Zero : elapsed;
+        runningSinceTimestamp = Phase == SplitTimerPhase.Running ? Stopwatch.GetTimestamp() : 0;
+    }
+
+    public void Stop()
+    {
+        if (Phase == SplitTimerPhase.Running)
+        {
+            elapsedBeforePause += ElapsedSince(runningSinceTimestamp);
+        }
+
+        runningSinceTimestamp = 0;
+        Phase = SplitTimerPhase.Paused;
     }
 
     public void TogglePause()

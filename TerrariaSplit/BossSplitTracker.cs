@@ -49,4 +49,53 @@ internal sealed class BossSplitTracker
 
         return split;
     }
+
+    public TimeSpan? SetPracticeTime(int index, TimeSpan? time)
+    {
+        if (index < 0 || index >= statuses.Count)
+        {
+            return null;
+        }
+
+        TimeSpan? adjustedTime = time;
+        if (adjustedTime is TimeSpan value)
+        {
+            for (int i = index - 1; i >= 0; i--)
+            {
+                if (statuses[i].Time is TimeSpan previousTime)
+                {
+                    if (value < previousTime)
+                    {
+                        statuses[i].SetTime(value);
+                    }
+                }
+            }
+        }
+
+        statuses[index].SetTime(adjustedTime);
+        currentIndex = statuses.FindIndex(status => !status.IsSkipped && !status.IsCompleted);
+        if (currentIndex < 0)
+        {
+            currentIndex = statuses.Count;
+        }
+
+        return adjustedTime;
+    }
+
+    public void ClampCompletedTimes(TimeSpan maximumTime)
+    {
+        foreach (BossSplitStatus status in statuses)
+        {
+            if (status.Time is TimeSpan time && time > maximumTime)
+            {
+                status.SetTime(maximumTime);
+            }
+        }
+
+        currentIndex = statuses.FindIndex(status => !status.IsSkipped && !status.IsCompleted);
+        if (currentIndex < 0)
+        {
+            currentIndex = statuses.Count;
+        }
+    }
 }

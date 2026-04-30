@@ -15,15 +15,10 @@ internal static class BossSplitDefinitions
             new[] { BossFlag.WallOfFlesh },
             new[] { "wof.png" }),
         new BossSplitDefinition(
-            BossSplitName.Destroyer,
-            "The Destroyer",
-            new[] { BossFlag.Destroyer },
-            new[] { "destroyer.png" }),
-        new BossSplitDefinition(
             BossSplitName.RemainingMechs,
-            "Twins + Prime",
-            new[] { BossFlag.Twins, BossFlag.SkeletronPrime },
-            new[] { "twins.png", "prime.png" }),
+            "Mechanical Bosses",
+            new[] { BossFlag.Destroyer, BossFlag.SkeletronPrime, BossFlag.Twins },
+            new[] { "destroyer.png", "prime.png", "twins.png" }),
         new BossSplitDefinition(
             BossSplitName.Plantera,
             "Plantera",
@@ -39,11 +34,6 @@ internal static class BossSplitDefinitions
             "Lunatic Cultist",
             new[] { BossFlag.LunaticCultist },
             new[] { "cultist.png" }),
-        new BossSplitDefinition(
-            BossSplitName.CelestialPillars,
-            "Celestial Pillars",
-            new[] { BossFlag.SolarPillar, BossFlag.VortexPillar, BossFlag.NebulaPillar, BossFlag.StardustPillar },
-            new[] { "pillars.png" }),
         new BossSplitDefinition(
             BossSplitName.MoonLord,
             "Moon Lord",

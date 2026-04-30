@@ -24,6 +24,12 @@ internal sealed class BossSplitStatus
         IsSkipped = true;
     }
 
+    public void SetTime(TimeSpan? time)
+    {
+        Time = time;
+        IsSkipped = false;
+    }
+
     public BossSplitRecord? TryComplete(TerrariaBossStates states, TimeSpan elapsed)
     {
         if (IsSkipped || IsCompleted || !Definition.IsComplete(states))

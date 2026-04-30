@@ -1,0 +1,88 @@
+{
+  "PauseResumeKey": "R",
+  "ResetKey": "T",
+  "AlwaysOnTop": false,
+  "PracticeMode": true,
+  "BossIconPaths": {
+    "Skeletron": "",
+    "WallOfFlesh": "",
+    "RemainingMechs": "",
+    "Plantera": "",
+    "Golem": "",
+    "LunaticCultist": "",
+    "MoonLord": ""
+  },
+  "ReferenceSplitSets": [
+    {
+      "Name": "WR",
+      "Splits": {
+        "Skeletron": "1:11",
+        "WallOfFlesh": "1:11",
+        "RemainingMechs": "1:11",
+        "Plantera": "1:11",
+        "Golem": "1:11",
+        "LunaticCultist": "2:22",
+        "MoonLord": "2:25"
+      }
+    },
+    {
+      "Name": "12",
+      "Splits": {
+        "Skeletron": "2",
+        "WallOfFlesh": "2",
+        "RemainingMechs": "",
+        "Plantera": "",
+        "Golem": "",
+        "LunaticCultist": "",
+        "MoonLord": ""
+      }
+    }
+  ],
+  "ActiveReferenceSplitSet": "WR",
+  "Colors": {
+    "ReferenceText": "#C8C8C8",
+    "ActiveReferenceText": "#FFD35A",
+    "SplitText": "#F0A040",
+    "DeltaAheadText": "#72D572",
+    "DeltaBehindText": "#F07070",
+    "DeltaEvenText": "#D8D8D8",
+    "TimerText": "#F2F2F2",
+    "TimerAheadText": "#72D572",
+    "TimerBehindText": "#F07070",
+    "TimerRecordText": "#69A7FF"
+  },
+  "Columns": {
+    "Icon": {
+      "Show": true,
+      "Width": 240,
+      "FontSize": 55,
+      "Bold": false
+    },
+    "Time": {
+      "Show": true,
+      "Width": 130,
+      "FontSize": 13.5,
+      "Bold": true
+    },
+    "Delta": {
+      "Show": true,
+      "Width": 130,
+      "FontSize": 13.5,
+      "Bold": true
+    },
+    "Timer": {
+      "Show": true,
+      "Width": 0,
+      "FontSize": 36,
+      "Bold": true
+    },
+    "TimerMilliseconds": {
+      "Show": true,
+      "Width": 0,
+      "FontSize": 18,
+      "Bold": true
+    }
+  },
+  "UndefeatedIconGrayscalePercent": 80,
+  "UndefeatedIconBrightnessPercent": 40
+}
