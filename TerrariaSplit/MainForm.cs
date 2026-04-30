@@ -27,6 +27,7 @@ internal sealed class MainForm : Form
 
     public MainForm()
     {
+        splitTracker.SetDefinitions(BossSplitDefinitions.Build(settings));
         Text = "TerrariaSplit";
         TopMost = settings.AlwaysOnTop;
         FormBorderStyle = FormBorderStyle.None;
@@ -515,7 +516,7 @@ internal sealed class MainForm : Form
             return;
         }
 
-        if (count == 1 || !string.IsNullOrWhiteSpace(settings.GetBossIconPath(definition.Name)))
+        if (count == 1)
         {
             IconPair icon = LoadIconPair(definition, definition.IconFileNames[0]);
             bool lit = IsIconLit(status, 0);
@@ -553,10 +554,13 @@ internal sealed class MainForm : Form
             return true;
         }
 
-        IReadOnlyList<BossFlag> flags = status.Definition.RequiredFlags;
-        return iconIndex >= 0 &&
-            iconIndex < flags.Count &&
-            snapshot.BossStates.Get(flags[iconIndex]) == true;
+        if (iconIndex < 0 || iconIndex >= status.Definition.IconKeys.Count)
+        {
+            return false;
+        }
+
+        return BossSplitDefinitions.TryGetUnit(status.Definition.IconKeys[iconIndex], out BossUnitDefinition unit) &&
+            unit.RequiredFlags.All(flag => snapshot.BossStates.Get(flag) == true);
     }
 
     private void DrawTimer(Graphics graphics, Rectangle rect, UiPalette palette)
@@ -566,7 +570,7 @@ internal sealed class MainForm : Form
         DrawTimerText(graphics, runTimer.Elapsed, timerTextBrush, timeRect, GetTimerMainRightEdge());
     }
 
-    private string FormatReferenceTime(BossSplitName name)
+    private string FormatReferenceTime(string name)
     {
         return settings.TryGetReferenceSplit(name, out TimeSpan split)
             ? TimeText.FormatSplit(split)
@@ -789,6 +793,8 @@ internal sealed class MainForm : Form
 
         settings = form.Result;
         AppSettingsStore.Save(settings);
+        splitTracker.SetDefinitions(BossSplitDefinitions.Build(settings));
+        runTimer.Reset();
         TopMost = settings.AlwaysOnTop;
         Width = Math.Max(MinimumSize.Width, GetDefaultWindowWidth(settings));
         ClearIconCache();
@@ -808,7 +814,8 @@ internal sealed class MainForm : Form
 
     private IconPair LoadIconPair(BossSplitDefinition definition, string fileName)
     {
-        string customPath = settings.GetBossIconPath(definition.Name);
+        string iconKey = GetIconKey(definition, fileName);
+        string customPath = settings.GetBossIconPath(iconKey);
         string cacheKey = string.IsNullOrWhiteSpace(customPath)
             ? $"asset:{fileName}"
             : $"file:{customPath}";
@@ -829,6 +836,17 @@ internal sealed class MainForm : Form
         iconPair = new IconPair(lit, undefeated);
         iconCache[cacheKey] = iconPair;
         return iconPair;
+    }
+
+    private static string GetIconKey(BossSplitDefinition definition, string fileName)
+    {
+        int index = definition.IconFileNames
+            .Select((value, itemIndex) => new { value, itemIndex })
+            .FirstOrDefault(item => string.Equals(item.value, fileName, StringComparison.OrdinalIgnoreCase))
+            ?.itemIndex ?? -1;
+        return index >= 0 && index < definition.IconKeys.Count
+            ? definition.IconKeys[index]
+            : definition.Name;
     }
 
     private static Bitmap CreateBossChecklistUndefeatedIcon(

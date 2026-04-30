@@ -30,8 +30,9 @@ internal sealed class SettingsForm : Form
     private readonly TextBox newReferenceSetNameBox = new();
     private readonly NumericUpDown undefeatedIconGrayscaleBox = new();
     private readonly NumericUpDown undefeatedIconBrightnessBox = new();
-    private readonly Dictionary<BossSplitName, TextBox> bossIconTextBoxes = new();
-    private readonly Dictionary<BossSplitName, TextBox> splitTextBoxes = new();
+    private readonly Dictionary<string, RouteControls> routeControls = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, TextBox> bossIconTextBoxes = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, TextBox> splitTextBoxes = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, TextBox> colorTextBoxes = new();
     private readonly Dictionary<string, ColumnControls> columnControls = new();
     private readonly Dictionary<string, FontControls> fontControls = new();
@@ -143,6 +144,7 @@ internal sealed class SettingsForm : Form
         };
         content.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
 
+        AddRouteSection(content);
         AddBossIconSection(content);
         AddReferenceDataSection(content);
 
@@ -343,11 +345,11 @@ internal sealed class SettingsForm : Form
         TableLayoutPanel section = CreateSection("Boss Icons");
         TableLayoutPanel grid = CreateGrid(3, 30f, 56f, 14f);
 
-        foreach (BossSplitDefinition definition in BossSplitDefinitions.All)
+        foreach (BossUnitDefinition unit in BossSplitDefinitions.Units)
         {
-            var textBox = CreateTextBox(settings.GetBossIconPath(definition.Name));
+            var textBox = CreateTextBox(settings.GetBossIconPath(unit.Id));
             textBox.PlaceholderText = "empty = bundled icon";
-            bossIconTextBoxes[definition.Name] = textBox;
+            bossIconTextBoxes[unit.Id] = textBox;
 
             Button browseButton = CreateButton("Browse", accent: false);
             browseButton.Width = 76;
@@ -356,7 +358,7 @@ internal sealed class SettingsForm : Form
 
             int row = grid.RowCount++;
             grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 40f));
-            grid.Controls.Add(CreateRowLabel(definition.DisplayName), 0, row);
+            grid.Controls.Add(CreateRowLabel(unit.DisplayName), 0, row);
             grid.Controls.Add(textBox, 1, row);
             grid.Controls.Add(browseButton, 2, row);
         }
@@ -396,7 +398,7 @@ internal sealed class SettingsForm : Form
 
         TableLayoutPanel grid = CreateGrid(2, 42f, 58f);
 
-        foreach (BossSplitDefinition definition in BossSplitDefinitions.All)
+        foreach (BossSplitDefinition definition in BossSplitDefinitions.Build(settings))
         {
             var textBox = CreateTextBox(settings.GetReferenceText(definition.Name));
             textBox.PlaceholderText = "m:ss or h:mm:ss";
@@ -809,18 +811,18 @@ internal sealed class SettingsForm : Form
     private void SaveReferenceTextBoxes()
     {
         ReferenceSplitSet activeSet = settings.GetActiveReferenceSet();
-        foreach ((BossSplitName name, TextBox textBox) in splitTextBoxes)
+        foreach ((string name, TextBox textBox) in splitTextBoxes)
         {
-            activeSet.Splits[name.ToString()] = textBox.Text.Trim();
+            activeSet.Splits[name] = textBox.Text.Trim();
         }
     }
 
     private void LoadReferenceTextBoxes()
     {
         ReferenceSplitSet activeSet = settings.GetActiveReferenceSet();
-        foreach ((BossSplitName name, TextBox textBox) in splitTextBoxes)
+        foreach ((string name, TextBox textBox) in splitTextBoxes)
         {
-            textBox.Text = activeSet.Splits.TryGetValue(name.ToString(), out string? value)
+            textBox.Text = activeSet.Splits.TryGetValue(name, out string? value)
                 ? value
                 : string.Empty;
         }
@@ -836,13 +838,15 @@ internal sealed class SettingsForm : Form
             : Keys.T.ToString();
         settings.AlwaysOnTop = alwaysOnTopBox.Checked;
         settings.PracticeMode = practiceModeBox.Checked;
+        ApplyRouteSettings();
+        AppSettingsStore.Normalize(settings);
 
         SaveReferenceTextBoxes();
         settings.ActiveReferenceSplitSet = referenceSetBox.SelectedItem is string selectedReferenceSet
             ? selectedReferenceSet
             : settings.GetActiveReferenceSet().Name;
 
-        foreach ((BossSplitName name, TextBox textBox) in bossIconTextBoxes)
+        foreach ((string name, TextBox textBox) in bossIconTextBoxes)
         {
             settings.SetBossIconPath(name, textBox.Text.Trim());
         }
@@ -866,6 +870,27 @@ internal sealed class SettingsForm : Form
         SetColor(nameof(settings.Colors.TimerAheadText), value => settings.Colors.TimerAheadText = value);
         SetColor(nameof(settings.Colors.TimerBehindText), value => settings.Colors.TimerBehindText = value);
         SetColor(nameof(settings.Colors.TimerRecordText), value => settings.Colors.TimerRecordText = value);
+    }
+
+    private void ApplyRouteSettings()
+    {
+        var route = new List<BossRouteEntry>();
+        foreach (BossUnitDefinition unit in BossSplitDefinitions.Units)
+        {
+            if (!routeControls.TryGetValue(unit.Id, out RouteControls? controls))
+            {
+                continue;
+            }
+
+            route.Add(new BossRouteEntry
+            {
+                BossId = unit.Id,
+                Enabled = controls.Enabled.Checked,
+                Segment = (int)controls.Segment.Value
+            });
+        }
+
+        settings.Route = route;
     }
 
     private void SetColor(string key, Action<string> setter)
@@ -904,4 +929,50 @@ internal sealed class SettingsForm : Form
     private sealed record ColumnControls(CheckBox Show, NumericUpDown Width, NumericUpDown FontSize, CheckBox Bold);
 
     private sealed record FontControls(CheckBox Show, NumericUpDown FontSize, CheckBox Bold);
+
+    private sealed record RouteControls(CheckBox Enabled, NumericUpDown Segment);
+
+    private void AddRouteSection(TableLayoutPanel parent)
+    {
+        TableLayoutPanel section = CreateSection("Boss Route");
+        TableLayoutPanel grid = CreateGrid(3, 54f, 18f, 28f);
+
+        int headerRow = grid.RowCount++;
+        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 30f));
+        grid.Controls.Add(CreateRowLabel("Boss"), 0, headerRow);
+        grid.Controls.Add(CreateRowLabel("Enabled"), 1, headerRow);
+        grid.Controls.Add(CreateRowLabel("Segment"), 2, headerRow);
+
+        IReadOnlyDictionary<string, BossRouteEntry> route = settings.Route.ToDictionary(
+            entry => entry.BossId,
+            StringComparer.OrdinalIgnoreCase);
+        foreach (BossUnitDefinition unit in BossSplitDefinitions.Units)
+        {
+            BossRouteEntry entry = route.TryGetValue(unit.Id, out BossRouteEntry? existing)
+                ? existing
+                : new BossRouteEntry { BossId = unit.Id };
+
+            int row = grid.RowCount++;
+            grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 40f));
+
+            var enabledBox = new CheckBox
+            {
+                Checked = entry.Enabled,
+                Dock = DockStyle.Fill,
+                FlatStyle = FlatStyle.Flat,
+                ForeColor = TextColor,
+                Margin = new Padding(0, 6, 0, 6),
+                TextAlign = ContentAlignment.MiddleCenter
+            };
+            NumericUpDown segmentBox = CreateNumberBox(Math.Clamp(entry.Segment, 1, 99), 1, 99, 1);
+
+            routeControls[unit.Id] = new RouteControls(enabledBox, segmentBox);
+            grid.Controls.Add(CreateRowLabel(unit.DisplayName), 0, row);
+            grid.Controls.Add(enabledBox, 1, row);
+            grid.Controls.Add(segmentBox, 2, row);
+        }
+
+        AddSectionControl(section, grid);
+        AddSection(parent, section);
+    }
 }

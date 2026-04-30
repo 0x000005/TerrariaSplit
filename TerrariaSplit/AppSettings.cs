@@ -8,6 +8,7 @@ internal sealed class AppSettings
     public string ResetKey { get; set; } = Keys.T.ToString();
     public bool AlwaysOnTop { get; set; }
     public bool PracticeMode { get; set; }
+    public List<BossRouteEntry> Route { get; set; } = new();
     public Dictionary<string, string> BossIconPaths { get; set; } = new();
     public List<ReferenceSplitSet> ReferenceSplitSets { get; set; } = new();
     public string ActiveReferenceSplitSet { get; set; } = "WR";
@@ -22,40 +23,41 @@ internal sealed class AppSettings
     public static AppSettings CreateDefault()
     {
         var settings = new AppSettings();
-        foreach (BossSplitDefinition definition in BossSplitDefinitions.All)
+        settings.Route = BossSplitDefinitions.CreateDefaultRoute();
+        foreach (BossUnitDefinition unit in BossSplitDefinitions.Units)
         {
-            settings.BossIconPaths.TryAdd(definition.Name.ToString(), string.Empty);
+            settings.BossIconPaths.TryAdd(unit.Id, string.Empty);
         }
 
         settings.ReferenceSplitSets.Add(CreateReferenceSet("WR"));
         return settings;
     }
 
-    public bool TryGetReferenceSplit(BossSplitName name, out TimeSpan split)
+    public bool TryGetReferenceSplit(string name, out TimeSpan split)
     {
         split = TimeSpan.Zero;
-        return GetActiveReferenceSet().Splits.TryGetValue(name.ToString(), out string? value) &&
+        return GetActiveReferenceSet().Splits.TryGetValue(name, out string? value) &&
             TimeText.TryParse(value, out split);
     }
 
-    public string GetReferenceText(BossSplitName name)
+    public string GetReferenceText(string name)
     {
-        return GetActiveReferenceSet().Splits.TryGetValue(name.ToString(), out string? value) ? value : string.Empty;
+        return GetActiveReferenceSet().Splits.TryGetValue(name, out string? value) ? value : string.Empty;
     }
 
-    public string GetBossIconPath(BossSplitName name)
+    public string GetBossIconPath(string name)
     {
-        return BossIconPaths.TryGetValue(name.ToString(), out string? value) ? value : string.Empty;
+        return BossIconPaths.TryGetValue(name, out string? value) ? value : string.Empty;
     }
 
-    public void SetBossIconPath(BossSplitName name, string value)
+    public void SetBossIconPath(string name, string value)
     {
-        BossIconPaths[name.ToString()] = value;
+        BossIconPaths[name] = value;
     }
 
-    public void SetReferenceText(BossSplitName name, string value)
+    public void SetReferenceText(string name, string value)
     {
-        GetActiveReferenceSet().Splits[name.ToString()] = value;
+        GetActiveReferenceSet().Splits[name] = value;
     }
 
     private static Keys ParseKey(string? value, Keys fallback)
@@ -88,9 +90,12 @@ internal sealed class AppSettings
             Name = string.IsNullOrWhiteSpace(name) ? "Reference" : name.Trim()
         };
 
-        foreach (BossSplitDefinition definition in BossSplitDefinitions.All)
+        foreach (BossSplitDefinition definition in BossSplitDefinitions.Build(new AppSettings
         {
-            string key = definition.Name.ToString();
+            Route = BossSplitDefinitions.CreateDefaultRoute()
+        }))
+        {
+            string key = definition.Name;
             string value = values is not null && values.TryGetValue(key, out string? existingValue)
                 ? existingValue
                 : string.Empty;

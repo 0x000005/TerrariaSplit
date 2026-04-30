@@ -35,18 +35,7 @@ internal static class AppSettingsStore
             shouldSave = true;
         }
 
-        settings.BossIconPaths ??= new Dictionary<string, string>();
-        settings.ReferenceSplitSets ??= new List<ReferenceSplitSet>();
-        settings.Colors ??= new UiColorSettings();
-        settings.Columns ??= new UiColumnLayoutSettings();
-        NormalizeColumnSettings(settings.Columns);
-
-        foreach (BossSplitDefinition definition in BossSplitDefinitions.All)
-        {
-            settings.BossIconPaths.TryAdd(definition.Name.ToString(), string.Empty);
-        }
-
-        NormalizeReferenceSets(settings);
+        Normalize(settings);
 
         if (shouldSave)
         {
@@ -58,6 +47,7 @@ internal static class AppSettingsStore
 
     public static void Save(AppSettings settings)
     {
+        Normalize(settings);
         string directory = Path.GetDirectoryName(SettingsPath)!;
         Directory.CreateDirectory(directory);
         File.WriteAllText(SettingsPath, JsonSerializer.Serialize(settings, JsonOptions));
@@ -66,7 +56,27 @@ internal static class AppSettingsStore
     public static AppSettings Clone(AppSettings settings)
     {
         string json = JsonSerializer.Serialize(settings, JsonOptions);
-        return JsonSerializer.Deserialize<AppSettings>(json, JsonOptions) ?? AppSettings.CreateDefault();
+        AppSettings clone = JsonSerializer.Deserialize<AppSettings>(json, JsonOptions) ?? AppSettings.CreateDefault();
+        Normalize(clone);
+        return clone;
+    }
+
+    public static void Normalize(AppSettings settings)
+    {
+        settings.Route ??= new List<BossRouteEntry>();
+        settings.BossIconPaths ??= new Dictionary<string, string>();
+        settings.ReferenceSplitSets ??= new List<ReferenceSplitSet>();
+        settings.Colors ??= new UiColorSettings();
+        settings.Columns ??= new UiColumnLayoutSettings();
+        NormalizeRoute(settings);
+        NormalizeColumnSettings(settings.Columns);
+
+        foreach (BossUnitDefinition unit in BossSplitDefinitions.Units)
+        {
+            settings.BossIconPaths.TryAdd(unit.Id, string.Empty);
+        }
+
+        NormalizeReferenceSets(settings);
     }
 
     private static void NormalizeColumnSettings(UiColumnLayoutSettings columns)
@@ -110,9 +120,9 @@ internal static class AppSettingsStore
             set.Name = string.IsNullOrWhiteSpace(set.Name) ? "Reference" : set.Name.Trim();
             set.Splits ??= new Dictionary<string, string>();
 
-            foreach (BossSplitDefinition definition in BossSplitDefinitions.All)
+            foreach (BossSplitDefinition definition in BossSplitDefinitions.Build(settings))
             {
-                set.Splits.TryAdd(definition.Name.ToString(), string.Empty);
+                set.Splits.TryAdd(definition.Name, string.Empty);
             }
         }
 
@@ -124,5 +134,39 @@ internal static class AppSettingsStore
         {
             settings.ActiveReferenceSplitSet = settings.ReferenceSplitSets[0].Name;
         }
+    }
+
+    private static void NormalizeRoute(AppSettings settings)
+    {
+        List<BossRouteEntry> defaults = BossSplitDefinitions.CreateDefaultRoute();
+        if (settings.Route.Count == 0)
+        {
+            settings.Route = defaults;
+            return;
+        }
+
+        Dictionary<string, BossRouteEntry> existing = settings.Route
+            .Where(entry => !string.IsNullOrWhiteSpace(entry.BossId))
+            .GroupBy(entry => entry.BossId, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+
+        var normalized = new List<BossRouteEntry>();
+        foreach (BossRouteEntry defaultEntry in defaults)
+        {
+            if (!existing.TryGetValue(defaultEntry.BossId, out BossRouteEntry? entry))
+            {
+                normalized.Add(defaultEntry);
+                continue;
+            }
+
+            normalized.Add(new BossRouteEntry
+            {
+                BossId = defaultEntry.BossId,
+                Enabled = entry.Enabled,
+                Segment = Math.Clamp(entry.Segment, 1, 99)
+            });
+        }
+
+        settings.Route = normalized;
     }
 }

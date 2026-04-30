@@ -2,14 +2,25 @@ namespace TerrariaSplit;
 
 internal sealed class BossSplitTracker
 {
-    private readonly List<BossSplitStatus> statuses =
-        BossSplitDefinitions.All.Select(definition => new BossSplitStatus(definition)).ToList();
+    private readonly List<BossSplitStatus> statuses = new();
 
     private int currentIndex;
+
+    public BossSplitTracker()
+    {
+        SetDefinitions(BossSplitDefinitions.Build(AppSettings.CreateDefault()));
+    }
 
     public IReadOnlyList<BossSplitStatus> Statuses => statuses;
 
     public int CurrentIndex => currentIndex;
+
+    public void SetDefinitions(IReadOnlyList<BossSplitDefinition> definitions)
+    {
+        statuses.Clear();
+        statuses.AddRange(definitions.Select(definition => new BossSplitStatus(definition)));
+        currentIndex = 0;
+    }
 
     public void Reset()
     {

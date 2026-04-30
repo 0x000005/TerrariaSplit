@@ -3,13 +3,68 @@
   "ResetKey": "T",
   "AlwaysOnTop": false,
   "PracticeMode": true,
+  "Route": [
+    {
+      "BossId": "Skeletron",
+      "Enabled": true,
+      "Segment": 1
+    },
+    {
+      "BossId": "WallOfFlesh",
+      "Enabled": true,
+      "Segment": 2
+    },
+    {
+      "BossId": "Destroyer",
+      "Enabled": true,
+      "Segment": 3
+    },
+    {
+      "BossId": "SkeletronPrime",
+      "Enabled": true,
+      "Segment": 3
+    },
+    {
+      "BossId": "Twins",
+      "Enabled": true,
+      "Segment": 3
+    },
+    {
+      "BossId": "Plantera",
+      "Enabled": true,
+      "Segment": 4
+    },
+    {
+      "BossId": "Golem",
+      "Enabled": true,
+      "Segment": 5
+    },
+    {
+      "BossId": "LunaticCultist",
+      "Enabled": true,
+      "Segment": 6
+    },
+    {
+      "BossId": "CelestialPillars",
+      "Enabled": false,
+      "Segment": 7
+    },
+    {
+      "BossId": "MoonLord",
+      "Enabled": true,
+      "Segment": 8
+    }
+  ],
   "BossIconPaths": {
     "Skeletron": "",
     "WallOfFlesh": "",
-    "RemainingMechs": "",
+    "Destroyer": "",
+    "SkeletronPrime": "",
+    "Twins": "",
     "Plantera": "",
     "Golem": "",
     "LunaticCultist": "",
+    "CelestialPillars": "",
     "MoonLord": ""
   },
   "ReferenceSplitSets": [

@@ -1,3 +1,3 @@
 namespace TerrariaSplit;
 
-internal readonly record struct BossSplitRecord(BossSplitName Name, TimeSpan Time);
+internal readonly record struct BossSplitRecord(string Name, TimeSpan Time);
