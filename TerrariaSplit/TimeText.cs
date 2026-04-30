@@ -53,6 +53,15 @@ internal static class TimeText
             : $"{time.Minutes}:{time.Seconds:00}";
     }
 
+    public static string FormatRecord(TimeSpan time)
+    {
+        int hours = (int)time.TotalHours;
+        string ms = (time.Milliseconds / 10).ToString("00");
+        return hours > 0
+            ? $"{hours}:{time.Minutes:00}:{time.Seconds:00}.{ms}"
+            : $"{time.Minutes}:{time.Seconds:00}.{ms}";
+    }
+
     public static string FormatDelta(TimeSpan delta)
     {
         string sign = delta < TimeSpan.Zero ? "-" : "+";

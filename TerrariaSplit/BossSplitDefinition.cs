@@ -5,7 +5,8 @@ internal sealed record BossSplitDefinition(
     string DisplayName,
     IReadOnlyList<BossFlag> RequiredFlags,
     IReadOnlyList<string> IconFileNames,
-    IReadOnlyList<string> IconKeys)
+    IReadOnlyList<string> IconKeys,
+    IReadOnlyList<string> BossIds)
 {
     public bool IsComplete(TerrariaBossStates states)
     {

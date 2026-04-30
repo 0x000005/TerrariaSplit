@@ -393,12 +393,12 @@ internal sealed class SettingsForm : Form
 
         TableLayoutPanel grid = CreateGrid(2, 42f, 58f);
 
-        foreach (BossSplitDefinition definition in BossSplitDefinitions.Build(settings))
+        foreach (BossUnitDefinition unit in BossSplitDefinitions.Units)
         {
-            var textBox = CreateTextBox(settings.GetReferenceText(definition.Name));
+            var textBox = CreateTextBox(settings.GetReferenceText(unit.Id));
             textBox.PlaceholderText = "m:ss or h:mm:ss";
-            splitTextBoxes[definition.Name] = textBox;
-            AddSettingRow(grid, definition.DisplayName, textBox);
+            splitTextBoxes[unit.Id] = textBox;
+            AddSettingRow(grid, unit.DisplayName, textBox);
         }
 
         AddSectionControl(section, grid);
@@ -571,6 +571,13 @@ internal sealed class SettingsForm : Form
     {
         var numericBox = new NumericUpDown();
         ConfigureNumericBox(numericBox, (decimal)value, minimum, maximum, increment, 1);
+        return numericBox;
+    }
+
+    private static NumericUpDown CreateDecimalBoxForSegment(decimal value, decimal minimum, decimal maximum, decimal increment)
+    {
+        var numericBox = new NumericUpDown();
+        ConfigureNumericBox(numericBox, value, minimum, maximum, increment, 1);
         return numericBox;
     }
 
@@ -801,7 +808,10 @@ internal sealed class SettingsForm : Form
         ReferenceSplitSet activeSet = settings.GetActiveReferenceSet();
         foreach ((string name, TextBox textBox) in splitTextBoxes)
         {
-            activeSet.Splits[name] = textBox.Text.Trim();
+            string text = textBox.Text.Trim();
+            activeSet.Splits[name] = TimeText.TryParse(text, out TimeSpan parsed)
+                ? TimeText.FormatRecord(parsed)
+                : text;
         }
     }
 
@@ -871,7 +881,7 @@ internal sealed class SettingsForm : Form
             {
                 BossId = unit.Id,
                 Enabled = controls.Enabled.Checked,
-                Segment = (int)controls.Segment.Value
+                Segment = controls.Segment.Value
             });
         }
 
@@ -978,7 +988,7 @@ internal sealed class SettingsForm : Form
                 Margin = new Padding(0, 6, 0, 6),
                 TextAlign = ContentAlignment.MiddleCenter
             };
-            NumericUpDown segmentBox = CreateNumberBox(Math.Clamp(entry.Segment, 1, 99), 1, 99, 1);
+            NumericUpDown segmentBox = CreateDecimalBoxForSegment(Math.Clamp(entry.Segment, 1m, 99m), 1m, 99m, 0.1m);
 
             routeControls[unit.Id] = new RouteControls(enabledBox, segmentBox);
             grid.Controls.Add(CreateRowLabel(unit.DisplayName), 0, row);

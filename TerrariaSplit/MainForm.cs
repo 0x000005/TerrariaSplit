@@ -310,7 +310,7 @@ internal sealed class MainForm : Form
                 : isCurrent ? palette.ActiveReferenceText : palette.ReferenceText;
             string timeText = showSplitTime
                 ? TimeText.FormatSplit(status.Time!.Value)
-                : FormatReferenceTime(status.Definition.Name);
+                : FormatReferenceTime(status.Definition);
 
             using var timeBrush = new SolidBrush(timeColor);
             DrawText(
@@ -406,7 +406,7 @@ internal sealed class MainForm : Form
     {
         if (TryGetTimerRect(out Rectangle timerRect) && timerRect.Contains(point))
         {
-            string currentText = TimeText.FormatSplit(runTimer.Elapsed);
+            string currentText = TimeText.FormatRecord(runTimer.Elapsed);
             if (!PromptForTime("Edit total time", currentText, allowEmpty: false, out string? editedText) ||
                 !TimeText.TryParse(editedText, out TimeSpan editedTime))
             {
@@ -439,7 +439,7 @@ internal sealed class MainForm : Form
 
     private void EditPracticeSplitTime(int rowIndex, BossSplitStatus status)
     {
-        string currentText = status.Time is TimeSpan time ? TimeText.FormatSplit(time) : string.Empty;
+        string currentText = status.Time is TimeSpan time ? TimeText.FormatRecord(time) : string.Empty;
         if (!PromptForTime("Edit split time", currentText, allowEmpty: true, out string? editedText))
         {
             return;
@@ -588,6 +588,11 @@ internal sealed class MainForm : Form
             return true;
         }
 
+        if (runTimer.Phase == SplitTimerPhase.NotStarted)
+        {
+            return false;
+        }
+
         if (iconIndex < 0 || iconIndex >= status.Definition.IconKeys.Count)
         {
             return false;
@@ -604,16 +609,16 @@ internal sealed class MainForm : Form
         DrawTimerText(graphics, runTimer.Elapsed, timerTextBrush, timeRect, GetTimerMainRightEdge());
     }
 
-    private string FormatReferenceTime(string name)
+    private string FormatReferenceTime(BossSplitDefinition definition)
     {
-        return settings.TryGetReferenceSplit(name, out TimeSpan split)
+        return settings.TryGetReferenceSplit(definition, out TimeSpan split)
             ? TimeText.FormatSplit(split)
             : "--";
     }
 
     private SplitComparison GetSplitComparison(BossSplitStatus status, bool isCurrent)
     {
-        if (!settings.TryGetReferenceSplit(status.Definition.Name, out TimeSpan referenceTime))
+        if (!settings.TryGetReferenceSplit(status.Definition, out TimeSpan referenceTime))
         {
             return SplitComparison.Empty;
         }
@@ -735,17 +740,22 @@ internal sealed class MainForm : Form
 
     private Color GetTimerTextColor(UiPalette palette)
     {
+        if (runTimer.Phase == SplitTimerPhase.NotStarted)
+        {
+            return palette.TimerText;
+        }
+
         IReadOnlyList<BossSplitStatus> statuses = splitTracker.Statuses;
         if (statuses.Count > 0 && statuses[^1].Time is TimeSpan finalTime)
         {
-            return settings.TryGetReferenceSplit(statuses[^1].Definition.Name, out TimeSpan finalReference) &&
+            return settings.TryGetReferenceSplit(statuses[^1].Definition, out TimeSpan finalReference) &&
                 finalTime < finalReference
                 ? palette.TimerRecordText
                 : palette.TimerBehindText;
         }
 
         if (splitTracker.CurrentIndex < statuses.Count &&
-            settings.TryGetReferenceSplit(statuses[splitTracker.CurrentIndex].Definition.Name, out TimeSpan currentReference))
+            settings.TryGetReferenceSplit(statuses[splitTracker.CurrentIndex].Definition, out TimeSpan currentReference))
         {
             return runTimer.Elapsed <= currentReference ? palette.TimerAheadText : palette.TimerBehindText;
         }

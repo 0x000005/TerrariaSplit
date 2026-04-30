@@ -8,7 +8,7 @@ internal sealed class AppSettings
     public string ResetKey { get; set; } = Keys.T.ToString();
     public string MouseClickThroughKey { get; set; } = Keys.I.ToString();
     public bool AlwaysOnTop { get; set; }
-    public bool PracticeMode { get; set; }
+    public bool PracticeMode { get; set; } = true;
     public List<BossRouteEntry> Route { get; set; } = new();
     public Dictionary<string, string> BossIconPaths { get; set; } = new();
     public List<ReferenceSplitSet> ReferenceSplitSets { get; set; } = new();
@@ -16,7 +16,7 @@ internal sealed class AppSettings
     public UiColorSettings Colors { get; set; } = new();
     public UiColumnLayoutSettings Columns { get; set; } = new();
     public int UndefeatedIconGrayscalePercent { get; set; } = 80;
-    public int UndefeatedIconBrightnessPercent { get; set; } = 30;
+    public int UndefeatedIconBrightnessPercent { get; set; } = 40;
 
     public Keys PauseResumeKeys => ParseKey(PauseResumeKey, Keys.R);
     public Keys ResetKeys => ParseKey(ResetKey, Keys.T);
@@ -35,11 +35,32 @@ internal sealed class AppSettings
         return settings;
     }
 
-    public bool TryGetReferenceSplit(string name, out TimeSpan split)
+    public bool TryGetReferenceSplit(BossSplitDefinition definition, out TimeSpan split)
     {
         split = TimeSpan.Zero;
-        return GetActiveReferenceSet().Splits.TryGetValue(name, out string? value) &&
-            TimeText.TryParse(value, out split);
+        bool anyFound = false;
+        TimeSpan maxSplit = TimeSpan.Zero;
+        var splits = GetActiveReferenceSet().Splits;
+
+        foreach (string bossId in definition.BossIds)
+        {
+            if (splits.TryGetValue(bossId, out string? value) && TimeText.TryParse(value, out TimeSpan s))
+            {
+                if (!anyFound || s > maxSplit)
+                {
+                    maxSplit = s;
+                }
+                anyFound = true;
+            }
+        }
+
+        if (anyFound)
+        {
+            split = maxSplit;
+            return true;
+        }
+
+        return false;
     }
 
     public string GetReferenceText(string name)
@@ -92,12 +113,9 @@ internal sealed class AppSettings
             Name = string.IsNullOrWhiteSpace(name) ? "Reference" : name.Trim()
         };
 
-        foreach (BossSplitDefinition definition in BossSplitDefinitions.Build(new AppSettings
+        foreach (BossUnitDefinition unit in BossSplitDefinitions.Units)
         {
-            Route = BossSplitDefinitions.CreateDefaultRoute()
-        }))
-        {
-            string key = definition.Name;
+            string key = unit.Id;
             string value = values is not null && values.TryGetValue(key, out string? existingValue)
                 ? existingValue
                 : string.Empty;

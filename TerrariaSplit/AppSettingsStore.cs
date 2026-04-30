@@ -163,7 +163,7 @@ internal static class AppSettingsStore
             {
                 BossId = defaultEntry.BossId,
                 Enabled = entry.Enabled,
-                Segment = Math.Clamp(entry.Segment, 1, 99)
+                Segment = Math.Clamp(entry.Segment, 1m, 99m)
             });
         }
 

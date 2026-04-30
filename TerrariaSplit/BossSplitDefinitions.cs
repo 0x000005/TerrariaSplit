@@ -75,7 +75,7 @@ internal static class BossSplitDefinitions
             .Where(entry => entry.Enabled && units.ContainsKey(entry.BossId))
             .OrderBy(entry => entry.Segment)
             .ThenBy(entry => GetUnitOrder(entry.BossId))
-            .GroupBy(entry => Math.Max(1, entry.Segment))
+            .GroupBy(entry => Math.Max(1, (int)Math.Truncate(entry.Segment)))
             .Select(group => BuildSplit(group.Select(entry => units[entry.BossId]).ToList()))
             .ToList();
     }
@@ -84,16 +84,16 @@ internal static class BossSplitDefinitions
     {
         return new List<BossRouteEntry>
         {
-            new() { BossId = Skeletron, Enabled = true, Segment = 1 },
-            new() { BossId = WallOfFlesh, Enabled = true, Segment = 2 },
-            new() { BossId = Destroyer, Enabled = true, Segment = 3 },
-            new() { BossId = SkeletronPrime, Enabled = true, Segment = 3 },
-            new() { BossId = Twins, Enabled = true, Segment = 3 },
-            new() { BossId = Plantera, Enabled = true, Segment = 4 },
-            new() { BossId = Golem, Enabled = true, Segment = 5 },
-            new() { BossId = LunaticCultist, Enabled = true, Segment = 6 },
-            new() { BossId = CelestialPillars, Enabled = false, Segment = 7 },
-            new() { BossId = MoonLord, Enabled = true, Segment = 8 }
+            new() { BossId = Skeletron, Enabled = true, Segment = 1m },
+            new() { BossId = WallOfFlesh, Enabled = true, Segment = 2m },
+            new() { BossId = Destroyer, Enabled = true, Segment = 3m },
+            new() { BossId = SkeletronPrime, Enabled = true, Segment = 3m },
+            new() { BossId = Twins, Enabled = true, Segment = 3m },
+            new() { BossId = Plantera, Enabled = true, Segment = 4m },
+            new() { BossId = Golem, Enabled = true, Segment = 5m },
+            new() { BossId = LunaticCultist, Enabled = true, Segment = 6m },
+            new() { BossId = CelestialPillars, Enabled = false, Segment = 7m },
+            new() { BossId = MoonLord, Enabled = true, Segment = 8m }
         };
     }
 
@@ -112,7 +112,8 @@ internal static class BossSplitDefinitions
             displayName,
             units.SelectMany(unit => unit.RequiredFlags).ToArray(),
             units.SelectMany(unit => unit.IconFileNames).ToArray(),
-            units.SelectMany(unit => unit.IconFileNames.Select(_ => unit.Id)).ToArray());
+            units.SelectMany(unit => unit.IconFileNames.Select(_ => unit.Id)).ToArray(),
+            units.Select(unit => unit.Id).ToArray());
     }
 
     private static string GetSplitId(IReadOnlyList<BossUnitDefinition> units)

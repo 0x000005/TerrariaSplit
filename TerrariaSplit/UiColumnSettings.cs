@@ -13,15 +13,15 @@ internal sealed class UiColumnLayoutSettings
     public UiColumnSettings Icon { get; set; } = new()
     {
         Show = true,
-        Width = 116,
-        FontSize = 30f,
+        Width = 240,
+        FontSize = 55f,
         Bold = false
     };
 
     public UiColumnSettings Time { get; set; } = new()
     {
         Show = true,
-        Width = 86,
+        Width = 130,
         FontSize = 13.5f,
         Bold = true
     };
@@ -29,7 +29,7 @@ internal sealed class UiColumnLayoutSettings
     public UiColumnSettings Delta { get; set; } = new()
     {
         Show = true,
-        Width = 72,
+        Width = 130,
         FontSize = 13.5f,
         Bold = true
     };
@@ -38,7 +38,7 @@ internal sealed class UiColumnLayoutSettings
     {
         Show = true,
         Width = 0,
-        FontSize = 34f,
+        FontSize = 36f,
         Bold = true
     };
 
