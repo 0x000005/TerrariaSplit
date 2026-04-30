@@ -13,17 +13,10 @@ internal sealed class SettingsForm : Form
     private static readonly Color TextColor = Color.FromArgb(235, 235, 238);
     private static readonly Color MutedTextColor = Color.FromArgb(166, 166, 174);
 
-    private static readonly Keys[] AllowedKeys =
-    [
-        Keys.A, Keys.B, Keys.C, Keys.D, Keys.E, Keys.F, Keys.G, Keys.H, Keys.I, Keys.J, Keys.K, Keys.L, Keys.M,
-        Keys.N, Keys.O, Keys.P, Keys.Q, Keys.R, Keys.S, Keys.T, Keys.U, Keys.V, Keys.W, Keys.X, Keys.Y, Keys.Z,
-        Keys.D0, Keys.D1, Keys.D2, Keys.D3, Keys.D4, Keys.D5, Keys.D6, Keys.D7, Keys.D8, Keys.D9,
-        Keys.F1, Keys.F2, Keys.F3, Keys.F4, Keys.F5, Keys.F6, Keys.F7, Keys.F8, Keys.F9, Keys.F10, Keys.F11, Keys.F12
-    ];
-
     private readonly AppSettings settings;
-    private readonly ComboBox pauseKeyBox = new();
-    private readonly ComboBox resetKeyBox = new();
+    private readonly HotkeyTextBox pauseKeyBox = new();
+    private readonly HotkeyTextBox resetKeyBox = new();
+    private readonly HotkeyTextBox mouseClickThroughKeyBox = new();
     private readonly CheckBox alwaysOnTopBox = new();
     private readonly CheckBox practiceModeBox = new();
     private readonly ComboBox referenceSetBox = new();
@@ -202,11 +195,13 @@ internal sealed class SettingsForm : Form
     {
         ConfigureKeyBox(pauseKeyBox, settings.PauseResumeKeys);
         ConfigureKeyBox(resetKeyBox, settings.ResetKeys);
+        ConfigureKeyBox(mouseClickThroughKeyBox, settings.MouseClickThroughKeys);
 
         TableLayoutPanel section = CreateSection("Hotkeys");
         TableLayoutPanel grid = CreateGrid(2, 42f, 58f);
         AddSettingRow(grid, "Pause / Resume", pauseKeyBox);
         AddSettingRow(grid, "Reset at Menu", resetKeyBox);
+        AddSettingRow(grid, "Mouse passthrough", mouseClickThroughKeyBox);
         ConfigureCheckBox(alwaysOnTopBox, settings.AlwaysOnTop);
         AddSettingRow(grid, "Always on top", alwaysOnTopBox);
         ConfigureCheckBox(practiceModeBox, settings.PracticeMode);
@@ -512,22 +507,15 @@ internal sealed class SettingsForm : Form
         section.Controls.Add(control, 0, row);
     }
 
-    private static void ConfigureKeyBox(ComboBox comboBox, Keys selected)
+    private static void ConfigureKeyBox(HotkeyTextBox textBox, Keys selected)
     {
-        comboBox.DropDownStyle = ComboBoxStyle.DropDownList;
-        comboBox.FlatStyle = FlatStyle.Flat;
-        comboBox.BackColor = FieldColor;
-        comboBox.ForeColor = TextColor;
-        comboBox.Height = 34;
-        comboBox.Dock = DockStyle.Fill;
-        comboBox.Margin = new Padding(0, 3, 0, 3);
-
-        foreach (Keys key in AllowedKeys)
-        {
-            comboBox.Items.Add(key);
-        }
-
-        comboBox.SelectedItem = AllowedKeys.Contains(selected) ? selected : Keys.R;
+        textBox.BackColor = FieldColor;
+        textBox.BorderStyle = BorderStyle.FixedSingle;
+        textBox.Dock = DockStyle.Fill;
+        textBox.ForeColor = TextColor;
+        textBox.Margin = new Padding(0, 4, 0, 4);
+        textBox.ReadOnly = true;
+        textBox.SetHotkey(selected);
     }
 
     private static void ConfigureCheckBox(CheckBox checkBox, bool selected)
@@ -830,12 +818,9 @@ internal sealed class SettingsForm : Form
 
     private void ApplyToSettings()
     {
-        settings.PauseResumeKey = pauseKeyBox.SelectedItem is Keys pauseKey
-            ? pauseKey.ToString()
-            : Keys.R.ToString();
-        settings.ResetKey = resetKeyBox.SelectedItem is Keys resetKey
-            ? resetKey.ToString()
-            : Keys.T.ToString();
+        settings.PauseResumeKey = pauseKeyBox.Hotkey.ToString();
+        settings.ResetKey = resetKeyBox.Hotkey.ToString();
+        settings.MouseClickThroughKey = mouseClickThroughKeyBox.Hotkey.ToString();
         settings.AlwaysOnTop = alwaysOnTopBox.Checked;
         settings.PracticeMode = practiceModeBox.Checked;
         ApplyRouteSettings();
@@ -931,6 +916,35 @@ internal sealed class SettingsForm : Form
     private sealed record FontControls(CheckBox Show, NumericUpDown FontSize, CheckBox Bold);
 
     private sealed record RouteControls(CheckBox Enabled, NumericUpDown Segment);
+
+    private sealed class HotkeyTextBox : TextBox
+    {
+        public Keys Hotkey { get; private set; } = Keys.None;
+
+        public void SetHotkey(Keys hotkey)
+        {
+            Hotkey = hotkey == Keys.None ? Keys.I : hotkey;
+            Text = Hotkey.ToString();
+        }
+
+        protected override void OnKeyDown(KeyEventArgs e)
+        {
+            base.OnKeyDown(e);
+
+            Keys key = e.KeyCode;
+            if (key is Keys.ControlKey or Keys.ShiftKey or Keys.Menu)
+            {
+                key = e.KeyData & Keys.KeyCode;
+            }
+
+            if (key != Keys.None)
+            {
+                SetHotkey(key);
+            }
+
+            e.SuppressKeyPress = true;
+        }
+    }
 
     private void AddRouteSection(TableLayoutPanel parent)
     {

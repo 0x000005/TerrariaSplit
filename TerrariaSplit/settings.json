@@ -1,6 +1,7 @@
 {
   "PauseResumeKey": "R",
   "ResetKey": "T",
+  "MouseClickThroughKey": "I",
   "AlwaysOnTop": false,
   "PracticeMode": true,
   "Route": [

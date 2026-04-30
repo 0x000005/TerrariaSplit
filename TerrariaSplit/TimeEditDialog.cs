@@ -25,6 +25,11 @@ internal static class TimeEditDialog
             Font = formFont
         };
 
+        if (owner is Form ownerForm)
+        {
+            form.TopMost = ownerForm.TopMost;
+        }
+
         var root = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,

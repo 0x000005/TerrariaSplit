@@ -6,6 +6,7 @@ internal sealed class AppSettings
 {
     public string PauseResumeKey { get; set; } = Keys.R.ToString();
     public string ResetKey { get; set; } = Keys.T.ToString();
+    public string MouseClickThroughKey { get; set; } = Keys.I.ToString();
     public bool AlwaysOnTop { get; set; }
     public bool PracticeMode { get; set; }
     public List<BossRouteEntry> Route { get; set; } = new();
@@ -19,6 +20,7 @@ internal sealed class AppSettings
 
     public Keys PauseResumeKeys => ParseKey(PauseResumeKey, Keys.R);
     public Keys ResetKeys => ParseKey(ResetKey, Keys.T);
+    public Keys MouseClickThroughKeys => ParseKey(MouseClickThroughKey, Keys.I);
 
     public static AppSettings CreateDefault()
     {

@@ -20,6 +20,10 @@ internal sealed class MainForm : Form
     private readonly Dictionary<string, IconPair> iconCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<FontKey, Font> fontCache = new();
     private readonly ContextMenuStrip contextMenu = new();
+    private bool mouseClickThrough;
+    private bool dragging;
+    private Point dragStartCursor;
+    private Point dragStartLocation;
 
     private AppSettings settings = AppSettingsStore.Load();
     private TerrariaWatchSnapshot snapshot =
@@ -82,14 +86,32 @@ internal sealed class MainForm : Form
         base.OnMouseDown(e);
         if (e.Button == MouseButtons.Left)
         {
-            ReleaseCapture();
-            SendMessage(Handle, 0xA1, 0x2, 0);
+            dragging = true;
+            dragStartCursor = Cursor.Position;
+            dragStartLocation = Location;
         }
+    }
+
+    protected override void OnMouseMove(MouseEventArgs e)
+    {
+        base.OnMouseMove(e);
+        if (!dragging)
+        {
+            return;
+        }
+
+        Point delta = new(Cursor.Position.X - dragStartCursor.X, Cursor.Position.Y - dragStartCursor.Y);
+        Location = new Point(dragStartLocation.X + delta.X, dragStartLocation.Y + delta.Y);
     }
 
     protected override void OnMouseUp(MouseEventArgs e)
     {
         base.OnMouseUp(e);
+        if (e.Button == MouseButtons.Left)
+        {
+            dragging = false;
+        }
+
         if (e.Button == MouseButtons.Right && settings.PracticeMode)
         {
             TryOpenPracticeEdit(e.Location);
@@ -139,6 +161,7 @@ internal sealed class MainForm : Form
     protected override void WndProc(ref Message m)
     {
         const int wmNcHitTest = 0x84;
+        const int htTransparent = -1;
         const int htClient = 1;
         const int htLeft = 10;
         const int htRight = 11;
@@ -150,6 +173,12 @@ internal sealed class MainForm : Form
         const int htBottomRight = 17;
 
         base.WndProc(ref m);
+
+        if (mouseClickThrough && m.Msg == wmNcHitTest)
+        {
+            m.Result = (IntPtr)htTransparent;
+            return;
+        }
 
         if (m.Msg != wmNcHitTest || m.Result != (IntPtr)htClient)
         {
@@ -211,8 +240,13 @@ internal sealed class MainForm : Form
 
         if (Keyboard.PollPressed(settings.ResetKeys) && CanReset(snapshot))
         {
-            runTimer.Reset();
-            splitTracker.Reset();
+            ResetRun();
+            return;
+        }
+
+        if (Keyboard.PollPressed(settings.MouseClickThroughKeys))
+        {
+            SetMouseClickThrough(!mouseClickThrough);
         }
 
         if (snapshot.EnteredWorld && runTimer.Phase == SplitTimerPhase.NotStarted)
@@ -786,6 +820,7 @@ internal sealed class MainForm : Form
     private void OpenSettings()
     {
         using var form = new SettingsForm(settings);
+        form.TopMost = TopMost;
         if (form.ShowDialog(this) != DialogResult.OK)
         {
             return;
@@ -794,11 +829,45 @@ internal sealed class MainForm : Form
         settings = form.Result;
         AppSettingsStore.Save(settings);
         splitTracker.SetDefinitions(BossSplitDefinitions.Build(settings));
-        runTimer.Reset();
+        ResetRun();
         TopMost = settings.AlwaysOnTop;
         Width = Math.Max(MinimumSize.Width, GetDefaultWindowWidth(settings));
         ClearIconCache();
         Invalidate();
+    }
+
+    private void ResetRun()
+    {
+        runTimer.Reset();
+        splitTracker.Reset();
+        Invalidate();
+    }
+
+    private void SetMouseClickThrough(bool enabled)
+    {
+        mouseClickThrough = enabled;
+        UpdateMouseClickThroughStyle();
+        Text = $"TerrariaSplit - {FormatTimerPhase()} - {FormatWorldState()}";
+    }
+
+    private void UpdateMouseClickThroughStyle()
+    {
+        const int gwlExStyle = -20;
+        const int wsExTransparent = 0x20;
+        const int wsExLayered = 0x80000;
+
+        IntPtr handle = Handle;
+        int style = GetWindowLong(handle, gwlExStyle);
+        if (mouseClickThrough)
+        {
+            style |= wsExTransparent | wsExLayered;
+        }
+        else
+        {
+            style &= ~wsExTransparent;
+        }
+
+        SetWindowLong(handle, gwlExStyle, style);
     }
 
     private void ClearIconCache()
@@ -900,10 +969,10 @@ internal sealed class MainForm : Form
     }
 
     [DllImport("user32.dll")]
-    private static extern bool ReleaseCapture();
+    private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
 
     [DllImport("user32.dll")]
-    private static extern IntPtr SendMessage(IntPtr hWnd, int msg, int wParam, int lParam);
+    private static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
 
     private sealed record IconPair(Image Lit, Image Undefeated);
 
