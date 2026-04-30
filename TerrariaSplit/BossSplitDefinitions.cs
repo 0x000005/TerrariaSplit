@@ -76,7 +76,7 @@ internal static class BossSplitDefinitions
             .OrderBy(entry => entry.Segment)
             .ThenBy(entry => GetUnitOrder(entry.BossId))
             .GroupBy(entry => Math.Max(1, (int)Math.Truncate(entry.Segment)))
-            .Select(group => BuildSplit(group.Select(entry => units[entry.BossId]).ToList()))
+            .Select(group => BuildSplit(group.Select(entry => units[entry.BossId]).ToList(), settings))
             .ToList();
     }
 
@@ -103,10 +103,10 @@ internal static class BossSplitDefinitions
         return unit is not null;
     }
 
-    private static BossSplitDefinition BuildSplit(IReadOnlyList<BossUnitDefinition> units)
+    private static BossSplitDefinition BuildSplit(IReadOnlyList<BossUnitDefinition> units, AppSettings settings)
     {
         string id = GetSplitId(units);
-        string displayName = GetSplitDisplayName(units);
+        string displayName = GetSplitDisplayName(units, settings);
         return new BossSplitDefinition(
             id,
             displayName,
@@ -132,13 +132,13 @@ internal static class BossSplitDefinitions
         return string.Join("+", units.Select(unit => unit.Id));
     }
 
-    private static string GetSplitDisplayName(IReadOnlyList<BossUnitDefinition> units)
+    private static string GetSplitDisplayName(IReadOnlyList<BossUnitDefinition> units, AppSettings settings)
     {
         return units.Count == 1
-            ? units[0].DisplayName
+            ? Localizer.Get(units[0].DisplayName, settings)
             : GetSplitId(units) == RemainingMechs
-                ? "Mechanical Bosses"
-                : string.Join(" / ", units.Select(unit => unit.DisplayName));
+                ? Localizer.Get("Mechanical Bosses", settings)
+                : string.Join(" / ", units.Select(unit => Localizer.Get(unit.DisplayName, settings)));
     }
 
     private static int GetUnitOrder(string bossId)

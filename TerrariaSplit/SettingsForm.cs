@@ -17,6 +17,7 @@ internal sealed class SettingsForm : Form
     private readonly HotkeyTextBox pauseKeyBox = new();
     private readonly HotkeyTextBox resetKeyBox = new();
     private readonly HotkeyTextBox mouseClickThroughKeyBox = new();
+    private readonly ComboBox languageBox = new();
     private readonly CheckBox alwaysOnTopBox = new();
     private readonly CheckBox practiceModeBox = new();
     private readonly ComboBox referenceSetBox = new();
@@ -35,7 +36,7 @@ internal sealed class SettingsForm : Form
     {
         settings = AppSettingsStore.Clone(currentSettings);
 
-        Text = "TerrariaSplit Settings";
+        Text = Localizer.Get("TerrariaSplit Settings", settings);
         StartPosition = FormStartPosition.CenterParent;
         FormBorderStyle = FormBorderStyle.SizableToolWindow;
         MinimizeBox = false;
@@ -197,8 +198,19 @@ internal sealed class SettingsForm : Form
         ConfigureKeyBox(resetKeyBox, settings.ResetKeys);
         ConfigureKeyBox(mouseClickThroughKeyBox, settings.MouseClickThroughKeys);
 
-        TableLayoutPanel section = CreateSection("Hotkeys");
+        languageBox.DropDownStyle = ComboBoxStyle.DropDownList;
+        languageBox.FlatStyle = FlatStyle.Flat;
+        languageBox.BackColor = FieldColor;
+        languageBox.ForeColor = TextColor;
+        languageBox.Dock = DockStyle.Fill;
+        languageBox.Margin = new Padding(0, 4, 8, 4);
+        languageBox.Items.Add("English");
+        languageBox.Items.Add("中文");
+        languageBox.SelectedItem = settings.Language is "中文" ? "中文" : "English";
+
+        TableLayoutPanel section = CreateSection("General Options");
         TableLayoutPanel grid = CreateGrid(2, 42f, 58f);
+        AddSettingRow(grid, "Language", languageBox);
         AddSettingRow(grid, "Pause / Resume", pauseKeyBox);
         AddSettingRow(grid, "Reset at Menu", resetKeyBox);
         AddSettingRow(grid, "Mouse passthrough", mouseClickThroughKeyBox);
@@ -276,7 +288,7 @@ internal sealed class SettingsForm : Form
         grid.Controls.Add(boldBox, 3, row);
     }
 
-    private static void AddColumnSettingsHeader(TableLayoutPanel grid)
+    private void AddColumnSettingsHeader(TableLayoutPanel grid)
     {
         int row = grid.RowCount++;
         grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 30f));
@@ -343,7 +355,7 @@ internal sealed class SettingsForm : Form
         foreach (BossUnitDefinition unit in BossSplitDefinitions.Units)
         {
             var textBox = CreateTextBox(settings.GetBossIconPath(unit.Id));
-            textBox.PlaceholderText = "empty = bundled icon";
+            textBox.PlaceholderText = Localizer.Get("empty = bundled icon", settings);
             bossIconTextBoxes[unit.Id] = textBox;
 
             Button browseButton = CreateButton("Browse", accent: false);
@@ -353,7 +365,7 @@ internal sealed class SettingsForm : Form
 
             int row = grid.RowCount++;
             grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 40f));
-            grid.Controls.Add(CreateRowLabel(unit.DisplayName), 0, row);
+            grid.Controls.Add(CreateRowLabel(Localizer.Get(unit.DisplayName, settings)), 0, row);
             grid.Controls.Add(textBox, 1, row);
             grid.Controls.Add(browseButton, 2, row);
         }
@@ -368,7 +380,7 @@ internal sealed class SettingsForm : Form
 
         TableLayoutPanel selectorGrid = CreateGrid(4, 20f, 38f, 22f, 20f);
         ConfigureReferenceSetBox();
-        newReferenceSetNameBox.PlaceholderText = "new group name";
+        newReferenceSetNameBox.PlaceholderText = Localizer.Get("new group name", settings);
         newReferenceSetNameBox.BackColor = FieldColor;
         newReferenceSetNameBox.BorderStyle = BorderStyle.FixedSingle;
         newReferenceSetNameBox.Dock = DockStyle.Fill;
@@ -398,7 +410,7 @@ internal sealed class SettingsForm : Form
             var textBox = CreateTextBox(settings.GetReferenceText(unit.Id));
             textBox.PlaceholderText = "m:ss or h:mm:ss";
             splitTextBoxes[unit.Id] = textBox;
-            AddSettingRow(grid, unit.DisplayName, textBox);
+            AddSettingRow(grid, Localizer.Get(unit.DisplayName, settings), textBox);
         }
 
         AddSectionControl(section, grid);
@@ -425,7 +437,7 @@ internal sealed class SettingsForm : Form
         AddSection(parent, section);
     }
 
-    private static TableLayoutPanel CreateSection(string title)
+    private TableLayoutPanel CreateSection(string title)
     {
         var section = new TableLayoutPanel
         {
@@ -446,7 +458,7 @@ internal sealed class SettingsForm : Form
             Font = new Font("Segoe UI", 10.5f, FontStyle.Bold),
             ForeColor = TextColor,
             Margin = new Padding(0, 0, 0, 10),
-            Text = title
+            Text = Localizer.Get(title, settings)
         };
         AddSectionControl(section, label);
         return section;
@@ -472,13 +484,13 @@ internal sealed class SettingsForm : Form
         return grid;
     }
 
-    private static TabPage CreateTabPage(string text)
+    private TabPage CreateTabPage(string text)
     {
         return new TabPage
         {
             BackColor = WindowColor,
             ForeColor = TextColor,
-            Text = text
+            Text = Localizer.Get(text, settings)
         };
     }
 
@@ -602,7 +614,7 @@ internal sealed class SettingsForm : Form
         numericBox.Value = Math.Clamp(value, minimum, maximum);
     }
 
-    private static void AddSettingRow(TableLayoutPanel grid, string label, Control control)
+    private void AddSettingRow(TableLayoutPanel grid, string label, Control control)
     {
         int row = grid.RowCount++;
         grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 40f));
@@ -627,14 +639,14 @@ internal sealed class SettingsForm : Form
         grid.Controls.Add(pickButton, 2, row);
     }
 
-    private static Label CreateRowLabel(string text)
+    private Label CreateRowLabel(string text)
     {
         return new Label
         {
             Dock = DockStyle.Fill,
             ForeColor = MutedTextColor,
             Margin = new Padding(0, 0, 12, 0),
-            Text = text,
+            Text = Localizer.Get(text, settings),
             TextAlign = ContentAlignment.MiddleLeft
         };
     }
@@ -652,7 +664,7 @@ internal sealed class SettingsForm : Form
         };
     }
 
-    private static Button CreateButton(string text, bool accent)
+    private Button CreateButton(string text, bool accent)
     {
         var button = new Button
         {
@@ -661,7 +673,7 @@ internal sealed class SettingsForm : Form
             ForeColor = TextColor,
             Height = 34,
             Margin = new Padding(8, 0, 0, 0),
-            Text = text,
+            Text = Localizer.Get(text, settings),
             UseVisualStyleBackColor = false,
             Width = 94
         };
@@ -672,7 +684,7 @@ internal sealed class SettingsForm : Form
         return button;
     }
 
-    private static FlowLayoutPanel CreateButtonPanel(params Button[] buttons)
+    private FlowLayoutPanel CreateButtonPanel(params Button[] buttons)
     {
         var panel = new FlowLayoutPanel
         {
@@ -828,6 +840,7 @@ internal sealed class SettingsForm : Form
 
     private void ApplyToSettings()
     {
+        settings.Language = languageBox.SelectedItem as string ?? "English";
         settings.PauseResumeKey = pauseKeyBox.Hotkey.ToString();
         settings.ResetKey = resetKeyBox.Hotkey.ToString();
         settings.MouseClickThroughKey = mouseClickThroughKeyBox.Hotkey.ToString();
@@ -991,7 +1004,7 @@ internal sealed class SettingsForm : Form
             NumericUpDown segmentBox = CreateDecimalBoxForSegment(Math.Clamp(entry.Segment, 1m, 99m), 1m, 99m, 0.1m);
 
             routeControls[unit.Id] = new RouteControls(enabledBox, segmentBox);
-            grid.Controls.Add(CreateRowLabel(unit.DisplayName), 0, row);
+            grid.Controls.Add(CreateRowLabel(Localizer.Get(unit.DisplayName, settings)), 0, row);
             grid.Controls.Add(enabledBox, 1, row);
             grid.Controls.Add(segmentBox, 2, row);
         }

@@ -45,9 +45,7 @@ internal sealed class MainForm : Form
         TransparencyKey = TransparentKeyColor;
         Padding = Padding.Empty;
 
-        contextMenu.Items.Add("Settings...", null, (_, _) => OpenSettings());
-        contextMenu.Items.Add(new ToolStripSeparator());
-        contextMenu.Items.Add("Exit", null, (_, _) => Close());
+        UpdateContextMenu();
         contextMenu.Opening += (_, e) =>
         {
             if (settings.PracticeMode && IsEditablePracticePoint(PointToClient(Cursor.Position)))
@@ -60,6 +58,14 @@ internal sealed class MainForm : Form
         uiTimer.Interval = 50;
         uiTimer.Tick += (_, _) => Tick();
         uiTimer.Start();
+    }
+
+    private void UpdateContextMenu()
+    {
+        contextMenu.Items.Clear();
+        contextMenu.Items.Add(Localizer.Get("Settings...", settings), null, (_, _) => OpenSettings());
+        contextMenu.Items.Add(new ToolStripSeparator());
+        contextMenu.Items.Add(Localizer.Get("Exit", settings), null, (_, _) => Close());
     }
 
     protected override void OnFormClosed(FormClosedEventArgs e)
@@ -407,7 +413,7 @@ internal sealed class MainForm : Form
         if (TryGetTimerRect(out Rectangle timerRect) && timerRect.Contains(point))
         {
             string currentText = TimeText.FormatRecord(runTimer.Elapsed);
-            if (!PromptForTime("Edit total time", currentText, allowEmpty: false, out string? editedText) ||
+            if (!PromptForTime(Localizer.Get("Edit total time", settings), currentText, allowEmpty: false, out string? editedText) ||
                 !TimeText.TryParse(editedText, out TimeSpan editedTime))
             {
                 return;
@@ -440,7 +446,7 @@ internal sealed class MainForm : Form
     private void EditPracticeSplitTime(int rowIndex, BossSplitStatus status)
     {
         string currentText = status.Time is TimeSpan time ? TimeText.FormatRecord(time) : string.Empty;
-        if (!PromptForTime("Edit split time", currentText, allowEmpty: true, out string? editedText))
+        if (!PromptForTime(Localizer.Get("Edit split time", settings), currentText, allowEmpty: true, out string? editedText))
         {
             return;
         }
@@ -842,6 +848,7 @@ internal sealed class MainForm : Form
         ResetRun();
         TopMost = settings.AlwaysOnTop;
         Width = Math.Max(MinimumSize.Width, GetDefaultWindowWidth(settings));
+        UpdateContextMenu();
         ClearIconCache();
         Invalidate();
     }
