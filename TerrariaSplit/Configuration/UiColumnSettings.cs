@@ -10,6 +10,8 @@ internal sealed class UiColumnSettings
 
 internal sealed class UiColumnLayoutSettings
 {
+    public int ScalePercent { get; set; } = 100;
+
     public UiColumnSettings Icon { get; set; } = new()
     {
         Show = true,

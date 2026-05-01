@@ -37,13 +37,14 @@ internal static class RunStatsStore
 
     public static void RecordRun(IReadOnlyList<BossSplitStatus> statuses)
     {
-        if (statuses.Count == 0 || statuses.Any(status => status.IsSkipped || status.Time is null))
+        if (statuses.Count == 0 || statuses.All(status => status.Time is null))
         {
             return;
         }
 
         RunStats stats = Load();
         stats.LastRunSplits.Clear();
+        BossSplitStatus? lastCompleted = null;
 
         foreach (BossSplitStatus status in statuses)
         {
@@ -52,13 +53,14 @@ internal static class RunStatsStore
                 continue;
             }
 
+            lastCompleted = status;
             foreach (string bossId in status.Definition.BossIds)
             {
                 stats.LastRunSplits[bossId] = TimeText.FormatRecord(splitTime);
             }
         }
 
-        SplitTimeSetStore.SaveLastRun(stats.LastRunSplits);
+        SplitTimeSetStore.SaveLastRun(stats.LastRunSplits, lastCompleted?.Definition.DisplayName, lastCompleted?.Time);
         Save(stats);
     }
 

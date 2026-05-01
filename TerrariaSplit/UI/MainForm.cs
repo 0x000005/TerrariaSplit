@@ -37,8 +37,8 @@ internal sealed class MainForm : Form
         FormBorderStyle = FormBorderStyle.None;
         ShowInTaskbar = true;
         StartPosition = FormStartPosition.CenterScreen;
-        MinimumSize = new Size(300, 420);
-        Size = new Size(GetDefaultWindowWidth(settings), 720);
+        MinimumSize = GetMinimumWindowSize(settings);
+        Size = new Size(GetDefaultWindowWidth(settings), GetDefaultWindowHeight(settings));
         DoubleBuffered = true;
         ResizeRedraw = true;
         BackColor = TransparentKeyColor;
@@ -350,7 +350,7 @@ internal sealed class MainForm : Form
         AddColumn(visibleColumns, SplitColumn.Time, settings.Columns.Time);
         AddColumn(visibleColumns, SplitColumn.Delta, settings.Columns.Delta);
 
-        int requestedWidth = visibleColumns.Sum(column => column.Width);
+        int requestedWidth = visibleColumns.Sum(column => ScaleInt(column.Width));
         float scale = requestedWidth > rect.Width && requestedWidth > 0
             ? rect.Width / (float)requestedWidth
             : 1f;
@@ -365,7 +365,7 @@ internal sealed class MainForm : Form
             ColumnWidth column = visibleColumns[i];
             int width = i == visibleColumns.Count - 1
                 ? rect.Right - x
-                : Math.Max(1, (int)Math.Round(column.Width * scale));
+                : Math.Max(1, (int)Math.Round(ScaleInt(column.Width) * scale));
             var columnRect = new Rectangle(x, rect.Y, width, rect.Height);
             x += width;
 
@@ -490,30 +490,31 @@ internal sealed class MainForm : Form
         layout = default;
         IReadOnlyList<BossSplitStatus> statuses = splitTracker.Statuses;
 
-        const int margin = 12;
+        int margin = ScaleInt(12);
         Rectangle bounds = ClientRectangle;
-        if (bounds.Width < 160 || bounds.Height < 160)
+        if (bounds.Width < ScaleInt(160) || bounds.Height < ScaleInt(160))
         {
             return false;
         }
 
         Rectangle content = Rectangle.Inflate(bounds, -margin, -margin);
-        int timerHeight = Math.Clamp((int)(content.Height * 0.17), 82, 110);
-        int listSpace = content.Height - timerHeight - 10;
+        int timerHeight = Math.Clamp((int)(content.Height * 0.17), ScaleInt(82), ScaleInt(110));
+        int rowGap = ScaleInt(RowGap);
+        int listSpace = content.Height - timerHeight - ScaleInt(10);
         int rowHeight = Math.Clamp(
-            (listSpace - Math.Max(0, statuses.Count - 1) * RowGap) / Math.Max(1, statuses.Count),
-            42,
-            58);
+            (listSpace - Math.Max(0, statuses.Count - 1) * rowGap) / Math.Max(1, statuses.Count),
+            ScaleInt(42),
+            ScaleInt(58));
         if (rowHeight <= 0)
         {
             return false;
         }
 
-        int timerY = content.Y + statuses.Count * rowHeight + Math.Max(0, statuses.Count - 1) * RowGap + 2;
+        int timerY = content.Y + statuses.Count * rowHeight + Math.Max(0, statuses.Count - 1) * rowGap + ScaleInt(2);
         layout = new SplitLayout(
-            new Rectangle(content.X + 2, content.Y, content.Width - 4, rowHeight),
+            new Rectangle(content.X + ScaleInt(2), content.Y, content.Width - ScaleInt(4), rowHeight),
             new Rectangle(content.X, timerY, content.Width, timerHeight),
-            RowGap);
+            rowGap);
         return true;
     }
 
@@ -527,7 +528,7 @@ internal sealed class MainForm : Form
 
     private Font GetColumnFont(UiColumnSettings columnSettings, bool forceBold = false)
     {
-        float size = Math.Clamp(columnSettings.FontSize, 6f, 48f);
+        float size = Math.Clamp(columnSettings.FontSize * GetScaleFactor(), 6f, 144f);
         bool bold = forceBold || columnSettings.Bold;
         var key = new FontKey(size, bold);
         if (fontCache.TryGetValue(key, out Font? font))
@@ -542,11 +543,26 @@ internal sealed class MainForm : Form
 
     private static int GetDefaultWindowWidth(AppSettings settings)
     {
+        float scale = Math.Clamp(settings.Columns.ScalePercent, 25, 300) / 100f;
         int columnsWidth = 0;
-        columnsWidth += settings.Columns.Icon.Show ? settings.Columns.Icon.Width : 0;
-        columnsWidth += settings.Columns.Time.Show ? settings.Columns.Time.Width : 0;
-        columnsWidth += settings.Columns.Delta.Show ? settings.Columns.Delta.Width : 0;
-        return Math.Clamp(columnsWidth + 28, 300, 1200);
+        columnsWidth += settings.Columns.Icon.Show ? (int)Math.Round(settings.Columns.Icon.Width * scale) : 0;
+        columnsWidth += settings.Columns.Time.Show ? (int)Math.Round(settings.Columns.Time.Width * scale) : 0;
+        columnsWidth += settings.Columns.Delta.Show ? (int)Math.Round(settings.Columns.Delta.Width * scale) : 0;
+        return Math.Clamp(columnsWidth + (int)Math.Round(28 * scale), 300, 2400);
+    }
+
+    private static int GetDefaultWindowHeight(AppSettings settings)
+    {
+        float scale = Math.Clamp(settings.Columns.ScalePercent, 25, 300) / 100f;
+        return Math.Clamp((int)Math.Round(720 * scale), 420, 2160);
+    }
+
+    private static Size GetMinimumWindowSize(AppSettings settings)
+    {
+        float scale = Math.Clamp(settings.Columns.ScalePercent, 25, 300) / 100f;
+        return new Size(
+            Math.Clamp((int)Math.Round(300 * scale), 220, 1800),
+            Math.Clamp((int)Math.Round(420 * scale), 260, 1600));
     }
 
     private void DrawIcons(Graphics graphics, Rectangle rect, BossSplitStatus status)
@@ -563,7 +579,7 @@ internal sealed class MainForm : Form
             IconPair icon = LoadIconPair(definition, definition.IconFileNames[0]);
             bool lit = IsIconLit(status, 0);
             int singleIconSize = Math.Min(
-                Math.Min(Math.Max(12, (int)Math.Round(settings.Columns.Icon.FontSize)), rect.Height),
+                Math.Min(Math.Max(12, ScaleInt((int)Math.Round(settings.Columns.Icon.FontSize))), rect.Height),
                 rect.Width);
             var iconRect = new Rectangle(
                 rect.Right - singleIconSize,
@@ -574,9 +590,9 @@ internal sealed class MainForm : Form
             return;
         }
 
-        int iconGap = 6;
+        int iconGap = ScaleInt(6);
         int size = Math.Min(
-            Math.Min(Math.Max(12, (int)Math.Round(settings.Columns.Icon.FontSize)), rect.Height),
+            Math.Min(Math.Max(12, ScaleInt((int)Math.Round(settings.Columns.Icon.FontSize))), rect.Height),
             Math.Max(12, (rect.Width - Math.Max(0, count - 1) * iconGap) / count));
         int totalWidth = count * size + (count - 1) * iconGap;
         int startX = rect.Right - totalWidth;
@@ -612,9 +628,11 @@ internal sealed class MainForm : Form
 
     private void DrawTimer(Graphics graphics, Rectangle rect, UiPalette palette)
     {
-        var timeRect = new Rectangle(rect.X + 4 + settings.Columns.TimerOffsetX, rect.Y - 4 + settings.Columns.TimerOffsetY, rect.Width - 8, rect.Height - 16);
+        int offsetX = ScaleInt(settings.Columns.TimerOffsetX);
+        int offsetY = ScaleInt(settings.Columns.TimerOffsetY);
+        var timeRect = new Rectangle(rect.X + ScaleInt(4) + offsetX, rect.Y - ScaleInt(4) + offsetY, rect.Width - ScaleInt(8), rect.Height - ScaleInt(16));
         using var timerTextBrush = new SolidBrush(GetTimerTextColor(palette));
-        DrawTimerText(graphics, runTimer.Elapsed, timerTextBrush, timeRect, GetTimerMainRightEdge() + settings.Columns.TimerOffsetX);
+        DrawTimerText(graphics, runTimer.Elapsed, timerTextBrush, timeRect, GetTimerMainRightEdge() + offsetX);
     }
 
     private string FormatReferenceTime(BossSplitDefinition definition)
@@ -709,7 +727,7 @@ internal sealed class MainForm : Form
             ? graphics.MeasureString(mainText, mainFont, bounds.Size, format)
             : SizeF.Empty;
 
-        float gap = settings.Columns.Timer.Show && settings.Columns.TimerMilliseconds.Show ? 2f : 0f;
+        float gap = settings.Columns.Timer.Show && settings.Columns.TimerMilliseconds.Show ? ScaleInt(2) : 0f;
         FontMetrics mainMetrics = GetFontMetrics(graphics, mainFont);
         FontMetrics millisecondsMetrics = GetFontMetrics(graphics, millisecondsFont);
         float groupAscent = Math.Max(mainMetrics.Ascent, millisecondsMetrics.Ascent);
@@ -743,6 +761,27 @@ internal sealed class MainForm : Form
         float ascent = family.GetCellAscent(style) * pixelsPerEm / emHeight;
         float descent = family.GetCellDescent(style) * pixelsPerEm / emHeight;
         return new FontMetrics(ascent, descent);
+    }
+
+    private float GetScaleFactor()
+    {
+        return Math.Clamp(settings.Columns.ScalePercent, 25, 300) / 100f;
+    }
+
+    private int ScaleInt(int value)
+    {
+        if (value == 0)
+        {
+            return 0;
+        }
+
+        int scaled = (int)Math.Round(value * GetScaleFactor(), MidpointRounding.AwayFromZero);
+        if (scaled == 0)
+        {
+            return value < 0 ? -1 : 1;
+        }
+
+        return scaled;
     }
 
     private Color GetTimerTextColor(UiPalette palette)
@@ -854,7 +893,9 @@ internal sealed class MainForm : Form
         splitTracker.SetDefinitions(BossSplitDefinitions.Build(settings));
         ResetRun();
         TopMost = settings.AlwaysOnTop;
+        MinimumSize = GetMinimumWindowSize(settings);
         Width = Math.Max(MinimumSize.Width, GetDefaultWindowWidth(settings));
+        Height = Math.Max(MinimumSize.Height, GetDefaultWindowHeight(settings));
         UpdateContextMenu();
         ClearIconCache();
         Invalidate();

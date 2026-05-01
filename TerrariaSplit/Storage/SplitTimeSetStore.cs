@@ -32,9 +32,9 @@ internal static class SplitTimeSetStore
             .ToList();
     }
 
-    public static void SaveLastRun(Dictionary<string, string> splits)
+    public static void SaveLastRun(Dictionary<string, string> splits, string? lastBossName = null, TimeSpan? runDuration = null)
     {
-        string name = DateTime.Now.ToString("yyyyMMdd-HHmmss-fff");
+        string name = BuildLastRunName(lastBossName, runDuration);
         SaveSet(LastRunDirectory, $"{name}.json", new ReferenceSplitSet
         {
             Name = name,
@@ -129,6 +129,23 @@ internal static class SplitTimeSetStore
     private static void SaveSet(string directory, string fileName, ReferenceSplitSet set)
     {
         JsonFileStore.Write(Path.Combine(directory, fileName), set, "split time set");
+    }
+
+    private static string BuildLastRunName(string? lastBossName, TimeSpan? runDuration)
+    {
+        string dateTime = DateTime.Now.ToString("yyyy-MM-dd-HH-mm-ss");
+        string bossName = string.IsNullOrWhiteSpace(lastBossName) ? "Unknown" : lastBossName.Trim();
+        string duration = runDuration is TimeSpan value ? FormatFileNameDuration(value) : "Unknown";
+        return SanitizeFileName($"{dateTime}-{bossName}-{duration}");
+    }
+
+    private static string FormatFileNameDuration(TimeSpan duration)
+    {
+        int hours = (int)duration.TotalHours;
+        string milliseconds = (duration.Milliseconds / 10).ToString("00");
+        return hours > 0
+            ? $"{hours}h{duration.Minutes:00}m{duration.Seconds:00}.{milliseconds}s"
+            : $"{duration.Minutes}m{duration.Seconds:00}.{milliseconds}s";
     }
 
     private static string SanitizeFileName(string name)

@@ -106,6 +106,7 @@ internal static class AppSettingsStore
         columns.Delta ??= defaults.Delta;
         columns.Timer ??= defaults.Timer;
         columns.TimerMilliseconds ??= defaults.TimerMilliseconds;
+        columns.ScalePercent = Math.Clamp(columns.ScalePercent, 25, 300);
 
         NormalizeColumn(columns.Icon, defaults.Icon);
         NormalizeColumn(columns.Time, defaults.Time);

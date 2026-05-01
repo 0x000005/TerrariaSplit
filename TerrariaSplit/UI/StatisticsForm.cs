@@ -29,8 +29,8 @@ internal sealed class StatisticsForm : Form
 
         Text = Localizer.Get("Statistics", settings);
         StartPosition = FormStartPosition.CenterParent;
-        Size = new Size(940, 540);
-        UiTheme.ConfigureForm(this, new Size(760, 420));
+        Size = new Size(1120, 680);
+        UiTheme.ConfigureForm(this, new Size(960, 540));
         Font = UiTheme.FormFont(9.5f);
         ShowInTaskbar = false;
 
@@ -47,7 +47,7 @@ internal sealed class StatisticsForm : Form
             RowCount = 2
         };
         UiTheme.EnableDoubleBuffering(content);
-        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 54f));
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 122f));
         content.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
         content.Controls.Add(CreateSelectorBar(), 0, 0);
 
@@ -63,18 +63,18 @@ internal sealed class StatisticsForm : Form
         var bar = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
-            ColumnCount = 4,
-            RowCount = 1,
-            Padding = new Padding(14, 10, 14, 8),
+            ColumnCount = 2,
+            RowCount = 2,
+            Padding = new Padding(18, 12, 18, 12),
             BackColor = WindowColor
         };
         UiTheme.EnableDoubleBuffering(bar);
-        bar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 118f));
         bar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50f));
-        bar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 118f));
         bar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50f));
+        bar.RowStyles.Add(new RowStyle(SizeType.Absolute, 50f));
+        bar.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
 
-        bar.Controls.Add(CreateSelectorLabel("Reference time"), 0, 0);
+        bar.Controls.Add(CreateSelectorLabel("Reference run"), 0, 0);
         ConfigureSelector(referenceTimeBox);
         foreach (ReferenceSplitSet timeSet in referenceTimeSets)
         {
@@ -86,9 +86,9 @@ internal sealed class StatisticsForm : Form
             referenceTimeBox.SelectedIndex = 0;
         }
         referenceTimeBox.SelectedIndexChanged += (_, _) => RefreshRows();
-        bar.Controls.Add(referenceTimeBox, 1, 0);
+        bar.Controls.Add(referenceTimeBox, 0, 1);
 
-        bar.Controls.Add(CreateSelectorLabel("Personal time"), 2, 0);
+        bar.Controls.Add(CreateSelectorLabel("Selected run"), 1, 0);
         ConfigureSelector(personalBestBox);
         foreach (ReferenceSplitSet timeSet in personalBestSets)
         {
@@ -99,7 +99,7 @@ internal sealed class StatisticsForm : Form
             personalBestBox.SelectedIndex = 0;
         }
         personalBestBox.SelectedIndexChanged += (_, _) => RefreshRows();
-        bar.Controls.Add(personalBestBox, 3, 0);
+        bar.Controls.Add(personalBestBox, 1, 1);
 
         return bar;
     }
@@ -111,7 +111,7 @@ internal sealed class StatisticsForm : Form
             Dock = DockStyle.Fill,
             ForeColor = TextColor,
             AutoEllipsis = true,
-            Margin = new Padding(0, 0, 10, 0),
+            Margin = new Padding(0, 0, 18, 0),
             Text = Localizer.Get(text, settings),
             TextAlign = ContentAlignment.MiddleLeft
         };
@@ -119,9 +119,11 @@ internal sealed class StatisticsForm : Form
 
     private static void ConfigureSelector(ComboBox comboBox)
     {
-        comboBox.Dock = DockStyle.Fill;
+        comboBox.Dock = DockStyle.None;
+        comboBox.Anchor = AnchorStyles.Left | AnchorStyles.Top | AnchorStyles.Right;
+        comboBox.Height = 26;
         UiTheme.StyleComboBox(comboBox);
-        comboBox.Margin = new Padding(0, 3, 14, 5);
+        comboBox.Margin = new Padding(0, 0, 18, 0);
     }
 
     private DataGridView CreateGrid()
@@ -146,11 +148,12 @@ internal sealed class StatisticsForm : Form
             RowHeadersVisible = true,
             RowHeadersWidth = 150,
             SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-            RowTemplate = { Height = 34 },
-            ColumnHeadersHeight = 38,
+            RowTemplate = { Height = 40 },
+            ColumnHeadersHeight = 44,
             ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing
         };
         UiTheme.EnableDoubleBuffering(grid);
+        grid.CellPainting += PaintRowHeader;
         grid.CellPainting += PaintMergedSegmentCell;
 
         grid.ColumnHeadersDefaultCellStyle.BackColor = HeaderColor;
@@ -159,7 +162,7 @@ internal sealed class StatisticsForm : Form
         grid.ColumnHeadersDefaultCellStyle.SelectionForeColor = TextColor;
         grid.DefaultCellStyle.BackColor = GridColor;
         grid.DefaultCellStyle.ForeColor = TextColor;
-        grid.DefaultCellStyle.SelectionBackColor = UiTheme.Selection;
+        grid.DefaultCellStyle.SelectionBackColor = GridColor;
         grid.DefaultCellStyle.SelectionForeColor = TextColor;
         grid.DefaultCellStyle.Padding = new Padding(6, 0, 6, 0);
         grid.RowHeadersDefaultCellStyle.BackColor = HeaderColor;
@@ -168,12 +171,12 @@ internal sealed class StatisticsForm : Form
         grid.RowHeadersDefaultCellStyle.SelectionForeColor = TextColor;
         grid.ColumnHeadersDefaultCellStyle.Padding = new Padding(6, 0, 6, 0);
 
-        grid.Columns.Add("ReferenceTime", Localizer.Get("Reference time", settings));
-        grid.Columns.Add("PersonalTime", Localizer.Get("Personal time", settings));
-        grid.Columns.Add("PersonalBest", Localizer.Get("Personal best", settings));
-        grid.Columns.Add("ReferenceSegment", Localizer.Get("Reference segment", settings));
-        grid.Columns.Add("PersonalSegment", Localizer.Get("Personal segment", settings));
-        grid.Columns.Add("PersonalBestSegment", Localizer.Get("Personal best segment", settings));
+        grid.Columns.Add("ReferenceTime", Localizer.Get("Reference time column", settings));
+        grid.Columns.Add("PersonalTime", Localizer.Get("Selected run time column", settings));
+        grid.Columns.Add("PersonalBest", Localizer.Get("Personal best time column", settings));
+        grid.Columns.Add("ReferenceSegment", Localizer.Get("Reference segment time column", settings));
+        grid.Columns.Add("PersonalSegment", Localizer.Get("Selected run segment time column", settings));
+        grid.Columns.Add("PersonalBestSegment", Localizer.Get("Personal best segment time column", settings));
         foreach (DataGridViewColumn column in grid.Columns)
         {
             column.SortMode = DataGridViewColumnSortMode.NotSortable;
@@ -212,6 +215,40 @@ internal sealed class StatisticsForm : Form
             grid.Rows[rowIndex].HeaderCell.Value = Localizer.Get("No splits", settings);
             grid.Rows[rowIndex].DefaultCellStyle.ForeColor = MutedTextColor;
         }
+    }
+
+    private void PaintRowHeader(object? sender, DataGridViewCellPaintingEventArgs e)
+    {
+        if (sender is not DataGridView grid ||
+            e.Graphics is not Graphics graphics ||
+            e.RowIndex < 0 ||
+            e.ColumnIndex != -1)
+        {
+            return;
+        }
+
+        string text = grid.Rows[e.RowIndex].HeaderCell.Value?.ToString() ?? string.Empty;
+        using (var brush = new SolidBrush(HeaderColor))
+        {
+            graphics.FillRectangle(brush, e.CellBounds);
+        }
+
+        Rectangle textBounds = Rectangle.Inflate(e.CellBounds, -6, 0);
+        TextRenderer.DrawText(
+            graphics,
+            text,
+            e.CellStyle.Font,
+            textBounds,
+            TextColor,
+            TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.EndEllipsis);
+
+        using (var pen = new Pen(BorderColor))
+        {
+            graphics.DrawLine(pen, e.CellBounds.Left, e.CellBounds.Bottom - 1, e.CellBounds.Right, e.CellBounds.Bottom - 1);
+            graphics.DrawLine(pen, e.CellBounds.Right - 1, e.CellBounds.Top, e.CellBounds.Right - 1, e.CellBounds.Bottom);
+        }
+
+        e.Handled = true;
     }
 
     private ReferenceSplitSet GetSelectedReferenceTimeSet()
