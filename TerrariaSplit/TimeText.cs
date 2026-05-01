@@ -64,7 +64,7 @@ internal static class TimeText
 
     public static string FormatDelta(TimeSpan delta)
     {
-        string sign = delta < TimeSpan.Zero ? "-" : "+";
+        string sign = delta < TimeSpan.Zero ? "\u2212" : "+";
         TimeSpan value = delta.Duration();
         int hours = (int)value.TotalHours;
 

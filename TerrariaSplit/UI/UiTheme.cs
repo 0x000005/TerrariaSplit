@@ -7,6 +7,8 @@ namespace TerrariaSplit;
 
 internal static class UiTheme
 {
+    public const string FontFamilyName = "Segoe UI";
+
     public static readonly Color Window = Color.FromArgb(18, 22, 25);
     public static readonly Color Surface = Color.FromArgb(28, 34, 38);
     public static readonly Color SurfaceRaised = Color.FromArgb(37, 45, 50);
@@ -21,7 +23,7 @@ internal static class UiTheme
 
     public static Font FormFont(float size = 10f, FontStyle style = FontStyle.Regular)
     {
-        return new Font("Segoe UI", size, style);
+        return new Font(FontFamilyName, size, style);
     }
 
     public static void ConfigureForm(Form form, Size minimumSize)

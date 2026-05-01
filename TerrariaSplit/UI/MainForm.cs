@@ -536,7 +536,7 @@ internal sealed class MainForm : Form
             return font;
         }
 
-        font = new Font("Segoe UI", size, bold ? FontStyle.Bold : FontStyle.Regular);
+        font = new Font(UiTheme.FontFamilyName, size, bold ? FontStyle.Bold : FontStyle.Regular);
         fontCache[key] = font;
         return font;
     }
