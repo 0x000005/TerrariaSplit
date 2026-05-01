@@ -14,6 +14,8 @@ internal sealed class AppSettings
     public Dictionary<string, string> BossIconPaths { get; set; } = new();
     public List<ReferenceSplitSet> ReferenceSplitSets { get; set; } = new();
     public string ActiveReferenceSplitSet { get; set; } = "WR";
+    public Dictionary<string, string> PersonalBestTimes { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<string, string> PersonalBestSegmentTimes { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public UiColorSettings Colors { get; set; } = new();
     public UiColumnLayoutSettings Columns { get; set; } = new();
     public int UndefeatedIconGrayscalePercent { get; set; } = 80;
@@ -69,6 +71,16 @@ internal sealed class AppSettings
         return GetActiveReferenceSet().Splits.TryGetValue(name, out string? value) ? value : string.Empty;
     }
 
+    public string GetPersonalBestTimeText(string name)
+    {
+        return PersonalBestTimes.TryGetValue(name, out string? value) ? value : string.Empty;
+    }
+
+    public string GetPersonalBestSegmentText(string name)
+    {
+        return PersonalBestSegmentTimes.TryGetValue(name, out string? value) ? value : string.Empty;
+    }
+
     public string GetBossIconPath(string name)
     {
         return BossIconPaths.TryGetValue(name, out string? value) ? value : string.Empty;
@@ -82,6 +94,16 @@ internal sealed class AppSettings
     public void SetReferenceText(string name, string value)
     {
         GetActiveReferenceSet().Splits[name] = value;
+    }
+
+    public void SetPersonalBestTimeText(string name, string value)
+    {
+        PersonalBestTimes[name] = value;
+    }
+
+    public void SetPersonalBestSegmentText(string name, string value)
+    {
+        PersonalBestSegmentTimes[name] = value;
     }
 
     private static Keys ParseKey(string? value, Keys fallback)

@@ -49,4 +49,7 @@ internal sealed class UiColumnLayoutSettings
         FontSize = 18f,
         Bold = true
     };
+
+    public int TimerOffsetX { get; set; } = 0;
+    public int TimerOffsetY { get; set; } = 0;
 }

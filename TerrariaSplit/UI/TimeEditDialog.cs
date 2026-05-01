@@ -5,11 +5,10 @@ namespace TerrariaSplit;
 
 internal static class TimeEditDialog
 {
-    public static bool TryShow(IWin32Window owner, string title, string value, bool allowEmpty, out string editedText)
+    public static bool TryShow(IWin32Window owner, AppSettings settings, string title, string value, bool allowEmpty, out string editedText)
     {
         editedText = value;
-        using var formFont = new Font("Segoe UI", 11f, FontStyle.Regular);
-        using var inputFont = new Font("Segoe UI", 14f, FontStyle.Regular);
+        using var inputFont = UiTheme.FormFont(14f);
         using var form = new Form
         {
             Text = title,
@@ -17,13 +16,9 @@ internal static class TimeEditDialog
             FormBorderStyle = FormBorderStyle.FixedToolWindow,
             MinimizeBox = false,
             MaximizeBox = false,
-            AutoScaleMode = AutoScaleMode.Dpi,
-            ClientSize = new Size(460, 170),
-            MinimumSize = new Size(460, 170),
-            BackColor = Color.FromArgb(20, 20, 23),
-            ForeColor = Color.Gainsboro,
-            Font = formFont
+            ClientSize = new Size(500, 178)
         };
+        UiTheme.ConfigureForm(form, new Size(500, 178));
 
         if (owner is Form ownerForm)
         {
@@ -36,7 +31,7 @@ internal static class TimeEditDialog
             BackColor = form.BackColor,
             ColumnCount = 1,
             RowCount = 2,
-            Padding = new Padding(14, 14, 14, 12)
+            Padding = new Padding(18, 18, 18, 14)
         };
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
@@ -46,35 +41,33 @@ internal static class TimeEditDialog
         {
             Text = value,
             Dock = DockStyle.Fill,
-            Margin = new Padding(0, 6, 0, 8),
-            BackColor = Color.FromArgb(40, 40, 47),
-            ForeColor = Color.Gainsboro,
-            BorderStyle = BorderStyle.FixedSingle,
             Font = inputFont
         };
+        UiTheme.StyleTextBox(textBox);
 
         var okButton = new Button
         {
-            Text = "OK",
-            DialogResult = DialogResult.OK,
-            Height = 32,
-            Width = 96
+            Text = Localizer.Get("OK", settings),
+            DialogResult = DialogResult.OK
         };
+        UiTheme.StyleButton(okButton, accent: true);
+
         var cancelButton = new Button
         {
-            Text = "Cancel",
-            DialogResult = DialogResult.Cancel,
-            Height = 32,
-            Width = 96
+            Text = Localizer.Get("Cancel", settings),
+            DialogResult = DialogResult.Cancel
         };
+        UiTheme.StyleButton(cancelButton);
+
         var buttons = new FlowLayoutPanel
         {
             Dock = DockStyle.Fill,
             FlowDirection = FlowDirection.RightToLeft,
             Margin = Padding.Empty,
-            Padding = new Padding(0, 8, 0, 0),
+            Padding = new Padding(0, 6, 0, 0),
             WrapContents = false
         };
+        UiTheme.EnableDoubleBuffering(buttons);
         buttons.Controls.Add(okButton);
         buttons.Controls.Add(cancelButton);
 

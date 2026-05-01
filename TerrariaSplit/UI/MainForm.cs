@@ -63,6 +63,7 @@ internal sealed class MainForm : Form
     private void UpdateContextMenu()
     {
         contextMenu.Items.Clear();
+        contextMenu.Items.Add(Localizer.Get("Statistics...", settings), null, (_, _) => OpenStatistics());
         contextMenu.Items.Add(Localizer.Get("Settings...", settings), null, (_, _) => OpenSettings());
         contextMenu.Items.Add(new ToolStripSeparator());
         contextMenu.Items.Add(Localizer.Get("Exit", settings), null, (_, _) => Close());
@@ -246,7 +247,7 @@ internal sealed class MainForm : Form
 
         if (Keyboard.PollPressed(settings.ResetKeys) && CanReset(snapshot))
         {
-            ResetRun();
+            ResetRun(recordStats: true);
             return;
         }
 
@@ -268,6 +269,7 @@ internal sealed class MainForm : Form
             {
                 if (splitTracker.CurrentIndex >= splitTracker.Statuses.Count)
                 {
+                    RunStatsStore.RecordRun(splitTracker.Statuses);
                     runTimer.Stop();
                 }
             }
@@ -337,7 +339,7 @@ internal sealed class MainForm : Form
                 GetColumnFont(settings.Columns.Delta),
                 compareBrush,
                 deltaRect,
-                ContentAlignment.MiddleRight);
+                ContentAlignment.MiddleLeft);
         }
     }
 
@@ -468,7 +470,7 @@ internal sealed class MainForm : Form
 
     private bool PromptForTime(string title, string value, bool allowEmpty, out string editedText)
     {
-        return TimeEditDialog.TryShow(this, title, value, allowEmpty, out editedText);
+        return TimeEditDialog.TryShow(this, settings, title, value, allowEmpty, out editedText);
     }
 
     private bool TryGetTimerRect(out Rectangle timerRect)
@@ -610,9 +612,9 @@ internal sealed class MainForm : Form
 
     private void DrawTimer(Graphics graphics, Rectangle rect, UiPalette palette)
     {
-        var timeRect = new Rectangle(rect.X + 4, rect.Y - 4, rect.Width - 8, rect.Height - 16);
+        var timeRect = new Rectangle(rect.X + 4 + settings.Columns.TimerOffsetX, rect.Y - 4 + settings.Columns.TimerOffsetY, rect.Width - 8, rect.Height - 16);
         using var timerTextBrush = new SolidBrush(GetTimerTextColor(palette));
-        DrawTimerText(graphics, runTimer.Elapsed, timerTextBrush, timeRect, GetTimerMainRightEdge());
+        DrawTimerText(graphics, runTimer.Elapsed, timerTextBrush, timeRect, GetTimerMainRightEdge() + settings.Columns.TimerOffsetX);
     }
 
     private string FormatReferenceTime(BossSplitDefinition definition)
@@ -716,10 +718,9 @@ internal sealed class MainForm : Form
         float groupY = bounds.Y + Math.Max(0, (bounds.Height - groupHeight) / 2f);
         float baselineY = groupY + groupAscent;
 
-        float mainRight = Math.Clamp(mainRightEdge, bounds.Left, bounds.Right);
-        float mainX = mainRight - mainSize.Width;
+        float mainX = bounds.Left;
         float mainY = baselineY - mainMetrics.Ascent;
-        float millisecondsX = mainRight + gap;
+        float millisecondsX = mainX + (settings.Columns.Timer.Show ? mainSize.Width : 0f) + gap;
         float millisecondsY = baselineY - millisecondsMetrics.Ascent;
 
         if (settings.Columns.Timer.Show)
@@ -837,12 +838,18 @@ internal sealed class MainForm : Form
     {
         using var form = new SettingsForm(settings);
         form.TopMost = TopMost;
+        form.Applied += (_, _) => ApplySettings(form.Result);
         if (form.ShowDialog(this) != DialogResult.OK)
         {
             return;
         }
 
-        settings = form.Result;
+        ApplySettings(form.Result);
+    }
+
+    private void ApplySettings(AppSettings appliedSettings)
+    {
+        settings = AppSettingsStore.Clone(appliedSettings);
         AppSettingsStore.Save(settings);
         splitTracker.SetDefinitions(BossSplitDefinitions.Build(settings));
         ResetRun();
@@ -853,8 +860,20 @@ internal sealed class MainForm : Form
         Invalidate();
     }
 
-    private void ResetRun()
+    private void OpenStatistics()
     {
+        using var form = new StatisticsForm(settings);
+        form.TopMost = TopMost;
+        form.ShowDialog(this);
+    }
+
+    private void ResetRun(bool recordStats = false)
+    {
+        if (recordStats)
+        {
+            RunStatsStore.RecordRun(splitTracker.Statuses);
+        }
+
         runTimer.Reset();
         splitTracker.Reset();
         Invalidate();

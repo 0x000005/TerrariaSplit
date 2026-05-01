@@ -5,13 +5,12 @@ namespace TerrariaSplit;
 
 internal sealed class SettingsForm : Form
 {
-    private static readonly Color WindowColor = Color.FromArgb(20, 20, 23);
-    private static readonly Color SectionColor = Color.FromArgb(29, 29, 34);
-    private static readonly Color FieldColor = Color.FromArgb(40, 40, 47);
-    private static readonly Color BorderColor = Color.FromArgb(74, 74, 84);
-    private static readonly Color AccentColor = Color.FromArgb(64, 126, 201);
-    private static readonly Color TextColor = Color.FromArgb(235, 235, 238);
-    private static readonly Color MutedTextColor = Color.FromArgb(166, 166, 174);
+    private static readonly Color WindowColor = UiTheme.Window;
+    private static readonly Color SectionColor = UiTheme.Surface;
+    private static readonly Color FieldColor = UiTheme.Field;
+    private static readonly Color BorderColor = UiTheme.Border;
+    private static readonly Color TextColor = UiTheme.Text;
+    private static readonly Color MutedTextColor = UiTheme.MutedText;
 
     private readonly AppSettings settings;
     private readonly HotkeyTextBox pauseKeyBox = new();
@@ -27,9 +26,15 @@ internal sealed class SettingsForm : Form
     private readonly Dictionary<string, RouteControls> routeControls = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, TextBox> bossIconTextBoxes = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, TextBox> splitTextBoxes = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, TextBox> personalBestTimeTextBoxes = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, TextBox> personalBestSegmentTextBoxes = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, TextBox> colorTextBoxes = new();
     private readonly Dictionary<string, ColumnControls> columnControls = new();
     private readonly Dictionary<string, FontControls> fontControls = new();
+    private readonly NumericUpDown timerOffsetXBox = new();
+    private readonly NumericUpDown timerOffsetYBox = new();
+    private TableLayoutPanel? personalBestTimeGrid;
+    private TableLayoutPanel? personalBestSegmentGrid;
     private bool updatingReferenceSetSelection;
 
     public SettingsForm(AppSettings currentSettings)
@@ -41,17 +46,15 @@ internal sealed class SettingsForm : Form
         FormBorderStyle = FormBorderStyle.SizableToolWindow;
         MinimizeBox = false;
         MaximizeBox = false;
-        AutoScaleMode = AutoScaleMode.Dpi;
-        MinimumSize = new Size(900, 700);
-        ClientSize = new Size(1060, 820);
-        BackColor = WindowColor;
-        ForeColor = TextColor;
-        Font = new Font("Segoe UI", 10f, FontStyle.Regular);
+        ClientSize = new Size(1100, 840);
+        UiTheme.ConfigureForm(this, new Size(940, 720));
 
         BuildLayout();
     }
 
     public AppSettings Result => settings;
+
+    public event EventHandler? Applied;
 
     private void BuildLayout()
     {
@@ -73,26 +76,32 @@ internal sealed class SettingsForm : Form
         {
             Dock = DockStyle.Fill,
             FlowDirection = FlowDirection.RightToLeft,
-            Padding = new Padding(16, 12, 16, 12),
+            Padding = new Padding(18, 13, 18, 13),
             BackColor = WindowColor
         };
+        UiTheme.EnableDoubleBuffering(footer);
 
         var okButton = CreateButton("OK", accent: true);
         okButton.DialogResult = DialogResult.OK;
         okButton.Click += (_, _) => ApplyToSettings();
 
+        var applyButton = CreateButton("Apply", accent: false);
+        applyButton.Click += (_, _) => ApplyAndNotify();
+
         var cancelButton = CreateButton("Cancel", accent: false);
         cancelButton.DialogResult = DialogResult.Cancel;
 
         footer.Controls.Add(okButton);
+        footer.Controls.Add(applyButton);
         footer.Controls.Add(cancelButton);
 
         var tabs = new TabControl
         {
             Dock = DockStyle.Fill,
             BackColor = WindowColor,
-            Padding = new Point(12, 6)
+            Padding = new Point(16, 8)
         };
+        UiTheme.EnableDoubleBuffering(tabs);
         tabs.TabPages.Add(CreateGeneralPage());
         tabs.TabPages.Add(CreateSplitsPage());
         tabs.TabPages.Add(CreateUiPage());
@@ -141,6 +150,7 @@ internal sealed class SettingsForm : Form
         AddRouteSection(content);
         AddBossIconSection(content);
         AddReferenceDataSection(content);
+        AddPersonalBestDataSection(content);
 
         var scrollPanel = CreateScrollPanel();
         scrollPanel.Controls.Add(content);
@@ -198,18 +208,14 @@ internal sealed class SettingsForm : Form
         ConfigureKeyBox(resetKeyBox, settings.ResetKeys);
         ConfigureKeyBox(mouseClickThroughKeyBox, settings.MouseClickThroughKeys);
 
-        languageBox.DropDownStyle = ComboBoxStyle.DropDownList;
-        languageBox.FlatStyle = FlatStyle.Flat;
-        languageBox.BackColor = FieldColor;
-        languageBox.ForeColor = TextColor;
+        UiTheme.StyleComboBox(languageBox);
         languageBox.Dock = DockStyle.Fill;
-        languageBox.Margin = new Padding(0, 4, 8, 4);
         languageBox.Items.Add("English");
         languageBox.Items.Add("中文");
         languageBox.SelectedItem = settings.Language is "中文" ? "中文" : "English";
 
         TableLayoutPanel section = CreateSection("General Options");
-        TableLayoutPanel grid = CreateGrid(2, 42f, 58f);
+        TableLayoutPanel grid = CreateGrid(2, 48f, 52f);
         AddSettingRow(grid, "Language", languageBox);
         AddSettingRow(grid, "Pause / Resume", pauseKeyBox);
         AddSettingRow(grid, "Reset at Menu", resetKeyBox);
@@ -220,6 +226,75 @@ internal sealed class SettingsForm : Form
         AddSettingRow(grid, "Practice mode", practiceModeBox);
         AddSectionControl(section, grid);
         AddSection(parent, section);
+    }
+
+    private void AddPersonalBestDataSection(TableLayoutPanel parent)
+    {
+        TableLayoutPanel section = CreateSection("Personal Best Data");
+
+        personalBestTimeGrid = CreateGrid(2, 48f, 52f);
+        PopulatePersonalBestTimeGrid();
+        AddSectionControl(section, CreateSubsectionLabel("Personal best"));
+        AddSectionControl(section, personalBestTimeGrid);
+
+        personalBestSegmentGrid = CreateGrid(2, 48f, 52f);
+        PopulatePersonalBestSegmentGrid();
+        AddSectionControl(section, CreateSubsectionLabel("Personal best segment"));
+        AddSectionControl(section, personalBestSegmentGrid);
+        AddSection(parent, section);
+    }
+
+    private void PopulatePersonalBestTimeGrid()
+    {
+        if (personalBestTimeGrid is null)
+        {
+            return;
+        }
+
+        ClearGrid(personalBestTimeGrid);
+        personalBestTimeTextBoxes.Clear();
+        foreach (BossRouteEntry entry in GetRouteOrderedEntries())
+        {
+            if (!BossSplitDefinitions.TryGetUnit(entry.BossId, out BossUnitDefinition unit))
+            {
+                continue;
+            }
+
+            var textBox = CreateTextBox(settings.GetPersonalBestTimeText(unit.Id));
+            textBox.PlaceholderText = "m:ss or h:mm:ss";
+            personalBestTimeTextBoxes[unit.Id] = textBox;
+            AddSettingRow(personalBestTimeGrid, Localizer.Get(unit.DisplayName, settings), textBox);
+        }
+    }
+
+    private void PopulatePersonalBestSegmentGrid()
+    {
+        if (personalBestSegmentGrid is null)
+        {
+            return;
+        }
+
+        ClearGrid(personalBestSegmentGrid);
+        personalBestSegmentTextBoxes.Clear();
+        foreach (RouteGroup group in BossRouteGroups.Build(settings))
+        {
+            var textBox = CreateTextBox(settings.GetPersonalBestSegmentText(group.Key));
+            textBox.PlaceholderText = "m:ss or h:mm:ss";
+            personalBestSegmentTextBoxes[group.Key] = textBox;
+            AddSettingRow(personalBestSegmentGrid, BossRouteGroups.GetGroupDisplayName(group, settings), textBox);
+        }
+    }
+
+    private static void ClearGrid(TableLayoutPanel grid)
+    {
+        foreach (Control control in grid.Controls.Cast<Control>().ToArray())
+        {
+            control.Dispose();
+        }
+
+        grid.Controls.Clear();
+        grid.RowStyles.Clear();
+        grid.RowCount = 0;
     }
 
     private void AddColumnSettingsSection(TableLayoutPanel parent)
@@ -242,7 +317,7 @@ internal sealed class SettingsForm : Form
         TableLayoutPanel grid = CreateGrid(4, 42f, 18f, 24f, 16f);
 
         int headerRow = grid.RowCount++;
-        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 30f));
+        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 34f));
         grid.Controls.Add(CreateRowLabel("Part"), 0, headerRow);
         grid.Controls.Add(CreateRowLabel("Show"), 1, headerRow);
         grid.Controls.Add(CreateRowLabel("Font"), 2, headerRow);
@@ -251,35 +326,45 @@ internal sealed class SettingsForm : Form
         AddFontSettingsRow(grid, "Main time", "Timer", settings.Columns.Timer);
         AddFontSettingsRow(grid, "Milliseconds", "TimerMilliseconds", settings.Columns.TimerMilliseconds);
 
+        ConfigureNumberBox(timerOffsetXBox, settings.Columns.TimerOffsetX, -2000, 2000, 1);
+        ConfigureNumberBox(timerOffsetYBox, settings.Columns.TimerOffsetY, -2000, 2000, 1);
+
+        TableLayoutPanel offsetGrid = CreateGrid(4, 25f, 25f, 25f, 25f);
+        int offsetRow = offsetGrid.RowCount++;
+        offsetGrid.RowStyles.Add(new RowStyle(SizeType.Absolute, 44f));
+        offsetGrid.Controls.Add(CreateRowLabel("Offset X"), 0, offsetRow);
+        offsetGrid.Controls.Add(timerOffsetXBox, 1, offsetRow);
+        offsetGrid.Controls.Add(CreateRowLabel("Offset Y"), 2, offsetRow);
+        offsetGrid.Controls.Add(timerOffsetYBox, 3, offsetRow);
+
         AddSectionControl(section, grid);
+        AddSectionControl(section, offsetGrid);
         AddSection(parent, section);
     }
 
     private void AddFontSettingsRow(TableLayoutPanel grid, string label, string key, UiColumnSettings value)
     {
         int row = grid.RowCount++;
-        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 40f));
+        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 44f));
 
         var showBox = new CheckBox
         {
             Checked = value.Show,
             Dock = DockStyle.Fill,
-            FlatStyle = FlatStyle.Flat,
             ForeColor = TextColor,
-            Margin = new Padding(0, 6, 0, 6),
             TextAlign = ContentAlignment.MiddleCenter
         };
+        UiTheme.StyleCheckBox(showBox);
 
         var fontBox = CreateDecimalBox(value.FontSize, 6, 96, 1);
         var boldBox = new CheckBox
         {
             Checked = value.Bold,
             Dock = DockStyle.Fill,
-            FlatStyle = FlatStyle.Flat,
             ForeColor = TextColor,
-            Margin = new Padding(0, 6, 0, 6),
             TextAlign = ContentAlignment.MiddleCenter
         };
+        UiTheme.StyleCheckBox(boldBox);
 
         fontControls[key] = new FontControls(showBox, fontBox, boldBox);
         grid.Controls.Add(CreateRowLabel(label), 0, row);
@@ -291,7 +376,7 @@ internal sealed class SettingsForm : Form
     private void AddColumnSettingsHeader(TableLayoutPanel grid)
     {
         int row = grid.RowCount++;
-        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 30f));
+        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 34f));
         grid.Controls.Add(CreateRowLabel("Column"), 0, row);
         grid.Controls.Add(CreateRowLabel("Show"), 1, row);
         grid.Controls.Add(CreateRowLabel("Width"), 2, row);
@@ -302,17 +387,16 @@ internal sealed class SettingsForm : Form
     private void AddColumnSettingsRow(TableLayoutPanel grid, string label, string key, UiColumnSettings value)
     {
         int row = grid.RowCount++;
-        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 40f));
+        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 44f));
 
         var showBox = new CheckBox
         {
             Checked = value.Show,
             Dock = DockStyle.Fill,
-            FlatStyle = FlatStyle.Flat,
             ForeColor = TextColor,
-            Margin = new Padding(0, 6, 0, 6),
             TextAlign = ContentAlignment.MiddleCenter
         };
+        UiTheme.StyleCheckBox(showBox);
 
         var widthBox = CreateNumberBox(value.Width, 1, 1000, 5);
         var fontBox = CreateDecimalBox(value.FontSize, 6, 96, 1);
@@ -320,11 +404,10 @@ internal sealed class SettingsForm : Form
         {
             Checked = value.Bold,
             Dock = DockStyle.Fill,
-            FlatStyle = FlatStyle.Flat,
             ForeColor = TextColor,
-            Margin = new Padding(0, 6, 0, 6),
             TextAlign = ContentAlignment.MiddleCenter
         };
+        UiTheme.StyleCheckBox(boldBox);
 
         columnControls[key] = new ColumnControls(showBox, widthBox, fontBox, boldBox);
         grid.Controls.Add(CreateRowLabel(label), 0, row);
@@ -340,7 +423,7 @@ internal sealed class SettingsForm : Form
         ConfigurePercentBox(undefeatedIconBrightnessBox, settings.UndefeatedIconBrightnessPercent);
 
         TableLayoutPanel section = CreateSection("Icon Style");
-        TableLayoutPanel grid = CreateGrid(2, 42f, 58f);
+        TableLayoutPanel grid = CreateGrid(2, 48f, 52f);
         AddSettingRow(grid, "Unlit grayscale %", undefeatedIconGrayscaleBox);
         AddSettingRow(grid, "Unlit brightness %", undefeatedIconBrightnessBox);
         AddSectionControl(section, grid);
@@ -359,12 +442,12 @@ internal sealed class SettingsForm : Form
             bossIconTextBoxes[unit.Id] = textBox;
 
             Button browseButton = CreateButton("Browse", accent: false);
-            browseButton.Width = 76;
+            browseButton.Width = Math.Max(browseButton.Width, 96);
             browseButton.Margin = new Padding(8, 3, 0, 3);
             browseButton.Click += (_, _) => PickBossIcon(textBox);
 
             int row = grid.RowCount++;
-            grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 40f));
+            grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 44f));
             grid.Controls.Add(CreateRowLabel(Localizer.Get(unit.DisplayName, settings)), 0, row);
             grid.Controls.Add(textBox, 1, row);
             grid.Controls.Add(browseButton, 2, row);
@@ -381,18 +464,15 @@ internal sealed class SettingsForm : Form
         TableLayoutPanel selectorGrid = CreateGrid(4, 20f, 38f, 22f, 20f);
         ConfigureReferenceSetBox();
         newReferenceSetNameBox.PlaceholderText = Localizer.Get("new group name", settings);
-        newReferenceSetNameBox.BackColor = FieldColor;
-        newReferenceSetNameBox.BorderStyle = BorderStyle.FixedSingle;
         newReferenceSetNameBox.Dock = DockStyle.Fill;
-        newReferenceSetNameBox.ForeColor = TextColor;
-        newReferenceSetNameBox.Margin = new Padding(0, 4, 8, 4);
+        UiTheme.StyleTextBox(newReferenceSetNameBox);
 
         Button addButton = CreateButton("Add", accent: false);
-        addButton.Width = 80;
+        addButton.Width = Math.Max(addButton.Width, 96);
         addButton.Click += (_, _) => AddReferenceSet();
 
         Button deleteButton = CreateButton("Delete", accent: false);
-        deleteButton.Width = 80;
+        deleteButton.Width = Math.Max(deleteButton.Width, 96);
         deleteButton.Click += (_, _) => DeleteReferenceSet();
 
         int selectorRow = selectorGrid.RowCount++;
@@ -403,10 +483,15 @@ internal sealed class SettingsForm : Form
         selectorGrid.Controls.Add(CreateButtonPanel(addButton, deleteButton), 3, selectorRow);
         AddSectionControl(section, selectorGrid);
 
-        TableLayoutPanel grid = CreateGrid(2, 42f, 58f);
+        TableLayoutPanel grid = CreateGrid(2, 48f, 52f);
 
-        foreach (BossUnitDefinition unit in BossSplitDefinitions.Units)
+        foreach (BossRouteEntry entry in GetRouteOrderedEntries())
         {
+            if (!BossSplitDefinitions.TryGetUnit(entry.BossId, out BossUnitDefinition unit))
+            {
+                continue;
+            }
+
             var textBox = CreateTextBox(settings.GetReferenceText(unit.Id));
             textBox.PlaceholderText = "m:ss or h:mm:ss";
             splitTextBoxes[unit.Id] = textBox;
@@ -446,16 +531,17 @@ internal sealed class SettingsForm : Form
             BackColor = SectionColor,
             ColumnCount = 1,
             Dock = DockStyle.Top,
-            Margin = new Padding(0, 0, 0, 14),
-            Padding = new Padding(16, 14, 16, 16)
+            Margin = new Padding(0, 0, 0, 16),
+            Padding = new Padding(18, 16, 18, 18)
         };
+        UiTheme.EnableDoubleBuffering(section);
         section.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
 
         var label = new Label
         {
             AutoSize = true,
             Dock = DockStyle.Fill,
-            Font = new Font("Segoe UI", 10.5f, FontStyle.Bold),
+            Font = UiTheme.FormFont(10.5f, FontStyle.Bold),
             ForeColor = TextColor,
             Margin = new Padding(0, 0, 0, 10),
             Text = Localizer.Get(title, settings)
@@ -475,6 +561,7 @@ internal sealed class SettingsForm : Form
             Dock = DockStyle.Top,
             Margin = Padding.Empty
         };
+        UiTheme.EnableDoubleBuffering(grid);
 
         foreach (float columnWidth in columnWidths)
         {
@@ -496,13 +583,15 @@ internal sealed class SettingsForm : Form
 
     private static Panel CreateScrollPanel()
     {
-        return new Panel
+        var panel = new Panel
         {
             Dock = DockStyle.Fill,
             AutoScroll = true,
             BackColor = WindowColor,
-            Padding = new Padding(18, 18, 18, 4)
+            Padding = new Padding(20, 18, 20, 6)
         };
+        UiTheme.EnableDoubleBuffering(panel);
+        return panel;
     }
 
     private static void AddSection(TableLayoutPanel parent, Control section)
@@ -521,12 +610,9 @@ internal sealed class SettingsForm : Form
 
     private static void ConfigureKeyBox(HotkeyTextBox textBox, Keys selected)
     {
-        textBox.BackColor = FieldColor;
-        textBox.BorderStyle = BorderStyle.FixedSingle;
         textBox.Dock = DockStyle.Fill;
-        textBox.ForeColor = TextColor;
-        textBox.Margin = new Padding(0, 4, 0, 4);
         textBox.ReadOnly = true;
+        UiTheme.StyleTextBox(textBox);
         textBox.SetHotkey(selected);
     }
 
@@ -534,19 +620,13 @@ internal sealed class SettingsForm : Form
     {
         checkBox.Checked = selected;
         checkBox.Dock = DockStyle.Fill;
-        checkBox.FlatStyle = FlatStyle.Flat;
-        checkBox.ForeColor = TextColor;
-        checkBox.Margin = new Padding(0, 6, 0, 6);
+        UiTheme.StyleCheckBox(checkBox);
     }
 
     private void ConfigureReferenceSetBox()
     {
-        referenceSetBox.DropDownStyle = ComboBoxStyle.DropDownList;
-        referenceSetBox.FlatStyle = FlatStyle.Flat;
-        referenceSetBox.BackColor = FieldColor;
-        referenceSetBox.ForeColor = TextColor;
         referenceSetBox.Dock = DockStyle.Fill;
-        referenceSetBox.Margin = new Padding(0, 4, 8, 4);
+        UiTheme.StyleComboBox(referenceSetBox);
 
         foreach (ReferenceSplitSet set in settings.ReferenceSplitSets)
         {
@@ -559,17 +639,24 @@ internal sealed class SettingsForm : Form
 
     private static void ConfigurePercentBox(NumericUpDown numericBox, int selected)
     {
-        numericBox.BackColor = FieldColor;
-        numericBox.BorderStyle = BorderStyle.FixedSingle;
+        UiTheme.StyleNumericBox(numericBox);
         numericBox.DecimalPlaces = 0;
         numericBox.Dock = DockStyle.Fill;
-        numericBox.ForeColor = TextColor;
         numericBox.Increment = 5;
-        numericBox.Margin = new Padding(0, 4, 0, 4);
         numericBox.Maximum = 100;
         numericBox.Minimum = 0;
-        numericBox.TextAlign = HorizontalAlignment.Right;
         numericBox.Value = Math.Clamp(selected, 0, 100);
+    }
+
+    private static void ConfigureNumberBox(NumericUpDown numericBox, int selected, int minimum, int maximum, int increment)
+    {
+        UiTheme.StyleNumericBox(numericBox);
+        numericBox.DecimalPlaces = 0;
+        numericBox.Dock = DockStyle.Fill;
+        numericBox.Increment = increment;
+        numericBox.Maximum = maximum;
+        numericBox.Minimum = minimum;
+        numericBox.Value = Math.Clamp(selected, minimum, maximum);
     }
 
     private static NumericUpDown CreateNumberBox(int value, int minimum, int maximum, int increment)
@@ -601,23 +688,19 @@ internal sealed class SettingsForm : Form
         decimal increment,
         int decimalPlaces)
     {
-        numericBox.BackColor = FieldColor;
-        numericBox.BorderStyle = BorderStyle.FixedSingle;
+        UiTheme.StyleNumericBox(numericBox);
         numericBox.DecimalPlaces = decimalPlaces;
         numericBox.Dock = DockStyle.Fill;
-        numericBox.ForeColor = TextColor;
         numericBox.Increment = increment;
-        numericBox.Margin = new Padding(0, 4, 8, 4);
         numericBox.Maximum = maximum;
         numericBox.Minimum = minimum;
-        numericBox.TextAlign = HorizontalAlignment.Right;
         numericBox.Value = Math.Clamp(value, minimum, maximum);
     }
 
     private void AddSettingRow(TableLayoutPanel grid, string label, Control control)
     {
         int row = grid.RowCount++;
-        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 40f));
+        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 44f));
 
         grid.Controls.Add(CreateRowLabel(label), 0, row);
         grid.Controls.Add(control, 1, row);
@@ -626,7 +709,7 @@ internal sealed class SettingsForm : Form
     private void AddColorRow(TableLayoutPanel grid, string label, string key, string value)
     {
         int row = grid.RowCount++;
-        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 40f));
+        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 44f));
 
         var textBox = CreateTextBox(value);
         colorTextBoxes[key] = textBox;
@@ -644,43 +727,45 @@ internal sealed class SettingsForm : Form
         return new Label
         {
             Dock = DockStyle.Fill,
+            AutoEllipsis = true,
             ForeColor = MutedTextColor,
-            Margin = new Padding(0, 0, 12, 0),
+            Margin = new Padding(0, 0, 4, 0),
             Text = Localizer.Get(text, settings),
             TextAlign = ContentAlignment.MiddleLeft
         };
     }
 
+    private Label CreateSubsectionLabel(string text)
+    {
+        return new Label
+        {
+            AutoSize = true,
+            Dock = DockStyle.Fill,
+            Font = UiTheme.FormFont(9.5f, FontStyle.Bold),
+            ForeColor = TextColor,
+            Margin = new Padding(0, 6, 0, 6),
+            Text = Localizer.Get(text, settings)
+        };
+    }
+
     private static TextBox CreateTextBox(string value)
     {
-        return new TextBox
+        var textBox = new TextBox
         {
-            BackColor = FieldColor,
-            BorderStyle = BorderStyle.FixedSingle,
             Dock = DockStyle.Fill,
-            ForeColor = TextColor,
-            Margin = new Padding(0, 4, 0, 4),
             Text = value
         };
+        UiTheme.StyleTextBox(textBox);
+        return textBox;
     }
 
     private Button CreateButton(string text, bool accent)
     {
         var button = new Button
         {
-            BackColor = accent ? AccentColor : FieldColor,
-            FlatStyle = FlatStyle.Flat,
-            ForeColor = TextColor,
-            Height = 34,
-            Margin = new Padding(8, 0, 0, 0),
             Text = Localizer.Get(text, settings),
-            UseVisualStyleBackColor = false,
-            Width = 94
         };
-
-        button.FlatAppearance.BorderColor = accent ? AccentColor : BorderColor;
-        button.FlatAppearance.MouseDownBackColor = accent ? Color.FromArgb(49, 101, 166) : Color.FromArgb(52, 52, 60);
-        button.FlatAppearance.MouseOverBackColor = accent ? Color.FromArgb(77, 144, 223) : Color.FromArgb(48, 48, 56);
+        UiTheme.StyleButton(button, accent);
         return button;
     }
 
@@ -691,9 +776,10 @@ internal sealed class SettingsForm : Form
             Dock = DockStyle.Fill,
             FlowDirection = FlowDirection.LeftToRight,
             Margin = Padding.Empty,
-            Padding = Padding.Empty,
+            Padding = new Padding(0, 1, 0, 0),
             WrapContents = false
         };
+        UiTheme.EnableDoubleBuffering(panel);
 
         foreach (Button button in buttons)
         {
@@ -708,13 +794,16 @@ internal sealed class SettingsForm : Form
     {
         var button = new Button
         {
-            FlatStyle = FlatStyle.Flat,
             Height = 28,
             Margin = new Padding(10, 5, 0, 5),
             Text = string.Empty,
-            UseVisualStyleBackColor = false,
             Width = 42
         };
+        UiTheme.StyleButton(button, accent: false, minimumWidth: 42);
+        button.MinimumSize = new Size(42, 28);
+        button.Padding = Padding.Empty;
+        button.Height = 28;
+        button.Width = 42;
 
         button.FlatAppearance.BorderColor = BorderColor;
         button.Click += (_, _) => PickColor(textBox);
@@ -827,6 +916,27 @@ internal sealed class SettingsForm : Form
         }
     }
 
+    private void SavePersonalBestTextBoxes()
+    {
+        foreach ((string name, TextBox textBox) in personalBestTimeTextBoxes)
+        {
+            settings.SetPersonalBestTimeText(name, NormalizeTimeText(textBox.Text));
+        }
+
+        foreach ((string name, TextBox textBox) in personalBestSegmentTextBoxes)
+        {
+            settings.SetPersonalBestSegmentText(name, NormalizeTimeText(textBox.Text));
+        }
+    }
+
+    private static string NormalizeTimeText(string text)
+    {
+        string trimmed = text.Trim();
+        return TimeText.TryParse(trimmed, out TimeSpan parsed)
+            ? TimeText.FormatRecord(parsed)
+            : trimmed;
+    }
+
     private void LoadReferenceTextBoxes()
     {
         ReferenceSplitSet activeSet = settings.GetActiveReferenceSet();
@@ -846,10 +956,11 @@ internal sealed class SettingsForm : Form
         settings.MouseClickThroughKey = mouseClickThroughKeyBox.Hotkey.ToString();
         settings.AlwaysOnTop = alwaysOnTopBox.Checked;
         settings.PracticeMode = practiceModeBox.Checked;
+        SaveReferenceTextBoxes();
+        SavePersonalBestTextBoxes();
         ApplyRouteSettings();
         AppSettingsStore.Normalize(settings);
 
-        SaveReferenceTextBoxes();
         settings.ActiveReferenceSplitSet = referenceSetBox.SelectedItem is string selectedReferenceSet
             ? selectedReferenceSet
             : settings.GetActiveReferenceSet().Name;
@@ -865,6 +976,9 @@ internal sealed class SettingsForm : Form
         ApplyFontSettings("Timer", settings.Columns.Timer);
         ApplyFontSettings("TimerMilliseconds", settings.Columns.TimerMilliseconds);
 
+        settings.Columns.TimerOffsetX = (int)timerOffsetXBox.Value;
+        settings.Columns.TimerOffsetY = (int)timerOffsetYBox.Value;
+
         settings.UndefeatedIconGrayscalePercent = (int)undefeatedIconGrayscaleBox.Value;
         settings.UndefeatedIconBrightnessPercent = (int)undefeatedIconBrightnessBox.Value;
 
@@ -878,6 +992,14 @@ internal sealed class SettingsForm : Form
         SetColor(nameof(settings.Colors.TimerAheadText), value => settings.Colors.TimerAheadText = value);
         SetColor(nameof(settings.Colors.TimerBehindText), value => settings.Colors.TimerBehindText = value);
         SetColor(nameof(settings.Colors.TimerRecordText), value => settings.Colors.TimerRecordText = value);
+    }
+
+    private void ApplyAndNotify()
+    {
+        ApplyToSettings();
+        PopulatePersonalBestTimeGrid();
+        PopulatePersonalBestSegmentGrid();
+        Applied?.Invoke(this, EventArgs.Empty);
     }
 
     private void ApplyRouteSettings()
@@ -899,6 +1021,16 @@ internal sealed class SettingsForm : Form
         }
 
         settings.Route = route;
+    }
+
+    private IReadOnlyList<BossRouteEntry> GetRouteOrderedEntries()
+    {
+        return settings.Route
+            .Select((entry, index) => new { Entry = entry, Index = index })
+            .OrderBy(item => item.Entry.Segment)
+            .ThenBy(item => item.Index)
+            .Select(item => item.Entry)
+            .ToList();
     }
 
     private void SetColor(string key, Action<string> setter)
@@ -975,7 +1107,7 @@ internal sealed class SettingsForm : Form
         TableLayoutPanel grid = CreateGrid(3, 54f, 18f, 28f);
 
         int headerRow = grid.RowCount++;
-        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 30f));
+        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 34f));
         grid.Controls.Add(CreateRowLabel("Boss"), 0, headerRow);
         grid.Controls.Add(CreateRowLabel("Enabled"), 1, headerRow);
         grid.Controls.Add(CreateRowLabel("Segment"), 2, headerRow);
@@ -990,17 +1122,16 @@ internal sealed class SettingsForm : Form
                 : new BossRouteEntry { BossId = unit.Id };
 
             int row = grid.RowCount++;
-            grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 40f));
+            grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 44f));
 
             var enabledBox = new CheckBox
             {
                 Checked = entry.Enabled,
                 Dock = DockStyle.Fill,
-                FlatStyle = FlatStyle.Flat,
                 ForeColor = TextColor,
-                Margin = new Padding(0, 6, 0, 6),
                 TextAlign = ContentAlignment.MiddleCenter
             };
+            UiTheme.StyleCheckBox(enabledBox);
             NumericUpDown segmentBox = CreateDecimalBoxForSegment(Math.Clamp(entry.Segment, 1m, 99m), 1m, 99m, 0.1m);
 
             routeControls[unit.Id] = new RouteControls(enabledBox, segmentBox);

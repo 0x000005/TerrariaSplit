@@ -1,14 +1,7 @@
-using System.Text.Json;
-
 namespace TerrariaSplit;
 
 internal static class AppSettingsStore
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        WriteIndented = true
-    };
-
     public static string SettingsPath
     {
         get
@@ -21,21 +14,11 @@ internal static class AppSettingsStore
     {
         AppSettings settings;
         bool shouldSave = false;
-        try
-        {
-            settings = File.Exists(SettingsPath)
-                ? JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(SettingsPath), JsonOptions)
-                    ?? AppSettings.CreateDefault()
-                : AppSettings.CreateDefault();
-            shouldSave = !File.Exists(SettingsPath);
-        }
-        catch (Exception)
-        {
-            settings = AppSettings.CreateDefault();
-            shouldSave = true;
-        }
+        settings = JsonFileStore.Read<AppSettings>(SettingsPath, "settings") ?? AppSettings.CreateDefault();
+        shouldSave = !File.Exists(SettingsPath);
 
         Normalize(settings);
+        LoadExternalReferenceSets(settings);
 
         if (shouldSave)
         {
@@ -48,15 +31,25 @@ internal static class AppSettingsStore
     public static void Save(AppSettings settings)
     {
         Normalize(settings);
+        SplitTimeSetStore.SaveReferenceSets(settings.ReferenceSplitSets);
+        List<ReferenceSplitSet> referenceSets = settings.ReferenceSplitSets;
+        settings.ReferenceSplitSets = new List<ReferenceSplitSet>();
         string directory = Path.GetDirectoryName(SettingsPath)!;
         Directory.CreateDirectory(directory);
-        File.WriteAllText(SettingsPath, JsonSerializer.Serialize(settings, JsonOptions));
+        try
+        {
+            JsonFileStore.Write(SettingsPath, settings, "settings");
+        }
+        finally
+        {
+            settings.ReferenceSplitSets = referenceSets;
+        }
     }
 
     public static AppSettings Clone(AppSettings settings)
     {
-        string json = JsonSerializer.Serialize(settings, JsonOptions);
-        AppSettings clone = JsonSerializer.Deserialize<AppSettings>(json, JsonOptions) ?? AppSettings.CreateDefault();
+        string json = System.Text.Json.JsonSerializer.Serialize(settings, JsonFileStore.JsonOptions);
+        AppSettings clone = System.Text.Json.JsonSerializer.Deserialize<AppSettings>(json, JsonFileStore.JsonOptions) ?? AppSettings.CreateDefault();
         Normalize(clone);
         return clone;
     }
@@ -66,6 +59,8 @@ internal static class AppSettingsStore
         settings.Route ??= new List<BossRouteEntry>();
         settings.BossIconPaths ??= new Dictionary<string, string>();
         settings.ReferenceSplitSets ??= new List<ReferenceSplitSet>();
+        settings.PersonalBestTimes ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        settings.PersonalBestSegmentTimes ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         settings.Colors ??= new UiColorSettings();
         settings.Columns ??= new UiColumnLayoutSettings();
         NormalizeRoute(settings);
@@ -74,8 +69,32 @@ internal static class AppSettingsStore
         foreach (BossUnitDefinition unit in BossSplitDefinitions.Units)
         {
             settings.BossIconPaths.TryAdd(unit.Id, string.Empty);
+            settings.PersonalBestTimes.TryAdd(unit.Id, string.Empty);
         }
 
+        foreach (RouteGroup group in BossRouteGroups.Build(settings))
+        {
+            settings.PersonalBestSegmentTimes.TryAdd(group.Key, string.Empty);
+        }
+
+        NormalizeReferenceSets(settings);
+    }
+
+    private static void LoadExternalReferenceSets(AppSettings settings)
+    {
+        List<ReferenceSplitSet> externalSets = SplitTimeSetStore.LoadReferenceSets();
+        bool hasOldSettingsSets = settings.ReferenceSplitSets.Count > 0;
+        bool externalOnlyDefault = externalSets.Count == 1 &&
+            string.Equals(externalSets[0].Name, "WR", StringComparison.OrdinalIgnoreCase) &&
+            externalSets[0].Splits.Values.All(string.IsNullOrWhiteSpace);
+
+        if (hasOldSettingsSets && externalOnlyDefault)
+        {
+            SplitTimeSetStore.SaveReferenceSets(settings.ReferenceSplitSets);
+            return;
+        }
+
+        settings.ReferenceSplitSets = externalSets;
         NormalizeReferenceSets(settings);
     }
 
@@ -120,9 +139,9 @@ internal static class AppSettingsStore
             set.Name = string.IsNullOrWhiteSpace(set.Name) ? "Reference" : set.Name.Trim();
             set.Splits ??= new Dictionary<string, string>();
 
-            foreach (BossSplitDefinition definition in BossSplitDefinitions.Build(settings))
+            foreach (BossUnitDefinition unit in BossSplitDefinitions.Units)
             {
-                set.Splits.TryAdd(definition.Name, string.Empty);
+                set.Splits.TryAdd(unit.Id, string.Empty);
             }
         }
 
