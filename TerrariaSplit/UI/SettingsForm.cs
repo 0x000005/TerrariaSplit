@@ -46,6 +46,7 @@ internal sealed class SettingsForm : Form
     private readonly Dictionary<string, TextBox> personalBestTimeTextBoxes = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, TextBox> personalBestSegmentTextBoxes = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, TextBox> colorTextBoxes = new();
+    private readonly Dictionary<string, TextBox> soundTextBoxes = new();
     private readonly Dictionary<string, ColumnControls> columnControls = new();
     private readonly Dictionary<string, FontControls> fontControls = new();
     private readonly Dictionary<string, AnimationOutlineControls> animationOutlineControls = new(StringComparer.OrdinalIgnoreCase);
@@ -309,6 +310,7 @@ internal sealed class SettingsForm : Form
         pages.Add(new SettingsPageDescriptor(CreateNavButton("Data"), () => DataSettingsPage.Build(this)));
         pages.Add(new SettingsPageDescriptor(CreateNavButton("UI"), () => UiSettingsPage.Build(this)));
         pages.Add(new SettingsPageDescriptor(CreateNavButton("Effects"), () => AnimationSettingsPage.Build(this)));
+        pages.Add(new SettingsPageDescriptor(CreateNavButton("Sounds"), () => SoundSettingsPage.Build(this)));
         pages.Add(new SettingsPageDescriptor(CreateNavButton("Colors"), () => ColorSettingsPage.Build(this)));
 
         foreach (SettingsPageDescriptor page in pages)
@@ -1411,6 +1413,27 @@ internal sealed class SettingsForm : Form
         AddColorRow(grid, "Timer ahead text", nameof(settings.Colors.TimerAheadText), settings.Colors.TimerAheadText);
         AddColorRow(grid, "Timer behind text", nameof(settings.Colors.TimerBehindText), settings.Colors.TimerBehindText);
         AddColorRow(grid, "Timer record text", nameof(settings.Colors.TimerRecordText), settings.Colors.TimerRecordText);
+        AddColorRow(grid, "Timer paused text", nameof(settings.Colors.TimerPausedText), settings.Colors.TimerPausedText);
+
+        AddSectionControl(section, grid);
+        AddSection(parent, section);
+    }
+
+    internal void AddSoundSection(TableLayoutPanel parent)
+    {
+        TableLayoutPanel section = CreateSection("Sounds");
+        TableLayoutPanel grid = CreateGrid(
+            ColumnStylePercent(100f),
+            ColumnStyleAbsolute(420f),
+            ColumnStyleAbsolute(90f),
+            ColumnStyleAbsolute(90f));
+
+        AddSoundRow(grid, "Pause sound", nameof(settings.Sounds.Pause), settings.Sounds.Pause);
+        AddSoundRow(grid, "Reset sound", nameof(settings.Sounds.Reset), settings.Sounds.Reset);
+        AddSoundRow(grid, "Split: total behind, segment behind", nameof(settings.Sounds.SplitBehindReferenceBehindSegment), settings.Sounds.SplitBehindReferenceBehindSegment);
+        AddSoundRow(grid, "Split: total behind, segment not behind", nameof(settings.Sounds.SplitBehindReferenceAheadSegment), settings.Sounds.SplitBehindReferenceAheadSegment);
+        AddSoundRow(grid, "Split: total not behind, segment behind", nameof(settings.Sounds.SplitAheadReferenceBehindSegment), settings.Sounds.SplitAheadReferenceBehindSegment);
+        AddSoundRow(grid, "Split: total not behind, segment not behind", nameof(settings.Sounds.SplitAheadReferenceAheadSegment), settings.Sounds.SplitAheadReferenceAheadSegment);
 
         AddSectionControl(section, grid);
         AddSection(parent, section);
@@ -1521,6 +1544,24 @@ internal sealed class SettingsForm : Form
         grid.Controls.Add(CreateRowLabel(label), 0, row);
         grid.Controls.Add(textBox, 1, row);
         grid.Controls.Add(pickButton, 2, row);
+    }
+
+    private void AddSoundRow(TableLayoutPanel grid, string label, string key, string value)
+    {
+        TextBox textBox = CreateTextBox(value);
+        soundTextBoxes[key] = textBox;
+
+        Button browseButton = CreateSmallButton("Browse");
+        browseButton.Click += (_, _) => PickSound(textBox);
+
+        Button clearButton = CreateSmallButton("Clear");
+        clearButton.Click += (_, _) => textBox.Text = string.Empty;
+
+        int row = AddGridRow(grid);
+        grid.Controls.Add(CreateRowLabel(label), 0, row);
+        grid.Controls.Add(textBox, 1, row);
+        grid.Controls.Add(browseButton, 2, row);
+        grid.Controls.Add(clearButton, 3, row);
     }
 
     private int AddGridRow(TableLayoutPanel grid)
@@ -1712,6 +1753,20 @@ internal sealed class SettingsForm : Form
         return button;
     }
 
+    private Button CreateSmallButton(string text)
+    {
+        var button = new Button
+        {
+            Height = 36,
+            Margin = new Padding(8, 8, 0, 8),
+            Text = Localizer.Get(text, settings),
+            Width = 82
+        };
+        UiTheme.StyleButton(button, accent: false, minimumWidth: 76);
+        button.MinimumSize = new Size(76, 36);
+        return button;
+    }
+
     private FlowLayoutPanel CreateButtonPanel(params Button[] buttons)
     {
         var panel = new FlowLayoutPanel
@@ -1784,6 +1839,21 @@ internal sealed class SettingsForm : Form
             CheckFileExists = true,
             Filter = "Images|*.png;*.jpg;*.jpeg;*.bmp;*.gif|All files|*.*",
             Title = Localizer.Get("Choose BOSS Icon", settings)
+        };
+
+        if (dialog.ShowDialog(this) == DialogResult.OK)
+        {
+            textBox.Text = dialog.FileName;
+        }
+    }
+
+    private void PickSound(TextBox textBox)
+    {
+        using var dialog = new OpenFileDialog
+        {
+            CheckFileExists = true,
+            Filter = "Wave audio|*.wav|All files|*.*",
+            Title = Localizer.Get("Choose sound", settings)
         };
 
         if (dialog.ShowDialog(this) == DialogResult.OK)
@@ -1954,6 +2024,14 @@ internal sealed class SettingsForm : Form
         SetColor(nameof(settings.Colors.TimerAheadText), value => settings.Colors.TimerAheadText = value);
         SetColor(nameof(settings.Colors.TimerBehindText), value => settings.Colors.TimerBehindText = value);
         SetColor(nameof(settings.Colors.TimerRecordText), value => settings.Colors.TimerRecordText = value);
+        SetColor(nameof(settings.Colors.TimerPausedText), value => settings.Colors.TimerPausedText = value);
+
+        SetSound(nameof(settings.Sounds.Pause), value => settings.Sounds.Pause = value);
+        SetSound(nameof(settings.Sounds.Reset), value => settings.Sounds.Reset = value);
+        SetSound(nameof(settings.Sounds.SplitBehindReferenceBehindSegment), value => settings.Sounds.SplitBehindReferenceBehindSegment = value);
+        SetSound(nameof(settings.Sounds.SplitBehindReferenceAheadSegment), value => settings.Sounds.SplitBehindReferenceAheadSegment = value);
+        SetSound(nameof(settings.Sounds.SplitAheadReferenceBehindSegment), value => settings.Sounds.SplitAheadReferenceBehindSegment = value);
+        SetSound(nameof(settings.Sounds.SplitAheadReferenceAheadSegment), value => settings.Sounds.SplitAheadReferenceAheadSegment = value);
     }
 
     private void SaveAnimationOutlineControls()
@@ -2037,6 +2115,14 @@ internal sealed class SettingsForm : Form
         if (colorTextBoxes.TryGetValue(key, out TextBox? textBox))
         {
             setter(ColorText.Format(ColorText.Parse(textBox.Text, Color.White)));
+        }
+    }
+
+    private void SetSound(string key, Action<string> setter)
+    {
+        if (soundTextBoxes.TryGetValue(key, out TextBox? textBox))
+        {
+            setter(textBox.Text.Trim());
         }
     }
 

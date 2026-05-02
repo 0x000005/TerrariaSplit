@@ -1,6 +1,7 @@
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
+using System.Media;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
@@ -278,11 +279,17 @@ internal sealed class MainForm : Form
 
         if (Keyboard.PollPressed(settings.PauseResumeKeys))
         {
+            SplitTimerPhase previousPhase = runTimer.Phase;
             runTimer.TogglePause();
+            if (previousPhase == SplitTimerPhase.Running && runTimer.Phase == SplitTimerPhase.Paused)
+            {
+                PlaySound(settings.Sounds.Pause);
+            }
         }
 
         if (Keyboard.PollPressed(settings.ResetKeys) && CanReset(snapshot))
         {
+            PlaySound(settings.Sounds.Reset);
             ResetRun(recordStats: true);
             return;
         }
@@ -306,6 +313,7 @@ internal sealed class MainForm : Form
             {
                 int completedIndex = splitTracker.CurrentIndex - 1;
                 TrackSegmentBestDeltaHighlight(completedIndex);
+                PlaySplitSound(completedIndex);
 
                 if (settings.ShowSplitCompletionAnimation)
                 {
@@ -1348,6 +1356,69 @@ internal sealed class MainForm : Form
         AppSettingsStore.Save(settings);
     }
 
+    private void PlaySplitSound(int completedIndex)
+    {
+        IReadOnlyList<BossSplitStatus> statuses = splitTracker.Statuses;
+        if (completedIndex < 0 ||
+            completedIndex >= statuses.Count ||
+            statuses[completedIndex].Time is not TimeSpan splitTime)
+        {
+            return;
+        }
+
+        BossSplitDefinition definition = statuses[completedIndex].Definition;
+        bool totalBehindReference = settings.TryGetReferenceSplit(definition, out TimeSpan referenceSplit) &&
+            splitTime > referenceSplit;
+        bool segmentBehindPersonalBest = TryGetCompletedSegmentTime(completedIndex, out TimeSpan segmentTime) &&
+            TryGetPersonalBestSegment(definition, out TimeSpan personalBestSegment) &&
+            segmentTime > personalBestSegment;
+
+        string path = (totalBehindReference, segmentBehindPersonalBest) switch
+        {
+            (true, true) => settings.Sounds.SplitBehindReferenceBehindSegment,
+            (true, false) => settings.Sounds.SplitBehindReferenceAheadSegment,
+            (false, true) => settings.Sounds.SplitAheadReferenceBehindSegment,
+            _ => settings.Sounds.SplitAheadReferenceAheadSegment
+        };
+        PlaySound(path);
+    }
+
+    private static void PlaySound(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return;
+        }
+
+        string resolvedPath = Path.IsPathRooted(path)
+            ? path
+            : Path.Combine(AppContext.BaseDirectory, path);
+        if (!File.Exists(resolvedPath))
+        {
+            return;
+        }
+
+        try
+        {
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    using var player = new SoundPlayer(resolvedPath);
+                    player.PlaySync();
+                }
+                catch (Exception ex)
+                {
+                    AppLogger.Error(ex, $"Failed to play sound: {resolvedPath}");
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error(ex, $"Failed to play sound: {resolvedPath}");
+        }
+    }
+
     private void TryAutoUpdatePersonalBestTimes()
     {
         if (!settings.AutoUpdatePersonalBestData)
@@ -1768,6 +1839,11 @@ internal sealed class MainForm : Form
 
     private Color GetTimerTextColor(UiPalette palette)
     {
+        if (runTimer.Phase == SplitTimerPhase.Paused)
+        {
+            return palette.TimerPausedText;
+        }
+
         if (runTimer.Phase == SplitTimerPhase.NotStarted)
         {
             return palette.TimerText;
@@ -2133,7 +2209,8 @@ internal sealed class MainForm : Form
         Color TimerText,
         Color TimerAheadText,
         Color TimerBehindText,
-        Color TimerRecordText)
+        Color TimerRecordText,
+        Color TimerPausedText)
     {
         public static UiPalette From(UiColorSettings settings)
         {
@@ -2147,7 +2224,8 @@ internal sealed class MainForm : Form
                 ColorText.Parse(settings.TimerText, Color.FromArgb(242, 242, 242)),
                 ColorText.Parse(settings.TimerAheadText, Color.LightGreen),
                 ColorText.Parse(settings.TimerBehindText, Color.LightCoral),
-                ColorText.Parse(settings.TimerRecordText, Color.FromArgb(105, 167, 255)));
+                ColorText.Parse(settings.TimerRecordText, Color.FromArgb(105, 167, 255)),
+                ColorText.Parse(settings.TimerPausedText, Color.Gainsboro));
         }
     }
 }

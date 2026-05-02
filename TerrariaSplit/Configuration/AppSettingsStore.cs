@@ -150,6 +150,7 @@ internal static class AppSettingsStore
         settings.SplitCompletionOutlineSegmentStyles ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         settings.SegmentBestDeltaHighlightStyles ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         settings.Colors ??= new UiColorSettings();
+        settings.Sounds ??= new UiSoundSettings();
         settings.Columns ??= new UiColumnLayoutSettings();
         settings.SplitCompletionAnimationDurationSeconds = Math.Clamp(settings.SplitCompletionAnimationDurationSeconds, 1f, 20f);
         settings.SplitCompletionOutlineThicknessPercent = Math.Clamp(settings.SplitCompletionOutlineThicknessPercent, 0, 100);

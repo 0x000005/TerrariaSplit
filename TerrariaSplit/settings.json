@@ -166,7 +166,16 @@
     "TimerText": "#BBBBBB",
     "TimerAheadText": "#72D572",
     "TimerBehindText": "#F07070",
-    "TimerRecordText": "#69A7FF"
+    "TimerRecordText": "#69A7FF",
+    "TimerPausedText": "#D8D8D8"
+  },
+  "Sounds": {
+    "Pause": "",
+    "Reset": "",
+    "SplitBehindReferenceBehindSegment": "",
+    "SplitBehindReferenceAheadSegment": "",
+    "SplitAheadReferenceBehindSegment": "",
+    "SplitAheadReferenceAheadSegment": ""
   },
   "Columns": {
     "ScalePercent": 100,
