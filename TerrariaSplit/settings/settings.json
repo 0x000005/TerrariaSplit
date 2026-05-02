@@ -129,15 +129,15 @@
   "CurrentSplitHighlightScalePercent": 112,
   "CurrentSplitDepthStrengthPercent": 45,
   "ShowSegmentBestDeltaHighlight": true,
-  "SegmentBestDeltaHighlightStyles": {
-    "Destroyer\u002BSkeletronPrime\u002BTwins": "Aurora",
-    "LunaticCultist": "Aurora",
-    "MoonLord": "Rainbow",
-    "WallOfFlesh": "Aurora",
-    "Skeletron": "Aurora",
-    "Plantera": "Aurora",
-    "Golem": "Aurora"
-  },
+    "SegmentBestDeltaHighlightStyles": {
+        "Destroyer\u002BSkeletronPrime\u002BTwins": "Aurora",
+        "LunaticCultist": "Aurora",
+        "MoonLord": "Aurora",
+        "WallOfFlesh": "Aurora",
+        "Skeletron": "Aurora",
+        "Plantera": "Aurora",
+        "Golem": "Aurora"
+    },
   "Colors": {
     "ReferenceText": "#E2E2E2",
     "ActiveReferenceText": "#FDE679",

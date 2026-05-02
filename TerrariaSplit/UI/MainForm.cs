@@ -1839,11 +1839,6 @@ internal sealed class MainForm : Form
 
     private Color GetTimerTextColor(UiPalette palette)
     {
-        if (runTimer.Phase == SplitTimerPhase.Paused)
-        {
-            return palette.TimerPausedText;
-        }
-
         if (runTimer.Phase == SplitTimerPhase.NotStarted)
         {
             return palette.TimerText;
@@ -1852,10 +1847,20 @@ internal sealed class MainForm : Form
         IReadOnlyList<BossSplitStatus> statuses = splitTracker.Statuses;
         if (statuses.Count > 0 && statuses[^1].Time is TimeSpan finalTime)
         {
-            return settings.TryGetReferenceSplit(statuses[^1].Definition, out TimeSpan finalReference) &&
-                finalTime < finalReference
-                ? palette.TimerRecordText
+            if (settings.TryGetReferenceSplit(statuses[^1].Definition, out TimeSpan finalReference) &&
+                finalTime < finalReference)
+            {
+                return palette.TimerRecordText;
+            }
+
+            return runTimer.Phase == SplitTimerPhase.Paused
+                ? palette.TimerPausedText
                 : palette.TimerBehindText;
+        }
+
+        if (runTimer.Phase == SplitTimerPhase.Paused)
+        {
+            return palette.TimerPausedText;
         }
 
         if (splitTracker.CurrentIndex < statuses.Count &&
