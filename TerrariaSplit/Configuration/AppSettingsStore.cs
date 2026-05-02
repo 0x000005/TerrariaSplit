@@ -61,10 +61,18 @@ internal static class AppSettingsStore
         settings.ReferenceSplitSets ??= new List<ReferenceSplitSet>();
         settings.PersonalBestTimes ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         settings.PersonalBestSegmentTimes ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        settings.SplitCompletionSplitComparisons ??= new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+        settings.SplitCompletionSegmentComparisons ??= new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+        settings.SplitCompletionOutlineSplitTimes ??= new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+        settings.SplitCompletionOutlineSegmentTimes ??= new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+        settings.SplitCompletionOutlineSplitStyles ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        settings.SplitCompletionOutlineSegmentStyles ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         settings.Colors ??= new UiColorSettings();
         settings.Columns ??= new UiColumnLayoutSettings();
+        settings.SplitCompletionOutlineThicknessPercent = Math.Clamp(settings.SplitCompletionOutlineThicknessPercent, 0, 100);
         NormalizeRoute(settings);
         NormalizeColumnSettings(settings.Columns);
+        RemoveUnknownBossUnitKeys(settings);
 
         foreach (BossUnitDefinition unit in BossSplitDefinitions.Units)
         {
@@ -75,7 +83,21 @@ internal static class AppSettingsStore
         foreach (RouteGroup group in BossRouteGroups.Build(settings))
         {
             settings.PersonalBestSegmentTimes.TryAdd(group.Key, string.Empty);
+            settings.SplitCompletionSplitComparisons.TryAdd(group.Key, true);
+            settings.SplitCompletionSegmentComparisons.TryAdd(group.Key, true);
+            settings.SplitCompletionOutlineSplitTimes.TryAdd(group.Key, true);
+            settings.SplitCompletionOutlineSegmentTimes.TryAdd(group.Key, true);
+            settings.SplitCompletionOutlineSplitStyles[group.Key] = GetNormalizedOutlineStyle(
+                settings.SplitCompletionOutlineSplitStyles,
+                settings.SplitCompletionOutlineSplitTimes,
+                group.Key);
+            settings.SplitCompletionOutlineSegmentStyles[group.Key] = GetNormalizedOutlineStyle(
+                settings.SplitCompletionOutlineSegmentStyles,
+                settings.SplitCompletionOutlineSegmentTimes,
+                group.Key);
         }
+
+        RemoveUnknownRouteGroupKeys(settings);
 
         NormalizeReferenceSets(settings);
     }
@@ -165,6 +187,9 @@ internal static class AppSettingsStore
             return;
         }
 
+        bool hadRemovedSegmentSevenEntry = settings.Route.Any(entry =>
+            Math.Truncate(entry.Segment) == 7m &&
+            defaults.All(defaultEntry => !string.Equals(defaultEntry.BossId, entry.BossId, StringComparison.OrdinalIgnoreCase)));
         Dictionary<string, BossRouteEntry> existing = settings.Route
             .Where(entry => !string.IsNullOrWhiteSpace(entry.BossId))
             .GroupBy(entry => entry.BossId, StringComparer.OrdinalIgnoreCase)
@@ -187,6 +212,68 @@ internal static class AppSettingsStore
             });
         }
 
+        if (hadRemovedSegmentSevenEntry &&
+            normalized.All(entry => Math.Truncate(entry.Segment) != 7m) &&
+            normalized.FirstOrDefault(entry => string.Equals(entry.BossId, BossSplitDefinitions.MoonLord, StringComparison.OrdinalIgnoreCase)) is BossRouteEntry moonLordEntry &&
+            moonLordEntry.Segment >= 8m)
+        {
+            moonLordEntry.Segment = 7m;
+        }
+
         settings.Route = normalized;
+    }
+
+    private static void RemoveUnknownBossUnitKeys(AppSettings settings)
+    {
+        HashSet<string> validBossIds = BossSplitDefinitions.Units
+            .Select(unit => unit.Id)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        RemoveKeysExcept(settings.BossIconPaths, validBossIds);
+        RemoveKeysExcept(settings.PersonalBestTimes, validBossIds);
+
+        foreach (ReferenceSplitSet set in settings.ReferenceSplitSets)
+        {
+            RemoveKeysExcept(set.Splits, validBossIds);
+        }
+    }
+
+    private static void RemoveUnknownRouteGroupKeys(AppSettings settings)
+    {
+        HashSet<string> validGroupKeys = BossRouteGroups.Build(settings)
+            .Select(group => group.Key)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        RemoveKeysExcept(settings.PersonalBestSegmentTimes, validGroupKeys);
+        RemoveKeysExcept(settings.SplitCompletionSplitComparisons, validGroupKeys);
+        RemoveKeysExcept(settings.SplitCompletionSegmentComparisons, validGroupKeys);
+        RemoveKeysExcept(settings.SplitCompletionOutlineSplitTimes, validGroupKeys);
+        RemoveKeysExcept(settings.SplitCompletionOutlineSegmentTimes, validGroupKeys);
+        RemoveKeysExcept(settings.SplitCompletionOutlineSplitStyles, validGroupKeys);
+        RemoveKeysExcept(settings.SplitCompletionOutlineSegmentStyles, validGroupKeys);
+    }
+
+    private static string GetNormalizedOutlineStyle(
+        Dictionary<string, string> styles,
+        Dictionary<string, bool> legacyEnabled,
+        string key)
+    {
+        if (styles.TryGetValue(key, out string? existing))
+        {
+            return SplitCompletionOutlineStyles.Normalize(existing);
+        }
+
+        return legacyEnabled.TryGetValue(key, out bool enabled) && !enabled
+            ? SplitCompletionOutlineStyles.None
+            : SplitCompletionOutlineStyles.Rainbow;
+    }
+
+    private static void RemoveKeysExcept<TValue>(Dictionary<string, TValue> values, HashSet<string> allowedKeys)
+    {
+        foreach (string key in values.Keys.ToArray())
+        {
+            if (!allowedKeys.Contains(key))
+            {
+                values.Remove(key);
+            }
+        }
     }
 }

@@ -16,10 +16,6 @@ internal static class Terraria1456Memory
     public const int GolemDefeatedFlagOffset = 0x6;
     public const int LunaticCultistDefeatedFlagOffset = 0xE;
     public const int MoonLordDefeatedFlagOffset = 0xF;
-    public const int SolarPillarDefeatedFlagOffset = 0x10;
-    public const int VortexPillarDefeatedFlagOffset = 0x11;
-    public const int NebulaPillarDefeatedFlagOffset = 0x12;
-    public const int StardustPillarDefeatedFlagOffset = 0x13;
     public const int DestroyerDefeatedFlagOffset = 0x1D;
     public const int TwinsDefeatedFlagOffset = 0x1E;
     public const int SkeletronPrimeDefeatedFlagOffset = 0x1F;

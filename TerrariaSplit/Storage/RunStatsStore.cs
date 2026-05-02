@@ -15,7 +15,7 @@ internal static class RunStatsStore
             {
                 stats.LastRunSplits = latestLastRun;
             }
-            else if (stats.LastRunSplits.Count > 0)
+            else if (HasSkeletronSplit(stats.LastRunSplits))
             {
                 SplitTimeSetStore.SaveLastRun(stats.LastRunSplits);
                 Save(stats);
@@ -37,7 +37,7 @@ internal static class RunStatsStore
 
     public static void RecordRun(IReadOnlyList<BossSplitStatus> statuses)
     {
-        if (statuses.Count == 0 || statuses.All(status => status.Time is null))
+        if (!HasCompletedSkeletron(statuses))
         {
             return;
         }
@@ -62,6 +62,22 @@ internal static class RunStatsStore
 
         SplitTimeSetStore.SaveLastRun(stats.LastRunSplits, lastCompleted?.Definition.DisplayName, lastCompleted?.Time);
         Save(stats);
+    }
+
+    private static bool HasCompletedSkeletron(IReadOnlyList<BossSplitStatus> statuses)
+    {
+        return statuses.Any(status =>
+            status.Time is not null &&
+            status.Definition.BossIds.Any(bossId => string.Equals(
+                bossId,
+                BossSplitDefinitions.Skeletron,
+                StringComparison.OrdinalIgnoreCase)));
+    }
+
+    private static bool HasSkeletronSplit(Dictionary<string, string> splits)
+    {
+        return splits.TryGetValue(BossSplitDefinitions.Skeletron, out string? value) &&
+            TimeText.TryParse(value, out _);
     }
 
     private static void Normalize(RunStats stats)

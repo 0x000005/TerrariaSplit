@@ -1,8 +1,9 @@
 {
-  "PauseResumeKey": "R",
-  "ResetKey": "T",
-  "MouseClickThroughKey": "I",
-  "AlwaysOnTop": false,
+  "PauseResumeKey": "F5",
+  "ResetKey": "F9",
+  "MouseClickThroughKey": "F10",
+  "Language": "\u4E2D\u6587",
+  "AlwaysOnTop": true,
   "PracticeMode": true,
   "Route": [
     {
@@ -18,17 +19,17 @@
     {
       "BossId": "Destroyer",
       "Enabled": true,
-      "Segment": 3
+      "Segment": 3.1
     },
     {
       "BossId": "SkeletronPrime",
       "Enabled": true,
-      "Segment": 3
+      "Segment": 3.2
     },
     {
       "BossId": "Twins",
       "Enabled": true,
-      "Segment": 3
+      "Segment": 3.3
     },
     {
       "BossId": "Plantera",
@@ -46,14 +47,9 @@
       "Segment": 6
     },
     {
-      "BossId": "CelestialPillars",
-      "Enabled": false,
-      "Segment": 7
-    },
-    {
       "BossId": "MoonLord",
       "Enabled": true,
-      "Segment": 8
+      "Segment": 7
     }
   ],
   "BossIconPaths": {
@@ -65,49 +61,101 @@
     "Plantera": "",
     "Golem": "",
     "LunaticCultist": "",
-    "CelestialPillars": "",
     "MoonLord": ""
   },
-  "ReferenceSplitSets": [
-    {
-      "Name": "WR",
-      "Splits": {
-        "Skeletron": "1:11",
-        "WallOfFlesh": "1:11",
-        "RemainingMechs": "1:11",
-        "Plantera": "1:11",
-        "Golem": "1:11",
-        "LunaticCultist": "2:22",
-        "MoonLord": "2:25"
-      }
-    },
-    {
-      "Name": "12",
-      "Splits": {
-        "Skeletron": "2",
-        "WallOfFlesh": "2",
-        "RemainingMechs": "",
-        "Plantera": "",
-        "Golem": "",
-        "LunaticCultist": "",
-        "MoonLord": ""
-      }
-    }
-  ],
+  "ReferenceSplitSets": [],
   "ActiveReferenceSplitSet": "WR",
+  "PersonalBestTimes": {
+    "Skeletron": "",
+    "WallOfFlesh": "",
+    "Destroyer": "",
+    "SkeletronPrime": "",
+    "Twins": "",
+    "Plantera": "",
+    "Golem": "",
+    "LunaticCultist": "",
+    "MoonLord": ""
+  },
+  "PersonalBestSegmentTimes": {
+    "Skeletron": "12:42.00",
+    "WallOfFlesh": "2:11.00",
+    "Destroyer\u002BSkeletronPrime\u002BTwins": "13:50.00",
+    "Plantera": "2:46.00",
+    "Golem": "1:40.00",
+    "LunaticCultist": "1:45.00",
+    "MoonLord": "8:19.77"
+  },
+  "AutoUpdatePersonalBestData": false,
+  "ShowSplitCompletionAnimation": true,
+  "SplitCompletionOutlineThicknessPercent": 40,
+  "SplitCompletionSplitComparisons": {
+    "Destroyer\u002BSkeletronPrime\u002BTwins": true,
+    "Skeletron": true,
+    "WallOfFlesh": true,
+    "Plantera": true,
+    "Golem": true,
+    "LunaticCultist": true,
+    "MoonLord": true
+  },
+  "SplitCompletionSegmentComparisons": {
+    "Skeletron": false,
+    "WallOfFlesh": false,
+    "Destroyer\u002BSkeletronPrime\u002BTwins": false,
+    "Plantera": false,
+    "Golem": false,
+    "LunaticCultist": false,
+    "MoonLord": true
+  },
+  "SplitCompletionOutlineSplitTimes": {
+    "Destroyer\u002BSkeletronPrime\u002BTwins": true,
+    "LunaticCultist": true,
+    "MoonLord": true,
+    "WallOfFlesh": false,
+    "Skeletron": false,
+    "Plantera": true,
+    "Golem": true
+  },
+  "SplitCompletionOutlineSegmentTimes": {
+    "Destroyer\u002BSkeletronPrime\u002BTwins": true,
+    "LunaticCultist": true,
+    "MoonLord": true,
+    "WallOfFlesh": true,
+    "Skeletron": true,
+    "Plantera": true,
+    "Golem": true
+  },
+  "SplitCompletionOutlineSplitStyles": {
+    "Destroyer\u002BSkeletronPrime\u002BTwins": "Rainbow",
+    "LunaticCultist": "Rainbow",
+    "MoonLord": "Rainbow",
+    "WallOfFlesh": "None",
+    "Skeletron": "None",
+    "Plantera": "Rainbow",
+    "Golem": "Rainbow"
+  },
+  "SplitCompletionOutlineSegmentStyles": {
+    "Destroyer\u002BSkeletronPrime\u002BTwins": "Rainbow",
+    "LunaticCultist": "Rainbow",
+    "MoonLord": "Rainbow",
+    "WallOfFlesh": "Rainbow",
+    "Skeletron": "Rainbow",
+    "Plantera": "Rainbow",
+    "Golem": "Rainbow"
+  },
   "Colors": {
-    "ReferenceText": "#C8C8C8",
-    "ActiveReferenceText": "#FFD35A",
+    "ReferenceText": "#E2E2E2",
+    "ActiveReferenceText": "#FDE679",
     "SplitText": "#F0A040",
     "DeltaAheadText": "#72D572",
     "DeltaBehindText": "#F07070",
     "DeltaEvenText": "#D8D8D8",
-    "TimerText": "#F2F2F2",
+    "TimerText": "#BBBBBB",
     "TimerAheadText": "#72D572",
     "TimerBehindText": "#F07070",
     "TimerRecordText": "#69A7FF"
   },
   "Columns": {
+    "ScalePercent": 100,
     "Icon": {
       "Show": true,
       "Width": 240,
@@ -116,29 +164,34 @@
     },
     "Time": {
       "Show": true,
-      "Width": 130,
+      "Width": 180,
       "FontSize": 13.5,
       "Bold": true
     },
     "Delta": {
       "Show": true,
-      "Width": 130,
+      "Width": 150,
       "FontSize": 13.5,
       "Bold": true
     },
     "Timer": {
       "Show": true,
       "Width": 0,
-      "FontSize": 36,
+      "FontSize": 32,
       "Bold": true
     },
     "TimerMilliseconds": {
       "Show": true,
       "Width": 0,
-      "FontSize": 18,
+      "FontSize": 24,
       "Bold": true
-    }
+    },
+    "TimerOffsetX": 97,
+    "TimerOffsetY": 10
   },
   "UndefeatedIconGrayscalePercent": 80,
-  "UndefeatedIconBrightnessPercent": 40
+  "UndefeatedIconBrightnessPercent": 40,
+  "PauseResumeKeys": 116,
+  "ResetKeys": 120,
+  "MouseClickThroughKeys": 121
 }

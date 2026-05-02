@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Globalization;
 using System.Windows.Forms;
 
@@ -26,6 +27,9 @@ internal sealed class SettingsForm : Form
     private readonly CheckBox practiceModeBox = new();
     private readonly ComboBox referenceSetBox = new();
     private readonly TextBox newReferenceSetNameBox = new();
+    private readonly CheckBox autoUpdatePersonalBestDataBox = new();
+    private readonly CheckBox showSplitCompletionAnimationBox = new();
+    private readonly TextBox splitCompletionOutlineThicknessBox = new();
     private readonly TextBox undefeatedIconGrayscaleBox = new();
     private readonly TextBox undefeatedIconBrightnessBox = new();
     private readonly Dictionary<string, RouteControls> routeControls = new(StringComparer.OrdinalIgnoreCase);
@@ -36,13 +40,26 @@ internal sealed class SettingsForm : Form
     private readonly Dictionary<string, TextBox> colorTextBoxes = new();
     private readonly Dictionary<string, ColumnControls> columnControls = new();
     private readonly Dictionary<string, FontControls> fontControls = new();
+    private readonly Dictionary<string, AnimationOutlineControls> animationOutlineControls = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Panel outlineStylePreview = new();
+    private readonly System.Windows.Forms.Timer outlineStylePreviewTimer = new();
     private readonly TextBox globalScaleBox = new();
     private readonly TextBox timerOffsetXBox = new();
     private readonly TextBox timerOffsetYBox = new();
 
     private TableLayoutPanel? personalBestTimeGrid;
     private TableLayoutPanel? personalBestSegmentGrid;
+    private TableLayoutPanel? animationComparisonGrid;
+    private TableLayoutPanel? animationOutlineGrid;
+    private string? personalBestTimeGridSignature;
+    private string? personalBestSegmentGridSignature;
+    private string? animationGridSignature;
+    private string previewOutlineStyle = SplitCompletionOutlineStyles.Rainbow;
+    private readonly List<SettingsPageDescriptor> pages = new();
+    private Panel? pageHost;
     private bool updatingReferenceSetSelection;
+    private int selectedPageIndex = -1;
+    private bool bossRouteDirty;
     private bool dragging;
     private Point dragStartCursor;
     private Point dragStartLocation;
@@ -265,7 +282,7 @@ internal sealed class SettingsForm : Form
         };
         UiTheme.EnableDoubleBuffering(nav);
 
-        var pageHost = new Panel
+        pageHost = new Panel
         {
             Dock = DockStyle.Fill,
             BackColor = WindowColor,
@@ -274,32 +291,55 @@ internal sealed class SettingsForm : Form
         };
         UiTheme.EnableDoubleBuffering(pageHost);
 
-        var pages = new List<(Button Nav, Control Page)>
-        {
-            (CreateNavButton("General"), CreateGeneralPage()),
-            (CreateNavButton("Splits"), CreateSplitsPage()),
-            (CreateNavButton("UI"), CreateUiPage()),
-            (CreateNavButton("Colors"), CreateColorPage())
-        };
+        pages.Clear();
+        pages.Add(new SettingsPageDescriptor(CreateNavButton("General"), () => GeneralSettingsPage.Build(this)));
+        pages.Add(new SettingsPageDescriptor(CreateNavButton("BOSS"), () => BossSettingsPage.Build(this)));
+        pages.Add(new SettingsPageDescriptor(CreateNavButton("Data"), () => DataSettingsPage.Build(this)));
+        pages.Add(new SettingsPageDescriptor(CreateNavButton("UI"), () => UiSettingsPage.Build(this)));
+        pages.Add(new SettingsPageDescriptor(CreateNavButton("Animation"), () => AnimationSettingsPage.Build(this)));
+        pages.Add(new SettingsPageDescriptor(CreateNavButton("Colors"), () => ColorSettingsPage.Build(this)));
 
-        foreach ((Button navButton, Control page) in pages)
+        foreach (SettingsPageDescriptor page in pages)
         {
-            page.Dock = DockStyle.Fill;
-            page.Visible = false;
-            pageHost.Controls.Add(page);
-            nav.Controls.Add(navButton);
+            nav.Controls.Add(page.Nav);
         }
 
         void SelectPage(int index)
         {
+            if (index == selectedPageIndex)
+            {
+                return;
+            }
+
+            bool refreshedAnimation = false;
+            if (selectedPageIndex == 1 && index != selectedPageIndex)
+            {
+                refreshedAnimation = ApplyBossPageRouteChanges();
+            }
+
+            Control selectedPage = EnsurePageCreated(index);
+
+            if (index == 4 && !refreshedAnimation)
+            {
+                RefreshAnimationOutlineGrid();
+            }
+
             for (int i = 0; i < pages.Count; i++)
             {
                 bool selected = i == index;
-                pages[i].Page.Visible = selected;
-                pages[i].Page.BringToFront();
+                Control? page = pages[i].Page;
+                if (page is not null)
+                {
+                    page.Visible = selected;
+                }
+
                 pages[i].Nav.BackColor = selected ? UiTheme.Accent : UiTheme.SurfaceRaised;
                 pages[i].Nav.FlatAppearance.BorderColor = selected ? UiTheme.Accent : BorderColor;
             }
+
+            selectedPage.Visible = true;
+            selectedPage.BringToFront();
+            selectedPageIndex = index;
         }
 
         for (int i = 0; i < pages.Count; i++)
@@ -312,6 +352,43 @@ internal sealed class SettingsForm : Form
         body.Controls.Add(nav, 0, 0);
         body.Controls.Add(pageHost, 1, 0);
         return body;
+    }
+
+    private Control EnsurePageCreated(int index)
+    {
+        SettingsPageDescriptor descriptor = pages[index];
+        if (descriptor.Page is not null)
+        {
+            return descriptor.Page;
+        }
+
+        if (pageHost is null)
+        {
+            throw new InvalidOperationException("Settings page host has not been created.");
+        }
+
+        pageHost.SuspendLayout();
+        try
+        {
+            Control page = descriptor.Create();
+            page.Dock = DockStyle.Fill;
+            page.Visible = false;
+            descriptor.Page = page;
+            pageHost.Controls.Add(page);
+            return page;
+        }
+        finally
+        {
+            pageHost.ResumeLayout(true);
+        }
+    }
+
+    private void EnsureAllPagesCreated()
+    {
+        for (int i = 0; i < pages.Count; i++)
+        {
+            EnsurePageCreated(i);
+        }
     }
 
     private Button CreateNavButton(string text)
@@ -361,36 +438,19 @@ internal sealed class SettingsForm : Form
         return footer;
     }
 
-    private Control CreateGeneralPage()
+    internal Control BuildScrollPage(Action<TableLayoutPanel> populate)
     {
         TableLayoutPanel content = CreatePageContent();
-        AddHotkeySection(content);
-        return CreateScrollPage(content);
-    }
+        content.SuspendLayout();
+        try
+        {
+            populate(content);
+        }
+        finally
+        {
+            content.ResumeLayout(false);
+        }
 
-    private Control CreateSplitsPage()
-    {
-        TableLayoutPanel content = CreatePageContent();
-        AddRouteSection(content);
-        AddBossIconSection(content);
-        AddReferenceDataSection(content);
-        AddPersonalBestDataSection(content);
-        return CreateScrollPage(content);
-    }
-
-    private Control CreateUiPage()
-    {
-        TableLayoutPanel content = CreatePageContent();
-        AddColumnSettingsSection(content);
-        AddTimerSettingsSection(content);
-        AddIconStyleSection(content);
-        return CreateScrollPage(content);
-    }
-
-    private Control CreateColorPage()
-    {
-        TableLayoutPanel content = CreatePageContent();
-        AddColorSection(content);
         return CreateScrollPage(content);
     }
 
@@ -419,12 +479,21 @@ internal sealed class SettingsForm : Form
             BackColor = WindowColor,
             Padding = new Padding(22, 18, 20, 12)
         };
-        panel.Controls.Add(content);
+        panel.BeginContentUpdate();
+        try
+        {
+            panel.Controls.Add(content);
+        }
+        finally
+        {
+            panel.EndContentUpdate();
+        }
+
         UiTheme.EnableDoubleBuffering(panel);
         return panel;
     }
 
-    private void AddHotkeySection(TableLayoutPanel parent)
+    internal void AddHotkeySection(TableLayoutPanel parent)
     {
         ConfigureKeyBox(pauseKeyBox, settings.PauseResumeKeys);
         ConfigureKeyBox(resetKeyBox, settings.ResetKeys);
@@ -455,15 +524,15 @@ internal sealed class SettingsForm : Form
         AddSection(parent, section);
     }
 
-    private void AddRouteSection(TableLayoutPanel parent)
+    internal void AddRouteSection(TableLayoutPanel parent)
     {
-        TableLayoutPanel section = CreateSection("Boss Groups");
+        TableLayoutPanel section = CreateSection("BOSS Groups");
         TableLayoutPanel grid = CreateGrid(
             ColumnStylePercent(100f),
             ColumnStyleAbsolute(124f),
             ColumnStyleAbsolute(96f));
 
-        AddHeaderRow(grid, "Boss", "Enabled", "Group");
+        AddHeaderRow(grid, "BOSS", "Enabled", "Group");
 
         IReadOnlyDictionary<string, BossRouteEntry> route = settings.Route.ToDictionary(
             entry => entry.BossId,
@@ -485,6 +554,8 @@ internal sealed class SettingsForm : Form
             UiTheme.StyleCheckBox(enabledBox);
 
             TextBox groupBox = CreateTextBox(Math.Clamp(entry.Segment, 1m, 99m).ToString("0.#", CultureInfo.InvariantCulture));
+            enabledBox.CheckedChanged += (_, _) => bossRouteDirty = true;
+            groupBox.TextChanged += (_, _) => bossRouteDirty = true;
             routeControls[unit.Id] = new RouteControls(enabledBox, groupBox);
 
             int row = AddGridRow(grid);
@@ -497,9 +568,9 @@ internal sealed class SettingsForm : Form
         AddSection(parent, section);
     }
 
-    private void AddBossIconSection(TableLayoutPanel parent)
+    internal void AddBossIconSection(TableLayoutPanel parent)
     {
-        TableLayoutPanel section = CreateSection("Boss Icons");
+        TableLayoutPanel section = CreateSection("BOSS Icons");
         TableLayoutPanel grid = CreateGrid(
             ColumnStyleAbsolute(260f),
             ColumnStylePercent(100f),
@@ -525,7 +596,7 @@ internal sealed class SettingsForm : Form
         AddSection(parent, section);
     }
 
-    private void AddReferenceDataSection(TableLayoutPanel parent)
+    internal void AddReferenceDataSection(TableLayoutPanel parent)
     {
         TableLayoutPanel section = CreateSection("Reference Data");
 
@@ -570,9 +641,18 @@ internal sealed class SettingsForm : Form
         AddSection(parent, section);
     }
 
-    private void AddPersonalBestDataSection(TableLayoutPanel parent)
+    internal void AddPersonalBestDataSection(TableLayoutPanel parent)
     {
-        TableLayoutPanel personalBestSection = CreateSection("Personal best");
+        ConfigureCheckBox(autoUpdatePersonalBestDataBox, settings.AutoUpdatePersonalBestData);
+        TableLayoutPanel autoUpdateSection = CreateSection("Personal Data");
+        TableLayoutPanel autoUpdateGrid = CreateGrid(
+            ColumnStylePercent(100f),
+            ColumnStyleAbsolute(280f));
+        AddSettingRow(autoUpdateGrid, "Auto update personal data", autoUpdatePersonalBestDataBox);
+        AddSectionControl(autoUpdateSection, autoUpdateGrid);
+        AddSection(parent, autoUpdateSection);
+
+        TableLayoutPanel personalBestSection = CreateSection("Personal Cumulative Best");
         personalBestTimeGrid = CreateGrid(
             ColumnStylePercent(100f),
             ColumnStyleAbsolute(280f));
@@ -596,19 +676,44 @@ internal sealed class SettingsForm : Form
             return;
         }
 
-        ClearGrid(personalBestTimeGrid);
-        personalBestTimeTextBoxes.Clear();
-        foreach (BossRouteEntry entry in GetRouteOrderedEntries())
+        List<BossRouteEntry> entries = GetRouteOrderedEntries().ToList();
+        string signature = string.Join('\u001F', entries.Select(entry => entry.BossId));
+        if (personalBestTimeGridSignature == signature && personalBestTimeTextBoxes.Count > 0)
         {
-            if (!BossSplitDefinitions.TryGetUnit(entry.BossId, out BossUnitDefinition unit))
+            foreach (BossRouteEntry entry in entries)
             {
-                continue;
+                if (personalBestTimeTextBoxes.TryGetValue(entry.BossId, out TextBox? textBox))
+                {
+                    textBox.Text = settings.GetPersonalBestTimeText(entry.BossId);
+                }
             }
 
-            TextBox textBox = CreateTextBox(settings.GetPersonalBestTimeText(unit.Id));
-            textBox.PlaceholderText = "m:ss or h:mm:ss";
-            personalBestTimeTextBoxes[unit.Id] = textBox;
-            AddSettingRow(personalBestTimeGrid, Localizer.Get(unit.DisplayName, settings), textBox);
+            return;
+        }
+
+        personalBestTimeGrid.SuspendLayout();
+        try
+        {
+            ClearGrid(personalBestTimeGrid);
+            personalBestTimeTextBoxes.Clear();
+            foreach (BossRouteEntry entry in entries)
+            {
+                if (!BossSplitDefinitions.TryGetUnit(entry.BossId, out BossUnitDefinition unit))
+                {
+                    continue;
+                }
+
+                TextBox textBox = CreateTextBox(settings.GetPersonalBestTimeText(unit.Id));
+                textBox.PlaceholderText = "m:ss or h:mm:ss";
+                personalBestTimeTextBoxes[unit.Id] = textBox;
+                AddSettingRow(personalBestTimeGrid, Localizer.Get(unit.DisplayName, settings), textBox);
+            }
+
+            personalBestTimeGridSignature = signature;
+        }
+        finally
+        {
+            personalBestTimeGrid.ResumeLayout(true);
         }
     }
 
@@ -619,18 +724,43 @@ internal sealed class SettingsForm : Form
             return;
         }
 
-        ClearGrid(personalBestSegmentGrid);
-        personalBestSegmentTextBoxes.Clear();
-        foreach (RouteGroup group in BossRouteGroups.Build(settings))
+        List<RouteGroup> groups = BossRouteGroups.Build(settings).ToList();
+        string signature = string.Join('\u001F', groups.Select(group => group.Key));
+        if (personalBestSegmentGridSignature == signature && personalBestSegmentTextBoxes.Count > 0)
         {
-            TextBox textBox = CreateTextBox(settings.GetPersonalBestSegmentText(group.Key));
-            textBox.PlaceholderText = "m:ss or h:mm:ss";
-            personalBestSegmentTextBoxes[group.Key] = textBox;
-            AddSettingRow(personalBestSegmentGrid, BossRouteGroups.GetGroupDisplayName(group, settings), textBox);
+            foreach (RouteGroup group in groups)
+            {
+                if (personalBestSegmentTextBoxes.TryGetValue(group.Key, out TextBox? textBox))
+                {
+                    textBox.Text = settings.GetPersonalBestSegmentText(group.Key);
+                }
+            }
+
+            return;
+        }
+
+        personalBestSegmentGrid.SuspendLayout();
+        try
+        {
+            ClearGrid(personalBestSegmentGrid);
+            personalBestSegmentTextBoxes.Clear();
+            foreach (RouteGroup group in groups)
+            {
+                TextBox textBox = CreateTextBox(settings.GetPersonalBestSegmentText(group.Key));
+                textBox.PlaceholderText = "m:ss or h:mm:ss";
+                personalBestSegmentTextBoxes[group.Key] = textBox;
+                AddSettingRow(personalBestSegmentGrid, BossRouteGroups.GetGroupDisplayName(group, settings), textBox);
+            }
+
+            personalBestSegmentGridSignature = signature;
+        }
+        finally
+        {
+            personalBestSegmentGrid.ResumeLayout(true);
         }
     }
 
-    private void AddColumnSettingsSection(TableLayoutPanel parent)
+    internal void AddColumnSettingsSection(TableLayoutPanel parent)
     {
         TableLayoutPanel section = CreateSection("Columns");
         TableLayoutPanel grid = CreateGrid(
@@ -682,7 +812,7 @@ internal sealed class SettingsForm : Form
         grid.Controls.Add(CreateCenteredCell(boldBox, 28), 4, row);
     }
 
-    private void AddTimerSettingsSection(TableLayoutPanel parent)
+    internal void AddTimerSettingsSection(TableLayoutPanel parent)
     {
         TableLayoutPanel section = CreateSection("Timer");
         TableLayoutPanel grid = CreateGrid(
@@ -737,7 +867,7 @@ internal sealed class SettingsForm : Form
         grid.Controls.Add(CreateCenteredCell(boldBox, 28), 3, row);
     }
 
-    private void AddIconStyleSection(TableLayoutPanel parent)
+    internal void AddIconStyleSection(TableLayoutPanel parent)
     {
         ConfigureNumberBox(undefeatedIconGrayscaleBox, settings.UndefeatedIconGrayscalePercent, 0, 100);
         ConfigureNumberBox(undefeatedIconBrightnessBox, settings.UndefeatedIconBrightnessPercent, 0, 100);
@@ -752,7 +882,344 @@ internal sealed class SettingsForm : Form
         AddSection(parent, section);
     }
 
-    private void AddColorSection(TableLayoutPanel parent)
+    internal void AddAnimationSection(TableLayoutPanel parent)
+    {
+        ConfigureCheckBox(showSplitCompletionAnimationBox, settings.ShowSplitCompletionAnimation);
+        ConfigureNumberBox(splitCompletionOutlineThicknessBox, settings.SplitCompletionOutlineThicknessPercent, 0, 100);
+        splitCompletionOutlineThicknessBox.TextChanged += (_, _) => outlineStylePreview.Invalidate();
+
+        TableLayoutPanel section = CreateSection("BOSS Defeat Animation");
+        TableLayoutPanel optionGrid = CreateGrid(
+            ColumnStylePercent(100f),
+            ColumnStyleAbsolute(280f));
+        AddSettingRow(optionGrid, "Enable animation", showSplitCompletionAnimationBox);
+        AddSectionControl(section, optionGrid);
+
+        AddSectionControl(section, CreateSubsectionLabel("Show comparison"));
+        animationComparisonGrid = CreateGrid(
+            ColumnStylePercent(100f),
+            ColumnStyleAbsolute(180f),
+            ColumnStyleAbsolute(180f));
+        AddSectionControl(section, animationComparisonGrid);
+
+        AddSectionControl(section, CreateSubsectionLabel("Rainbow outline"));
+        TableLayoutPanel outlineOptionGrid = CreateGrid(
+            ColumnStylePercent(100f),
+            ColumnStyleAbsolute(280f));
+        AddSettingRow(outlineOptionGrid, "Outline thickness %", splitCompletionOutlineThicknessBox);
+        AddSectionControl(section, outlineOptionGrid);
+
+        animationOutlineGrid = CreateGrid(
+            ColumnStylePercent(100f),
+            ColumnStyleAbsolute(180f),
+            ColumnStyleAbsolute(180f));
+        AddSectionControl(section, animationOutlineGrid);
+        AddSectionControl(section, CreateOutlineStylePreview());
+        PopulateAnimationOutlineGrid();
+        AddSection(parent, section);
+    }
+
+    private void PopulateAnimationOutlineGrid()
+    {
+        if (animationComparisonGrid is null || animationOutlineGrid is null)
+        {
+            return;
+        }
+
+        List<RouteGroup> groups = BossRouteGroups.Build(settings).ToList();
+        string signature = string.Join('\u001F', groups.Select(group => group.Key));
+        if (animationGridSignature == signature && animationOutlineControls.Count > 0)
+        {
+            foreach (RouteGroup group in groups)
+            {
+                if (!animationOutlineControls.TryGetValue(group.Key, out AnimationOutlineControls? controls))
+                {
+                    continue;
+                }
+
+                controls.SplitComparison.Checked = GetAnimationOutlineSetting(settings.SplitCompletionSplitComparisons, group.Key);
+                controls.SegmentComparison.Checked = GetAnimationOutlineSetting(settings.SplitCompletionSegmentComparisons, group.Key);
+                SetOutlineStyle(controls.SplitTime, GetAnimationOutlineStyle(settings.SplitCompletionOutlineSplitStyles, settings.SplitCompletionOutlineSplitTimes, group.Key));
+                SetOutlineStyle(controls.SegmentTime, GetAnimationOutlineStyle(settings.SplitCompletionOutlineSegmentStyles, settings.SplitCompletionOutlineSegmentTimes, group.Key));
+            }
+
+            return;
+        }
+
+        animationComparisonGrid.SuspendLayout();
+        animationOutlineGrid.SuspendLayout();
+        try
+        {
+            ClearGrid(animationComparisonGrid);
+            ClearGrid(animationOutlineGrid);
+            animationOutlineControls.Clear();
+            AddHeaderRow(animationComparisonGrid, "BOSS Group", "Cumulative time", "Segment time");
+            AddHeaderRow(animationOutlineGrid, "BOSS Group", "Cumulative time", "Segment time");
+            foreach (RouteGroup group in groups)
+            {
+                var splitComparisonBox = new CheckBox
+                {
+                    Checked = GetAnimationOutlineSetting(settings.SplitCompletionSplitComparisons, group.Key),
+                    Dock = DockStyle.Fill,
+                    ForeColor = TextColor,
+                    TextAlign = ContentAlignment.MiddleCenter
+                };
+                UiTheme.StyleCheckBox(splitComparisonBox);
+
+                var segmentComparisonBox = new CheckBox
+                {
+                    Checked = GetAnimationOutlineSetting(settings.SplitCompletionSegmentComparisons, group.Key),
+                    Dock = DockStyle.Fill,
+                    ForeColor = TextColor,
+                    TextAlign = ContentAlignment.MiddleCenter
+                };
+                UiTheme.StyleCheckBox(segmentComparisonBox);
+
+                ComboBox splitTimeBox = CreateOutlineStyleBox(GetAnimationOutlineStyle(
+                    settings.SplitCompletionOutlineSplitStyles,
+                    settings.SplitCompletionOutlineSplitTimes,
+                    group.Key));
+                ComboBox segmentTimeBox = CreateOutlineStyleBox(GetAnimationOutlineStyle(
+                    settings.SplitCompletionOutlineSegmentStyles,
+                    settings.SplitCompletionOutlineSegmentTimes,
+                    group.Key));
+
+                animationOutlineControls[group.Key] = new AnimationOutlineControls(splitComparisonBox, segmentComparisonBox, splitTimeBox, segmentTimeBox);
+
+                int comparisonRow = AddGridRow(animationComparisonGrid);
+                animationComparisonGrid.Controls.Add(CreateRowLabel(BossRouteGroups.GetGroupDisplayName(group, settings)), 0, comparisonRow);
+                animationComparisonGrid.Controls.Add(splitComparisonBox, 1, comparisonRow);
+                animationComparisonGrid.Controls.Add(segmentComparisonBox, 2, comparisonRow);
+
+                int outlineRow = AddGridRow(animationOutlineGrid);
+                animationOutlineGrid.Controls.Add(CreateRowLabel(BossRouteGroups.GetGroupDisplayName(group, settings)), 0, outlineRow);
+                animationOutlineGrid.Controls.Add(splitTimeBox, 1, outlineRow);
+                animationOutlineGrid.Controls.Add(segmentTimeBox, 2, outlineRow);
+            }
+
+            animationGridSignature = signature;
+        }
+        finally
+        {
+            animationOutlineGrid.ResumeLayout(true);
+            animationComparisonGrid.ResumeLayout(true);
+        }
+    }
+
+    private static bool GetAnimationOutlineSetting(Dictionary<string, bool> values, string key)
+    {
+        return !values.TryGetValue(key, out bool enabled) || enabled;
+    }
+
+    private static string GetAnimationOutlineStyle(
+        Dictionary<string, string> values,
+        Dictionary<string, bool> legacyEnabled,
+        string key)
+    {
+        if (values.TryGetValue(key, out string? style))
+        {
+            return SplitCompletionOutlineStyles.Normalize(style);
+        }
+
+        return legacyEnabled.TryGetValue(key, out bool enabled) && !enabled
+            ? SplitCompletionOutlineStyles.None
+            : SplitCompletionOutlineStyles.Rainbow;
+    }
+
+    private ComboBox CreateOutlineStyleBox(string selectedStyle)
+    {
+        var comboBox = new ComboBox
+        {
+            Dock = DockStyle.Fill,
+            DropDownStyle = ComboBoxStyle.DropDownList
+        };
+        UiTheme.StyleComboBox(comboBox);
+
+        foreach (string style in SplitCompletionOutlineStyles.Ids)
+        {
+            comboBox.Items.Add(new OutlineStyleOption(style, Localizer.Get(SplitCompletionOutlineStyles.GetDisplayName(style), settings)));
+        }
+
+        SetOutlineStyle(comboBox, selectedStyle);
+        comboBox.SelectedIndexChanged += (_, _) =>
+        {
+            previewOutlineStyle = GetSelectedOutlineStyle(comboBox);
+            outlineStylePreview.Invalidate();
+        };
+        return comboBox;
+    }
+
+    private static string GetSelectedOutlineStyle(ComboBox comboBox)
+    {
+        return comboBox.SelectedItem is OutlineStyleOption option
+            ? option.Id
+            : SplitCompletionOutlineStyles.None;
+    }
+
+    private static void SetOutlineStyle(ComboBox comboBox, string style)
+    {
+        string normalized = SplitCompletionOutlineStyles.Normalize(style);
+        for (int i = 0; i < comboBox.Items.Count; i++)
+        {
+            if (comboBox.Items[i] is OutlineStyleOption option &&
+                string.Equals(option.Id, normalized, StringComparison.OrdinalIgnoreCase))
+            {
+                comboBox.SelectedIndex = i;
+                return;
+            }
+        }
+
+        comboBox.SelectedIndex = 0;
+    }
+
+    private Control CreateOutlineStylePreview()
+    {
+        outlineStylePreview.Dock = DockStyle.Fill;
+        outlineStylePreview.Height = 96;
+        outlineStylePreview.BackColor = FieldColor;
+        outlineStylePreview.Margin = new Padding(0, 10, 0, 2);
+        outlineStylePreview.Paint += (_, e) => PaintOutlineStylePreview(e.Graphics, outlineStylePreview.ClientRectangle);
+        UiTheme.EnableDoubleBuffering(outlineStylePreview);
+        outlineStylePreviewTimer.Interval = 120;
+        outlineStylePreviewTimer.Tick += (_, _) => outlineStylePreview.Invalidate();
+        outlineStylePreviewTimer.Start();
+        outlineStylePreview.Disposed += (_, _) => outlineStylePreviewTimer.Stop();
+        return outlineStylePreview;
+    }
+
+    private void PaintOutlineStylePreview(Graphics graphics, Rectangle bounds)
+    {
+        graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        using var backgroundBrush = new SolidBrush(FieldColor);
+        graphics.FillRectangle(backgroundBrush, bounds);
+        using var borderPen = new Pen(BorderColor);
+        graphics.DrawRectangle(borderPen, 0, 0, Math.Max(0, bounds.Width - 1), Math.Max(0, bounds.Height - 1));
+
+        using var font = UiTheme.FormFont(18f, FontStyle.Bold);
+        string text = "XX:XX.XX";
+        using var format = new StringFormat(StringFormat.GenericTypographic)
+        {
+            Alignment = StringAlignment.Near,
+            LineAlignment = StringAlignment.Near
+        };
+        DrawPreviewOutlinedString(
+            graphics,
+            text,
+            font,
+            Color.White,
+            bounds.Left + bounds.Width / 2f,
+            bounds.Top + bounds.Height / 2f,
+            format,
+            previewOutlineStyle,
+            ParseIntBox(splitCompletionOutlineThicknessBox, 30, 0, 100));
+    }
+
+    private static void DrawPreviewOutlinedString(
+        Graphics graphics,
+        string text,
+        Font font,
+        Color fillColor,
+        float centerX,
+        float centerY,
+        StringFormat format,
+        string style,
+        int thicknessPercent)
+    {
+        string normalized = SplitCompletionOutlineStyles.Normalize(style);
+        if (normalized == SplitCompletionOutlineStyles.None)
+        {
+            using var textBrush = new SolidBrush(fillColor);
+            SizeF size = graphics.MeasureString(text, font, Size.Empty, format);
+            graphics.DrawString(text, font, textBrush, centerX - size.Width / 2f, centerY - size.Height / 2f, format);
+            return;
+        }
+
+        using GraphicsPath path = CreatePreviewTextPath(graphics, text, font, 0f, 0f, format);
+        CenterPath(path, centerX, centerY);
+        RectangleF pathBounds = path.GetBounds();
+        RectangleF gradientBounds = InflateBounds(pathBounds, Math.Max(4f, font.Size * 0.35f));
+        using var outlineBrush = new LinearGradientBrush(gradientBounds, Color.White, Color.White, LinearGradientMode.Horizontal);
+        Color[] colors = SplitCompletionOutlineStyles.GetColors(normalized, Environment.TickCount64 / 1000.0);
+        outlineBrush.InterpolationColors = new ColorBlend
+        {
+            Positions = CreateColorPositions(colors.Length),
+            Colors = colors
+        };
+
+        float thickness = font.Size * Math.Clamp(thicknessPercent, 0, 100) / 100f;
+        using var outlinePen = new Pen(outlineBrush, Math.Max(1f, thickness))
+        {
+            LineJoin = LineJoin.Round
+        };
+        graphics.DrawPath(outlinePen, path);
+
+        using var fillBrush = new SolidBrush(fillColor);
+        graphics.FillPath(fillBrush, path);
+    }
+
+    private static GraphicsPath CreatePreviewTextPath(Graphics graphics, string text, Font font, float x, float y, StringFormat format)
+    {
+        var path = new GraphicsPath();
+        using StringFormat pathFormat = (StringFormat)format.Clone();
+        path.AddString(
+            text,
+            font.FontFamily,
+            (int)font.Style,
+            emSize: font.SizeInPoints * graphics.DpiY / 72f,
+            origin: new PointF(x, y),
+            format: pathFormat);
+        return path;
+    }
+
+    private static void CenterPath(GraphicsPath path, float centerX, float centerY)
+    {
+        RectangleF bounds = path.GetBounds();
+        using var matrix = new Matrix();
+        matrix.Translate(centerX - (bounds.Left + bounds.Width / 2f), centerY - (bounds.Top + bounds.Height / 2f));
+        path.Transform(matrix);
+    }
+
+    private static RectangleF InflateBounds(RectangleF bounds, float amount)
+    {
+        if (bounds.Width <= 0f || bounds.Height <= 0f)
+        {
+            return new RectangleF(bounds.X - amount, bounds.Y - amount, amount * 2f + 1f, amount * 2f + 1f);
+        }
+
+        bounds.Inflate(amount, amount);
+        return bounds;
+    }
+
+    private static float[] CreateColorPositions(int count)
+    {
+        if (count <= 1)
+        {
+            return new[] { 0f };
+        }
+
+        var positions = new float[count];
+        for (int i = 0; i < count; i++)
+        {
+            positions[i] = i / (float)(count - 1);
+        }
+
+        return positions;
+    }
+
+    private void RefreshAnimationOutlineGrid()
+    {
+        if (animationComparisonGrid is null || animationOutlineGrid is null)
+        {
+            return;
+        }
+
+        SaveAnimationOutlineControls();
+        PopulateAnimationOutlineGrid();
+        animationComparisonGrid.PerformLayout();
+        animationOutlineGrid.PerformLayout();
+    }
+
+    internal void AddColorSection(TableLayoutPanel parent)
     {
         TableLayoutPanel section = CreateSection("Text Colors");
         TableLayoutPanel grid = CreateGrid(3, 36f, 50f, 14f);
@@ -1134,7 +1601,7 @@ internal sealed class SettingsForm : Form
         {
             CheckFileExists = true,
             Filter = "Images|*.png;*.jpg;*.jpeg;*.bmp;*.gif|All files|*.*",
-            Title = "Choose Boss Icon"
+            Title = Localizer.Get("Choose BOSS Icon", settings)
         };
 
         if (dialog.ShowDialog(this) == DialogResult.OK)
@@ -1245,15 +1712,24 @@ internal sealed class SettingsForm : Form
 
     private void ApplyToSettings()
     {
+        EnsurePageCreated(1);
+        ApplyBossPageRouteChanges();
+        EnsureAllPagesCreated();
+
         settings.Language = languageBox.SelectedItem as string ?? "English";
         settings.PauseResumeKey = pauseKeyBox.Hotkey.ToString();
         settings.ResetKey = resetKeyBox.Hotkey.ToString();
         settings.MouseClickThroughKey = mouseClickThroughKeyBox.Hotkey.ToString();
         settings.AlwaysOnTop = alwaysOnTopBox.Checked;
         settings.PracticeMode = practiceModeBox.Checked;
+        settings.AutoUpdatePersonalBestData = autoUpdatePersonalBestDataBox.Checked;
+        settings.ShowSplitCompletionAnimation = showSplitCompletionAnimationBox.Checked;
+        settings.SplitCompletionOutlineThicknessPercent = ParseIntBox(splitCompletionOutlineThicknessBox, 30, 0, 100);
         SaveReferenceTextBoxes();
         SavePersonalBestTextBoxes();
         ApplyRouteSettings();
+        AppSettingsStore.Normalize(settings);
+        SaveAnimationOutlineControls();
         AppSettingsStore.Normalize(settings);
 
         settings.ActiveReferenceSplitSet = referenceSetBox.SelectedItem is string selectedReferenceSet
@@ -1290,12 +1766,43 @@ internal sealed class SettingsForm : Form
         SetColor(nameof(settings.Colors.TimerRecordText), value => settings.Colors.TimerRecordText = value);
     }
 
+    private void SaveAnimationOutlineControls()
+    {
+        foreach ((string key, AnimationOutlineControls controls) in animationOutlineControls)
+        {
+            settings.SplitCompletionSplitComparisons[key] = controls.SplitComparison.Checked;
+            settings.SplitCompletionSegmentComparisons[key] = controls.SegmentComparison.Checked;
+            string splitStyle = GetSelectedOutlineStyle(controls.SplitTime);
+            string segmentStyle = GetSelectedOutlineStyle(controls.SegmentTime);
+            settings.SplitCompletionOutlineSplitStyles[key] = splitStyle;
+            settings.SplitCompletionOutlineSegmentStyles[key] = segmentStyle;
+            settings.SplitCompletionOutlineSplitTimes[key] = splitStyle != SplitCompletionOutlineStyles.None;
+            settings.SplitCompletionOutlineSegmentTimes[key] = segmentStyle != SplitCompletionOutlineStyles.None;
+        }
+    }
+
     private void ApplyAndNotify()
     {
         ApplyToSettings();
         PopulatePersonalBestTimeGrid();
         PopulatePersonalBestSegmentGrid();
         Applied?.Invoke(this, EventArgs.Empty);
+    }
+
+    private bool ApplyBossPageRouteChanges()
+    {
+        if (!bossRouteDirty)
+        {
+            return false;
+        }
+
+        ApplyRouteSettings();
+        AppSettingsStore.Normalize(settings);
+        bossRouteDirty = false;
+        PopulatePersonalBestTimeGrid();
+        PopulatePersonalBestSegmentGrid();
+        RefreshAnimationOutlineGrid();
+        return true;
     }
 
     private void ApplyRouteSettings()
@@ -1389,6 +1896,35 @@ internal sealed class SettingsForm : Form
 
     private sealed record RouteControls(CheckBox Enabled, TextBox Group);
 
+    private sealed record AnimationOutlineControls(
+        CheckBox SplitComparison,
+        CheckBox SegmentComparison,
+        ComboBox SplitTime,
+        ComboBox SegmentTime);
+
+    private sealed record OutlineStyleOption(string Id, string DisplayName)
+    {
+        public override string ToString()
+        {
+            return DisplayName;
+        }
+    }
+
+    private sealed class SettingsPageDescriptor
+    {
+        public SettingsPageDescriptor(Button nav, Func<Control> create)
+        {
+            Nav = nav;
+            Create = create;
+        }
+
+        public Button Nav { get; }
+
+        public Func<Control> Create { get; }
+
+        public Control? Page { get; set; }
+    }
+
     private sealed class HotkeyTextBox : TextBox
     {
         public Keys Hotkey { get; private set; } = Keys.None;
@@ -1426,6 +1962,9 @@ internal sealed class SettingsForm : Form
         private bool draggingThumb;
         private int dragThumbStartY;
         private int dragStartOffset;
+        private int contentUpdateDepth;
+        private bool layoutContentPending;
+        private readonly Dictionary<Control, AttachedContentHandlers> attachedContentHandlers = new();
 
         public ThemedScrollPanel()
         {
@@ -1437,8 +1976,23 @@ internal sealed class SettingsForm : Form
         protected override void OnControlAdded(ControlEventArgs e)
         {
             base.OnControlAdded(e);
-            AttachContent(e.Control);
-            LayoutContent();
+            if (e.Control is not null)
+            {
+                AttachContent(e.Control);
+            }
+
+            RequestLayoutContent();
+        }
+
+        protected override void OnControlRemoved(ControlEventArgs e)
+        {
+            if (e.Control is not null)
+            {
+                DetachContent(e.Control);
+            }
+
+            base.OnControlRemoved(e);
+            RequestLayoutContent();
         }
 
         protected override void OnMouseDown(MouseEventArgs e)
@@ -1487,7 +2041,7 @@ internal sealed class SettingsForm : Form
         protected override void OnResize(EventArgs eventargs)
         {
             base.OnResize(eventargs);
-            LayoutContent();
+            RequestLayoutContent();
         }
 
         protected override void OnPaint(PaintEventArgs e)
@@ -1512,16 +2066,101 @@ internal sealed class SettingsForm : Form
             }
         }
 
+        public void BeginContentUpdate()
+        {
+            contentUpdateDepth++;
+            SuspendLayout();
+        }
+
+        public void EndContentUpdate()
+        {
+            if (contentUpdateDepth > 0)
+            {
+                contentUpdateDepth--;
+            }
+
+            ResumeLayout(false);
+            if (contentUpdateDepth == 0 && layoutContentPending)
+            {
+                layoutContentPending = false;
+                LayoutContent();
+            }
+        }
+
         private void AttachContent(Control control)
         {
-            control.SizeChanged += (_, _) => LayoutContent();
-            control.MouseWheel += (_, e) => ScrollBy(e.Delta);
-            control.ControlAdded += (_, e) => AttachContent(e.Control);
+            if (attachedContentHandlers.ContainsKey(control))
+            {
+                return;
+            }
+
+            EventHandler sizeChanged = (_, _) => RequestLayoutContent();
+            MouseEventHandler mouseWheel = (_, e) => ScrollBy(e.Delta);
+            ControlEventHandler controlAdded = (_, e) =>
+            {
+                if (e.Control is not null)
+                {
+                    AttachContent(e.Control);
+                }
+
+                RequestLayoutContent();
+            };
+            ControlEventHandler controlRemoved = (_, e) =>
+            {
+                if (e.Control is not null)
+                {
+                    DetachContent(e.Control);
+                }
+
+                RequestLayoutContent();
+            };
+
+            attachedContentHandlers[control] = new AttachedContentHandlers(
+                sizeChanged,
+                mouseWheel,
+                controlAdded,
+                controlRemoved);
+
+            control.SizeChanged += sizeChanged;
+            control.MouseWheel += mouseWheel;
+            control.ControlAdded += controlAdded;
+            control.ControlRemoved += controlRemoved;
 
             foreach (Control child in control.Controls)
             {
                 AttachContent(child);
             }
+        }
+
+        private void DetachContent(Control control)
+        {
+            foreach (Control child in control.Controls.Cast<Control>().ToArray())
+            {
+                DetachContent(child);
+            }
+
+            if (!attachedContentHandlers.Remove(control, out AttachedContentHandlers? handlers))
+            {
+                return;
+            }
+
+            control.SizeChanged -= handlers.SizeChanged;
+            control.MouseWheel -= handlers.MouseWheel;
+            control.ControlAdded -= handlers.ControlAdded;
+            control.ControlRemoved -= handlers.ControlRemoved;
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                foreach (Control control in attachedContentHandlers.Keys.ToArray())
+                {
+                    DetachContent(control);
+                }
+            }
+
+            base.Dispose(disposing);
         }
 
         private void ScrollBy(int delta)
@@ -1536,6 +2175,12 @@ internal sealed class SettingsForm : Form
 
         private void LayoutContent()
         {
+            if (contentUpdateDepth > 0)
+            {
+                layoutContentPending = true;
+                return;
+            }
+
             if (Controls.Count == 0)
             {
                 return;
@@ -1554,6 +2199,17 @@ internal sealed class SettingsForm : Form
             scrollOffset = Math.Clamp(scrollOffset, 0, GetMaxOffset());
             content.Location = new Point(Padding.Left, Padding.Top - scrollOffset);
             Invalidate();
+        }
+
+        private void RequestLayoutContent()
+        {
+            if (contentUpdateDepth > 0)
+            {
+                layoutContentPending = true;
+                return;
+            }
+
+            LayoutContent();
         }
 
         private int GetMaxOffset()
@@ -1615,7 +2271,19 @@ internal sealed class SettingsForm : Form
         private void ScrollToOffset(int offset)
         {
             scrollOffset = Math.Clamp(offset, 0, GetMaxOffset());
-            LayoutContent();
+            if (Controls.Count > 0)
+            {
+                Control content = Controls[0];
+                content.Location = new Point(Padding.Left, Padding.Top - scrollOffset);
+            }
+
+            Invalidate();
         }
+
+        private sealed record AttachedContentHandlers(
+            EventHandler SizeChanged,
+            MouseEventHandler MouseWheel,
+            ControlEventHandler ControlAdded,
+            ControlEventHandler ControlRemoved);
     }
 }

@@ -243,10 +243,6 @@ internal sealed class TerrariaWorldWatcher : IDisposable
             ReadBossFlag(Terraria1456Memory.PlanteraDefeatedFlagOffset),
             ReadBossFlag(Terraria1456Memory.GolemDefeatedFlagOffset),
             ReadBossFlag(Terraria1456Memory.LunaticCultistDefeatedFlagOffset),
-            ReadBossFlag(Terraria1456Memory.SolarPillarDefeatedFlagOffset),
-            ReadBossFlag(Terraria1456Memory.VortexPillarDefeatedFlagOffset),
-            ReadBossFlag(Terraria1456Memory.NebulaPillarDefeatedFlagOffset),
-            ReadBossFlag(Terraria1456Memory.StardustPillarDefeatedFlagOffset),
             ReadBossFlag(Terraria1456Memory.MoonLordDefeatedFlagOffset));
     }
 

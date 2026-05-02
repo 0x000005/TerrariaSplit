@@ -10,6 +10,8 @@ internal sealed class MainForm : Form
 {
     private static readonly Color TransparentKeyColor = Color.FromArgb(1, 2, 3);
     private static readonly TimeSpan MaximumVisibleDeltaDistance = TimeSpan.FromMinutes(1);
+    private static readonly TimeSpan SplitCompletionAnimationDuration = TimeSpan.FromSeconds(4.2);
+    private static readonly TimeSpan SplitCompletionFadeDuration = TimeSpan.FromSeconds(0.45);
     private const int ResizeBorder = 8;
     private const int RowGap = 9;
 
@@ -24,6 +26,8 @@ internal sealed class MainForm : Form
     private bool dragging;
     private Point dragStartCursor;
     private Point dragStartLocation;
+    private SplitCompletionAnimation? splitCompletionAnimation;
+    private bool runStatsRecorded;
 
     private AppSettings settings = AppSettingsStore.Load();
     private TerrariaWatchSnapshot snapshot =
@@ -258,6 +262,7 @@ internal sealed class MainForm : Form
 
         if (snapshot.EnteredWorld && runTimer.Phase == SplitTimerPhase.NotStarted)
         {
+            runStatsRecorded = false;
             runTimer.Start();
             splitTracker.OnRunStarted(snapshot);
         }
@@ -267,9 +272,21 @@ internal sealed class MainForm : Form
             BossSplitRecord? split = splitTracker.Update(snapshot, runTimer.Elapsed);
             if (split is not null)
             {
+                if (settings.ShowSplitCompletionAnimation)
+                {
+                    StartSplitCompletionAnimation(splitTracker.CurrentIndex - 1);
+                }
+                else
+                {
+                    splitCompletionAnimation = null;
+                }
+
+                TryAutoUpdatePersonalBestSegment(splitTracker.CurrentIndex - 1);
+
                 if (splitTracker.CurrentIndex >= splitTracker.Statuses.Count)
                 {
-                    RunStatsStore.RecordRun(splitTracker.Statuses);
+                    TryAutoUpdatePersonalBestTimes();
+                    RecordRunStatsOnce();
                     runTimer.Stop();
                 }
             }
@@ -288,24 +305,40 @@ internal sealed class MainForm : Form
             return;
         }
 
+        bool hasAnimation = TryGetActiveSplitCompletionAnimation(
+            out SplitCompletionAnimation? animation,
+            out TimeSpan animationElapsed,
+            out float animationOpacity);
+        float listOpacity = hasAnimation ? 1f - animationOpacity : 1f;
+
         for (int i = 0; i < statuses.Count; i++)
         {
             BossSplitStatus status = statuses[i];
             bool isCurrent = i == splitTracker.CurrentIndex && runTimer.Phase != SplitTimerPhase.NotStarted;
-            DrawSplitRow(graphics, layout.GetRowRect(i), status, isCurrent, palette);
+            DrawSplitRow(graphics, layout.GetRowRect(i), status, isCurrent, palette, listOpacity);
+        }
+
+        if (hasAnimation && animation is not null)
+        {
+            DrawSplitCompletionAnimation(graphics, layout, statuses.Count, animation, animationElapsed, animationOpacity);
         }
 
         DrawTimer(graphics, layout.TimerRect, palette);
     }
 
-    private void DrawSplitRow(Graphics graphics, Rectangle rect, BossSplitStatus status, bool isCurrent, UiPalette palette)
+    private void DrawSplitRow(Graphics graphics, Rectangle rect, BossSplitStatus status, bool isCurrent, UiPalette palette, float opacity)
     {
+        if (opacity <= 0.01f)
+        {
+            return;
+        }
+
         ColumnRects columns = GetColumnRects(rect);
 
         if (columns.Icon is Rectangle iconColumnRect)
         {
             Rectangle iconRect = Rectangle.Inflate(iconColumnRect, -2, 0);
-            DrawIcons(graphics, iconRect, status);
+            DrawIcons(graphics, iconRect, status, opacity);
         }
 
         SplitComparison comparison = GetSplitComparison(status, isCurrent);
@@ -320,7 +353,7 @@ internal sealed class MainForm : Form
                 ? TimeText.FormatSplit(status.Time!.Value)
                 : FormatReferenceTime(status.Definition);
 
-            using var timeBrush = new SolidBrush(timeColor);
+            using var timeBrush = new SolidBrush(WithOpacity(timeColor, opacity));
             DrawText(
                 graphics,
                 timeText,
@@ -332,7 +365,7 @@ internal sealed class MainForm : Form
 
         if (columns.Delta is Rectangle deltaRect)
         {
-            using var compareBrush = new SolidBrush(GetDeltaComparisonColor(comparison, palette));
+            using var compareBrush = new SolidBrush(WithOpacity(GetDeltaComparisonColor(comparison, palette), opacity));
             DrawText(
                 graphics,
                 FormatSplitDelta(comparison),
@@ -565,7 +598,7 @@ internal sealed class MainForm : Form
             Math.Clamp((int)Math.Round(420 * scale), 260, 1600));
     }
 
-    private void DrawIcons(Graphics graphics, Rectangle rect, BossSplitStatus status)
+    private void DrawIcons(Graphics graphics, Rectangle rect, BossSplitStatus status, float opacity = 1f)
     {
         BossSplitDefinition definition = status.Definition;
         int count = definition.IconFileNames.Count;
@@ -586,7 +619,7 @@ internal sealed class MainForm : Form
                 rect.Y + Math.Max(0, (rect.Height - singleIconSize) / 2),
                 singleIconSize,
                 singleIconSize);
-            graphics.DrawImage(lit ? icon.Lit : icon.Undefeated, iconRect);
+            DrawImage(graphics, lit ? icon.Lit : icon.Undefeated, iconRect, opacity);
             return;
         }
 
@@ -601,7 +634,7 @@ internal sealed class MainForm : Form
         {
             IconPair icon = LoadIconPair(definition, definition.IconFileNames[i]);
             bool lit = IsIconLit(status, i);
-            graphics.DrawImage(lit ? icon.Lit : icon.Undefeated, new Rectangle(startX + i * (size + iconGap), y, size, size));
+            DrawImage(graphics, lit ? icon.Lit : icon.Undefeated, new Rectangle(startX + i * (size + iconGap), y, size, size), opacity);
         }
     }
 
@@ -633,6 +666,497 @@ internal sealed class MainForm : Form
         var timeRect = new Rectangle(rect.X + ScaleInt(4) + offsetX, rect.Y - ScaleInt(4) + offsetY, rect.Width - ScaleInt(8), rect.Height - ScaleInt(16));
         using var timerTextBrush = new SolidBrush(GetTimerTextColor(palette));
         DrawTimerText(graphics, runTimer.Elapsed, timerTextBrush, timeRect, GetTimerMainRightEdge() + offsetX);
+    }
+
+    private void StartSplitCompletionAnimation(int completedIndex)
+    {
+        IReadOnlyList<BossSplitStatus> statuses = splitTracker.Statuses;
+        if (completedIndex < 0 || completedIndex >= statuses.Count || statuses[completedIndex].Time is not TimeSpan splitTime)
+        {
+            return;
+        }
+
+        TimeSpan previousSplitTime = TimeSpan.Zero;
+        for (int i = completedIndex - 1; i >= 0; i--)
+        {
+            if (statuses[i].Time is TimeSpan previousTime)
+            {
+                previousSplitTime = previousTime;
+                break;
+            }
+        }
+
+        TimeSpan segmentTime = splitTime - previousSplitTime;
+        if (segmentTime < TimeSpan.Zero)
+        {
+            segmentTime = TimeSpan.Zero;
+        }
+
+        BossSplitDefinition definition = statuses[completedIndex].Definition;
+        string groupKey = GetSplitCompletionGroupKey(definition);
+        SplitComparison referenceSplitComparison = GetReferenceSplitComparison(definition, splitTime);
+        SplitComparison personalBestSegmentComparison = GetPersonalBestSegmentComparison(definition, segmentTime);
+
+        splitCompletionAnimation = new SplitCompletionAnimation(
+            definition,
+            segmentTime,
+            splitTime,
+            referenceSplitComparison,
+            personalBestSegmentComparison,
+            IsSplitCompletionSplitComparisonEnabled(groupKey),
+            GetSplitCompletionOutlineStyle(settings.SplitCompletionOutlineSplitStyles, groupKey),
+            IsSplitCompletionSegmentComparisonEnabled(groupKey),
+            GetSplitCompletionOutlineStyle(settings.SplitCompletionOutlineSegmentStyles, groupKey),
+            DateTime.UtcNow);
+    }
+
+    private bool TryGetActiveSplitCompletionAnimation(
+        out SplitCompletionAnimation? animation,
+        out TimeSpan elapsed,
+        out float opacity)
+    {
+        animation = splitCompletionAnimation;
+        elapsed = TimeSpan.Zero;
+        opacity = 0f;
+
+        if (animation is null)
+        {
+            return false;
+        }
+
+        elapsed = DateTime.UtcNow - animation.StartedAtUtc;
+        if (elapsed >= SplitCompletionAnimationDuration)
+        {
+            splitCompletionAnimation = null;
+            animation = null;
+            return false;
+        }
+
+        opacity = GetSplitCompletionAnimationOpacity(elapsed);
+        return opacity > 0.01f;
+    }
+
+    private static float GetSplitCompletionAnimationOpacity(TimeSpan elapsed)
+    {
+        if (elapsed < TimeSpan.Zero || elapsed >= SplitCompletionAnimationDuration)
+        {
+            return 0f;
+        }
+
+        if (elapsed < SplitCompletionFadeDuration)
+        {
+            return EaseInOut((float)(elapsed.TotalMilliseconds / SplitCompletionFadeDuration.TotalMilliseconds));
+        }
+
+        TimeSpan fadeOutStart = SplitCompletionAnimationDuration - SplitCompletionFadeDuration;
+        if (elapsed > fadeOutStart)
+        {
+            return EaseInOut((float)((SplitCompletionAnimationDuration - elapsed).TotalMilliseconds / SplitCompletionFadeDuration.TotalMilliseconds));
+        }
+
+        return 1f;
+    }
+
+    private static float EaseInOut(float value)
+    {
+        float t = Math.Clamp(value, 0f, 1f);
+        return t * t * (3f - 2f * t);
+    }
+
+    private void DrawSplitCompletionAnimation(
+        Graphics graphics,
+        SplitLayout layout,
+        int statusCount,
+        SplitCompletionAnimation animation,
+        TimeSpan elapsed,
+        float opacity)
+    {
+        if (statusCount <= 0)
+        {
+            return;
+        }
+
+        Rectangle firstRow = layout.GetRowRect(0);
+        Rectangle lastRow = layout.GetRowRect(statusCount - 1);
+        var listBounds = new Rectangle(firstRow.X, firstRow.Y, firstRow.Width, lastRow.Bottom - firstRow.Top);
+        if (listBounds.Width <= 0 || listBounds.Height <= 0)
+        {
+            return;
+        }
+
+        DrawSplitCompletionIcon(graphics, listBounds, animation, elapsed, opacity);
+        DrawSplitCompletionTimes(graphics, listBounds, animation, elapsed, opacity);
+    }
+
+    private void DrawSplitCompletionIcon(
+        Graphics graphics,
+        Rectangle listBounds,
+        SplitCompletionAnimation animation,
+        TimeSpan elapsed,
+        float opacity)
+    {
+        IReadOnlyList<string> iconFileNames = animation.Definition.IconFileNames;
+        if (iconFileNames.Count == 0)
+        {
+            return;
+        }
+
+        int maxIconSize = Math.Max(1, Math.Min((int)(listBounds.Width * 0.38f), (int)(listBounds.Height * 0.34f)));
+        int minIconSize = Math.Min(ScaleInt(72), maxIconSize);
+        int iconSize = Math.Clamp(ScaleInt(150), minIconSize, maxIconSize);
+        var iconRect = new Rectangle(
+            listBounds.Left + (listBounds.Width - iconSize) / 2,
+            listBounds.Top + Math.Max(0, (int)(listBounds.Height * 0.12f)),
+            iconSize,
+            iconSize);
+
+        if (iconFileNames.Count == 1)
+        {
+            DrawSplitCompletionIconFrame(graphics, animation, iconFileNames[0], iconRect, opacity);
+            return;
+        }
+
+        float progress = Math.Clamp((float)(elapsed.TotalMilliseconds / SplitCompletionAnimationDuration.TotalMilliseconds), 0f, 0.999f);
+        float position = progress * iconFileNames.Count;
+        int iconIndex = Math.Min(iconFileNames.Count - 1, (int)position);
+        float localProgress = position - iconIndex;
+        bool hasNextIcon = iconIndex < iconFileNames.Count - 1;
+        float fadeProgress = hasNextIcon
+            ? EaseInOut((localProgress - 0.68f) / 0.32f)
+            : 0f;
+
+        DrawSplitCompletionIconFrame(
+            graphics,
+            animation,
+            iconFileNames[iconIndex],
+            iconRect,
+            opacity * (1f - fadeProgress));
+
+        if (hasNextIcon && fadeProgress > 0.01f)
+        {
+            DrawSplitCompletionIconFrame(
+                graphics,
+                animation,
+                iconFileNames[iconIndex + 1],
+                iconRect,
+                opacity * fadeProgress);
+        }
+    }
+
+    private void DrawSplitCompletionIconFrame(
+        Graphics graphics,
+        SplitCompletionAnimation animation,
+        string iconFileName,
+        Rectangle iconRect,
+        float opacity)
+    {
+        if (opacity <= 0.01f)
+        {
+            return;
+        }
+
+        IconPair icon = LoadIconPair(animation.Definition, iconFileName);
+        DrawImage(graphics, icon.Lit, iconRect, opacity);
+    }
+
+    private void DrawSplitCompletionTimes(
+        Graphics graphics,
+        Rectangle listBounds,
+        SplitCompletionAnimation animation,
+        TimeSpan elapsed,
+        float opacity)
+    {
+        float scale = GetScaleFactor();
+        using var labelFont = new Font(UiTheme.FontFamilyName, Math.Clamp(9f * scale, 7f, 16f), FontStyle.Regular);
+        using var valueFont = new Font(UiTheme.FontFamilyName, Math.Clamp(18f * scale, 12f, 32f), FontStyle.Bold);
+        using var deltaFont = new Font(UiTheme.FontFamilyName, Math.Clamp(18f * scale, 12f, 32f), FontStyle.Bold);
+        UiPalette palette = UiPalette.From(settings.Colors);
+
+        int labelHeight = Math.Max(ScaleInt(12), (int)Math.Ceiling(labelFont.GetHeight(graphics)));
+        int valueHeight = Math.Max(ScaleInt(26), (int)Math.Ceiling(valueFont.GetHeight(graphics)) + ScaleInt(2));
+        int rowHeight = labelHeight + valueHeight + ScaleInt(2);
+        int gap = ScaleInt(7);
+        int totalHeight = rowHeight * 2 + gap;
+        int startY = listBounds.Top + (int)(listBounds.Height * 0.54f);
+        if (startY + totalHeight > listBounds.Bottom)
+        {
+            startY = Math.Max(listBounds.Top + ScaleInt(4), listBounds.Bottom - totalHeight - ScaleInt(2));
+        }
+
+        var segmentRect = new Rectangle(listBounds.Left + ScaleInt(8), startY, listBounds.Width - ScaleInt(16), rowHeight);
+        var splitRect = new Rectangle(listBounds.Left + ScaleInt(8), startY + rowHeight + gap, listBounds.Width - ScaleInt(16), rowHeight);
+
+        DrawSplitCompletionTimeRow(
+            graphics,
+            segmentRect,
+            Localizer.Get("Split time", settings),
+            SplitTimerFormatter.Format(animation.SplitTime),
+            animation.ReferenceSplitComparison,
+            animation.ShowSplitComparison,
+            animation.SplitTimeOutlineStyle,
+            labelFont,
+            valueFont,
+            deltaFont,
+            palette,
+            elapsed,
+            opacity);
+        DrawSplitCompletionTimeRow(
+            graphics,
+            splitRect,
+            Localizer.Get("Segment time", settings),
+            SplitTimerFormatter.Format(animation.SegmentTime),
+            animation.PersonalBestSegmentComparison,
+            animation.ShowSegmentComparison,
+            animation.SegmentTimeOutlineStyle,
+            labelFont,
+            valueFont,
+            deltaFont,
+            palette,
+            elapsed,
+            opacity);
+    }
+
+    private void DrawSplitCompletionTimeRow(
+        Graphics graphics,
+        Rectangle bounds,
+        string label,
+        string value,
+        SplitComparison comparison,
+        bool showComparison,
+        string outlineStyle,
+        Font labelFont,
+        Font valueFont,
+        Font deltaFont,
+        UiPalette palette,
+        TimeSpan elapsed,
+        float opacity)
+    {
+        if (bounds.Width <= 0 || bounds.Height <= 0)
+        {
+            return;
+        }
+
+        string deltaText = showComparison && comparison.ShowDelta && comparison.Delta is TimeSpan delta
+            ? TimeText.FormatDelta(delta)
+            : string.Empty;
+        bool isAhead = SplitCompletionOutlineStyles.Normalize(outlineStyle) != SplitCompletionOutlineStyles.None &&
+            comparison.Delta is TimeSpan aheadDelta &&
+            aheadDelta < TimeSpan.Zero;
+
+        using var format = new StringFormat(StringFormat.GenericTypographic)
+        {
+            Trimming = StringTrimming.EllipsisCharacter,
+            FormatFlags = StringFormatFlags.NoWrap
+        };
+
+        int labelHeight = Math.Max(ScaleInt(12), (int)Math.Ceiling(labelFont.GetHeight(graphics)));
+        var labelRect = new Rectangle(bounds.Left, bounds.Top, bounds.Width, labelHeight);
+        using var labelBrush = new SolidBrush(WithOpacity(Color.FromArgb(222, 222, 226), opacity * 0.86f));
+        DrawText(
+            graphics,
+            label,
+            labelFont,
+            labelBrush,
+            labelRect,
+            ContentAlignment.MiddleCenter);
+
+        SizeF valueSize = graphics.MeasureString(value, valueFont, bounds.Size, format);
+        SizeF deltaSize = string.IsNullOrEmpty(deltaText)
+            ? SizeF.Empty
+            : graphics.MeasureString(deltaText, deltaFont, bounds.Size, format);
+        float gap = string.IsNullOrEmpty(deltaText) ? 0f : ScaleInt(8);
+        float groupWidth = valueSize.Width + gap + deltaSize.Width;
+        float startX = bounds.Left + Math.Max(0f, (bounds.Width - groupWidth) / 2f);
+        float baselineY = bounds.Top + labelHeight + Math.Max(0f, (bounds.Height - labelHeight - valueSize.Height) / 2f);
+
+        if (isAhead)
+        {
+            DrawOutlinedString(
+                graphics,
+                value,
+                valueFont,
+                Color.White,
+                startX,
+                baselineY,
+                format,
+                elapsed,
+                settings.SplitCompletionOutlineThicknessPercent,
+                outlineStyle,
+                opacity);
+        }
+        else
+        {
+            DrawString(graphics, value, valueFont, Color.White, startX, baselineY, format, opacity);
+        }
+
+        if (!string.IsNullOrEmpty(deltaText))
+        {
+            Color deltaColor = GetDeltaComparisonColor(comparison, palette);
+            float deltaY = baselineY + Math.Max(0f, valueSize.Height - deltaSize.Height) * 0.55f;
+            DrawString(
+                graphics,
+                deltaText,
+                deltaFont,
+                deltaColor,
+                startX + valueSize.Width + gap,
+                deltaY,
+                format,
+                opacity);
+        }
+    }
+
+    private SplitComparison GetReferenceSplitComparison(BossSplitDefinition definition, TimeSpan splitTime)
+    {
+        if (!settings.TryGetReferenceSplit(definition, out TimeSpan referenceSplit))
+        {
+            return SplitComparison.Empty;
+        }
+
+        return new SplitComparison(splitTime - referenceSplit, ShowDelta: true);
+    }
+
+    private SplitComparison GetPersonalBestSegmentComparison(BossSplitDefinition definition, TimeSpan segmentTime)
+    {
+        if (!TryGetPersonalBestSegment(definition, out TimeSpan personalBestSegment))
+        {
+            return SplitComparison.Empty;
+        }
+
+        return new SplitComparison(segmentTime - personalBestSegment, ShowDelta: true);
+    }
+
+    private bool TryGetPersonalBestSegment(BossSplitDefinition definition, out TimeSpan segment)
+    {
+        segment = TimeSpan.Zero;
+        string groupKey = string.Join("+", definition.BossIds);
+        if (settings.PersonalBestSegmentTimes.TryGetValue(groupKey, out string? value) &&
+            TimeText.TryParse(value, out TimeSpan parsed))
+        {
+            segment = parsed;
+            return true;
+        }
+
+        if (settings.PersonalBestSegmentTimes.TryGetValue(definition.Name, out value) &&
+            TimeText.TryParse(value, out parsed))
+        {
+            segment = parsed;
+            return true;
+        }
+
+        return false;
+    }
+
+    private void TryAutoUpdatePersonalBestSegment(int completedIndex)
+    {
+        if (!settings.AutoUpdatePersonalBestData)
+        {
+            return;
+        }
+
+        IReadOnlyList<BossSplitStatus> statuses = splitTracker.Statuses;
+        if (completedIndex < 0 ||
+            completedIndex >= statuses.Count ||
+            statuses[completedIndex].Time is not TimeSpan splitTime)
+        {
+            return;
+        }
+
+        if (completedIndex > 0 && (statuses.Count == 0 || statuses[0].Time is null))
+        {
+            return;
+        }
+
+        TimeSpan previousSplitTime = TimeSpan.Zero;
+        for (int i = completedIndex - 1; i >= 0; i--)
+        {
+            if (statuses[i].Time is TimeSpan previousTime)
+            {
+                previousSplitTime = previousTime;
+                break;
+            }
+        }
+
+        TimeSpan segmentTime = splitTime - previousSplitTime;
+        if (segmentTime < TimeSpan.Zero)
+        {
+            return;
+        }
+
+        string groupKey = GetSplitCompletionGroupKey(statuses[completedIndex].Definition);
+        if (settings.PersonalBestSegmentTimes.TryGetValue(groupKey, out string? existingText) &&
+            TimeText.TryParse(existingText, out TimeSpan existingSegment) &&
+            existingSegment <= segmentTime)
+        {
+            return;
+        }
+
+        settings.SetPersonalBestSegmentText(groupKey, TimeText.FormatRecord(segmentTime));
+        AppSettingsStore.Save(settings);
+    }
+
+    private void TryAutoUpdatePersonalBestTimes()
+    {
+        if (!settings.AutoUpdatePersonalBestData)
+        {
+            return;
+        }
+
+        IReadOnlyList<BossSplitStatus> statuses = splitTracker.Statuses;
+        if (statuses.Count == 0 || statuses.Any(status => status.Time is null || status.IsSkipped))
+        {
+            return;
+        }
+
+        BossSplitStatus? moonLordStatus = statuses.FirstOrDefault(status =>
+            status.Definition.BossIds.Any(bossId => string.Equals(
+                bossId,
+                BossSplitDefinitions.MoonLord,
+                StringComparison.OrdinalIgnoreCase)));
+        if (moonLordStatus?.Time is not TimeSpan moonLordTime)
+        {
+            return;
+        }
+
+        if (settings.PersonalBestTimes.TryGetValue(BossSplitDefinitions.MoonLord, out string? existingMoonLordText) &&
+            TimeText.TryParse(existingMoonLordText, out TimeSpan existingMoonLordTime) &&
+            existingMoonLordTime <= moonLordTime)
+        {
+            return;
+        }
+
+        foreach (BossSplitStatus status in statuses)
+        {
+            TimeSpan splitTime = status.Time!.Value;
+            string formatted = TimeText.FormatRecord(splitTime);
+            foreach (string bossId in status.Definition.BossIds)
+            {
+                settings.SetPersonalBestTimeText(bossId, formatted);
+            }
+        }
+
+        AppSettingsStore.Save(settings);
+    }
+
+    private static string GetSplitCompletionGroupKey(BossSplitDefinition definition)
+    {
+        return string.Join("+", definition.BossIds);
+    }
+
+    private static string GetSplitCompletionOutlineStyle(Dictionary<string, string> values, string groupKey)
+    {
+        return values.TryGetValue(groupKey, out string? style)
+            ? SplitCompletionOutlineStyles.Normalize(style)
+            : SplitCompletionOutlineStyles.Rainbow;
+    }
+
+    private bool IsSplitCompletionSplitComparisonEnabled(string groupKey)
+    {
+        return !settings.SplitCompletionSplitComparisons.TryGetValue(groupKey, out bool enabled) || enabled;
+    }
+
+    private bool IsSplitCompletionSegmentComparisonEnabled(string groupKey)
+    {
+        return !settings.SplitCompletionSegmentComparisons.TryGetValue(groupKey, out bool enabled) || enabled;
     }
 
     private string FormatReferenceTime(BossSplitDefinition definition)
@@ -693,6 +1217,174 @@ internal sealed class MainForm : Form
         };
 
         graphics.DrawString(text, font, brush, bounds, format);
+    }
+
+    private static void DrawString(
+        Graphics graphics,
+        string text,
+        Font font,
+        Color color,
+        float x,
+        float y,
+        StringFormat format,
+        float opacity)
+    {
+        using var textBrush = new SolidBrush(WithOpacity(color, opacity));
+        graphics.DrawString(text, font, textBrush, x, y, format);
+    }
+
+    private static void DrawOutlinedString(
+        Graphics graphics,
+        string text,
+        Font font,
+        Color fillColor,
+        float x,
+        float y,
+        StringFormat format,
+        TimeSpan elapsed,
+        int thicknessPercent,
+        string outlineStyle,
+        float opacity)
+    {
+        using GraphicsPath path = CreateTextPath(graphics, text, font, x, y, format);
+        if (path.PointCount == 0)
+        {
+            return;
+        }
+
+        string style = SplitCompletionOutlineStyles.Normalize(outlineStyle);
+        if (style == SplitCompletionOutlineStyles.None)
+        {
+            DrawString(graphics, text, font, fillColor, x, y, format, opacity);
+            return;
+        }
+
+        RectangleF bounds = path.GetBounds();
+        RectangleF gradientBounds = InflateBounds(bounds, Math.Max(4f, font.Size * 0.35f));
+        using var outlineBrush = new LinearGradientBrush(gradientBounds, Color.White, Color.White, LinearGradientMode.Horizontal);
+        Color[] colors = SplitCompletionOutlineStyles.GetColors(style, elapsed.TotalSeconds)
+            .Select(color => WithOpacity(color, opacity))
+            .ToArray();
+        var blend = new ColorBlend
+        {
+            Positions = CreateColorPositions(colors.Length),
+            Colors = colors
+        };
+        outlineBrush.InterpolationColors = blend;
+
+        float thickness = font.Size * Math.Clamp(thicknessPercent, 0, 100) / 100f;
+        if (style is SplitCompletionOutlineStyles.Rainbow)
+        {
+            using var backingPen = new Pen(WithOpacity(Color.FromArgb(42, 255, 255, 255), opacity), Math.Max(1f, thickness * 1.35f))
+            {
+                LineJoin = LineJoin.Round
+            };
+            graphics.DrawPath(backingPen, path);
+        }
+
+        using var outlinePen = new Pen(outlineBrush, Math.Max(1f, thickness))
+        {
+            LineJoin = LineJoin.Round
+        };
+        graphics.DrawPath(outlinePen, path);
+
+        using var fillBrush = new SolidBrush(WithOpacity(fillColor, opacity));
+        graphics.FillPath(fillBrush, path);
+    }
+
+    private static float[] CreateColorPositions(int count)
+    {
+        if (count <= 1)
+        {
+            return new[] { 0f };
+        }
+
+        var positions = new float[count];
+        for (int i = 0; i < count; i++)
+        {
+            positions[i] = i / (float)(count - 1);
+        }
+
+        return positions;
+    }
+
+    private static RectangleF InflateBounds(RectangleF bounds, float amount)
+    {
+        if (bounds.Width <= 0f || bounds.Height <= 0f)
+        {
+            return new RectangleF(bounds.X - amount, bounds.Y - amount, amount * 2f + 1f, amount * 2f + 1f);
+        }
+
+        bounds.Inflate(amount, amount);
+        return bounds;
+    }
+
+    private static GraphicsPath CreateTextPath(Graphics graphics, string text, Font font, float x, float y, StringFormat format)
+    {
+        var path = new GraphicsPath();
+        using StringFormat pathFormat = (StringFormat)format.Clone();
+        path.AddString(
+            text,
+            font.FontFamily,
+            (int)font.Style,
+            emSize: font.SizeInPoints * graphics.DpiY / 72f,
+            origin: new PointF(x, y),
+            format: pathFormat);
+        return path;
+    }
+
+    private static Color FromHsv(float hue, float saturation, float value)
+    {
+        float h = ((hue % 360f) + 360f) % 360f;
+        float c = value * saturation;
+        float x = c * (1f - Math.Abs((h / 60f) % 2f - 1f));
+        float m = value - c;
+
+        (float r, float g, float b) = h switch
+        {
+            < 60f => (c, x, 0f),
+            < 120f => (x, c, 0f),
+            < 180f => (0f, c, x),
+            < 240f => (0f, x, c),
+            < 300f => (x, 0f, c),
+            _ => (c, 0f, x)
+        };
+
+        return Color.FromArgb(
+            (int)Math.Round((r + m) * 255f),
+            (int)Math.Round((g + m) * 255f),
+            (int)Math.Round((b + m) * 255f));
+    }
+
+    private static void DrawImage(Graphics graphics, Image image, Rectangle bounds, float opacity)
+    {
+        if (opacity >= 0.99f)
+        {
+            graphics.DrawImage(image, bounds);
+            return;
+        }
+
+        using var attributes = new ImageAttributes();
+        var matrix = new ColorMatrix
+        {
+            Matrix33 = Math.Clamp(opacity, 0f, 1f)
+        };
+        attributes.SetColorMatrix(matrix, ColorMatrixFlag.Default, ColorAdjustType.Bitmap);
+        graphics.DrawImage(
+            image,
+            bounds,
+            0,
+            0,
+            image.Width,
+            image.Height,
+            GraphicsUnit.Pixel,
+            attributes);
+    }
+
+    private static Color WithOpacity(Color color, float opacity)
+    {
+        int alpha = (int)Math.Round(color.A * Math.Clamp(opacity, 0f, 1f));
+        return Color.FromArgb(alpha, color.R, color.G, color.B);
     }
 
     private int GetTimerMainRightEdge()
@@ -912,12 +1604,25 @@ internal sealed class MainForm : Form
     {
         if (recordStats)
         {
-            RunStatsStore.RecordRun(splitTracker.Statuses);
+            RecordRunStatsOnce();
         }
 
         runTimer.Reset();
         splitTracker.Reset();
+        splitCompletionAnimation = null;
+        runStatsRecorded = false;
         Invalidate();
+    }
+
+    private void RecordRunStatsOnce()
+    {
+        if (runStatsRecorded)
+        {
+            return;
+        }
+
+        RunStatsStore.RecordRun(splitTracker.Statuses);
+        runStatsRecorded = true;
     }
 
     private void SetMouseClickThrough(bool enabled)
@@ -1058,6 +1763,18 @@ internal sealed class MainForm : Form
     private readonly record struct FontMetrics(float Ascent, float Descent);
 
     private readonly record struct ColumnWidth(SplitColumn Column, int Width);
+
+    private sealed record SplitCompletionAnimation(
+        BossSplitDefinition Definition,
+        TimeSpan SegmentTime,
+        TimeSpan SplitTime,
+        SplitComparison ReferenceSplitComparison,
+        SplitComparison PersonalBestSegmentComparison,
+        bool ShowSplitComparison,
+        string SplitTimeOutlineStyle,
+        bool ShowSegmentComparison,
+        string SegmentTimeOutlineStyle,
+        DateTime StartedAtUtc);
 
     private readonly record struct ColumnRects(
         Rectangle? Icon,

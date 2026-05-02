@@ -16,6 +16,15 @@ internal sealed class AppSettings
     public string ActiveReferenceSplitSet { get; set; } = "WR";
     public Dictionary<string, string> PersonalBestTimes { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public Dictionary<string, string> PersonalBestSegmentTimes { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public bool AutoUpdatePersonalBestData { get; set; }
+    public bool ShowSplitCompletionAnimation { get; set; } = true;
+    public int SplitCompletionOutlineThicknessPercent { get; set; } = 30;
+    public Dictionary<string, bool> SplitCompletionSplitComparisons { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<string, bool> SplitCompletionSegmentComparisons { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<string, bool> SplitCompletionOutlineSplitTimes { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<string, bool> SplitCompletionOutlineSegmentTimes { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<string, string> SplitCompletionOutlineSplitStyles { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<string, string> SplitCompletionOutlineSegmentStyles { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public UiColorSettings Colors { get; set; } = new();
     public UiColumnLayoutSettings Columns { get; set; } = new();
     public int UndefeatedIconGrayscalePercent { get; set; } = 80;

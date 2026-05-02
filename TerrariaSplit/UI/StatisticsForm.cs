@@ -29,8 +29,8 @@ internal sealed class StatisticsForm : Form
 
         Text = Localizer.Get("Statistics", settings);
         StartPosition = FormStartPosition.CenterParent;
-        Size = new Size(1120, 680);
-        UiTheme.ConfigureForm(this, new Size(960, 540));
+        Size = new Size(1600, 800);
+        UiTheme.ConfigureForm(this, new Size(1600, 540));
         Font = UiTheme.FormFont(9.5f);
         ShowInTaskbar = false;
 
@@ -146,7 +146,7 @@ internal sealed class StatisticsForm : Form
             EditMode = DataGridViewEditMode.EditProgrammatically,
             MultiSelect = false,
             RowHeadersVisible = true,
-            RowHeadersWidth = 150,
+            RowHeadersWidth = 300,
             SelectionMode = DataGridViewSelectionMode.FullRowSelect,
             RowTemplate = { Height = 40 },
             ColumnHeadersHeight = 44,
@@ -160,6 +160,7 @@ internal sealed class StatisticsForm : Form
         grid.ColumnHeadersDefaultCellStyle.ForeColor = TextColor;
         grid.ColumnHeadersDefaultCellStyle.SelectionBackColor = HeaderColor;
         grid.ColumnHeadersDefaultCellStyle.SelectionForeColor = TextColor;
+        grid.ColumnHeadersDefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
         grid.DefaultCellStyle.BackColor = GridColor;
         grid.DefaultCellStyle.ForeColor = TextColor;
         grid.DefaultCellStyle.SelectionBackColor = GridColor;
@@ -169,6 +170,7 @@ internal sealed class StatisticsForm : Form
         grid.RowHeadersDefaultCellStyle.ForeColor = TextColor;
         grid.RowHeadersDefaultCellStyle.SelectionBackColor = HeaderColor;
         grid.RowHeadersDefaultCellStyle.SelectionForeColor = TextColor;
+        grid.RowHeadersDefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
         grid.ColumnHeadersDefaultCellStyle.Padding = new Padding(6, 0, 6, 0);
 
         grid.Columns.Add("ReferenceTime", Localizer.Get("Reference time column", settings));
@@ -240,7 +242,7 @@ internal sealed class StatisticsForm : Form
             e.CellStyle.Font,
             textBounds,
             TextColor,
-            TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.EndEllipsis);
+            TextFormatFlags.VerticalCenter | TextFormatFlags.HorizontalCenter | TextFormatFlags.EndEllipsis);
 
         using (var pen = new Pen(BorderColor))
         {

@@ -2,6 +2,8 @@ namespace TerrariaSplit;
 
 internal static class SplitTimeSetStore
 {
+    private const int MaxLastRunSetsToLoad = 100;
+
     public static string ReferenceDirectory => Path.Combine(AppContext.BaseDirectory, "reference-times");
 
     public static string LastRunDirectory => Path.Combine(AppContext.BaseDirectory, "last-times");
@@ -27,9 +29,7 @@ internal static class SplitTimeSetStore
 
     public static List<ReferenceSplitSet> LoadLastRunSets()
     {
-        return LoadSets(LastRunDirectory)
-            .OrderByDescending(set => set.Name, StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        return LoadSets(LastRunDirectory, newestFirst: true, MaxLastRunSetsToLoad);
     }
 
     public static void SaveLastRun(Dictionary<string, string> splits, string? lastBossName = null, TimeSpan? runDuration = null)
@@ -44,13 +44,27 @@ internal static class SplitTimeSetStore
 
     private static List<ReferenceSplitSet> LoadSets(string directory)
     {
+        return LoadSets(directory, newestFirst: false, maxCount: null);
+    }
+
+    private static List<ReferenceSplitSet> LoadSets(string directory, bool newestFirst, int? maxCount)
+    {
         if (!Directory.Exists(directory))
         {
             return new List<ReferenceSplitSet>();
         }
 
+        IEnumerable<string> paths = Directory.EnumerateFiles(directory, "*.json");
+        paths = newestFirst
+            ? paths.OrderByDescending(path => path, StringComparer.OrdinalIgnoreCase)
+            : paths.OrderBy(path => path, StringComparer.OrdinalIgnoreCase);
+        if (maxCount is int limit)
+        {
+            paths = paths.Take(limit);
+        }
+
         var sets = new List<ReferenceSplitSet>();
-        foreach (string path in Directory.EnumerateFiles(directory, "*.json").OrderBy(path => path))
+        foreach (string path in paths)
         {
             ReferenceSplitSet? set = LoadSet(path);
             if (set is not null)

@@ -9,17 +9,9 @@ internal readonly record struct TerrariaBossStates(
     bool? Plantera,
     bool? Golem,
     bool? LunaticCultist,
-    bool? SolarPillar,
-    bool? VortexPillar,
-    bool? NebulaPillar,
-    bool? StardustPillar,
     bool? MoonLord)
 {
     public static TerrariaBossStates Unknown => new(
-        null,
-        null,
-        null,
-        null,
         null,
         null,
         null,
@@ -42,10 +34,6 @@ internal readonly record struct TerrariaBossStates(
             BossFlag.Plantera => Plantera,
             BossFlag.Golem => Golem,
             BossFlag.LunaticCultist => LunaticCultist,
-            BossFlag.SolarPillar => SolarPillar,
-            BossFlag.VortexPillar => VortexPillar,
-            BossFlag.NebulaPillar => NebulaPillar,
-            BossFlag.StardustPillar => StardustPillar,
             BossFlag.MoonLord => MoonLord,
             _ => null
         };

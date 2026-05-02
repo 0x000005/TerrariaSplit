@@ -10,9 +10,5 @@ internal enum BossFlag
     Plantera,
     Golem,
     LunaticCultist,
-    SolarPillar,
-    VortexPillar,
-    NebulaPillar,
-    StardustPillar,
     MoonLord
 }

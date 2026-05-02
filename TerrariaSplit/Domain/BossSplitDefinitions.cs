@@ -10,7 +10,6 @@ internal static class BossSplitDefinitions
     public const string Plantera = "Plantera";
     public const string Golem = "Golem";
     public const string LunaticCultist = "LunaticCultist";
-    public const string CelestialPillars = "CelestialPillars";
     public const string MoonLord = "MoonLord";
     public const string RemainingMechs = "RemainingMechs";
 
@@ -57,11 +56,6 @@ internal static class BossSplitDefinitions
             new[] { BossFlag.LunaticCultist },
             new[] { "cultist.png" }),
         new BossUnitDefinition(
-            CelestialPillars,
-            "Celestial Pillars",
-            new[] { BossFlag.SolarPillar, BossFlag.VortexPillar, BossFlag.NebulaPillar, BossFlag.StardustPillar },
-            new[] { "pillars.png" }),
-        new BossUnitDefinition(
             MoonLord,
             "Moon Lord",
             new[] { BossFlag.MoonLord },
@@ -92,8 +86,7 @@ internal static class BossSplitDefinitions
             new() { BossId = Plantera, Enabled = true, Segment = 4m },
             new() { BossId = Golem, Enabled = true, Segment = 5m },
             new() { BossId = LunaticCultist, Enabled = true, Segment = 6m },
-            new() { BossId = CelestialPillars, Enabled = false, Segment = 7m },
-            new() { BossId = MoonLord, Enabled = true, Segment = 8m }
+            new() { BossId = MoonLord, Enabled = true, Segment = 7m }
         };
     }
 
