@@ -29,6 +29,7 @@ internal sealed class SettingsForm : Form
     private readonly TextBox newReferenceSetNameBox = new();
     private readonly CheckBox autoUpdatePersonalBestDataBox = new();
     private readonly CheckBox showSplitCompletionAnimationBox = new();
+    private readonly CheckBox showSegmentBestDeltaHighlightBox = new();
     private readonly TextBox splitCompletionOutlineThicknessBox = new();
     private readonly TextBox undefeatedIconGrayscaleBox = new();
     private readonly TextBox undefeatedIconBrightnessBox = new();
@@ -41,7 +42,9 @@ internal sealed class SettingsForm : Form
     private readonly Dictionary<string, ColumnControls> columnControls = new();
     private readonly Dictionary<string, FontControls> fontControls = new();
     private readonly Dictionary<string, AnimationOutlineControls> animationOutlineControls = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, SegmentBestDeltaHighlightControls> segmentBestDeltaHighlightControls = new(StringComparer.OrdinalIgnoreCase);
     private readonly Panel outlineStylePreview = new();
+    private readonly Panel segmentBestDeltaHighlightPreview = new();
     private readonly System.Windows.Forms.Timer outlineStylePreviewTimer = new();
     private readonly TextBox globalScaleBox = new();
     private readonly TextBox timerOffsetXBox = new();
@@ -51,10 +54,12 @@ internal sealed class SettingsForm : Form
     private TableLayoutPanel? personalBestSegmentGrid;
     private TableLayoutPanel? animationComparisonGrid;
     private TableLayoutPanel? animationOutlineGrid;
+    private TableLayoutPanel? segmentBestDeltaHighlightGrid;
     private string? personalBestTimeGridSignature;
     private string? personalBestSegmentGridSignature;
     private string? animationGridSignature;
     private string previewOutlineStyle = SplitCompletionOutlineStyles.Rainbow;
+    private string previewSegmentBestDeltaHighlightStyle = SegmentBestDeltaHighlightStyles.Breathe;
     private readonly List<SettingsPageDescriptor> pages = new();
     private Panel? pageHost;
     private bool updatingReferenceSetSelection;
@@ -296,7 +301,7 @@ internal sealed class SettingsForm : Form
         pages.Add(new SettingsPageDescriptor(CreateNavButton("BOSS"), () => BossSettingsPage.Build(this)));
         pages.Add(new SettingsPageDescriptor(CreateNavButton("Data"), () => DataSettingsPage.Build(this)));
         pages.Add(new SettingsPageDescriptor(CreateNavButton("UI"), () => UiSettingsPage.Build(this)));
-        pages.Add(new SettingsPageDescriptor(CreateNavButton("Animation"), () => AnimationSettingsPage.Build(this)));
+        pages.Add(new SettingsPageDescriptor(CreateNavButton("Effects"), () => AnimationSettingsPage.Build(this)));
         pages.Add(new SettingsPageDescriptor(CreateNavButton("Colors"), () => ColorSettingsPage.Build(this)));
 
         foreach (SettingsPageDescriptor page in pages)
@@ -888,7 +893,7 @@ internal sealed class SettingsForm : Form
         ConfigureNumberBox(splitCompletionOutlineThicknessBox, settings.SplitCompletionOutlineThicknessPercent, 0, 100);
         splitCompletionOutlineThicknessBox.TextChanged += (_, _) => outlineStylePreview.Invalidate();
 
-        TableLayoutPanel section = CreateSection("BOSS Defeat Animation");
+        TableLayoutPanel section = CreateSection("BOSS Defeat");
         TableLayoutPanel optionGrid = CreateGrid(
             ColumnStylePercent(100f),
             ColumnStyleAbsolute(280f));
@@ -916,6 +921,27 @@ internal sealed class SettingsForm : Form
         AddSectionControl(section, animationOutlineGrid);
         AddSectionControl(section, CreateOutlineStylePreview());
         PopulateAnimationOutlineGrid();
+        AddSection(parent, section);
+
+        AddSegmentBestDeltaHighlightSection(parent);
+    }
+
+    private void AddSegmentBestDeltaHighlightSection(TableLayoutPanel parent)
+    {
+        ConfigureCheckBox(showSegmentBestDeltaHighlightBox, settings.ShowSegmentBestDeltaHighlight);
+        TableLayoutPanel section = CreateSection("Segment Best Highlight");
+        TableLayoutPanel optionGrid = CreateGrid(
+            ColumnStylePercent(100f),
+            ColumnStyleAbsolute(280f));
+        AddSettingRow(optionGrid, "Enable highlight", showSegmentBestDeltaHighlightBox);
+        AddSectionControl(section, optionGrid);
+
+        segmentBestDeltaHighlightGrid = CreateGrid(
+            ColumnStylePercent(100f),
+            ColumnStyleAbsolute(220f));
+        PopulateSegmentBestDeltaHighlightGrid();
+        AddSectionControl(section, segmentBestDeltaHighlightGrid);
+        AddSectionControl(section, CreateSegmentBestDeltaHighlightPreview());
         AddSection(parent, section);
     }
 
@@ -1087,6 +1113,51 @@ internal sealed class SettingsForm : Form
         return outlineStylePreview;
     }
 
+    private Control CreateSegmentBestDeltaHighlightPreview()
+    {
+        segmentBestDeltaHighlightPreview.Dock = DockStyle.Fill;
+        segmentBestDeltaHighlightPreview.Height = 96;
+        segmentBestDeltaHighlightPreview.BackColor = FieldColor;
+        segmentBestDeltaHighlightPreview.Margin = new Padding(0, 10, 0, 2);
+        segmentBestDeltaHighlightPreview.Paint += (_, e) => PaintSegmentBestDeltaHighlightPreview(e.Graphics, segmentBestDeltaHighlightPreview.ClientRectangle);
+        UiTheme.EnableDoubleBuffering(segmentBestDeltaHighlightPreview);
+        outlineStylePreviewTimer.Tick += (_, _) => segmentBestDeltaHighlightPreview.Invalidate();
+        return segmentBestDeltaHighlightPreview;
+    }
+
+    private void PaintSegmentBestDeltaHighlightPreview(Graphics graphics, Rectangle bounds)
+    {
+        graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        using var backgroundBrush = new SolidBrush(FieldColor);
+        graphics.FillRectangle(backgroundBrush, bounds);
+        using var borderPen = new Pen(BorderColor);
+        graphics.DrawRectangle(borderPen, 0, 0, Math.Max(0, bounds.Width - 1), Math.Max(0, bounds.Height - 1));
+
+        using var font = UiTheme.FormFont(16f, FontStyle.Bold);
+        using var format = new StringFormat(StringFormat.GenericTypographic)
+        {
+            Alignment = StringAlignment.Center,
+            LineAlignment = StringAlignment.Center
+        };
+
+        double seconds = Environment.TickCount64 / 1000.0;
+        Color[] baseColors =
+        {
+            ColorText.Parse(settings.Colors.DeltaAheadText, Color.FromArgb(114, 213, 114)),
+            ColorText.Parse(settings.Colors.DeltaEvenText, Color.FromArgb(216, 216, 216)),
+            ColorText.Parse(settings.Colors.DeltaBehindText, Color.FromArgb(240, 112, 112))
+        };
+        string[] texts = { "-0:01.23", "+0:00.00", "+0:01.23" };
+        int columns = texts.Length;
+        for (int i = 0; i < columns; i++)
+        {
+            var rect = new Rectangle(bounds.Left + i * bounds.Width / columns, bounds.Top, bounds.Width / columns, bounds.Height);
+            Color color = SegmentBestDeltaHighlightStyles.Apply(baseColors[i], previewSegmentBestDeltaHighlightStyle, seconds);
+            using var brush = new SolidBrush(color);
+            graphics.DrawString(texts[i], font, brush, rect, format);
+        }
+    }
+
     private void PaintOutlineStylePreview(Graphics graphics, Rectangle bounds)
     {
         graphics.SmoothingMode = SmoothingMode.AntiAlias;
@@ -1217,6 +1288,88 @@ internal sealed class SettingsForm : Form
         PopulateAnimationOutlineGrid();
         animationComparisonGrid.PerformLayout();
         animationOutlineGrid.PerformLayout();
+    }
+
+    private void PopulateSegmentBestDeltaHighlightGrid()
+    {
+        if (segmentBestDeltaHighlightGrid is null)
+        {
+            return;
+        }
+
+        List<RouteGroup> groups = BossRouteGroups.Build(settings).ToList();
+        segmentBestDeltaHighlightGrid.SuspendLayout();
+        try
+        {
+            ClearGrid(segmentBestDeltaHighlightGrid);
+            segmentBestDeltaHighlightControls.Clear();
+            AddHeaderRow(segmentBestDeltaHighlightGrid, "BOSS Group", "Effect");
+            foreach (RouteGroup group in groups)
+            {
+                ComboBox styleBox = CreateSegmentBestDeltaHighlightStyleBox(GetSegmentBestDeltaHighlightStyle(group.Key));
+                segmentBestDeltaHighlightControls[group.Key] = new SegmentBestDeltaHighlightControls(styleBox);
+                int row = AddGridRow(segmentBestDeltaHighlightGrid);
+                segmentBestDeltaHighlightGrid.Controls.Add(CreateRowLabel(BossRouteGroups.GetGroupDisplayName(group, settings)), 0, row);
+                segmentBestDeltaHighlightGrid.Controls.Add(styleBox, 1, row);
+            }
+        }
+        finally
+        {
+            segmentBestDeltaHighlightGrid.ResumeLayout(true);
+        }
+    }
+
+    private string GetSegmentBestDeltaHighlightStyle(string key)
+    {
+        return settings.SegmentBestDeltaHighlightStyles.TryGetValue(key, out string? style)
+            ? SegmentBestDeltaHighlightStyles.Normalize(style)
+            : SegmentBestDeltaHighlightStyles.Breathe;
+    }
+
+    private ComboBox CreateSegmentBestDeltaHighlightStyleBox(string selectedStyle)
+    {
+        var comboBox = new ComboBox
+        {
+            Dock = DockStyle.Fill,
+            DropDownStyle = ComboBoxStyle.DropDownList
+        };
+        UiTheme.StyleComboBox(comboBox);
+
+        foreach (string style in SegmentBestDeltaHighlightStyles.Ids)
+        {
+            comboBox.Items.Add(new EffectStyleOption(style, Localizer.Get(SegmentBestDeltaHighlightStyles.GetDisplayName(style), settings)));
+        }
+
+        SetEffectStyle(comboBox, selectedStyle);
+        comboBox.SelectedIndexChanged += (_, _) =>
+        {
+            previewSegmentBestDeltaHighlightStyle = GetSelectedEffectStyle(comboBox);
+            segmentBestDeltaHighlightPreview.Invalidate();
+        };
+        return comboBox;
+    }
+
+    private static string GetSelectedEffectStyle(ComboBox comboBox)
+    {
+        return comboBox.SelectedItem is EffectStyleOption option
+            ? option.Id
+            : SegmentBestDeltaHighlightStyles.None;
+    }
+
+    private static void SetEffectStyle(ComboBox comboBox, string style)
+    {
+        string normalized = SegmentBestDeltaHighlightStyles.Normalize(style);
+        for (int i = 0; i < comboBox.Items.Count; i++)
+        {
+            if (comboBox.Items[i] is EffectStyleOption option &&
+                string.Equals(option.Id, normalized, StringComparison.OrdinalIgnoreCase))
+            {
+                comboBox.SelectedIndex = i;
+                return;
+            }
+        }
+
+        comboBox.SelectedIndex = 0;
     }
 
     internal void AddColorSection(TableLayoutPanel parent)
@@ -1724,6 +1877,7 @@ internal sealed class SettingsForm : Form
         settings.PracticeMode = practiceModeBox.Checked;
         settings.AutoUpdatePersonalBestData = autoUpdatePersonalBestDataBox.Checked;
         settings.ShowSplitCompletionAnimation = showSplitCompletionAnimationBox.Checked;
+        settings.ShowSegmentBestDeltaHighlight = showSegmentBestDeltaHighlightBox.Checked;
         settings.SplitCompletionOutlineThicknessPercent = ParseIntBox(splitCompletionOutlineThicknessBox, 30, 0, 100);
         SaveReferenceTextBoxes();
         SavePersonalBestTextBoxes();
@@ -1779,6 +1933,11 @@ internal sealed class SettingsForm : Form
             settings.SplitCompletionOutlineSplitTimes[key] = splitStyle != SplitCompletionOutlineStyles.None;
             settings.SplitCompletionOutlineSegmentTimes[key] = segmentStyle != SplitCompletionOutlineStyles.None;
         }
+
+        foreach ((string key, SegmentBestDeltaHighlightControls controls) in segmentBestDeltaHighlightControls)
+        {
+            settings.SegmentBestDeltaHighlightStyles[key] = GetSelectedEffectStyle(controls.Style);
+        }
     }
 
     private void ApplyAndNotify()
@@ -1802,6 +1961,7 @@ internal sealed class SettingsForm : Form
         PopulatePersonalBestTimeGrid();
         PopulatePersonalBestSegmentGrid();
         RefreshAnimationOutlineGrid();
+        PopulateSegmentBestDeltaHighlightGrid();
         return true;
     }
 
@@ -1902,7 +2062,17 @@ internal sealed class SettingsForm : Form
         ComboBox SplitTime,
         ComboBox SegmentTime);
 
+    private sealed record SegmentBestDeltaHighlightControls(ComboBox Style);
+
     private sealed record OutlineStyleOption(string Id, string DisplayName)
+    {
+        public override string ToString()
+        {
+            return DisplayName;
+        }
+    }
+
+    private sealed record EffectStyleOption(string Id, string DisplayName)
     {
         public override string ToString()
         {

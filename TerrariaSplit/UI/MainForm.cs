@@ -696,6 +696,7 @@ internal sealed class MainForm : Form
         string groupKey = GetSplitCompletionGroupKey(definition);
         SplitComparison referenceSplitComparison = GetReferenceSplitComparison(definition, splitTime);
         SplitComparison personalBestSegmentComparison = GetPersonalBestSegmentComparison(definition, segmentTime);
+        string segmentBestDeltaHighlightStyle = GetSegmentBestDeltaHighlightStyle(groupKey);
 
         splitCompletionAnimation = new SplitCompletionAnimation(
             definition,
@@ -707,6 +708,7 @@ internal sealed class MainForm : Form
             GetSplitCompletionOutlineStyle(settings.SplitCompletionOutlineSplitStyles, groupKey),
             IsSplitCompletionSegmentComparisonEnabled(groupKey),
             GetSplitCompletionOutlineStyle(settings.SplitCompletionOutlineSegmentStyles, groupKey),
+            segmentBestDeltaHighlightStyle,
             DateTime.UtcNow);
     }
 
@@ -899,7 +901,8 @@ internal sealed class MainForm : Form
             deltaFont,
             palette,
             elapsed,
-            opacity);
+            opacity,
+            SegmentBestDeltaHighlightStyles.None);
         DrawSplitCompletionTimeRow(
             graphics,
             splitRect,
@@ -913,7 +916,8 @@ internal sealed class MainForm : Form
             deltaFont,
             palette,
             elapsed,
-            opacity);
+            opacity,
+            animation.SegmentBestDeltaHighlightStyle);
     }
 
     private void DrawSplitCompletionTimeRow(
@@ -929,7 +933,8 @@ internal sealed class MainForm : Form
         Font deltaFont,
         UiPalette palette,
         TimeSpan elapsed,
-        float opacity)
+        float opacity,
+        string deltaHighlightStyle)
     {
         if (bounds.Width <= 0 || bounds.Height <= 0)
         {
@@ -992,6 +997,13 @@ internal sealed class MainForm : Form
         if (!string.IsNullOrEmpty(deltaText))
         {
             Color deltaColor = GetDeltaComparisonColor(comparison, palette);
+            if (settings.ShowSegmentBestDeltaHighlight &&
+                comparison.Delta is TimeSpan deltaValue &&
+                deltaValue < TimeSpan.Zero)
+            {
+                deltaColor = SegmentBestDeltaHighlightStyles.Apply(deltaColor, deltaHighlightStyle, elapsed.TotalSeconds);
+            }
+
             float deltaY = baselineY + Math.Max(0f, valueSize.Height - deltaSize.Height) * 0.55f;
             DrawString(
                 graphics,
@@ -1157,6 +1169,13 @@ internal sealed class MainForm : Form
     private bool IsSplitCompletionSegmentComparisonEnabled(string groupKey)
     {
         return !settings.SplitCompletionSegmentComparisons.TryGetValue(groupKey, out bool enabled) || enabled;
+    }
+
+    private string GetSegmentBestDeltaHighlightStyle(string groupKey)
+    {
+        return settings.SegmentBestDeltaHighlightStyles.TryGetValue(groupKey, out string? style)
+            ? SegmentBestDeltaHighlightStyles.Normalize(style)
+            : SegmentBestDeltaHighlightStyles.Breathe;
     }
 
     private string FormatReferenceTime(BossSplitDefinition definition)
@@ -1774,6 +1793,7 @@ internal sealed class MainForm : Form
         string SplitTimeOutlineStyle,
         bool ShowSegmentComparison,
         string SegmentTimeOutlineStyle,
+        string SegmentBestDeltaHighlightStyle,
         DateTime StartedAtUtc);
 
     private readonly record struct ColumnRects(

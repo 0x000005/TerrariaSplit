@@ -9,3 +9,8 @@ obj/
 *.user
 *.suo
 .nuget/
+.build-check/
+.codex-build-check/
+.codex-verify/
+.nuget/
+codex

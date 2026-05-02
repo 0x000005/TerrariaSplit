@@ -25,6 +25,8 @@ internal sealed class AppSettings
     public Dictionary<string, bool> SplitCompletionOutlineSegmentTimes { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public Dictionary<string, string> SplitCompletionOutlineSplitStyles { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public Dictionary<string, string> SplitCompletionOutlineSegmentStyles { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public bool ShowSegmentBestDeltaHighlight { get; set; } = true;
+    public Dictionary<string, string> SegmentBestDeltaHighlightStyles { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public UiColorSettings Colors { get; set; } = new();
     public UiColumnLayoutSettings Columns { get; set; } = new();
     public int UndefeatedIconGrayscalePercent { get; set; } = 80;

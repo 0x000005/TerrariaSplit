@@ -142,6 +142,16 @@
     "Plantera": "Rainbow",
     "Golem": "Rainbow"
   },
+  "ShowSegmentBestDeltaHighlight": true,
+  "SegmentBestDeltaHighlightStyles": {
+    "Destroyer\u002BSkeletronPrime\u002BTwins": "Breathe",
+    "LunaticCultist": "Breathe",
+    "MoonLord": "Breathe",
+    "WallOfFlesh": "Breathe",
+    "Skeletron": "Breathe",
+    "Plantera": "Breathe",
+    "Golem": "Breathe"
+  },
   "Colors": {
     "ReferenceText": "#E2E2E2",
     "ActiveReferenceText": "#FDE679",

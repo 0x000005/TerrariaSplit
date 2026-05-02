@@ -67,6 +67,7 @@ internal static class AppSettingsStore
         settings.SplitCompletionOutlineSegmentTimes ??= new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
         settings.SplitCompletionOutlineSplitStyles ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         settings.SplitCompletionOutlineSegmentStyles ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        settings.SegmentBestDeltaHighlightStyles ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         settings.Colors ??= new UiColorSettings();
         settings.Columns ??= new UiColumnLayoutSettings();
         settings.SplitCompletionOutlineThicknessPercent = Math.Clamp(settings.SplitCompletionOutlineThicknessPercent, 0, 100);
@@ -95,6 +96,7 @@ internal static class AppSettingsStore
                 settings.SplitCompletionOutlineSegmentStyles,
                 settings.SplitCompletionOutlineSegmentTimes,
                 group.Key);
+            settings.SegmentBestDeltaHighlightStyles[group.Key] = GetNormalizedDeltaHighlightStyle(settings.SegmentBestDeltaHighlightStyles, group.Key);
         }
 
         RemoveUnknownRouteGroupKeys(settings);
@@ -249,6 +251,14 @@ internal static class AppSettingsStore
         RemoveKeysExcept(settings.SplitCompletionOutlineSegmentTimes, validGroupKeys);
         RemoveKeysExcept(settings.SplitCompletionOutlineSplitStyles, validGroupKeys);
         RemoveKeysExcept(settings.SplitCompletionOutlineSegmentStyles, validGroupKeys);
+        RemoveKeysExcept(settings.SegmentBestDeltaHighlightStyles, validGroupKeys);
+    }
+
+    private static string GetNormalizedDeltaHighlightStyle(Dictionary<string, string> styles, string key)
+    {
+        return styles.TryGetValue(key, out string? existing)
+            ? SegmentBestDeltaHighlightStyles.Normalize(existing)
+            : SegmentBestDeltaHighlightStyles.Breathe;
     }
 
     private static string GetNormalizedOutlineStyle(
