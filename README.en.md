@@ -5,9 +5,7 @@
   <a href="README.md">简体中文</a>
 </p>
 
-TerrariaSplit is a Windows split timer for Terraria speedrun practice and timing. It reads the Terraria process state to detect world entry, menu state, and BOSS defeats, then displays splits, reference deltas, BOSS icons, and completion animations in a compact overlay.
-
-The project is designed around local files and personal workflows. Settings, reference times, and run history are stored as JSON files next to the application, making them easy to edit, back up, and switch.
+ TerrariaSplit is a highly customizable BOSS-only timer for 1.4.5 with polished split animations, flexible reference data, statistics comparison, and a full visual settings UI. 
 
 ## Features
 
