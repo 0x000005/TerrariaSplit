@@ -29,10 +29,17 @@ internal sealed class SettingsForm : Form
     private readonly TextBox newReferenceSetNameBox = new();
     private readonly CheckBox autoUpdatePersonalBestDataBox = new();
     private readonly CheckBox showSplitCompletionAnimationBox = new();
+    private readonly CheckBox showCurrentSplitHighlightBox = new();
+    private readonly TextBox currentSplitHighlightScaleBox = new();
+    private readonly TextBox currentSplitDepthStrengthBox = new();
     private readonly CheckBox showSegmentBestDeltaHighlightBox = new();
+    private readonly CheckBox enableDefeatedBossIconLightingBox = new();
+    private readonly TextBox splitCompletionAnimationDurationBox = new();
     private readonly TextBox splitCompletionOutlineThicknessBox = new();
     private readonly TextBox undefeatedIconGrayscaleBox = new();
     private readonly TextBox undefeatedIconBrightnessBox = new();
+    private readonly TextBox currentBossIconGrayscaleWeakenBox = new();
+    private readonly TextBox currentBossIconBrightnessBoostBox = new();
     private readonly Dictionary<string, RouteControls> routeControls = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, TextBox> bossIconTextBoxes = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, TextBox> splitTextBoxes = new(StringComparer.OrdinalIgnoreCase);
@@ -59,7 +66,7 @@ internal sealed class SettingsForm : Form
     private string? personalBestSegmentGridSignature;
     private string? animationGridSignature;
     private string previewOutlineStyle = SplitCompletionOutlineStyles.Rainbow;
-    private string previewSegmentBestDeltaHighlightStyle = SegmentBestDeltaHighlightStyles.Breathe;
+    private string previewSegmentBestDeltaHighlightStyle = SegmentBestDeltaHighlightStyles.Aurora;
     private readonly List<SettingsPageDescriptor> pages = new();
     private Panel? pageHost;
     private bool updatingReferenceSetSelection;
@@ -872,32 +879,49 @@ internal sealed class SettingsForm : Form
         grid.Controls.Add(CreateCenteredCell(boldBox, 28), 3, row);
     }
 
-    internal void AddIconStyleSection(TableLayoutPanel parent)
-    {
-        ConfigureNumberBox(undefeatedIconGrayscaleBox, settings.UndefeatedIconGrayscalePercent, 0, 100);
-        ConfigureNumberBox(undefeatedIconBrightnessBox, settings.UndefeatedIconBrightnessPercent, 0, 100);
-
-        TableLayoutPanel section = CreateSection("Icon Style");
-        TableLayoutPanel grid = CreateGrid(
-            ColumnStylePercent(100f),
-            ColumnStyleAbsolute(280f));
-        AddSettingRow(grid, "Unlit grayscale %", undefeatedIconGrayscaleBox);
-        AddSettingRow(grid, "Unlit brightness %", undefeatedIconBrightnessBox);
-        AddSectionControl(section, grid);
-        AddSection(parent, section);
-    }
-
     internal void AddAnimationSection(TableLayoutPanel parent)
     {
+        ConfigureCheckBox(enableDefeatedBossIconLightingBox, settings.EnableDefeatedBossIconLighting);
+        ConfigureNumberBox(undefeatedIconGrayscaleBox, settings.UndefeatedIconGrayscalePercent, 0, 100);
+        ConfigureNumberBox(undefeatedIconBrightnessBox, settings.UndefeatedIconBrightnessPercent, 0, 100);
+        ConfigureNumberBox(currentBossIconGrayscaleWeakenBox, settings.CurrentBossIconGrayscaleWeakenPercent, 0, 100);
+        ConfigureNumberBox(currentBossIconBrightnessBoostBox, settings.CurrentBossIconBrightnessBoostPercent, 0, 100);
+        ConfigureCheckBox(showCurrentSplitHighlightBox, settings.ShowCurrentSplitHighlight);
+        ConfigureNumberBox(currentSplitHighlightScaleBox, settings.CurrentSplitHighlightScalePercent, 100, 140);
+        ConfigureNumberBox(currentSplitDepthStrengthBox, settings.CurrentSplitDepthStrengthPercent, 0, 100);
         ConfigureCheckBox(showSplitCompletionAnimationBox, settings.ShowSplitCompletionAnimation);
+        ConfigureDecimalBox(splitCompletionAnimationDurationBox, settings.SplitCompletionAnimationDurationSeconds, 1m, 20m);
         ConfigureNumberBox(splitCompletionOutlineThicknessBox, settings.SplitCompletionOutlineThicknessPercent, 0, 100);
         splitCompletionOutlineThicknessBox.TextChanged += (_, _) => outlineStylePreview.Invalidate();
+
+        TableLayoutPanel iconSection = CreateSection("Icon Style");
+        TableLayoutPanel iconGrid = CreateGrid(
+            ColumnStylePercent(100f),
+            ColumnStyleAbsolute(280f));
+        AddSettingRow(iconGrid, "Enable defeated icon lighting", enableDefeatedBossIconLightingBox);
+        AddSettingRow(iconGrid, "Unlit grayscale %", undefeatedIconGrayscaleBox);
+        AddSettingRow(iconGrid, "Unlit brightness %", undefeatedIconBrightnessBox);
+        AddSettingRow(iconGrid, "Current boss grayscale weaken %", currentBossIconGrayscaleWeakenBox);
+        AddSettingRow(iconGrid, "Current boss brightness boost %", currentBossIconBrightnessBoostBox);
+        AddSectionControl(iconSection, iconGrid);
+        AddSection(parent, iconSection);
+
+        TableLayoutPanel currentSection = CreateSection("Current Split Highlight");
+        TableLayoutPanel currentGrid = CreateGrid(
+            ColumnStylePercent(100f),
+            ColumnStyleAbsolute(280f));
+        AddSettingRow(currentGrid, "Enable current split highlight", showCurrentSplitHighlightBox);
+        AddSettingRow(currentGrid, "Current split scale %", currentSplitHighlightScaleBox);
+        AddSettingRow(currentGrid, "Depth strength %", currentSplitDepthStrengthBox);
+        AddSectionControl(currentSection, currentGrid);
+        AddSection(parent, currentSection);
 
         TableLayoutPanel section = CreateSection("BOSS Defeat");
         TableLayoutPanel optionGrid = CreateGrid(
             ColumnStylePercent(100f),
             ColumnStyleAbsolute(280f));
         AddSettingRow(optionGrid, "Enable animation", showSplitCompletionAnimationBox);
+        AddSettingRow(optionGrid, "Animation duration seconds", splitCompletionAnimationDurationBox);
         AddSectionControl(section, optionGrid);
 
         AddSectionControl(section, CreateSubsectionLabel("Show comparison"));
@@ -1323,7 +1347,7 @@ internal sealed class SettingsForm : Form
     {
         return settings.SegmentBestDeltaHighlightStyles.TryGetValue(key, out string? style)
             ? SegmentBestDeltaHighlightStyles.Normalize(style)
-            : SegmentBestDeltaHighlightStyles.Breathe;
+            : SegmentBestDeltaHighlightStyles.Aurora;
     }
 
     private ComboBox CreateSegmentBestDeltaHighlightStyleBox(string selectedStyle)
@@ -1620,10 +1644,15 @@ internal sealed class SettingsForm : Form
     private static TextBox CreateDecimalBox(float value, decimal minimum, decimal maximum)
     {
         var textBox = new TextBox();
+        ConfigureDecimalBox(textBox, value, minimum, maximum);
+        return textBox;
+    }
+
+    private static void ConfigureDecimalBox(TextBox textBox, float value, decimal minimum, decimal maximum)
+    {
         UiTheme.StyleTextBox(textBox);
         textBox.Dock = DockStyle.Fill;
         textBox.Text = Math.Clamp((decimal)value, minimum, maximum).ToString("0.#", CultureInfo.InvariantCulture);
-        return textBox;
     }
 
     private static TextBox CreateTextBox(string value)
@@ -1877,7 +1906,12 @@ internal sealed class SettingsForm : Form
         settings.PracticeMode = practiceModeBox.Checked;
         settings.AutoUpdatePersonalBestData = autoUpdatePersonalBestDataBox.Checked;
         settings.ShowSplitCompletionAnimation = showSplitCompletionAnimationBox.Checked;
+        settings.ShowCurrentSplitHighlight = showCurrentSplitHighlightBox.Checked;
+        settings.CurrentSplitHighlightScalePercent = ParseIntBox(currentSplitHighlightScaleBox, 112, 100, 140);
+        settings.CurrentSplitDepthStrengthPercent = ParseIntBox(currentSplitDepthStrengthBox, 45, 0, 100);
         settings.ShowSegmentBestDeltaHighlight = showSegmentBestDeltaHighlightBox.Checked;
+        settings.EnableDefeatedBossIconLighting = enableDefeatedBossIconLightingBox.Checked;
+        settings.SplitCompletionAnimationDurationSeconds = ParseFloatBox(splitCompletionAnimationDurationBox, 4.2f, 1f, 20f);
         settings.SplitCompletionOutlineThicknessPercent = ParseIntBox(splitCompletionOutlineThicknessBox, 30, 0, 100);
         SaveReferenceTextBoxes();
         SavePersonalBestTextBoxes();
@@ -1907,6 +1941,8 @@ internal sealed class SettingsForm : Form
 
         settings.UndefeatedIconGrayscalePercent = ParseIntBox(undefeatedIconGrayscaleBox, 80, 0, 100);
         settings.UndefeatedIconBrightnessPercent = ParseIntBox(undefeatedIconBrightnessBox, 40, 0, 100);
+        settings.CurrentBossIconGrayscaleWeakenPercent = ParseIntBox(currentBossIconGrayscaleWeakenBox, 40, 0, 100);
+        settings.CurrentBossIconBrightnessBoostPercent = ParseIntBox(currentBossIconBrightnessBoostBox, 35, 0, 100);
 
         SetColor(nameof(settings.Colors.ReferenceText), value => settings.Colors.ReferenceText = value);
         SetColor(nameof(settings.Colors.ActiveReferenceText), value => settings.Colors.ActiveReferenceText = value);

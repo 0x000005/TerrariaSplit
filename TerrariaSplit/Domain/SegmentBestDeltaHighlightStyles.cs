@@ -5,24 +5,25 @@ namespace TerrariaSplit;
 internal static class SegmentBestDeltaHighlightStyles
 {
     public const string None = "None";
-    public const string Breathe = "Breathe";
     public const string Rainbow = "Rainbow";
     public const string Aurora = "Aurora";
-    public const string Gold = "Gold";
 
     private static readonly IReadOnlyList<string> ids = new[]
     {
         None,
-        Breathe,
         Rainbow,
-        Aurora,
-        Gold
+        Aurora
     };
 
     public static IReadOnlyList<string> Ids => ids;
 
     public static string Normalize(string? id)
     {
+        if (string.Equals(id, "Breathe", StringComparison.OrdinalIgnoreCase))
+        {
+            return Aurora;
+        }
+
         return ids.Any(candidate => string.Equals(candidate, id, StringComparison.OrdinalIgnoreCase))
             ? ids.First(candidate => string.Equals(candidate, id, StringComparison.OrdinalIgnoreCase))
             : None;
@@ -33,10 +34,8 @@ internal static class SegmentBestDeltaHighlightStyles
         return Normalize(id) switch
         {
             None => "None",
-            Breathe => "Breathe",
-            Rainbow => "Rainbow",
-            Aurora => "Aurora",
-            Gold => "Gold",
+            Rainbow => "Neon",
+            Aurora => "Breathe",
             _ => "None"
         };
     }
@@ -49,13 +48,10 @@ internal static class SegmentBestDeltaHighlightStyles
             return baseColor;
         }
 
-        float wave = (MathF.Sin((float)(seconds * Math.Tau)) + 1f) * 0.5f;
         return style switch
         {
-            Breathe => Blend(baseColor, Color.White, 0.20f + wave * 0.34f),
             Rainbow => Blend(baseColor, FromHsv((float)(seconds * 150.0), 0.78f, 1f), 0.36f),
-            Aurora => Blend(baseColor, FromHsv(166f + (float)((seconds * 95.0) % 126.0), 0.58f, 1f), 0.34f),
-            Gold => Blend(baseColor, FromHsv(48f, 0.42f, 1f), 0.38f + wave * 0.18f),
+            Aurora => Blend(baseColor, FromHsv(229f + MathF.Sin((float)(seconds * 1.45)) * 63f, 0.58f, 1f), 0.34f),
             _ => baseColor
         };
     }

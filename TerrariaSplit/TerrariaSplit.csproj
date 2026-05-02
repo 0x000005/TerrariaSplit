@@ -8,11 +8,13 @@
     <ApplicationHighDpiMode>SystemAware</ApplicationHighDpiMode>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <DefaultItemExcludes>$(DefaultItemExcludes);bin\**;obj\**;.build-check\**;.check\**;.verify\**</DefaultItemExcludes>
   </PropertyGroup>
 
   <ItemGroup>
     <Content Include="Assets\BossIcons\*.*" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="settings.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="settings\*.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

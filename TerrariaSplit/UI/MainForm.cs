@@ -10,7 +10,6 @@ internal sealed class MainForm : Form
 {
     private static readonly Color TransparentKeyColor = Color.FromArgb(1, 2, 3);
     private static readonly TimeSpan MaximumVisibleDeltaDistance = TimeSpan.FromMinutes(1);
-    private static readonly TimeSpan SplitCompletionAnimationDuration = TimeSpan.FromSeconds(4.2);
     private static readonly TimeSpan SplitCompletionFadeDuration = TimeSpan.FromSeconds(0.45);
     private const int ResizeBorder = 8;
     private const int RowGap = 9;
@@ -21,6 +20,7 @@ internal sealed class MainForm : Form
     private readonly System.Windows.Forms.Timer uiTimer = new();
     private readonly Dictionary<string, IconPair> iconCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<FontKey, Font> fontCache = new();
+    private readonly Dictionary<int, SegmentBestDeltaHighlight> segmentBestDeltaHighlights = new();
     private readonly ContextMenuStrip contextMenu = new();
     private bool mouseClickThrough;
     private bool dragging;
@@ -69,8 +69,39 @@ internal sealed class MainForm : Form
         contextMenu.Items.Clear();
         contextMenu.Items.Add(Localizer.Get("Statistics...", settings), null, (_, _) => OpenStatistics());
         contextMenu.Items.Add(Localizer.Get("Settings...", settings), null, (_, _) => OpenSettings());
+        contextMenu.Items.Add(CreateSettingsFileMenu());
         contextMenu.Items.Add(new ToolStripSeparator());
         contextMenu.Items.Add(Localizer.Get("Exit", settings), null, (_, _) => Close());
+    }
+
+    private ToolStripMenuItem CreateSettingsFileMenu()
+    {
+        var menu = new ToolStripMenuItem(Localizer.Get("Switch config", settings));
+        IReadOnlyList<string> files = AppSettingsStore.GetSettingsFiles();
+        if (files.Count == 0)
+        {
+            ToolStripMenuItem empty = new(Localizer.Get("No config files", settings))
+            {
+                Enabled = false
+            };
+            menu.DropDownItems.Add(empty);
+            return menu;
+        }
+
+        string activePath = Path.GetFullPath(AppSettingsStore.SettingsPath);
+        foreach (string file in files)
+        {
+            string filePath = Path.GetFullPath(file);
+            string fileName = Path.GetFileName(file);
+            var item = new ToolStripMenuItem(fileName)
+            {
+                Checked = string.Equals(filePath, activePath, StringComparison.OrdinalIgnoreCase)
+            };
+            item.Click += (_, _) => SwitchSettingsFile(filePath);
+            menu.DropDownItems.Add(item);
+        }
+
+        return menu;
     }
 
     protected override void OnFormClosed(FormClosedEventArgs e)
@@ -82,6 +113,7 @@ internal sealed class MainForm : Form
         {
             iconPair.Lit.Dispose();
             iconPair.Undefeated.Dispose();
+            iconPair.Current.Dispose();
         }
 
         foreach (Font font in fontCache.Values)
@@ -272,16 +304,19 @@ internal sealed class MainForm : Form
             BossSplitRecord? split = splitTracker.Update(snapshot, runTimer.Elapsed);
             if (split is not null)
             {
+                int completedIndex = splitTracker.CurrentIndex - 1;
+                TrackSegmentBestDeltaHighlight(completedIndex);
+
                 if (settings.ShowSplitCompletionAnimation)
                 {
-                    StartSplitCompletionAnimation(splitTracker.CurrentIndex - 1);
+                    StartSplitCompletionAnimation(completedIndex);
                 }
                 else
                 {
                     splitCompletionAnimation = null;
                 }
 
-                TryAutoUpdatePersonalBestSegment(splitTracker.CurrentIndex - 1);
+                TryAutoUpdatePersonalBestSegment(completedIndex);
 
                 if (splitTracker.CurrentIndex >= splitTracker.Statuses.Count)
                 {
@@ -311,11 +346,29 @@ internal sealed class MainForm : Form
             out float animationOpacity);
         float listOpacity = hasAnimation ? 1f - animationOpacity : 1f;
 
-        for (int i = 0; i < statuses.Count; i++)
+        int focusIndex = GetCurrentSplitHighlightIndex();
+        IEnumerable<int> rowOrder = Enumerable.Range(0, statuses.Count);
+        if (focusIndex >= 0)
+        {
+            rowOrder = rowOrder
+                .OrderByDescending(index => Math.Abs(index - focusIndex))
+                .ThenBy(index => index);
+        }
+
+        foreach (int i in rowOrder)
         {
             BossSplitStatus status = statuses[i];
             bool isCurrent = i == splitTracker.CurrentIndex && runTimer.Phase != SplitTimerPhase.NotStarted;
-            DrawSplitRow(graphics, layout.GetRowRect(i), status, isCurrent, palette, listOpacity);
+            float depthScale = GetCurrentSplitDepthScale(i, focusIndex);
+            DrawSplitRow(
+                graphics,
+                layout.GetRowRect(i),
+                status,
+                i,
+                isCurrent,
+                palette,
+                GetCurrentSplitDepthOpacity(i, focusIndex, listOpacity),
+                depthScale);
         }
 
         if (hasAnimation && animation is not null)
@@ -326,7 +379,15 @@ internal sealed class MainForm : Form
         DrawTimer(graphics, layout.TimerRect, palette);
     }
 
-    private void DrawSplitRow(Graphics graphics, Rectangle rect, BossSplitStatus status, bool isCurrent, UiPalette palette, float opacity)
+    private void DrawSplitRow(
+        Graphics graphics,
+        Rectangle rect,
+        BossSplitStatus status,
+        int rowIndex,
+        bool isCurrent,
+        UiPalette palette,
+        float opacity,
+        float wheelScale = 1f)
     {
         if (opacity <= 0.01f)
         {
@@ -338,7 +399,13 @@ internal sealed class MainForm : Form
         if (columns.Icon is Rectangle iconColumnRect)
         {
             Rectangle iconRect = Rectangle.Inflate(iconColumnRect, -2, 0);
-            DrawIcons(graphics, iconRect, status, opacity);
+            DrawIcons(
+                graphics,
+                iconRect,
+                status,
+                opacity,
+                wheelScale,
+                settings.EnableDefeatedBossIconLighting && rowIndex == GetCurrentSplitHighlightIndex());
         }
 
         SplitComparison comparison = GetSplitComparison(status, isCurrent);
@@ -357,7 +424,7 @@ internal sealed class MainForm : Form
             DrawText(
                 graphics,
                 timeText,
-                GetColumnFont(settings.Columns.Time),
+                GetColumnFont(settings.Columns.Time, sizeScale: wheelScale),
                 timeBrush,
                 timeRect,
                 ContentAlignment.MiddleRight);
@@ -365,15 +432,79 @@ internal sealed class MainForm : Form
 
         if (columns.Delta is Rectangle deltaRect)
         {
-            using var compareBrush = new SolidBrush(WithOpacity(GetDeltaComparisonColor(comparison, palette), opacity));
+            Color deltaColor = GetDeltaComparisonColor(comparison, palette);
+            if (TryGetSegmentBestDeltaHighlight(rowIndex, out SegmentBestDeltaHighlight highlight))
+            {
+                double seconds = (DateTime.UtcNow - highlight.StartedAtUtc).TotalSeconds;
+                deltaColor = SegmentBestDeltaHighlightStyles.Apply(deltaColor, highlight.Style, seconds);
+            }
+
+            using var compareBrush = new SolidBrush(WithOpacity(deltaColor, opacity));
             DrawText(
                 graphics,
                 FormatSplitDelta(comparison),
-                GetColumnFont(settings.Columns.Delta),
+                GetColumnFont(settings.Columns.Delta, sizeScale: wheelScale),
                 compareBrush,
                 deltaRect,
                 ContentAlignment.MiddleLeft);
         }
+    }
+
+    private int GetCurrentSplitHighlightIndex()
+    {
+        return settings.ShowCurrentSplitHighlight &&
+            runTimer.Phase != SplitTimerPhase.NotStarted &&
+            splitTracker.CurrentIndex >= 0 &&
+            splitTracker.CurrentIndex < splitTracker.Statuses.Count
+            ? splitTracker.CurrentIndex
+            : -1;
+    }
+
+    private float GetCurrentSplitDepthScale(int rowIndex, int focusIndex)
+    {
+        if (focusIndex < 0)
+        {
+            return 1f;
+        }
+
+        float maximumScale = Math.Clamp(settings.CurrentSplitHighlightScalePercent, 100, 140) / 100f;
+        float lift = maximumScale - 1f;
+        if (lift <= 0.001f)
+        {
+            return 1f;
+        }
+
+        int distance = Math.Abs(rowIndex - focusIndex);
+        float falloff = distance switch
+        {
+            0 => 1f,
+            1 => 0.58f,
+            2 => 0.28f,
+            3 => 0.10f,
+            _ => 0f
+        };
+        return 1f + lift * falloff;
+    }
+
+    private float GetCurrentSplitDepthOpacity(int rowIndex, int focusIndex, float baseOpacity)
+    {
+        if (focusIndex < 0)
+        {
+            return baseOpacity;
+        }
+
+        float strength = Math.Clamp(settings.CurrentSplitDepthStrengthPercent * 2f, 0f, 100f) / 100f;
+        int distance = Math.Abs(rowIndex - focusIndex);
+        float depthLoss = distance switch
+        {
+            0 => 0f,
+            1 => 0.24f,
+            2 => 0.46f,
+            3 => 0.62f,
+            _ => 0.72f
+        };
+        float depthOpacity = 1f - depthLoss * strength;
+        return baseOpacity * depthOpacity;
     }
 
     private ColumnRects GetColumnRects(Rectangle rect)
@@ -498,6 +629,7 @@ internal sealed class MainForm : Form
         }
 
         splitTracker.SetPracticeTime(rowIndex, parsedTime);
+        TrackSegmentBestDeltaHighlight(rowIndex);
         Invalidate();
     }
 
@@ -559,9 +691,9 @@ internal sealed class MainForm : Form
         }
     }
 
-    private Font GetColumnFont(UiColumnSettings columnSettings, bool forceBold = false)
+    private Font GetColumnFont(UiColumnSettings columnSettings, bool forceBold = false, float sizeScale = 1f)
     {
-        float size = Math.Clamp(columnSettings.FontSize * GetScaleFactor(), 6f, 144f);
+        float size = Math.Clamp(columnSettings.FontSize * GetScaleFactor() * Math.Max(0.1f, sizeScale), 6f, 144f);
         bool bold = forceBold || columnSettings.Bold;
         var key = new FontKey(size, bold);
         if (fontCache.TryGetValue(key, out Font? font))
@@ -598,7 +730,13 @@ internal sealed class MainForm : Form
             Math.Clamp((int)Math.Round(420 * scale), 260, 1600));
     }
 
-    private void DrawIcons(Graphics graphics, Rectangle rect, BossSplitStatus status, float opacity = 1f)
+    private void DrawIcons(
+        Graphics graphics,
+        Rectangle rect,
+        BossSplitStatus status,
+        float opacity = 1f,
+        float sizeScale = 1f,
+        bool brighten = false)
     {
         BossSplitDefinition definition = status.Definition;
         int count = definition.IconFileNames.Count;
@@ -612,20 +750,21 @@ internal sealed class MainForm : Form
             IconPair icon = LoadIconPair(definition, definition.IconFileNames[0]);
             bool lit = IsIconLit(status, 0);
             int singleIconSize = Math.Min(
-                Math.Min(Math.Max(12, ScaleInt((int)Math.Round(settings.Columns.Icon.FontSize))), rect.Height),
+                Math.Min(Math.Max(12, ScaleInt((int)Math.Round(settings.Columns.Icon.FontSize * sizeScale))), rect.Height),
                 rect.Width);
             var iconRect = new Rectangle(
                 rect.Right - singleIconSize,
                 rect.Y + Math.Max(0, (rect.Height - singleIconSize) / 2),
                 singleIconSize,
                 singleIconSize);
-            DrawImage(graphics, lit ? icon.Lit : icon.Undefeated, iconRect, opacity);
+            Image image = lit ? icon.Lit : brighten ? icon.Current : icon.Undefeated;
+            DrawImage(graphics, image, iconRect, opacity);
             return;
         }
 
         int iconGap = ScaleInt(6);
         int size = Math.Min(
-            Math.Min(Math.Max(12, ScaleInt((int)Math.Round(settings.Columns.Icon.FontSize))), rect.Height),
+            Math.Min(Math.Max(12, ScaleInt((int)Math.Round(settings.Columns.Icon.FontSize * sizeScale))), rect.Height),
             Math.Max(12, (rect.Width - Math.Max(0, count - 1) * iconGap) / count));
         int totalWidth = count * size + (count - 1) * iconGap;
         int startX = rect.Right - totalWidth;
@@ -634,12 +773,22 @@ internal sealed class MainForm : Form
         {
             IconPair icon = LoadIconPair(definition, definition.IconFileNames[i]);
             bool lit = IsIconLit(status, i);
-            DrawImage(graphics, lit ? icon.Lit : icon.Undefeated, new Rectangle(startX + i * (size + iconGap), y, size, size), opacity);
+            Image image = lit ? icon.Lit : brighten ? icon.Current : icon.Undefeated;
+            DrawImage(
+                graphics,
+                image,
+                new Rectangle(startX + i * (size + iconGap), y, size, size),
+                opacity);
         }
     }
 
     private bool IsIconLit(BossSplitStatus status, int iconIndex)
     {
+        if (!settings.EnableDefeatedBossIconLighting)
+        {
+            return true;
+        }
+
         if (status.IsCompleted || status.IsSkipped)
         {
             return true;
@@ -727,36 +876,49 @@ internal sealed class MainForm : Form
         }
 
         elapsed = DateTime.UtcNow - animation.StartedAtUtc;
-        if (elapsed >= SplitCompletionAnimationDuration)
+        TimeSpan duration = GetSplitCompletionAnimationDuration();
+        if (elapsed >= duration)
         {
             splitCompletionAnimation = null;
             animation = null;
             return false;
         }
 
-        opacity = GetSplitCompletionAnimationOpacity(elapsed);
+        opacity = GetSplitCompletionAnimationOpacity(elapsed, duration);
         return opacity > 0.01f;
     }
 
-    private static float GetSplitCompletionAnimationOpacity(TimeSpan elapsed)
+    private static float GetSplitCompletionAnimationOpacity(TimeSpan elapsed, TimeSpan duration)
     {
-        if (elapsed < TimeSpan.Zero || elapsed >= SplitCompletionAnimationDuration)
+        if (elapsed < TimeSpan.Zero || elapsed >= duration)
         {
             return 0f;
         }
 
-        if (elapsed < SplitCompletionFadeDuration)
+        TimeSpan fadeDuration = GetSplitCompletionFadeDuration(duration);
+        if (elapsed < fadeDuration)
         {
-            return EaseInOut((float)(elapsed.TotalMilliseconds / SplitCompletionFadeDuration.TotalMilliseconds));
+            return EaseInOut((float)(elapsed.TotalMilliseconds / fadeDuration.TotalMilliseconds));
         }
 
-        TimeSpan fadeOutStart = SplitCompletionAnimationDuration - SplitCompletionFadeDuration;
+        TimeSpan fadeOutStart = duration - fadeDuration;
         if (elapsed > fadeOutStart)
         {
-            return EaseInOut((float)((SplitCompletionAnimationDuration - elapsed).TotalMilliseconds / SplitCompletionFadeDuration.TotalMilliseconds));
+            return EaseInOut((float)((duration - elapsed).TotalMilliseconds / fadeDuration.TotalMilliseconds));
         }
 
         return 1f;
+    }
+
+    private TimeSpan GetSplitCompletionAnimationDuration()
+    {
+        return TimeSpan.FromSeconds(Math.Clamp(settings.SplitCompletionAnimationDurationSeconds, 1f, 20f));
+    }
+
+    private static TimeSpan GetSplitCompletionFadeDuration(TimeSpan duration)
+    {
+        double seconds = Math.Min(SplitCompletionFadeDuration.TotalSeconds, duration.TotalSeconds * 0.45);
+        return TimeSpan.FromSeconds(Math.Max(0.05, seconds));
     }
 
     private static float EaseInOut(float value)
@@ -818,7 +980,8 @@ internal sealed class MainForm : Form
             return;
         }
 
-        float progress = Math.Clamp((float)(elapsed.TotalMilliseconds / SplitCompletionAnimationDuration.TotalMilliseconds), 0f, 0.999f);
+        TimeSpan duration = GetSplitCompletionAnimationDuration();
+        float progress = Math.Clamp((float)(elapsed.TotalMilliseconds / duration.TotalMilliseconds), 0f, 0.999f);
         float position = progress * iconFileNames.Count;
         int iconIndex = Math.Min(iconFileNames.Count - 1, (int)position);
         float localProgress = position - iconIndex;
@@ -871,7 +1034,7 @@ internal sealed class MainForm : Form
         float scale = GetScaleFactor();
         using var labelFont = new Font(UiTheme.FontFamilyName, Math.Clamp(9f * scale, 7f, 16f), FontStyle.Regular);
         using var valueFont = new Font(UiTheme.FontFamilyName, Math.Clamp(18f * scale, 12f, 32f), FontStyle.Bold);
-        using var deltaFont = new Font(UiTheme.FontFamilyName, Math.Clamp(18f * scale, 12f, 32f), FontStyle.Bold);
+        using var deltaFont = new Font(UiTheme.FontFamilyName, Math.Clamp(13f * scale, 9f, 24f), FontStyle.Bold);
         UiPalette palette = UiPalette.From(settings.Colors);
 
         int labelHeight = Math.Max(ScaleInt(12), (int)Math.Ceiling(labelFont.GetHeight(graphics)));
@@ -891,21 +1054,6 @@ internal sealed class MainForm : Form
         DrawSplitCompletionTimeRow(
             graphics,
             segmentRect,
-            Localizer.Get("Split time", settings),
-            SplitTimerFormatter.Format(animation.SplitTime),
-            animation.ReferenceSplitComparison,
-            animation.ShowSplitComparison,
-            animation.SplitTimeOutlineStyle,
-            labelFont,
-            valueFont,
-            deltaFont,
-            palette,
-            elapsed,
-            opacity,
-            SegmentBestDeltaHighlightStyles.None);
-        DrawSplitCompletionTimeRow(
-            graphics,
-            splitRect,
             Localizer.Get("Segment time", settings),
             SplitTimerFormatter.Format(animation.SegmentTime),
             animation.PersonalBestSegmentComparison,
@@ -918,6 +1066,21 @@ internal sealed class MainForm : Form
             elapsed,
             opacity,
             animation.SegmentBestDeltaHighlightStyle);
+        DrawSplitCompletionTimeRow(
+            graphics,
+            splitRect,
+            Localizer.Get("Split time", settings),
+            SplitTimerFormatter.Format(animation.SplitTime),
+            animation.ReferenceSplitComparison,
+            animation.ShowSplitComparison,
+            animation.SplitTimeOutlineStyle,
+            labelFont,
+            valueFont,
+            deltaFont,
+            palette,
+            elapsed,
+            opacity,
+            SegmentBestDeltaHighlightStyles.None);
     }
 
     private void DrawSplitCompletionTimeRow(
@@ -969,10 +1132,13 @@ internal sealed class MainForm : Form
         SizeF deltaSize = string.IsNullOrEmpty(deltaText)
             ? SizeF.Empty
             : graphics.MeasureString(deltaText, deltaFont, bounds.Size, format);
-        float gap = string.IsNullOrEmpty(deltaText) ? 0f : ScaleInt(8);
-        float groupWidth = valueSize.Width + gap + deltaSize.Width;
-        float startX = bounds.Left + Math.Max(0f, (bounds.Width - groupWidth) / 2f);
-        float baselineY = bounds.Top + labelHeight + Math.Max(0f, (bounds.Height - labelHeight - valueSize.Height) / 2f);
+        float gap = string.IsNullOrEmpty(deltaText) ? 0f : ScaleInt(14);
+        float startX = bounds.Left + Math.Max(0f, (bounds.Width - valueSize.Width) / 2f);
+        FontMetrics valueMetrics = GetFontMetrics(graphics, valueFont);
+        FontMetrics deltaMetrics = GetFontMetrics(graphics, deltaFont);
+        float valueTextHeight = valueMetrics.Ascent + valueMetrics.Descent;
+        float valueBaselineY = bounds.Top + labelHeight + Math.Max(0f, (bounds.Height - labelHeight - valueTextHeight) / 2f) + valueMetrics.Ascent;
+        float valueY = valueBaselineY - valueMetrics.Ascent;
 
         if (isAhead)
         {
@@ -982,7 +1148,7 @@ internal sealed class MainForm : Form
                 valueFont,
                 Color.White,
                 startX,
-                baselineY,
+                valueY,
                 format,
                 elapsed,
                 settings.SplitCompletionOutlineThicknessPercent,
@@ -991,7 +1157,7 @@ internal sealed class MainForm : Form
         }
         else
         {
-            DrawString(graphics, value, valueFont, Color.White, startX, baselineY, format, opacity);
+            DrawString(graphics, value, valueFont, Color.White, startX, valueY, format, opacity);
         }
 
         if (!string.IsNullOrEmpty(deltaText))
@@ -1004,13 +1170,14 @@ internal sealed class MainForm : Form
                 deltaColor = SegmentBestDeltaHighlightStyles.Apply(deltaColor, deltaHighlightStyle, elapsed.TotalSeconds);
             }
 
-            float deltaY = baselineY + Math.Max(0f, valueSize.Height - deltaSize.Height) * 0.55f;
+            float deltaX = startX + valueSize.Width + gap;
+            float deltaY = AlignTextPathBottom(graphics, value, valueFont, startX, valueY, deltaText, deltaFont, deltaX, valueY, format);
             DrawString(
                 graphics,
                 deltaText,
                 deltaFont,
                 deltaColor,
-                startX + valueSize.Width + gap,
+                deltaX,
                 deltaY,
                 format,
                 opacity);
@@ -1056,6 +1223,81 @@ internal sealed class MainForm : Form
         }
 
         return false;
+    }
+
+    private void TrackSegmentBestDeltaHighlight(int completedIndex)
+    {
+        segmentBestDeltaHighlights.Remove(completedIndex);
+
+        IReadOnlyList<BossSplitStatus> statuses = splitTracker.Statuses;
+        if (completedIndex < 0 ||
+            completedIndex >= statuses.Count ||
+            !settings.ShowSegmentBestDeltaHighlight ||
+            !TryGetCompletedSegmentTime(completedIndex, out TimeSpan segmentTime))
+        {
+            return;
+        }
+
+        BossSplitDefinition definition = statuses[completedIndex].Definition;
+        if (!TryGetPersonalBestSegment(definition, out TimeSpan personalBestSegment) ||
+            segmentTime >= personalBestSegment)
+        {
+            return;
+        }
+
+        string style = GetSegmentBestDeltaHighlightStyle(GetSplitCompletionGroupKey(definition));
+        if (SegmentBestDeltaHighlightStyles.Normalize(style) == SegmentBestDeltaHighlightStyles.None)
+        {
+            return;
+        }
+
+        segmentBestDeltaHighlights[completedIndex] = new SegmentBestDeltaHighlight(style, DateTime.UtcNow);
+    }
+
+    private bool TryGetSegmentBestDeltaHighlight(int rowIndex, out SegmentBestDeltaHighlight highlight)
+    {
+        if (settings.ShowSegmentBestDeltaHighlight &&
+            segmentBestDeltaHighlights.TryGetValue(rowIndex, out highlight) &&
+            rowIndex >= 0 &&
+            rowIndex < splitTracker.Statuses.Count &&
+            splitTracker.Statuses[rowIndex].IsCompleted &&
+            SegmentBestDeltaHighlightStyles.Normalize(highlight.Style) != SegmentBestDeltaHighlightStyles.None)
+        {
+            return true;
+        }
+
+        highlight = default;
+        return false;
+    }
+
+    private bool TryGetCompletedSegmentTime(int completedIndex, out TimeSpan segmentTime)
+    {
+        segmentTime = TimeSpan.Zero;
+        IReadOnlyList<BossSplitStatus> statuses = splitTracker.Statuses;
+        if (completedIndex < 0 ||
+            completedIndex >= statuses.Count ||
+            statuses[completedIndex].Time is not TimeSpan splitTime)
+        {
+            return false;
+        }
+
+        TimeSpan previousSplitTime = TimeSpan.Zero;
+        for (int i = completedIndex - 1; i >= 0; i--)
+        {
+            if (statuses[i].Time is TimeSpan previousTime)
+            {
+                previousSplitTime = previousTime;
+                break;
+            }
+        }
+
+        segmentTime = splitTime - previousSplitTime;
+        if (segmentTime < TimeSpan.Zero)
+        {
+            segmentTime = TimeSpan.Zero;
+        }
+
+        return true;
     }
 
     private void TryAutoUpdatePersonalBestSegment(int completedIndex)
@@ -1175,7 +1417,7 @@ internal sealed class MainForm : Form
     {
         return settings.SegmentBestDeltaHighlightStyles.TryGetValue(groupKey, out string? style)
             ? SegmentBestDeltaHighlightStyles.Normalize(style)
-            : SegmentBestDeltaHighlightStyles.Breathe;
+            : SegmentBestDeltaHighlightStyles.Aurora;
     }
 
     private string FormatReferenceTime(BossSplitDefinition definition)
@@ -1352,6 +1594,28 @@ internal sealed class MainForm : Form
         return path;
     }
 
+    private static float AlignTextPathBottom(
+        Graphics graphics,
+        string referenceText,
+        Font referenceFont,
+        float referenceX,
+        float referenceY,
+        string text,
+        Font font,
+        float x,
+        float y,
+        StringFormat format)
+    {
+        using GraphicsPath referencePath = CreateTextPath(graphics, referenceText, referenceFont, referenceX, referenceY, format);
+        using GraphicsPath path = CreateTextPath(graphics, text, font, x, y, format);
+        if (referencePath.PointCount == 0 || path.PointCount == 0)
+        {
+            return y;
+        }
+
+        return y + referencePath.GetBounds().Bottom - path.GetBounds().Bottom;
+    }
+
     private static Color FromHsv(float hue, float saturation, float value)
     {
         float h = ((hue % 360f) + 360f) % 360f;
@@ -1375,18 +1639,25 @@ internal sealed class MainForm : Form
             (int)Math.Round((b + m) * 255f));
     }
 
-    private static void DrawImage(Graphics graphics, Image image, Rectangle bounds, float opacity)
+    private static void DrawImage(Graphics graphics, Image image, Rectangle bounds, float opacity, float brighten = 0f)
     {
-        if (opacity >= 0.99f)
+        if (opacity >= 0.99f && brighten <= 0.001f)
         {
             graphics.DrawImage(image, bounds);
             return;
         }
 
         using var attributes = new ImageAttributes();
+        float brightness = Math.Clamp(brighten, 0f, 0.5f);
         var matrix = new ColorMatrix
         {
-            Matrix33 = Math.Clamp(opacity, 0f, 1f)
+            Matrix00 = 1f + brightness,
+            Matrix11 = 1f + brightness,
+            Matrix22 = 1f + brightness,
+            Matrix33 = Math.Clamp(opacity, 0f, 1f),
+            Matrix40 = brightness * 0.08f,
+            Matrix41 = brightness * 0.08f,
+            Matrix42 = brightness * 0.08f
         };
         attributes.SetColorMatrix(matrix, ColorMatrixFlag.Default, ColorAdjustType.Bitmap);
         graphics.DrawImage(
@@ -1601,6 +1872,25 @@ internal sealed class MainForm : Form
     {
         settings = AppSettingsStore.Clone(appliedSettings);
         AppSettingsStore.Save(settings);
+        ApplyLoadedSettings();
+    }
+
+    private void SwitchSettingsFile(string path)
+    {
+        if (string.Equals(
+                Path.GetFullPath(path),
+                Path.GetFullPath(AppSettingsStore.SettingsPath),
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        settings = AppSettingsStore.Load(path);
+        ApplyLoadedSettings();
+    }
+
+    private void ApplyLoadedSettings()
+    {
         splitTracker.SetDefinitions(BossSplitDefinitions.Build(settings));
         ResetRun();
         TopMost = settings.AlwaysOnTop;
@@ -1629,6 +1919,7 @@ internal sealed class MainForm : Form
         runTimer.Reset();
         splitTracker.Reset();
         splitCompletionAnimation = null;
+        segmentBestDeltaHighlights.Clear();
         runStatsRecorded = false;
         Invalidate();
     }
@@ -1677,6 +1968,7 @@ internal sealed class MainForm : Form
         {
             iconPair.Lit.Dispose();
             iconPair.Undefeated.Dispose();
+            iconPair.Current.Dispose();
         }
 
         iconCache.Clear();
@@ -1703,7 +1995,11 @@ internal sealed class MainForm : Form
             lit,
             settings.UndefeatedIconGrayscalePercent,
             settings.UndefeatedIconBrightnessPercent);
-        iconPair = new IconPair(lit, undefeated);
+        Bitmap current = CreateBossChecklistUndefeatedIcon(
+            lit,
+            Math.Max(0, settings.UndefeatedIconGrayscalePercent - settings.CurrentBossIconGrayscaleWeakenPercent),
+            Math.Min(100, settings.UndefeatedIconBrightnessPercent + settings.CurrentBossIconBrightnessBoostPercent));
+        iconPair = new IconPair(lit, undefeated, current);
         iconCache[cacheKey] = iconPair;
         return iconPair;
     }
@@ -1775,13 +2071,15 @@ internal sealed class MainForm : Form
     [DllImport("user32.dll")]
     private static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
 
-    private sealed record IconPair(Image Lit, Image Undefeated);
+    private sealed record IconPair(Image Lit, Image Undefeated, Image Current);
 
     private readonly record struct FontKey(float Size, bool Bold);
 
     private readonly record struct FontMetrics(float Ascent, float Descent);
 
     private readonly record struct ColumnWidth(SplitColumn Column, int Width);
+
+    private readonly record struct SegmentBestDeltaHighlight(string Style, DateTime StartedAtUtc);
 
     private sealed record SplitCompletionAnimation(
         BossSplitDefinition Definition,

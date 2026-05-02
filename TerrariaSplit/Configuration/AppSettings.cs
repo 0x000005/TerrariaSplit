@@ -18,6 +18,7 @@ internal sealed class AppSettings
     public Dictionary<string, string> PersonalBestSegmentTimes { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public bool AutoUpdatePersonalBestData { get; set; }
     public bool ShowSplitCompletionAnimation { get; set; } = true;
+    public float SplitCompletionAnimationDurationSeconds { get; set; } = 4.2f;
     public int SplitCompletionOutlineThicknessPercent { get; set; } = 30;
     public Dictionary<string, bool> SplitCompletionSplitComparisons { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public Dictionary<string, bool> SplitCompletionSegmentComparisons { get; set; } = new(StringComparer.OrdinalIgnoreCase);
@@ -25,12 +26,19 @@ internal sealed class AppSettings
     public Dictionary<string, bool> SplitCompletionOutlineSegmentTimes { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public Dictionary<string, string> SplitCompletionOutlineSplitStyles { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public Dictionary<string, string> SplitCompletionOutlineSegmentStyles { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public bool ShowCurrentSplitHighlight { get; set; } = true;
+    public int CurrentSplitHighlightScalePercent { get; set; } = 112;
+    public int CurrentSplitDepthStrengthPercent { get; set; } = 45;
     public bool ShowSegmentBestDeltaHighlight { get; set; } = true;
     public Dictionary<string, string> SegmentBestDeltaHighlightStyles { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public UiColorSettings Colors { get; set; } = new();
     public UiColumnLayoutSettings Columns { get; set; } = new();
+    public bool EnableDefeatedBossIconLighting { get; set; } = true;
     public int UndefeatedIconGrayscalePercent { get; set; } = 80;
     public int UndefeatedIconBrightnessPercent { get; set; } = 40;
+    public int CurrentBossIconGrayscaleWeakenPercent { get; set; } = 40;
+    public int CurrentBossIconGrayscaleBoostPercent { get; set; }
+    public int CurrentBossIconBrightnessBoostPercent { get; set; } = 35;
 
     public Keys PauseResumeKeys => ParseKey(PauseResumeKey, Keys.R);
     public Keys ResetKeys => ParseKey(ResetKey, Keys.T);

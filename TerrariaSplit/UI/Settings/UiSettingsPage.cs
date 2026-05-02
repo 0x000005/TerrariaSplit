@@ -10,7 +10,6 @@ internal static class UiSettingsPage
         {
             owner.AddColumnSettingsSection(content);
             owner.AddTimerSettingsSection(content);
-            owner.AddIconStyleSection(content);
         });
     }
 }

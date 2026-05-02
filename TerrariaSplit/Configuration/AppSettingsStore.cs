@@ -1,19 +1,34 @@
+using System.Text.Json;
+
 namespace TerrariaSplit;
 
 internal static class AppSettingsStore
 {
+    private const string DefaultSettingsFileName = "settings.json";
+    private static string activeSettingsPath = Path.Combine(SettingsDirectory, DefaultSettingsFileName);
+
+    public static string SettingsDirectory => Path.Combine(AppContext.BaseDirectory, "settings");
+
+    private static string LegacySettingsPath => Path.Combine(AppContext.BaseDirectory, DefaultSettingsFileName);
+
     public static string SettingsPath
     {
-        get
-        {
-            return Path.Combine(AppContext.BaseDirectory, "settings.json");
-        }
+        get => activeSettingsPath;
     }
+
+    public static string SettingsFileName => Path.GetFileName(SettingsPath);
 
     public static AppSettings Load()
     {
+        return Load(SettingsPath);
+    }
+
+    public static AppSettings Load(string path)
+    {
         AppSettings settings;
         bool shouldSave = false;
+        activeSettingsPath = NormalizeSettingsPath(path);
+        TryMigrateLegacySettings();
         settings = JsonFileStore.Read<AppSettings>(SettingsPath, "settings") ?? AppSettings.CreateDefault();
         shouldSave = !File.Exists(SettingsPath);
 
@@ -26,6 +41,19 @@ internal static class AppSettingsStore
         }
 
         return settings;
+    }
+
+    public static IReadOnlyList<string> GetSettingsFiles()
+    {
+        Directory.CreateDirectory(SettingsDirectory);
+        return Directory.EnumerateFiles(SettingsDirectory, "*.json", SearchOption.TopDirectoryOnly)
+            .Where(IsValidSettingsFile)
+            .OrderBy(path => string.Equals(
+                Path.GetFileName(path),
+                DefaultSettingsFileName,
+                StringComparison.OrdinalIgnoreCase) ? 0 : 1)
+            .ThenBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     public static void Save(AppSettings settings)
@@ -54,6 +82,59 @@ internal static class AppSettingsStore
         return clone;
     }
 
+    private static void TryMigrateLegacySettings()
+    {
+        if (!string.Equals(
+                Path.GetFileName(SettingsPath),
+                DefaultSettingsFileName,
+                StringComparison.OrdinalIgnoreCase) ||
+            File.Exists(SettingsPath) ||
+            !File.Exists(LegacySettingsPath) ||
+            !IsValidSettingsFile(LegacySettingsPath))
+        {
+            return;
+        }
+
+        Directory.CreateDirectory(SettingsDirectory);
+        File.Copy(LegacySettingsPath, SettingsPath, overwrite: false);
+    }
+
+    private static bool IsValidSettingsFile(string path)
+    {
+        try
+        {
+            using JsonDocument document = JsonDocument.Parse(File.ReadAllText(path));
+            if (document.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                return false;
+            }
+
+            JsonElement root = document.RootElement;
+            return root.TryGetProperty(nameof(AppSettings.Route), out _) ||
+                root.TryGetProperty(nameof(AppSettings.Columns), out _) ||
+                root.TryGetProperty(nameof(AppSettings.Colors), out _) ||
+                root.TryGetProperty(nameof(AppSettings.ReferenceSplitSets), out _) ||
+                root.TryGetProperty(nameof(AppSettings.BossIconPaths), out _) ||
+                root.TryGetProperty(nameof(AppSettings.ShowSplitCompletionAnimation), out _);
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error(ex, $"Ignored invalid settings file: {path}");
+            return false;
+        }
+    }
+
+    private static string NormalizeSettingsPath(string path)
+    {
+        string fileName = Path.GetFileName(string.IsNullOrWhiteSpace(path) ? DefaultSettingsFileName : path);
+        if (!fileName.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+        {
+            fileName += ".json";
+        }
+
+        return Path.Combine(SettingsDirectory, fileName);
+    }
+
     public static void Normalize(AppSettings settings)
     {
         settings.Route ??= new List<BossRouteEntry>();
@@ -70,7 +151,19 @@ internal static class AppSettingsStore
         settings.SegmentBestDeltaHighlightStyles ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         settings.Colors ??= new UiColorSettings();
         settings.Columns ??= new UiColumnLayoutSettings();
+        settings.SplitCompletionAnimationDurationSeconds = Math.Clamp(settings.SplitCompletionAnimationDurationSeconds, 1f, 20f);
         settings.SplitCompletionOutlineThicknessPercent = Math.Clamp(settings.SplitCompletionOutlineThicknessPercent, 0, 100);
+        settings.CurrentSplitHighlightScalePercent = Math.Clamp(settings.CurrentSplitHighlightScalePercent, 100, 140);
+        settings.CurrentSplitDepthStrengthPercent = Math.Clamp(settings.CurrentSplitDepthStrengthPercent, 0, 100);
+        if (settings.CurrentBossIconGrayscaleWeakenPercent == 40 &&
+            settings.CurrentBossIconGrayscaleBoostPercent != 0)
+        {
+            settings.CurrentBossIconGrayscaleWeakenPercent = settings.CurrentBossIconGrayscaleBoostPercent;
+        }
+
+        settings.CurrentBossIconGrayscaleWeakenPercent = Math.Clamp(settings.CurrentBossIconGrayscaleWeakenPercent, 0, 100);
+        settings.CurrentBossIconGrayscaleBoostPercent = 0;
+        settings.CurrentBossIconBrightnessBoostPercent = Math.Clamp(settings.CurrentBossIconBrightnessBoostPercent, 0, 100);
         NormalizeRoute(settings);
         NormalizeColumnSettings(settings.Columns);
         RemoveUnknownBossUnitKeys(settings);
@@ -258,7 +351,7 @@ internal static class AppSettingsStore
     {
         return styles.TryGetValue(key, out string? existing)
             ? SegmentBestDeltaHighlightStyles.Normalize(existing)
-            : SegmentBestDeltaHighlightStyles.Breathe;
+            : SegmentBestDeltaHighlightStyles.Aurora;
     }
 
     private static string GetNormalizedOutlineStyle(

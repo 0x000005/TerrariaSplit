@@ -87,6 +87,7 @@
   },
   "AutoUpdatePersonalBestData": false,
   "ShowSplitCompletionAnimation": true,
+  "SplitCompletionAnimationDurationSeconds": 4.2,
   "SplitCompletionOutlineThicknessPercent": 40,
   "SplitCompletionSplitComparisons": {
     "Destroyer\u002BSkeletronPrime\u002BTwins": true,
@@ -142,15 +143,18 @@
     "Plantera": "Rainbow",
     "Golem": "Rainbow"
   },
+  "ShowCurrentSplitHighlight": true,
+  "CurrentSplitHighlightScalePercent": 112,
+  "CurrentSplitDepthStrengthPercent": 45,
   "ShowSegmentBestDeltaHighlight": true,
   "SegmentBestDeltaHighlightStyles": {
-    "Destroyer\u002BSkeletronPrime\u002BTwins": "Breathe",
-    "LunaticCultist": "Breathe",
-    "MoonLord": "Breathe",
-    "WallOfFlesh": "Breathe",
-    "Skeletron": "Breathe",
-    "Plantera": "Breathe",
-    "Golem": "Breathe"
+    "Destroyer\u002BSkeletronPrime\u002BTwins": "Aurora",
+    "LunaticCultist": "Aurora",
+    "MoonLord": "Aurora",
+    "WallOfFlesh": "Aurora",
+    "Skeletron": "Aurora",
+    "Plantera": "Aurora",
+    "Golem": "Aurora"
   },
   "Colors": {
     "ReferenceText": "#E2E2E2",
@@ -199,8 +203,11 @@
     "TimerOffsetX": 97,
     "TimerOffsetY": 10
   },
+  "EnableDefeatedBossIconLighting": true,
   "UndefeatedIconGrayscalePercent": 80,
   "UndefeatedIconBrightnessPercent": 40,
+  "CurrentBossIconGrayscaleWeakenPercent": 40,
+  "CurrentBossIconBrightnessBoostPercent": 35,
   "PauseResumeKeys": 116,
   "ResetKeys": 120,
   "MouseClickThroughKeys": 121

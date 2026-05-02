@@ -66,11 +66,21 @@ internal static class TimeText
     {
         string sign = delta < TimeSpan.Zero ? "\u2212" : "+";
         TimeSpan value = delta.Duration();
-        int hours = (int)value.TotalHours;
 
-        string body = hours > 0
-            ? $"{hours}:{value.Minutes:00}:{value.Seconds:00}"
-            : $"{value.Minutes}:{value.Seconds:00}";
+        string body;
+        if (value.TotalSeconds < 10)
+        {
+            body = value.TotalSeconds.ToString("0.00", CultureInfo.InvariantCulture);
+        }
+        else if (value.TotalSeconds < 60)
+        {
+            body = value.TotalSeconds.ToString("0.0", CultureInfo.InvariantCulture);
+        }
+        else
+        {
+            int minutes = (int)value.TotalMinutes;
+            body = $"{minutes}:{value.Seconds:00}";
+        }
 
         return sign + body;
     }
