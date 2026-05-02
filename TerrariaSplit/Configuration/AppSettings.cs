@@ -28,6 +28,8 @@ internal sealed class AppSettings
     public bool ShowCurrentSplitHighlight { get; set; } = true;
     public int CurrentSplitHighlightScalePercent { get; set; } = 112;
     public int CurrentSplitDepthStrengthPercent { get; set; } = 45;
+    public bool ShowEarlyDeltaTime { get; set; } = true;
+    public int EarlyDeltaTimeSeconds { get; set; } = 60;
     public bool ShowSegmentBestDeltaHighlight { get; set; } = true;
     public Dictionary<string, string> SegmentBestDeltaHighlightStyles { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public UiColorSettings Colors { get; set; } = new();

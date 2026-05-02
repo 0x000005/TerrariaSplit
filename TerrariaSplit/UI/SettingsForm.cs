@@ -32,6 +32,8 @@ internal sealed class SettingsForm : Form
     private readonly CheckBox showCurrentSplitHighlightBox = new();
     private readonly TextBox currentSplitHighlightScaleBox = new();
     private readonly TextBox currentSplitDepthStrengthBox = new();
+    private readonly CheckBox showEarlyDeltaTimeBox = new();
+    private readonly TextBox earlyDeltaTimeSecondsBox = new();
     private readonly CheckBox showSegmentBestDeltaHighlightBox = new();
     private readonly CheckBox enableDefeatedBossIconLightingBox = new();
     private readonly TextBox splitCompletionAnimationDurationBox = new();
@@ -891,6 +893,8 @@ internal sealed class SettingsForm : Form
         ConfigureCheckBox(showCurrentSplitHighlightBox, settings.ShowCurrentSplitHighlight);
         ConfigureNumberBox(currentSplitHighlightScaleBox, settings.CurrentSplitHighlightScalePercent, 100, 140);
         ConfigureNumberBox(currentSplitDepthStrengthBox, settings.CurrentSplitDepthStrengthPercent, 0, 100);
+        ConfigureCheckBox(showEarlyDeltaTimeBox, settings.ShowEarlyDeltaTime);
+        ConfigureNumberBox(earlyDeltaTimeSecondsBox, settings.EarlyDeltaTimeSeconds, 0, 3600);
         ConfigureCheckBox(showSplitCompletionAnimationBox, settings.ShowSplitCompletionAnimation);
         ConfigureDecimalBox(splitCompletionAnimationDurationBox, settings.SplitCompletionAnimationDurationSeconds, 1m, 20m);
         ConfigureNumberBox(splitCompletionOutlineThicknessBox, settings.SplitCompletionOutlineThicknessPercent, 0, 100);
@@ -917,6 +921,15 @@ internal sealed class SettingsForm : Form
         AddSettingRow(currentGrid, "Depth strength %", currentSplitDepthStrengthBox);
         AddSectionControl(currentSection, currentGrid);
         AddSection(parent, currentSection);
+
+        TableLayoutPanel earlyDeltaSection = CreateSection("Early delta time");
+        TableLayoutPanel earlyDeltaGrid = CreateGrid(
+            ColumnStylePercent(100f),
+            ColumnStyleAbsolute(280f));
+        AddSettingRow(earlyDeltaGrid, "Enabled", showEarlyDeltaTimeBox);
+        AddSettingRow(earlyDeltaGrid, "Show when within seconds", earlyDeltaTimeSecondsBox);
+        AddSectionControl(earlyDeltaSection, earlyDeltaGrid);
+        AddSection(parent, earlyDeltaSection);
 
         TableLayoutPanel section = CreateSection("BOSS defeat animation");
         TableLayoutPanel optionGrid = CreateGrid(
@@ -1965,6 +1978,8 @@ internal sealed class SettingsForm : Form
         settings.ShowCurrentSplitHighlight = showCurrentSplitHighlightBox.Checked;
         settings.CurrentSplitHighlightScalePercent = ParseIntBox(currentSplitHighlightScaleBox, 112, 100, 140);
         settings.CurrentSplitDepthStrengthPercent = ParseIntBox(currentSplitDepthStrengthBox, 45, 0, 100);
+        settings.ShowEarlyDeltaTime = showEarlyDeltaTimeBox.Checked;
+        settings.EarlyDeltaTimeSeconds = ParseIntBox(earlyDeltaTimeSecondsBox, 60, 0, 3600);
         settings.ShowSegmentBestDeltaHighlight = showSegmentBestDeltaHighlightBox.Checked;
         settings.EnableDefeatedBossIconLighting = enableDefeatedBossIconLightingBox.Checked;
         settings.SplitCompletionAnimationDurationSeconds = ParseFloatBox(splitCompletionAnimationDurationBox, 4.2f, 1f, 20f);

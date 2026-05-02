@@ -10,7 +10,6 @@ namespace TerrariaSplit;
 internal sealed class MainForm : Form
 {
     private static readonly Color TransparentKeyColor = Color.FromArgb(1, 2, 3);
-    private static readonly TimeSpan MaximumVisibleDeltaDistance = TimeSpan.FromMinutes(1);
     private static readonly TimeSpan SplitCompletionFadeDuration = TimeSpan.FromSeconds(0.45);
     private const int ResizeBorder = 8;
     private const int RowGap = 9;
@@ -1516,7 +1515,9 @@ internal sealed class MainForm : Form
         }
 
         TimeSpan runningDelta = runTimer.Elapsed - referenceTime;
-        return new SplitComparison(runningDelta, runningDelta >= -MaximumVisibleDeltaDistance);
+        TimeSpan visibleDeltaDistance = TimeSpan.FromSeconds(settings.EarlyDeltaTimeSeconds);
+        bool showRunningDelta = settings.ShowEarlyDeltaTime && runningDelta >= -visibleDeltaDistance;
+        return new SplitComparison(runningDelta, showRunningDelta);
     }
 
     private static string FormatSplitDelta(SplitComparison comparison)

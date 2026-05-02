@@ -128,6 +128,8 @@
   "ShowCurrentSplitHighlight": false,
   "CurrentSplitHighlightScalePercent": 112,
   "CurrentSplitDepthStrengthPercent": 45,
+  "ShowEarlyDeltaTime": true,
+  "EarlyDeltaTimeSeconds": 60,
   "ShowSegmentBestDeltaHighlight": true,
     "SegmentBestDeltaHighlightStyles": {
         "Destroyer\u002BSkeletronPrime\u002BTwins": "Aurora",

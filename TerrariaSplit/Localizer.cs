@@ -57,6 +57,8 @@ internal static class Localizer
         { "Current split scale %", "当前阶段放大比例 %" },
         { "Scale %", "放大比例 %" },
         { "Depth strength %", "景深强度 %" },
+        { "Early delta time", "提前显示差值时间" },
+        { "Show when within seconds", "相差秒数内显示" },
         { "BOSS Defeat", "BOSS 击败" },
         { "BOSS defeat animation", "BOSS击败动画" },
         { "Enable animation", "启用动画" },
