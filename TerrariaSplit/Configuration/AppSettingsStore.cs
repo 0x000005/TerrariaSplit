@@ -5,11 +5,14 @@ namespace TerrariaSplit;
 internal static class AppSettingsStore
 {
     private const string DefaultSettingsFileName = "settings.json";
+    private const string ActiveSettingsFileName = "active-profile.txt";
     private static string activeSettingsPath = Path.Combine(SettingsDirectory, DefaultSettingsFileName);
 
     public static string SettingsDirectory => Path.Combine(AppContext.BaseDirectory, "settings");
 
-    private static string LegacySettingsPath => Path.Combine(AppContext.BaseDirectory, DefaultSettingsFileName);
+    private static string DefaultSettingsTemplatePath => Path.Combine(AppContext.BaseDirectory, "Assets", "DefaultSettings", DefaultSettingsFileName);
+
+    private static string ActiveSettingsPath => Path.Combine(SettingsDirectory, ActiveSettingsFileName);
 
     public static string SettingsPath
     {
@@ -20,7 +23,7 @@ internal static class AppSettingsStore
 
     public static AppSettings Load()
     {
-        return Load(SettingsPath);
+        return Load(GetRememberedSettingsPath());
     }
 
     public static AppSettings Load(string path)
@@ -28,8 +31,7 @@ internal static class AppSettingsStore
         AppSettings settings;
         bool shouldSave = false;
         activeSettingsPath = NormalizeSettingsPath(path);
-        TryMigrateLegacySettings();
-        settings = JsonFileStore.Read<AppSettings>(SettingsPath, "settings") ?? AppSettings.CreateDefault();
+        settings = JsonFileStore.Read<AppSettings>(SettingsPath, "settings") ?? LoadDefaultSettingsTemplate();
         shouldSave = !File.Exists(SettingsPath);
 
         Normalize(settings);
@@ -39,6 +41,8 @@ internal static class AppSettingsStore
         {
             Save(settings);
         }
+
+        RememberActiveSettingsFile();
 
         return settings;
     }
@@ -77,26 +81,62 @@ internal static class AppSettingsStore
     public static AppSettings Clone(AppSettings settings)
     {
         string json = System.Text.Json.JsonSerializer.Serialize(settings, JsonFileStore.JsonOptions);
-        AppSettings clone = System.Text.Json.JsonSerializer.Deserialize<AppSettings>(json, JsonFileStore.JsonOptions) ?? AppSettings.CreateDefault();
+        AppSettings clone = System.Text.Json.JsonSerializer.Deserialize<AppSettings>(json, JsonFileStore.JsonOptions) ?? new AppSettings();
         Normalize(clone);
         return clone;
     }
 
-    private static void TryMigrateLegacySettings()
+    private static AppSettings LoadDefaultSettingsTemplate()
     {
-        if (!string.Equals(
-                Path.GetFileName(SettingsPath),
-                DefaultSettingsFileName,
-                StringComparison.OrdinalIgnoreCase) ||
-            File.Exists(SettingsPath) ||
-            !File.Exists(LegacySettingsPath) ||
-            !IsValidSettingsFile(LegacySettingsPath))
+        return JsonFileStore.Read<AppSettings>(DefaultSettingsTemplatePath, "default settings template")
+            ?? throw new InvalidOperationException($"Default settings template is missing or invalid: {DefaultSettingsTemplatePath}");
+    }
+
+    private static string GetRememberedSettingsPath()
+    {
+        Directory.CreateDirectory(SettingsDirectory);
+        if (!File.Exists(ActiveSettingsPath))
         {
-            return;
+            return GetFallbackSettingsPath();
         }
 
-        Directory.CreateDirectory(SettingsDirectory);
-        File.Copy(LegacySettingsPath, SettingsPath, overwrite: false);
+        try
+        {
+            string fileName = Path.GetFileName(File.ReadAllText(ActiveSettingsPath).Trim());
+            if (string.IsNullOrWhiteSpace(fileName))
+            {
+                return GetFallbackSettingsPath();
+            }
+
+            string path = NormalizeSettingsPath(fileName);
+            return File.Exists(path) && IsValidSettingsFile(path)
+                ? path
+                : GetFallbackSettingsPath();
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error(ex, $"Failed to read active settings profile: {ActiveSettingsPath}");
+            return GetFallbackSettingsPath();
+        }
+    }
+
+    private static string GetFallbackSettingsPath()
+    {
+        return GetSettingsFiles().FirstOrDefault()
+            ?? Path.Combine(SettingsDirectory, DefaultSettingsFileName);
+    }
+
+    private static void RememberActiveSettingsFile()
+    {
+        try
+        {
+            Directory.CreateDirectory(SettingsDirectory);
+            File.WriteAllText(ActiveSettingsPath, SettingsFileName);
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error(ex, $"Failed to write active settings profile: {ActiveSettingsPath}");
+        }
     }
 
     private static bool IsValidSettingsFile(string path)
@@ -144,8 +184,6 @@ internal static class AppSettingsStore
         settings.PersonalBestSegmentTimes ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         settings.SplitCompletionSplitComparisons ??= new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
         settings.SplitCompletionSegmentComparisons ??= new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
-        settings.SplitCompletionOutlineSplitTimes ??= new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
-        settings.SplitCompletionOutlineSegmentTimes ??= new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
         settings.SplitCompletionOutlineSplitStyles ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         settings.SplitCompletionOutlineSegmentStyles ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         settings.SegmentBestDeltaHighlightStyles ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -156,14 +194,7 @@ internal static class AppSettingsStore
         settings.SplitCompletionOutlineThicknessPercent = Math.Clamp(settings.SplitCompletionOutlineThicknessPercent, 0, 100);
         settings.CurrentSplitHighlightScalePercent = Math.Clamp(settings.CurrentSplitHighlightScalePercent, 100, 140);
         settings.CurrentSplitDepthStrengthPercent = Math.Clamp(settings.CurrentSplitDepthStrengthPercent, 0, 100);
-        if (settings.CurrentBossIconGrayscaleWeakenPercent == 40 &&
-            settings.CurrentBossIconGrayscaleBoostPercent != 0)
-        {
-            settings.CurrentBossIconGrayscaleWeakenPercent = settings.CurrentBossIconGrayscaleBoostPercent;
-        }
-
         settings.CurrentBossIconGrayscaleWeakenPercent = Math.Clamp(settings.CurrentBossIconGrayscaleWeakenPercent, 0, 100);
-        settings.CurrentBossIconGrayscaleBoostPercent = 0;
         settings.CurrentBossIconBrightnessBoostPercent = Math.Clamp(settings.CurrentBossIconBrightnessBoostPercent, 0, 100);
         NormalizeRoute(settings);
         NormalizeColumnSettings(settings.Columns);
@@ -180,16 +211,8 @@ internal static class AppSettingsStore
             settings.PersonalBestSegmentTimes.TryAdd(group.Key, string.Empty);
             settings.SplitCompletionSplitComparisons.TryAdd(group.Key, true);
             settings.SplitCompletionSegmentComparisons.TryAdd(group.Key, true);
-            settings.SplitCompletionOutlineSplitTimes.TryAdd(group.Key, true);
-            settings.SplitCompletionOutlineSegmentTimes.TryAdd(group.Key, true);
-            settings.SplitCompletionOutlineSplitStyles[group.Key] = GetNormalizedOutlineStyle(
-                settings.SplitCompletionOutlineSplitStyles,
-                settings.SplitCompletionOutlineSplitTimes,
-                group.Key);
-            settings.SplitCompletionOutlineSegmentStyles[group.Key] = GetNormalizedOutlineStyle(
-                settings.SplitCompletionOutlineSegmentStyles,
-                settings.SplitCompletionOutlineSegmentTimes,
-                group.Key);
+            settings.SplitCompletionOutlineSplitStyles[group.Key] = GetNormalizedOutlineStyle(settings.SplitCompletionOutlineSplitStyles, group.Key);
+            settings.SplitCompletionOutlineSegmentStyles[group.Key] = GetNormalizedOutlineStyle(settings.SplitCompletionOutlineSegmentStyles, group.Key);
             settings.SegmentBestDeltaHighlightStyles[group.Key] = GetNormalizedDeltaHighlightStyle(settings.SegmentBestDeltaHighlightStyles, group.Key);
         }
 
@@ -200,19 +223,7 @@ internal static class AppSettingsStore
 
     private static void LoadExternalReferenceSets(AppSettings settings)
     {
-        List<ReferenceSplitSet> externalSets = SplitTimeSetStore.LoadReferenceSets();
-        bool hasOldSettingsSets = settings.ReferenceSplitSets.Count > 0;
-        bool externalOnlyDefault = externalSets.Count == 1 &&
-            string.Equals(externalSets[0].Name, "WR", StringComparison.OrdinalIgnoreCase) &&
-            externalSets[0].Splits.Values.All(string.IsNullOrWhiteSpace);
-
-        if (hasOldSettingsSets && externalOnlyDefault)
-        {
-            SplitTimeSetStore.SaveReferenceSets(settings.ReferenceSplitSets);
-            return;
-        }
-
-        settings.ReferenceSplitSets = externalSets;
+        settings.ReferenceSplitSets = SplitTimeSetStore.LoadReferenceSets();
         NormalizeReferenceSets(settings);
     }
 
@@ -283,9 +294,6 @@ internal static class AppSettingsStore
             return;
         }
 
-        bool hadRemovedSegmentSevenEntry = settings.Route.Any(entry =>
-            Math.Truncate(entry.Segment) == 7m &&
-            defaults.All(defaultEntry => !string.Equals(defaultEntry.BossId, entry.BossId, StringComparison.OrdinalIgnoreCase)));
         Dictionary<string, BossRouteEntry> existing = settings.Route
             .Where(entry => !string.IsNullOrWhiteSpace(entry.BossId))
             .GroupBy(entry => entry.BossId, StringComparer.OrdinalIgnoreCase)
@@ -306,14 +314,6 @@ internal static class AppSettingsStore
                 Enabled = entry.Enabled,
                 Segment = Math.Clamp(entry.Segment, 1m, 99m)
             });
-        }
-
-        if (hadRemovedSegmentSevenEntry &&
-            normalized.All(entry => Math.Truncate(entry.Segment) != 7m) &&
-            normalized.FirstOrDefault(entry => string.Equals(entry.BossId, BossSplitDefinitions.MoonLord, StringComparison.OrdinalIgnoreCase)) is BossRouteEntry moonLordEntry &&
-            moonLordEntry.Segment >= 8m)
-        {
-            moonLordEntry.Segment = 7m;
         }
 
         settings.Route = normalized;
@@ -341,8 +341,6 @@ internal static class AppSettingsStore
         RemoveKeysExcept(settings.PersonalBestSegmentTimes, validGroupKeys);
         RemoveKeysExcept(settings.SplitCompletionSplitComparisons, validGroupKeys);
         RemoveKeysExcept(settings.SplitCompletionSegmentComparisons, validGroupKeys);
-        RemoveKeysExcept(settings.SplitCompletionOutlineSplitTimes, validGroupKeys);
-        RemoveKeysExcept(settings.SplitCompletionOutlineSegmentTimes, validGroupKeys);
         RemoveKeysExcept(settings.SplitCompletionOutlineSplitStyles, validGroupKeys);
         RemoveKeysExcept(settings.SplitCompletionOutlineSegmentStyles, validGroupKeys);
         RemoveKeysExcept(settings.SegmentBestDeltaHighlightStyles, validGroupKeys);
@@ -355,18 +353,10 @@ internal static class AppSettingsStore
             : SegmentBestDeltaHighlightStyles.Aurora;
     }
 
-    private static string GetNormalizedOutlineStyle(
-        Dictionary<string, string> styles,
-        Dictionary<string, bool> legacyEnabled,
-        string key)
+    private static string GetNormalizedOutlineStyle(Dictionary<string, string> styles, string key)
     {
-        if (styles.TryGetValue(key, out string? existing))
-        {
-            return SplitCompletionOutlineStyles.Normalize(existing);
-        }
-
-        return legacyEnabled.TryGetValue(key, out bool enabled) && !enabled
-            ? SplitCompletionOutlineStyles.None
+        return styles.TryGetValue(key, out string? existing)
+            ? SplitCompletionOutlineStyles.Normalize(existing)
             : SplitCompletionOutlineStyles.Rainbow;
     }
 

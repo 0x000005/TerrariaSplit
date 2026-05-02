@@ -533,7 +533,7 @@ internal sealed class SettingsForm : Form
         AddSettingRow(grid, "Reset at Menu", resetKeyBox);
         AddSettingRow(grid, "Mouse passthrough", mouseClickThroughKeyBox);
         AddSettingRow(grid, "Always on top", alwaysOnTopBox);
-        AddSettingRow(grid, "Practice mode", practiceModeBox);
+        AddSettingRow(grid, "Allow manual time editing", practiceModeBox);
         AddSectionControl(section, grid);
         AddSection(parent, section);
     }
@@ -776,7 +776,7 @@ internal sealed class SettingsForm : Form
 
     internal void AddColumnSettingsSection(TableLayoutPanel parent)
     {
-        TableLayoutPanel section = CreateSection("Columns");
+        TableLayoutPanel section = CreateSection("Split display");
         TableLayoutPanel grid = CreateGrid(
             ColumnStylePercent(100f),
             ColumnStyleAbsolute(92f),
@@ -828,16 +828,16 @@ internal sealed class SettingsForm : Form
 
     internal void AddTimerSettingsSection(TableLayoutPanel parent)
     {
-        TableLayoutPanel section = CreateSection("Timer");
+        TableLayoutPanel section = CreateSection("Main timer");
         TableLayoutPanel grid = CreateGrid(
             ColumnStylePercent(100f),
             ColumnStyleAbsolute(92f),
             ColumnStyleAbsolute(132f),
             ColumnStyleAbsolute(92f));
 
-        AddHeaderRow(grid, ContentAlignment.MiddleLeft, "Part", "Show", "Font", "Bold");
-        AddFontSettingsRow(grid, "Main time", "Timer", settings.Columns.Timer);
-        AddFontSettingsRow(grid, "Milliseconds", "TimerMilliseconds", settings.Columns.TimerMilliseconds);
+        AddHeaderRow(grid, ContentAlignment.MiddleLeft, "Section", "Show", "Font", "Bold");
+        AddFontSettingsRow(grid, "Before decimal", "Timer", settings.Columns.Timer);
+        AddFontSettingsRow(grid, "After decimal", "TimerMilliseconds", settings.Columns.TimerMilliseconds);
 
         ConfigureNumberBox(timerOffsetXBox, settings.Columns.TimerOffsetX, -2000, 2000);
         ConfigureNumberBox(timerOffsetYBox, settings.Columns.TimerOffsetY, -2000, 2000);
@@ -896,11 +896,11 @@ internal sealed class SettingsForm : Form
         ConfigureNumberBox(splitCompletionOutlineThicknessBox, settings.SplitCompletionOutlineThicknessPercent, 0, 100);
         splitCompletionOutlineThicknessBox.TextChanged += (_, _) => outlineStylePreview.Invalidate();
 
-        TableLayoutPanel iconSection = CreateSection("Icon Style");
+        TableLayoutPanel iconSection = CreateSection("Light icons when BOSS defeated");
         TableLayoutPanel iconGrid = CreateGrid(
             ColumnStylePercent(100f),
             ColumnStyleAbsolute(280f));
-        AddSettingRow(iconGrid, "Enable defeated icon lighting", enableDefeatedBossIconLightingBox);
+        AddSettingRow(iconGrid, "Enabled", enableDefeatedBossIconLightingBox);
         AddSettingRow(iconGrid, "Unlit grayscale %", undefeatedIconGrayscaleBox);
         AddSettingRow(iconGrid, "Unlit brightness %", undefeatedIconBrightnessBox);
         AddSettingRow(iconGrid, "Current boss grayscale weaken %", currentBossIconGrayscaleWeakenBox);
@@ -908,32 +908,32 @@ internal sealed class SettingsForm : Form
         AddSectionControl(iconSection, iconGrid);
         AddSection(parent, iconSection);
 
-        TableLayoutPanel currentSection = CreateSection("Current Split Highlight");
+        TableLayoutPanel currentSection = CreateSection("Highlight current stage");
         TableLayoutPanel currentGrid = CreateGrid(
             ColumnStylePercent(100f),
             ColumnStyleAbsolute(280f));
-        AddSettingRow(currentGrid, "Enable current split highlight", showCurrentSplitHighlightBox);
-        AddSettingRow(currentGrid, "Current split scale %", currentSplitHighlightScaleBox);
+        AddSettingRow(currentGrid, "Enabled", showCurrentSplitHighlightBox);
+        AddSettingRow(currentGrid, "Scale %", currentSplitHighlightScaleBox);
         AddSettingRow(currentGrid, "Depth strength %", currentSplitDepthStrengthBox);
         AddSectionControl(currentSection, currentGrid);
         AddSection(parent, currentSection);
 
-        TableLayoutPanel section = CreateSection("BOSS Defeat");
+        TableLayoutPanel section = CreateSection("BOSS defeat animation");
         TableLayoutPanel optionGrid = CreateGrid(
             ColumnStylePercent(100f),
             ColumnStyleAbsolute(280f));
-        AddSettingRow(optionGrid, "Enable animation", showSplitCompletionAnimationBox);
+        AddSettingRow(optionGrid, "Enabled", showSplitCompletionAnimationBox);
         AddSettingRow(optionGrid, "Animation duration seconds", splitCompletionAnimationDurationBox);
         AddSectionControl(section, optionGrid);
 
-        AddSectionControl(section, CreateSubsectionLabel("Show comparison"));
+        AddSectionControl(section, CreateSubsectionLabel("Show comparison with reference time"));
         animationComparisonGrid = CreateGrid(
             ColumnStylePercent(100f),
             ColumnStyleAbsolute(180f),
             ColumnStyleAbsolute(180f));
         AddSectionControl(section, animationComparisonGrid);
 
-        AddSectionControl(section, CreateSubsectionLabel("Rainbow outline"));
+        AddSectionControl(section, CreateSubsectionLabel("Outline when faster than reference"));
         TableLayoutPanel outlineOptionGrid = CreateGrid(
             ColumnStylePercent(100f),
             ColumnStyleAbsolute(280f));
@@ -955,11 +955,11 @@ internal sealed class SettingsForm : Form
     private void AddSegmentBestDeltaHighlightSection(TableLayoutPanel parent)
     {
         ConfigureCheckBox(showSegmentBestDeltaHighlightBox, settings.ShowSegmentBestDeltaHighlight);
-        TableLayoutPanel section = CreateSection("Segment Best Highlight");
+        TableLayoutPanel section = CreateSection("Highlight best segment");
         TableLayoutPanel optionGrid = CreateGrid(
             ColumnStylePercent(100f),
             ColumnStyleAbsolute(280f));
-        AddSettingRow(optionGrid, "Enable highlight", showSegmentBestDeltaHighlightBox);
+        AddSettingRow(optionGrid, "Enabled", showSegmentBestDeltaHighlightBox);
         AddSectionControl(section, optionGrid);
 
         segmentBestDeltaHighlightGrid = CreateGrid(
@@ -991,8 +991,8 @@ internal sealed class SettingsForm : Form
 
                 controls.SplitComparison.Checked = GetAnimationOutlineSetting(settings.SplitCompletionSplitComparisons, group.Key);
                 controls.SegmentComparison.Checked = GetAnimationOutlineSetting(settings.SplitCompletionSegmentComparisons, group.Key);
-                SetOutlineStyle(controls.SplitTime, GetAnimationOutlineStyle(settings.SplitCompletionOutlineSplitStyles, settings.SplitCompletionOutlineSplitTimes, group.Key));
-                SetOutlineStyle(controls.SegmentTime, GetAnimationOutlineStyle(settings.SplitCompletionOutlineSegmentStyles, settings.SplitCompletionOutlineSegmentTimes, group.Key));
+                SetOutlineStyle(controls.SplitTime, GetAnimationOutlineStyle(settings.SplitCompletionOutlineSplitStyles, group.Key));
+                SetOutlineStyle(controls.SegmentTime, GetAnimationOutlineStyle(settings.SplitCompletionOutlineSegmentStyles, group.Key));
             }
 
             return;
@@ -1027,14 +1027,8 @@ internal sealed class SettingsForm : Form
                 };
                 UiTheme.StyleCheckBox(segmentComparisonBox);
 
-                ComboBox splitTimeBox = CreateOutlineStyleBox(GetAnimationOutlineStyle(
-                    settings.SplitCompletionOutlineSplitStyles,
-                    settings.SplitCompletionOutlineSplitTimes,
-                    group.Key));
-                ComboBox segmentTimeBox = CreateOutlineStyleBox(GetAnimationOutlineStyle(
-                    settings.SplitCompletionOutlineSegmentStyles,
-                    settings.SplitCompletionOutlineSegmentTimes,
-                    group.Key));
+                ComboBox splitTimeBox = CreateOutlineStyleBox(GetAnimationOutlineStyle(settings.SplitCompletionOutlineSplitStyles, group.Key));
+                ComboBox segmentTimeBox = CreateOutlineStyleBox(GetAnimationOutlineStyle(settings.SplitCompletionOutlineSegmentStyles, group.Key));
 
                 animationOutlineControls[group.Key] = new AnimationOutlineControls(splitComparisonBox, segmentComparisonBox, splitTimeBox, segmentTimeBox);
 
@@ -1063,18 +1057,10 @@ internal sealed class SettingsForm : Form
         return !values.TryGetValue(key, out bool enabled) || enabled;
     }
 
-    private static string GetAnimationOutlineStyle(
-        Dictionary<string, string> values,
-        Dictionary<string, bool> legacyEnabled,
-        string key)
+    private static string GetAnimationOutlineStyle(Dictionary<string, string> values, string key)
     {
-        if (values.TryGetValue(key, out string? style))
-        {
-            return SplitCompletionOutlineStyles.Normalize(style);
-        }
-
-        return legacyEnabled.TryGetValue(key, out bool enabled) && !enabled
-            ? SplitCompletionOutlineStyles.None
+        return values.TryGetValue(key, out string? style)
+            ? SplitCompletionOutlineStyles.Normalize(style)
             : SplitCompletionOutlineStyles.Rainbow;
     }
 
@@ -1193,7 +1179,7 @@ internal sealed class SettingsForm : Form
         graphics.DrawRectangle(borderPen, 0, 0, Math.Max(0, bounds.Width - 1), Math.Max(0, bounds.Height - 1));
 
         using var font = UiTheme.FormFont(18f, FontStyle.Bold);
-        string text = "XX:XX.XX";
+        string text = "0:01:23.45";
         using var format = new StringFormat(StringFormat.GenericTypographic)
         {
             Alignment = StringAlignment.Near,
@@ -1423,17 +1409,17 @@ internal sealed class SettingsForm : Form
     {
         TableLayoutPanel section = CreateSection("Sounds");
         TableLayoutPanel grid = CreateGrid(
+            ColumnStyleAbsolute(360f),
             ColumnStylePercent(100f),
-            ColumnStyleAbsolute(420f),
-            ColumnStyleAbsolute(90f),
-            ColumnStyleAbsolute(90f));
+            ColumnStyleAbsolute(152f),
+            ColumnStyleAbsolute(144f));
 
         AddSoundRow(grid, "Pause sound", nameof(settings.Sounds.Pause), settings.Sounds.Pause);
         AddSoundRow(grid, "Reset sound", nameof(settings.Sounds.Reset), settings.Sounds.Reset);
-        AddSoundRow(grid, "Split: total behind, segment behind", nameof(settings.Sounds.SplitBehindReferenceBehindSegment), settings.Sounds.SplitBehindReferenceBehindSegment);
-        AddSoundRow(grid, "Split: total behind, segment not behind", nameof(settings.Sounds.SplitBehindReferenceAheadSegment), settings.Sounds.SplitBehindReferenceAheadSegment);
-        AddSoundRow(grid, "Split: total not behind, segment behind", nameof(settings.Sounds.SplitAheadReferenceBehindSegment), settings.Sounds.SplitAheadReferenceBehindSegment);
-        AddSoundRow(grid, "Split: total not behind, segment not behind", nameof(settings.Sounds.SplitAheadReferenceAheadSegment), settings.Sounds.SplitAheadReferenceAheadSegment);
+        AddSoundRow(grid, "Split: total slower, segment slower", nameof(settings.Sounds.SplitBehindReferenceBehindSegment), settings.Sounds.SplitBehindReferenceBehindSegment);
+        AddSoundRow(grid, "Split: total slower, segment not slower", nameof(settings.Sounds.SplitBehindReferenceAheadSegment), settings.Sounds.SplitBehindReferenceAheadSegment);
+        AddSoundRow(grid, "Split: total not slower, segment slower", nameof(settings.Sounds.SplitAheadReferenceBehindSegment), settings.Sounds.SplitAheadReferenceBehindSegment);
+        AddSoundRow(grid, "Split: total not slower, segment not slower", nameof(settings.Sounds.SplitAheadReferenceAheadSegment), settings.Sounds.SplitAheadReferenceAheadSegment);
 
         AddSectionControl(section, grid);
         AddSection(parent, section);
@@ -1760,10 +1746,10 @@ internal sealed class SettingsForm : Form
             Height = 36,
             Margin = new Padding(8, 8, 0, 8),
             Text = Localizer.Get(text, settings),
-            Width = 82
+            Width = 136
         };
-        UiTheme.StyleButton(button, accent: false, minimumWidth: 76);
-        button.MinimumSize = new Size(76, 36);
+        UiTheme.StyleButton(button, accent: false, minimumWidth: 132);
+        button.MinimumSize = new Size(132, 36);
         return button;
     }
 
@@ -2044,8 +2030,6 @@ internal sealed class SettingsForm : Form
             string segmentStyle = GetSelectedOutlineStyle(controls.SegmentTime);
             settings.SplitCompletionOutlineSplitStyles[key] = splitStyle;
             settings.SplitCompletionOutlineSegmentStyles[key] = segmentStyle;
-            settings.SplitCompletionOutlineSplitTimes[key] = splitStyle != SplitCompletionOutlineStyles.None;
-            settings.SplitCompletionOutlineSegmentTimes[key] = segmentStyle != SplitCompletionOutlineStyles.None;
         }
 
         foreach ((string key, SegmentBestDeltaHighlightControls controls) in segmentBestDeltaHighlightControls)

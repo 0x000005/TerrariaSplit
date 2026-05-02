@@ -6,11 +6,6 @@ internal sealed class BossSplitTracker
 
     private int currentIndex;
 
-    public BossSplitTracker()
-    {
-        SetDefinitions(BossSplitDefinitions.Build(AppSettings.CreateDefault()));
-    }
-
     public IReadOnlyList<BossSplitStatus> Statuses => statuses;
 
     public int CurrentIndex => currentIndex;

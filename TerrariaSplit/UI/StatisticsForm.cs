@@ -239,7 +239,7 @@ internal sealed class StatisticsForm : Form
         TextRenderer.DrawText(
             graphics,
             text,
-            e.CellStyle.Font,
+            e.CellStyle?.Font ?? grid.Font,
             textBounds,
             TextColor,
             TextFormatFlags.VerticalCenter | TextFormatFlags.HorizontalCenter | TextFormatFlags.EndEllipsis);

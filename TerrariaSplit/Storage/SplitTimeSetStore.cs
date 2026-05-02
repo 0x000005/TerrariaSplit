@@ -8,11 +8,13 @@ internal static class SplitTimeSetStore
 
     public static string LastRunDirectory => Path.Combine(AppContext.BaseDirectory, "last-times");
 
+    private static string DefaultReferenceDirectory => Path.Combine(AppContext.BaseDirectory, "Assets", "ReferenceTimes");
+
     public static List<ReferenceSplitSet> LoadReferenceSets()
     {
         List<ReferenceSplitSet> sets = LoadSets(ReferenceDirectory);
-        return sets.Count == 0
-            ? new List<ReferenceSplitSet> { AppSettings.CreateReferenceSet("WR") }
+        return sets.Count == 0 || AreReferenceSetsEmpty(sets)
+            ? LoadDefaultReferenceSets()
             : sets;
     }
 
@@ -45,6 +47,19 @@ internal static class SplitTimeSetStore
     private static List<ReferenceSplitSet> LoadSets(string directory)
     {
         return LoadSets(directory, newestFirst: false, maxCount: null);
+    }
+
+    private static List<ReferenceSplitSet> LoadDefaultReferenceSets()
+    {
+        List<ReferenceSplitSet> sets = LoadSets(DefaultReferenceDirectory);
+        return sets.Count == 0
+            ? new List<ReferenceSplitSet> { AppSettings.CreateReferenceSet("WR") }
+            : sets;
+    }
+
+    private static bool AreReferenceSetsEmpty(IEnumerable<ReferenceSplitSet> sets)
+    {
+        return sets.All(set => set.Splits.Values.All(string.IsNullOrWhiteSpace));
     }
 
     private static List<ReferenceSplitSet> LoadSets(string directory, bool newestFirst, int? maxCount)

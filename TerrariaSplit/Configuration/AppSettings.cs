@@ -1,4 +1,5 @@
 using System.Windows.Forms;
+using System.Text.Json.Serialization;
 
 namespace TerrariaSplit;
 
@@ -22,8 +23,6 @@ internal sealed class AppSettings
     public int SplitCompletionOutlineThicknessPercent { get; set; } = 30;
     public Dictionary<string, bool> SplitCompletionSplitComparisons { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public Dictionary<string, bool> SplitCompletionSegmentComparisons { get; set; } = new(StringComparer.OrdinalIgnoreCase);
-    public Dictionary<string, bool> SplitCompletionOutlineSplitTimes { get; set; } = new(StringComparer.OrdinalIgnoreCase);
-    public Dictionary<string, bool> SplitCompletionOutlineSegmentTimes { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public Dictionary<string, string> SplitCompletionOutlineSplitStyles { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public Dictionary<string, string> SplitCompletionOutlineSegmentStyles { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public bool ShowCurrentSplitHighlight { get; set; } = true;
@@ -38,25 +37,16 @@ internal sealed class AppSettings
     public int UndefeatedIconGrayscalePercent { get; set; } = 80;
     public int UndefeatedIconBrightnessPercent { get; set; } = 40;
     public int CurrentBossIconGrayscaleWeakenPercent { get; set; } = 40;
-    public int CurrentBossIconGrayscaleBoostPercent { get; set; }
     public int CurrentBossIconBrightnessBoostPercent { get; set; } = 35;
 
+    [JsonIgnore]
     public Keys PauseResumeKeys => ParseKey(PauseResumeKey, Keys.R);
+
+    [JsonIgnore]
     public Keys ResetKeys => ParseKey(ResetKey, Keys.T);
+
+    [JsonIgnore]
     public Keys MouseClickThroughKeys => ParseKey(MouseClickThroughKey, Keys.I);
-
-    public static AppSettings CreateDefault()
-    {
-        var settings = new AppSettings();
-        settings.Route = BossSplitDefinitions.CreateDefaultRoute();
-        foreach (BossUnitDefinition unit in BossSplitDefinitions.Units)
-        {
-            settings.BossIconPaths.TryAdd(unit.Id, string.Empty);
-        }
-
-        settings.ReferenceSplitSets.Add(CreateReferenceSet("WR"));
-        return settings;
-    }
 
     public bool TryGetReferenceSplit(BossSplitDefinition definition, out TimeSpan split)
     {
