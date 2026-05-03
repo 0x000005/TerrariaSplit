@@ -109,6 +109,8 @@ internal static class Localizer
         { "Update personal data?", "是否更新个人数据？" },
         { "Update", "更新" },
         { "Skip", "跳过" },
+        { "Background", "背景" },
+        { "Transparent", "透明" },
         { "Cumulative", "累计" },
         { "No response updates automatically in {0}s.", "{0}秒内无响应将自动更新。" },
         { "Segment time", "本段用时" },

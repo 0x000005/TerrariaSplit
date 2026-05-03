@@ -109,6 +109,10 @@ last-times/
 
 
 
+## OBS 捕获黑底
+
+如果 OBS 窗口捕获出现黑色背景，可以使用 Windows 10 采集方式，或在 `设置 > 颜色 > 背景` 里改成一个实色背景。填 `Transparent` 可恢复透明底。
+
 ## License
 
 本项目使用 MIT License。

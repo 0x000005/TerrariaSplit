@@ -47,8 +47,7 @@ internal sealed class MainForm : Form
         Size = new Size(GetDefaultWindowWidth(settings), GetDefaultWindowHeight(settings));
         DoubleBuffered = true;
         ResizeRedraw = true;
-        BackColor = TransparentKeyColor;
-        TransparencyKey = TransparentKeyColor;
+        ApplyBackgroundSettings();
         Padding = Padding.Empty;
 
         UpdateContextMenu();
@@ -187,7 +186,7 @@ internal sealed class MainForm : Form
 
     protected override void OnPaintBackground(PaintEventArgs e)
     {
-        e.Graphics.Clear(TransparentKeyColor);
+        e.Graphics.Clear(GetBackgroundColor());
     }
 
     protected override void OnPaint(PaintEventArgs e)
@@ -2136,12 +2135,37 @@ internal sealed class MainForm : Form
         splitTracker.SetDefinitions(BossSplitDefinitions.Build(settings));
         ResetRun();
         TopMost = settings.AlwaysOnTop;
+        ApplyBackgroundSettings();
         MinimumSize = GetMinimumWindowSize(settings);
         Width = Math.Max(MinimumSize.Width, GetDefaultWindowWidth(settings));
         Height = Math.Max(MinimumSize.Height, GetDefaultWindowHeight(settings));
         UpdateContextMenu();
         ClearIconCache();
         Invalidate();
+    }
+
+    private void ApplyBackgroundSettings()
+    {
+        Color backgroundColor = GetBackgroundColor();
+        BackColor = backgroundColor;
+        TransparencyKey = IsTransparentBackground()
+            ? TransparentKeyColor
+            : Color.Empty;
+    }
+
+    private Color GetBackgroundColor()
+    {
+        return IsTransparentBackground()
+            ? TransparentKeyColor
+            : ColorText.Parse(settings.Colors.Background, Color.Black);
+    }
+
+    private bool IsTransparentBackground()
+    {
+        string background = settings.Colors.Background;
+        return string.IsNullOrWhiteSpace(background) ||
+            ColorText.IsTransparent(background) ||
+            ColorText.Parse(background, Color.Black).A == 0;
     }
 
     private void OpenStatistics()

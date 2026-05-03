@@ -2,6 +2,7 @@ namespace TerrariaSplit;
 
 internal sealed class UiColorSettings
 {
+    public string Background { get; set; } = ColorText.Transparent;
     public string ReferenceText { get; set; } = "#E2E2E2";
     public string ActiveReferenceText { get; set; } = "#FDE679";
     public string SplitText { get; set; } = "#F0A040";

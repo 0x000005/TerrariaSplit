@@ -98,6 +98,7 @@ On first launch, if no valid configuration exists under `settings/`, TerrariaSpl
 - The project depends on Terraria memory layout for the currently supported game version. Game updates may require rework.
 - Sound effects currently use `.wav` files.
 - Configuration files are plain JSON. Manual editing is supported, but keeping a backup is recommended.
+- If OBS Window Capture shows a black background, use the Windows 10 capture method or set a solid background color in `Settings > Colors > Background`. Use `Transparent` to restore the normal transparent overlay.
 
 ## Acknowledgements
 

@@ -1416,6 +1416,16 @@ internal sealed class SettingsForm : Form
 
     internal void AddColorSection(TableLayoutPanel parent)
     {
+        TableLayoutPanel backgroundSection = CreateSection("Background");
+        TableLayoutPanel backgroundGrid = CreateGrid(
+            ColumnStylePercent(100f),
+            ColumnStyleAbsolute(280f),
+            ColumnStyleAbsolute(64f),
+            ColumnStyleAbsolute(148f));
+        AddBackgroundColorRow(backgroundGrid, "Background", nameof(settings.Colors.Background), settings.Colors.Background);
+        AddSectionControl(backgroundSection, backgroundGrid);
+        AddSection(parent, backgroundSection);
+
         TableLayoutPanel section = CreateSection("Text Colors");
         TableLayoutPanel grid = CreateGrid(3, 36f, 50f, 14f);
 
@@ -1560,6 +1570,24 @@ internal sealed class SettingsForm : Form
         grid.Controls.Add(CreateRowLabel(label), 0, row);
         grid.Controls.Add(textBox, 1, row);
         grid.Controls.Add(pickButton, 2, row);
+    }
+
+    private void AddBackgroundColorRow(TableLayoutPanel grid, string label, string key, string value)
+    {
+        TextBox textBox = CreateTextBox(value);
+        colorTextBoxes[key] = textBox;
+
+        Button pickButton = CreateColorButton(textBox);
+        textBox.TextChanged += (_, _) => UpdateColorButton(pickButton, textBox.Text);
+
+        Button transparentButton = CreateSmallButton("Transparent");
+        transparentButton.Click += (_, _) => textBox.Text = ColorText.Transparent;
+
+        int row = AddGridRow(grid);
+        grid.Controls.Add(CreateRowLabel(label), 0, row);
+        grid.Controls.Add(textBox, 1, row);
+        grid.Controls.Add(pickButton, 2, row);
+        grid.Controls.Add(transparentButton, 3, row);
     }
 
     private void AddSoundRow(TableLayoutPanel grid, string label, string key, string value)
@@ -1867,16 +1895,26 @@ internal sealed class SettingsForm : Form
     private static void UpdateColorButton(Button button, string colorText)
     {
         Color color = ColorText.Parse(colorText, TextColor);
-        button.BackColor = color;
-        button.FlatAppearance.MouseDownBackColor = color;
-        button.FlatAppearance.MouseOverBackColor = color;
+        bool transparent = color.A == 0;
+        Color previewColor = transparent ? FieldColor : Color.FromArgb(color.R, color.G, color.B);
+        button.Text = transparent ? "T" : string.Empty;
+        button.ForeColor = TextColor;
+        button.BackColor = previewColor;
+        button.FlatAppearance.MouseDownBackColor = previewColor;
+        button.FlatAppearance.MouseOverBackColor = previewColor;
     }
 
     private void PickColor(TextBox textBox)
     {
+        Color currentColor = ColorText.Parse(textBox.Text, Color.White);
+        if (currentColor.A == 0)
+        {
+            currentColor = Color.White;
+        }
+
         using var dialog = new ColorDialog
         {
-            Color = ColorText.Parse(textBox.Text, Color.White),
+            Color = currentColor,
             FullOpen = true
         };
 
@@ -2130,6 +2168,7 @@ internal sealed class SettingsForm : Form
         settings.CurrentBossIconGrayscaleWeakenPercent = ParseIntBox(currentBossIconGrayscaleWeakenBox, 40, 0, 100);
         settings.CurrentBossIconBrightnessBoostPercent = ParseIntBox(currentBossIconBrightnessBoostBox, 35, 0, 100);
 
+        SetBackgroundColor();
         SetColor(nameof(settings.Colors.ReferenceText), value => settings.Colors.ReferenceText = value);
         SetColor(nameof(settings.Colors.ActiveReferenceText), value => settings.Colors.ActiveReferenceText = value);
         SetColor(nameof(settings.Colors.SplitText), value => settings.Colors.SplitText = value);
@@ -2212,6 +2251,19 @@ internal sealed class SettingsForm : Form
         }
 
         settings.Route = route;
+    }
+
+    private void SetBackgroundColor()
+    {
+        if (!colorTextBoxes.TryGetValue(nameof(settings.Colors.Background), out TextBox? textBox))
+        {
+            return;
+        }
+
+        string text = textBox.Text.Trim();
+        settings.Colors.Background = string.IsNullOrWhiteSpace(text) || ColorText.IsTransparent(text)
+            ? ColorText.Transparent
+            : ColorText.Format(ColorText.Parse(text, Color.Black));
     }
 
     private IReadOnlyList<BossRouteEntry> GetRouteOrderedEntries()
