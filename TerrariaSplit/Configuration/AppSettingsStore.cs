@@ -64,8 +64,16 @@ internal static class AppSettingsStore
     {
         Normalize(settings);
         SplitTimeSetStore.SaveReferenceSets(settings.ReferenceSplitSets);
+        settings.SyncActivePersonalBestTimeSetFromDictionary();
+        settings.SyncActivePersonalBestSegmentSetFromDictionary();
+        SplitTimeSetStore.SavePersonalBestTimeSets(settings.PersonalBestTimeSets);
+        SplitTimeSetStore.SavePersonalBestSegmentSets(settings.PersonalBestSegmentSets);
         List<ReferenceSplitSet> referenceSets = settings.ReferenceSplitSets;
+        List<ReferenceSplitSet> personalBestTimeSets = settings.PersonalBestTimeSets;
+        List<ReferenceSplitSet> personalBestSegmentSets = settings.PersonalBestSegmentSets;
         settings.ReferenceSplitSets = new List<ReferenceSplitSet>();
+        settings.PersonalBestTimeSets = new List<ReferenceSplitSet>();
+        settings.PersonalBestSegmentSets = new List<ReferenceSplitSet>();
         string directory = Path.GetDirectoryName(SettingsPath)!;
         Directory.CreateDirectory(directory);
         try
@@ -75,6 +83,8 @@ internal static class AppSettingsStore
         finally
         {
             settings.ReferenceSplitSets = referenceSets;
+            settings.PersonalBestTimeSets = personalBestTimeSets;
+            settings.PersonalBestSegmentSets = personalBestSegmentSets;
         }
     }
 
@@ -180,6 +190,8 @@ internal static class AppSettingsStore
         settings.Route ??= new List<BossRouteEntry>();
         settings.BossIconPaths ??= new Dictionary<string, string>();
         settings.ReferenceSplitSets ??= new List<ReferenceSplitSet>();
+        settings.PersonalBestTimeSets ??= new List<ReferenceSplitSet>();
+        settings.PersonalBestSegmentSets ??= new List<ReferenceSplitSet>();
         settings.PersonalBestTimes ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         settings.PersonalBestSegmentTimes ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         settings.SplitCompletionSplitComparisons ??= new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
@@ -220,12 +232,53 @@ internal static class AppSettingsStore
         RemoveUnknownRouteGroupKeys(settings);
 
         NormalizeReferenceSets(settings);
+        NormalizePersonalBestTimeSets(settings);
+        NormalizePersonalBestSegmentSets(settings);
     }
 
     private static void LoadExternalReferenceSets(AppSettings settings)
     {
         settings.ReferenceSplitSets = SplitTimeSetStore.LoadReferenceSets();
         NormalizeReferenceSets(settings);
+        LoadExternalPersonalBestSets(settings);
+    }
+
+    private static void LoadExternalPersonalBestSets(AppSettings settings)
+    {
+        List<ReferenceSplitSet> personalBestTimeSets = SplitTimeSetStore.LoadPersonalBestTimeSets();
+        if (personalBestTimeSets.Count > 0)
+        {
+            settings.PersonalBestTimeSets = personalBestTimeSets;
+        }
+        else
+        {
+            settings.PersonalBestTimeSets = new List<ReferenceSplitSet>
+            {
+                CreateEmptyPersonalSet("Personal", BossSplitDefinitions.Units.Select(unit => unit.Id))
+            };
+            settings.ActivePersonalBestTimeSet = settings.PersonalBestTimeSets[0].Name;
+            SplitTimeSetStore.SavePersonalBestTimeSets(settings.PersonalBestTimeSets);
+        }
+
+        List<ReferenceSplitSet> personalBestSegmentSets = SplitTimeSetStore.LoadPersonalBestSegmentSets();
+        if (personalBestSegmentSets.Count > 0)
+        {
+            settings.PersonalBestSegmentSets = personalBestSegmentSets;
+        }
+        else
+        {
+            settings.PersonalBestSegmentSets = new List<ReferenceSplitSet>
+            {
+                CreateEmptyPersonalSet("Personal", BossRouteGroups.Build(settings).Select(group => group.Key))
+            };
+            settings.ActivePersonalBestSegmentSet = settings.PersonalBestSegmentSets[0].Name;
+            SplitTimeSetStore.SavePersonalBestSegmentSets(settings.PersonalBestSegmentSets);
+        }
+
+        NormalizePersonalBestTimeSets(settings);
+        NormalizePersonalBestSegmentSets(settings);
+        settings.SyncPersonalBestTimesFromActiveSet();
+        settings.SyncPersonalBestSegmentsFromActiveSet();
     }
 
     private static void NormalizeColumnSettings(UiColumnLayoutSettings columns)
@@ -284,6 +337,73 @@ internal static class AppSettingsStore
         {
             settings.ActiveReferenceSplitSet = settings.ReferenceSplitSets[0].Name;
         }
+    }
+
+    private static void NormalizePersonalBestTimeSets(AppSettings settings)
+    {
+        NormalizePersonalSets(
+            settings.PersonalBestTimeSets,
+            "Personal",
+            validKeys: BossSplitDefinitions.Units.Select(unit => unit.Id),
+            activeName: settings.ActivePersonalBestTimeSet,
+            setActiveName: value => settings.ActivePersonalBestTimeSet = value);
+    }
+
+    private static void NormalizePersonalBestSegmentSets(AppSettings settings)
+    {
+        NormalizePersonalSets(
+            settings.PersonalBestSegmentSets,
+            "Personal",
+            validKeys: BossRouteGroups.Build(settings).Select(group => group.Key),
+            activeName: settings.ActivePersonalBestSegmentSet,
+            setActiveName: value => settings.ActivePersonalBestSegmentSet = value);
+    }
+
+    private static void NormalizePersonalSets(
+        List<ReferenceSplitSet> sets,
+        string fallbackName,
+        IEnumerable<string> validKeys,
+        string activeName,
+        Action<string> setActiveName)
+    {
+        HashSet<string> validKeySet = validKeys.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (sets.Count == 0)
+        {
+            sets.Add(CreateEmptyPersonalSet(fallbackName, validKeySet));
+        }
+
+        foreach (ReferenceSplitSet set in sets)
+        {
+            set.Name = string.IsNullOrWhiteSpace(set.Name) ? fallbackName : set.Name.Trim();
+            set.Splits ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            RemoveKeysExcept(set.Splits, validKeySet);
+            foreach (string key in validKeySet)
+            {
+                set.Splits.TryAdd(key, string.Empty);
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(activeName) ||
+            !sets.Any(set => string.Equals(set.Name, activeName, StringComparison.OrdinalIgnoreCase)))
+        {
+            setActiveName(sets[0].Name);
+        }
+    }
+
+    private static ReferenceSplitSet CreateEmptyPersonalSet(string name, IEnumerable<string> keys)
+    {
+        var set = new ReferenceSplitSet
+        {
+            Name = string.IsNullOrWhiteSpace(name) ? "Personal" : name.Trim(),
+            Splits = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        };
+
+        foreach (string key in keys)
+        {
+            set.Splits[key] = string.Empty;
+        }
+
+        return set;
     }
 
     private static void NormalizeRoute(AppSettings settings)

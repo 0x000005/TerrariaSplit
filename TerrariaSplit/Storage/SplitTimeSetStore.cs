@@ -8,6 +8,10 @@ internal static class SplitTimeSetStore
 
     public static string LastRunDirectory => Path.Combine(AppContext.BaseDirectory, "last-times");
 
+    public static string PersonalBestTimeDirectory => Path.Combine(AppContext.BaseDirectory, "personal-best-times");
+
+    public static string PersonalBestSegmentDirectory => Path.Combine(AppContext.BaseDirectory, "personal-best-segments");
+
     private static string DefaultReferenceDirectory => Path.Combine(AppContext.BaseDirectory, "Assets", "ReferenceTimes");
 
     public static List<ReferenceSplitSet> LoadReferenceSets()
@@ -21,6 +25,44 @@ internal static class SplitTimeSetStore
     public static void SaveReferenceSets(IEnumerable<ReferenceSplitSet> sets)
     {
         SaveNamedSets(ReferenceDirectory, sets);
+    }
+
+    public static List<ReferenceSplitSet> LoadPersonalBestTimeSets()
+    {
+        return LoadSets(PersonalBestTimeDirectory, newestFirst: true, maxCount: null);
+    }
+
+    public static List<ReferenceSplitSet> LoadPersonalBestSegmentSets()
+    {
+        return LoadSets(PersonalBestSegmentDirectory, newestFirst: true, maxCount: null);
+    }
+
+    public static void SavePersonalBestTimeSets(IEnumerable<ReferenceSplitSet> sets)
+    {
+        SaveSets(PersonalBestTimeDirectory, sets);
+    }
+
+    public static void SavePersonalBestSegmentSets(IEnumerable<ReferenceSplitSet> sets)
+    {
+        SaveSets(PersonalBestSegmentDirectory, sets);
+    }
+
+    public static ReferenceSplitSet SavePersonalBestTimeSnapshot(
+        Dictionary<string, string> splits,
+        string bossName,
+        string? previousTime,
+        string newTime)
+    {
+        return SavePersonalBestSnapshot(PersonalBestTimeDirectory, splits, bossName, previousTime, newTime);
+    }
+
+    public static ReferenceSplitSet SavePersonalBestSegmentSnapshot(
+        Dictionary<string, string> splits,
+        string bossName,
+        string? previousTime,
+        string newTime)
+    {
+        return SavePersonalBestSnapshot(PersonalBestSegmentDirectory, splits, bossName, previousTime, newTime);
     }
 
     public static Dictionary<string, string> LoadLatestLastRun()
@@ -155,6 +197,34 @@ internal static class SplitTimeSetStore
         }
     }
 
+    private static void SaveSets(string directory, IEnumerable<ReferenceSplitSet> sets)
+    {
+        Directory.CreateDirectory(directory);
+        foreach (ReferenceSplitSet set in sets)
+        {
+            string fileName = $"{SanitizeFileName(set.Name)}.json";
+            SaveSet(directory, fileName, set);
+        }
+    }
+
+    private static ReferenceSplitSet SavePersonalBestSnapshot(
+        string directory,
+        Dictionary<string, string> splits,
+        string bossName,
+        string? previousTime,
+        string newTime)
+    {
+        Directory.CreateDirectory(directory);
+        string name = BuildPersonalBestSnapshotName(bossName, previousTime, newTime);
+        var set = new ReferenceSplitSet
+        {
+            Name = name,
+            Splits = new Dictionary<string, string>(splits, StringComparer.OrdinalIgnoreCase)
+        };
+        SaveSet(directory, $"{name}.json", set);
+        return set;
+    }
+
     private static void SaveSet(string directory, string fileName, ReferenceSplitSet set)
     {
         JsonFileStore.Write(Path.Combine(directory, fileName), set, "split time set");
@@ -166,6 +236,15 @@ internal static class SplitTimeSetStore
         string bossName = string.IsNullOrWhiteSpace(lastBossName) ? "Unknown" : lastBossName.Trim();
         string duration = runDuration is TimeSpan value ? FormatFileNameDuration(value) : "Unknown";
         return SanitizeFileName($"{dateTime}-{bossName}-{duration}");
+    }
+
+    private static string BuildPersonalBestSnapshotName(string bossName, string? previousTime, string newTime)
+    {
+        string dateTime = DateTime.Now.ToString("yyyy-MM-dd-HH-mm-ss");
+        string normalizedBossName = string.IsNullOrWhiteSpace(bossName) ? "Unknown" : bossName.Trim();
+        string oldTime = string.IsNullOrWhiteSpace(previousTime) ? "None" : previousTime.Trim();
+        string normalizedNewTime = string.IsNullOrWhiteSpace(newTime) ? "Unknown" : newTime.Trim();
+        return SanitizeFileName($"{dateTime}_{normalizedBossName}_{oldTime}-{normalizedNewTime}");
     }
 
     private static string FormatFileNameDuration(TimeSpan duration)

@@ -21,7 +21,9 @@ internal sealed class MainForm : Form
     private readonly Dictionary<string, IconPair> iconCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<FontKey, Font> fontCache = new();
     private readonly Dictionary<int, SegmentBestDeltaHighlight> segmentBestDeltaHighlights = new();
+    private readonly Dictionary<string, PendingPersonalBestSegmentUpdate> pendingSegmentBestUpdates = new(StringComparer.OrdinalIgnoreCase);
     private readonly ContextMenuStrip contextMenu = new();
+    private PendingPersonalBestTimeUpdate? pendingTimeBestUpdate;
     private bool mouseClickThrough;
     private bool dragging;
     private Point dragStartCursor;
@@ -323,11 +325,8 @@ internal sealed class MainForm : Form
                     splitCompletionAnimation = null;
                 }
 
-                TryAutoUpdatePersonalBestSegment(completedIndex);
-
                 if (splitTracker.CurrentIndex >= splitTracker.Statuses.Count)
                 {
-                    TryAutoUpdatePersonalBestTimes();
                     RecordRunStatsOnce();
                     runTimer.Stop();
                 }
@@ -1307,54 +1306,6 @@ internal sealed class MainForm : Form
         return true;
     }
 
-    private void TryAutoUpdatePersonalBestSegment(int completedIndex)
-    {
-        if (!settings.AutoUpdatePersonalBestData)
-        {
-            return;
-        }
-
-        IReadOnlyList<BossSplitStatus> statuses = splitTracker.Statuses;
-        if (completedIndex < 0 ||
-            completedIndex >= statuses.Count ||
-            statuses[completedIndex].Time is not TimeSpan splitTime)
-        {
-            return;
-        }
-
-        if (completedIndex > 0 && (statuses.Count == 0 || statuses[0].Time is null))
-        {
-            return;
-        }
-
-        TimeSpan previousSplitTime = TimeSpan.Zero;
-        for (int i = completedIndex - 1; i >= 0; i--)
-        {
-            if (statuses[i].Time is TimeSpan previousTime)
-            {
-                previousSplitTime = previousTime;
-                break;
-            }
-        }
-
-        TimeSpan segmentTime = splitTime - previousSplitTime;
-        if (segmentTime < TimeSpan.Zero)
-        {
-            return;
-        }
-
-        string groupKey = GetSplitCompletionGroupKey(statuses[completedIndex].Definition);
-        if (settings.PersonalBestSegmentTimes.TryGetValue(groupKey, out string? existingText) &&
-            TimeText.TryParse(existingText, out TimeSpan existingSegment) &&
-            existingSegment <= segmentTime)
-        {
-            return;
-        }
-
-        settings.SetPersonalBestSegmentText(groupKey, TimeText.FormatRecord(segmentTime));
-        AppSettingsStore.Save(settings);
-    }
-
     private void PlaySplitSound(int completedIndex)
     {
         IReadOnlyList<BossSplitStatus> statuses = splitTracker.Statuses;
@@ -1418,14 +1369,165 @@ internal sealed class MainForm : Form
         }
     }
 
-    private void TryAutoUpdatePersonalBestTimes()
+    private static void AddPersonalBestSnapshot(List<ReferenceSplitSet> sets, ReferenceSplitSet snapshot)
     {
+        sets.RemoveAll(set => string.Equals(set.Name, snapshot.Name, StringComparison.OrdinalIgnoreCase));
+        sets.Insert(0, snapshot);
+    }
+
+    private static Dictionary<string, string> BuildCompletedSplitValues(IReadOnlyList<BossSplitStatus> statuses)
+    {
+        var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (BossSplitStatus status in statuses)
+        {
+            if (status.Time is not TimeSpan splitTime)
+            {
+                continue;
+            }
+
+            string formatted = TimeText.FormatRecord(splitTime);
+            foreach (string bossId in status.Definition.BossIds)
+            {
+                values[bossId] = formatted;
+            }
+        }
+
+        return values;
+    }
+
+    private void ResolvePendingPersonalBestUpdates()
+    {
+        BuildPendingPersonalBestUpdates();
+        if (pendingTimeBestUpdate is null && pendingSegmentBestUpdates.Count == 0)
+        {
+            return;
+        }
+
+        if (!settings.AutoUpdatePersonalBestData)
+        {
+            return;
+        }
+
+        bool shouldUpdate = !settings.AskBeforeUpdatingPersonalBestData ||
+            ShowPersonalBestUpdateConfirmation();
+        if (!shouldUpdate)
+        {
+            return;
+        }
+
+        ApplyPendingPersonalBestUpdates();
+    }
+
+    private void ApplyPendingPersonalBestUpdates()
+    {
+        List<PendingPersonalBestSegmentUpdate> segmentUpdates = pendingSegmentBestUpdates.Values.ToList();
+        foreach (PendingPersonalBestSegmentUpdate update in segmentUpdates)
+        {
+            settings.SetPersonalBestSegmentText(update.GroupKey, update.NewTimeText);
+        }
+
+        if (segmentUpdates.Count > 0)
+        {
+            (string bossName, string previousTimeText, string newTimeText) = BuildSnapshotLabel(segmentUpdates);
+            ReferenceSplitSet snapshot = SplitTimeSetStore.SavePersonalBestSegmentSnapshot(
+                settings.PersonalBestSegmentTimes,
+                bossName,
+                previousTimeText,
+                newTimeText);
+            AddPersonalBestSnapshot(settings.PersonalBestSegmentSets, snapshot);
+            settings.ActivePersonalBestSegmentSet = snapshot.Name;
+        }
+
+        if (pendingTimeBestUpdate is PendingPersonalBestTimeUpdate timeUpdate)
+        {
+            settings.PersonalBestTimes = new Dictionary<string, string>(
+                timeUpdate.Splits,
+                StringComparer.OrdinalIgnoreCase);
+            ReferenceSplitSet snapshot = SplitTimeSetStore.SavePersonalBestTimeSnapshot(
+                settings.PersonalBestTimes,
+                timeUpdate.BossName,
+                timeUpdate.PreviousTimeText,
+                timeUpdate.NewTimeText);
+            AddPersonalBestSnapshot(settings.PersonalBestTimeSets, snapshot);
+            settings.ActivePersonalBestTimeSet = snapshot.Name;
+        }
+
+        AppSettingsStore.Save(settings);
+    }
+
+    private void BuildPendingPersonalBestUpdates()
+    {
+        pendingSegmentBestUpdates.Clear();
+        pendingTimeBestUpdate = null;
+
         if (!settings.AutoUpdatePersonalBestData)
         {
             return;
         }
 
         IReadOnlyList<BossSplitStatus> statuses = splitTracker.Statuses;
+        for (int i = 0; i < statuses.Count; i++)
+        {
+            AddPendingSegmentBestUpdate(statuses, i);
+        }
+
+        AddPendingTimeBestUpdate(statuses);
+    }
+
+    private void AddPendingSegmentBestUpdate(IReadOnlyList<BossSplitStatus> statuses, int completedIndex)
+    {
+        if (completedIndex < 0 ||
+            completedIndex >= statuses.Count ||
+            statuses[completedIndex].Time is not TimeSpan splitTime)
+        {
+            return;
+        }
+
+        if (completedIndex > 0 && (statuses.Count == 0 || statuses[0].Time is null))
+        {
+            return;
+        }
+
+        TimeSpan previousSplitTime = TimeSpan.Zero;
+        for (int i = completedIndex - 1; i >= 0; i--)
+        {
+            if (statuses[i].Time is TimeSpan previousTime)
+            {
+                previousSplitTime = previousTime;
+                break;
+            }
+        }
+
+        TimeSpan segmentTime = splitTime - previousSplitTime;
+        if (segmentTime < TimeSpan.Zero)
+        {
+            return;
+        }
+
+        string groupKey = GetSplitCompletionGroupKey(statuses[completedIndex].Definition);
+        if (pendingSegmentBestUpdates.TryGetValue(groupKey, out PendingPersonalBestSegmentUpdate? pendingSegment) &&
+            pendingSegment.NewTime <= segmentTime)
+        {
+            return;
+        }
+
+        if (settings.PersonalBestSegmentTimes.TryGetValue(groupKey, out string? existingText) &&
+            TimeText.TryParse(existingText, out TimeSpan existingSegment) &&
+            existingSegment <= segmentTime)
+        {
+            return;
+        }
+
+        pendingSegmentBestUpdates[groupKey] = new PendingPersonalBestSegmentUpdate(
+            groupKey,
+            statuses[completedIndex].Definition.DisplayName,
+            existingText ?? string.Empty,
+            TimeText.FormatRecord(segmentTime),
+            segmentTime);
+    }
+
+    private void AddPendingTimeBestUpdate(IReadOnlyList<BossSplitStatus> statuses)
+    {
         if (statuses.Count == 0 || statuses.Any(status => status.Time is null || status.IsSkipped))
         {
             return;
@@ -1448,17 +1550,75 @@ internal sealed class MainForm : Form
             return;
         }
 
-        foreach (BossSplitStatus status in statuses)
+        pendingTimeBestUpdate = new PendingPersonalBestTimeUpdate(
+            moonLordStatus.Definition.DisplayName,
+            existingMoonLordText ?? string.Empty,
+            TimeText.FormatRecord(moonLordTime),
+            moonLordTime,
+            BuildCompletedSplitValues(statuses));
+    }
+
+    private static (string BossName, string PreviousTimeText, string NewTimeText) BuildSnapshotLabel(
+        List<PendingPersonalBestSegmentUpdate> updates)
+    {
+        if (updates.Count == 1)
         {
-            TimeSpan splitTime = status.Time!.Value;
-            string formatted = TimeText.FormatRecord(splitTime);
-            foreach (string bossId in status.Definition.BossIds)
-            {
-                settings.SetPersonalBestTimeText(bossId, formatted);
-            }
+            PendingPersonalBestSegmentUpdate update = updates[0];
+            return (update.BossName, update.PreviousTimeText, update.NewTimeText);
         }
 
-        AppSettingsStore.Save(settings);
+        PendingPersonalBestSegmentUpdate lastUpdate = updates[^1];
+        return ($"{lastUpdate.BossName}-Segments", "Multiple", "Multiple");
+    }
+
+    private bool ShowPersonalBestUpdateConfirmation()
+    {
+        bool wasClickThrough = mouseClickThrough;
+        if (wasClickThrough)
+        {
+            SetMouseClickThrough(false);
+        }
+
+        uiTimer.Stop();
+        try
+        {
+            using var form = new PersonalBestUpdatePromptForm(
+                BuildPersonalBestUpdatePromptText(),
+                timeoutSeconds: 10,
+                settings);
+            form.TopMost = true;
+            return form.ShowDialog(this) != DialogResult.No;
+        }
+        finally
+        {
+            uiTimer.Start();
+            if (wasClickThrough)
+            {
+                SetMouseClickThrough(true);
+            }
+        }
+    }
+
+    private string BuildPersonalBestUpdatePromptText()
+    {
+        var lines = new List<string>();
+        if (pendingTimeBestUpdate is PendingPersonalBestTimeUpdate timeUpdate)
+        {
+            lines.Add($"{Localizer.Get("Cumulative", settings)}: {timeUpdate.BossName} {FormatPromptChange(timeUpdate.PreviousTimeText, timeUpdate.NewTimeText, settings)}");
+        }
+
+        foreach (PendingPersonalBestSegmentUpdate update in pendingSegmentBestUpdates.Values)
+        {
+            lines.Add($"{Localizer.Get("Segment", settings)}: {update.BossName} {FormatPromptChange(update.PreviousTimeText, update.NewTimeText, settings)}");
+        }
+
+        return string.Join(Environment.NewLine, lines);
+    }
+
+    private static string FormatPromptChange(string previousTimeText, string newTimeText, AppSettings settings)
+    {
+        string oldText = string.IsNullOrWhiteSpace(previousTimeText) ? Localizer.Get("None", settings) : previousTimeText;
+        return $"{oldText} -> {newTimeText}";
     }
 
     private static string GetSplitCompletionGroupKey(BossSplitDefinition definition)
@@ -1995,6 +2155,7 @@ internal sealed class MainForm : Form
     {
         if (recordStats)
         {
+            ResolvePendingPersonalBestUpdates();
             RecordRunStatsOnce();
         }
 
@@ -2002,6 +2163,8 @@ internal sealed class MainForm : Form
         splitTracker.Reset();
         splitCompletionAnimation = null;
         segmentBestDeltaHighlights.Clear();
+        pendingSegmentBestUpdates.Clear();
+        pendingTimeBestUpdate = null;
         runStatsRecorded = false;
         Invalidate();
     }
@@ -2152,6 +2315,150 @@ internal sealed class MainForm : Form
 
     [DllImport("user32.dll")]
     private static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
+
+    private sealed class PersonalBestUpdatePromptForm : Form
+    {
+        private readonly System.Windows.Forms.Timer timer = new();
+        private readonly Label countdownLabel = new();
+        private int remainingSeconds;
+
+        private readonly AppSettings settings;
+
+        public PersonalBestUpdatePromptForm(string updateText, int timeoutSeconds, AppSettings settings)
+        {
+            this.settings = settings;
+            remainingSeconds = Math.Max(1, timeoutSeconds);
+            int lineCount = Math.Max(1, updateText.Split(Environment.NewLine).Length);
+            int height = Math.Clamp(210 + lineCount * 28, 260, 760);
+            UiTheme.ConfigureForm(this, new Size(1040, 260));
+            ClientSize = new Size(1040, height);
+            Text = Localizer.Get("Update personal data?", settings);
+            FormBorderStyle = FormBorderStyle.FixedDialog;
+            StartPosition = FormStartPosition.CenterScreen;
+            ShowInTaskbar = false;
+            MaximizeBox = false;
+            MinimizeBox = false;
+
+            var layout = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                Padding = new Padding(22, 18, 22, 20),
+                ColumnCount = 1,
+                RowCount = 4
+            };
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+            var titleLabel = new Label
+            {
+                AutoSize = true,
+                Dock = DockStyle.Fill,
+                Font = UiTheme.FormFont(12.5f, FontStyle.Bold),
+                ForeColor = UiTheme.Text,
+                Text = Localizer.Get("Update personal data?", settings)
+            };
+
+            var detailLabel = new Label
+            {
+                Dock = DockStyle.Fill,
+                ForeColor = UiTheme.Text,
+                Font = UiTheme.FormFont(10f),
+                Text = updateText,
+                TextAlign = ContentAlignment.TopLeft,
+                UseMnemonic = false
+            };
+
+            countdownLabel.AutoSize = true;
+            countdownLabel.Dock = DockStyle.Fill;
+            countdownLabel.ForeColor = UiTheme.MutedText;
+
+            var buttonPanel = new FlowLayoutPanel
+            {
+                AutoSize = true,
+                Dock = DockStyle.Right,
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = false
+            };
+
+            var yesButton = new Button { Text = Localizer.Get("Update", settings) };
+            UiTheme.StyleButton(yesButton, accent: true, minimumWidth: 118);
+            yesButton.Click += (_, _) =>
+            {
+                DialogResult = DialogResult.Yes;
+                Close();
+            };
+
+            var noButton = new Button { Text = Localizer.Get("Skip", settings) };
+            UiTheme.StyleButton(noButton, accent: false, minimumWidth: 118);
+            noButton.Click += (_, _) =>
+            {
+                DialogResult = DialogResult.No;
+                Close();
+            };
+
+            buttonPanel.Controls.Add(yesButton);
+            buttonPanel.Controls.Add(noButton);
+
+            layout.Controls.Add(titleLabel, 0, 0);
+            layout.Controls.Add(detailLabel, 0, 1);
+            layout.Controls.Add(countdownLabel, 0, 2);
+            layout.Controls.Add(buttonPanel, 0, 3);
+            Controls.Add(layout);
+
+            AcceptButton = yesButton;
+            CancelButton = noButton;
+            DialogResult = DialogResult.Yes;
+            UpdateCountdownText();
+
+            timer.Interval = 1000;
+            timer.Tick += (_, _) =>
+            {
+                remainingSeconds--;
+                if (remainingSeconds <= 0)
+                {
+                    DialogResult = DialogResult.Yes;
+                    Close();
+                    return;
+                }
+
+                UpdateCountdownText();
+            };
+            timer.Start();
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                timer.Dispose();
+            }
+
+            base.Dispose(disposing);
+        }
+
+        private void UpdateCountdownText()
+        {
+            countdownLabel.Text = string.Format(
+                Localizer.Get("No response updates automatically in {0}s.", settings),
+                remainingSeconds);
+        }
+    }
+
+    private sealed record PendingPersonalBestTimeUpdate(
+        string BossName,
+        string PreviousTimeText,
+        string NewTimeText,
+        TimeSpan NewTime,
+        Dictionary<string, string> Splits);
+
+    private sealed record PendingPersonalBestSegmentUpdate(
+        string GroupKey,
+        string BossName,
+        string PreviousTimeText,
+        string NewTimeText,
+        TimeSpan NewTime);
 
     private sealed record IconPair(Image Lit, Image Undefeated, Image Current);
 

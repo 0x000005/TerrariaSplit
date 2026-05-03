@@ -27,7 +27,10 @@ internal sealed class SettingsForm : Form
     private readonly CheckBox practiceModeBox = new();
     private readonly ComboBox referenceSetBox = new();
     private readonly TextBox newReferenceSetNameBox = new();
+    private readonly ComboBox personalBestTimeSetBox = new();
+    private readonly ComboBox personalBestSegmentSetBox = new();
     private readonly CheckBox autoUpdatePersonalBestDataBox = new();
+    private readonly CheckBox askBeforeUpdatingPersonalBestDataBox = new();
     private readonly CheckBox showSplitCompletionAnimationBox = new();
     private readonly CheckBox showCurrentSplitHighlightBox = new();
     private readonly TextBox currentSplitHighlightScaleBox = new();
@@ -660,15 +663,23 @@ internal sealed class SettingsForm : Form
     internal void AddPersonalBestDataSection(TableLayoutPanel parent)
     {
         ConfigureCheckBox(autoUpdatePersonalBestDataBox, settings.AutoUpdatePersonalBestData);
+        ConfigureCheckBox(askBeforeUpdatingPersonalBestDataBox, settings.AskBeforeUpdatingPersonalBestData);
         TableLayoutPanel autoUpdateSection = CreateSection("Personal Data");
         TableLayoutPanel autoUpdateGrid = CreateGrid(
             ColumnStylePercent(100f),
             ColumnStyleAbsolute(280f));
         AddSettingRow(autoUpdateGrid, "Auto update personal data", autoUpdatePersonalBestDataBox);
+        AddSettingRow(autoUpdateGrid, "Ask before updating personal data", askBeforeUpdatingPersonalBestDataBox);
         AddSectionControl(autoUpdateSection, autoUpdateGrid);
         AddSection(parent, autoUpdateSection);
 
         TableLayoutPanel personalBestSection = CreateSection("Personal Cumulative Best");
+        ConfigurePersonalBestTimeSetBox();
+        TableLayoutPanel personalBestSelectorGrid = CreateGrid(
+            ColumnStylePercent(100f),
+            ColumnStyleAbsolute(280f));
+        AddSettingRow(personalBestSelectorGrid, "Active file", personalBestTimeSetBox);
+        AddSectionControl(personalBestSection, personalBestSelectorGrid);
         personalBestTimeGrid = CreateGrid(
             ColumnStylePercent(100f),
             ColumnStyleAbsolute(280f));
@@ -677,6 +688,12 @@ internal sealed class SettingsForm : Form
         AddSection(parent, personalBestSection);
 
         TableLayoutPanel personalBestSegmentSection = CreateSection("Personal segment best");
+        ConfigurePersonalBestSegmentSetBox();
+        TableLayoutPanel segmentSelectorGrid = CreateGrid(
+            ColumnStylePercent(100f),
+            ColumnStyleAbsolute(280f));
+        AddSettingRow(segmentSelectorGrid, "Active file", personalBestSegmentSetBox);
+        AddSectionControl(personalBestSegmentSection, segmentSelectorGrid);
         personalBestSegmentGrid = CreateGrid(
             ColumnStylePercent(100f),
             ColumnStyleAbsolute(280f));
@@ -1657,6 +1674,7 @@ internal sealed class SettingsForm : Form
     {
         referenceSetBox.Dock = DockStyle.Fill;
         UiTheme.StyleComboBox(referenceSetBox);
+        referenceSetBox.Items.Clear();
 
         foreach (ReferenceSplitSet set in settings.ReferenceSplitSets)
         {
@@ -1665,6 +1683,43 @@ internal sealed class SettingsForm : Form
 
         referenceSetBox.SelectedItem = settings.GetActiveReferenceSet().Name;
         referenceSetBox.SelectedIndexChanged += (_, _) => SwitchReferenceSet();
+    }
+
+    private void ConfigurePersonalBestTimeSetBox()
+    {
+        ConfigurePersonalSetBox(
+            personalBestTimeSetBox,
+            settings.PersonalBestTimeSets,
+            settings.GetActivePersonalBestTimeSet().Name,
+            SwitchPersonalBestTimeSet);
+    }
+
+    private void ConfigurePersonalBestSegmentSetBox()
+    {
+        ConfigurePersonalSetBox(
+            personalBestSegmentSetBox,
+            settings.PersonalBestSegmentSets,
+            settings.GetActivePersonalBestSegmentSet().Name,
+            SwitchPersonalBestSegmentSet);
+    }
+
+    private static void ConfigurePersonalSetBox(
+        ComboBox comboBox,
+        IEnumerable<ReferenceSplitSet> sets,
+        string activeName,
+        EventHandler selectionChanged)
+    {
+        comboBox.Dock = DockStyle.Fill;
+        UiTheme.StyleComboBox(comboBox);
+        comboBox.Items.Clear();
+
+        foreach (ReferenceSplitSet set in sets)
+        {
+            comboBox.Items.Add(set.Name);
+        }
+
+        comboBox.SelectedItem = activeName;
+        comboBox.SelectedIndexChanged += selectionChanged;
     }
 
     private static void ConfigureNumberBox(TextBox textBox, int selected, int minimum, int maximum)
@@ -1877,6 +1932,30 @@ internal sealed class SettingsForm : Form
         LoadReferenceTextBoxes();
     }
 
+    private void SwitchPersonalBestTimeSet(object? sender, EventArgs e)
+    {
+        SavePersonalBestTimeTextBoxes();
+        if (personalBestTimeSetBox.SelectedItem is string selectedName)
+        {
+            settings.ActivePersonalBestTimeSet = selectedName;
+            settings.SyncPersonalBestTimesFromActiveSet();
+        }
+
+        LoadPersonalBestTimeTextBoxes();
+    }
+
+    private void SwitchPersonalBestSegmentSet(object? sender, EventArgs e)
+    {
+        SavePersonalBestSegmentTextBoxes();
+        if (personalBestSegmentSetBox.SelectedItem is string selectedName)
+        {
+            settings.ActivePersonalBestSegmentSet = selectedName;
+            settings.SyncPersonalBestSegmentsFromActiveSet();
+        }
+
+        LoadPersonalBestSegmentTextBoxes();
+    }
+
     private void AddReferenceSet()
     {
         SaveReferenceTextBoxes();
@@ -1931,15 +2010,28 @@ internal sealed class SettingsForm : Form
 
     private void SavePersonalBestTextBoxes()
     {
+        SavePersonalBestTimeTextBoxes();
+        SavePersonalBestSegmentTextBoxes();
+    }
+
+    private void SavePersonalBestTimeTextBoxes()
+    {
         foreach ((string name, TextBox textBox) in personalBestTimeTextBoxes)
         {
             settings.SetPersonalBestTimeText(name, NormalizeTimeText(textBox.Text));
         }
 
+        settings.SyncActivePersonalBestTimeSetFromDictionary();
+    }
+
+    private void SavePersonalBestSegmentTextBoxes()
+    {
         foreach ((string name, TextBox textBox) in personalBestSegmentTextBoxes)
         {
             settings.SetPersonalBestSegmentText(name, NormalizeTimeText(textBox.Text));
         }
+
+        settings.SyncActivePersonalBestSegmentSetFromDictionary();
     }
 
     private static string NormalizeTimeText(string text)
@@ -1961,6 +2053,22 @@ internal sealed class SettingsForm : Form
         }
     }
 
+    private void LoadPersonalBestTimeTextBoxes()
+    {
+        foreach ((string name, TextBox textBox) in personalBestTimeTextBoxes)
+        {
+            textBox.Text = settings.GetPersonalBestTimeText(name);
+        }
+    }
+
+    private void LoadPersonalBestSegmentTextBoxes()
+    {
+        foreach ((string name, TextBox textBox) in personalBestSegmentTextBoxes)
+        {
+            textBox.Text = settings.GetPersonalBestSegmentText(name);
+        }
+    }
+
     private void ApplyToSettings()
     {
         EnsurePageCreated(1);
@@ -1974,6 +2082,7 @@ internal sealed class SettingsForm : Form
         settings.AlwaysOnTop = alwaysOnTopBox.Checked;
         settings.PracticeMode = practiceModeBox.Checked;
         settings.AutoUpdatePersonalBestData = autoUpdatePersonalBestDataBox.Checked;
+        settings.AskBeforeUpdatingPersonalBestData = askBeforeUpdatingPersonalBestDataBox.Checked;
         settings.ShowSplitCompletionAnimation = showSplitCompletionAnimationBox.Checked;
         settings.ShowCurrentSplitHighlight = showCurrentSplitHighlightBox.Checked;
         settings.CurrentSplitHighlightScalePercent = ParseIntBox(currentSplitHighlightScaleBox, 112, 100, 140);
@@ -1994,6 +2103,12 @@ internal sealed class SettingsForm : Form
         settings.ActiveReferenceSplitSet = referenceSetBox.SelectedItem is string selectedReferenceSet
             ? selectedReferenceSet
             : settings.GetActiveReferenceSet().Name;
+        settings.ActivePersonalBestTimeSet = personalBestTimeSetBox.SelectedItem is string selectedPersonalBestTimeSet
+            ? selectedPersonalBestTimeSet
+            : settings.GetActivePersonalBestTimeSet().Name;
+        settings.ActivePersonalBestSegmentSet = personalBestSegmentSetBox.SelectedItem is string selectedPersonalBestSegmentSet
+            ? selectedPersonalBestSegmentSet
+            : settings.GetActivePersonalBestSegmentSet().Name;
 
         foreach ((string name, TextBox textBox) in bossIconTextBoxes)
         {

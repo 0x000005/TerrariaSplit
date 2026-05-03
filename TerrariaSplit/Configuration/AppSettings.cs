@@ -15,9 +15,14 @@ internal sealed class AppSettings
     public Dictionary<string, string> BossIconPaths { get; set; } = new();
     public List<ReferenceSplitSet> ReferenceSplitSets { get; set; } = new();
     public string ActiveReferenceSplitSet { get; set; } = "WR";
+    public List<ReferenceSplitSet> PersonalBestTimeSets { get; set; } = new();
+    public string ActivePersonalBestTimeSet { get; set; } = "Personal";
+    public List<ReferenceSplitSet> PersonalBestSegmentSets { get; set; } = new();
+    public string ActivePersonalBestSegmentSet { get; set; } = "Personal";
     public Dictionary<string, string> PersonalBestTimes { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public Dictionary<string, string> PersonalBestSegmentTimes { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public bool AutoUpdatePersonalBestData { get; set; }
+    public bool AskBeforeUpdatingPersonalBestData { get; set; }
     public bool ShowSplitCompletionAnimation { get; set; } = true;
     public float SplitCompletionAnimationDurationSeconds { get; set; } = 4.2f;
     public int SplitCompletionOutlineThicknessPercent { get; set; } = 30;
@@ -139,6 +144,86 @@ internal sealed class AppSettings
 
         ActiveReferenceSplitSet = ReferenceSplitSets[0].Name;
         return ReferenceSplitSets[0];
+    }
+
+    public ReferenceSplitSet GetActivePersonalBestTimeSet()
+    {
+        ReferenceSplitSet set = GetActivePersonalSet(
+            PersonalBestTimeSets,
+            ActivePersonalBestTimeSet,
+            "Personal",
+            PersonalBestTimes,
+            out string activeName);
+        ActivePersonalBestTimeSet = activeName;
+        return set;
+    }
+
+    public ReferenceSplitSet GetActivePersonalBestSegmentSet()
+    {
+        ReferenceSplitSet set = GetActivePersonalSet(
+            PersonalBestSegmentSets,
+            ActivePersonalBestSegmentSet,
+            "Personal",
+            PersonalBestSegmentTimes,
+            out string activeName);
+        ActivePersonalBestSegmentSet = activeName;
+        return set;
+    }
+
+    public void SyncPersonalBestTimesFromActiveSet()
+    {
+        PersonalBestTimes = new Dictionary<string, string>(
+            GetActivePersonalBestTimeSet().Splits,
+            StringComparer.OrdinalIgnoreCase);
+    }
+
+    public void SyncPersonalBestSegmentsFromActiveSet()
+    {
+        PersonalBestSegmentTimes = new Dictionary<string, string>(
+            GetActivePersonalBestSegmentSet().Splits,
+            StringComparer.OrdinalIgnoreCase);
+    }
+
+    public void SyncActivePersonalBestTimeSetFromDictionary()
+    {
+        GetActivePersonalBestTimeSet().Splits = new Dictionary<string, string>(
+            PersonalBestTimes,
+            StringComparer.OrdinalIgnoreCase);
+    }
+
+    public void SyncActivePersonalBestSegmentSetFromDictionary()
+    {
+        GetActivePersonalBestSegmentSet().Splits = new Dictionary<string, string>(
+            PersonalBestSegmentTimes,
+            StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static ReferenceSplitSet GetActivePersonalSet(
+        List<ReferenceSplitSet> sets,
+        string activeName,
+        string fallbackName,
+        Dictionary<string, string> fallbackValues,
+        out string normalizedActiveName)
+    {
+        ReferenceSplitSet? activeSet = sets.FirstOrDefault(
+            set => string.Equals(set.Name, activeName, StringComparison.OrdinalIgnoreCase));
+        if (activeSet is not null)
+        {
+            normalizedActiveName = activeSet.Name;
+            return activeSet;
+        }
+
+        if (sets.Count == 0)
+        {
+            sets.Add(new ReferenceSplitSet
+            {
+                Name = fallbackName,
+                Splits = new Dictionary<string, string>(fallbackValues, StringComparer.OrdinalIgnoreCase)
+            });
+        }
+
+        normalizedActiveName = sets[0].Name;
+        return sets[0];
     }
 
     public static ReferenceSplitSet CreateReferenceSet(string name, Dictionary<string, string>? values = null)
