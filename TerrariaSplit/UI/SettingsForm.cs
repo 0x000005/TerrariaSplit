@@ -1416,18 +1416,24 @@ internal sealed class SettingsForm : Form
 
     internal void AddColorSection(TableLayoutPanel parent)
     {
-        TableLayoutPanel backgroundSection = CreateSection("Background");
+        TableLayoutPanel backgroundSection = CreateSection("UI Colors");
         TableLayoutPanel backgroundGrid = CreateGrid(
             ColumnStylePercent(100f),
             ColumnStyleAbsolute(280f),
-            ColumnStyleAbsolute(64f),
-            ColumnStyleAbsolute(148f));
-        AddBackgroundColorRow(backgroundGrid, "Background", nameof(settings.Colors.Background), settings.Colors.Background);
+            ColumnStyleAbsolute(64f));
+        AddCaptureBackgroundColorRow(
+            backgroundGrid,
+            "Capture background",
+            nameof(settings.Colors.CaptureBackground),
+            settings.Colors.CaptureBackground);
         AddSectionControl(backgroundSection, backgroundGrid);
         AddSection(parent, backgroundSection);
 
         TableLayoutPanel section = CreateSection("Text Colors");
-        TableLayoutPanel grid = CreateGrid(3, 36f, 50f, 14f);
+        TableLayoutPanel grid = CreateGrid(
+            ColumnStylePercent(100f),
+            ColumnStyleAbsolute(280f),
+            ColumnStyleAbsolute(64f));
 
         AddColorRow(grid, "Reference text", nameof(settings.Colors.ReferenceText), settings.Colors.ReferenceText);
         AddColorRow(grid, "Active reference text", nameof(settings.Colors.ActiveReferenceText), settings.Colors.ActiveReferenceText);
@@ -1572,7 +1578,7 @@ internal sealed class SettingsForm : Form
         grid.Controls.Add(pickButton, 2, row);
     }
 
-    private void AddBackgroundColorRow(TableLayoutPanel grid, string label, string key, string value)
+    private void AddCaptureBackgroundColorRow(TableLayoutPanel grid, string label, string key, string value)
     {
         TextBox textBox = CreateTextBox(value);
         colorTextBoxes[key] = textBox;
@@ -1580,14 +1586,10 @@ internal sealed class SettingsForm : Form
         Button pickButton = CreateColorButton(textBox);
         textBox.TextChanged += (_, _) => UpdateColorButton(pickButton, textBox.Text);
 
-        Button transparentButton = CreateSmallButton("Transparent");
-        transparentButton.Click += (_, _) => textBox.Text = ColorText.Transparent;
-
         int row = AddGridRow(grid);
         grid.Controls.Add(CreateRowLabel(label), 0, row);
         grid.Controls.Add(textBox, 1, row);
         grid.Controls.Add(pickButton, 2, row);
-        grid.Controls.Add(transparentButton, 3, row);
     }
 
     private void AddSoundRow(TableLayoutPanel grid, string label, string key, string value)
@@ -2168,7 +2170,7 @@ internal sealed class SettingsForm : Form
         settings.CurrentBossIconGrayscaleWeakenPercent = ParseIntBox(currentBossIconGrayscaleWeakenBox, 40, 0, 100);
         settings.CurrentBossIconBrightnessBoostPercent = ParseIntBox(currentBossIconBrightnessBoostBox, 35, 0, 100);
 
-        SetBackgroundColor();
+        SetCaptureBackgroundColor();
         SetColor(nameof(settings.Colors.ReferenceText), value => settings.Colors.ReferenceText = value);
         SetColor(nameof(settings.Colors.ActiveReferenceText), value => settings.Colors.ActiveReferenceText = value);
         SetColor(nameof(settings.Colors.SplitText), value => settings.Colors.SplitText = value);
@@ -2253,17 +2255,15 @@ internal sealed class SettingsForm : Form
         settings.Route = route;
     }
 
-    private void SetBackgroundColor()
+    private void SetCaptureBackgroundColor()
     {
-        if (!colorTextBoxes.TryGetValue(nameof(settings.Colors.Background), out TextBox? textBox))
+        if (!colorTextBoxes.TryGetValue(nameof(settings.Colors.CaptureBackground), out TextBox? textBox))
         {
             return;
         }
 
-        string text = textBox.Text.Trim();
-        settings.Colors.Background = string.IsNullOrWhiteSpace(text) || ColorText.IsTransparent(text)
-            ? ColorText.Transparent
-            : ColorText.Format(ColorText.Parse(text, Color.Black));
+        Color color = ColorText.Parse(textBox.Text.Trim(), Color.FromArgb(1, 2, 3));
+        settings.Colors.CaptureBackground = ColorText.Format(Color.FromArgb(color.R, color.G, color.B));
     }
 
     private IReadOnlyList<BossRouteEntry> GetRouteOrderedEntries()

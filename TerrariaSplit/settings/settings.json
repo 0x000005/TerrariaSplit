@@ -146,7 +146,7 @@
         "Golem": "Aurora"
     },
   "Colors": {
-    "Background": "Transparent",
+    "CaptureBackground": "#010203",
     "ReferenceText": "#E2E2E2",
     "ActiveReferenceText": "#FDE679",
     "SplitText": "#F0A040",

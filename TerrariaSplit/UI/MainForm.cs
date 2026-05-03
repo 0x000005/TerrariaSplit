@@ -9,7 +9,7 @@ namespace TerrariaSplit;
 
 internal sealed class MainForm : Form
 {
-    private static readonly Color TransparentKeyColor = Color.FromArgb(1, 2, 3);
+    private static readonly Color DefaultCaptureBackgroundColor = Color.FromArgb(1, 2, 3);
     private static readonly TimeSpan SplitCompletionFadeDuration = TimeSpan.FromSeconds(0.45);
     private const int ResizeBorder = 8;
     private const int RowGap = 9;
@@ -47,7 +47,7 @@ internal sealed class MainForm : Form
         Size = new Size(GetDefaultWindowWidth(settings), GetDefaultWindowHeight(settings));
         DoubleBuffered = true;
         ResizeRedraw = true;
-        ApplyBackgroundSettings();
+        ApplyCaptureBackgroundColor();
         Padding = Padding.Empty;
 
         UpdateContextMenu();
@@ -186,7 +186,7 @@ internal sealed class MainForm : Form
 
     protected override void OnPaintBackground(PaintEventArgs e)
     {
-        e.Graphics.Clear(GetBackgroundColor());
+        e.Graphics.Clear(GetCaptureBackgroundColor());
     }
 
     protected override void OnPaint(PaintEventArgs e)
@@ -2135,7 +2135,7 @@ internal sealed class MainForm : Form
         splitTracker.SetDefinitions(BossSplitDefinitions.Build(settings));
         ResetRun();
         TopMost = settings.AlwaysOnTop;
-        ApplyBackgroundSettings();
+        ApplyCaptureBackgroundColor();
         MinimumSize = GetMinimumWindowSize(settings);
         Width = Math.Max(MinimumSize.Width, GetDefaultWindowWidth(settings));
         Height = Math.Max(MinimumSize.Height, GetDefaultWindowHeight(settings));
@@ -2144,28 +2144,17 @@ internal sealed class MainForm : Form
         Invalidate();
     }
 
-    private void ApplyBackgroundSettings()
+    private void ApplyCaptureBackgroundColor()
     {
-        Color backgroundColor = GetBackgroundColor();
-        BackColor = backgroundColor;
-        TransparencyKey = IsTransparentBackground()
-            ? TransparentKeyColor
-            : Color.Empty;
+        Color colorKey = GetCaptureBackgroundColor();
+        BackColor = colorKey;
+        TransparencyKey = colorKey;
     }
 
-    private Color GetBackgroundColor()
+    private Color GetCaptureBackgroundColor()
     {
-        return IsTransparentBackground()
-            ? TransparentKeyColor
-            : ColorText.Parse(settings.Colors.Background, Color.Black);
-    }
-
-    private bool IsTransparentBackground()
-    {
-        string background = settings.Colors.Background;
-        return string.IsNullOrWhiteSpace(background) ||
-            ColorText.IsTransparent(background) ||
-            ColorText.Parse(background, Color.Black).A == 0;
+        Color color = ColorText.Parse(settings.Colors.CaptureBackground, DefaultCaptureBackgroundColor);
+        return Color.FromArgb(color.R, color.G, color.B);
     }
 
     private void OpenStatistics()

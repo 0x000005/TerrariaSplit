@@ -109,6 +109,8 @@ internal static class Localizer
         { "Update personal data?", "是否更新个人数据？" },
         { "Update", "更新" },
         { "Skip", "跳过" },
+        { "UI Colors", "界面颜色" },
+        { "Capture Background", "捕获背景" },
         { "Background", "背景" },
         { "Transparent", "透明" },
         { "Cumulative", "累计" },
