@@ -130,7 +130,6 @@ internal static class Localizer
         { "Completed split text", "已完成分段文字" },
         { "Delta ahead text", "差值领先文字" },
         { "Delta behind text", "差值落后文字" },
-        { "Delta even text", "差值持平文字" },
         { "Timer text", "计时文字" },
         { "Timer ahead text", "计时领先文字" },
         { "Timer behind text", "计时落后文字" },

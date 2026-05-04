@@ -1194,7 +1194,7 @@ internal sealed class SettingsForm : Form
     private Control CreateDeltaGradientPreview()
     {
         deltaGradientPreview.Dock = DockStyle.Fill;
-        deltaGradientPreview.Height = 56;
+        deltaGradientPreview.Height = 88;
         deltaGradientPreview.BackColor = FieldColor;
         deltaGradientPreview.Margin = new Padding(0, 10, 0, 2);
         deltaGradientPreview.Paint += (_, e) => PaintDeltaGradientPreview(e.Graphics, deltaGradientPreview.ClientRectangle);
@@ -1210,30 +1210,77 @@ internal sealed class SettingsForm : Form
         using var borderPen = new Pen(BorderColor);
         graphics.DrawRectangle(borderPen, 0, 0, Math.Max(0, bounds.Width - 1), Math.Max(0, bounds.Height - 1));
 
-        string curve = GetPreviewDeltaGradientCurve();
-        (Color aheadColor, Color evenColor, Color behindColor, bool enabled) = GetPreviewGradientPalette();
         Rectangle fillBounds = Rectangle.Inflate(bounds, -1, -1);
         if (fillBounds.Width <= 0 || fillBounds.Height <= 0)
         {
             return;
         }
 
-        for (int x = 0; x < fillBounds.Width; x++)
+        int gap = 1;
+        int rowHeight = Math.Max(1, (fillBounds.Height - gap) / 2);
+        var deltaRow = new Rectangle(fillBounds.Left, fillBounds.Top, fillBounds.Width, rowHeight);
+        var timerRow = new Rectangle(fillBounds.Left, deltaRow.Bottom + gap, fillBounds.Width, Math.Max(1, fillBounds.Bottom - deltaRow.Bottom - gap));
+        DrawDeltaGradientPreviewRow(graphics, deltaRow, Localizer.Get("Delta", settings), GetPreviewDeltaGradientPalette());
+        DrawDeltaGradientPreviewRow(graphics, timerRow, Localizer.Get("Main timer", settings), GetPreviewTimerGradientPalette());
+        using var separatorPen = new Pen(BorderColor);
+        graphics.DrawLine(separatorPen, fillBounds.Left, deltaRow.Bottom, fillBounds.Right, deltaRow.Bottom);
+    }
+
+    private void DrawDeltaGradientPreviewRow(
+        Graphics graphics,
+        Rectangle bounds,
+        string label,
+        (Color AheadColor, Color BaseColor, Color BehindColor, bool Enabled) palette)
+    {
+        string curve = GetPreviewDeltaGradientCurve();
+        for (int x = 0; x < bounds.Width; x++)
         {
-            float normalized = fillBounds.Width <= 1 ? 0f : x / (float)(fillBounds.Width - 1);
+            float normalized = bounds.Width <= 1 ? 0f : x / (float)(bounds.Width - 1);
             float signed = normalized * 2f - 1f;
             float amount = DeltaGradientCurves.Evaluate(curve, Math.Abs(signed));
             Color color = signed < 0f
-                ? BlendPreviewColor(evenColor, aheadColor, amount)
-                : BlendPreviewColor(evenColor, behindColor, amount);
-            if (!enabled)
+                ? BlendPreviewColor(palette.BaseColor, palette.AheadColor, amount)
+                : BlendPreviewColor(palette.BaseColor, palette.BehindColor, amount);
+            if (!palette.Enabled)
             {
                 color = BlendPreviewColor(color, FieldColor, 0.45f);
             }
 
             using var pen = new Pen(color);
-            graphics.DrawLine(pen, fillBounds.Left + x, fillBounds.Top, fillBounds.Left + x, fillBounds.Bottom);
+            graphics.DrawLine(pen, bounds.Left + x, bounds.Top, bounds.Left + x, bounds.Bottom);
         }
+
+        using var font = UiTheme.FormFont(9f, FontStyle.Bold);
+        using var format = new StringFormat
+        {
+            Alignment = StringAlignment.Near,
+            LineAlignment = StringAlignment.Center,
+            FormatFlags = StringFormatFlags.NoWrap
+        };
+        using var shadowBrush = new SolidBrush(Color.FromArgb(150, 0, 0, 0));
+        using var textBrush = new SolidBrush(Color.FromArgb(235, 245, 245, 248));
+        var labelBounds = new RectangleF(bounds.Left + 8, bounds.Top, Math.Max(1, bounds.Width - 16), bounds.Height);
+        var shadowBounds = new RectangleF(labelBounds.X + 1, labelBounds.Y + 1, labelBounds.Width, labelBounds.Height);
+        graphics.DrawString(label, font, shadowBrush, shadowBounds, format);
+        graphics.DrawString(label, font, textBrush, labelBounds, format);
+    }
+
+    private (Color AheadColor, Color BaseColor, Color BehindColor, bool Enabled) GetPreviewDeltaGradientPalette()
+    {
+        return (
+            GetPreviewColor(nameof(settings.Colors.DeltaAheadText), settings.Colors.DeltaAheadText, Color.FromArgb(114, 213, 114)),
+            GetPreviewColor(nameof(settings.Colors.TimerText), settings.Colors.TimerText, Color.FromArgb(242, 242, 242)),
+            GetPreviewColor(nameof(settings.Colors.DeltaBehindText), settings.Colors.DeltaBehindText, Color.FromArgb(240, 112, 112)),
+            enableDeltaGradientColorBox.Checked);
+    }
+
+    private (Color AheadColor, Color BaseColor, Color BehindColor, bool Enabled) GetPreviewTimerGradientPalette()
+    {
+        return (
+            GetPreviewColor(nameof(settings.Colors.TimerAheadText), settings.Colors.TimerAheadText, Color.LightGreen),
+            GetPreviewColor(nameof(settings.Colors.TimerText), settings.Colors.TimerText, Color.FromArgb(242, 242, 242)),
+            GetPreviewColor(nameof(settings.Colors.TimerBehindText), settings.Colors.TimerBehindText, Color.LightCoral),
+            enableTimerGradientColorBox.Checked);
     }
 
     private Color GetPreviewColor(string key, string fallbackText, Color fallbackColor)
@@ -1242,11 +1289,6 @@ internal sealed class SettingsForm : Form
             ? textBox.Text
             : fallbackText;
         return ColorText.Parse(text, fallbackColor);
-    }
-
-    private int GetPreviewDeltaGradientThresholdSeconds()
-    {
-        return ParseTimeBox(deltaGradientThresholdBox, settings.DeltaGradientThresholdSeconds, 1, 3600);
     }
 
     private string GetPreviewDeltaGradientCurve()
@@ -1261,33 +1303,6 @@ internal sealed class SettingsForm : Form
             (int)MathF.Round(from.R + (to.R - from.R) * t),
             (int)MathF.Round(from.G + (to.G - from.G) * t),
             (int)MathF.Round(from.B + (to.B - from.B) * t));
-    }
-
-    private (Color AheadColor, Color EvenColor, Color BehindColor, bool Enabled) GetPreviewGradientPalette()
-    {
-        if (enableDeltaGradientColorBox.Checked)
-        {
-            return (
-                GetPreviewColor(nameof(settings.Colors.DeltaAheadText), settings.Colors.DeltaAheadText, Color.FromArgb(114, 213, 114)),
-                GetPreviewColor(nameof(settings.Colors.DeltaEvenText), settings.Colors.DeltaEvenText, Color.FromArgb(216, 216, 216)),
-                GetPreviewColor(nameof(settings.Colors.DeltaBehindText), settings.Colors.DeltaBehindText, Color.FromArgb(240, 112, 112)),
-                true);
-        }
-
-        if (enableTimerGradientColorBox.Checked)
-        {
-            return (
-                GetPreviewColor(nameof(settings.Colors.TimerAheadText), settings.Colors.TimerAheadText, Color.LightGreen),
-                GetPreviewColor(nameof(settings.Colors.TimerText), settings.Colors.TimerText, Color.FromArgb(242, 242, 242)),
-                GetPreviewColor(nameof(settings.Colors.TimerBehindText), settings.Colors.TimerBehindText, Color.LightCoral),
-                true);
-        }
-
-        return (
-            GetPreviewColor(nameof(settings.Colors.DeltaAheadText), settings.Colors.DeltaAheadText, Color.FromArgb(114, 213, 114)),
-            GetPreviewColor(nameof(settings.Colors.DeltaEvenText), settings.Colors.DeltaEvenText, Color.FromArgb(216, 216, 216)),
-            GetPreviewColor(nameof(settings.Colors.DeltaBehindText), settings.Colors.DeltaBehindText, Color.FromArgb(240, 112, 112)),
-            false);
     }
 
     private void InvalidateDeltaGradientPreview()
@@ -1317,7 +1332,7 @@ internal sealed class SettingsForm : Form
         Color[] baseColors =
         {
             ColorText.Parse(settings.Colors.DeltaAheadText, Color.FromArgb(114, 213, 114)),
-            ColorText.Parse(settings.Colors.DeltaEvenText, Color.FromArgb(216, 216, 216)),
+            ColorText.Parse(settings.Colors.DeltaBehindText, Color.FromArgb(240, 112, 112)),
             ColorText.Parse(settings.Colors.DeltaBehindText, Color.FromArgb(240, 112, 112))
         };
         string[] texts = { "-0:01.23", "+0:00.00", "+0:01.23" };
@@ -1597,7 +1612,6 @@ internal sealed class SettingsForm : Form
         AddColorRow(grid, "Completed split text", nameof(settings.Colors.SplitText), settings.Colors.SplitText);
         AddColorRow(grid, "Delta ahead text", nameof(settings.Colors.DeltaAheadText), settings.Colors.DeltaAheadText);
         AddColorRow(grid, "Delta behind text", nameof(settings.Colors.DeltaBehindText), settings.Colors.DeltaBehindText);
-        AddColorRow(grid, "Delta even text", nameof(settings.Colors.DeltaEvenText), settings.Colors.DeltaEvenText);
         AddColorRow(grid, "Timer text", nameof(settings.Colors.TimerText), settings.Colors.TimerText);
         AddColorRow(grid, "Timer ahead text", nameof(settings.Colors.TimerAheadText), settings.Colors.TimerAheadText);
         AddColorRow(grid, "Timer behind text", nameof(settings.Colors.TimerBehindText), settings.Colors.TimerBehindText);
@@ -2335,7 +2349,6 @@ internal sealed class SettingsForm : Form
         SetColor(nameof(settings.Colors.SplitText), value => settings.Colors.SplitText = value);
         SetColor(nameof(settings.Colors.DeltaAheadText), value => settings.Colors.DeltaAheadText = value);
         SetColor(nameof(settings.Colors.DeltaBehindText), value => settings.Colors.DeltaBehindText = value);
-        SetColor(nameof(settings.Colors.DeltaEvenText), value => settings.Colors.DeltaEvenText = value);
         SetColor(nameof(settings.Colors.TimerText), value => settings.Colors.TimerText = value);
         SetColor(nameof(settings.Colors.TimerAheadText), value => settings.Colors.TimerAheadText = value);
         SetColor(nameof(settings.Colors.TimerBehindText), value => settings.Colors.TimerBehindText = value);

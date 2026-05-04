@@ -11,6 +11,7 @@ internal sealed class MainForm : Form
 {
     private static readonly Color DefaultCaptureBackgroundColor = Color.FromArgb(1, 2, 3);
     private static readonly TimeSpan SplitCompletionFadeDuration = TimeSpan.FromSeconds(0.45);
+    private static readonly TimeSpan ResetMenuGraceDuration = TimeSpan.FromSeconds(0.5);
     private const int ResizeBorder = 8;
     private const int RowGap = 9;
     private const float SplitCompletionLabelFontRatio = 0.58f;
@@ -34,6 +35,7 @@ internal sealed class MainForm : Form
     private bool runStatsRecorded;
     private bool closeFinalizationPending;
     private bool closeFinalizationComplete;
+    private DateTime? pendingMenuResetUntilUtc;
 
     private AppSettings settings = AppSettingsStore.Load();
     private TerrariaWatchSnapshot snapshot =
@@ -322,10 +324,20 @@ internal sealed class MainForm : Form
             }
         }
 
-        if (Keyboard.PollPressed(settings.ResetKeys) && CanReset(snapshot))
+        if (Keyboard.PollPressed(settings.ResetKeys))
         {
-            PlaySound(settings.Sounds.Reset);
-            ResetRun(recordStats: true);
+            if (CanReset(snapshot))
+            {
+                ExecuteReset();
+                return;
+            }
+
+            pendingMenuResetUntilUtc = DateTime.UtcNow + ResetMenuGraceDuration;
+        }
+
+        if (TryConsumePendingMenuReset())
+        {
+            ExecuteReset();
             return;
         }
 
@@ -1111,10 +1123,18 @@ internal sealed class MainForm : Form
         using var labelFont = CreatePixelFont(labelSize, FontStyle.Bold);
         using var valueFont = CreatePixelFont(valueSize, FontStyle.Bold);
         using var deltaFont = CreatePixelFont(deltaSize, FontStyle.Bold);
+        using var measureFormat = new StringFormat(StringFormat.GenericTypographic)
+        {
+            FormatFlags = StringFormatFlags.NoWrap
+        };
+        float reservedDeltaWidth = Math.Max(
+            MeasureDeltaTextWidth(graphics, deltaFont, segmentDelta, measureFormat),
+            MeasureDeltaTextWidth(graphics, deltaFont, splitDelta, measureFormat));
 
         int labelHeight = Math.Max(1, (int)Math.Ceiling(labelFont.GetHeight(graphics)));
         int valueHeight = Math.Max(1, (int)Math.Ceiling(valueFont.GetHeight(graphics)) + ScaleInt(2));
         int rowHeight = labelHeight + valueHeight + ScaleInt(2);
+        float reservedGap = reservedDeltaWidth > 0f ? Math.Max(6f, valueFont.Size * 0.55f) : 0f;
         int gap = Math.Max(3, (int)Math.Round(valueFont.Size * 0.32f));
         int totalHeight = rowHeight * 2 + gap;
         int startY = textBounds.Top + Math.Max(0, (textBounds.Height - totalHeight) / 2);
@@ -1133,6 +1153,8 @@ internal sealed class MainForm : Form
             labelFont,
             valueFont,
             deltaFont,
+            reservedDeltaWidth,
+            reservedGap,
             palette,
             elapsed,
             opacity,
@@ -1148,6 +1170,8 @@ internal sealed class MainForm : Form
             labelFont,
             valueFont,
             deltaFont,
+            reservedDeltaWidth,
+            reservedGap,
             palette,
             elapsed,
             opacity,
@@ -1225,9 +1249,14 @@ internal sealed class MainForm : Form
             FormatFlags = StringFormatFlags.NoWrap
         };
 
-        float widest = Math.Max(
-            MeasureSplitCompletionTimeRowWidth(graphics, valueFont, deltaFont, firstValue, firstDelta, format),
-            MeasureSplitCompletionTimeRowWidth(graphics, valueFont, deltaFont, secondValue, secondDelta, format));
+        float widestValue = Math.Max(
+            graphics.MeasureString(firstValue, valueFont, Size.Empty, format).Width,
+            graphics.MeasureString(secondValue, valueFont, Size.Empty, format).Width);
+        float widestDelta = Math.Max(
+            MeasureDeltaTextWidth(graphics, deltaFont, firstDelta, format),
+            MeasureDeltaTextWidth(graphics, deltaFont, secondDelta, format));
+        float deltaGap = widestDelta > 0f ? Math.Max(6f, valueFont.Size * 0.55f) : 0f;
+        float widest = widestValue + deltaGap + widestDelta;
         float labelHeight = labelFont.GetHeight(graphics);
         float valueHeight = valueFont.GetHeight(graphics) + 2f;
         float rowHeight = labelHeight + valueHeight + 2f;
@@ -1235,23 +1264,15 @@ internal sealed class MainForm : Form
         return widest <= availableWidth && totalHeight <= availableHeight;
     }
 
-    private static float MeasureSplitCompletionTimeRowWidth(
+    private static float MeasureDeltaTextWidth(
         Graphics graphics,
-        Font valueFont,
         Font deltaFont,
-        string value,
         string deltaText,
         StringFormat format)
     {
-        SizeF valueSize = graphics.MeasureString(value, valueFont, Size.Empty, format);
-        if (string.IsNullOrEmpty(deltaText))
-        {
-            return valueSize.Width;
-        }
-
-        SizeF deltaSize = graphics.MeasureString(deltaText, deltaFont, Size.Empty, format);
-        float gap = Math.Max(6f, valueFont.Size * 0.55f);
-        return valueSize.Width + gap + deltaSize.Width;
+        return string.IsNullOrEmpty(deltaText)
+            ? 0f
+            : graphics.MeasureString(deltaText, deltaFont, Size.Empty, format).Width;
     }
 
     private void DrawSplitCompletionTimeRow(
@@ -1265,6 +1286,8 @@ internal sealed class MainForm : Form
         Font labelFont,
         Font valueFont,
         Font deltaFont,
+        float reservedDeltaWidth,
+        float reservedGap,
         UiPalette palette,
         TimeSpan elapsed,
         float opacity,
@@ -1301,11 +1324,10 @@ internal sealed class MainForm : Form
         SizeF deltaSize = string.IsNullOrEmpty(deltaText)
             ? SizeF.Empty
             : graphics.MeasureString(deltaText, deltaFont, bounds.Size, format);
-        float gap = string.IsNullOrEmpty(deltaText) ? 0f : Math.Max(6f, valueFont.Size * 0.55f);
-        float totalTextWidth = valueSize.Width + gap + deltaSize.Width;
-        float centeredValueX = bounds.Left + Math.Max(0f, (bounds.Width - valueSize.Width) / 2f);
-        float overflowRight = Math.Max(0f, centeredValueX + totalTextWidth - bounds.Right);
-        float startX = Math.Max(bounds.Left, centeredValueX - overflowRight);
+        float gap = string.IsNullOrEmpty(deltaText) ? 0f : reservedGap;
+        float reservedTextWidth = Math.Max(deltaSize.Width, reservedDeltaWidth);
+        float totalTextWidth = valueSize.Width + reservedGap + reservedTextWidth;
+        float startX = bounds.Left + Math.Max(0f, (bounds.Width - totalTextWidth) / 2f);
         FontMetrics valueMetrics = GetFontMetrics(graphics, valueFont);
         FontMetrics deltaMetrics = GetFontMetrics(graphics, deltaFont);
         float valueTextHeight = valueMetrics.Ascent + valueMetrics.Descent;
@@ -2262,7 +2284,7 @@ internal sealed class MainForm : Form
         TimeSpan? delta = comparison.Delta;
         if (delta is null)
         {
-            return palette.DeltaEvenText;
+            return palette.DeltaBehindText;
         }
 
         if (settings.EnableDeltaGradientColor)
@@ -2270,8 +2292,13 @@ internal sealed class MainForm : Form
             return GetGradientDeltaColor(
                 delta.Value,
                 palette.DeltaAheadText,
-                palette.DeltaEvenText,
+                palette.TimerText,
                 palette.DeltaBehindText);
+        }
+
+        if (IsDisplayedDeltaZero(delta.Value))
+        {
+            return palette.DeltaBehindText;
         }
 
         if (delta < TimeSpan.Zero)
@@ -2284,22 +2311,27 @@ internal sealed class MainForm : Form
             return palette.DeltaBehindText;
         }
 
-        return palette.DeltaEvenText;
+        return palette.DeltaBehindText;
     }
 
-    private Color GetGradientDeltaColor(TimeSpan delta, Color aheadColor, Color evenColor, Color behindColor)
+    private static bool IsDisplayedDeltaZero(TimeSpan delta)
+    {
+        return delta >= TimeSpan.Zero && delta.TotalSeconds < 0.005;
+    }
+
+    private Color GetGradientDeltaColor(TimeSpan delta, Color aheadColor, Color baseColor, Color behindColor)
     {
         if (delta == TimeSpan.Zero)
         {
-            return evenColor;
+            return baseColor;
         }
 
         float thresholdSeconds = Math.Max(1, settings.DeltaGradientThresholdSeconds);
         float magnitude = Math.Min(1f, (float)(Math.Abs(delta.TotalSeconds) / thresholdSeconds));
         float amount = DeltaGradientCurves.Evaluate(settings.DeltaGradientCurve, magnitude);
         return delta < TimeSpan.Zero
-            ? BlendColor(evenColor, aheadColor, amount)
-            : BlendColor(evenColor, behindColor, amount);
+            ? BlendColor(baseColor, aheadColor, amount)
+            : BlendColor(baseColor, behindColor, amount);
     }
 
     private static Color BlendColor(Color from, Color to, float amount)
@@ -2314,6 +2346,35 @@ internal sealed class MainForm : Form
     private static bool CanReset(TerrariaWatchSnapshot snapshot)
     {
         return snapshot.IsGameMenu != false;
+    }
+
+    private bool TryConsumePendingMenuReset()
+    {
+        if (pendingMenuResetUntilUtc is not DateTime deadline)
+        {
+            return false;
+        }
+
+        if (DateTime.UtcNow > deadline)
+        {
+            pendingMenuResetUntilUtc = null;
+            return false;
+        }
+
+        if (snapshot.IsGameMenu != true)
+        {
+            return false;
+        }
+
+        pendingMenuResetUntilUtc = null;
+        return true;
+    }
+
+    private void ExecuteReset()
+    {
+        pendingMenuResetUntilUtc = null;
+        PlaySound(settings.Sounds.Reset);
+        ResetRun(recordStats: true);
     }
 
     private string FormatTimerPhase()
@@ -2437,6 +2498,7 @@ internal sealed class MainForm : Form
         runTimer.Reset();
         splitTracker.Reset();
         splitCompletionAnimation = null;
+        pendingMenuResetUntilUtc = null;
         segmentBestDeltaHighlights.Clear();
         pendingSegmentBestUpdates.Clear();
         pendingTimeBestUpdate = null;
@@ -2793,7 +2855,6 @@ internal sealed class MainForm : Form
         Color SplitText,
         Color DeltaAheadText,
         Color DeltaBehindText,
-        Color DeltaEvenText,
         Color TimerText,
         Color TimerAheadText,
         Color TimerBehindText,
@@ -2809,7 +2870,6 @@ internal sealed class MainForm : Form
                 ColorText.Parse(settings.SplitText, Color.FromArgb(240, 160, 64)),
                 ColorText.Parse(settings.DeltaAheadText, Color.LightGreen),
                 ColorText.Parse(settings.DeltaBehindText, Color.LightCoral),
-                ColorText.Parse(settings.DeltaEvenText, Color.Gainsboro),
                 ColorText.Parse(settings.TimerText, Color.FromArgb(242, 242, 242)),
                 ColorText.Parse(settings.TimerAheadText, Color.LightGreen),
                 ColorText.Parse(settings.TimerBehindText, Color.LightCoral),
