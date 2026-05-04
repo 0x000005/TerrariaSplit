@@ -1123,18 +1123,13 @@ internal sealed class MainForm : Form
         using var labelFont = CreatePixelFont(labelSize, FontStyle.Bold);
         using var valueFont = CreatePixelFont(valueSize, FontStyle.Bold);
         using var deltaFont = CreatePixelFont(deltaSize, FontStyle.Bold);
-        using var measureFormat = new StringFormat(StringFormat.GenericTypographic)
-        {
-            FormatFlags = StringFormatFlags.NoWrap
-        };
-        float reservedDeltaWidth = Math.Max(
-            MeasureDeltaTextWidth(graphics, deltaFont, segmentDelta, measureFormat),
-            MeasureDeltaTextWidth(graphics, deltaFont, splitDelta, measureFormat));
 
         int labelHeight = Math.Max(1, (int)Math.Ceiling(labelFont.GetHeight(graphics)));
         int valueHeight = Math.Max(1, (int)Math.Ceiling(valueFont.GetHeight(graphics)) + ScaleInt(2));
         int rowHeight = labelHeight + valueHeight + ScaleInt(2);
-        float reservedGap = reservedDeltaWidth > 0f ? Math.Max(6f, valueFont.Size * 0.55f) : 0f;
+        float reservedGap = string.IsNullOrEmpty(segmentDelta) && string.IsNullOrEmpty(splitDelta)
+            ? 0f
+            : Math.Max(6f, valueFont.Size * 0.55f);
         int gap = Math.Max(3, (int)Math.Round(valueFont.Size * 0.32f));
         int totalHeight = rowHeight * 2 + gap;
         int startY = textBounds.Top + Math.Max(0, (textBounds.Height - totalHeight) / 2);
@@ -1153,7 +1148,6 @@ internal sealed class MainForm : Form
             labelFont,
             valueFont,
             deltaFont,
-            reservedDeltaWidth,
             reservedGap,
             palette,
             elapsed,
@@ -1170,7 +1164,6 @@ internal sealed class MainForm : Form
             labelFont,
             valueFont,
             deltaFont,
-            reservedDeltaWidth,
             reservedGap,
             palette,
             elapsed,
@@ -1249,19 +1242,21 @@ internal sealed class MainForm : Form
             FormatFlags = StringFormatFlags.NoWrap
         };
 
-        float widestValue = Math.Max(
-            graphics.MeasureString(firstValue, valueFont, Size.Empty, format).Width,
-            graphics.MeasureString(secondValue, valueFont, Size.Empty, format).Width);
-        float widestDelta = Math.Max(
-            MeasureDeltaTextWidth(graphics, deltaFont, firstDelta, format),
-            MeasureDeltaTextWidth(graphics, deltaFont, secondDelta, format));
-        float deltaGap = widestDelta > 0f ? Math.Max(6f, valueFont.Size * 0.55f) : 0f;
-        float widest = widestValue + deltaGap + widestDelta;
+        float firstValueWidth = graphics.MeasureString(firstValue, valueFont, Size.Empty, format).Width;
+        float secondValueWidth = graphics.MeasureString(secondValue, valueFont, Size.Empty, format).Width;
+        float firstDeltaWidth = MeasureDeltaTextWidth(graphics, deltaFont, firstDelta, format);
+        float secondDeltaWidth = MeasureDeltaTextWidth(graphics, deltaFont, secondDelta, format);
+        float deltaGap = firstDeltaWidth > 0f || secondDeltaWidth > 0f
+            ? Math.Max(6f, valueFont.Size * 0.55f)
+            : 0f;
+        float requiredHalfWidth = Math.Max(
+            firstValueWidth / 2f + (firstDeltaWidth > 0f ? deltaGap + firstDeltaWidth : 0f),
+            secondValueWidth / 2f + (secondDeltaWidth > 0f ? deltaGap + secondDeltaWidth : 0f));
         float labelHeight = labelFont.GetHeight(graphics);
         float valueHeight = valueFont.GetHeight(graphics) + 2f;
         float rowHeight = labelHeight + valueHeight + 2f;
         float totalHeight = rowHeight * 2f + Math.Max(3f, valueFont.Size * 0.32f);
-        return widest <= availableWidth && totalHeight <= availableHeight;
+        return requiredHalfWidth <= availableWidth / 2f && totalHeight <= availableHeight;
     }
 
     private static float MeasureDeltaTextWidth(
@@ -1286,7 +1281,6 @@ internal sealed class MainForm : Form
         Font labelFont,
         Font valueFont,
         Font deltaFont,
-        float reservedDeltaWidth,
         float reservedGap,
         UiPalette palette,
         TimeSpan elapsed,
@@ -1325,9 +1319,7 @@ internal sealed class MainForm : Form
             ? SizeF.Empty
             : graphics.MeasureString(deltaText, deltaFont, bounds.Size, format);
         float gap = string.IsNullOrEmpty(deltaText) ? 0f : reservedGap;
-        float reservedTextWidth = Math.Max(deltaSize.Width, reservedDeltaWidth);
-        float totalTextWidth = valueSize.Width + reservedGap + reservedTextWidth;
-        float startX = bounds.Left + Math.Max(0f, (bounds.Width - totalTextWidth) / 2f);
+        float startX = bounds.Left + Math.Max(0f, (bounds.Width - valueSize.Width) / 2f);
         FontMetrics valueMetrics = GetFontMetrics(graphics, valueFont);
         FontMetrics deltaMetrics = GetFontMetrics(graphics, deltaFont);
         float valueTextHeight = valueMetrics.Ascent + valueMetrics.Descent;
