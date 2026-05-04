@@ -35,6 +35,10 @@ internal sealed class AppSettings
     public int CurrentSplitDepthStrengthPercent { get; set; } = 45;
     public bool ShowEarlyDeltaTime { get; set; } = true;
     public int EarlyDeltaTimeSeconds { get; set; } = 60;
+    public bool EnableDeltaGradientColor { get; set; } = true;
+    public bool EnableTimerGradientColor { get; set; } = true;
+    public int DeltaGradientThresholdSeconds { get; set; } = 120;
+    public string DeltaGradientCurve { get; set; } = DeltaGradientCurves.SoftStep;
     public bool ShowSegmentBestDeltaHighlight { get; set; } = true;
     public Dictionary<string, string> SegmentBestDeltaHighlightStyles { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public UiColorSettings Colors { get; set; } = new();

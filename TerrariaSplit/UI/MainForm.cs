@@ -13,6 +13,8 @@ internal sealed class MainForm : Form
     private static readonly TimeSpan SplitCompletionFadeDuration = TimeSpan.FromSeconds(0.45);
     private const int ResizeBorder = 8;
     private const int RowGap = 9;
+    private const float SplitCompletionLabelFontRatio = 0.58f;
+    private const float SplitCompletionDeltaFontRatio = 0.85f;
 
     private readonly SplitTimer runTimer = new();
     private readonly BossSplitTracker splitTracker = new();
@@ -30,6 +32,8 @@ internal sealed class MainForm : Form
     private Point dragStartLocation;
     private SplitCompletionAnimation? splitCompletionAnimation;
     private bool runStatsRecorded;
+    private bool closeFinalizationPending;
+    private bool closeFinalizationComplete;
 
     private AppSettings settings = AppSettingsStore.Load();
     private TerrariaWatchSnapshot snapshot =
@@ -123,6 +127,37 @@ internal sealed class MainForm : Form
         }
 
         base.OnFormClosed(e);
+    }
+
+    protected override void OnFormClosing(FormClosingEventArgs e)
+    {
+        if (closeFinalizationComplete)
+        {
+            base.OnFormClosing(e);
+            return;
+        }
+
+        if (closeFinalizationPending)
+        {
+            e.Cancel = true;
+            return;
+        }
+
+        closeFinalizationPending = true;
+        e.Cancel = true;
+        BeginInvoke(new Action(() =>
+        {
+            try
+            {
+                FinalizeRunBeforeExit();
+            }
+            finally
+            {
+                closeFinalizationPending = false;
+                closeFinalizationComplete = true;
+                Close();
+            }
+        }));
     }
 
     protected override void OnMouseDown(MouseEventArgs e)
@@ -970,14 +1005,7 @@ internal sealed class MainForm : Form
             return;
         }
 
-        int maxIconSize = Math.Max(1, Math.Min((int)(listBounds.Width * 0.38f), (int)(listBounds.Height * 0.34f)));
-        int minIconSize = Math.Min(ScaleInt(72), maxIconSize);
-        int iconSize = Math.Clamp(ScaleInt(150), minIconSize, maxIconSize);
-        var iconRect = new Rectangle(
-            listBounds.Left + (listBounds.Width - iconSize) / 2,
-            listBounds.Top + Math.Max(0, (int)(listBounds.Height * 0.12f)),
-            iconSize,
-            iconSize);
+        Rectangle iconRect = GetSplitCompletionIconRect(listBounds);
 
         if (iconFileNames.Count == 1)
         {
@@ -1013,6 +1041,18 @@ internal sealed class MainForm : Form
         }
     }
 
+    private Rectangle GetSplitCompletionIconRect(Rectangle listBounds)
+    {
+        int maxIconSize = Math.Max(1, Math.Min((int)(listBounds.Width * 0.475f), (int)(listBounds.Height * 0.425f)));
+        int minIconSize = Math.Min(ScaleInt(90), maxIconSize);
+        int iconSize = Math.Clamp(ScaleInt(188), minIconSize, maxIconSize);
+        return new Rectangle(
+            listBounds.Left + (listBounds.Width - iconSize) / 2,
+            listBounds.Top + Math.Max(0, (int)(listBounds.Height * 0.12f)),
+            iconSize,
+            iconSize);
+    }
+
     private void DrawSplitCompletionIconFrame(
         Graphics graphics,
         SplitCompletionAnimation animation,
@@ -1036,31 +1076,57 @@ internal sealed class MainForm : Form
         TimeSpan elapsed,
         float opacity)
     {
-        float scale = GetScaleFactor();
-        using var labelFont = new Font(UiTheme.FontFamilyName, Math.Clamp(9f * scale, 7f, 16f), FontStyle.Regular);
-        using var valueFont = new Font(UiTheme.FontFamilyName, Math.Clamp(18f * scale, 12f, 32f), FontStyle.Bold);
-        using var deltaFont = new Font(UiTheme.FontFamilyName, Math.Clamp(13f * scale, 9f, 24f), FontStyle.Bold);
         UiPalette palette = UiPalette.From(settings.Colors);
 
-        int labelHeight = Math.Max(ScaleInt(12), (int)Math.Ceiling(labelFont.GetHeight(graphics)));
-        int valueHeight = Math.Max(ScaleInt(26), (int)Math.Ceiling(valueFont.GetHeight(graphics)) + ScaleInt(2));
-        int rowHeight = labelHeight + valueHeight + ScaleInt(2);
-        int gap = ScaleInt(7);
-        int totalHeight = rowHeight * 2 + gap;
-        int startY = listBounds.Top + (int)(listBounds.Height * 0.54f);
-        if (startY + totalHeight > listBounds.Bottom)
+        Rectangle iconRect = GetSplitCompletionIconRect(listBounds);
+        int sidePadding = Math.Max(ScaleInt(8), (int)Math.Round(listBounds.Width * 0.03f));
+        int top = iconRect.Bottom + Math.Max(ScaleInt(6), (int)Math.Round(listBounds.Height * 0.02f));
+        int bottom = listBounds.Bottom - ScaleInt(2);
+        var textBounds = new Rectangle(
+            listBounds.Left + sidePadding,
+            Math.Min(top, bottom),
+            Math.Max(0, listBounds.Width - sidePadding * 2),
+            Math.Max(0, bottom - Math.Min(top, bottom)));
+        if (textBounds.Width <= 0 || textBounds.Height <= 0)
         {
-            startY = Math.Max(listBounds.Top + ScaleInt(4), listBounds.Bottom - totalHeight - ScaleInt(2));
+            return;
         }
 
-        var segmentRect = new Rectangle(listBounds.Left + ScaleInt(8), startY, listBounds.Width - ScaleInt(16), rowHeight);
-        var splitRect = new Rectangle(listBounds.Left + ScaleInt(8), startY + rowHeight + gap, listBounds.Width - ScaleInt(16), rowHeight);
+        string segmentValue = SplitTimerFormatter.Format(animation.SegmentTime);
+        string segmentDelta = GetSplitCompletionDeltaText(animation.PersonalBestSegmentComparison, animation.ShowSegmentComparison);
+        string splitValue = SplitTimerFormatter.Format(animation.SplitTime);
+        string splitDelta = GetSplitCompletionDeltaText(animation.ReferenceSplitComparison, animation.ShowSplitComparison);
+        float valueSize = GetSplitCompletionValueFontSize(
+            graphics,
+            textBounds.Width,
+            textBounds.Height,
+            segmentValue,
+            segmentDelta,
+            splitValue,
+            splitDelta,
+            GetScaleFactor());
+        float labelSize = valueSize * SplitCompletionLabelFontRatio;
+        float deltaSize = valueSize * SplitCompletionDeltaFontRatio;
+
+        using var labelFont = CreatePixelFont(labelSize, FontStyle.Bold);
+        using var valueFont = CreatePixelFont(valueSize, FontStyle.Bold);
+        using var deltaFont = CreatePixelFont(deltaSize, FontStyle.Bold);
+
+        int labelHeight = Math.Max(1, (int)Math.Ceiling(labelFont.GetHeight(graphics)));
+        int valueHeight = Math.Max(1, (int)Math.Ceiling(valueFont.GetHeight(graphics)) + ScaleInt(2));
+        int rowHeight = labelHeight + valueHeight + ScaleInt(2);
+        int gap = Math.Max(3, (int)Math.Round(valueFont.Size * 0.32f));
+        int totalHeight = rowHeight * 2 + gap;
+        int startY = textBounds.Top + Math.Max(0, (textBounds.Height - totalHeight) / 2);
+
+        var segmentRect = new Rectangle(textBounds.Left, startY, textBounds.Width, rowHeight);
+        var splitRect = new Rectangle(textBounds.Left, startY + rowHeight + gap, textBounds.Width, rowHeight);
 
         DrawSplitCompletionTimeRow(
             graphics,
             segmentRect,
             Localizer.Get("Segment time", settings),
-            SplitTimerFormatter.Format(animation.SegmentTime),
+            segmentValue,
             animation.PersonalBestSegmentComparison,
             animation.ShowSegmentComparison,
             animation.SegmentTimeOutlineStyle,
@@ -1075,7 +1141,7 @@ internal sealed class MainForm : Form
             graphics,
             splitRect,
             Localizer.Get("Split time", settings),
-            SplitTimerFormatter.Format(animation.SplitTime),
+            splitValue,
             animation.ReferenceSplitComparison,
             animation.ShowSplitComparison,
             animation.SplitTimeOutlineStyle,
@@ -1086,6 +1152,106 @@ internal sealed class MainForm : Form
             elapsed,
             opacity,
             SegmentBestDeltaHighlightStyles.None);
+    }
+
+    private static Font CreatePixelFont(float size, FontStyle style)
+    {
+        return new Font(UiTheme.FontFamilyName, Math.Max(1f, size), style, GraphicsUnit.Pixel);
+    }
+
+    private static string GetSplitCompletionDeltaText(SplitComparison comparison, bool showComparison)
+    {
+        return showComparison && comparison.ShowDelta && comparison.Delta is TimeSpan delta
+            ? TimeText.FormatDelta(delta)
+            : string.Empty;
+    }
+
+    private static float GetSplitCompletionValueFontSize(
+        Graphics graphics,
+        int availableWidth,
+        int availableHeight,
+        string firstValue,
+        string firstDelta,
+        string secondValue,
+        string secondDelta,
+        float scale)
+    {
+        if (availableWidth <= 0 || availableHeight <= 0)
+        {
+            return 24f;
+        }
+
+        float low = 8f;
+        float high = Math.Clamp(56f * scale, 24f, 96f);
+        for (int i = 0; i < 12; i++)
+        {
+            float mid = (low + high) / 2f;
+            if (DoesSplitCompletionTextFit(
+                graphics,
+                availableWidth,
+                availableHeight,
+                mid,
+                firstValue,
+                firstDelta,
+                secondValue,
+                secondDelta))
+            {
+                low = mid;
+            }
+            else
+            {
+                high = mid;
+            }
+        }
+
+        return low;
+    }
+
+    private static bool DoesSplitCompletionTextFit(
+        Graphics graphics,
+        int availableWidth,
+        int availableHeight,
+        float valueSize,
+        string firstValue,
+        string firstDelta,
+        string secondValue,
+        string secondDelta)
+    {
+        using var labelFont = CreatePixelFont(valueSize * SplitCompletionLabelFontRatio, FontStyle.Bold);
+        using var valueFont = CreatePixelFont(valueSize, FontStyle.Bold);
+        using var deltaFont = CreatePixelFont(valueSize * SplitCompletionDeltaFontRatio, FontStyle.Bold);
+        using var format = new StringFormat(StringFormat.GenericTypographic)
+        {
+            FormatFlags = StringFormatFlags.NoWrap
+        };
+
+        float widest = Math.Max(
+            MeasureSplitCompletionTimeRowWidth(graphics, valueFont, deltaFont, firstValue, firstDelta, format),
+            MeasureSplitCompletionTimeRowWidth(graphics, valueFont, deltaFont, secondValue, secondDelta, format));
+        float labelHeight = labelFont.GetHeight(graphics);
+        float valueHeight = valueFont.GetHeight(graphics) + 2f;
+        float rowHeight = labelHeight + valueHeight + 2f;
+        float totalHeight = rowHeight * 2f + Math.Max(3f, valueFont.Size * 0.32f);
+        return widest <= availableWidth && totalHeight <= availableHeight;
+    }
+
+    private static float MeasureSplitCompletionTimeRowWidth(
+        Graphics graphics,
+        Font valueFont,
+        Font deltaFont,
+        string value,
+        string deltaText,
+        StringFormat format)
+    {
+        SizeF valueSize = graphics.MeasureString(value, valueFont, Size.Empty, format);
+        if (string.IsNullOrEmpty(deltaText))
+        {
+            return valueSize.Width;
+        }
+
+        SizeF deltaSize = graphics.MeasureString(deltaText, deltaFont, Size.Empty, format);
+        float gap = Math.Max(6f, valueFont.Size * 0.55f);
+        return valueSize.Width + gap + deltaSize.Width;
     }
 
     private void DrawSplitCompletionTimeRow(
@@ -1109,9 +1275,7 @@ internal sealed class MainForm : Form
             return;
         }
 
-        string deltaText = showComparison && comparison.ShowDelta && comparison.Delta is TimeSpan delta
-            ? TimeText.FormatDelta(delta)
-            : string.Empty;
+        string deltaText = GetSplitCompletionDeltaText(comparison, showComparison);
         bool isAhead = SplitCompletionOutlineStyles.Normalize(outlineStyle) != SplitCompletionOutlineStyles.None &&
             comparison.Delta is TimeSpan aheadDelta &&
             aheadDelta < TimeSpan.Zero;
@@ -1122,7 +1286,7 @@ internal sealed class MainForm : Form
             FormatFlags = StringFormatFlags.NoWrap
         };
 
-        int labelHeight = Math.Max(ScaleInt(12), (int)Math.Ceiling(labelFont.GetHeight(graphics)));
+        int labelHeight = Math.Max(1, (int)Math.Ceiling(labelFont.GetHeight(graphics)));
         var labelRect = new Rectangle(bounds.Left, bounds.Top, bounds.Width, labelHeight);
         using var labelBrush = new SolidBrush(WithOpacity(Color.FromArgb(222, 222, 226), opacity * 0.86f));
         DrawText(
@@ -1137,8 +1301,11 @@ internal sealed class MainForm : Form
         SizeF deltaSize = string.IsNullOrEmpty(deltaText)
             ? SizeF.Empty
             : graphics.MeasureString(deltaText, deltaFont, bounds.Size, format);
-        float gap = string.IsNullOrEmpty(deltaText) ? 0f : ScaleInt(14);
-        float startX = bounds.Left + Math.Max(0f, (bounds.Width - valueSize.Width) / 2f);
+        float gap = string.IsNullOrEmpty(deltaText) ? 0f : Math.Max(6f, valueFont.Size * 0.55f);
+        float totalTextWidth = valueSize.Width + gap + deltaSize.Width;
+        float centeredValueX = bounds.Left + Math.Max(0f, (bounds.Width - valueSize.Width) / 2f);
+        float overflowRight = Math.Max(0f, centeredValueX + totalTextWidth - bounds.Right);
+        float startX = Math.Max(bounds.Left, centeredValueX - overflowRight);
         FontMetrics valueMetrics = GetFontMetrics(graphics, valueFont);
         FontMetrics deltaMetrics = GetFontMetrics(graphics, deltaFont);
         float valueTextHeight = valueMetrics.Ascent + valueMetrics.Descent;
@@ -1819,7 +1986,7 @@ internal sealed class MainForm : Form
             text,
             font.FontFamily,
             (int)font.Style,
-            emSize: font.SizeInPoints * graphics.DpiY / 72f,
+            emSize: GetFontPixelsPerEm(graphics, font),
             origin: new PointF(x, y),
             format: pathFormat);
         return path;
@@ -1970,10 +2137,17 @@ internal sealed class MainForm : Form
         FontFamily family = font.FontFamily;
         FontStyle style = font.Style;
         float emHeight = family.GetEmHeight(style);
-        float pixelsPerEm = font.SizeInPoints * graphics.DpiY / 72f;
+        float pixelsPerEm = GetFontPixelsPerEm(graphics, font);
         float ascent = family.GetCellAscent(style) * pixelsPerEm / emHeight;
         float descent = family.GetCellDescent(style) * pixelsPerEm / emHeight;
         return new FontMetrics(ascent, descent);
+    }
+
+    private static float GetFontPixelsPerEm(Graphics graphics, Font font)
+    {
+        return font.Unit == GraphicsUnit.Pixel
+            ? font.Size
+            : font.SizeInPoints * graphics.DpiY / 72f;
     }
 
     private float GetScaleFactor()
@@ -2005,12 +2179,30 @@ internal sealed class MainForm : Form
         }
 
         IReadOnlyList<BossSplitStatus> statuses = splitTracker.Statuses;
+        if (TryGetCompletedMoonLordStatus(statuses, out BossSplitStatus moonLordStatus, out TimeSpan moonLordTime) &&
+            settings.TryGetReferenceSplit(moonLordStatus.Definition, out TimeSpan moonLordReference))
+        {
+            return moonLordTime < moonLordReference
+                ? palette.TimerRecordText
+                : palette.TimerNoRecordText;
+        }
+
         if (statuses.Count > 0 && statuses[^1].Time is TimeSpan finalTime)
         {
             if (settings.TryGetReferenceSplit(statuses[^1].Definition, out TimeSpan finalReference) &&
                 finalTime < finalReference)
             {
                 return palette.TimerRecordText;
+            }
+
+            if (settings.TryGetReferenceSplit(statuses[^1].Definition, out finalReference) &&
+                settings.EnableTimerGradientColor)
+            {
+                return GetGradientDeltaColor(
+                    finalTime - finalReference,
+                    palette.TimerAheadText,
+                    palette.TimerText,
+                    palette.TimerBehindText);
             }
 
             return runTimer.Phase == SplitTimerPhase.Paused
@@ -2026,18 +2218,60 @@ internal sealed class MainForm : Form
         if (splitTracker.CurrentIndex < statuses.Count &&
             settings.TryGetReferenceSplit(statuses[splitTracker.CurrentIndex].Definition, out TimeSpan currentReference))
         {
+            if (settings.EnableTimerGradientColor)
+            {
+                return GetGradientDeltaColor(
+                    runTimer.Elapsed - currentReference,
+                    palette.TimerAheadText,
+                    palette.TimerText,
+                    palette.TimerBehindText);
+            }
+
             return runTimer.Elapsed <= currentReference ? palette.TimerAheadText : palette.TimerBehindText;
         }
 
         return palette.TimerText;
     }
 
-    private static Color GetDeltaComparisonColor(SplitComparison comparison, UiPalette palette)
+    private static bool TryGetCompletedMoonLordStatus(
+        IReadOnlyList<BossSplitStatus> statuses,
+        out BossSplitStatus moonLordStatus,
+        out TimeSpan moonLordTime)
+    {
+        BossSplitStatus? match = statuses.FirstOrDefault(status =>
+            !status.IsSkipped &&
+            status.Time is not null &&
+            status.Definition.BossIds.Any(bossId => string.Equals(
+                bossId,
+                BossSplitDefinitions.MoonLord,
+                StringComparison.OrdinalIgnoreCase)));
+        if (match?.Time is TimeSpan time)
+        {
+            moonLordStatus = match;
+            moonLordTime = time;
+            return true;
+        }
+
+        moonLordStatus = null!;
+        moonLordTime = TimeSpan.Zero;
+        return false;
+    }
+
+    private Color GetDeltaComparisonColor(SplitComparison comparison, UiPalette palette)
     {
         TimeSpan? delta = comparison.Delta;
         if (delta is null)
         {
             return palette.DeltaEvenText;
+        }
+
+        if (settings.EnableDeltaGradientColor)
+        {
+            return GetGradientDeltaColor(
+                delta.Value,
+                palette.DeltaAheadText,
+                palette.DeltaEvenText,
+                palette.DeltaBehindText);
         }
 
         if (delta < TimeSpan.Zero)
@@ -2051,6 +2285,30 @@ internal sealed class MainForm : Form
         }
 
         return palette.DeltaEvenText;
+    }
+
+    private Color GetGradientDeltaColor(TimeSpan delta, Color aheadColor, Color evenColor, Color behindColor)
+    {
+        if (delta == TimeSpan.Zero)
+        {
+            return evenColor;
+        }
+
+        float thresholdSeconds = Math.Max(1, settings.DeltaGradientThresholdSeconds);
+        float magnitude = Math.Min(1f, (float)(Math.Abs(delta.TotalSeconds) / thresholdSeconds));
+        float amount = DeltaGradientCurves.Evaluate(settings.DeltaGradientCurve, magnitude);
+        return delta < TimeSpan.Zero
+            ? BlendColor(evenColor, aheadColor, amount)
+            : BlendColor(evenColor, behindColor, amount);
+    }
+
+    private static Color BlendColor(Color from, Color to, float amount)
+    {
+        float t = Math.Clamp(amount, 0f, 1f);
+        return Color.FromArgb(
+            Lerp(from.R, to.R, t),
+            Lerp(from.G, to.G, t),
+            Lerp(from.B, to.B, t));
     }
 
     private static bool CanReset(TerrariaWatchSnapshot snapshot)
@@ -2153,8 +2411,7 @@ internal sealed class MainForm : Form
 
     private Color GetCaptureBackgroundColor()
     {
-        Color color = ColorText.Parse(settings.Colors.CaptureBackground, DefaultCaptureBackgroundColor);
-        return Color.FromArgb(color.R, color.G, color.B);
+        return DefaultCaptureBackgroundColor;
     }
 
     private void OpenStatistics()
@@ -2162,6 +2419,11 @@ internal sealed class MainForm : Form
         using var form = new StatisticsForm(settings);
         form.TopMost = TopMost;
         form.ShowDialog(this);
+    }
+
+    private void FinalizeRunBeforeExit()
+    {
+        ResetRun(recordStats: true);
     }
 
     private void ResetRun(bool recordStats = false)
@@ -2536,6 +2798,7 @@ internal sealed class MainForm : Form
         Color TimerAheadText,
         Color TimerBehindText,
         Color TimerRecordText,
+        Color TimerNoRecordText,
         Color TimerPausedText)
     {
         public static UiPalette From(UiColorSettings settings)
@@ -2551,6 +2814,7 @@ internal sealed class MainForm : Form
                 ColorText.Parse(settings.TimerAheadText, Color.LightGreen),
                 ColorText.Parse(settings.TimerBehindText, Color.LightCoral),
                 ColorText.Parse(settings.TimerRecordText, Color.FromArgb(105, 167, 255)),
+                ColorText.Parse(settings.TimerNoRecordText, Color.Red),
                 ColorText.Parse(settings.TimerPausedText, Color.Gainsboro));
         }
     }

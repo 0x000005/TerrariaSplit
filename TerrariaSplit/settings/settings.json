@@ -1,7 +1,7 @@
 {
   "PauseResumeKey": "F5",
   "ResetKey": "F6",
-  "MouseClickThroughKey": "F10",
+  "MouseClickThroughKey": "F9",
   "Language": "\u4E2D\u6587",
   "AlwaysOnTop": true,
   "PracticeMode": true,
@@ -135,6 +135,10 @@
   "CurrentSplitDepthStrengthPercent": 45,
   "ShowEarlyDeltaTime": true,
   "EarlyDeltaTimeSeconds": 120,
+  "EnableDeltaGradientColor": true,
+  "EnableTimerGradientColor": true,
+  "DeltaGradientThresholdSeconds": 120,
+  "DeltaGradientCurve": "SoftStep",
   "ShowSegmentBestDeltaHighlight": true,
     "SegmentBestDeltaHighlightStyles": {
         "Destroyer\u002BSkeletronPrime\u002BTwins": "Aurora",
@@ -146,7 +150,6 @@
         "Golem": "Aurora"
     },
   "Colors": {
-    "CaptureBackground": "#010203",
     "ReferenceText": "#E2E2E2",
     "ActiveReferenceText": "#FDE679",
     "SplitText": "#F0A040",
@@ -157,6 +160,7 @@
     "TimerAheadText": "#72D572",
     "TimerBehindText": "#F07070",
     "TimerRecordText": "#69A7FF",
+    "TimerNoRecordText": "#FF0000",
     "TimerPausedText": "#5F5F5F"
   },
   "Sounds": {

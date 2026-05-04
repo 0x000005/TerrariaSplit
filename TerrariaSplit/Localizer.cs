@@ -181,6 +181,18 @@ internal static class Localizer
         { "Lunatic Cultist", "拜月教徒" },
         { "Moon Lord", "月亮领主" },
         { "Mechanical Bosses", "机械三王" }
+      , { "Timer no record text", "\u8BA1\u65F6\u672A\u7834\u8BB0\u5F55\u6587\u5B57" }
+      , { "Virtual background", "\u865A\u62DF\u80CC\u666F" }
+      , { "Delta gradient", "\u8BEF\u5DEE\u6E10\u53D8" }
+      , { "Delta time gradient", "\u5DEE\u503C\u65F6\u95F4\u6E10\u53D8" }
+      , { "Enabled (Delta)", "\u542F\u7528\uff08\u5DEE\u503C\uff09" }
+      , { "Enabled (Main timer)", "\u542F\u7528\uff08\u4E3B\u8BA1\u65F6\u5668\uff09" }
+      , { "Threshold time", "\u9608\u503C\u65F6\u95F4" }
+      , { "Gradient mode", "\u6E10\u53D8\u65B9\u5F0F" }
+      , { "Linear", "\u7EBF\u6027" }
+      , { "Smooth", "\u5E73\u6ED1" }
+      , { "Hard step", "\u786C\u7A81\u53D8" }
+      , { "Soft step", "\u67D4\u7A81\u53D8" }
     };
 
     public static string Get(string key, AppSettings settings)

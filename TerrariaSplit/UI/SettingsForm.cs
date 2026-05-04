@@ -37,6 +37,10 @@ internal sealed class SettingsForm : Form
     private readonly TextBox currentSplitDepthStrengthBox = new();
     private readonly CheckBox showEarlyDeltaTimeBox = new();
     private readonly TextBox earlyDeltaTimeSecondsBox = new();
+    private readonly CheckBox enableDeltaGradientColorBox = new();
+    private readonly CheckBox enableTimerGradientColorBox = new();
+    private readonly TextBox deltaGradientThresholdBox = new();
+    private readonly ComboBox deltaGradientCurveBox = new();
     private readonly CheckBox showSegmentBestDeltaHighlightBox = new();
     private readonly CheckBox enableDefeatedBossIconLightingBox = new();
     private readonly TextBox splitCompletionAnimationDurationBox = new();
@@ -58,6 +62,7 @@ internal sealed class SettingsForm : Form
     private readonly Dictionary<string, SegmentBestDeltaHighlightControls> segmentBestDeltaHighlightControls = new(StringComparer.OrdinalIgnoreCase);
     private readonly Panel outlineStylePreview = new();
     private readonly Panel segmentBestDeltaHighlightPreview = new();
+    private readonly Panel deltaGradientPreview = new();
     private readonly System.Windows.Forms.Timer outlineStylePreviewTimer = new();
     private readonly TextBox globalScaleBox = new();
     private readonly TextBox timerOffsetXBox = new();
@@ -912,6 +917,13 @@ internal sealed class SettingsForm : Form
         ConfigureNumberBox(currentSplitDepthStrengthBox, settings.CurrentSplitDepthStrengthPercent, 0, 100);
         ConfigureCheckBox(showEarlyDeltaTimeBox, settings.ShowEarlyDeltaTime);
         ConfigureNumberBox(earlyDeltaTimeSecondsBox, settings.EarlyDeltaTimeSeconds, 0, 3600);
+        ConfigureCheckBox(enableDeltaGradientColorBox, settings.EnableDeltaGradientColor);
+        ConfigureCheckBox(enableTimerGradientColorBox, settings.EnableTimerGradientColor);
+        ConfigureTimeBox(deltaGradientThresholdBox, settings.DeltaGradientThresholdSeconds, 1, 3600);
+        ConfigureDeltaGradientCurveBox();
+        enableDeltaGradientColorBox.CheckedChanged += (_, _) => InvalidateDeltaGradientPreview();
+        enableTimerGradientColorBox.CheckedChanged += (_, _) => InvalidateDeltaGradientPreview();
+        deltaGradientThresholdBox.TextChanged += (_, _) => InvalidateDeltaGradientPreview();
         ConfigureCheckBox(showSplitCompletionAnimationBox, settings.ShowSplitCompletionAnimation);
         ConfigureDecimalBox(splitCompletionAnimationDurationBox, settings.SplitCompletionAnimationDurationSeconds, 1m, 20m);
         ConfigureNumberBox(splitCompletionOutlineThicknessBox, settings.SplitCompletionOutlineThicknessPercent, 0, 100);
@@ -947,6 +959,18 @@ internal sealed class SettingsForm : Form
         AddSettingRow(earlyDeltaGrid, "Show when within seconds", earlyDeltaTimeSecondsBox);
         AddSectionControl(earlyDeltaSection, earlyDeltaGrid);
         AddSection(parent, earlyDeltaSection);
+
+        TableLayoutPanel deltaGradientSection = CreateSection("Delta time gradient");
+        TableLayoutPanel deltaGradientGrid = CreateGrid(
+            ColumnStylePercent(100f),
+            ColumnStyleAbsolute(280f));
+        AddSettingRow(deltaGradientGrid, "Enabled (Delta)", enableDeltaGradientColorBox);
+        AddSettingRow(deltaGradientGrid, "Enabled (Main timer)", enableTimerGradientColorBox);
+        AddSettingRow(deltaGradientGrid, "Threshold time", deltaGradientThresholdBox);
+        AddSettingRow(deltaGradientGrid, "Gradient mode", deltaGradientCurveBox);
+        AddSectionControl(deltaGradientSection, deltaGradientGrid);
+        AddSectionControl(deltaGradientSection, CreateDeltaGradientPreview());
+        AddSection(parent, deltaGradientSection);
 
         TableLayoutPanel section = CreateSection("BOSS defeat animation");
         TableLayoutPanel optionGrid = CreateGrid(
@@ -1165,6 +1189,113 @@ internal sealed class SettingsForm : Form
         UiTheme.EnableDoubleBuffering(segmentBestDeltaHighlightPreview);
         outlineStylePreviewTimer.Tick += (_, _) => segmentBestDeltaHighlightPreview.Invalidate();
         return segmentBestDeltaHighlightPreview;
+    }
+
+    private Control CreateDeltaGradientPreview()
+    {
+        deltaGradientPreview.Dock = DockStyle.Fill;
+        deltaGradientPreview.Height = 56;
+        deltaGradientPreview.BackColor = FieldColor;
+        deltaGradientPreview.Margin = new Padding(0, 10, 0, 2);
+        deltaGradientPreview.Paint += (_, e) => PaintDeltaGradientPreview(e.Graphics, deltaGradientPreview.ClientRectangle);
+        UiTheme.EnableDoubleBuffering(deltaGradientPreview);
+        return deltaGradientPreview;
+    }
+
+    private void PaintDeltaGradientPreview(Graphics graphics, Rectangle bounds)
+    {
+        graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        using var backgroundBrush = new SolidBrush(FieldColor);
+        graphics.FillRectangle(backgroundBrush, bounds);
+        using var borderPen = new Pen(BorderColor);
+        graphics.DrawRectangle(borderPen, 0, 0, Math.Max(0, bounds.Width - 1), Math.Max(0, bounds.Height - 1));
+
+        string curve = GetPreviewDeltaGradientCurve();
+        (Color aheadColor, Color evenColor, Color behindColor, bool enabled) = GetPreviewGradientPalette();
+        Rectangle fillBounds = Rectangle.Inflate(bounds, -1, -1);
+        if (fillBounds.Width <= 0 || fillBounds.Height <= 0)
+        {
+            return;
+        }
+
+        for (int x = 0; x < fillBounds.Width; x++)
+        {
+            float normalized = fillBounds.Width <= 1 ? 0f : x / (float)(fillBounds.Width - 1);
+            float signed = normalized * 2f - 1f;
+            float amount = DeltaGradientCurves.Evaluate(curve, Math.Abs(signed));
+            Color color = signed < 0f
+                ? BlendPreviewColor(evenColor, aheadColor, amount)
+                : BlendPreviewColor(evenColor, behindColor, amount);
+            if (!enabled)
+            {
+                color = BlendPreviewColor(color, FieldColor, 0.45f);
+            }
+
+            using var pen = new Pen(color);
+            graphics.DrawLine(pen, fillBounds.Left + x, fillBounds.Top, fillBounds.Left + x, fillBounds.Bottom);
+        }
+    }
+
+    private Color GetPreviewColor(string key, string fallbackText, Color fallbackColor)
+    {
+        string text = colorTextBoxes.TryGetValue(key, out TextBox? textBox)
+            ? textBox.Text
+            : fallbackText;
+        return ColorText.Parse(text, fallbackColor);
+    }
+
+    private int GetPreviewDeltaGradientThresholdSeconds()
+    {
+        return ParseTimeBox(deltaGradientThresholdBox, settings.DeltaGradientThresholdSeconds, 1, 3600);
+    }
+
+    private string GetPreviewDeltaGradientCurve()
+    {
+        return GetSelectedDeltaGradientCurve(deltaGradientCurveBox);
+    }
+
+    private static Color BlendPreviewColor(Color from, Color to, float amount)
+    {
+        float t = Math.Clamp(amount, 0f, 1f);
+        return Color.FromArgb(
+            (int)MathF.Round(from.R + (to.R - from.R) * t),
+            (int)MathF.Round(from.G + (to.G - from.G) * t),
+            (int)MathF.Round(from.B + (to.B - from.B) * t));
+    }
+
+    private (Color AheadColor, Color EvenColor, Color BehindColor, bool Enabled) GetPreviewGradientPalette()
+    {
+        if (enableDeltaGradientColorBox.Checked)
+        {
+            return (
+                GetPreviewColor(nameof(settings.Colors.DeltaAheadText), settings.Colors.DeltaAheadText, Color.FromArgb(114, 213, 114)),
+                GetPreviewColor(nameof(settings.Colors.DeltaEvenText), settings.Colors.DeltaEvenText, Color.FromArgb(216, 216, 216)),
+                GetPreviewColor(nameof(settings.Colors.DeltaBehindText), settings.Colors.DeltaBehindText, Color.FromArgb(240, 112, 112)),
+                true);
+        }
+
+        if (enableTimerGradientColorBox.Checked)
+        {
+            return (
+                GetPreviewColor(nameof(settings.Colors.TimerAheadText), settings.Colors.TimerAheadText, Color.LightGreen),
+                GetPreviewColor(nameof(settings.Colors.TimerText), settings.Colors.TimerText, Color.FromArgb(242, 242, 242)),
+                GetPreviewColor(nameof(settings.Colors.TimerBehindText), settings.Colors.TimerBehindText, Color.LightCoral),
+                true);
+        }
+
+        return (
+            GetPreviewColor(nameof(settings.Colors.DeltaAheadText), settings.Colors.DeltaAheadText, Color.FromArgb(114, 213, 114)),
+            GetPreviewColor(nameof(settings.Colors.DeltaEvenText), settings.Colors.DeltaEvenText, Color.FromArgb(216, 216, 216)),
+            GetPreviewColor(nameof(settings.Colors.DeltaBehindText), settings.Colors.DeltaBehindText, Color.FromArgb(240, 112, 112)),
+            false);
+    }
+
+    private void InvalidateDeltaGradientPreview()
+    {
+        if (!deltaGradientPreview.IsDisposed)
+        {
+            deltaGradientPreview.Invalidate();
+        }
     }
 
     private void PaintSegmentBestDeltaHighlightPreview(Graphics graphics, Rectangle bounds)
@@ -1414,21 +1545,47 @@ internal sealed class SettingsForm : Form
         comboBox.SelectedIndex = 0;
     }
 
+    private void ConfigureDeltaGradientCurveBox()
+    {
+        deltaGradientCurveBox.Dock = DockStyle.Fill;
+        deltaGradientCurveBox.DropDownStyle = ComboBoxStyle.DropDownList;
+        UiTheme.StyleComboBox(deltaGradientCurveBox);
+        deltaGradientCurveBox.Items.Clear();
+
+        foreach (string curve in DeltaGradientCurves.Ids)
+        {
+            deltaGradientCurveBox.Items.Add(new EffectStyleOption(curve, Localizer.Get(DeltaGradientCurves.GetDisplayName(curve), settings)));
+        }
+
+        SetDeltaGradientCurve(deltaGradientCurveBox, settings.DeltaGradientCurve);
+        deltaGradientCurveBox.SelectedIndexChanged += (_, _) => InvalidateDeltaGradientPreview();
+    }
+
+    private static string GetSelectedDeltaGradientCurve(ComboBox comboBox)
+    {
+        return comboBox.SelectedItem is EffectStyleOption option
+            ? option.Id
+            : DeltaGradientCurves.SoftStep;
+    }
+
+    private static void SetDeltaGradientCurve(ComboBox comboBox, string curve)
+    {
+        string normalized = DeltaGradientCurves.Normalize(curve);
+        for (int i = 0; i < comboBox.Items.Count; i++)
+        {
+            if (comboBox.Items[i] is EffectStyleOption option &&
+                string.Equals(option.Id, normalized, StringComparison.OrdinalIgnoreCase))
+            {
+                comboBox.SelectedIndex = i;
+                return;
+            }
+        }
+
+        comboBox.SelectedIndex = 0;
+    }
+
     internal void AddColorSection(TableLayoutPanel parent)
     {
-        TableLayoutPanel backgroundSection = CreateSection("UI Colors");
-        TableLayoutPanel backgroundGrid = CreateGrid(
-            ColumnStylePercent(100f),
-            ColumnStyleAbsolute(280f),
-            ColumnStyleAbsolute(64f));
-        AddCaptureBackgroundColorRow(
-            backgroundGrid,
-            "Capture background",
-            nameof(settings.Colors.CaptureBackground),
-            settings.Colors.CaptureBackground);
-        AddSectionControl(backgroundSection, backgroundGrid);
-        AddSection(parent, backgroundSection);
-
         TableLayoutPanel section = CreateSection("Text Colors");
         TableLayoutPanel grid = CreateGrid(
             ColumnStylePercent(100f),
@@ -1445,6 +1602,7 @@ internal sealed class SettingsForm : Form
         AddColorRow(grid, "Timer ahead text", nameof(settings.Colors.TimerAheadText), settings.Colors.TimerAheadText);
         AddColorRow(grid, "Timer behind text", nameof(settings.Colors.TimerBehindText), settings.Colors.TimerBehindText);
         AddColorRow(grid, "Timer record text", nameof(settings.Colors.TimerRecordText), settings.Colors.TimerRecordText);
+        AddColorRow(grid, "Timer no record text", nameof(settings.Colors.TimerNoRecordText), settings.Colors.TimerNoRecordText);
         AddColorRow(grid, "Timer paused text", nameof(settings.Colors.TimerPausedText), settings.Colors.TimerPausedText);
 
         AddSectionControl(section, grid);
@@ -1570,21 +1728,11 @@ internal sealed class SettingsForm : Form
         colorTextBoxes[key] = textBox;
 
         Button pickButton = CreateColorButton(textBox);
-        textBox.TextChanged += (_, _) => UpdateColorButton(pickButton, textBox.Text);
-
-        int row = AddGridRow(grid);
-        grid.Controls.Add(CreateRowLabel(label), 0, row);
-        grid.Controls.Add(textBox, 1, row);
-        grid.Controls.Add(pickButton, 2, row);
-    }
-
-    private void AddCaptureBackgroundColorRow(TableLayoutPanel grid, string label, string key, string value)
-    {
-        TextBox textBox = CreateTextBox(value);
-        colorTextBoxes[key] = textBox;
-
-        Button pickButton = CreateColorButton(textBox);
-        textBox.TextChanged += (_, _) => UpdateColorButton(pickButton, textBox.Text);
+        textBox.TextChanged += (_, _) =>
+        {
+            UpdateColorButton(pickButton, textBox.Text);
+            InvalidateDeltaGradientPreview();
+        };
 
         int row = AddGridRow(grid);
         grid.Controls.Add(CreateRowLabel(label), 0, row);
@@ -1757,6 +1905,14 @@ internal sealed class SettingsForm : Form
         UiTheme.StyleTextBox(textBox);
         textBox.Dock = DockStyle.Fill;
         textBox.Text = Math.Clamp(selected, minimum, maximum).ToString(CultureInfo.InvariantCulture);
+    }
+
+    private static void ConfigureTimeBox(TextBox textBox, int selectedSeconds, int minimumSeconds, int maximumSeconds)
+    {
+        UiTheme.StyleTextBox(textBox);
+        textBox.Dock = DockStyle.Fill;
+        textBox.Text = TimeText.FormatSplit(TimeSpan.FromSeconds(Math.Clamp(selectedSeconds, minimumSeconds, maximumSeconds)));
+        textBox.PlaceholderText = "m:ss or h:mm:ss";
     }
 
     private static TextBox CreateNumberBox(int value, int minimum, int maximum)
@@ -2129,6 +2285,10 @@ internal sealed class SettingsForm : Form
         settings.CurrentSplitDepthStrengthPercent = ParseIntBox(currentSplitDepthStrengthBox, 45, 0, 100);
         settings.ShowEarlyDeltaTime = showEarlyDeltaTimeBox.Checked;
         settings.EarlyDeltaTimeSeconds = ParseIntBox(earlyDeltaTimeSecondsBox, 60, 0, 3600);
+        settings.EnableDeltaGradientColor = enableDeltaGradientColorBox.Checked;
+        settings.EnableTimerGradientColor = enableTimerGradientColorBox.Checked;
+        settings.DeltaGradientThresholdSeconds = ParseTimeBox(deltaGradientThresholdBox, 120, 1, 3600);
+        settings.DeltaGradientCurve = GetSelectedDeltaGradientCurve(deltaGradientCurveBox);
         settings.ShowSegmentBestDeltaHighlight = showSegmentBestDeltaHighlightBox.Checked;
         settings.EnableDefeatedBossIconLighting = enableDefeatedBossIconLightingBox.Checked;
         settings.SplitCompletionAnimationDurationSeconds = ParseFloatBox(splitCompletionAnimationDurationBox, 4.2f, 1f, 20f);
@@ -2170,7 +2330,6 @@ internal sealed class SettingsForm : Form
         settings.CurrentBossIconGrayscaleWeakenPercent = ParseIntBox(currentBossIconGrayscaleWeakenBox, 40, 0, 100);
         settings.CurrentBossIconBrightnessBoostPercent = ParseIntBox(currentBossIconBrightnessBoostBox, 35, 0, 100);
 
-        SetCaptureBackgroundColor();
         SetColor(nameof(settings.Colors.ReferenceText), value => settings.Colors.ReferenceText = value);
         SetColor(nameof(settings.Colors.ActiveReferenceText), value => settings.Colors.ActiveReferenceText = value);
         SetColor(nameof(settings.Colors.SplitText), value => settings.Colors.SplitText = value);
@@ -2181,6 +2340,7 @@ internal sealed class SettingsForm : Form
         SetColor(nameof(settings.Colors.TimerAheadText), value => settings.Colors.TimerAheadText = value);
         SetColor(nameof(settings.Colors.TimerBehindText), value => settings.Colors.TimerBehindText = value);
         SetColor(nameof(settings.Colors.TimerRecordText), value => settings.Colors.TimerRecordText = value);
+        SetColor(nameof(settings.Colors.TimerNoRecordText), value => settings.Colors.TimerNoRecordText = value);
         SetColor(nameof(settings.Colors.TimerPausedText), value => settings.Colors.TimerPausedText = value);
 
         SetSound(nameof(settings.Sounds.Pause), value => settings.Sounds.Pause = value);
@@ -2255,17 +2415,6 @@ internal sealed class SettingsForm : Form
         settings.Route = route;
     }
 
-    private void SetCaptureBackgroundColor()
-    {
-        if (!colorTextBoxes.TryGetValue(nameof(settings.Colors.CaptureBackground), out TextBox? textBox))
-        {
-            return;
-        }
-
-        Color color = ColorText.Parse(textBox.Text.Trim(), Color.FromArgb(1, 2, 3));
-        settings.Colors.CaptureBackground = ColorText.Format(Color.FromArgb(color.R, color.G, color.B));
-    }
-
     private IReadOnlyList<BossRouteEntry> GetRouteOrderedEntries()
     {
         return settings.Route
@@ -2322,6 +2471,13 @@ internal sealed class SettingsForm : Form
         return int.TryParse(textBox.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int value)
             ? Math.Clamp(value, minimum, maximum)
             : fallback;
+    }
+
+    private static int ParseTimeBox(TextBox textBox, int fallbackSeconds, int minimumSeconds, int maximumSeconds)
+    {
+        return TimeText.TryParse(textBox.Text, out TimeSpan value)
+            ? Math.Clamp((int)Math.Round(value.TotalSeconds), minimumSeconds, maximumSeconds)
+            : fallbackSeconds;
     }
 
     private static float ParseFloatBox(TextBox textBox, float fallback, float minimum, float maximum)
