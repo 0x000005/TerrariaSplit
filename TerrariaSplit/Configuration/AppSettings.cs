@@ -8,6 +8,7 @@ internal sealed class AppSettings
     public string PauseResumeKey { get; set; } = Keys.R.ToString();
     public string ResetKey { get; set; } = Keys.T.ToString();
     public string MouseClickThroughKey { get; set; } = Keys.I.ToString();
+    public bool ShowMouseClickThroughIndicator { get; set; }
     public string Language { get; set; } = "English";
     public bool AlwaysOnTop { get; set; }
     public bool PracticeMode { get; set; } = true;

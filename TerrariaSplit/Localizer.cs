@@ -182,6 +182,9 @@ internal static class Localizer
         { "Mechanical Bosses", "机械三王" }
       , { "Timer no record text", "\u8BA1\u65F6\u672A\u7834\u8BB0\u5F55\u6587\u5B57" }
       , { "Virtual background", "\u865A\u62DF\u80CC\u666F" }
+      , { "Common", "\u901A\u7528" }
+      , { "Mouse passthrough indicator", "\u7A7F\u900F\u6307\u793A" }
+      , { "Special Options", "\u7279\u6B8A\u9009\u9879" }
       , { "Delta gradient", "\u8BEF\u5DEE\u6E10\u53D8" }
       , { "Delta time gradient", "\u5DEE\u503C\u65F6\u95F4\u6E10\u53D8" }
       , { "Dynamic delta time units", "\u5DEE\u503C\u65F6\u95F4\u5355\u4F4D\u52A8\u6001\u8C03\u6574" }

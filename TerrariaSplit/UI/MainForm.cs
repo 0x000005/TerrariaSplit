@@ -12,10 +12,16 @@ internal sealed class MainForm : Form
     private static readonly Color DefaultCaptureBackgroundColor = Color.FromArgb(1, 2, 3);
     private static readonly TimeSpan SplitCompletionFadeDuration = TimeSpan.FromSeconds(0.45);
     private static readonly TimeSpan ResetMenuGraceDuration = TimeSpan.FromSeconds(0.5);
+    private static readonly TimeSpan SplitCompletionDeltaIntroGap = TimeSpan.FromSeconds(0.06);
     private const int ResizeBorder = 8;
     private const int RowGap = 9;
     private const float SplitCompletionLabelFontRatio = 0.58f;
     private const float SplitCompletionDeltaFontRatio = 0.85f;
+    private const float SplitCompletionDeltaOutroLeadRatio = 0.55f;
+    private const float SplitCompletionDeltaIntroDurationRatio = 0.85f;
+    private const float SplitCompletionDeltaSlideDistanceRatio = 0.75f;
+    private const float SplitCompletionDeltaMinSlideDistance = 10f;
+    private const float SplitCompletionDeltaMaxSlideDistance = 28f;
 
     private readonly SplitTimer runTimer = new();
     private readonly BossSplitTracker splitTracker = new();
@@ -862,11 +868,29 @@ internal sealed class MainForm : Form
 
     private void DrawTimer(Graphics graphics, Rectangle rect, UiPalette palette)
     {
+        if (!settings.Columns.Timer.Show && !settings.Columns.TimerMilliseconds.Show)
+        {
+            return;
+        }
+
+        Rectangle timeRect = GetTimerTextBounds(rect);
+        using var timerTextBrush = new SolidBrush(GetTimerTextColor(palette));
+        TimerTextLayout timerTextLayout = DrawTimerText(graphics, runTimer.Elapsed, timerTextBrush, timeRect);
+        if (settings.ShowMouseClickThroughIndicator && !mouseClickThrough)
+        {
+            DrawMouseClickThroughIndicator(graphics, timeRect, timerTextLayout);
+        }
+    }
+
+    private Rectangle GetTimerTextBounds(Rectangle rect)
+    {
         int offsetX = ScaleInt(settings.Columns.TimerOffsetX);
         int offsetY = ScaleInt(settings.Columns.TimerOffsetY);
-        var timeRect = new Rectangle(rect.X + ScaleInt(4) + offsetX, rect.Y - ScaleInt(4) + offsetY, rect.Width - ScaleInt(8), rect.Height - ScaleInt(16));
-        using var timerTextBrush = new SolidBrush(GetTimerTextColor(palette));
-        DrawTimerText(graphics, runTimer.Elapsed, timerTextBrush, timeRect, GetTimerMainRightEdge() + offsetX);
+        return new Rectangle(
+            rect.X + ScaleInt(4) + offsetX,
+            rect.Y - ScaleInt(4) + offsetY,
+            rect.Width - ScaleInt(8),
+            rect.Height - ScaleInt(16));
     }
 
     private void StartSplitCompletionAnimation(int completedIndex)
@@ -964,7 +988,7 @@ internal sealed class MainForm : Form
 
     private TimeSpan GetSplitCompletionAnimationDuration()
     {
-        return TimeSpan.FromSeconds(Math.Clamp(settings.SplitCompletionAnimationDurationSeconds, 1f, 20f));
+        return TimeSpan.FromSeconds(Math.Clamp(settings.SplitCompletionAnimationDurationSeconds, 2f, 20f));
     }
 
     private static TimeSpan GetSplitCompletionFadeDuration(TimeSpan duration)
@@ -977,6 +1001,63 @@ internal sealed class MainForm : Form
     {
         float t = Math.Clamp(value, 0f, 1f);
         return t * t * (3f - 2f * t);
+    }
+
+    private static float GetSplitCompletionDeltaSlideDistance(float deltaFontSize)
+    {
+        return Math.Clamp(
+            deltaFontSize * SplitCompletionDeltaSlideDistanceRatio,
+            SplitCompletionDeltaMinSlideDistance,
+            SplitCompletionDeltaMaxSlideDistance);
+    }
+
+    private static SplitCompletionDeltaMotion GetSplitCompletionDeltaMotion(
+        TimeSpan elapsed,
+        TimeSpan duration,
+        float slideDistance)
+    {
+        if (slideDistance <= 0f || duration <= TimeSpan.Zero)
+        {
+            return new SplitCompletionDeltaMotion(0f, 1f);
+        }
+
+        TimeSpan fadeDuration = GetSplitCompletionFadeDuration(duration);
+        if (elapsed < TimeSpan.Zero || elapsed >= duration)
+        {
+            return new SplitCompletionDeltaMotion(slideDistance, 0f);
+        }
+
+        TimeSpan fadeOutStart = duration - fadeDuration;
+        TimeSpan deltaFadeOutStart = fadeOutStart - TimeSpan.FromMilliseconds(
+            fadeDuration.TotalMilliseconds * SplitCompletionDeltaOutroLeadRatio);
+        TimeSpan deltaIntroStart = fadeDuration + SplitCompletionDeltaIntroGap;
+        TimeSpan deltaIntroDuration = TimeSpan.FromMilliseconds(Math.Max(
+            0.24 * 1000d,
+            Math.Min(
+                0.40 * 1000d,
+                fadeDuration.TotalMilliseconds * SplitCompletionDeltaIntroDurationRatio)));
+        TimeSpan deltaIntroEnd = deltaIntroStart + deltaIntroDuration;
+
+        if (elapsed < deltaIntroStart)
+        {
+            return new SplitCompletionDeltaMotion(slideDistance, 0f);
+        }
+
+        if (elapsed < deltaIntroEnd)
+        {
+            float progress = (float)((elapsed - deltaIntroStart).TotalMilliseconds / deltaIntroDuration.TotalMilliseconds);
+            float reveal = EaseInOut(progress);
+            return new SplitCompletionDeltaMotion(slideDistance * (1f - reveal), reveal);
+        }
+
+        if (elapsed > deltaFadeOutStart)
+        {
+            float progress = (float)((elapsed - deltaFadeOutStart).TotalMilliseconds / fadeDuration.TotalMilliseconds);
+            float hide = EaseInOut(progress);
+            return new SplitCompletionDeltaMotion(slideDistance * hide, 1f - hide);
+        }
+
+        return new SplitCompletionDeltaMotion(0f, 1f);
     }
 
     private void DrawSplitCompletionAnimation(
@@ -1000,13 +1081,15 @@ internal sealed class MainForm : Form
             return;
         }
 
-        DrawSplitCompletionIcon(graphics, listBounds, animation, elapsed, opacity);
-        DrawSplitCompletionTimes(graphics, listBounds, animation, elapsed, opacity);
+        float centerX = GetSplitCompletionCenterX(graphics, layout.TimerRect, listBounds);
+        DrawSplitCompletionIcon(graphics, listBounds, centerX, animation, elapsed, opacity);
+        DrawSplitCompletionTimes(graphics, listBounds, centerX, animation, elapsed, opacity);
     }
 
     private void DrawSplitCompletionIcon(
         Graphics graphics,
         Rectangle listBounds,
+        float centerX,
         SplitCompletionAnimation animation,
         TimeSpan elapsed,
         float opacity)
@@ -1017,7 +1100,7 @@ internal sealed class MainForm : Form
             return;
         }
 
-        Rectangle iconRect = GetSplitCompletionIconRect(listBounds);
+        Rectangle iconRect = GetSplitCompletionIconRect(listBounds, centerX);
 
         if (iconFileNames.Count == 1)
         {
@@ -1053,13 +1136,15 @@ internal sealed class MainForm : Form
         }
     }
 
-    private Rectangle GetSplitCompletionIconRect(Rectangle listBounds)
+    private Rectangle GetSplitCompletionIconRect(Rectangle listBounds, float centerX)
     {
         int maxIconSize = Math.Max(1, Math.Min((int)(listBounds.Width * 0.475f), (int)(listBounds.Height * 0.425f)));
         int minIconSize = Math.Min(ScaleInt(90), maxIconSize);
         int iconSize = Math.Clamp(ScaleInt(188), minIconSize, maxIconSize);
+        int iconX = (int)Math.Round(centerX - iconSize / 2f, MidpointRounding.AwayFromZero);
+        iconX = Math.Clamp(iconX, listBounds.Left, listBounds.Right - iconSize);
         return new Rectangle(
-            listBounds.Left + (listBounds.Width - iconSize) / 2,
+            iconX,
             listBounds.Top + Math.Max(0, (int)(listBounds.Height * 0.12f)),
             iconSize,
             iconSize);
@@ -1084,21 +1169,26 @@ internal sealed class MainForm : Form
     private void DrawSplitCompletionTimes(
         Graphics graphics,
         Rectangle listBounds,
+        float centerX,
         SplitCompletionAnimation animation,
         TimeSpan elapsed,
         float opacity)
     {
         UiPalette palette = UiPalette.From(settings.Colors);
 
-        Rectangle iconRect = GetSplitCompletionIconRect(listBounds);
+        Rectangle iconRect = GetSplitCompletionIconRect(listBounds, centerX);
         int sidePadding = Math.Max(ScaleInt(8), (int)Math.Round(listBounds.Width * 0.03f));
         int top = iconRect.Bottom + Math.Max(ScaleInt(6), (int)Math.Round(listBounds.Height * 0.02f));
         int bottom = listBounds.Bottom - ScaleInt(2);
-        var textBounds = new Rectangle(
-            listBounds.Left + sidePadding,
+        float leftLimit = listBounds.Left + sidePadding;
+        float rightLimit = listBounds.Right - sidePadding;
+        float textCenterX = Math.Clamp(centerX, leftLimit, rightLimit);
+        float halfWidth = Math.Max(0f, Math.Min(textCenterX - leftLimit, rightLimit - textCenterX));
+        var textBounds = Rectangle.FromLTRB(
+            (int)Math.Floor(textCenterX - halfWidth),
             Math.Min(top, bottom),
-            Math.Max(0, listBounds.Width - sidePadding * 2),
-            Math.Max(0, bottom - Math.Min(top, bottom)));
+            (int)Math.Ceiling(textCenterX + halfWidth),
+            bottom);
         if (textBounds.Width <= 0 || textBounds.Height <= 0)
         {
             return;
@@ -1119,6 +1209,7 @@ internal sealed class MainForm : Form
             GetScaleFactor());
         float labelSize = valueSize * SplitCompletionLabelFontRatio;
         float deltaSize = valueSize * SplitCompletionDeltaFontRatio;
+        TimeSpan animationDuration = GetSplitCompletionAnimationDuration();
 
         using var labelFont = CreatePixelFont(labelSize, FontStyle.Bold);
         using var valueFont = CreatePixelFont(valueSize, FontStyle.Bold);
@@ -1150,6 +1241,7 @@ internal sealed class MainForm : Form
             deltaFont,
             reservedGap,
             palette,
+            animationDuration,
             elapsed,
             opacity,
             animation.SegmentBestDeltaHighlightStyle);
@@ -1166,9 +1258,48 @@ internal sealed class MainForm : Form
             deltaFont,
             reservedGap,
             palette,
+            animationDuration,
             elapsed,
             opacity,
             SegmentBestDeltaHighlightStyles.None);
+    }
+
+    private float GetSplitCompletionCenterX(Graphics graphics, Rectangle timerRect, Rectangle listBounds)
+    {
+        if (!settings.Columns.Timer.Show && !settings.Columns.TimerMilliseconds.Show)
+        {
+            return listBounds.Left + listBounds.Width / 2f;
+        }
+
+        Rectangle timerTextBounds = GetTimerTextBounds(timerRect);
+        float groupWidth = MeasureTimerTextGroupWidth(graphics, runTimer.Elapsed, timerTextBounds);
+        float centerX = timerTextBounds.Left + groupWidth / 2f;
+        return Math.Clamp(centerX, listBounds.Left, listBounds.Right);
+    }
+
+    private float MeasureTimerTextGroupWidth(Graphics graphics, TimeSpan elapsed, Rectangle bounds)
+    {
+        if (!settings.Columns.Timer.Show && !settings.Columns.TimerMilliseconds.Show)
+        {
+            return bounds.Width;
+        }
+
+        string mainText = SplitTimerFormatter.FormatWithoutMilliseconds(elapsed);
+        string millisecondsText = SplitTimerFormatter.FormatMilliseconds(elapsed);
+        Font mainFont = GetColumnFont(settings.Columns.Timer);
+        Font millisecondsFont = GetColumnFont(settings.Columns.TimerMilliseconds);
+
+        using var format = new StringFormat(StringFormat.GenericTypographic);
+        SizeF millisecondsSize = settings.Columns.TimerMilliseconds.Show
+            ? graphics.MeasureString(millisecondsText, millisecondsFont, bounds.Size, format)
+            : SizeF.Empty;
+        SizeF mainSize = settings.Columns.Timer.Show
+            ? graphics.MeasureString(mainText, mainFont, bounds.Size, format)
+            : SizeF.Empty;
+
+        float gap = settings.Columns.Timer.Show && settings.Columns.TimerMilliseconds.Show ? ScaleInt(2) : 0f;
+        return (settings.Columns.Timer.Show ? mainSize.Width : 0f) + gap +
+            (settings.Columns.TimerMilliseconds.Show ? millisecondsSize.Width : 0f);
     }
 
     private static Font CreatePixelFont(float size, FontStyle style)
@@ -1246,12 +1377,13 @@ internal sealed class MainForm : Form
         float secondValueWidth = graphics.MeasureString(secondValue, valueFont, Size.Empty, format).Width;
         float firstDeltaWidth = MeasureDeltaTextWidth(graphics, deltaFont, firstDelta, format);
         float secondDeltaWidth = MeasureDeltaTextWidth(graphics, deltaFont, secondDelta, format);
+        float slidePadding = GetSplitCompletionDeltaSlideDistance(deltaFont.Size);
         float deltaGap = firstDeltaWidth > 0f || secondDeltaWidth > 0f
             ? Math.Max(6f, valueFont.Size * 0.55f)
             : 0f;
         float requiredHalfWidth = Math.Max(
-            firstValueWidth / 2f + (firstDeltaWidth > 0f ? deltaGap + firstDeltaWidth : 0f),
-            secondValueWidth / 2f + (secondDeltaWidth > 0f ? deltaGap + secondDeltaWidth : 0f));
+            firstValueWidth / 2f + (firstDeltaWidth > 0f ? deltaGap + firstDeltaWidth + slidePadding : 0f),
+            secondValueWidth / 2f + (secondDeltaWidth > 0f ? deltaGap + secondDeltaWidth + slidePadding : 0f));
         float labelHeight = labelFont.GetHeight(graphics);
         float valueHeight = valueFont.GetHeight(graphics) + 2f;
         float rowHeight = labelHeight + valueHeight + 2f;
@@ -1283,6 +1415,7 @@ internal sealed class MainForm : Form
         Font deltaFont,
         float reservedGap,
         UiPalette palette,
+        TimeSpan animationDuration,
         TimeSpan elapsed,
         float opacity,
         string deltaHighlightStyle)
@@ -1356,7 +1489,11 @@ internal sealed class MainForm : Form
                 deltaColor = SegmentBestDeltaHighlightStyles.Apply(deltaColor, deltaHighlightStyle, elapsed.TotalSeconds);
             }
 
-            float deltaX = startX + valueSize.Width + gap;
+            SplitCompletionDeltaMotion deltaMotion = GetSplitCompletionDeltaMotion(
+                elapsed,
+                animationDuration,
+                GetSplitCompletionDeltaSlideDistance(deltaFont.Size));
+            float deltaX = startX + valueSize.Width + gap + deltaMotion.OffsetX;
             float deltaY = AlignTextPathBottom(graphics, value, valueFont, startX, valueY, deltaText, deltaFont, deltaX, valueY, format);
             DrawString(
                 graphics,
@@ -1366,7 +1503,7 @@ internal sealed class MainForm : Form
                 deltaX,
                 deltaY,
                 format,
-                opacity);
+                opacity * deltaMotion.Opacity);
         }
     }
 
@@ -2089,23 +2226,11 @@ internal sealed class MainForm : Form
         return Color.FromArgb(alpha, color.R, color.G, color.B);
     }
 
-    private int GetTimerMainRightEdge()
-    {
-        if (!TryGetLayout(out SplitLayout layout))
-        {
-            return ClientRectangle.Right - 12;
-        }
-
-        Rectangle firstRowRect = layout.GetRowRect(0);
-        ColumnRects columns = GetColumnRects(firstRowRect);
-        return columns.Time?.Right ?? firstRowRect.Right;
-    }
-
-    private void DrawTimerText(Graphics graphics, TimeSpan elapsed, Brush brush, Rectangle bounds, int mainRightEdge)
+    private TimerTextLayout DrawTimerText(Graphics graphics, TimeSpan elapsed, Brush brush, Rectangle bounds)
     {
         if (!settings.Columns.Timer.Show && !settings.Columns.TimerMilliseconds.Show)
         {
-            return;
+            return TimerTextLayout.Empty;
         }
 
         string mainText = SplitTimerFormatter.FormatWithoutMilliseconds(elapsed);
@@ -2144,6 +2269,42 @@ internal sealed class MainForm : Form
         {
             graphics.DrawString(millisecondsText, millisecondsFont, brush, millisecondsX, millisecondsY, format);
         }
+
+        float groupWidth = (settings.Columns.Timer.Show ? mainSize.Width : 0f) + gap +
+            (settings.Columns.TimerMilliseconds.Show ? millisecondsSize.Width : 0f);
+        RectangleF mainVisualBounds = settings.Columns.Timer.Show
+            ? GetTextVisualBounds(graphics, mainText, mainFont, mainX, mainY, format)
+            : RectangleF.Empty;
+        float mainHeight = mainMetrics.Ascent + mainMetrics.Descent;
+        float anchorTop = mainVisualBounds.Height > 0f ? mainVisualBounds.Top : settings.Columns.Timer.Show ? mainY : groupY;
+        float anchorHeight = mainVisualBounds.Height > 0f ? mainVisualBounds.Height : settings.Columns.Timer.Show ? mainHeight : groupHeight;
+        return new TimerTextLayout(mainX + groupWidth, anchorTop, anchorHeight);
+    }
+
+    private static void DrawMouseClickThroughIndicator(Graphics graphics, Rectangle timerBounds, TimerTextLayout timerTextLayout)
+    {
+        if (timerTextLayout.Right <= 0f || timerTextLayout.Height <= 0f)
+        {
+            return;
+        }
+
+        float diameter = Math.Clamp(timerTextLayout.Height * 0.22f, 9f, 13f);
+        float gap = Math.Max(6f, diameter * 0.7f);
+        float x = Math.Min(timerBounds.Right - diameter, timerTextLayout.Right + gap);
+        float y = timerTextLayout.Top;
+        var dotBounds = new RectangleF(x, y, diameter, diameter);
+
+        SmoothingMode previousSmoothingMode = graphics.SmoothingMode;
+        graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        try
+        {
+            using var dotBrush = new SolidBrush(Color.FromArgb(255, 179, 92, 255));
+            graphics.FillEllipse(dotBrush, dotBounds);
+        }
+        finally
+        {
+            graphics.SmoothingMode = previousSmoothingMode;
+        }
     }
 
     private static FontMetrics GetFontMetrics(Graphics graphics, Font font)
@@ -2155,6 +2316,18 @@ internal sealed class MainForm : Form
         float ascent = family.GetCellAscent(style) * pixelsPerEm / emHeight;
         float descent = family.GetCellDescent(style) * pixelsPerEm / emHeight;
         return new FontMetrics(ascent, descent);
+    }
+
+    private static RectangleF GetTextVisualBounds(
+        Graphics graphics,
+        string text,
+        Font font,
+        float x,
+        float y,
+        StringFormat format)
+    {
+        using GraphicsPath path = CreateTextPath(graphics, text, font, x, y, format);
+        return path.PointCount > 0 ? path.GetBounds() : RectangleF.Empty;
     }
 
     private static float GetFontPixelsPerEm(Graphics graphics, Font font)
@@ -2789,6 +2962,13 @@ internal sealed class MainForm : Form
     private readonly record struct FontKey(float Size, bool Bold);
 
     private readonly record struct FontMetrics(float Ascent, float Descent);
+
+    private readonly record struct TimerTextLayout(float Right, float Top, float Height)
+    {
+        public static TimerTextLayout Empty => new(0f, 0f, 0f);
+    }
+
+    private readonly record struct SplitCompletionDeltaMotion(float OffsetX, float Opacity);
 
     private readonly record struct ColumnWidth(SplitColumn Column, int Width);
 

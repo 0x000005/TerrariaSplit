@@ -22,6 +22,7 @@ internal sealed class SettingsForm : Form
     private readonly HotkeyTextBox pauseKeyBox = new();
     private readonly HotkeyTextBox resetKeyBox = new();
     private readonly HotkeyTextBox mouseClickThroughKeyBox = new();
+    private readonly CheckBox showMouseClickThroughIndicatorBox = new();
     private readonly ComboBox languageBox = new();
     private readonly CheckBox alwaysOnTopBox = new();
     private readonly CheckBox practiceModeBox = new();
@@ -523,6 +524,7 @@ internal sealed class SettingsForm : Form
         ConfigureKeyBox(pauseKeyBox, settings.PauseResumeKeys);
         ConfigureKeyBox(resetKeyBox, settings.ResetKeys);
         ConfigureKeyBox(mouseClickThroughKeyBox, settings.MouseClickThroughKeys);
+        ConfigureCheckBox(showMouseClickThroughIndicatorBox, settings.ShowMouseClickThroughIndicator);
 
         UiTheme.StyleComboBox(languageBox);
         languageBox.Dock = DockStyle.Fill;
@@ -534,19 +536,34 @@ internal sealed class SettingsForm : Form
         ConfigureCheckBox(alwaysOnTopBox, settings.AlwaysOnTop);
         ConfigureCheckBox(practiceModeBox, settings.PracticeMode);
 
-        TableLayoutPanel section = CreateSection("General Options");
-        TableLayoutPanel grid = CreateGrid(
+        TableLayoutPanel commonSection = CreateSection("Common");
+        TableLayoutPanel commonGrid = CreateGrid(
             ColumnStylePercent(100f),
             ColumnStyleAbsolute(280f));
-        AddSettingRow(grid, "Language", languageBox);
-        AddSettingRow(grid, "Global scale %", globalScaleBox);
-        AddSettingRow(grid, "Pause / Resume", pauseKeyBox);
-        AddSettingRow(grid, "Reset at Menu", resetKeyBox);
-        AddSettingRow(grid, "Mouse passthrough", mouseClickThroughKeyBox);
-        AddSettingRow(grid, "Always on top", alwaysOnTopBox);
-        AddSettingRow(grid, "Allow manual time editing", practiceModeBox);
-        AddSectionControl(section, grid);
-        AddSection(parent, section);
+        AddSettingRow(commonGrid, "Language", languageBox);
+        AddSettingRow(commonGrid, "Global scale %", globalScaleBox);
+        AddSettingRow(commonGrid, "Always on top", alwaysOnTopBox);
+        AddSectionControl(commonSection, commonGrid);
+        AddSection(parent, commonSection);
+
+        TableLayoutPanel hotkeysSection = CreateSection("Hotkeys");
+        TableLayoutPanel hotkeysGrid = CreateGrid(
+            ColumnStylePercent(100f),
+            ColumnStyleAbsolute(280f));
+        AddSettingRow(hotkeysGrid, "Pause / Resume", pauseKeyBox);
+        AddSettingRow(hotkeysGrid, "Reset at Menu", resetKeyBox);
+        AddSettingRow(hotkeysGrid, "Mouse passthrough", mouseClickThroughKeyBox);
+        AddSettingRow(hotkeysGrid, "Mouse passthrough indicator", showMouseClickThroughIndicatorBox);
+        AddSectionControl(hotkeysSection, hotkeysGrid);
+        AddSection(parent, hotkeysSection);
+
+        TableLayoutPanel specialSection = CreateSection("Special Options");
+        TableLayoutPanel specialGrid = CreateGrid(
+            ColumnStylePercent(100f),
+            ColumnStyleAbsolute(280f));
+        AddSettingRow(specialGrid, "Allow manual time editing", practiceModeBox);
+        AddSectionControl(specialSection, specialGrid);
+        AddSection(parent, specialSection);
     }
 
     internal void AddRouteSection(TableLayoutPanel parent)
@@ -934,7 +951,7 @@ internal sealed class SettingsForm : Form
         enableTimerGradientColorBox.CheckedChanged += (_, _) => InvalidateDeltaGradientPreview();
         deltaGradientThresholdBox.TextChanged += (_, _) => InvalidateDeltaGradientPreview();
         ConfigureCheckBox(showSplitCompletionAnimationBox, settings.ShowSplitCompletionAnimation);
-        ConfigureDecimalBox(splitCompletionAnimationDurationBox, settings.SplitCompletionAnimationDurationSeconds, 1m, 20m);
+        ConfigureDecimalBox(splitCompletionAnimationDurationBox, settings.SplitCompletionAnimationDurationSeconds, 2m, 20m);
         ConfigureNumberBox(splitCompletionOutlineThicknessBox, settings.SplitCompletionOutlineThicknessPercent, 0, 100);
         splitCompletionOutlineThicknessBox.TextChanged += (_, _) => outlineStylePreview.Invalidate();
 
@@ -2298,6 +2315,7 @@ internal sealed class SettingsForm : Form
         settings.PauseResumeKey = pauseKeyBox.Hotkey.ToString();
         settings.ResetKey = resetKeyBox.Hotkey.ToString();
         settings.MouseClickThroughKey = mouseClickThroughKeyBox.Hotkey.ToString();
+        settings.ShowMouseClickThroughIndicator = showMouseClickThroughIndicatorBox.Checked;
         settings.AlwaysOnTop = alwaysOnTopBox.Checked;
         settings.PracticeMode = practiceModeBox.Checked;
         settings.AutoUpdatePersonalBestData = autoUpdatePersonalBestDataBox.Checked;
@@ -2315,7 +2333,7 @@ internal sealed class SettingsForm : Form
         settings.DeltaGradientCurve = GetSelectedDeltaGradientCurve(deltaGradientCurveBox);
         settings.ShowSegmentBestDeltaHighlight = showSegmentBestDeltaHighlightBox.Checked;
         settings.EnableDefeatedBossIconLighting = enableDefeatedBossIconLightingBox.Checked;
-        settings.SplitCompletionAnimationDurationSeconds = ParseFloatBox(splitCompletionAnimationDurationBox, 4.2f, 1f, 20f);
+        settings.SplitCompletionAnimationDurationSeconds = ParseFloatBox(splitCompletionAnimationDurationBox, 4.2f, 2f, 20f);
         settings.SplitCompletionOutlineThicknessPercent = ParseIntBox(splitCompletionOutlineThicknessBox, 30, 0, 100);
         SaveReferenceTextBoxes();
         SavePersonalBestTextBoxes();

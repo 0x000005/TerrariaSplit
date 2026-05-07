@@ -2,6 +2,7 @@
   "PauseResumeKey": "F5",
   "ResetKey": "F6",
   "MouseClickThroughKey": "F9",
+  "ShowMouseClickThroughIndicator": false,
   "Language": "\u4E2D\u6587",
   "AlwaysOnTop": true,
   "PracticeMode": true,
