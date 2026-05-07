@@ -66,22 +66,84 @@ internal static class TimeText
     {
         string sign = delta < TimeSpan.Zero ? "\u2212" : "+";
         TimeSpan value = delta.Duration();
+        return sign + FormatDynamicDeltaBody(value);
+    }
 
-        string body;
-        if (value.TotalSeconds < 10)
+    public static string FormatDelta(TimeSpan delta, bool dynamicUnits)
+    {
+        string sign = delta < TimeSpan.Zero ? "\u2212" : "+";
+        TimeSpan value = delta.Duration();
+        return sign + (dynamicUnits
+            ? FormatDynamicDeltaBody(value)
+            : FormatWholeSecondDeltaBody(value));
+    }
+
+    public static bool IsDeltaDisplayedAsZero(TimeSpan delta, bool dynamicUnits)
+    {
+        TimeSpan value = delta.Duration();
+        if (!dynamicUnits)
         {
-            body = value.TotalSeconds.ToString("0.00", CultureInfo.InvariantCulture);
-        }
-        else if (value.TotalSeconds < 60)
-        {
-            body = value.TotalSeconds.ToString("0.0", CultureInfo.InvariantCulture);
-        }
-        else
-        {
-            int minutes = (int)value.TotalMinutes;
-            body = $"{minutes}:{value.Seconds:00}";
+            return RoundToNearest(value, 1d) == TimeSpan.Zero;
         }
 
-        return sign + body;
+        TimeSpan roundedToSecond = RoundToNearest(value, 1d);
+        if (roundedToSecond.TotalMinutes >= 1d)
+        {
+            return roundedToSecond == TimeSpan.Zero;
+        }
+
+        TimeSpan roundedToTenth = RoundToNearest(value, 0.1d);
+        if (roundedToTenth.TotalSeconds >= 10d)
+        {
+            return roundedToTenth == TimeSpan.Zero;
+        }
+
+        return RoundToNearest(value, 0.01d) == TimeSpan.Zero;
+    }
+
+    private static string FormatDynamicDeltaBody(TimeSpan value)
+    {
+        TimeSpan roundedToSecond = RoundToNearest(value, 1d);
+        int roundedHours = (int)roundedToSecond.TotalHours;
+        if (roundedHours > 0)
+        {
+            return $"{roundedHours}:{roundedToSecond.Minutes:00}:{roundedToSecond.Seconds:00}";
+        }
+
+        int roundedMinutes = (int)roundedToSecond.TotalMinutes;
+        if (roundedMinutes > 0)
+        {
+            return $"{roundedMinutes}:{roundedToSecond.Seconds:00}";
+        }
+
+        TimeSpan roundedToTenth = RoundToNearest(value, 0.1d);
+        if (roundedToTenth.TotalSeconds >= 10d)
+        {
+            return roundedToTenth.TotalSeconds.ToString("00.0", CultureInfo.InvariantCulture);
+        }
+
+        TimeSpan roundedToHundredth = RoundToNearest(value, 0.01d);
+        return roundedToHundredth.TotalSeconds.ToString("0.00", CultureInfo.InvariantCulture);
+    }
+
+    private static string FormatWholeSecondDeltaBody(TimeSpan value)
+    {
+        TimeSpan roundedToSecond = RoundToNearest(value, 1d);
+        int hours = (int)roundedToSecond.TotalHours;
+        if (hours > 0)
+        {
+            return $"{hours}:{roundedToSecond.Minutes:00}:{roundedToSecond.Seconds:00}";
+        }
+
+        int minutes = (int)roundedToSecond.TotalMinutes;
+        return $"{minutes}:{roundedToSecond.Seconds:00}";
+    }
+
+    private static TimeSpan RoundToNearest(TimeSpan value, double secondsStep)
+    {
+        double roundedSeconds = Math.Round(
+            value.TotalSeconds / secondsStep,
+            MidpointRounding.AwayFromZero) * secondsStep;
+        return TimeSpan.FromSeconds(roundedSeconds);
     }
 }

@@ -35,6 +35,7 @@ internal sealed class AppSettings
     public int CurrentSplitDepthStrengthPercent { get; set; } = 45;
     public bool ShowEarlyDeltaTime { get; set; } = true;
     public int EarlyDeltaTimeSeconds { get; set; } = 60;
+    public bool EnableDynamicDeltaTimeUnits { get; set; } = true;
     public bool EnableDeltaGradientColor { get; set; } = true;
     public bool EnableTimerGradientColor { get; set; } = true;
     public int DeltaGradientThresholdSeconds { get; set; } = 120;

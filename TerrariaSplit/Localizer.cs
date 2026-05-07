@@ -184,6 +184,7 @@ internal static class Localizer
       , { "Virtual background", "\u865A\u62DF\u80CC\u666F" }
       , { "Delta gradient", "\u8BEF\u5DEE\u6E10\u53D8" }
       , { "Delta time gradient", "\u5DEE\u503C\u65F6\u95F4\u6E10\u53D8" }
+      , { "Dynamic delta time units", "\u5DEE\u503C\u65F6\u95F4\u5355\u4F4D\u52A8\u6001\u8C03\u6574" }
       , { "Enabled (Delta)", "\u542F\u7528\uff08\u5DEE\u503C\uff09" }
       , { "Enabled (Main timer)", "\u542F\u7528\uff08\u4E3B\u8BA1\u65F6\u5668\uff09" }
       , { "Threshold time", "\u9608\u503C\u65F6\u95F4" }

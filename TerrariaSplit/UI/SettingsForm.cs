@@ -37,6 +37,7 @@ internal sealed class SettingsForm : Form
     private readonly TextBox currentSplitDepthStrengthBox = new();
     private readonly CheckBox showEarlyDeltaTimeBox = new();
     private readonly TextBox earlyDeltaTimeSecondsBox = new();
+    private readonly CheckBox enableDynamicDeltaTimeUnitsBox = new();
     private readonly CheckBox enableDeltaGradientColorBox = new();
     private readonly CheckBox enableTimerGradientColorBox = new();
     private readonly TextBox deltaGradientThresholdBox = new();
@@ -800,6 +801,8 @@ internal sealed class SettingsForm : Form
 
     internal void AddColumnSettingsSection(TableLayoutPanel parent)
     {
+        ConfigureCheckBox(enableDynamicDeltaTimeUnitsBox, settings.EnableDynamicDeltaTimeUnits);
+
         TableLayoutPanel section = CreateSection("Split display");
         TableLayoutPanel grid = CreateGrid(
             ColumnStylePercent(100f),
@@ -813,7 +816,13 @@ internal sealed class SettingsForm : Form
         AddColumnSettingsRow(grid, "Time", "Time", settings.Columns.Time);
         AddColumnSettingsRow(grid, "Delta", "Delta", settings.Columns.Delta);
 
+        TableLayoutPanel optionsGrid = CreateGrid(
+            ColumnStylePercent(100f),
+            ColumnStyleAbsolute(280f));
+        AddSettingRow(optionsGrid, "Dynamic delta time units", enableDynamicDeltaTimeUnitsBox);
+
         AddSectionControl(section, grid);
+        AddSectionControl(section, optionsGrid);
         AddSection(parent, section);
     }
 
@@ -2299,6 +2308,7 @@ internal sealed class SettingsForm : Form
         settings.CurrentSplitDepthStrengthPercent = ParseIntBox(currentSplitDepthStrengthBox, 45, 0, 100);
         settings.ShowEarlyDeltaTime = showEarlyDeltaTimeBox.Checked;
         settings.EarlyDeltaTimeSeconds = ParseIntBox(earlyDeltaTimeSecondsBox, 60, 0, 3600);
+        settings.EnableDynamicDeltaTimeUnits = enableDynamicDeltaTimeUnitsBox.Checked;
         settings.EnableDeltaGradientColor = enableDeltaGradientColorBox.Checked;
         settings.EnableTimerGradientColor = enableTimerGradientColorBox.Checked;
         settings.DeltaGradientThresholdSeconds = ParseTimeBox(deltaGradientThresholdBox, 120, 1, 3600);

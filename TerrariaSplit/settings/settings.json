@@ -135,6 +135,7 @@
   "CurrentSplitDepthStrengthPercent": 45,
   "ShowEarlyDeltaTime": true,
   "EarlyDeltaTimeSeconds": 120,
+  "EnableDynamicDeltaTimeUnits": true,
   "EnableDeltaGradientColor": true,
   "EnableTimerGradientColor": true,
   "DeltaGradientThresholdSeconds": 120,

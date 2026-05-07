@@ -1176,10 +1176,10 @@ internal sealed class MainForm : Form
         return new Font(UiTheme.FontFamilyName, Math.Max(1f, size), style, GraphicsUnit.Pixel);
     }
 
-    private static string GetSplitCompletionDeltaText(SplitComparison comparison, bool showComparison)
+    private string GetSplitCompletionDeltaText(SplitComparison comparison, bool showComparison)
     {
         return showComparison && comparison.ShowDelta && comparison.Delta is TimeSpan delta
-            ? TimeText.FormatDelta(delta)
+            ? TimeText.FormatDelta(delta, settings.EnableDynamicDeltaTimeUnits)
             : string.Empty;
     }
 
@@ -1860,10 +1860,10 @@ internal sealed class MainForm : Form
         return new SplitComparison(runningDelta, showRunningDelta);
     }
 
-    private static string FormatSplitDelta(SplitComparison comparison)
+    private string FormatSplitDelta(SplitComparison comparison)
     {
         return comparison.ShowDelta && comparison.Delta is TimeSpan delta
-            ? TimeText.FormatDelta(delta)
+            ? TimeText.FormatDelta(delta, settings.EnableDynamicDeltaTimeUnits)
             : string.Empty;
     }
 
@@ -2288,7 +2288,7 @@ internal sealed class MainForm : Form
                 palette.DeltaBehindText);
         }
 
-        if (IsDisplayedDeltaZero(delta.Value))
+        if (TimeText.IsDeltaDisplayedAsZero(delta.Value, settings.EnableDynamicDeltaTimeUnits))
         {
             return palette.DeltaBehindText;
         }
@@ -2304,11 +2304,6 @@ internal sealed class MainForm : Form
         }
 
         return palette.DeltaBehindText;
-    }
-
-    private static bool IsDisplayedDeltaZero(TimeSpan delta)
-    {
-        return delta >= TimeSpan.Zero && delta.TotalSeconds < 0.005;
     }
 
     private Color GetGradientDeltaColor(TimeSpan delta, Color aheadColor, Color baseColor, Color behindColor)
