@@ -13,4 +13,7 @@ internal sealed class UiColorSettings
     public string TimerRecordText { get; set; } = "#69A7FF";
     public string TimerNoRecordText { get; set; } = "#FF0000";
     public string TimerPausedText { get; set; } = "#D8D8D8";
+    public string AutoCreateCreatingText { get; set; } = "#69A7FF";
+    public string AutoCreateFailedText { get; set; } = "#F07070";
+    public string AutoCreateCreatedText { get; set; } = "#72D572";
 }

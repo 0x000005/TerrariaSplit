@@ -26,6 +26,7 @@ internal sealed class MainForm : Form
     private readonly SplitTimer runTimer = new();
     private readonly BossSplitTracker splitTracker = new();
     private readonly TerrariaWorldWatcher watcher = new();
+    private readonly TerrariaCreateWorldAutomation createWorldAutomation = new();
     private readonly System.Windows.Forms.Timer uiTimer = new();
     private readonly Dictionary<string, IconPair> iconCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<FontKey, Font> fontCache = new();
@@ -41,7 +42,7 @@ internal sealed class MainForm : Form
     private bool runStatsRecorded;
     private bool closeFinalizationPending;
     private bool closeFinalizationComplete;
-    private DateTime? pendingMenuResetUntilUtc;
+    private PendingMenuHotkeyAction? pendingMenuHotkeyAction;
 
     private AppSettings settings = AppSettingsStore.Load();
     private TerrariaWatchSnapshot snapshot =
@@ -121,6 +122,7 @@ internal sealed class MainForm : Form
     {
         uiTimer.Stop();
         watcher.Dispose();
+        createWorldAutomation.Dispose();
 
         foreach (IconPair iconPair in iconCache.Values)
         {
@@ -338,18 +340,37 @@ internal sealed class MainForm : Form
                 return;
             }
 
-            pendingMenuResetUntilUtc = DateTime.UtcNow + ResetMenuGraceDuration;
+            QueuePendingMenuHotkeyAction(MenuHotkeyActionKind.Reset);
         }
 
-        if (TryConsumePendingMenuReset())
+        if (TryConsumePendingMenuHotkeyAction(out MenuHotkeyActionKind pendingAction))
         {
-            ExecuteReset();
+            if (pendingAction == MenuHotkeyActionKind.Reset)
+            {
+                ExecuteReset();
+            }
+            else
+            {
+                StartCreateWorldAutomation();
+            }
+
             return;
         }
 
         if (Keyboard.PollPressed(settings.MouseClickThroughKeys))
         {
             SetMouseClickThrough(!mouseClickThrough);
+        }
+
+        if (Keyboard.PollPressed(settings.CreateWorldKeys))
+        {
+            if (CanStartCreateWorldAutomation())
+            {
+                StartCreateWorldAutomation();
+                return;
+            }
+
+            QueuePendingMenuHotkeyAction(MenuHotkeyActionKind.CreateWorld);
         }
 
         if (snapshot.EnteredWorld && runTimer.Phase == SplitTimerPhase.NotStarted)
@@ -874,6 +895,18 @@ internal sealed class MainForm : Form
         }
 
         Rectangle timeRect = GetTimerTextBounds(rect);
+        if (TryGetAutoCreateStatusDisplay(palette, out string statusText, out Color statusColor))
+        {
+            using var statusBrush = new SolidBrush(statusColor);
+            TimerTextLayout statusTextLayout = DrawTimerStatusText(graphics, statusText, statusBrush, timeRect);
+            if (settings.ShowMouseClickThroughIndicator && !mouseClickThrough)
+            {
+                DrawMouseClickThroughIndicator(graphics, timeRect, statusTextLayout);
+            }
+
+            return;
+        }
+
         using var timerTextBrush = new SolidBrush(GetTimerTextColor(palette));
         TimerTextLayout timerTextLayout = DrawTimerText(graphics, runTimer.Elapsed, timerTextBrush, timeRect);
         if (settings.ShowMouseClickThroughIndicator && !mouseClickThrough)
@@ -2281,6 +2314,27 @@ internal sealed class MainForm : Form
         return new TimerTextLayout(mainX + groupWidth, anchorTop, anchorHeight);
     }
 
+    private TimerTextLayout DrawTimerStatusText(Graphics graphics, string text, Brush brush, Rectangle bounds)
+    {
+        Font font = settings.Columns.Timer.Show
+            ? GetColumnFont(settings.Columns.Timer, sizeScale: 2f / 3f)
+            : GetColumnFont(settings.Columns.TimerMilliseconds, sizeScale: 2f / 3f);
+
+        using var format = new StringFormat(StringFormat.GenericTypographic);
+        SizeF textSize = graphics.MeasureString(text, font, bounds.Size, format);
+        FontMetrics metrics = GetFontMetrics(graphics, font);
+        float textHeight = metrics.Ascent + metrics.Descent;
+        float textY = bounds.Y + Math.Max(0f, (bounds.Height - textHeight) / 2f);
+        float textX = bounds.Left;
+
+        graphics.DrawString(text, font, brush, textX, textY, format);
+
+        RectangleF visualBounds = GetTextVisualBounds(graphics, text, font, textX, textY, format);
+        float anchorTop = visualBounds.Height > 0f ? visualBounds.Top : textY;
+        float anchorHeight = visualBounds.Height > 0f ? visualBounds.Height : textHeight;
+        return new TimerTextLayout(textX + textSize.Width, anchorTop, anchorHeight);
+    }
+
     private static void DrawMouseClickThroughIndicator(Graphics graphics, Rectangle timerBounds, TimerTextLayout timerTextLayout)
     {
         if (timerTextLayout.Right <= 0f || timerTextLayout.Height <= 0f)
@@ -2356,6 +2410,36 @@ internal sealed class MainForm : Form
         }
 
         return scaled;
+    }
+
+    private bool TryGetAutoCreateStatusDisplay(UiPalette palette, out string text, out Color color)
+    {
+        if (!createWorldAutomation.TryGetDisplayStatus(out AutoCreateWorldDisplayState status))
+        {
+            text = string.Empty;
+            color = Color.Empty;
+            return false;
+        }
+
+        switch (status)
+        {
+            case AutoCreateWorldDisplayState.Creating:
+                text = "CREATING...";
+                color = palette.AutoCreateCreatingText;
+                return true;
+            case AutoCreateWorldDisplayState.Failed:
+                text = "FAILED";
+                color = palette.AutoCreateFailedText;
+                return true;
+            case AutoCreateWorldDisplayState.Created:
+                text = "CREATED";
+                color = palette.AutoCreateCreatedText;
+                return true;
+            default:
+                text = string.Empty;
+                color = Color.Empty;
+                return false;
+        }
     }
 
     private Color GetTimerTextColor(UiPalette palette)
@@ -2508,31 +2592,51 @@ internal sealed class MainForm : Form
         return snapshot.IsGameMenu != false;
     }
 
-    private bool TryConsumePendingMenuReset()
+    private void QueuePendingMenuHotkeyAction(MenuHotkeyActionKind kind)
     {
-        if (pendingMenuResetUntilUtc is not DateTime deadline)
+        pendingMenuHotkeyAction = new PendingMenuHotkeyAction(kind, DateTime.UtcNow + ResetMenuGraceDuration);
+    }
+
+    private bool TryConsumePendingMenuHotkeyAction(out MenuHotkeyActionKind kind)
+    {
+        if (pendingMenuHotkeyAction is not PendingMenuHotkeyAction pendingAction)
         {
+            kind = default;
             return false;
         }
 
+        DateTime deadline = pendingAction.DeadlineUtc;
         if (DateTime.UtcNow > deadline)
         {
-            pendingMenuResetUntilUtc = null;
+            pendingMenuHotkeyAction = null;
+            kind = default;
             return false;
         }
 
-        if (snapshot.IsGameMenu != true)
+        if (!CanExecutePendingMenuHotkeyAction(pendingAction.Kind))
         {
+            kind = default;
             return false;
         }
 
-        pendingMenuResetUntilUtc = null;
+        pendingMenuHotkeyAction = null;
+        kind = pendingAction.Kind;
         return true;
+    }
+
+    private bool CanExecutePendingMenuHotkeyAction(MenuHotkeyActionKind kind)
+    {
+        return kind switch
+        {
+            MenuHotkeyActionKind.Reset => snapshot.IsGameMenu == true,
+            MenuHotkeyActionKind.CreateWorld => CanStartCreateWorldAutomation(),
+            _ => false
+        };
     }
 
     private void ExecuteReset()
     {
-        pendingMenuResetUntilUtc = null;
+        pendingMenuHotkeyAction = null;
         PlaySound(settings.Sounds.Reset);
         ResetRun(recordStats: true);
     }
@@ -2658,7 +2762,7 @@ internal sealed class MainForm : Form
         runTimer.Reset();
         splitTracker.Reset();
         splitCompletionAnimation = null;
-        pendingMenuResetUntilUtc = null;
+        pendingMenuHotkeyAction = null;
         segmentBestDeltaHighlights.Clear();
         pendingSegmentBestUpdates.Clear();
         pendingTimeBestUpdate = null;
@@ -2683,6 +2787,38 @@ internal sealed class MainForm : Form
         UpdateMouseClickThroughStyle();
         Text = $"TerrariaSplit - {FormatTimerPhase()} - {FormatWorldState()}";
     }
+
+    private async void StartCreateWorldAutomation()
+    {
+        if (!CanStartCreateWorldAutomation())
+        {
+            return;
+        }
+
+        ResetRun(recordStats: true);
+
+        try
+        {
+            await createWorldAutomation.RunAsync(AppSettingsStore.Clone(settings));
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error(ex, "Unhandled create world automation error.");
+        }
+    }
+
+    private bool CanStartCreateWorldAutomation()
+    {
+        return snapshot.IsGameMenu == true && createWorldAutomation.IsAtMainMenu();
+    }
+
+    private enum MenuHotkeyActionKind
+    {
+        Reset,
+        CreateWorld
+    }
+
+    private readonly record struct PendingMenuHotkeyAction(MenuHotkeyActionKind Kind, DateTime DeadlineUtc);
 
     private void UpdateMouseClickThroughStyle()
     {
@@ -3027,7 +3163,10 @@ internal sealed class MainForm : Form
         Color TimerBehindText,
         Color TimerRecordText,
         Color TimerNoRecordText,
-        Color TimerPausedText)
+        Color TimerPausedText,
+        Color AutoCreateCreatingText,
+        Color AutoCreateFailedText,
+        Color AutoCreateCreatedText)
     {
         public static UiPalette From(UiColorSettings settings)
         {
@@ -3042,7 +3181,10 @@ internal sealed class MainForm : Form
                 ColorText.Parse(settings.TimerBehindText, Color.LightCoral),
                 ColorText.Parse(settings.TimerRecordText, Color.FromArgb(105, 167, 255)),
                 ColorText.Parse(settings.TimerNoRecordText, Color.Red),
-                ColorText.Parse(settings.TimerPausedText, Color.Gainsboro));
+                ColorText.Parse(settings.TimerPausedText, Color.Gainsboro),
+                ColorText.Parse(settings.AutoCreateCreatingText, Color.FromArgb(105, 167, 255)),
+                ColorText.Parse(settings.AutoCreateFailedText, Color.FromArgb(240, 112, 112)),
+                ColorText.Parse(settings.AutoCreateCreatedText, Color.FromArgb(114, 213, 114)));
         }
     }
 }

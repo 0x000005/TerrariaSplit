@@ -6,6 +6,23 @@ internal static class AppLogger
 
     public static string LogPath => Path.Combine(AppContext.BaseDirectory, "terrariasplit.log");
 
+    public static void Info(string message)
+    {
+        try
+        {
+            lock (Lock)
+            {
+                File.AppendAllText(
+                    LogPath,
+                    $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] INFO {message}{Environment.NewLine}");
+            }
+        }
+        catch
+        {
+            // Logging must not break the timer UI or storage paths.
+        }
+    }
+
     public static void Error(Exception exception, string message)
     {
         try

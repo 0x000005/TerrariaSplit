@@ -2,6 +2,7 @@
   "PauseResumeKey": "F5",
   "ResetKey": "F6",
   "MouseClickThroughKey": "F9",
+  "CreateWorldKey": "F7",
   "ShowMouseClickThroughIndicator": false,
   "Language": "\u4E2D\u6587",
   "AlwaysOnTop": true,
@@ -162,7 +163,10 @@
     "TimerBehindText": "#F07070",
     "TimerRecordText": "#69A7FF",
     "TimerNoRecordText": "#FF0000",
-    "TimerPausedText": "#5F5F5F"
+    "TimerPausedText": "#5F5F5F",
+    "AutoCreateCreatingText": "#69A7FF",
+    "AutoCreateFailedText": "#F07070",
+    "AutoCreateCreatedText": "#72D572"
   },
   "Sounds": {
     "Pause": "",
@@ -206,6 +210,17 @@
     },
     "TimerOffsetX": 165,
     "TimerOffsetY": 0
+  },
+  "AutoCreate": {
+    "PlayerName": "",
+    "PlayerTemplateCode": "",
+    "PlayerDifficulty": "Softcore",
+    "WorldSize": "Medium",
+    "WorldDifficulty": "Classic",
+    "WorldEvil": "Random",
+    "ShortActionDelayMilliseconds": 10,
+    "MenuActionDelayMilliseconds": 80,
+    "InputPressDurationMilliseconds": 150
   },
   "EnableDefeatedBossIconLighting": true,
   "UndefeatedIconGrayscalePercent": 80,

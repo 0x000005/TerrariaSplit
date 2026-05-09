@@ -32,6 +32,18 @@ internal sealed class ProcessMemoryReader
         return true;
     }
 
+    public bool TryReadInt32(IntPtr address, out int value)
+    {
+        value = 0;
+        if (!TryReadBytes(address, 4, out byte[]? bytes))
+        {
+            return false;
+        }
+
+        value = BitConverter.ToInt32(bytes, 0);
+        return true;
+    }
+
     public bool TryReadPointer(IntPtr address, out IntPtr value)
     {
         value = IntPtr.Zero;

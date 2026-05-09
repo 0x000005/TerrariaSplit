@@ -8,6 +8,7 @@ internal sealed class AppSettings
     public string PauseResumeKey { get; set; } = Keys.R.ToString();
     public string ResetKey { get; set; } = Keys.T.ToString();
     public string MouseClickThroughKey { get; set; } = Keys.I.ToString();
+    public string CreateWorldKey { get; set; } = Keys.F7.ToString();
     public bool ShowMouseClickThroughIndicator { get; set; }
     public string Language { get; set; } = "English";
     public bool AlwaysOnTop { get; set; }
@@ -46,6 +47,7 @@ internal sealed class AppSettings
     public UiColorSettings Colors { get; set; } = new();
     public UiSoundSettings Sounds { get; set; } = new();
     public UiColumnLayoutSettings Columns { get; set; } = new();
+    public AutoCreateWorldSettings AutoCreate { get; set; } = new();
     public bool EnableDefeatedBossIconLighting { get; set; } = true;
     public int UndefeatedIconGrayscalePercent { get; set; } = 80;
     public int UndefeatedIconBrightnessPercent { get; set; } = 40;
@@ -60,6 +62,9 @@ internal sealed class AppSettings
 
     [JsonIgnore]
     public Keys MouseClickThroughKeys => ParseKey(MouseClickThroughKey, Keys.I);
+
+    [JsonIgnore]
+    public Keys CreateWorldKeys => ParseKey(CreateWorldKey, Keys.F7);
 
     public bool TryGetReferenceSplit(BossSplitDefinition definition, out TimeSpan split)
     {
@@ -249,5 +254,86 @@ internal sealed class AppSettings
         }
 
         return set;
+    }
+}
+
+internal sealed class AutoCreateWorldSettings
+{
+    public const int DefaultShortActionDelayMilliseconds = 10;
+    public const int DefaultMenuActionDelayMilliseconds = 80;
+    public const int DefaultInputPressDurationMilliseconds = 150;
+
+    public string PlayerName { get; set; } = string.Empty;
+    public string PlayerTemplateCode { get; set; } = string.Empty;
+    public string PlayerDifficulty { get; set; } = AutoCreatePlayerDifficulty.Softcore;
+    public string WorldSize { get; set; } = AutoCreateWorldSize.Medium;
+    public string WorldDifficulty { get; set; } = AutoCreateWorldDifficulty.Classic;
+    public string WorldEvil { get; set; } = AutoCreateWorldEvil.Random;
+    public int ShortActionDelayMilliseconds { get; set; } = DefaultShortActionDelayMilliseconds;
+    public int MenuActionDelayMilliseconds { get; set; } = DefaultMenuActionDelayMilliseconds;
+    public int InputPressDurationMilliseconds { get; set; } = DefaultInputPressDurationMilliseconds;
+}
+
+internal static class AutoCreatePlayerDifficulty
+{
+    public const string Softcore = "Softcore";
+    public const string Mediumcore = "Mediumcore";
+    public const string Hardcore = "Hardcore";
+    public const string Journey = "Journey";
+
+    public static readonly string[] All = { Softcore, Mediumcore, Hardcore, Journey };
+
+    public static string Normalize(string? value)
+    {
+        return All.FirstOrDefault(option => string.Equals(option, value, StringComparison.OrdinalIgnoreCase)) ?? Softcore;
+    }
+}
+
+internal static class AutoCreateWorldSize
+{
+    public const string Small = "Small";
+    public const string Medium = "Medium";
+    public const string Large = "Large";
+
+    public static readonly string[] All = { Small, Medium, Large };
+
+    public static string Normalize(string? value)
+    {
+        return All.FirstOrDefault(option => string.Equals(option, value, StringComparison.OrdinalIgnoreCase)) ?? Medium;
+    }
+}
+
+internal static class AutoCreateWorldDifficulty
+{
+    public const string Journey = "Journey";
+    public const string Classic = "Classic";
+    public const string Expert = "Expert";
+    public const string Master = "Master";
+    public const string Normal = "Normal";
+
+    public static readonly string[] All = { Journey, Classic, Expert, Master };
+
+    public static string Normalize(string? value)
+    {
+        if (string.Equals(value, Normal, StringComparison.OrdinalIgnoreCase))
+        {
+            return Classic;
+        }
+
+        return All.FirstOrDefault(option => string.Equals(option, value, StringComparison.OrdinalIgnoreCase)) ?? Classic;
+    }
+}
+
+internal static class AutoCreateWorldEvil
+{
+    public const string Random = "Random";
+    public const string Corruption = "Corruption";
+    public const string Crimson = "Crimson";
+
+    public static readonly string[] All = { Random, Corruption, Crimson };
+
+    public static string Normalize(string? value)
+    {
+        return All.FirstOrDefault(option => string.Equals(option, value, StringComparison.OrdinalIgnoreCase)) ?? Random;
     }
 }

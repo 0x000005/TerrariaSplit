@@ -202,6 +202,8 @@ internal static class AppSettingsStore
         settings.Colors ??= new UiColorSettings();
         settings.Sounds ??= new UiSoundSettings();
         settings.Columns ??= new UiColumnLayoutSettings();
+        settings.AutoCreate ??= new AutoCreateWorldSettings();
+        NormalizeAutoCreate(settings.AutoCreate);
         settings.SplitCompletionAnimationDurationSeconds = Math.Clamp(settings.SplitCompletionAnimationDurationSeconds, 2f, 20f);
         settings.SplitCompletionOutlineThicknessPercent = Math.Clamp(settings.SplitCompletionOutlineThicknessPercent, 0, 100);
         settings.CurrentSplitHighlightScalePercent = Math.Clamp(settings.CurrentSplitHighlightScalePercent, 100, 140);
@@ -236,6 +238,19 @@ internal static class AppSettingsStore
         NormalizeReferenceSets(settings);
         NormalizePersonalBestTimeSets(settings);
         NormalizePersonalBestSegmentSets(settings);
+    }
+
+    private static void NormalizeAutoCreate(AutoCreateWorldSettings autoCreate)
+    {
+        autoCreate.PlayerName ??= string.Empty;
+        autoCreate.PlayerTemplateCode ??= string.Empty;
+        autoCreate.PlayerDifficulty = AutoCreatePlayerDifficulty.Normalize(autoCreate.PlayerDifficulty);
+        autoCreate.WorldSize = AutoCreateWorldSize.Normalize(autoCreate.WorldSize);
+        autoCreate.WorldDifficulty = AutoCreateWorldDifficulty.Normalize(autoCreate.WorldDifficulty);
+        autoCreate.WorldEvil = AutoCreateWorldEvil.Normalize(autoCreate.WorldEvil);
+        autoCreate.ShortActionDelayMilliseconds = Math.Clamp(autoCreate.ShortActionDelayMilliseconds, 0, 5000);
+        autoCreate.MenuActionDelayMilliseconds = Math.Clamp(autoCreate.MenuActionDelayMilliseconds, 0, 5000);
+        autoCreate.InputPressDurationMilliseconds = Math.Clamp(autoCreate.InputPressDurationMilliseconds, 1, 5000);
     }
 
     private static void LoadExternalReferenceSets(AppSettings settings)

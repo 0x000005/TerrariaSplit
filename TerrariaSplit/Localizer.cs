@@ -20,6 +20,7 @@ internal static class Localizer
         { "Pause / Resume", "暂停 / 继续" },
         { "Reset at Menu", "在菜单时重置" },
         { "Mouse passthrough", "鼠标穿透" },
+        { "Create world flow", "自动创建世界" },
         { "Always on top", "置顶显示" },
         { "Practice mode", "练习模式" },
         { "Allow manual time editing", "允许手动修改时间" },
@@ -196,6 +197,42 @@ internal static class Localizer
       , { "Smooth", "\u5E73\u6ED1" }
       , { "Hard step", "\u786C\u7A81\u53D8" }
       , { "Soft step", "\u67D4\u7A81\u53D8" }
+      , { "Auto Create", "\u81EA\u52A8\u521B\u5EFA" }
+      , { "Create World", "\u521B\u56FE" }
+      , { "Timing", "\u65F6\u95F4" }
+      , { "Delay", "\u5EF6\u8FDF" }
+      , { "Character", "\u4EBA\u7269" }
+      , { "Player name", "\u4EBA\u7269\u540D\u79F0" }
+      , { "Player difficulty", "\u4EBA\u7269\u96BE\u5EA6" }
+      , { "Player code", "\u4EBA\u7269\u4EE3\u7801" }
+      , { "World", "\u4E16\u754C" }
+      , { "World size", "\u4E16\u754C\u5927\u5C0F" }
+      , { "World difficulty", "\u4E16\u754C\u96BE\u5EA6" }
+      , { "World evil", "\u90AA\u6076\u7C7B\u578B" }
+      , { "Mouse / key press ms", "\u9F20\u6807 / \u6309\u952E\u6301\u7EED\u6BEB\u79D2" }
+      , { "Short action delay ms", "\u77ED\u64CD\u4F5C\u5EF6\u8FDF\u6BEB\u79D2" }
+      , { "Menu action delay ms", "\u83DC\u5355\u64CD\u4F5C\u5EF6\u8FDF\u6BEB\u79D2" }
+      , { "Empty = default character", "\u7559\u7A7A = \u9ED8\u8BA4\u4EBA\u7269" }
+      , { "Empty = 1", "\u7559\u7A7A = 1" }
+      , { "Softcore", "\u8F6F\u6838" }
+      , { "Mediumcore", "\u4E2D\u6838" }
+      , { "Hardcore", "\u786C\u6838" }
+      , { "Journey", "\u65C5\u884C" }
+      , { "Small", "\u5C0F" }
+      , { "Medium", "\u4E2D" }
+      , { "Large", "\u5927" }
+      , { "Classic", "\u7ECF\u5178" }
+      , { "Expert", "\u4E13\u5BB6" }
+      , { "Master", "\u5927\u5E08" }
+      , { "Random", "\u968F\u673A" }
+      , { "Corruption", "\u8150\u5316" }
+      , { "Crimson", "\u731D\u7EA2" }
+      , { "Reset (Disabled in world)", "重置（在世界内不生效）" }
+      , { "Create world (Disabled in world)", "创建世界（在世界内不生效）" }
+      , { "Status colors", "提示颜色" }
+      , { "Creating text", "创建中提示" }
+      , { "Failed text", "失败提示" }
+      , { "Created text", "创建完成提示" }
     };
 
     public static string Get(string key, AppSettings settings)

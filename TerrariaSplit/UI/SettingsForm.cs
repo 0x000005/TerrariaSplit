@@ -22,10 +22,20 @@ internal sealed class SettingsForm : Form
     private readonly HotkeyTextBox pauseKeyBox = new();
     private readonly HotkeyTextBox resetKeyBox = new();
     private readonly HotkeyTextBox mouseClickThroughKeyBox = new();
+    private readonly HotkeyTextBox createWorldKeyBox = new();
     private readonly CheckBox showMouseClickThroughIndicatorBox = new();
     private readonly ComboBox languageBox = new();
     private readonly CheckBox alwaysOnTopBox = new();
     private readonly CheckBox practiceModeBox = new();
+    private readonly TextBox autoCreatePlayerNameBox = new();
+    private readonly TextBox autoCreatePlayerTemplateCodeBox = new();
+    private readonly ComboBox autoCreatePlayerDifficultyBox = new();
+    private readonly ComboBox autoCreateWorldSizeBox = new();
+    private readonly ComboBox autoCreateWorldDifficultyBox = new();
+    private readonly ComboBox autoCreateWorldEvilBox = new();
+    private readonly TextBox autoCreateShortActionDelayBox = new();
+    private readonly TextBox autoCreateMenuActionDelayBox = new();
+    private readonly TextBox autoCreateInputPressDurationBox = new();
     private readonly ComboBox referenceSetBox = new();
     private readonly TextBox newReferenceSetNameBox = new();
     private readonly ComboBox personalBestTimeSetBox = new();
@@ -318,6 +328,7 @@ internal sealed class SettingsForm : Form
 
         pages.Clear();
         pages.Add(new SettingsPageDescriptor(CreateNavButton("General"), () => GeneralSettingsPage.Build(this)));
+        pages.Add(new SettingsPageDescriptor(CreateNavButton("Create World"), () => AutoCreateSettingsPage.Build(this)));
         pages.Add(new SettingsPageDescriptor(CreateNavButton("BOSS"), () => BossSettingsPage.Build(this)));
         pages.Add(new SettingsPageDescriptor(CreateNavButton("Data"), () => DataSettingsPage.Build(this)));
         pages.Add(new SettingsPageDescriptor(CreateNavButton("UI"), () => UiSettingsPage.Build(this)));
@@ -338,14 +349,14 @@ internal sealed class SettingsForm : Form
             }
 
             bool refreshedAnimation = false;
-            if (selectedPageIndex == 1 && index != selectedPageIndex)
+            if (selectedPageIndex == 2 && index != selectedPageIndex)
             {
                 refreshedAnimation = ApplyBossPageRouteChanges();
             }
 
             Control selectedPage = EnsurePageCreated(index);
 
-            if (index == 4 && !refreshedAnimation)
+            if (index == 5 && !refreshedAnimation)
             {
                 RefreshAnimationOutlineGrid();
             }
@@ -524,6 +535,7 @@ internal sealed class SettingsForm : Form
         ConfigureKeyBox(pauseKeyBox, settings.PauseResumeKeys);
         ConfigureKeyBox(resetKeyBox, settings.ResetKeys);
         ConfigureKeyBox(mouseClickThroughKeyBox, settings.MouseClickThroughKeys);
+        ConfigureKeyBox(createWorldKeyBox, settings.CreateWorldKeys);
         ConfigureCheckBox(showMouseClickThroughIndicatorBox, settings.ShowMouseClickThroughIndicator);
 
         UiTheme.StyleComboBox(languageBox);
@@ -551,8 +563,9 @@ internal sealed class SettingsForm : Form
             ColumnStylePercent(100f),
             ColumnStyleAbsolute(280f));
         AddSettingRow(hotkeysGrid, "Pause / Resume", pauseKeyBox);
-        AddSettingRow(hotkeysGrid, "Reset at Menu", resetKeyBox);
+        AddSettingRow(hotkeysGrid, "Reset (Disabled in world)", resetKeyBox);
         AddSettingRow(hotkeysGrid, "Mouse passthrough", mouseClickThroughKeyBox);
+        AddSettingRow(hotkeysGrid, "Create world (Disabled in world)", createWorldKeyBox);
         AddSettingRow(hotkeysGrid, "Mouse passthrough indicator", showMouseClickThroughIndicatorBox);
         AddSectionControl(hotkeysSection, hotkeysGrid);
         AddSection(parent, hotkeysSection);
@@ -564,6 +577,62 @@ internal sealed class SettingsForm : Form
         AddSettingRow(specialGrid, "Allow manual time editing", practiceModeBox);
         AddSectionControl(specialSection, specialGrid);
         AddSection(parent, specialSection);
+    }
+
+    internal void AddAutoCreateSection(TableLayoutPanel parent)
+    {
+        UiTheme.StyleTextBox(autoCreatePlayerNameBox);
+        autoCreatePlayerNameBox.Dock = DockStyle.Fill;
+        autoCreatePlayerNameBox.Text = settings.AutoCreate.PlayerName;
+        autoCreatePlayerNameBox.PlaceholderText = Localizer.Get("Empty = 1", settings);
+
+        UiTheme.StyleTextBox(autoCreatePlayerTemplateCodeBox);
+        autoCreatePlayerTemplateCodeBox.Dock = DockStyle.Fill;
+        autoCreatePlayerTemplateCodeBox.Multiline = true;
+        autoCreatePlayerTemplateCodeBox.AcceptsReturn = true;
+        autoCreatePlayerTemplateCodeBox.ScrollBars = ScrollBars.Vertical;
+        autoCreatePlayerTemplateCodeBox.Height = autoCreatePlayerTemplateCodeBox.Font.Height * 10 + 14;
+        autoCreatePlayerTemplateCodeBox.Text = settings.AutoCreate.PlayerTemplateCode;
+        autoCreatePlayerTemplateCodeBox.PlaceholderText = Localizer.Get("Empty = default character", settings);
+
+        ConfigureOptionBox(autoCreatePlayerDifficultyBox, AutoCreatePlayerDifficulty.All, settings.AutoCreate.PlayerDifficulty);
+        ConfigureOptionBox(autoCreateWorldSizeBox, AutoCreateWorldSize.All, settings.AutoCreate.WorldSize);
+        ConfigureOptionBox(autoCreateWorldDifficultyBox, AutoCreateWorldDifficulty.All, settings.AutoCreate.WorldDifficulty);
+        ConfigureOptionBox(autoCreateWorldEvilBox, AutoCreateWorldEvil.All, settings.AutoCreate.WorldEvil);
+        ConfigureNumberBox(autoCreateShortActionDelayBox, settings.AutoCreate.ShortActionDelayMilliseconds, 0, 5000);
+        ConfigureNumberBox(autoCreateMenuActionDelayBox, settings.AutoCreate.MenuActionDelayMilliseconds, 0, 5000);
+        ConfigureNumberBox(autoCreateInputPressDurationBox, settings.AutoCreate.InputPressDurationMilliseconds, 1, 5000);
+
+        TableLayoutPanel characterSection = CreateSection("Character");
+        TableLayoutPanel characterGrid = CreateGrid(
+            ColumnStylePercent(100f),
+            ColumnStyleAbsolute(360f));
+        AddSettingRow(characterGrid, "Player name", autoCreatePlayerNameBox);
+        AddSettingRow(characterGrid, "Player difficulty", autoCreatePlayerDifficultyBox);
+        AddSectionControl(characterSection, characterGrid);
+        AddSectionControl(characterSection, CreateFieldLabel("Player code"));
+        AddSectionControl(characterSection, autoCreatePlayerTemplateCodeBox);
+        AddSection(parent, characterSection);
+
+        TableLayoutPanel worldSection = CreateSection("World");
+        TableLayoutPanel worldGrid = CreateGrid(
+            ColumnStylePercent(100f),
+            ColumnStyleAbsolute(360f));
+        AddSettingRow(worldGrid, "World size", autoCreateWorldSizeBox);
+        AddSettingRow(worldGrid, "World difficulty", autoCreateWorldDifficultyBox);
+        AddSettingRow(worldGrid, "World evil", autoCreateWorldEvilBox);
+        AddSectionControl(worldSection, worldGrid);
+        AddSection(parent, worldSection);
+
+        TableLayoutPanel timingSection = CreateSection("Delay");
+        TableLayoutPanel timingGrid = CreateGrid(
+            ColumnStylePercent(100f),
+            ColumnStyleAbsolute(180f));
+        AddSettingRow(timingGrid, "Mouse / key press ms", autoCreateInputPressDurationBox);
+        AddSettingRow(timingGrid, "Short action delay ms", autoCreateShortActionDelayBox);
+        AddSettingRow(timingGrid, "Menu action delay ms", autoCreateMenuActionDelayBox);
+        AddSectionControl(timingSection, timingGrid);
+        AddSection(parent, timingSection);
     }
 
     internal void AddRouteSection(TableLayoutPanel parent)
@@ -1627,26 +1696,39 @@ internal sealed class SettingsForm : Form
 
     internal void AddColorSection(TableLayoutPanel parent)
     {
-        TableLayoutPanel section = CreateSection("Text Colors");
-        TableLayoutPanel grid = CreateGrid(
+        TableLayoutPanel textSection = CreateSection("Text Colors");
+        TableLayoutPanel textGrid = CreateGrid(
             ColumnStylePercent(100f),
             ColumnStyleAbsolute(280f),
             ColumnStyleAbsolute(64f));
 
-        AddColorRow(grid, "Reference text", nameof(settings.Colors.ReferenceText), settings.Colors.ReferenceText);
-        AddColorRow(grid, "Active reference text", nameof(settings.Colors.ActiveReferenceText), settings.Colors.ActiveReferenceText);
-        AddColorRow(grid, "Completed split text", nameof(settings.Colors.SplitText), settings.Colors.SplitText);
-        AddColorRow(grid, "Delta ahead text", nameof(settings.Colors.DeltaAheadText), settings.Colors.DeltaAheadText);
-        AddColorRow(grid, "Delta behind text", nameof(settings.Colors.DeltaBehindText), settings.Colors.DeltaBehindText);
-        AddColorRow(grid, "Timer text", nameof(settings.Colors.TimerText), settings.Colors.TimerText);
-        AddColorRow(grid, "Timer ahead text", nameof(settings.Colors.TimerAheadText), settings.Colors.TimerAheadText);
-        AddColorRow(grid, "Timer behind text", nameof(settings.Colors.TimerBehindText), settings.Colors.TimerBehindText);
-        AddColorRow(grid, "Timer record text", nameof(settings.Colors.TimerRecordText), settings.Colors.TimerRecordText);
-        AddColorRow(grid, "Timer no record text", nameof(settings.Colors.TimerNoRecordText), settings.Colors.TimerNoRecordText);
-        AddColorRow(grid, "Timer paused text", nameof(settings.Colors.TimerPausedText), settings.Colors.TimerPausedText);
+        AddColorRow(textGrid, "Reference text", nameof(settings.Colors.ReferenceText), settings.Colors.ReferenceText);
+        AddColorRow(textGrid, "Active reference text", nameof(settings.Colors.ActiveReferenceText), settings.Colors.ActiveReferenceText);
+        AddColorRow(textGrid, "Completed split text", nameof(settings.Colors.SplitText), settings.Colors.SplitText);
+        AddColorRow(textGrid, "Delta ahead text", nameof(settings.Colors.DeltaAheadText), settings.Colors.DeltaAheadText);
+        AddColorRow(textGrid, "Delta behind text", nameof(settings.Colors.DeltaBehindText), settings.Colors.DeltaBehindText);
+        AddColorRow(textGrid, "Timer text", nameof(settings.Colors.TimerText), settings.Colors.TimerText);
+        AddColorRow(textGrid, "Timer ahead text", nameof(settings.Colors.TimerAheadText), settings.Colors.TimerAheadText);
+        AddColorRow(textGrid, "Timer behind text", nameof(settings.Colors.TimerBehindText), settings.Colors.TimerBehindText);
+        AddColorRow(textGrid, "Timer record text", nameof(settings.Colors.TimerRecordText), settings.Colors.TimerRecordText);
+        AddColorRow(textGrid, "Timer no record text", nameof(settings.Colors.TimerNoRecordText), settings.Colors.TimerNoRecordText);
+        AddColorRow(textGrid, "Timer paused text", nameof(settings.Colors.TimerPausedText), settings.Colors.TimerPausedText);
 
-        AddSectionControl(section, grid);
-        AddSection(parent, section);
+        AddSectionControl(textSection, textGrid);
+        AddSection(parent, textSection);
+
+        TableLayoutPanel statusSection = CreateSection("Status colors");
+        TableLayoutPanel statusGrid = CreateGrid(
+            ColumnStylePercent(100f),
+            ColumnStyleAbsolute(280f),
+            ColumnStyleAbsolute(64f));
+
+        AddColorRow(statusGrid, "Creating text", nameof(settings.Colors.AutoCreateCreatingText), settings.Colors.AutoCreateCreatingText);
+        AddColorRow(statusGrid, "Failed text", nameof(settings.Colors.AutoCreateFailedText), settings.Colors.AutoCreateFailedText);
+        AddColorRow(statusGrid, "Created text", nameof(settings.Colors.AutoCreateCreatedText), settings.Colors.AutoCreateCreatedText);
+
+        AddSectionControl(statusSection, statusGrid);
+        AddSection(parent, statusSection);
     }
 
     internal void AddSoundSection(TableLayoutPanel parent)
@@ -1854,9 +1936,22 @@ internal sealed class SettingsForm : Form
         {
             AutoSize = true,
             Dock = DockStyle.Top,
-            Font = UiTheme.FormFont(11.5f, FontStyle.Bold),
+            Font = UiTheme.FormFont(10f, FontStyle.Bold),
             ForeColor = TextColor,
-            Margin = new Padding(0, 16, 0, 10),
+            Margin = new Padding(0, 14, 0, 8),
+            Text = Localizer.Get(text, settings)
+        };
+    }
+
+    private Label CreateFieldLabel(string text)
+    {
+        return new Label
+        {
+            AutoSize = true,
+            Dock = DockStyle.Top,
+            Font = UiTheme.FormFont(),
+            ForeColor = TextColor,
+            Margin = new Padding(0, 14, 0, 8),
             Text = Localizer.Get(text, settings)
         };
     }
@@ -1938,6 +2033,36 @@ internal sealed class SettingsForm : Form
 
         comboBox.SelectedItem = activeName;
         comboBox.SelectedIndexChanged += selectionChanged;
+    }
+
+    private void ConfigureOptionBox(ComboBox comboBox, IEnumerable<string> options, string selected)
+    {
+        comboBox.Dock = DockStyle.Fill;
+        UiTheme.StyleComboBox(comboBox);
+        comboBox.Items.Clear();
+
+        foreach (string option in options)
+        {
+            comboBox.Items.Add(new LocalizedOption(option, Localizer.Get(option, settings)));
+        }
+
+        comboBox.SelectedItem = comboBox.Items
+            .Cast<LocalizedOption>()
+            .FirstOrDefault(option => string.Equals(option.Value, selected, StringComparison.OrdinalIgnoreCase));
+        if (comboBox.SelectedIndex < 0 && comboBox.Items.Count > 0)
+        {
+            comboBox.SelectedIndex = 0;
+        }
+    }
+
+    private static string GetSelectedOption(ComboBox comboBox, string fallback)
+    {
+        return comboBox.SelectedItem switch
+        {
+            LocalizedOption option => option.Value,
+            string value => value,
+            _ => fallback
+        };
     }
 
     private static void ConfigureNumberBox(TextBox textBox, int selected, int minimum, int maximum)
@@ -2307,7 +2432,7 @@ internal sealed class SettingsForm : Form
 
     private void ApplyToSettings()
     {
-        EnsurePageCreated(1);
+        EnsurePageCreated(2);
         ApplyBossPageRouteChanges();
         EnsureAllPagesCreated();
 
@@ -2315,9 +2440,35 @@ internal sealed class SettingsForm : Form
         settings.PauseResumeKey = pauseKeyBox.Hotkey.ToString();
         settings.ResetKey = resetKeyBox.Hotkey.ToString();
         settings.MouseClickThroughKey = mouseClickThroughKeyBox.Hotkey.ToString();
+        settings.CreateWorldKey = createWorldKeyBox.Hotkey.ToString();
         settings.ShowMouseClickThroughIndicator = showMouseClickThroughIndicatorBox.Checked;
         settings.AlwaysOnTop = alwaysOnTopBox.Checked;
         settings.PracticeMode = practiceModeBox.Checked;
+        settings.AutoCreate.PlayerName = autoCreatePlayerNameBox.Text.Trim();
+        settings.AutoCreate.PlayerTemplateCode = autoCreatePlayerTemplateCodeBox.Text.Trim();
+        settings.AutoCreate.PlayerDifficulty = AutoCreatePlayerDifficulty.Normalize(
+            GetSelectedOption(autoCreatePlayerDifficultyBox, AutoCreatePlayerDifficulty.Softcore));
+        settings.AutoCreate.WorldSize = AutoCreateWorldSize.Normalize(
+            GetSelectedOption(autoCreateWorldSizeBox, AutoCreateWorldSize.Medium));
+        settings.AutoCreate.WorldDifficulty = AutoCreateWorldDifficulty.Normalize(
+            GetSelectedOption(autoCreateWorldDifficultyBox, AutoCreateWorldDifficulty.Classic));
+        settings.AutoCreate.WorldEvil = AutoCreateWorldEvil.Normalize(
+            GetSelectedOption(autoCreateWorldEvilBox, AutoCreateWorldEvil.Random));
+        settings.AutoCreate.ShortActionDelayMilliseconds = ParseIntBox(
+            autoCreateShortActionDelayBox,
+            AutoCreateWorldSettings.DefaultShortActionDelayMilliseconds,
+            0,
+            5000);
+        settings.AutoCreate.MenuActionDelayMilliseconds = ParseIntBox(
+            autoCreateMenuActionDelayBox,
+            AutoCreateWorldSettings.DefaultMenuActionDelayMilliseconds,
+            0,
+            5000);
+        settings.AutoCreate.InputPressDurationMilliseconds = ParseIntBox(
+            autoCreateInputPressDurationBox,
+            AutoCreateWorldSettings.DefaultInputPressDurationMilliseconds,
+            1,
+            5000);
         settings.AutoUpdatePersonalBestData = autoUpdatePersonalBestDataBox.Checked;
         settings.AskBeforeUpdatingPersonalBestData = askBeforeUpdatingPersonalBestDataBox.Checked;
         settings.ShowSplitCompletionAnimation = showSplitCompletionAnimationBox.Checked;
@@ -2383,6 +2534,9 @@ internal sealed class SettingsForm : Form
         SetColor(nameof(settings.Colors.TimerRecordText), value => settings.Colors.TimerRecordText = value);
         SetColor(nameof(settings.Colors.TimerNoRecordText), value => settings.Colors.TimerNoRecordText = value);
         SetColor(nameof(settings.Colors.TimerPausedText), value => settings.Colors.TimerPausedText = value);
+        SetColor(nameof(settings.Colors.AutoCreateCreatingText), value => settings.Colors.AutoCreateCreatingText = value);
+        SetColor(nameof(settings.Colors.AutoCreateFailedText), value => settings.Colors.AutoCreateFailedText = value);
+        SetColor(nameof(settings.Colors.AutoCreateCreatedText), value => settings.Colors.AutoCreateCreatedText = value);
 
         SetSound(nameof(settings.Sounds.Pause), value => settings.Sounds.Pause = value);
         SetSound(nameof(settings.Sounds.Reset), value => settings.Sounds.Reset = value);
@@ -2540,6 +2694,14 @@ internal sealed class SettingsForm : Form
     private sealed record FontControls(CheckBox Show, TextBox FontSize, CheckBox Bold);
 
     private sealed record RouteControls(CheckBox Enabled, TextBox Group);
+
+    private sealed record LocalizedOption(string Value, string DisplayName)
+    {
+        public override string ToString()
+        {
+            return DisplayName;
+        }
+    }
 
     private sealed record AnimationOutlineControls(
         CheckBox SplitComparison,
