@@ -35,6 +35,8 @@ internal sealed class SettingsForm : Form
     private readonly ComboBox autoCreateWorldEvilBox = new();
     private readonly TextBox autoCreateShortActionDelayBox = new();
     private readonly TextBox autoCreateMenuActionDelayBox = new();
+    private readonly TextBox autoCreateWindowActivationDelayBox = new();
+    private readonly TextBox autoCreateClickFocusDelayBox = new();
     private readonly TextBox autoCreateInputPressDurationBox = new();
     private readonly ComboBox referenceSetBox = new();
     private readonly TextBox newReferenceSetNameBox = new();
@@ -116,6 +118,11 @@ internal sealed class SettingsForm : Form
     }
 
     public AppSettings Result => settings;
+
+    internal string Localize(string key)
+    {
+        return Localizer.Get(key, settings);
+    }
 
     public event EventHandler? Applied;
 
@@ -335,6 +342,7 @@ internal sealed class SettingsForm : Form
         pages.Add(new SettingsPageDescriptor(CreateNavButton("Effects"), () => AnimationSettingsPage.Build(this)));
         pages.Add(new SettingsPageDescriptor(CreateNavButton("Sounds"), () => SoundSettingsPage.Build(this)));
         pages.Add(new SettingsPageDescriptor(CreateNavButton("Colors"), () => ColorSettingsPage.Build(this)));
+        pages.Add(new SettingsPageDescriptor(CreateNavButton("Debug"), () => DebugSettingsPage.Build(this)));
 
         foreach (SettingsPageDescriptor page in pages)
         {
@@ -601,6 +609,8 @@ internal sealed class SettingsForm : Form
         ConfigureOptionBox(autoCreateWorldEvilBox, AutoCreateWorldEvil.All, settings.AutoCreate.WorldEvil);
         ConfigureNumberBox(autoCreateShortActionDelayBox, settings.AutoCreate.ShortActionDelayMilliseconds, 0, 5000);
         ConfigureNumberBox(autoCreateMenuActionDelayBox, settings.AutoCreate.MenuActionDelayMilliseconds, 0, 5000);
+        ConfigureNumberBox(autoCreateWindowActivationDelayBox, settings.AutoCreate.WindowActivationDelayMilliseconds, 0, 5000);
+        ConfigureNumberBox(autoCreateClickFocusDelayBox, settings.AutoCreate.ClickFocusDelayMilliseconds, 0, 5000);
         ConfigureNumberBox(autoCreateInputPressDurationBox, settings.AutoCreate.InputPressDurationMilliseconds, 1, 5000);
 
         TableLayoutPanel characterSection = CreateSection("Character");
@@ -629,6 +639,8 @@ internal sealed class SettingsForm : Form
             ColumnStylePercent(100f),
             ColumnStyleAbsolute(180f));
         AddSettingRow(timingGrid, "Mouse / key press ms", autoCreateInputPressDurationBox);
+        AddSettingRow(timingGrid, "Window activation wait ms", autoCreateWindowActivationDelayBox);
+        AddSettingRow(timingGrid, "Click focus wait ms", autoCreateClickFocusDelayBox);
         AddSettingRow(timingGrid, "Short action delay ms", autoCreateShortActionDelayBox);
         AddSettingRow(timingGrid, "Menu action delay ms", autoCreateMenuActionDelayBox);
         AddSectionControl(timingSection, timingGrid);
@@ -1716,19 +1728,6 @@ internal sealed class SettingsForm : Form
 
         AddSectionControl(textSection, textGrid);
         AddSection(parent, textSection);
-
-        TableLayoutPanel statusSection = CreateSection("Status colors");
-        TableLayoutPanel statusGrid = CreateGrid(
-            ColumnStylePercent(100f),
-            ColumnStyleAbsolute(280f),
-            ColumnStyleAbsolute(64f));
-
-        AddColorRow(statusGrid, "Creating text", nameof(settings.Colors.AutoCreateCreatingText), settings.Colors.AutoCreateCreatingText);
-        AddColorRow(statusGrid, "Failed text", nameof(settings.Colors.AutoCreateFailedText), settings.Colors.AutoCreateFailedText);
-        AddColorRow(statusGrid, "Created text", nameof(settings.Colors.AutoCreateCreatedText), settings.Colors.AutoCreateCreatedText);
-
-        AddSectionControl(statusSection, statusGrid);
-        AddSection(parent, statusSection);
     }
 
     internal void AddSoundSection(TableLayoutPanel parent)
@@ -2464,6 +2463,16 @@ internal sealed class SettingsForm : Form
             AutoCreateWorldSettings.DefaultMenuActionDelayMilliseconds,
             0,
             5000);
+        settings.AutoCreate.WindowActivationDelayMilliseconds = ParseIntBox(
+            autoCreateWindowActivationDelayBox,
+            AutoCreateWorldSettings.DefaultWindowActivationDelayMilliseconds,
+            0,
+            5000);
+        settings.AutoCreate.ClickFocusDelayMilliseconds = ParseIntBox(
+            autoCreateClickFocusDelayBox,
+            AutoCreateWorldSettings.DefaultClickFocusDelayMilliseconds,
+            0,
+            5000);
         settings.AutoCreate.InputPressDurationMilliseconds = ParseIntBox(
             autoCreateInputPressDurationBox,
             AutoCreateWorldSettings.DefaultInputPressDurationMilliseconds,
@@ -2534,9 +2543,6 @@ internal sealed class SettingsForm : Form
         SetColor(nameof(settings.Colors.TimerRecordText), value => settings.Colors.TimerRecordText = value);
         SetColor(nameof(settings.Colors.TimerNoRecordText), value => settings.Colors.TimerNoRecordText = value);
         SetColor(nameof(settings.Colors.TimerPausedText), value => settings.Colors.TimerPausedText = value);
-        SetColor(nameof(settings.Colors.AutoCreateCreatingText), value => settings.Colors.AutoCreateCreatingText = value);
-        SetColor(nameof(settings.Colors.AutoCreateFailedText), value => settings.Colors.AutoCreateFailedText = value);
-        SetColor(nameof(settings.Colors.AutoCreateCreatedText), value => settings.Colors.AutoCreateCreatedText = value);
 
         SetSound(nameof(settings.Sounds.Pause), value => settings.Sounds.Pause = value);
         SetSound(nameof(settings.Sounds.Reset), value => settings.Sounds.Reset = value);

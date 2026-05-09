@@ -259,8 +259,10 @@ internal sealed class AppSettings
 
 internal sealed class AutoCreateWorldSettings
 {
-    public const int DefaultShortActionDelayMilliseconds = 10;
-    public const int DefaultMenuActionDelayMilliseconds = 80;
+    public const int DefaultShortActionDelayMilliseconds = 70;
+    public const int DefaultMenuActionDelayMilliseconds = 160;
+    public const int DefaultWindowActivationDelayMilliseconds = 100;
+    public const int DefaultClickFocusDelayMilliseconds = 60;
     public const int DefaultInputPressDurationMilliseconds = 150;
 
     public string PlayerName { get; set; } = string.Empty;
@@ -271,6 +273,8 @@ internal sealed class AutoCreateWorldSettings
     public string WorldEvil { get; set; } = AutoCreateWorldEvil.Random;
     public int ShortActionDelayMilliseconds { get; set; } = DefaultShortActionDelayMilliseconds;
     public int MenuActionDelayMilliseconds { get; set; } = DefaultMenuActionDelayMilliseconds;
+    public int WindowActivationDelayMilliseconds { get; set; } = DefaultWindowActivationDelayMilliseconds;
+    public int ClickFocusDelayMilliseconds { get; set; } = DefaultClickFocusDelayMilliseconds;
     public int InputPressDurationMilliseconds { get; set; } = DefaultInputPressDurationMilliseconds;
 }
 

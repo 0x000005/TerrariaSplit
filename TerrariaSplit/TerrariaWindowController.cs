@@ -11,6 +11,8 @@ internal sealed class TerrariaWindowController
     private const uint MouseEventLeftUp = 0x0004;
     private const uint KeyEventKeyUp = 0x0002;
 
+    public int WindowActivationDelayMilliseconds { get; set; } = AutoCreateWorldSettings.DefaultWindowActivationDelayMilliseconds;
+    public int ClickFocusDelayMilliseconds { get; set; } = AutoCreateWorldSettings.DefaultClickFocusDelayMilliseconds;
     public int InputPressDurationMilliseconds { get; set; } = AutoCreateWorldSettings.DefaultInputPressDurationMilliseconds;
 
     public bool TryActivate(out Size clientSize)
@@ -29,6 +31,7 @@ internal sealed class TerrariaWindowController
         }
 
         SetForegroundWindow(handle);
+        Sleep(WindowActivationDelayMilliseconds);
         if (!GetClientRect(handle, out Rect rect))
         {
             return false;
@@ -53,6 +56,7 @@ internal sealed class TerrariaWindowController
         }
 
         SetForegroundWindow(handle);
+        Sleep(ClickFocusDelayMilliseconds);
         var point = new PointStruct { X = x, Y = y };
         if (!ClientToScreen(handle, ref point))
         {
@@ -131,6 +135,14 @@ internal sealed class TerrariaWindowController
         catch
         {
             return DateTime.MinValue;
+        }
+    }
+
+    private static void Sleep(int milliseconds)
+    {
+        if (milliseconds > 0)
+        {
+            Thread.Sleep(milliseconds);
         }
     }
 

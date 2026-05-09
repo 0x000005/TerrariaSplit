@@ -44,4 +44,8 @@ internal struct MemoryBasicInformation
     public MemoryPageType Type;
 }
 
-internal readonly record struct MemoryPage(IntPtr BaseAddress, long RegionSize, MemoryPageProtect Protect);
+internal readonly record struct MemoryPage(
+    IntPtr BaseAddress,
+    long RegionSize,
+    MemoryPageProtect Protect,
+    MemoryPageType Type);

@@ -895,18 +895,6 @@ internal sealed class MainForm : Form
         }
 
         Rectangle timeRect = GetTimerTextBounds(rect);
-        if (TryGetAutoCreateStatusDisplay(palette, out string statusText, out Color statusColor))
-        {
-            using var statusBrush = new SolidBrush(statusColor);
-            TimerTextLayout statusTextLayout = DrawTimerStatusText(graphics, statusText, statusBrush, timeRect);
-            if (settings.ShowMouseClickThroughIndicator && !mouseClickThrough)
-            {
-                DrawMouseClickThroughIndicator(graphics, timeRect, statusTextLayout);
-            }
-
-            return;
-        }
-
         using var timerTextBrush = new SolidBrush(GetTimerTextColor(palette));
         TimerTextLayout timerTextLayout = DrawTimerText(graphics, runTimer.Elapsed, timerTextBrush, timeRect);
         if (settings.ShowMouseClickThroughIndicator && !mouseClickThrough)
@@ -2314,27 +2302,6 @@ internal sealed class MainForm : Form
         return new TimerTextLayout(mainX + groupWidth, anchorTop, anchorHeight);
     }
 
-    private TimerTextLayout DrawTimerStatusText(Graphics graphics, string text, Brush brush, Rectangle bounds)
-    {
-        Font font = settings.Columns.Timer.Show
-            ? GetColumnFont(settings.Columns.Timer, sizeScale: 2f / 3f)
-            : GetColumnFont(settings.Columns.TimerMilliseconds, sizeScale: 2f / 3f);
-
-        using var format = new StringFormat(StringFormat.GenericTypographic);
-        SizeF textSize = graphics.MeasureString(text, font, bounds.Size, format);
-        FontMetrics metrics = GetFontMetrics(graphics, font);
-        float textHeight = metrics.Ascent + metrics.Descent;
-        float textY = bounds.Y + Math.Max(0f, (bounds.Height - textHeight) / 2f);
-        float textX = bounds.Left;
-
-        graphics.DrawString(text, font, brush, textX, textY, format);
-
-        RectangleF visualBounds = GetTextVisualBounds(graphics, text, font, textX, textY, format);
-        float anchorTop = visualBounds.Height > 0f ? visualBounds.Top : textY;
-        float anchorHeight = visualBounds.Height > 0f ? visualBounds.Height : textHeight;
-        return new TimerTextLayout(textX + textSize.Width, anchorTop, anchorHeight);
-    }
-
     private static void DrawMouseClickThroughIndicator(Graphics graphics, Rectangle timerBounds, TimerTextLayout timerTextLayout)
     {
         if (timerTextLayout.Right <= 0f || timerTextLayout.Height <= 0f)
@@ -2410,36 +2377,6 @@ internal sealed class MainForm : Form
         }
 
         return scaled;
-    }
-
-    private bool TryGetAutoCreateStatusDisplay(UiPalette palette, out string text, out Color color)
-    {
-        if (!createWorldAutomation.TryGetDisplayStatus(out AutoCreateWorldDisplayState status))
-        {
-            text = string.Empty;
-            color = Color.Empty;
-            return false;
-        }
-
-        switch (status)
-        {
-            case AutoCreateWorldDisplayState.Creating:
-                text = "CREATING...";
-                color = palette.AutoCreateCreatingText;
-                return true;
-            case AutoCreateWorldDisplayState.Failed:
-                text = "FAILED";
-                color = palette.AutoCreateFailedText;
-                return true;
-            case AutoCreateWorldDisplayState.Created:
-                text = "CREATED";
-                color = palette.AutoCreateCreatedText;
-                return true;
-            default:
-                text = string.Empty;
-                color = Color.Empty;
-                return false;
-        }
     }
 
     private Color GetTimerTextColor(UiPalette palette)
@@ -3163,10 +3100,7 @@ internal sealed class MainForm : Form
         Color TimerBehindText,
         Color TimerRecordText,
         Color TimerNoRecordText,
-        Color TimerPausedText,
-        Color AutoCreateCreatingText,
-        Color AutoCreateFailedText,
-        Color AutoCreateCreatedText)
+        Color TimerPausedText)
     {
         public static UiPalette From(UiColorSettings settings)
         {
@@ -3181,10 +3115,7 @@ internal sealed class MainForm : Form
                 ColorText.Parse(settings.TimerBehindText, Color.LightCoral),
                 ColorText.Parse(settings.TimerRecordText, Color.FromArgb(105, 167, 255)),
                 ColorText.Parse(settings.TimerNoRecordText, Color.Red),
-                ColorText.Parse(settings.TimerPausedText, Color.Gainsboro),
-                ColorText.Parse(settings.AutoCreateCreatingText, Color.FromArgb(105, 167, 255)),
-                ColorText.Parse(settings.AutoCreateFailedText, Color.FromArgb(240, 112, 112)),
-                ColorText.Parse(settings.AutoCreateCreatedText, Color.FromArgb(114, 213, 114)));
+                ColorText.Parse(settings.TimerPausedText, Color.Gainsboro));
         }
     }
 }

@@ -163,10 +163,7 @@
     "TimerBehindText": "#F07070",
     "TimerRecordText": "#69A7FF",
     "TimerNoRecordText": "#FF0000",
-    "TimerPausedText": "#5F5F5F",
-    "AutoCreateCreatingText": "#69A7FF",
-    "AutoCreateFailedText": "#F07070",
-    "AutoCreateCreatedText": "#72D572"
+    "TimerPausedText": "#5F5F5F"
   },
   "Sounds": {
     "Pause": "",
@@ -219,7 +216,9 @@
     "WorldDifficulty": "Classic",
     "WorldEvil": "Random",
     "ShortActionDelayMilliseconds": 10,
-    "MenuActionDelayMilliseconds": 80,
+    "MenuActionDelayMilliseconds": 90,
+    "WindowActivationDelayMilliseconds": 10,
+    "ClickFocusDelayMilliseconds": 20,
     "InputPressDurationMilliseconds": 150
   },
   "EnableDefeatedBossIconLighting": true,

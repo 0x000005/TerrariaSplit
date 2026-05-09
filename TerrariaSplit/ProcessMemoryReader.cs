@@ -95,7 +95,7 @@ internal sealed class ProcessMemoryReader
         return true;
     }
 
-    public IEnumerable<MemoryPage> ExecutablePrivatePages()
+    public IEnumerable<MemoryPage> ExecutablePages()
     {
         long address = 0x10000L;
         long maxAddress = Is64Bit ? 0x00007FFFFFFEFFFFL : 0x7FFEFFFFL;
@@ -132,12 +132,23 @@ internal sealed class ProcessMemoryReader
                 yield break;
             }
 
-            if (IsScannable(info))
+            if (IsExecutableScannable(info))
             {
-                yield return new MemoryPage(info.BaseAddress, regionSize, info.Protect);
+                yield return new MemoryPage(info.BaseAddress, regionSize, info.Protect, info.Type);
             }
 
             address = info.BaseAddress.ToInt64() + regionSize;
+        }
+    }
+
+    public IEnumerable<MemoryPage> ExecutablePrivatePages()
+    {
+        foreach (MemoryPage page in ExecutablePages())
+        {
+            if (page.Type == MemoryPageType.Private)
+            {
+                yield return page;
+            }
         }
     }
 
@@ -156,9 +167,14 @@ internal sealed class ProcessMemoryReader
         return !isWow64;
     }
 
-    private static bool IsScannable(MemoryBasicInformation info)
+    private static bool IsExecutableScannable(MemoryBasicInformation info)
     {
-        if (info.State != MemoryPageState.Commit || info.Type != MemoryPageType.Private)
+        if (info.State != MemoryPageState.Commit)
+        {
+            return false;
+        }
+
+        if (info.Type != MemoryPageType.Private && info.Type != MemoryPageType.Image)
         {
             return false;
         }

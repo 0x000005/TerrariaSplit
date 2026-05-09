@@ -3,16 +3,8 @@ using System.Windows.Forms;
 
 namespace TerrariaSplit;
 
-internal enum AutoCreateWorldDisplayState
-{
-    Creating,
-    Failed,
-    Created
-}
-
 internal sealed class TerrariaCreateWorldAutomation : IDisposable
 {
-    private static readonly TimeSpan FinalStatusDuration = TimeSpan.FromSeconds(3);
     private static readonly TimeSpan MenuStateTimeout = TimeSpan.FromSeconds(3);
     private static readonly TimeSpan PlayerSelectTransitionTimeout = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan PlayerCreateTimeout = TimeSpan.FromSeconds(5);
@@ -25,29 +17,8 @@ internal sealed class TerrariaCreateWorldAutomation : IDisposable
     private readonly TerrariaWindowController window = new();
     private TimeSpan shortActionDelay = TimeSpan.FromMilliseconds(AutoCreateWorldSettings.DefaultShortActionDelayMilliseconds);
     private TimeSpan menuActionDelay = TimeSpan.FromMilliseconds(AutoCreateWorldSettings.DefaultMenuActionDelayMilliseconds);
-    private AutoCreateWorldDisplayState? displayState;
-    private DateTime? displayStateExpiresUtc;
 
     public bool IsRunning { get; private set; }
-
-    public bool TryGetDisplayStatus(out AutoCreateWorldDisplayState state)
-    {
-        if (displayState is not AutoCreateWorldDisplayState activeState)
-        {
-            state = default;
-            return false;
-        }
-
-        if (displayStateExpiresUtc is DateTime expiresUtc && DateTime.UtcNow >= expiresUtc)
-        {
-            ClearDisplayStatus();
-            state = default;
-            return false;
-        }
-
-        state = activeState;
-        return true;
-    }
 
     public bool IsAtMainMenu()
     {
@@ -69,7 +40,6 @@ internal sealed class TerrariaCreateWorldAutomation : IDisposable
         }
 
         IsRunning = true;
-        SetPersistentDisplayStatus(AutoCreateWorldDisplayState.Creating);
         try
         {
             AutoCreateWorldSettings autoCreate = settings.AutoCreate;
@@ -84,7 +54,6 @@ internal sealed class TerrariaCreateWorldAutomation : IDisposable
                     },
                     cancellationToken))
             {
-                ShowFailedStatus();
                 return;
             }
 
@@ -104,81 +73,68 @@ internal sealed class TerrariaCreateWorldAutomation : IDisposable
                     },
                     cancellationToken))
             {
-                ShowFailedStatus();
                 return;
             }
 
             TerrariaMenuGeometry geometry = TerrariaMenuGeometry.From(clientSize);
             if (!await RequireMenuModeAsync("main menu before Single Player", TimeSpan.FromSeconds(1), cancellationToken, 0))
             {
-                ShowFailedStatus();
                 return;
             }
 
             if (!await ClickAsync("Single Player", geometry.MainMenuSinglePlayer(), menuActionDelay, cancellationToken))
             {
-                ShowFailedStatus();
                 return;
             }
 
             if (!await RequireMenuModeAsync("Single Player", MenuStateTimeout, cancellationToken, 888))
             {
-                ShowFailedStatus();
                 return;
             }
 
             Dictionary<string, DateTime> playersBefore = SnapshotSaveFiles("Players", "*.plr");
             if (!await ClickAsync("new player", geometry.SelectMenuNewButton(), menuActionDelay, cancellationToken))
             {
-                ShowFailedStatus();
                 return;
             }
 
             if (!await ApplyPlayerTemplateAsync(autoCreate, geometry, cancellationToken))
             {
-                ShowFailedStatus();
                 return;
             }
 
             if (!await ApplyPlayerDifficultyAsync(autoCreate.PlayerDifficulty, geometry, cancellationToken))
             {
-                ShowFailedStatus();
                 return;
             }
 
             if (!await ClickAsync("create player", geometry.CreatePlayerButton(), menuActionDelay, cancellationToken))
             {
-                ShowFailedStatus();
                 return;
             }
 
             if (!await ConfirmPlayerNameAsync(autoCreate.PlayerName, cancellationToken))
             {
-                ShowFailedStatus();
                 return;
             }
 
             if (!await WaitForNewOrChangedSaveFileAsync("player file", playersBefore, "Players", "*.plr", PlayerCreateTimeout, cancellationToken))
             {
-                ShowFailedStatus();
                 return;
             }
 
             if (!await ObserveMenuModeAsync("player creation return transition", TimeSpan.FromSeconds(2), cancellationToken, 1))
             {
-                ShowFailedStatus();
                 return;
             }
 
             if (!await RequireMenuModeAsync("player select after creating player", MenuStateTimeout, cancellationToken, 888))
             {
-                ShowFailedStatus();
                 return;
             }
 
             if (!await ClickPlayerAndRequireWorldSelectAsync(geometry, cleanup.FavoritePlayers, cancellationToken))
             {
-                ShowFailedStatus();
                 return;
             }
 
@@ -186,38 +142,30 @@ internal sealed class TerrariaCreateWorldAutomation : IDisposable
 
             if (!await ClickAsync("new world", geometry.SelectMenuNewButton(), menuActionDelay, cancellationToken))
             {
-                ShowFailedStatus();
                 return;
             }
 
             if (!await ApplyWorldOptionsAsync(autoCreate, geometry, cancellationToken))
             {
-                ShowFailedStatus();
                 return;
             }
 
             if (!await RandomizeVisibleSeedAsync(geometry, cancellationToken))
             {
-                ShowFailedStatus();
                 return;
             }
 
             if (!await ClickAsync("create world", geometry.CreateWorldButton(), shortActionDelay, cancellationToken))
             {
-                ShowFailedStatus();
                 return;
             }
-
-            ShowCreatedStatus();
         }
         catch (OperationCanceledException)
         {
-            ClearDisplayStatus();
         }
         catch (Exception ex)
         {
             AppLogger.Error(ex, "Create world automation failed.");
-            ShowFailedStatus();
         }
         finally
         {
@@ -325,6 +273,8 @@ internal sealed class TerrariaCreateWorldAutomation : IDisposable
     {
         shortActionDelay = TimeSpan.FromMilliseconds(settings.ShortActionDelayMilliseconds);
         menuActionDelay = TimeSpan.FromMilliseconds(settings.MenuActionDelayMilliseconds);
+        window.WindowActivationDelayMilliseconds = settings.WindowActivationDelayMilliseconds;
+        window.ClickFocusDelayMilliseconds = settings.ClickFocusDelayMilliseconds;
         window.InputPressDurationMilliseconds = settings.InputPressDurationMilliseconds;
     }
 
@@ -428,30 +378,6 @@ internal sealed class TerrariaCreateWorldAutomation : IDisposable
             AppLogger.Error(ex, $"Create world automation step '{step}' failed.");
             return false;
         }
-    }
-
-    private void SetPersistentDisplayStatus(AutoCreateWorldDisplayState state)
-    {
-        displayState = state;
-        displayStateExpiresUtc = null;
-    }
-
-    private void ShowFailedStatus()
-    {
-        displayState = AutoCreateWorldDisplayState.Failed;
-        displayStateExpiresUtc = DateTime.UtcNow + FinalStatusDuration;
-    }
-
-    private void ShowCreatedStatus()
-    {
-        displayState = AutoCreateWorldDisplayState.Created;
-        displayStateExpiresUtc = DateTime.UtcNow + FinalStatusDuration;
-    }
-
-    private void ClearDisplayStatus()
-    {
-        displayState = null;
-        displayStateExpiresUtc = null;
     }
 
     private async Task<bool> ClickAsync(string step, Point point, TimeSpan delay, CancellationToken cancellationToken)
