@@ -2,14 +2,19 @@ using System.Windows.Forms;
 
 namespace TerrariaSplit;
 
-internal static class DataSettingsPage
+internal sealed class DataSettingsPage : SettingsPageBase
 {
-    public static Control Build(SettingsForm owner)
+    protected override Control BuildPage(SettingsPageContext context)
     {
-        return owner.BuildScrollPage(content =>
+        return context.BuildScrollPage(content =>
         {
-            owner.AddReferenceDataSection(content);
-            owner.AddPersonalBestDataSection(content);
+            Owner.AddReferenceDataSection(content);
+            Owner.AddPersonalBestDataSection(content);
         });
+    }
+
+    public override void Apply(AppSettings settings)
+    {
+        Owner.ApplyDataSettings(settings);
     }
 }

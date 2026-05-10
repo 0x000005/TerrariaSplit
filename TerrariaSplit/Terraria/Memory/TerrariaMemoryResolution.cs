@@ -1,0 +1,15 @@
+namespace TerrariaSplit;
+
+internal readonly record struct TerrariaMemoryResolution(
+    IntPtr UpdateTimeAddress,
+    IntPtr GameMenuAddress,
+    IntPtr GameMenuSecondaryAddress,
+    IntPtr BossFlagsBaseAddress,
+    IntPtr HardmodeAddress,
+    bool UsingGameMenuFallback,
+    bool UsingBossProgressionFallback)
+{
+    public bool HasGameMenuAddress => GameMenuAddress != IntPtr.Zero;
+
+    public bool HasResolvedBossAddresses => BossFlagsBaseAddress != IntPtr.Zero && HardmodeAddress != IntPtr.Zero;
+}

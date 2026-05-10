@@ -2,10 +2,15 @@ using System.Windows.Forms;
 
 namespace TerrariaSplit;
 
-internal static class ColorSettingsPage
+internal sealed class ColorSettingsPage : SettingsPageBase
 {
-    public static Control Build(SettingsForm owner)
+    protected override Control BuildPage(SettingsPageContext context)
     {
-        return owner.BuildScrollPage(owner.AddColorSection);
+        return context.BuildScrollPage(Owner.AddColorSection);
+    }
+
+    public override void Apply(AppSettings settings)
+    {
+        Owner.ApplyColorSettings(settings);
     }
 }

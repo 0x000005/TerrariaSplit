@@ -2,14 +2,19 @@ using System.Windows.Forms;
 
 namespace TerrariaSplit;
 
-internal static class BossSettingsPage
+internal sealed class BossSettingsPage : SettingsPageBase
 {
-    public static Control Build(SettingsForm owner)
+    protected override Control BuildPage(SettingsPageContext context)
     {
-        return owner.BuildScrollPage(content =>
+        return context.BuildScrollPage(content =>
         {
-            owner.AddRouteSection(content);
-            owner.AddBossIconSection(content);
+            Owner.AddRouteSection(content);
+            Owner.AddBossIconSection(content);
         });
+    }
+
+    public override void Apply(AppSettings settings)
+    {
+        Owner.ApplyBossSettings(settings);
     }
 }

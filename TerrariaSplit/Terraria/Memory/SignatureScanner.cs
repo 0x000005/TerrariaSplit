@@ -5,8 +5,9 @@ internal static class SignatureScanner
     private const int MaxRegionReadSize = 64 * 1024 * 1024;
 
     public static IntPtr Scan(
-        ProcessMemoryReader reader,
+        IProcessMemoryReader reader,
         SignaturePattern pattern,
+        string scopeDescription,
         out SignatureScanDiagnostics diagnostics)
     {
         int privateExecutablePagesSeen = 0;
@@ -85,7 +86,7 @@ internal static class SignatureScanner
         }
 
         diagnostics = new SignatureScanDiagnostics(
-            Terraria1456Memory.SignatureScanScopeLabel,
+            scopeDescription,
             privateExecutablePagesSeen,
             privateExecutablePagesScanned,
             privateExecutableBytesScanned,

@@ -2,7 +2,7 @@
   "PauseResumeKey": "F5",
   "ResetKey": "F6",
   "MouseClickThroughKey": "F9",
-  "CreateWorldKey": "F7",
+  "CreateWorldKey": "F10",
   "ShowMouseClickThroughIndicator": false,
   "Language": "\u4E2D\u6587",
   "AlwaysOnTop": true,
@@ -218,8 +218,8 @@
     "ShortActionDelayMilliseconds": 10,
     "MenuActionDelayMilliseconds": 90,
     "WindowActivationDelayMilliseconds": 10,
-    "ClickFocusDelayMilliseconds": 20,
-    "InputPressDurationMilliseconds": 150
+    "ClickFocusDelayMilliseconds": 10,
+    "InputPressDurationMilliseconds": 140
   },
   "EnableDefeatedBossIconLighting": true,
   "UndefeatedIconGrayscalePercent": 80,

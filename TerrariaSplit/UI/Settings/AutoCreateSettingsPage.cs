@@ -2,10 +2,15 @@ using System.Windows.Forms;
 
 namespace TerrariaSplit;
 
-internal static class AutoCreateSettingsPage
+internal sealed class AutoCreateSettingsPage : SettingsPageBase
 {
-    public static Control Build(SettingsForm owner)
+    protected override Control BuildPage(SettingsPageContext context)
     {
-        return owner.BuildScrollPage(owner.AddAutoCreateSection);
+        return context.BuildScrollPage(Owner.AddAutoCreateSection);
+    }
+
+    public override void Apply(AppSettings settings)
+    {
+        Owner.ApplyAutoCreateSettings(settings);
     }
 }

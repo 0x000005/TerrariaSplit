@@ -18,7 +18,7 @@ internal sealed class TerrariaWindowController
     public bool TryActivate(out Size clientSize)
     {
         clientSize = Size.Empty;
-        Process? process = FindTerrariaProcess();
+        Process? process = TerrariaProcessFinder.FindNewest();
         if (process is null || process.MainWindowHandle == IntPtr.Zero)
         {
             return false;
@@ -43,9 +43,15 @@ internal sealed class TerrariaWindowController
 
     public bool TryClickClient(int x, int y)
     {
-        Process? process = FindTerrariaProcess();
+        return TryClickClient(x, y, out _);
+    }
+
+    public bool TryClickClient(int x, int y, out Size clientSize)
+    {
+        Process? process = TerrariaProcessFinder.FindNewest();
         if (process is null || process.MainWindowHandle == IntPtr.Zero)
         {
+            clientSize = Size.Empty;
             return false;
         }
 
@@ -57,6 +63,7 @@ internal sealed class TerrariaWindowController
 
         SetForegroundWindow(handle);
         Sleep(ClickFocusDelayMilliseconds);
+        clientSize = GetClientSize(handle);
         var point = new PointStruct { X = x, Y = y };
         if (!ClientToScreen(handle, ref point))
         {
@@ -68,6 +75,16 @@ internal sealed class TerrariaWindowController
         Thread.Sleep(InputPressDurationMilliseconds);
         mouse_event(MouseEventLeftUp, 0, 0, 0, UIntPtr.Zero);
         return true;
+    }
+
+    private static Size GetClientSize(IntPtr handle)
+    {
+        if (!GetClientRect(handle, out Rect rect))
+        {
+            return Size.Empty;
+        }
+
+        return new Size(rect.Right - rect.Left, rect.Bottom - rect.Top);
     }
 
     public bool TryClickClientRatio(float x, float y)
@@ -101,41 +118,6 @@ internal sealed class TerrariaWindowController
         keybd_event(virtualKey, 0, KeyEventKeyUp, UIntPtr.Zero);
         Thread.Sleep(20);
         keybd_event(modifierKey, 0, KeyEventKeyUp, UIntPtr.Zero);
-    }
-
-    private static Process? FindTerrariaProcess()
-    {
-        Process[] processes = Process.GetProcessesByName(Terraria1456Memory.ProcessName);
-        if (processes.Length == 0)
-        {
-            return null;
-        }
-
-        Process selected = processes
-            .OrderByDescending(ProcessStartTimeOrMinValue)
-            .First();
-
-        foreach (Process process in processes)
-        {
-            if (!ReferenceEquals(process, selected))
-            {
-                process.Dispose();
-            }
-        }
-
-        return selected;
-    }
-
-    private static DateTime ProcessStartTimeOrMinValue(Process process)
-    {
-        try
-        {
-            return process.StartTime;
-        }
-        catch
-        {
-            return DateTime.MinValue;
-        }
     }
 
     private static void Sleep(int milliseconds)

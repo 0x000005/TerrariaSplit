@@ -4,14 +4,16 @@ namespace TerrariaSplit;
 
 internal sealed class TerrariaSaveFileCleaner
 {
+    private const int MaxDeletedSavesPerKind = 100;
     private const string FavoritesFileName = "favorites.json";
+    private const string DeletedSavesDirectoryName = "TerrariaSplitDeleted";
 
     public TerrariaSaveCleanupResult MoveNonFavoritesToBackup()
     {
         string root = GetTerrariaSaveRoot();
+        string deletedRoot = Path.Combine(root, DeletedSavesDirectoryName);
         string backupRoot = Path.Combine(
-            root,
-            "TerrariaSplitDeleted",
+            deletedRoot,
             DateTime.Now.ToString("yyyyMMdd-HHmmss"));
 
         FavoriteSaveFiles favorites = LoadFavorites(Path.Combine(root, FavoritesFileName));
@@ -19,6 +21,8 @@ internal sealed class TerrariaSaveFileCleaner
         int favoriteWorlds = CountExistingFavoriteFiles(Path.Combine(root, "Worlds"), "*.wld", favorites.Worlds);
         int movedPlayers = MoveNonFavoritePlayers(root, backupRoot, favorites.Players);
         int movedWorlds = MoveNonFavoriteWorlds(root, backupRoot, favorites.Worlds);
+        PruneDeletedBackups(deletedRoot, "Players", "*.plr", includeCompanionDirectory: true);
+        PruneDeletedBackups(deletedRoot, "Worlds", "*.wld", includeCompanionDirectory: false);
         return new TerrariaSaveCleanupResult(
             root,
             backupRoot,
@@ -26,6 +30,17 @@ internal sealed class TerrariaSaveFileCleaner
             favoriteWorlds,
             movedPlayers,
             movedWorlds);
+    }
+
+    public TerrariaSaveInventorySnapshot ReadInventorySnapshot()
+    {
+        string root = GetTerrariaSaveRoot();
+        FavoriteSaveFiles favorites = LoadFavorites(Path.Combine(root, FavoritesFileName));
+        return new TerrariaSaveInventorySnapshot(
+            CountFiles(Path.Combine(root, "Players"), "*.plr"),
+            CountFiles(Path.Combine(root, "Worlds"), "*.wld"),
+            CountExistingFavoriteFiles(Path.Combine(root, "Players"), "*.plr", favorites.Players),
+            CountExistingFavoriteFiles(Path.Combine(root, "Worlds"), "*.wld", favorites.Worlds));
     }
 
     private static int MoveNonFavoritePlayers(string root, string backupRoot, HashSet<string> favorites)
@@ -80,6 +95,75 @@ internal sealed class TerrariaSaveFileCleaner
         return moved;
     }
 
+    private static void PruneDeletedBackups(string deletedRoot, string categoryName, string pattern, bool includeCompanionDirectory)
+    {
+        if (!Directory.Exists(deletedRoot))
+        {
+            return;
+        }
+
+        try
+        {
+            List<DeletedBackupEntry> entries = EnumerateDeletedBackups(deletedRoot, categoryName, pattern, includeCompanionDirectory)
+                .OrderBy(entry => entry.BatchName, StringComparer.Ordinal)
+                .ThenBy(entry => entry.PrimaryPath, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            int removeCount = entries.Count - MaxDeletedSavesPerKind;
+            if (removeCount <= 0)
+            {
+                return;
+            }
+
+            for (int i = 0; i < removeCount; i++)
+            {
+                DeleteDeletedBackup(entries[i]);
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error(ex, $"Failed to prune TerrariaSplit deleted {categoryName} backups.");
+        }
+    }
+
+    private static IEnumerable<DeletedBackupEntry> EnumerateDeletedBackups(
+        string deletedRoot,
+        string categoryName,
+        string pattern,
+        bool includeCompanionDirectory)
+    {
+        foreach (string batchPath in Directory.EnumerateDirectories(deletedRoot))
+        {
+            string categoryPath = Path.Combine(batchPath, categoryName);
+            if (!Directory.Exists(categoryPath))
+            {
+                continue;
+            }
+
+            foreach (string primaryPath in Directory.EnumerateFiles(categoryPath, pattern, SearchOption.TopDirectoryOnly))
+            {
+                string stem = Path.GetFileNameWithoutExtension(primaryPath);
+                yield return new DeletedBackupEntry(
+                    batchPath,
+                    Path.GetFileName(batchPath),
+                    categoryPath,
+                    primaryPath,
+                    primaryPath + ".bak",
+                    includeCompanionDirectory ? Path.Combine(categoryPath, stem) : null);
+            }
+        }
+    }
+
+    private static void DeleteDeletedBackup(DeletedBackupEntry entry)
+    {
+        DeleteFileIfExists(entry.PrimaryPath);
+        DeleteFileIfExists(entry.BackupPath);
+        DeleteDirectoryIfExists(entry.CompanionDirectory);
+        DeleteDirectoryIfEmpty(entry.CategoryPath);
+        DeleteEmptyChildDirectories(entry.BatchPath);
+        DeleteDirectoryIfEmpty(entry.BatchPath);
+    }
+
     private static void MoveFileIfExists(string source, string destination)
     {
         if (!File.Exists(source))
@@ -100,6 +184,43 @@ internal sealed class TerrariaSaveFileCleaner
 
         Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
         Directory.Move(source, GetAvailablePath(destination));
+    }
+
+    private static void DeleteFileIfExists(string? path)
+    {
+        if (path is not null && File.Exists(path))
+        {
+            File.Delete(path);
+        }
+    }
+
+    private static void DeleteDirectoryIfExists(string? path)
+    {
+        if (path is not null && Directory.Exists(path))
+        {
+            Directory.Delete(path, recursive: true);
+        }
+    }
+
+    private static void DeleteDirectoryIfEmpty(string path)
+    {
+        if (Directory.Exists(path) && !Directory.EnumerateFileSystemEntries(path).Any())
+        {
+            Directory.Delete(path);
+        }
+    }
+
+    private static void DeleteEmptyChildDirectories(string path)
+    {
+        if (!Directory.Exists(path))
+        {
+            return;
+        }
+
+        foreach (string childPath in Directory.EnumerateDirectories(path))
+        {
+            DeleteDirectoryIfEmpty(childPath);
+        }
     }
 
     private static string GetAvailablePath(string path)
@@ -134,6 +255,13 @@ internal sealed class TerrariaSaveFileCleaner
         return Directory.EnumerateFiles(directory, pattern, SearchOption.TopDirectoryOnly)
             .Select(Path.GetFileName)
             .Count(fileName => fileName is not null && favorites.Contains(fileName));
+    }
+
+    private static int CountFiles(string directory, string pattern)
+    {
+        return Directory.Exists(directory)
+            ? Directory.EnumerateFiles(directory, pattern, SearchOption.TopDirectoryOnly).Count()
+            : 0;
     }
 
     private static string GetTerrariaSaveRoot()
@@ -184,6 +312,14 @@ internal sealed class TerrariaSaveFileCleaner
             new HashSet<string>(StringComparer.OrdinalIgnoreCase),
             new HashSet<string>(StringComparer.OrdinalIgnoreCase));
     }
+
+    private readonly record struct DeletedBackupEntry(
+        string BatchPath,
+        string BatchName,
+        string CategoryPath,
+        string PrimaryPath,
+        string BackupPath,
+        string? CompanionDirectory);
 }
 
 internal readonly record struct TerrariaSaveCleanupResult(
@@ -193,3 +329,9 @@ internal readonly record struct TerrariaSaveCleanupResult(
     int FavoriteWorlds,
     int MovedPlayers,
     int MovedWorlds);
+
+internal readonly record struct TerrariaSaveInventorySnapshot(
+    int PlayerFiles,
+    int WorldFiles,
+    int FavoritePlayers,
+    int FavoriteWorlds);

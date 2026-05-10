@@ -2,10 +2,15 @@ using System.Windows.Forms;
 
 namespace TerrariaSplit;
 
-internal static class AnimationSettingsPage
+internal sealed class AnimationSettingsPage : SettingsPageBase
 {
-    public static Control Build(SettingsForm owner)
+    protected override Control BuildPage(SettingsPageContext context)
     {
-        return owner.BuildScrollPage(owner.AddAnimationSection);
+        return context.BuildScrollPage(Owner.AddAnimationSection);
+    }
+
+    public override void Apply(AppSettings settings)
+    {
+        Owner.ApplyAnimationSettings(settings);
     }
 }

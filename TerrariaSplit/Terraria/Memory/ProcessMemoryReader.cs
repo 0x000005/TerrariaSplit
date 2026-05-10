@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 
 namespace TerrariaSplit;
 
-internal sealed class ProcessMemoryReader
+internal sealed class ProcessMemoryReader : IProcessMemoryReader
 {
     private static readonly UIntPtr MemoryBasicInformationSize =
         (UIntPtr)Marshal.SizeOf<MemoryBasicInformation>();

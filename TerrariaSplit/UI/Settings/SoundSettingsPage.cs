@@ -2,10 +2,15 @@ using System.Windows.Forms;
 
 namespace TerrariaSplit;
 
-internal static class SoundSettingsPage
+internal sealed class SoundSettingsPage : SettingsPageBase
 {
-    public static Control Build(SettingsForm owner)
+    protected override Control BuildPage(SettingsPageContext context)
     {
-        return owner.BuildScrollPage(owner.AddSoundSection);
+        return context.BuildScrollPage(Owner.AddSoundSection);
+    }
+
+    public override void Apply(AppSettings settings)
+    {
+        Owner.ApplySoundSettings(settings);
     }
 }

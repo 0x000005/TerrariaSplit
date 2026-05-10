@@ -2,10 +2,15 @@ using System.Windows.Forms;
 
 namespace TerrariaSplit;
 
-internal static class GeneralSettingsPage
+internal sealed class GeneralSettingsPage : SettingsPageBase
 {
-    public static Control Build(SettingsForm owner)
+    protected override Control BuildPage(SettingsPageContext context)
     {
-        return owner.BuildScrollPage(owner.AddHotkeySection);
+        return context.BuildScrollPage(Owner.AddHotkeySection);
+    }
+
+    public override void Apply(AppSettings settings)
+    {
+        Owner.ApplyGeneralSettings(settings);
     }
 }

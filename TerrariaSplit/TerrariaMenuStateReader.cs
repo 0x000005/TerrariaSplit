@@ -95,7 +95,7 @@ internal sealed class TerrariaMenuStateReader : IDisposable
         menuModeAddress = IntPtr.Zero;
         candidates.Clear();
 
-        Process? candidate = FindTerrariaProcess();
+        Process? candidate = TerrariaProcessFinder.FindNewest();
         if (candidate is null)
         {
             return;
@@ -208,41 +208,6 @@ internal sealed class TerrariaMenuStateReader : IDisposable
     private static bool IsPlausibleMenuMode(int menuMode)
     {
         return menuMode is >= -100 and <= 1000001 || menuMode == 272727;
-    }
-
-    private static Process? FindTerrariaProcess()
-    {
-        Process[] processes = Process.GetProcessesByName(Terraria1456Memory.ProcessName);
-        if (processes.Length == 0)
-        {
-            return null;
-        }
-
-        Process selected = processes
-            .OrderByDescending(ProcessStartTimeOrMinValue)
-            .First();
-
-        foreach (Process process in processes)
-        {
-            if (!ReferenceEquals(process, selected))
-            {
-                process.Dispose();
-            }
-        }
-
-        return selected;
-    }
-
-    private static DateTime ProcessStartTimeOrMinValue(Process process)
-    {
-        try
-        {
-            return process.StartTime;
-        }
-        catch
-        {
-            return DateTime.MinValue;
-        }
     }
 
     private readonly record struct MenuModeCandidate(IntPtr Address, int Score);

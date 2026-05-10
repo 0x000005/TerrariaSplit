@@ -1,15 +1,23 @@
-using System.Drawing;
+﻿using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Globalization;
 using System.Windows.Forms;
 
 namespace TerrariaSplit;
 
-internal sealed class SettingsForm : Form
+internal sealed partial class SettingsForm : Form
 {
     private const int ResizeBorder = 8;
     private const int RowHeight = 56;
     private const int HeaderRowHeight = 40;
+    private const int GeneralPageIndex = 0;
+    private const int AutoCreatePageIndex = 1;
+    private const int BossPageIndex = 2;
+    private const int DataPageIndex = 3;
+    private const int UiPageIndex = 4;
+    private const int AnimationPageIndex = 5;
+    private const int SoundPageIndex = 6;
+    private const int ColorPageIndex = 7;
 
     private static readonly Color WindowColor = UiTheme.Window;
     private static readonly Color SectionColor = UiTheme.Surface;
@@ -334,15 +342,15 @@ internal sealed class SettingsForm : Form
         UiTheme.EnableDoubleBuffering(pageHost);
 
         pages.Clear();
-        pages.Add(new SettingsPageDescriptor(CreateNavButton("General"), () => GeneralSettingsPage.Build(this)));
-        pages.Add(new SettingsPageDescriptor(CreateNavButton("Create World"), () => AutoCreateSettingsPage.Build(this)));
-        pages.Add(new SettingsPageDescriptor(CreateNavButton("BOSS"), () => BossSettingsPage.Build(this)));
-        pages.Add(new SettingsPageDescriptor(CreateNavButton("Data"), () => DataSettingsPage.Build(this)));
-        pages.Add(new SettingsPageDescriptor(CreateNavButton("UI"), () => UiSettingsPage.Build(this)));
-        pages.Add(new SettingsPageDescriptor(CreateNavButton("Effects"), () => AnimationSettingsPage.Build(this)));
-        pages.Add(new SettingsPageDescriptor(CreateNavButton("Sounds"), () => SoundSettingsPage.Build(this)));
-        pages.Add(new SettingsPageDescriptor(CreateNavButton("Colors"), () => ColorSettingsPage.Build(this)));
-        pages.Add(new SettingsPageDescriptor(CreateNavButton("Debug"), () => DebugSettingsPage.Build(this)));
+        AddSettingsPage("General", new GeneralSettingsPage());
+        AddSettingsPage("Create World", new AutoCreateSettingsPage());
+        AddSettingsPage("BOSS", new BossSettingsPage());
+        AddSettingsPage("Data", new DataSettingsPage());
+        AddSettingsPage("UI", new UiSettingsPage());
+        AddSettingsPage("Effects", new AnimationSettingsPage());
+        AddSettingsPage("Sounds", new SoundSettingsPage());
+        AddSettingsPage("Colors", new ColorSettingsPage());
+        AddSettingsPage("Debug", new DelegateSettingsPage(context => DebugSettingsPage.Build(context.Owner)));
 
         foreach (SettingsPageDescriptor page in pages)
         {
@@ -415,7 +423,7 @@ internal sealed class SettingsForm : Form
         pageHost.SuspendLayout();
         try
         {
-            Control page = descriptor.Create();
+            Control page = descriptor.PageDefinition.Build(new SettingsPageContext(this));
             page.Dock = DockStyle.Fill;
             page.Visible = false;
             descriptor.Page = page;
@@ -436,6 +444,11 @@ internal sealed class SettingsForm : Form
         }
     }
 
+    private void ApplyPage(int index)
+    {
+        pages[index].PageDefinition.Apply(settings);
+    }
+
     private Button CreateNavButton(string text)
     {
         var button = new Button
@@ -451,6 +464,13 @@ internal sealed class SettingsForm : Form
         button.MinimumSize = new Size(148, 46);
         button.Padding = new Padding(14, 0, 14, 2);
         return button;
+    }
+
+    private void AddSettingsPage(string title, ISettingsPage pageDefinition)
+    {
+        pages.Add(new SettingsPageDescriptor(
+            CreateNavButton(title),
+            pageDefinition));
     }
 
     private Control CreateFooter()
@@ -536,1218 +556,6 @@ internal sealed class SettingsForm : Form
 
         UiTheme.EnableDoubleBuffering(panel);
         return panel;
-    }
-
-    internal void AddHotkeySection(TableLayoutPanel parent)
-    {
-        ConfigureKeyBox(pauseKeyBox, settings.PauseResumeKeys);
-        ConfigureKeyBox(resetKeyBox, settings.ResetKeys);
-        ConfigureKeyBox(mouseClickThroughKeyBox, settings.MouseClickThroughKeys);
-        ConfigureKeyBox(createWorldKeyBox, settings.CreateWorldKeys);
-        ConfigureCheckBox(showMouseClickThroughIndicatorBox, settings.ShowMouseClickThroughIndicator);
-
-        UiTheme.StyleComboBox(languageBox);
-        languageBox.Dock = DockStyle.Fill;
-        languageBox.Items.Add("English");
-        languageBox.Items.Add("中文");
-        languageBox.SelectedItem = settings.Language is "中文" ? "中文" : "English";
-
-        ConfigureNumberBox(globalScaleBox, settings.Columns.ScalePercent, 25, 300);
-        ConfigureCheckBox(alwaysOnTopBox, settings.AlwaysOnTop);
-        ConfigureCheckBox(practiceModeBox, settings.PracticeMode);
-
-        TableLayoutPanel commonSection = CreateSection("Common");
-        TableLayoutPanel commonGrid = CreateGrid(
-            ColumnStylePercent(100f),
-            ColumnStyleAbsolute(280f));
-        AddSettingRow(commonGrid, "Language", languageBox);
-        AddSettingRow(commonGrid, "Global scale %", globalScaleBox);
-        AddSettingRow(commonGrid, "Always on top", alwaysOnTopBox);
-        AddSectionControl(commonSection, commonGrid);
-        AddSection(parent, commonSection);
-
-        TableLayoutPanel hotkeysSection = CreateSection("Hotkeys");
-        TableLayoutPanel hotkeysGrid = CreateGrid(
-            ColumnStylePercent(100f),
-            ColumnStyleAbsolute(280f));
-        AddSettingRow(hotkeysGrid, "Pause / Resume", pauseKeyBox);
-        AddSettingRow(hotkeysGrid, "Reset (Disabled in world)", resetKeyBox);
-        AddSettingRow(hotkeysGrid, "Mouse passthrough", mouseClickThroughKeyBox);
-        AddSettingRow(hotkeysGrid, "Create world (Disabled in world)", createWorldKeyBox);
-        AddSettingRow(hotkeysGrid, "Mouse passthrough indicator", showMouseClickThroughIndicatorBox);
-        AddSectionControl(hotkeysSection, hotkeysGrid);
-        AddSection(parent, hotkeysSection);
-
-        TableLayoutPanel specialSection = CreateSection("Special Options");
-        TableLayoutPanel specialGrid = CreateGrid(
-            ColumnStylePercent(100f),
-            ColumnStyleAbsolute(280f));
-        AddSettingRow(specialGrid, "Allow manual time editing", practiceModeBox);
-        AddSectionControl(specialSection, specialGrid);
-        AddSection(parent, specialSection);
-    }
-
-    internal void AddAutoCreateSection(TableLayoutPanel parent)
-    {
-        UiTheme.StyleTextBox(autoCreatePlayerNameBox);
-        autoCreatePlayerNameBox.Dock = DockStyle.Fill;
-        autoCreatePlayerNameBox.Text = settings.AutoCreate.PlayerName;
-        autoCreatePlayerNameBox.PlaceholderText = Localizer.Get("Empty = 1", settings);
-
-        UiTheme.StyleTextBox(autoCreatePlayerTemplateCodeBox);
-        autoCreatePlayerTemplateCodeBox.Dock = DockStyle.Fill;
-        autoCreatePlayerTemplateCodeBox.Multiline = true;
-        autoCreatePlayerTemplateCodeBox.AcceptsReturn = true;
-        autoCreatePlayerTemplateCodeBox.ScrollBars = ScrollBars.Vertical;
-        autoCreatePlayerTemplateCodeBox.Height = autoCreatePlayerTemplateCodeBox.Font.Height * 10 + 14;
-        autoCreatePlayerTemplateCodeBox.Text = settings.AutoCreate.PlayerTemplateCode;
-        autoCreatePlayerTemplateCodeBox.PlaceholderText = Localizer.Get("Empty = default character", settings);
-
-        ConfigureOptionBox(autoCreatePlayerDifficultyBox, AutoCreatePlayerDifficulty.All, settings.AutoCreate.PlayerDifficulty);
-        ConfigureOptionBox(autoCreateWorldSizeBox, AutoCreateWorldSize.All, settings.AutoCreate.WorldSize);
-        ConfigureOptionBox(autoCreateWorldDifficultyBox, AutoCreateWorldDifficulty.All, settings.AutoCreate.WorldDifficulty);
-        ConfigureOptionBox(autoCreateWorldEvilBox, AutoCreateWorldEvil.All, settings.AutoCreate.WorldEvil);
-        ConfigureNumberBox(autoCreateShortActionDelayBox, settings.AutoCreate.ShortActionDelayMilliseconds, 0, 5000);
-        ConfigureNumberBox(autoCreateMenuActionDelayBox, settings.AutoCreate.MenuActionDelayMilliseconds, 0, 5000);
-        ConfigureNumberBox(autoCreateWindowActivationDelayBox, settings.AutoCreate.WindowActivationDelayMilliseconds, 0, 5000);
-        ConfigureNumberBox(autoCreateClickFocusDelayBox, settings.AutoCreate.ClickFocusDelayMilliseconds, 0, 5000);
-        ConfigureNumberBox(autoCreateInputPressDurationBox, settings.AutoCreate.InputPressDurationMilliseconds, 1, 5000);
-
-        TableLayoutPanel characterSection = CreateSection("Character");
-        TableLayoutPanel characterGrid = CreateGrid(
-            ColumnStylePercent(100f),
-            ColumnStyleAbsolute(360f));
-        AddSettingRow(characterGrid, "Player name", autoCreatePlayerNameBox);
-        AddSettingRow(characterGrid, "Player difficulty", autoCreatePlayerDifficultyBox);
-        AddSectionControl(characterSection, characterGrid);
-        AddSectionControl(characterSection, CreateFieldLabel("Player code"));
-        AddSectionControl(characterSection, autoCreatePlayerTemplateCodeBox);
-        AddSection(parent, characterSection);
-
-        TableLayoutPanel worldSection = CreateSection("World");
-        TableLayoutPanel worldGrid = CreateGrid(
-            ColumnStylePercent(100f),
-            ColumnStyleAbsolute(360f));
-        AddSettingRow(worldGrid, "World size", autoCreateWorldSizeBox);
-        AddSettingRow(worldGrid, "World difficulty", autoCreateWorldDifficultyBox);
-        AddSettingRow(worldGrid, "World evil", autoCreateWorldEvilBox);
-        AddSectionControl(worldSection, worldGrid);
-        AddSection(parent, worldSection);
-
-        TableLayoutPanel timingSection = CreateSection("Delay");
-        TableLayoutPanel timingGrid = CreateGrid(
-            ColumnStylePercent(100f),
-            ColumnStyleAbsolute(180f));
-        AddSettingRow(timingGrid, "Mouse / key press ms", autoCreateInputPressDurationBox);
-        AddSettingRow(timingGrid, "Window activation wait ms", autoCreateWindowActivationDelayBox);
-        AddSettingRow(timingGrid, "Click focus wait ms", autoCreateClickFocusDelayBox);
-        AddSettingRow(timingGrid, "Short action delay ms", autoCreateShortActionDelayBox);
-        AddSettingRow(timingGrid, "Menu action delay ms", autoCreateMenuActionDelayBox);
-        AddSectionControl(timingSection, timingGrid);
-        AddSection(parent, timingSection);
-    }
-
-    internal void AddRouteSection(TableLayoutPanel parent)
-    {
-        TableLayoutPanel section = CreateSection("BOSS Groups");
-        TableLayoutPanel grid = CreateGrid(
-            ColumnStylePercent(100f),
-            ColumnStyleAbsolute(124f),
-            ColumnStyleAbsolute(96f));
-
-        AddHeaderRow(grid, "BOSS", "Enabled", "Group");
-
-        IReadOnlyDictionary<string, BossRouteEntry> route = settings.Route.ToDictionary(
-            entry => entry.BossId,
-            StringComparer.OrdinalIgnoreCase);
-
-        foreach (BossUnitDefinition unit in BossSplitDefinitions.Units)
-        {
-            BossRouteEntry entry = route.TryGetValue(unit.Id, out BossRouteEntry? existing)
-                ? existing
-                : new BossRouteEntry { BossId = unit.Id };
-
-            var enabledBox = new CheckBox
-            {
-                Checked = entry.Enabled,
-                Dock = DockStyle.Fill,
-                ForeColor = TextColor,
-                TextAlign = ContentAlignment.MiddleCenter
-            };
-            UiTheme.StyleCheckBox(enabledBox);
-
-            TextBox groupBox = CreateTextBox(Math.Clamp(entry.Segment, 1m, 99m).ToString("0.#", CultureInfo.InvariantCulture));
-            enabledBox.CheckedChanged += (_, _) => bossRouteDirty = true;
-            groupBox.TextChanged += (_, _) => bossRouteDirty = true;
-            routeControls[unit.Id] = new RouteControls(enabledBox, groupBox);
-
-            int row = AddGridRow(grid);
-            grid.Controls.Add(CreateRowLabel(Localizer.Get(unit.DisplayName, settings)), 0, row);
-            grid.Controls.Add(enabledBox, 1, row);
-            grid.Controls.Add(groupBox, 2, row);
-        }
-
-        AddSectionControl(section, grid);
-        AddSection(parent, section);
-    }
-
-    internal void AddBossIconSection(TableLayoutPanel parent)
-    {
-        TableLayoutPanel section = CreateSection("BOSS Icons");
-        TableLayoutPanel grid = CreateGrid(
-            ColumnStyleAbsolute(260f),
-            ColumnStylePercent(100f),
-            ColumnStyleAbsolute(156f));
-
-        foreach (BossUnitDefinition unit in BossSplitDefinitions.Units)
-        {
-            TextBox textBox = CreateTextBox(settings.GetBossIconPath(unit.Id));
-            textBox.PlaceholderText = Localizer.Get("empty = bundled icon", settings);
-            bossIconTextBoxes[unit.Id] = textBox;
-
-            Button browseButton = CreateButton("Browse", accent: false, minimumWidth: 140);
-            browseButton.Margin = new Padding(8, 2, 0, 2);
-            browseButton.Click += (_, _) => PickBossIcon(textBox);
-
-            int row = AddGridRow(grid);
-            grid.Controls.Add(CreateRowLabel(Localizer.Get(unit.DisplayName, settings)), 0, row);
-            grid.Controls.Add(textBox, 1, row);
-            grid.Controls.Add(browseButton, 2, row);
-        }
-
-        AddSectionControl(section, grid);
-        AddSection(parent, section);
-    }
-
-    internal void AddReferenceDataSection(TableLayoutPanel parent)
-    {
-        TableLayoutPanel section = CreateSection("Reference Data");
-
-        ConfigureReferenceSetBox();
-        newReferenceSetNameBox.PlaceholderText = Localizer.Get("new group name", settings);
-        newReferenceSetNameBox.Dock = DockStyle.Fill;
-        UiTheme.StyleTextBox(newReferenceSetNameBox);
-
-        Button addButton = CreateButton("Add", accent: false, minimumWidth: 120);
-        addButton.Click += (_, _) => AddReferenceSet();
-
-        TableLayoutPanel selectorGrid = CreateGrid(
-            ColumnStyleAbsolute(220f),
-            ColumnStyleAbsolute(260f),
-            ColumnStylePercent(100f),
-            ColumnStyleAbsolute(240f),
-            ColumnStyleAbsolute(136f));
-        int selectorRow = AddGridRow(selectorGrid);
-        selectorGrid.Controls.Add(CreateRowLabel("Active group"), 0, selectorRow);
-        selectorGrid.Controls.Add(referenceSetBox, 1, selectorRow);
-        selectorGrid.Controls.Add(newReferenceSetNameBox, 3, selectorRow);
-        selectorGrid.Controls.Add(CreateButtonPanel(addButton), 4, selectorRow);
-        AddSectionControl(section, selectorGrid);
-
-        TableLayoutPanel grid = CreateGrid(
-            ColumnStylePercent(100f),
-            ColumnStyleAbsolute(280f));
-        foreach (BossRouteEntry entry in GetRouteOrderedEntries())
-        {
-            if (!BossSplitDefinitions.TryGetUnit(entry.BossId, out BossUnitDefinition unit))
-            {
-                continue;
-            }
-
-            TextBox textBox = CreateTextBox(settings.GetReferenceText(unit.Id));
-            textBox.PlaceholderText = "m:ss or h:mm:ss";
-            splitTextBoxes[unit.Id] = textBox;
-            AddSettingRow(grid, Localizer.Get(unit.DisplayName, settings), textBox);
-        }
-
-        AddSectionControl(section, grid);
-        AddSection(parent, section);
-    }
-
-    internal void AddPersonalBestDataSection(TableLayoutPanel parent)
-    {
-        ConfigureCheckBox(autoUpdatePersonalBestDataBox, settings.AutoUpdatePersonalBestData);
-        ConfigureCheckBox(askBeforeUpdatingPersonalBestDataBox, settings.AskBeforeUpdatingPersonalBestData);
-        TableLayoutPanel autoUpdateSection = CreateSection("Personal Data");
-        TableLayoutPanel autoUpdateGrid = CreateGrid(
-            ColumnStylePercent(100f),
-            ColumnStyleAbsolute(280f));
-        AddSettingRow(autoUpdateGrid, "Auto update personal data", autoUpdatePersonalBestDataBox);
-        AddSettingRow(autoUpdateGrid, "Ask before updating personal data", askBeforeUpdatingPersonalBestDataBox);
-        AddSectionControl(autoUpdateSection, autoUpdateGrid);
-        AddSection(parent, autoUpdateSection);
-
-        TableLayoutPanel personalBestSection = CreateSection("Personal Cumulative Best");
-        ConfigurePersonalBestTimeSetBox();
-        TableLayoutPanel personalBestSelectorGrid = CreateGrid(
-            ColumnStylePercent(100f),
-            ColumnStyleAbsolute(280f));
-        AddSettingRow(personalBestSelectorGrid, "Active file", personalBestTimeSetBox);
-        AddSectionControl(personalBestSection, personalBestSelectorGrid);
-        personalBestTimeGrid = CreateGrid(
-            ColumnStylePercent(100f),
-            ColumnStyleAbsolute(280f));
-        PopulatePersonalBestTimeGrid();
-        AddSectionControl(personalBestSection, personalBestTimeGrid);
-        AddSection(parent, personalBestSection);
-
-        TableLayoutPanel personalBestSegmentSection = CreateSection("Personal segment best");
-        ConfigurePersonalBestSegmentSetBox();
-        TableLayoutPanel segmentSelectorGrid = CreateGrid(
-            ColumnStylePercent(100f),
-            ColumnStyleAbsolute(280f));
-        AddSettingRow(segmentSelectorGrid, "Active file", personalBestSegmentSetBox);
-        AddSectionControl(personalBestSegmentSection, segmentSelectorGrid);
-        personalBestSegmentGrid = CreateGrid(
-            ColumnStylePercent(100f),
-            ColumnStyleAbsolute(280f));
-        PopulatePersonalBestSegmentGrid();
-        AddSectionControl(personalBestSegmentSection, personalBestSegmentGrid);
-        AddSection(parent, personalBestSegmentSection);
-    }
-
-    private void PopulatePersonalBestTimeGrid()
-    {
-        if (personalBestTimeGrid is null)
-        {
-            return;
-        }
-
-        List<BossRouteEntry> entries = GetRouteOrderedEntries().ToList();
-        string signature = string.Join('\u001F', entries.Select(entry => entry.BossId));
-        if (personalBestTimeGridSignature == signature && personalBestTimeTextBoxes.Count > 0)
-        {
-            foreach (BossRouteEntry entry in entries)
-            {
-                if (personalBestTimeTextBoxes.TryGetValue(entry.BossId, out TextBox? textBox))
-                {
-                    textBox.Text = settings.GetPersonalBestTimeText(entry.BossId);
-                }
-            }
-
-            return;
-        }
-
-        personalBestTimeGrid.SuspendLayout();
-        try
-        {
-            ClearGrid(personalBestTimeGrid);
-            personalBestTimeTextBoxes.Clear();
-            foreach (BossRouteEntry entry in entries)
-            {
-                if (!BossSplitDefinitions.TryGetUnit(entry.BossId, out BossUnitDefinition unit))
-                {
-                    continue;
-                }
-
-                TextBox textBox = CreateTextBox(settings.GetPersonalBestTimeText(unit.Id));
-                textBox.PlaceholderText = "m:ss or h:mm:ss";
-                personalBestTimeTextBoxes[unit.Id] = textBox;
-                AddSettingRow(personalBestTimeGrid, Localizer.Get(unit.DisplayName, settings), textBox);
-            }
-
-            personalBestTimeGridSignature = signature;
-        }
-        finally
-        {
-            personalBestTimeGrid.ResumeLayout(true);
-        }
-    }
-
-    private void PopulatePersonalBestSegmentGrid()
-    {
-        if (personalBestSegmentGrid is null)
-        {
-            return;
-        }
-
-        List<RouteGroup> groups = BossRouteGroups.Build(settings).ToList();
-        string signature = string.Join('\u001F', groups.Select(group => group.Key));
-        if (personalBestSegmentGridSignature == signature && personalBestSegmentTextBoxes.Count > 0)
-        {
-            foreach (RouteGroup group in groups)
-            {
-                if (personalBestSegmentTextBoxes.TryGetValue(group.Key, out TextBox? textBox))
-                {
-                    textBox.Text = settings.GetPersonalBestSegmentText(group.Key);
-                }
-            }
-
-            return;
-        }
-
-        personalBestSegmentGrid.SuspendLayout();
-        try
-        {
-            ClearGrid(personalBestSegmentGrid);
-            personalBestSegmentTextBoxes.Clear();
-            foreach (RouteGroup group in groups)
-            {
-                TextBox textBox = CreateTextBox(settings.GetPersonalBestSegmentText(group.Key));
-                textBox.PlaceholderText = "m:ss or h:mm:ss";
-                personalBestSegmentTextBoxes[group.Key] = textBox;
-                AddSettingRow(personalBestSegmentGrid, BossRouteGroups.GetGroupDisplayName(group, settings), textBox);
-            }
-
-            personalBestSegmentGridSignature = signature;
-        }
-        finally
-        {
-            personalBestSegmentGrid.ResumeLayout(true);
-        }
-    }
-
-    internal void AddColumnSettingsSection(TableLayoutPanel parent)
-    {
-        ConfigureCheckBox(enableDynamicDeltaTimeUnitsBox, settings.EnableDynamicDeltaTimeUnits);
-
-        TableLayoutPanel section = CreateSection("Split display");
-        TableLayoutPanel grid = CreateGrid(
-            ColumnStylePercent(100f),
-            ColumnStyleAbsolute(92f),
-            ColumnStyleAbsolute(118f),
-            ColumnStyleAbsolute(132f),
-            ColumnStyleAbsolute(92f));
-
-        AddHeaderRow(grid, ContentAlignment.MiddleLeft, "Column", "Show", "Width", "Font", "Bold");
-        AddColumnSettingsRow(grid, "Icon", "Icon", settings.Columns.Icon);
-        AddColumnSettingsRow(grid, "Time", "Time", settings.Columns.Time);
-        AddColumnSettingsRow(grid, "Delta", "Delta", settings.Columns.Delta);
-
-        TableLayoutPanel optionsGrid = CreateGrid(
-            ColumnStylePercent(100f),
-            ColumnStyleAbsolute(280f));
-        AddSettingRow(optionsGrid, "Dynamic delta time units", enableDynamicDeltaTimeUnitsBox);
-
-        AddSectionControl(section, grid);
-        AddSectionControl(section, optionsGrid);
-        AddSection(parent, section);
-    }
-
-    private void AddColumnSettingsRow(TableLayoutPanel grid, string label, string key, UiColumnSettings value)
-    {
-        var showBox = new CheckBox
-        {
-            Checked = value.Show,
-            Dock = DockStyle.Fill,
-            ForeColor = TextColor,
-            TextAlign = ContentAlignment.MiddleCenter
-        };
-        UiTheme.StyleCheckBox(showBox);
-
-        TextBox widthBox = CreateNumberBox(value.Width, 1, 1000);
-        TextBox fontBox = CreateDecimalBox(value.FontSize, 6, 96);
-
-        var boldBox = new CheckBox
-        {
-            Checked = value.Bold,
-            Dock = DockStyle.Fill,
-            ForeColor = TextColor,
-            TextAlign = ContentAlignment.MiddleCenter
-        };
-        UiTheme.StyleCheckBox(boldBox);
-
-        columnControls[key] = new ColumnControls(showBox, widthBox, fontBox, boldBox);
-
-        int row = AddGridRow(grid);
-        grid.Controls.Add(CreateRowLabel(label), 0, row);
-        grid.Controls.Add(CreateCenteredCell(showBox, 28), 1, row);
-        grid.Controls.Add(CreateCenteredCell(widthBox, 86), 2, row);
-        grid.Controls.Add(CreateCenteredCell(fontBox, 92), 3, row);
-        grid.Controls.Add(CreateCenteredCell(boldBox, 28), 4, row);
-    }
-
-    internal void AddTimerSettingsSection(TableLayoutPanel parent)
-    {
-        TableLayoutPanel section = CreateSection("Main timer");
-        TableLayoutPanel grid = CreateGrid(
-            ColumnStylePercent(100f),
-            ColumnStyleAbsolute(92f),
-            ColumnStyleAbsolute(132f),
-            ColumnStyleAbsolute(92f));
-
-        AddHeaderRow(grid, ContentAlignment.MiddleLeft, "Section", "Show", "Font", "Bold");
-        AddFontSettingsRow(grid, "Before decimal", "Timer", settings.Columns.Timer);
-        AddFontSettingsRow(grid, "After decimal", "TimerMilliseconds", settings.Columns.TimerMilliseconds);
-
-        ConfigureNumberBox(timerOffsetXBox, settings.Columns.TimerOffsetX, -2000, 2000);
-        ConfigureNumberBox(timerOffsetYBox, settings.Columns.TimerOffsetY, -2000, 2000);
-        TableLayoutPanel offsetGrid = CreateGrid(
-            ColumnStylePercent(100f),
-            ColumnStyleAbsolute(280f));
-        AddSettingRow(offsetGrid, "Offset X", timerOffsetXBox);
-        AddSettingRow(offsetGrid, "Offset Y", timerOffsetYBox);
-
-        AddSectionControl(section, grid);
-        AddSectionControl(section, offsetGrid);
-        AddSection(parent, section);
-    }
-
-    private void AddFontSettingsRow(TableLayoutPanel grid, string label, string key, UiColumnSettings value)
-    {
-        var showBox = new CheckBox
-        {
-            Checked = value.Show,
-            Dock = DockStyle.Fill,
-            ForeColor = TextColor,
-            TextAlign = ContentAlignment.MiddleCenter
-        };
-        UiTheme.StyleCheckBox(showBox);
-
-        TextBox fontBox = CreateDecimalBox(value.FontSize, 6, 96);
-        var boldBox = new CheckBox
-        {
-            Checked = value.Bold,
-            Dock = DockStyle.Fill,
-            ForeColor = TextColor,
-            TextAlign = ContentAlignment.MiddleCenter
-        };
-        UiTheme.StyleCheckBox(boldBox);
-
-        fontControls[key] = new FontControls(showBox, fontBox, boldBox);
-        int row = AddGridRow(grid);
-        grid.Controls.Add(CreateRowLabel(label), 0, row);
-        grid.Controls.Add(CreateCenteredCell(showBox, 28), 1, row);
-        grid.Controls.Add(CreateCenteredCell(fontBox, 92), 2, row);
-        grid.Controls.Add(CreateCenteredCell(boldBox, 28), 3, row);
-    }
-
-    internal void AddAnimationSection(TableLayoutPanel parent)
-    {
-        ConfigureCheckBox(enableDefeatedBossIconLightingBox, settings.EnableDefeatedBossIconLighting);
-        ConfigureNumberBox(undefeatedIconGrayscaleBox, settings.UndefeatedIconGrayscalePercent, 0, 100);
-        ConfigureNumberBox(undefeatedIconBrightnessBox, settings.UndefeatedIconBrightnessPercent, 0, 100);
-        ConfigureNumberBox(currentBossIconGrayscaleWeakenBox, settings.CurrentBossIconGrayscaleWeakenPercent, 0, 100);
-        ConfigureNumberBox(currentBossIconBrightnessBoostBox, settings.CurrentBossIconBrightnessBoostPercent, 0, 100);
-        ConfigureCheckBox(showCurrentSplitHighlightBox, settings.ShowCurrentSplitHighlight);
-        ConfigureNumberBox(currentSplitHighlightScaleBox, settings.CurrentSplitHighlightScalePercent, 100, 140);
-        ConfigureNumberBox(currentSplitDepthStrengthBox, settings.CurrentSplitDepthStrengthPercent, 0, 100);
-        ConfigureCheckBox(showEarlyDeltaTimeBox, settings.ShowEarlyDeltaTime);
-        ConfigureNumberBox(earlyDeltaTimeSecondsBox, settings.EarlyDeltaTimeSeconds, 0, 3600);
-        ConfigureCheckBox(enableDeltaGradientColorBox, settings.EnableDeltaGradientColor);
-        ConfigureCheckBox(enableTimerGradientColorBox, settings.EnableTimerGradientColor);
-        ConfigureTimeBox(deltaGradientThresholdBox, settings.DeltaGradientThresholdSeconds, 1, 3600);
-        ConfigureDeltaGradientCurveBox();
-        enableDeltaGradientColorBox.CheckedChanged += (_, _) => InvalidateDeltaGradientPreview();
-        enableTimerGradientColorBox.CheckedChanged += (_, _) => InvalidateDeltaGradientPreview();
-        deltaGradientThresholdBox.TextChanged += (_, _) => InvalidateDeltaGradientPreview();
-        ConfigureCheckBox(showSplitCompletionAnimationBox, settings.ShowSplitCompletionAnimation);
-        ConfigureDecimalBox(splitCompletionAnimationDurationBox, settings.SplitCompletionAnimationDurationSeconds, 2m, 20m);
-        ConfigureNumberBox(splitCompletionOutlineThicknessBox, settings.SplitCompletionOutlineThicknessPercent, 0, 100);
-        splitCompletionOutlineThicknessBox.TextChanged += (_, _) => outlineStylePreview.Invalidate();
-
-        TableLayoutPanel iconSection = CreateSection("Light icons when BOSS defeated");
-        TableLayoutPanel iconGrid = CreateGrid(
-            ColumnStylePercent(100f),
-            ColumnStyleAbsolute(280f));
-        AddSettingRow(iconGrid, "Enabled", enableDefeatedBossIconLightingBox);
-        AddSettingRow(iconGrid, "Unlit grayscale %", undefeatedIconGrayscaleBox);
-        AddSettingRow(iconGrid, "Unlit brightness %", undefeatedIconBrightnessBox);
-        AddSettingRow(iconGrid, "Current boss grayscale weaken %", currentBossIconGrayscaleWeakenBox);
-        AddSettingRow(iconGrid, "Current boss brightness boost %", currentBossIconBrightnessBoostBox);
-        AddSectionControl(iconSection, iconGrid);
-        AddSection(parent, iconSection);
-
-        TableLayoutPanel currentSection = CreateSection("Highlight current stage");
-        TableLayoutPanel currentGrid = CreateGrid(
-            ColumnStylePercent(100f),
-            ColumnStyleAbsolute(280f));
-        AddSettingRow(currentGrid, "Enabled", showCurrentSplitHighlightBox);
-        AddSettingRow(currentGrid, "Scale %", currentSplitHighlightScaleBox);
-        AddSettingRow(currentGrid, "Depth strength %", currentSplitDepthStrengthBox);
-        AddSectionControl(currentSection, currentGrid);
-        AddSection(parent, currentSection);
-
-        TableLayoutPanel earlyDeltaSection = CreateSection("Early delta time");
-        TableLayoutPanel earlyDeltaGrid = CreateGrid(
-            ColumnStylePercent(100f),
-            ColumnStyleAbsolute(280f));
-        AddSettingRow(earlyDeltaGrid, "Enabled", showEarlyDeltaTimeBox);
-        AddSettingRow(earlyDeltaGrid, "Show when within seconds", earlyDeltaTimeSecondsBox);
-        AddSectionControl(earlyDeltaSection, earlyDeltaGrid);
-        AddSection(parent, earlyDeltaSection);
-
-        TableLayoutPanel deltaGradientSection = CreateSection("Delta time gradient");
-        TableLayoutPanel deltaGradientGrid = CreateGrid(
-            ColumnStylePercent(100f),
-            ColumnStyleAbsolute(280f));
-        AddSettingRow(deltaGradientGrid, "Enabled (Delta)", enableDeltaGradientColorBox);
-        AddSettingRow(deltaGradientGrid, "Enabled (Main timer)", enableTimerGradientColorBox);
-        AddSettingRow(deltaGradientGrid, "Threshold time", deltaGradientThresholdBox);
-        AddSettingRow(deltaGradientGrid, "Gradient mode", deltaGradientCurveBox);
-        AddSectionControl(deltaGradientSection, deltaGradientGrid);
-        AddSectionControl(deltaGradientSection, CreateDeltaGradientPreview());
-        AddSection(parent, deltaGradientSection);
-
-        TableLayoutPanel section = CreateSection("BOSS defeat animation");
-        TableLayoutPanel optionGrid = CreateGrid(
-            ColumnStylePercent(100f),
-            ColumnStyleAbsolute(280f));
-        AddSettingRow(optionGrid, "Enabled", showSplitCompletionAnimationBox);
-        AddSettingRow(optionGrid, "Animation duration seconds", splitCompletionAnimationDurationBox);
-        AddSectionControl(section, optionGrid);
-
-        AddSectionControl(section, CreateSubsectionLabel("Show comparison with reference time"));
-        animationComparisonGrid = CreateGrid(
-            ColumnStylePercent(100f),
-            ColumnStyleAbsolute(180f),
-            ColumnStyleAbsolute(180f));
-        AddSectionControl(section, animationComparisonGrid);
-
-        AddSectionControl(section, CreateSubsectionLabel("Outline when faster than reference"));
-        TableLayoutPanel outlineOptionGrid = CreateGrid(
-            ColumnStylePercent(100f),
-            ColumnStyleAbsolute(280f));
-        AddSettingRow(outlineOptionGrid, "Outline thickness %", splitCompletionOutlineThicknessBox);
-        AddSectionControl(section, outlineOptionGrid);
-
-        animationOutlineGrid = CreateGrid(
-            ColumnStylePercent(100f),
-            ColumnStyleAbsolute(180f),
-            ColumnStyleAbsolute(180f));
-        AddSectionControl(section, animationOutlineGrid);
-        AddSectionControl(section, CreateOutlineStylePreview());
-        PopulateAnimationOutlineGrid();
-        AddSection(parent, section);
-
-        AddSegmentBestDeltaHighlightSection(parent);
-    }
-
-    private void AddSegmentBestDeltaHighlightSection(TableLayoutPanel parent)
-    {
-        ConfigureCheckBox(showSegmentBestDeltaHighlightBox, settings.ShowSegmentBestDeltaHighlight);
-        TableLayoutPanel section = CreateSection("Highlight best segment");
-        TableLayoutPanel optionGrid = CreateGrid(
-            ColumnStylePercent(100f),
-            ColumnStyleAbsolute(280f));
-        AddSettingRow(optionGrid, "Enabled", showSegmentBestDeltaHighlightBox);
-        AddSectionControl(section, optionGrid);
-
-        segmentBestDeltaHighlightGrid = CreateGrid(
-            ColumnStylePercent(100f),
-            ColumnStyleAbsolute(220f));
-        PopulateSegmentBestDeltaHighlightGrid();
-        AddSectionControl(section, segmentBestDeltaHighlightGrid);
-        AddSectionControl(section, CreateSegmentBestDeltaHighlightPreview());
-        AddSection(parent, section);
-    }
-
-    private void PopulateAnimationOutlineGrid()
-    {
-        if (animationComparisonGrid is null || animationOutlineGrid is null)
-        {
-            return;
-        }
-
-        List<RouteGroup> groups = BossRouteGroups.Build(settings).ToList();
-        string signature = string.Join('\u001F', groups.Select(group => group.Key));
-        if (animationGridSignature == signature && animationOutlineControls.Count > 0)
-        {
-            foreach (RouteGroup group in groups)
-            {
-                if (!animationOutlineControls.TryGetValue(group.Key, out AnimationOutlineControls? controls))
-                {
-                    continue;
-                }
-
-                controls.SplitComparison.Checked = GetAnimationOutlineSetting(settings.SplitCompletionSplitComparisons, group.Key);
-                controls.SegmentComparison.Checked = GetAnimationOutlineSetting(settings.SplitCompletionSegmentComparisons, group.Key);
-                SetOutlineStyle(controls.SplitTime, GetAnimationOutlineStyle(settings.SplitCompletionOutlineSplitStyles, group.Key));
-                SetOutlineStyle(controls.SegmentTime, GetAnimationOutlineStyle(settings.SplitCompletionOutlineSegmentStyles, group.Key));
-            }
-
-            return;
-        }
-
-        animationComparisonGrid.SuspendLayout();
-        animationOutlineGrid.SuspendLayout();
-        try
-        {
-            ClearGrid(animationComparisonGrid);
-            ClearGrid(animationOutlineGrid);
-            animationOutlineControls.Clear();
-            AddHeaderRow(animationComparisonGrid, "BOSS Group", "Cumulative time", "Segment time");
-            AddHeaderRow(animationOutlineGrid, "BOSS Group", "Cumulative time", "Segment time");
-            foreach (RouteGroup group in groups)
-            {
-                var splitComparisonBox = new CheckBox
-                {
-                    Checked = GetAnimationOutlineSetting(settings.SplitCompletionSplitComparisons, group.Key),
-                    Dock = DockStyle.Fill,
-                    ForeColor = TextColor,
-                    TextAlign = ContentAlignment.MiddleCenter
-                };
-                UiTheme.StyleCheckBox(splitComparisonBox);
-
-                var segmentComparisonBox = new CheckBox
-                {
-                    Checked = GetAnimationOutlineSetting(settings.SplitCompletionSegmentComparisons, group.Key),
-                    Dock = DockStyle.Fill,
-                    ForeColor = TextColor,
-                    TextAlign = ContentAlignment.MiddleCenter
-                };
-                UiTheme.StyleCheckBox(segmentComparisonBox);
-
-                ComboBox splitTimeBox = CreateOutlineStyleBox(GetAnimationOutlineStyle(settings.SplitCompletionOutlineSplitStyles, group.Key));
-                ComboBox segmentTimeBox = CreateOutlineStyleBox(GetAnimationOutlineStyle(settings.SplitCompletionOutlineSegmentStyles, group.Key));
-
-                animationOutlineControls[group.Key] = new AnimationOutlineControls(splitComparisonBox, segmentComparisonBox, splitTimeBox, segmentTimeBox);
-
-                int comparisonRow = AddGridRow(animationComparisonGrid);
-                animationComparisonGrid.Controls.Add(CreateRowLabel(BossRouteGroups.GetGroupDisplayName(group, settings)), 0, comparisonRow);
-                animationComparisonGrid.Controls.Add(splitComparisonBox, 1, comparisonRow);
-                animationComparisonGrid.Controls.Add(segmentComparisonBox, 2, comparisonRow);
-
-                int outlineRow = AddGridRow(animationOutlineGrid);
-                animationOutlineGrid.Controls.Add(CreateRowLabel(BossRouteGroups.GetGroupDisplayName(group, settings)), 0, outlineRow);
-                animationOutlineGrid.Controls.Add(splitTimeBox, 1, outlineRow);
-                animationOutlineGrid.Controls.Add(segmentTimeBox, 2, outlineRow);
-            }
-
-            animationGridSignature = signature;
-        }
-        finally
-        {
-            animationOutlineGrid.ResumeLayout(true);
-            animationComparisonGrid.ResumeLayout(true);
-        }
-    }
-
-    private static bool GetAnimationOutlineSetting(Dictionary<string, bool> values, string key)
-    {
-        return !values.TryGetValue(key, out bool enabled) || enabled;
-    }
-
-    private static string GetAnimationOutlineStyle(Dictionary<string, string> values, string key)
-    {
-        return values.TryGetValue(key, out string? style)
-            ? SplitCompletionOutlineStyles.Normalize(style)
-            : SplitCompletionOutlineStyles.Rainbow;
-    }
-
-    private ComboBox CreateOutlineStyleBox(string selectedStyle)
-    {
-        var comboBox = new ComboBox
-        {
-            Dock = DockStyle.Fill,
-            DropDownStyle = ComboBoxStyle.DropDownList
-        };
-        UiTheme.StyleComboBox(comboBox);
-
-        foreach (string style in SplitCompletionOutlineStyles.Ids)
-        {
-            comboBox.Items.Add(new OutlineStyleOption(style, Localizer.Get(SplitCompletionOutlineStyles.GetDisplayName(style), settings)));
-        }
-
-        SetOutlineStyle(comboBox, selectedStyle);
-        comboBox.SelectedIndexChanged += (_, _) =>
-        {
-            previewOutlineStyle = GetSelectedOutlineStyle(comboBox);
-            outlineStylePreview.Invalidate();
-        };
-        return comboBox;
-    }
-
-    private static string GetSelectedOutlineStyle(ComboBox comboBox)
-    {
-        return comboBox.SelectedItem is OutlineStyleOption option
-            ? option.Id
-            : SplitCompletionOutlineStyles.None;
-    }
-
-    private static void SetOutlineStyle(ComboBox comboBox, string style)
-    {
-        string normalized = SplitCompletionOutlineStyles.Normalize(style);
-        for (int i = 0; i < comboBox.Items.Count; i++)
-        {
-            if (comboBox.Items[i] is OutlineStyleOption option &&
-                string.Equals(option.Id, normalized, StringComparison.OrdinalIgnoreCase))
-            {
-                comboBox.SelectedIndex = i;
-                return;
-            }
-        }
-
-        comboBox.SelectedIndex = 0;
-    }
-
-    private Control CreateOutlineStylePreview()
-    {
-        outlineStylePreview.Dock = DockStyle.Fill;
-        outlineStylePreview.Height = 96;
-        outlineStylePreview.BackColor = FieldColor;
-        outlineStylePreview.Margin = new Padding(0, 10, 0, 2);
-        outlineStylePreview.Paint += (_, e) => PaintOutlineStylePreview(e.Graphics, outlineStylePreview.ClientRectangle);
-        UiTheme.EnableDoubleBuffering(outlineStylePreview);
-        outlineStylePreviewTimer.Interval = 120;
-        outlineStylePreviewTimer.Tick += (_, _) => outlineStylePreview.Invalidate();
-        outlineStylePreviewTimer.Start();
-        outlineStylePreview.Disposed += (_, _) => outlineStylePreviewTimer.Stop();
-        return outlineStylePreview;
-    }
-
-    private Control CreateSegmentBestDeltaHighlightPreview()
-    {
-        segmentBestDeltaHighlightPreview.Dock = DockStyle.Fill;
-        segmentBestDeltaHighlightPreview.Height = 96;
-        segmentBestDeltaHighlightPreview.BackColor = FieldColor;
-        segmentBestDeltaHighlightPreview.Margin = new Padding(0, 10, 0, 2);
-        segmentBestDeltaHighlightPreview.Paint += (_, e) => PaintSegmentBestDeltaHighlightPreview(e.Graphics, segmentBestDeltaHighlightPreview.ClientRectangle);
-        UiTheme.EnableDoubleBuffering(segmentBestDeltaHighlightPreview);
-        outlineStylePreviewTimer.Tick += (_, _) => segmentBestDeltaHighlightPreview.Invalidate();
-        return segmentBestDeltaHighlightPreview;
-    }
-
-    private Control CreateDeltaGradientPreview()
-    {
-        deltaGradientPreview.Dock = DockStyle.Fill;
-        deltaGradientPreview.Height = 88;
-        deltaGradientPreview.BackColor = FieldColor;
-        deltaGradientPreview.Margin = new Padding(0, 10, 0, 2);
-        deltaGradientPreview.Paint += (_, e) => PaintDeltaGradientPreview(e.Graphics, deltaGradientPreview.ClientRectangle);
-        UiTheme.EnableDoubleBuffering(deltaGradientPreview);
-        return deltaGradientPreview;
-    }
-
-    private void PaintDeltaGradientPreview(Graphics graphics, Rectangle bounds)
-    {
-        graphics.SmoothingMode = SmoothingMode.AntiAlias;
-        using var backgroundBrush = new SolidBrush(FieldColor);
-        graphics.FillRectangle(backgroundBrush, bounds);
-        using var borderPen = new Pen(BorderColor);
-        graphics.DrawRectangle(borderPen, 0, 0, Math.Max(0, bounds.Width - 1), Math.Max(0, bounds.Height - 1));
-
-        Rectangle fillBounds = Rectangle.Inflate(bounds, -1, -1);
-        if (fillBounds.Width <= 0 || fillBounds.Height <= 0)
-        {
-            return;
-        }
-
-        int gap = 1;
-        int rowHeight = Math.Max(1, (fillBounds.Height - gap) / 2);
-        var deltaRow = new Rectangle(fillBounds.Left, fillBounds.Top, fillBounds.Width, rowHeight);
-        var timerRow = new Rectangle(fillBounds.Left, deltaRow.Bottom + gap, fillBounds.Width, Math.Max(1, fillBounds.Bottom - deltaRow.Bottom - gap));
-        DrawDeltaGradientPreviewRow(graphics, deltaRow, Localizer.Get("Delta", settings), GetPreviewDeltaGradientPalette());
-        DrawDeltaGradientPreviewRow(graphics, timerRow, Localizer.Get("Main timer", settings), GetPreviewTimerGradientPalette());
-        using var separatorPen = new Pen(BorderColor);
-        graphics.DrawLine(separatorPen, fillBounds.Left, deltaRow.Bottom, fillBounds.Right, deltaRow.Bottom);
-    }
-
-    private void DrawDeltaGradientPreviewRow(
-        Graphics graphics,
-        Rectangle bounds,
-        string label,
-        (Color AheadColor, Color BaseColor, Color BehindColor, bool Enabled) palette)
-    {
-        string curve = GetPreviewDeltaGradientCurve();
-        for (int x = 0; x < bounds.Width; x++)
-        {
-            float normalized = bounds.Width <= 1 ? 0f : x / (float)(bounds.Width - 1);
-            float signed = normalized * 2f - 1f;
-            float amount = DeltaGradientCurves.Evaluate(curve, Math.Abs(signed));
-            Color color = signed < 0f
-                ? BlendPreviewColor(palette.BaseColor, palette.AheadColor, amount)
-                : BlendPreviewColor(palette.BaseColor, palette.BehindColor, amount);
-            if (!palette.Enabled)
-            {
-                color = BlendPreviewColor(color, FieldColor, 0.45f);
-            }
-
-            using var pen = new Pen(color);
-            graphics.DrawLine(pen, bounds.Left + x, bounds.Top, bounds.Left + x, bounds.Bottom);
-        }
-
-        using var font = UiTheme.FormFont(9f, FontStyle.Bold);
-        using var format = new StringFormat
-        {
-            Alignment = StringAlignment.Near,
-            LineAlignment = StringAlignment.Center,
-            FormatFlags = StringFormatFlags.NoWrap
-        };
-        using var shadowBrush = new SolidBrush(Color.FromArgb(150, 0, 0, 0));
-        using var textBrush = new SolidBrush(Color.FromArgb(235, 245, 245, 248));
-        var labelBounds = new RectangleF(bounds.Left + 8, bounds.Top, Math.Max(1, bounds.Width - 16), bounds.Height);
-        var shadowBounds = new RectangleF(labelBounds.X + 1, labelBounds.Y + 1, labelBounds.Width, labelBounds.Height);
-        graphics.DrawString(label, font, shadowBrush, shadowBounds, format);
-        graphics.DrawString(label, font, textBrush, labelBounds, format);
-    }
-
-    private (Color AheadColor, Color BaseColor, Color BehindColor, bool Enabled) GetPreviewDeltaGradientPalette()
-    {
-        return (
-            GetPreviewColor(nameof(settings.Colors.DeltaAheadText), settings.Colors.DeltaAheadText, Color.FromArgb(114, 213, 114)),
-            GetPreviewColor(nameof(settings.Colors.TimerText), settings.Colors.TimerText, Color.FromArgb(242, 242, 242)),
-            GetPreviewColor(nameof(settings.Colors.DeltaBehindText), settings.Colors.DeltaBehindText, Color.FromArgb(240, 112, 112)),
-            enableDeltaGradientColorBox.Checked);
-    }
-
-    private (Color AheadColor, Color BaseColor, Color BehindColor, bool Enabled) GetPreviewTimerGradientPalette()
-    {
-        return (
-            GetPreviewColor(nameof(settings.Colors.TimerAheadText), settings.Colors.TimerAheadText, Color.LightGreen),
-            GetPreviewColor(nameof(settings.Colors.TimerText), settings.Colors.TimerText, Color.FromArgb(242, 242, 242)),
-            GetPreviewColor(nameof(settings.Colors.TimerBehindText), settings.Colors.TimerBehindText, Color.LightCoral),
-            enableTimerGradientColorBox.Checked);
-    }
-
-    private Color GetPreviewColor(string key, string fallbackText, Color fallbackColor)
-    {
-        string text = colorTextBoxes.TryGetValue(key, out TextBox? textBox)
-            ? textBox.Text
-            : fallbackText;
-        return ColorText.Parse(text, fallbackColor);
-    }
-
-    private string GetPreviewDeltaGradientCurve()
-    {
-        return GetSelectedDeltaGradientCurve(deltaGradientCurveBox);
-    }
-
-    private static Color BlendPreviewColor(Color from, Color to, float amount)
-    {
-        float t = Math.Clamp(amount, 0f, 1f);
-        return Color.FromArgb(
-            (int)MathF.Round(from.R + (to.R - from.R) * t),
-            (int)MathF.Round(from.G + (to.G - from.G) * t),
-            (int)MathF.Round(from.B + (to.B - from.B) * t));
-    }
-
-    private void InvalidateDeltaGradientPreview()
-    {
-        if (!deltaGradientPreview.IsDisposed)
-        {
-            deltaGradientPreview.Invalidate();
-        }
-    }
-
-    private void PaintSegmentBestDeltaHighlightPreview(Graphics graphics, Rectangle bounds)
-    {
-        graphics.SmoothingMode = SmoothingMode.AntiAlias;
-        using var backgroundBrush = new SolidBrush(FieldColor);
-        graphics.FillRectangle(backgroundBrush, bounds);
-        using var borderPen = new Pen(BorderColor);
-        graphics.DrawRectangle(borderPen, 0, 0, Math.Max(0, bounds.Width - 1), Math.Max(0, bounds.Height - 1));
-
-        using var font = UiTheme.FormFont(16f, FontStyle.Bold);
-        using var format = new StringFormat(StringFormat.GenericTypographic)
-        {
-            Alignment = StringAlignment.Center,
-            LineAlignment = StringAlignment.Center
-        };
-
-        double seconds = Environment.TickCount64 / 1000.0;
-        Color[] baseColors =
-        {
-            ColorText.Parse(settings.Colors.DeltaAheadText, Color.FromArgb(114, 213, 114)),
-            ColorText.Parse(settings.Colors.DeltaBehindText, Color.FromArgb(240, 112, 112)),
-            ColorText.Parse(settings.Colors.DeltaBehindText, Color.FromArgb(240, 112, 112))
-        };
-        string[] texts = { "-0:01.23", "+0:00.00", "+0:01.23" };
-        int columns = texts.Length;
-        for (int i = 0; i < columns; i++)
-        {
-            var rect = new Rectangle(bounds.Left + i * bounds.Width / columns, bounds.Top, bounds.Width / columns, bounds.Height);
-            Color color = SegmentBestDeltaHighlightStyles.Apply(baseColors[i], previewSegmentBestDeltaHighlightStyle, seconds);
-            using var brush = new SolidBrush(color);
-            graphics.DrawString(texts[i], font, brush, rect, format);
-        }
-    }
-
-    private void PaintOutlineStylePreview(Graphics graphics, Rectangle bounds)
-    {
-        graphics.SmoothingMode = SmoothingMode.AntiAlias;
-        using var backgroundBrush = new SolidBrush(FieldColor);
-        graphics.FillRectangle(backgroundBrush, bounds);
-        using var borderPen = new Pen(BorderColor);
-        graphics.DrawRectangle(borderPen, 0, 0, Math.Max(0, bounds.Width - 1), Math.Max(0, bounds.Height - 1));
-
-        using var font = UiTheme.FormFont(18f, FontStyle.Bold);
-        string text = "0:01:23.45";
-        using var format = new StringFormat(StringFormat.GenericTypographic)
-        {
-            Alignment = StringAlignment.Near,
-            LineAlignment = StringAlignment.Near
-        };
-        DrawPreviewOutlinedString(
-            graphics,
-            text,
-            font,
-            Color.White,
-            bounds.Left + bounds.Width / 2f,
-            bounds.Top + bounds.Height / 2f,
-            format,
-            previewOutlineStyle,
-            ParseIntBox(splitCompletionOutlineThicknessBox, 30, 0, 100));
-    }
-
-    private static void DrawPreviewOutlinedString(
-        Graphics graphics,
-        string text,
-        Font font,
-        Color fillColor,
-        float centerX,
-        float centerY,
-        StringFormat format,
-        string style,
-        int thicknessPercent)
-    {
-        string normalized = SplitCompletionOutlineStyles.Normalize(style);
-        if (normalized == SplitCompletionOutlineStyles.None)
-        {
-            using var textBrush = new SolidBrush(fillColor);
-            SizeF size = graphics.MeasureString(text, font, Size.Empty, format);
-            graphics.DrawString(text, font, textBrush, centerX - size.Width / 2f, centerY - size.Height / 2f, format);
-            return;
-        }
-
-        using GraphicsPath path = CreatePreviewTextPath(graphics, text, font, 0f, 0f, format);
-        CenterPath(path, centerX, centerY);
-        RectangleF pathBounds = path.GetBounds();
-        RectangleF gradientBounds = InflateBounds(pathBounds, Math.Max(4f, font.Size * 0.35f));
-        using var outlineBrush = new LinearGradientBrush(gradientBounds, Color.White, Color.White, LinearGradientMode.Horizontal);
-        Color[] colors = SplitCompletionOutlineStyles.GetColors(normalized, Environment.TickCount64 / 1000.0);
-        outlineBrush.InterpolationColors = new ColorBlend
-        {
-            Positions = CreateColorPositions(colors.Length),
-            Colors = colors
-        };
-
-        float thickness = font.Size * Math.Clamp(thicknessPercent, 0, 100) / 100f;
-        using var outlinePen = new Pen(outlineBrush, Math.Max(1f, thickness))
-        {
-            LineJoin = LineJoin.Round
-        };
-        graphics.DrawPath(outlinePen, path);
-
-        using var fillBrush = new SolidBrush(fillColor);
-        graphics.FillPath(fillBrush, path);
-    }
-
-    private static GraphicsPath CreatePreviewTextPath(Graphics graphics, string text, Font font, float x, float y, StringFormat format)
-    {
-        var path = new GraphicsPath();
-        using StringFormat pathFormat = (StringFormat)format.Clone();
-        path.AddString(
-            text,
-            font.FontFamily,
-            (int)font.Style,
-            emSize: font.SizeInPoints * graphics.DpiY / 72f,
-            origin: new PointF(x, y),
-            format: pathFormat);
-        return path;
-    }
-
-    private static void CenterPath(GraphicsPath path, float centerX, float centerY)
-    {
-        RectangleF bounds = path.GetBounds();
-        using var matrix = new Matrix();
-        matrix.Translate(centerX - (bounds.Left + bounds.Width / 2f), centerY - (bounds.Top + bounds.Height / 2f));
-        path.Transform(matrix);
-    }
-
-    private static RectangleF InflateBounds(RectangleF bounds, float amount)
-    {
-        if (bounds.Width <= 0f || bounds.Height <= 0f)
-        {
-            return new RectangleF(bounds.X - amount, bounds.Y - amount, amount * 2f + 1f, amount * 2f + 1f);
-        }
-
-        bounds.Inflate(amount, amount);
-        return bounds;
-    }
-
-    private static float[] CreateColorPositions(int count)
-    {
-        if (count <= 1)
-        {
-            return new[] { 0f };
-        }
-
-        var positions = new float[count];
-        for (int i = 0; i < count; i++)
-        {
-            positions[i] = i / (float)(count - 1);
-        }
-
-        return positions;
-    }
-
-    private void RefreshAnimationOutlineGrid()
-    {
-        if (animationComparisonGrid is null || animationOutlineGrid is null)
-        {
-            return;
-        }
-
-        SaveAnimationOutlineControls();
-        PopulateAnimationOutlineGrid();
-        animationComparisonGrid.PerformLayout();
-        animationOutlineGrid.PerformLayout();
-    }
-
-    private void PopulateSegmentBestDeltaHighlightGrid()
-    {
-        if (segmentBestDeltaHighlightGrid is null)
-        {
-            return;
-        }
-
-        List<RouteGroup> groups = BossRouteGroups.Build(settings).ToList();
-        segmentBestDeltaHighlightGrid.SuspendLayout();
-        try
-        {
-            ClearGrid(segmentBestDeltaHighlightGrid);
-            segmentBestDeltaHighlightControls.Clear();
-            AddHeaderRow(segmentBestDeltaHighlightGrid, "BOSS Group", "Effect");
-            foreach (RouteGroup group in groups)
-            {
-                ComboBox styleBox = CreateSegmentBestDeltaHighlightStyleBox(GetSegmentBestDeltaHighlightStyle(group.Key));
-                segmentBestDeltaHighlightControls[group.Key] = new SegmentBestDeltaHighlightControls(styleBox);
-                int row = AddGridRow(segmentBestDeltaHighlightGrid);
-                segmentBestDeltaHighlightGrid.Controls.Add(CreateRowLabel(BossRouteGroups.GetGroupDisplayName(group, settings)), 0, row);
-                segmentBestDeltaHighlightGrid.Controls.Add(styleBox, 1, row);
-            }
-        }
-        finally
-        {
-            segmentBestDeltaHighlightGrid.ResumeLayout(true);
-        }
-    }
-
-    private string GetSegmentBestDeltaHighlightStyle(string key)
-    {
-        return settings.SegmentBestDeltaHighlightStyles.TryGetValue(key, out string? style)
-            ? SegmentBestDeltaHighlightStyles.Normalize(style)
-            : SegmentBestDeltaHighlightStyles.Aurora;
-    }
-
-    private ComboBox CreateSegmentBestDeltaHighlightStyleBox(string selectedStyle)
-    {
-        var comboBox = new ComboBox
-        {
-            Dock = DockStyle.Fill,
-            DropDownStyle = ComboBoxStyle.DropDownList
-        };
-        UiTheme.StyleComboBox(comboBox);
-
-        foreach (string style in SegmentBestDeltaHighlightStyles.Ids)
-        {
-            comboBox.Items.Add(new EffectStyleOption(style, Localizer.Get(SegmentBestDeltaHighlightStyles.GetDisplayName(style), settings)));
-        }
-
-        SetEffectStyle(comboBox, selectedStyle);
-        comboBox.SelectedIndexChanged += (_, _) =>
-        {
-            previewSegmentBestDeltaHighlightStyle = GetSelectedEffectStyle(comboBox);
-            segmentBestDeltaHighlightPreview.Invalidate();
-        };
-        return comboBox;
-    }
-
-    private static string GetSelectedEffectStyle(ComboBox comboBox)
-    {
-        return comboBox.SelectedItem is EffectStyleOption option
-            ? option.Id
-            : SegmentBestDeltaHighlightStyles.None;
-    }
-
-    private static void SetEffectStyle(ComboBox comboBox, string style)
-    {
-        string normalized = SegmentBestDeltaHighlightStyles.Normalize(style);
-        for (int i = 0; i < comboBox.Items.Count; i++)
-        {
-            if (comboBox.Items[i] is EffectStyleOption option &&
-                string.Equals(option.Id, normalized, StringComparison.OrdinalIgnoreCase))
-            {
-                comboBox.SelectedIndex = i;
-                return;
-            }
-        }
-
-        comboBox.SelectedIndex = 0;
-    }
-
-    private void ConfigureDeltaGradientCurveBox()
-    {
-        deltaGradientCurveBox.Dock = DockStyle.Fill;
-        deltaGradientCurveBox.DropDownStyle = ComboBoxStyle.DropDownList;
-        UiTheme.StyleComboBox(deltaGradientCurveBox);
-        deltaGradientCurveBox.Items.Clear();
-
-        foreach (string curve in DeltaGradientCurves.Ids)
-        {
-            deltaGradientCurveBox.Items.Add(new EffectStyleOption(curve, Localizer.Get(DeltaGradientCurves.GetDisplayName(curve), settings)));
-        }
-
-        SetDeltaGradientCurve(deltaGradientCurveBox, settings.DeltaGradientCurve);
-        deltaGradientCurveBox.SelectedIndexChanged += (_, _) => InvalidateDeltaGradientPreview();
-    }
-
-    private static string GetSelectedDeltaGradientCurve(ComboBox comboBox)
-    {
-        return comboBox.SelectedItem is EffectStyleOption option
-            ? option.Id
-            : DeltaGradientCurves.SoftStep;
-    }
-
-    private static void SetDeltaGradientCurve(ComboBox comboBox, string curve)
-    {
-        string normalized = DeltaGradientCurves.Normalize(curve);
-        for (int i = 0; i < comboBox.Items.Count; i++)
-        {
-            if (comboBox.Items[i] is EffectStyleOption option &&
-                string.Equals(option.Id, normalized, StringComparison.OrdinalIgnoreCase))
-            {
-                comboBox.SelectedIndex = i;
-                return;
-            }
-        }
-
-        comboBox.SelectedIndex = 0;
-    }
-
-    internal void AddColorSection(TableLayoutPanel parent)
-    {
-        TableLayoutPanel textSection = CreateSection("Text Colors");
-        TableLayoutPanel textGrid = CreateGrid(
-            ColumnStylePercent(100f),
-            ColumnStyleAbsolute(280f),
-            ColumnStyleAbsolute(64f));
-
-        AddColorRow(textGrid, "Reference text", nameof(settings.Colors.ReferenceText), settings.Colors.ReferenceText);
-        AddColorRow(textGrid, "Active reference text", nameof(settings.Colors.ActiveReferenceText), settings.Colors.ActiveReferenceText);
-        AddColorRow(textGrid, "Completed split text", nameof(settings.Colors.SplitText), settings.Colors.SplitText);
-        AddColorRow(textGrid, "Delta ahead text", nameof(settings.Colors.DeltaAheadText), settings.Colors.DeltaAheadText);
-        AddColorRow(textGrid, "Delta behind text", nameof(settings.Colors.DeltaBehindText), settings.Colors.DeltaBehindText);
-        AddColorRow(textGrid, "Timer text", nameof(settings.Colors.TimerText), settings.Colors.TimerText);
-        AddColorRow(textGrid, "Timer ahead text", nameof(settings.Colors.TimerAheadText), settings.Colors.TimerAheadText);
-        AddColorRow(textGrid, "Timer behind text", nameof(settings.Colors.TimerBehindText), settings.Colors.TimerBehindText);
-        AddColorRow(textGrid, "Timer record text", nameof(settings.Colors.TimerRecordText), settings.Colors.TimerRecordText);
-        AddColorRow(textGrid, "Timer no record text", nameof(settings.Colors.TimerNoRecordText), settings.Colors.TimerNoRecordText);
-        AddColorRow(textGrid, "Timer paused text", nameof(settings.Colors.TimerPausedText), settings.Colors.TimerPausedText);
-
-        AddSectionControl(textSection, textGrid);
-        AddSection(parent, textSection);
-    }
-
-    internal void AddSoundSection(TableLayoutPanel parent)
-    {
-        TableLayoutPanel section = CreateSection("Sounds");
-        TableLayoutPanel grid = CreateGrid(
-            ColumnStyleAbsolute(360f),
-            ColumnStylePercent(100f),
-            ColumnStyleAbsolute(152f),
-            ColumnStyleAbsolute(144f));
-
-        AddSoundRow(grid, "Pause sound", nameof(settings.Sounds.Pause), settings.Sounds.Pause);
-        AddSoundRow(grid, "Reset sound", nameof(settings.Sounds.Reset), settings.Sounds.Reset);
-        AddSoundRow(grid, "Split: total slower, segment slower", nameof(settings.Sounds.SplitBehindReferenceBehindSegment), settings.Sounds.SplitBehindReferenceBehindSegment);
-        AddSoundRow(grid, "Split: total slower, segment not slower", nameof(settings.Sounds.SplitBehindReferenceAheadSegment), settings.Sounds.SplitBehindReferenceAheadSegment);
-        AddSoundRow(grid, "Split: total not slower, segment slower", nameof(settings.Sounds.SplitAheadReferenceBehindSegment), settings.Sounds.SplitAheadReferenceBehindSegment);
-        AddSoundRow(grid, "Split: total not slower, segment not slower", nameof(settings.Sounds.SplitAheadReferenceAheadSegment), settings.Sounds.SplitAheadReferenceAheadSegment);
-
-        AddSectionControl(section, grid);
-        AddSection(parent, section);
     }
 
     private TableLayoutPanel CreateSection(string title)
@@ -1981,41 +789,7 @@ internal sealed class SettingsForm : Form
         checkBox.Dock = DockStyle.Fill;
         UiTheme.StyleCheckBox(checkBox);
     }
-
-    private void ConfigureReferenceSetBox()
-    {
-        referenceSetBox.Dock = DockStyle.Fill;
-        UiTheme.StyleComboBox(referenceSetBox);
-        referenceSetBox.Items.Clear();
-
-        foreach (ReferenceSplitSet set in settings.ReferenceSplitSets)
-        {
-            referenceSetBox.Items.Add(set.Name);
-        }
-
-        referenceSetBox.SelectedItem = settings.GetActiveReferenceSet().Name;
-        referenceSetBox.SelectedIndexChanged += (_, _) => SwitchReferenceSet();
-    }
-
-    private void ConfigurePersonalBestTimeSetBox()
-    {
-        ConfigurePersonalSetBox(
-            personalBestTimeSetBox,
-            settings.PersonalBestTimeSets,
-            settings.GetActivePersonalBestTimeSet().Name,
-            SwitchPersonalBestTimeSet);
-    }
-
-    private void ConfigurePersonalBestSegmentSetBox()
-    {
-        ConfigurePersonalSetBox(
-            personalBestSegmentSetBox,
-            settings.PersonalBestSegmentSets,
-            settings.GetActivePersonalBestSegmentSet().Name,
-            SwitchPersonalBestSegmentSet);
-    }
-
-    private static void ConfigurePersonalSetBox(
+  private static void ConfigurePersonalSetBox(
         ComboBox comboBox,
         IEnumerable<ReferenceSplitSet> sets,
         string activeName,
@@ -2275,301 +1049,165 @@ internal sealed class SettingsForm : Form
             textBox.Text = dialog.FileName;
         }
     }
-
-    private void SwitchReferenceSet()
+void ApplyToSettings()
     {
-        if (updatingReferenceSetSelection)
-        {
-            return;
-        }
-
-        SaveReferenceTextBoxes();
-        if (referenceSetBox.SelectedItem is string selectedName)
-        {
-            settings.ActiveReferenceSplitSet = selectedName;
-        }
-
-        LoadReferenceTextBoxes();
-    }
-
-    private void SwitchPersonalBestTimeSet(object? sender, EventArgs e)
-    {
-        SavePersonalBestTimeTextBoxes();
-        if (personalBestTimeSetBox.SelectedItem is string selectedName)
-        {
-            settings.ActivePersonalBestTimeSet = selectedName;
-            settings.SyncPersonalBestTimesFromActiveSet();
-        }
-
-        LoadPersonalBestTimeTextBoxes();
-    }
-
-    private void SwitchPersonalBestSegmentSet(object? sender, EventArgs e)
-    {
-        SavePersonalBestSegmentTextBoxes();
-        if (personalBestSegmentSetBox.SelectedItem is string selectedName)
-        {
-            settings.ActivePersonalBestSegmentSet = selectedName;
-            settings.SyncPersonalBestSegmentsFromActiveSet();
-        }
-
-        LoadPersonalBestSegmentTextBoxes();
-    }
-
-    private void AddReferenceSet()
-    {
-        SaveReferenceTextBoxes();
-        string name = newReferenceSetNameBox.Text.Trim();
-        if (name.Length == 0 ||
-            settings.ReferenceSplitSets.Any(set => string.Equals(set.Name, name, StringComparison.OrdinalIgnoreCase)))
-        {
-            return;
-        }
-
-        settings.ReferenceSplitSets.Add(AppSettings.CreateReferenceSet(name));
-        referenceSetBox.Items.Add(name);
-        referenceSetBox.SelectedItem = name;
-        newReferenceSetNameBox.Clear();
-    }
-
-    private void DeleteReferenceSet()
-    {
-        if (settings.ReferenceSplitSets.Count <= 1 ||
-            referenceSetBox.SelectedItem is not string selectedName)
-        {
-            return;
-        }
-
-        ReferenceSplitSet? selectedSet = settings.ReferenceSplitSets.FirstOrDefault(
-            set => string.Equals(set.Name, selectedName, StringComparison.OrdinalIgnoreCase));
-        if (selectedSet is null)
-        {
-            return;
-        }
-
-        settings.ReferenceSplitSets.Remove(selectedSet);
-        updatingReferenceSetSelection = true;
-        referenceSetBox.Items.Remove(selectedName);
-        settings.ActiveReferenceSplitSet = settings.ReferenceSplitSets[0].Name;
-        referenceSetBox.SelectedItem = settings.ActiveReferenceSplitSet;
-        updatingReferenceSetSelection = false;
-        LoadReferenceTextBoxes();
-    }
-
-    private void SaveReferenceTextBoxes()
-    {
-        ReferenceSplitSet activeSet = settings.GetActiveReferenceSet();
-        foreach ((string name, TextBox textBox) in splitTextBoxes)
-        {
-            string text = textBox.Text.Trim();
-            activeSet.Splits[name] = TimeText.TryParse(text, out TimeSpan parsed)
-                ? TimeText.FormatRecord(parsed)
-                : text;
-        }
-    }
-
-    private void SavePersonalBestTextBoxes()
-    {
-        SavePersonalBestTimeTextBoxes();
-        SavePersonalBestSegmentTextBoxes();
-    }
-
-    private void SavePersonalBestTimeTextBoxes()
-    {
-        foreach ((string name, TextBox textBox) in personalBestTimeTextBoxes)
-        {
-            settings.SetPersonalBestTimeText(name, NormalizeTimeText(textBox.Text));
-        }
-
-        settings.SyncActivePersonalBestTimeSetFromDictionary();
-    }
-
-    private void SavePersonalBestSegmentTextBoxes()
-    {
-        foreach ((string name, TextBox textBox) in personalBestSegmentTextBoxes)
-        {
-            settings.SetPersonalBestSegmentText(name, NormalizeTimeText(textBox.Text));
-        }
-
-        settings.SyncActivePersonalBestSegmentSetFromDictionary();
-    }
-
-    private static string NormalizeTimeText(string text)
-    {
-        string trimmed = text.Trim();
-        return TimeText.TryParse(trimmed, out TimeSpan parsed)
-            ? TimeText.FormatRecord(parsed)
-            : trimmed;
-    }
-
-    private void LoadReferenceTextBoxes()
-    {
-        ReferenceSplitSet activeSet = settings.GetActiveReferenceSet();
-        foreach ((string name, TextBox textBox) in splitTextBoxes)
-        {
-            textBox.Text = activeSet.Splits.TryGetValue(name, out string? value)
-                ? value
-                : string.Empty;
-        }
-    }
-
-    private void LoadPersonalBestTimeTextBoxes()
-    {
-        foreach ((string name, TextBox textBox) in personalBestTimeTextBoxes)
-        {
-            textBox.Text = settings.GetPersonalBestTimeText(name);
-        }
-    }
-
-    private void LoadPersonalBestSegmentTextBoxes()
-    {
-        foreach ((string name, TextBox textBox) in personalBestSegmentTextBoxes)
-        {
-            textBox.Text = settings.GetPersonalBestSegmentText(name);
-        }
-    }
-
-    private void ApplyToSettings()
-    {
-        EnsurePageCreated(2);
+        EnsurePageCreated(BossPageIndex);
         ApplyBossPageRouteChanges();
         EnsureAllPagesCreated();
 
-        settings.Language = languageBox.SelectedItem as string ?? "English";
-        settings.PauseResumeKey = pauseKeyBox.Hotkey.ToString();
-        settings.ResetKey = resetKeyBox.Hotkey.ToString();
-        settings.MouseClickThroughKey = mouseClickThroughKeyBox.Hotkey.ToString();
-        settings.CreateWorldKey = createWorldKeyBox.Hotkey.ToString();
-        settings.ShowMouseClickThroughIndicator = showMouseClickThroughIndicatorBox.Checked;
-        settings.AlwaysOnTop = alwaysOnTopBox.Checked;
-        settings.PracticeMode = practiceModeBox.Checked;
-        settings.AutoCreate.PlayerName = autoCreatePlayerNameBox.Text.Trim();
-        settings.AutoCreate.PlayerTemplateCode = autoCreatePlayerTemplateCodeBox.Text.Trim();
-        settings.AutoCreate.PlayerDifficulty = AutoCreatePlayerDifficulty.Normalize(
+        ApplyPage(GeneralPageIndex);
+        ApplyPage(AutoCreatePageIndex);
+        ApplyPage(DataPageIndex);
+        ApplyPage(BossPageIndex);
+        AppSettingsStore.Normalize(settings);
+        ApplyPage(AnimationPageIndex);
+        AppSettingsStore.Normalize(settings);
+        ApplyPage(UiPageIndex);
+        ApplyPage(ColorPageIndex);
+        ApplyPage(SoundPageIndex);
+    }
+
+    internal void ApplyGeneralSettings(AppSettings targetSettings)
+    {
+        targetSettings.Language = languageBox.SelectedItem as string ?? LanguageNames.English;
+        targetSettings.PauseResumeKey = pauseKeyBox.Hotkey.ToString();
+        targetSettings.ResetKey = resetKeyBox.Hotkey.ToString();
+        targetSettings.MouseClickThroughKey = mouseClickThroughKeyBox.Hotkey.ToString();
+        targetSettings.CreateWorldKey = createWorldKeyBox.Hotkey.ToString();
+        targetSettings.ShowMouseClickThroughIndicator = showMouseClickThroughIndicatorBox.Checked;
+        targetSettings.AlwaysOnTop = alwaysOnTopBox.Checked;
+        targetSettings.PracticeMode = practiceModeBox.Checked;
+    }
+
+    internal void ApplyAutoCreateSettings(AppSettings targetSettings)
+    {
+        targetSettings.AutoCreate.PlayerName = autoCreatePlayerNameBox.Text.Trim();
+        targetSettings.AutoCreate.PlayerTemplateCode = autoCreatePlayerTemplateCodeBox.Text.Trim();
+        targetSettings.AutoCreate.PlayerDifficulty = AutoCreatePlayerDifficulty.Normalize(
             GetSelectedOption(autoCreatePlayerDifficultyBox, AutoCreatePlayerDifficulty.Softcore));
-        settings.AutoCreate.WorldSize = AutoCreateWorldSize.Normalize(
+        targetSettings.AutoCreate.WorldSize = AutoCreateWorldSize.Normalize(
             GetSelectedOption(autoCreateWorldSizeBox, AutoCreateWorldSize.Medium));
-        settings.AutoCreate.WorldDifficulty = AutoCreateWorldDifficulty.Normalize(
+        targetSettings.AutoCreate.WorldDifficulty = AutoCreateWorldDifficulty.Normalize(
             GetSelectedOption(autoCreateWorldDifficultyBox, AutoCreateWorldDifficulty.Classic));
-        settings.AutoCreate.WorldEvil = AutoCreateWorldEvil.Normalize(
+        targetSettings.AutoCreate.WorldEvil = AutoCreateWorldEvil.Normalize(
             GetSelectedOption(autoCreateWorldEvilBox, AutoCreateWorldEvil.Random));
-        settings.AutoCreate.ShortActionDelayMilliseconds = ParseIntBox(
+        targetSettings.AutoCreate.ShortActionDelayMilliseconds = ParseIntBox(
             autoCreateShortActionDelayBox,
             AutoCreateWorldSettings.DefaultShortActionDelayMilliseconds,
             0,
             5000);
-        settings.AutoCreate.MenuActionDelayMilliseconds = ParseIntBox(
+        targetSettings.AutoCreate.MenuActionDelayMilliseconds = ParseIntBox(
             autoCreateMenuActionDelayBox,
             AutoCreateWorldSettings.DefaultMenuActionDelayMilliseconds,
             0,
             5000);
-        settings.AutoCreate.WindowActivationDelayMilliseconds = ParseIntBox(
+        targetSettings.AutoCreate.WindowActivationDelayMilliseconds = ParseIntBox(
             autoCreateWindowActivationDelayBox,
             AutoCreateWorldSettings.DefaultWindowActivationDelayMilliseconds,
             0,
             5000);
-        settings.AutoCreate.ClickFocusDelayMilliseconds = ParseIntBox(
+        targetSettings.AutoCreate.ClickFocusDelayMilliseconds = ParseIntBox(
             autoCreateClickFocusDelayBox,
             AutoCreateWorldSettings.DefaultClickFocusDelayMilliseconds,
             0,
             5000);
-        settings.AutoCreate.InputPressDurationMilliseconds = ParseIntBox(
+        targetSettings.AutoCreate.InputPressDurationMilliseconds = ParseIntBox(
             autoCreateInputPressDurationBox,
             AutoCreateWorldSettings.DefaultInputPressDurationMilliseconds,
             1,
             5000);
-        settings.AutoUpdatePersonalBestData = autoUpdatePersonalBestDataBox.Checked;
-        settings.AskBeforeUpdatingPersonalBestData = askBeforeUpdatingPersonalBestDataBox.Checked;
-        settings.ShowSplitCompletionAnimation = showSplitCompletionAnimationBox.Checked;
-        settings.ShowCurrentSplitHighlight = showCurrentSplitHighlightBox.Checked;
-        settings.CurrentSplitHighlightScalePercent = ParseIntBox(currentSplitHighlightScaleBox, 112, 100, 140);
-        settings.CurrentSplitDepthStrengthPercent = ParseIntBox(currentSplitDepthStrengthBox, 45, 0, 100);
-        settings.ShowEarlyDeltaTime = showEarlyDeltaTimeBox.Checked;
-        settings.EarlyDeltaTimeSeconds = ParseIntBox(earlyDeltaTimeSecondsBox, 60, 0, 3600);
-        settings.EnableDynamicDeltaTimeUnits = enableDynamicDeltaTimeUnitsBox.Checked;
-        settings.EnableDeltaGradientColor = enableDeltaGradientColorBox.Checked;
-        settings.EnableTimerGradientColor = enableTimerGradientColorBox.Checked;
-        settings.DeltaGradientThresholdSeconds = ParseTimeBox(deltaGradientThresholdBox, 120, 1, 3600);
-        settings.DeltaGradientCurve = GetSelectedDeltaGradientCurve(deltaGradientCurveBox);
-        settings.ShowSegmentBestDeltaHighlight = showSegmentBestDeltaHighlightBox.Checked;
-        settings.EnableDefeatedBossIconLighting = enableDefeatedBossIconLightingBox.Checked;
-        settings.SplitCompletionAnimationDurationSeconds = ParseFloatBox(splitCompletionAnimationDurationBox, 4.2f, 2f, 20f);
-        settings.SplitCompletionOutlineThicknessPercent = ParseIntBox(splitCompletionOutlineThicknessBox, 30, 0, 100);
-        SaveReferenceTextBoxes();
-        SavePersonalBestTextBoxes();
-        ApplyRouteSettings();
-        AppSettingsStore.Normalize(settings);
-        SaveAnimationOutlineControls();
-        AppSettingsStore.Normalize(settings);
+    }
 
-        settings.ActiveReferenceSplitSet = referenceSetBox.SelectedItem is string selectedReferenceSet
-            ? selectedReferenceSet
-            : settings.GetActiveReferenceSet().Name;
-        settings.ActivePersonalBestTimeSet = personalBestTimeSetBox.SelectedItem is string selectedPersonalBestTimeSet
-            ? selectedPersonalBestTimeSet
-            : settings.GetActivePersonalBestTimeSet().Name;
-        settings.ActivePersonalBestSegmentSet = personalBestSegmentSetBox.SelectedItem is string selectedPersonalBestSegmentSet
-            ? selectedPersonalBestSegmentSet
-            : settings.GetActivePersonalBestSegmentSet().Name;
+    internal void ApplyBossSettings(AppSettings targetSettings)
+    {
+        ApplyRouteSettings();
 
         foreach ((string name, TextBox textBox) in bossIconTextBoxes)
         {
-            settings.SetBossIconPath(name, textBox.Text.Trim());
+            targetSettings.SetBossIconPath(name, textBox.Text.Trim());
         }
-
-        ApplyColumnSettings("Icon", settings.Columns.Icon);
-        ApplyColumnSettings("Time", settings.Columns.Time);
-        ApplyColumnSettings("Delta", settings.Columns.Delta);
-        ApplyFontSettings("Timer", settings.Columns.Timer);
-        ApplyFontSettings("TimerMilliseconds", settings.Columns.TimerMilliseconds);
-
-        settings.Columns.ScalePercent = ParseIntBox(globalScaleBox, 100, 25, 300);
-        settings.Columns.TimerOffsetX = ParseIntBox(timerOffsetXBox, 0, -2000, 2000);
-        settings.Columns.TimerOffsetY = ParseIntBox(timerOffsetYBox, 0, -2000, 2000);
-
-        settings.UndefeatedIconGrayscalePercent = ParseIntBox(undefeatedIconGrayscaleBox, 80, 0, 100);
-        settings.UndefeatedIconBrightnessPercent = ParseIntBox(undefeatedIconBrightnessBox, 40, 0, 100);
-        settings.CurrentBossIconGrayscaleWeakenPercent = ParseIntBox(currentBossIconGrayscaleWeakenBox, 40, 0, 100);
-        settings.CurrentBossIconBrightnessBoostPercent = ParseIntBox(currentBossIconBrightnessBoostBox, 35, 0, 100);
-
-        SetColor(nameof(settings.Colors.ReferenceText), value => settings.Colors.ReferenceText = value);
-        SetColor(nameof(settings.Colors.ActiveReferenceText), value => settings.Colors.ActiveReferenceText = value);
-        SetColor(nameof(settings.Colors.SplitText), value => settings.Colors.SplitText = value);
-        SetColor(nameof(settings.Colors.DeltaAheadText), value => settings.Colors.DeltaAheadText = value);
-        SetColor(nameof(settings.Colors.DeltaBehindText), value => settings.Colors.DeltaBehindText = value);
-        SetColor(nameof(settings.Colors.TimerText), value => settings.Colors.TimerText = value);
-        SetColor(nameof(settings.Colors.TimerAheadText), value => settings.Colors.TimerAheadText = value);
-        SetColor(nameof(settings.Colors.TimerBehindText), value => settings.Colors.TimerBehindText = value);
-        SetColor(nameof(settings.Colors.TimerRecordText), value => settings.Colors.TimerRecordText = value);
-        SetColor(nameof(settings.Colors.TimerNoRecordText), value => settings.Colors.TimerNoRecordText = value);
-        SetColor(nameof(settings.Colors.TimerPausedText), value => settings.Colors.TimerPausedText = value);
-
-        SetSound(nameof(settings.Sounds.Pause), value => settings.Sounds.Pause = value);
-        SetSound(nameof(settings.Sounds.Reset), value => settings.Sounds.Reset = value);
-        SetSound(nameof(settings.Sounds.SplitBehindReferenceBehindSegment), value => settings.Sounds.SplitBehindReferenceBehindSegment = value);
-        SetSound(nameof(settings.Sounds.SplitBehindReferenceAheadSegment), value => settings.Sounds.SplitBehindReferenceAheadSegment = value);
-        SetSound(nameof(settings.Sounds.SplitAheadReferenceBehindSegment), value => settings.Sounds.SplitAheadReferenceBehindSegment = value);
-        SetSound(nameof(settings.Sounds.SplitAheadReferenceAheadSegment), value => settings.Sounds.SplitAheadReferenceAheadSegment = value);
     }
 
-    private void SaveAnimationOutlineControls()
+    internal void ApplyDataSettings(AppSettings targetSettings)
     {
-        foreach ((string key, AnimationOutlineControls controls) in animationOutlineControls)
-        {
-            settings.SplitCompletionSplitComparisons[key] = controls.SplitComparison.Checked;
-            settings.SplitCompletionSegmentComparisons[key] = controls.SegmentComparison.Checked;
-            string splitStyle = GetSelectedOutlineStyle(controls.SplitTime);
-            string segmentStyle = GetSelectedOutlineStyle(controls.SegmentTime);
-            settings.SplitCompletionOutlineSplitStyles[key] = splitStyle;
-            settings.SplitCompletionOutlineSegmentStyles[key] = segmentStyle;
-        }
+        targetSettings.AutoUpdatePersonalBestData = autoUpdatePersonalBestDataBox.Checked;
+        targetSettings.AskBeforeUpdatingPersonalBestData = askBeforeUpdatingPersonalBestDataBox.Checked;
+        SaveReferenceTextBoxes();
+        SavePersonalBestTextBoxes();
 
-        foreach ((string key, SegmentBestDeltaHighlightControls controls) in segmentBestDeltaHighlightControls)
-        {
-            settings.SegmentBestDeltaHighlightStyles[key] = GetSelectedEffectStyle(controls.Style);
-        }
+        targetSettings.ActiveReferenceSplitSet = referenceSetBox.SelectedItem is string selectedReferenceSet
+            ? selectedReferenceSet
+            : targetSettings.GetActiveReferenceSet().Name;
+        targetSettings.ActivePersonalBestTimeSet = personalBestTimeSetBox.SelectedItem is string selectedPersonalBestTimeSet
+            ? selectedPersonalBestTimeSet
+            : targetSettings.GetActivePersonalBestTimeSet().Name;
+        targetSettings.ActivePersonalBestSegmentSet = personalBestSegmentSetBox.SelectedItem is string selectedPersonalBestSegmentSet
+            ? selectedPersonalBestSegmentSet
+            : targetSettings.GetActivePersonalBestSegmentSet().Name;
     }
 
+    internal void ApplyUiSettings(AppSettings targetSettings)
+    {
+        ApplyColumnSettings("Icon", targetSettings.Columns.Icon);
+        ApplyColumnSettings("Time", targetSettings.Columns.Time);
+        ApplyColumnSettings("Delta", targetSettings.Columns.Delta);
+        ApplyFontSettings("Timer", targetSettings.Columns.Timer);
+        ApplyFontSettings("TimerMilliseconds", targetSettings.Columns.TimerMilliseconds);
+
+        targetSettings.Columns.ScalePercent = ParseIntBox(globalScaleBox, 100, 25, 300);
+        targetSettings.Columns.TimerOffsetX = ParseIntBox(timerOffsetXBox, 0, -2000, 2000);
+        targetSettings.Columns.TimerOffsetY = ParseIntBox(timerOffsetYBox, 0, -2000, 2000);
+
+        targetSettings.UndefeatedIconGrayscalePercent = ParseIntBox(undefeatedIconGrayscaleBox, 80, 0, 100);
+        targetSettings.UndefeatedIconBrightnessPercent = ParseIntBox(undefeatedIconBrightnessBox, 40, 0, 100);
+        targetSettings.CurrentBossIconGrayscaleWeakenPercent = ParseIntBox(currentBossIconGrayscaleWeakenBox, 40, 0, 100);
+        targetSettings.CurrentBossIconBrightnessBoostPercent = ParseIntBox(currentBossIconBrightnessBoostBox, 35, 0, 100);
+    }
+
+    internal void ApplyAnimationSettings(AppSettings targetSettings)
+    {
+        targetSettings.ShowSplitCompletionAnimation = showSplitCompletionAnimationBox.Checked;
+        targetSettings.ShowCurrentSplitHighlight = showCurrentSplitHighlightBox.Checked;
+        targetSettings.CurrentSplitHighlightScalePercent = ParseIntBox(currentSplitHighlightScaleBox, 112, 100, 140);
+        targetSettings.CurrentSplitDepthStrengthPercent = ParseIntBox(currentSplitDepthStrengthBox, 45, 0, 100);
+        targetSettings.ShowEarlyDeltaTime = showEarlyDeltaTimeBox.Checked;
+        targetSettings.EarlyDeltaTimeSeconds = ParseIntBox(earlyDeltaTimeSecondsBox, 60, 0, 3600);
+        targetSettings.EnableDynamicDeltaTimeUnits = enableDynamicDeltaTimeUnitsBox.Checked;
+        targetSettings.EnableDeltaGradientColor = enableDeltaGradientColorBox.Checked;
+        targetSettings.EnableTimerGradientColor = enableTimerGradientColorBox.Checked;
+        targetSettings.DeltaGradientThresholdSeconds = ParseTimeBox(deltaGradientThresholdBox, 120, 1, 3600);
+        targetSettings.DeltaGradientCurve = GetSelectedDeltaGradientCurve(deltaGradientCurveBox);
+        targetSettings.ShowSegmentBestDeltaHighlight = showSegmentBestDeltaHighlightBox.Checked;
+        targetSettings.EnableDefeatedBossIconLighting = enableDefeatedBossIconLightingBox.Checked;
+        targetSettings.SplitCompletionAnimationDurationSeconds = ParseFloatBox(splitCompletionAnimationDurationBox, 4.2f, 2f, 20f);
+        targetSettings.SplitCompletionOutlineThicknessPercent = ParseIntBox(splitCompletionOutlineThicknessBox, 30, 0, 100);
+        SaveAnimationOutlineControls();
+    }
+
+    internal void ApplyColorSettings(AppSettings targetSettings)
+    {
+        SetColor(nameof(targetSettings.Colors.ReferenceText), value => targetSettings.Colors.ReferenceText = value);
+        SetColor(nameof(targetSettings.Colors.ActiveReferenceText), value => targetSettings.Colors.ActiveReferenceText = value);
+        SetColor(nameof(targetSettings.Colors.SplitText), value => targetSettings.Colors.SplitText = value);
+        SetColor(nameof(targetSettings.Colors.DeltaAheadText), value => targetSettings.Colors.DeltaAheadText = value);
+        SetColor(nameof(targetSettings.Colors.DeltaBehindText), value => targetSettings.Colors.DeltaBehindText = value);
+        SetColor(nameof(targetSettings.Colors.TimerText), value => targetSettings.Colors.TimerText = value);
+        SetColor(nameof(targetSettings.Colors.TimerAheadText), value => targetSettings.Colors.TimerAheadText = value);
+        SetColor(nameof(targetSettings.Colors.TimerBehindText), value => targetSettings.Colors.TimerBehindText = value);
+        SetColor(nameof(targetSettings.Colors.TimerRecordText), value => targetSettings.Colors.TimerRecordText = value);
+        SetColor(nameof(targetSettings.Colors.TimerNoRecordText), value => targetSettings.Colors.TimerNoRecordText = value);
+        SetColor(nameof(targetSettings.Colors.TimerPausedText), value => targetSettings.Colors.TimerPausedText = value);
+    }
+
+    internal void ApplySoundSettings(AppSettings targetSettings)
+    {
+        SetSound(nameof(targetSettings.Sounds.Pause), value => targetSettings.Sounds.Pause = value);
+        SetSound(nameof(targetSettings.Sounds.Reset), value => targetSettings.Sounds.Reset = value);
+        SetSound(nameof(targetSettings.Sounds.SplitBehindReferenceBehindSegment), value => targetSettings.Sounds.SplitBehindReferenceBehindSegment = value);
+        SetSound(nameof(targetSettings.Sounds.SplitBehindReferenceAheadSegment), value => targetSettings.Sounds.SplitBehindReferenceAheadSegment = value);
+        SetSound(nameof(targetSettings.Sounds.SplitAheadReferenceBehindSegment), value => targetSettings.Sounds.SplitAheadReferenceBehindSegment = value);
+        SetSound(nameof(targetSettings.Sounds.SplitAheadReferenceAheadSegment), value => targetSettings.Sounds.SplitAheadReferenceAheadSegment = value);
+    }
     private void ApplyAndNotify()
     {
         ApplyToSettings();
@@ -2577,56 +1215,7 @@ internal sealed class SettingsForm : Form
         PopulatePersonalBestSegmentGrid();
         Applied?.Invoke(this, EventArgs.Empty);
     }
-
-    private bool ApplyBossPageRouteChanges()
-    {
-        if (!bossRouteDirty)
-        {
-            return false;
-        }
-
-        ApplyRouteSettings();
-        AppSettingsStore.Normalize(settings);
-        bossRouteDirty = false;
-        PopulatePersonalBestTimeGrid();
-        PopulatePersonalBestSegmentGrid();
-        RefreshAnimationOutlineGrid();
-        PopulateSegmentBestDeltaHighlightGrid();
-        return true;
-    }
-
-    private void ApplyRouteSettings()
-    {
-        var route = new List<BossRouteEntry>();
-        foreach (BossUnitDefinition unit in BossSplitDefinitions.Units)
-        {
-            if (!routeControls.TryGetValue(unit.Id, out RouteControls? controls))
-            {
-                continue;
-            }
-
-            route.Add(new BossRouteEntry
-            {
-                BossId = unit.Id,
-                Enabled = controls.Enabled.Checked,
-                Segment = ParseRouteGroup(controls.Group.Text)
-            });
-        }
-
-        settings.Route = route;
-    }
-
-    private IReadOnlyList<BossRouteEntry> GetRouteOrderedEntries()
-    {
-        return settings.Route
-            .Select((entry, index) => new { Entry = entry, Index = index })
-            .OrderBy(item => item.Entry.Segment)
-            .ThenBy(item => item.Index)
-            .Select(item => item.Entry)
-            .ToList();
-    }
-
-    private void SetColor(string key, Action<string> setter)
+  private void SetColor(string key, Action<string> setter)
     {
         if (colorTextBoxes.TryGetValue(key, out TextBox? textBox))
         {
@@ -2735,15 +1324,15 @@ internal sealed class SettingsForm : Form
 
     private sealed class SettingsPageDescriptor
     {
-        public SettingsPageDescriptor(Button nav, Func<Control> create)
+        public SettingsPageDescriptor(Button nav, ISettingsPage pageDefinition)
         {
             Nav = nav;
-            Create = create;
+            PageDefinition = pageDefinition;
         }
 
         public Button Nav { get; }
 
-        public Func<Control> Create { get; }
+        public ISettingsPage PageDefinition { get; }
 
         public Control? Page { get; set; }
     }
@@ -2918,7 +1507,15 @@ internal sealed class SettingsForm : Form
             }
 
             EventHandler sizeChanged = (_, _) => RequestLayoutContent();
-            MouseEventHandler mouseWheel = (_, e) => ScrollBy(e.Delta);
+            MouseEventHandler mouseWheel = (_, e) =>
+            {
+                if (ShouldChildHandleMouseWheel(control))
+                {
+                    return;
+                }
+
+                ScrollBy(e.Delta);
+            };
             ControlEventHandler controlAdded = (_, e) =>
             {
                 if (e.Control is not null)
@@ -3103,6 +1700,13 @@ internal sealed class SettingsForm : Form
             Invalidate();
         }
 
+        private static bool ShouldChildHandleMouseWheel(Control control)
+        {
+            return control is TextBox textBox &&
+                textBox.Multiline &&
+                textBox.ScrollBars != ScrollBars.None;
+        }
+
         private sealed record AttachedContentHandlers(
             EventHandler SizeChanged,
             MouseEventHandler MouseWheel,
@@ -3110,3 +1714,4 @@ internal sealed class SettingsForm : Form
             ControlEventHandler ControlRemoved);
     }
 }
+

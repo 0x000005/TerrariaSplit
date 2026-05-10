@@ -7,16 +7,28 @@ namespace TerrariaSplit;
 internal static class DebugSettingsPage
 {
     private const int RefreshIntervalMilliseconds = 500;
-    private const int SummaryHeight = 220;
+    private const int SequenceBoxHeight = 220;
 
     public static Control Build(SettingsForm owner)
     {
         Label autoRefreshValue = CreateValueLabel();
         Label lastUpdatedValue = CreateValueLabel();
         Label processDetectedValue = CreateValueLabel();
+        Label windowDetectedValue = CreateValueLabel();
+        Label watcherAttachedValue = CreateValueLabel();
+        Label memoryReadyValue = CreateValueLabel();
+        Label enteredWorldValue = CreateValueLabel();
+        Label bossFlagsReadyValue = CreateValueLabel();
+        Label gameStateValue = CreateValueLabel();
+        Label signatureResultValue = CreateValueLabel();
+        Label windowStatusValue = CreateValueLabel();
+        Label watcherStatusValue = CreateValueLabel();
+
         Label processIdValue = CreateValueLabel();
         Label processStartTimeValue = CreateValueLabel();
-        Label windowDetectedValue = CreateValueLabel();
+        Label processPathValue = CreateValueLabel();
+        Label processArchitectureValue = CreateValueLabel();
+        Label processVersionValue = CreateValueLabel();
         Label windowHandleValue = CreateValueLabel();
         Label windowTitleValue = CreateValueLabel();
         Label respondingValue = CreateValueLabel();
@@ -26,51 +38,88 @@ internal static class DebugSettingsPage
         Label foregroundValue = CreateValueLabel();
         Label windowBoundsValue = CreateValueLabel();
         Label clientSizeValue = CreateValueLabel();
-        Label windowStatusValue = CreateValueLabel();
-        Label watcherAttachedValue = CreateValueLabel();
-        Label memoryReadyValue = CreateValueLabel();
-        Label bossFlagsValue = CreateValueLabel();
-        Label gameStateValue = CreateValueLabel();
-        Label watcherStatusValue = CreateValueLabel();
+        Label menuScaleValue = CreateValueLabel();
+        Label logicalMenuSizeValue = CreateValueLabel();
+
+        Label playerFilesValue = CreateValueLabel();
+        Label worldFilesValue = CreateValueLabel();
+        Label favoritePlayersValue = CreateValueLabel();
+        Label favoriteWorldsValue = CreateValueLabel();
+        Label playerNameValue = CreateValueLabel();
+        Label playerDifficultyValue = CreateValueLabel();
+        Label worldSizeValue = CreateValueLabel();
+        Label worldDifficultyValue = CreateValueLabel();
+        Label worldEvilValue = CreateValueLabel();
+        Label shortActionDelayValue = CreateValueLabel();
+        Label menuActionDelayValue = CreateValueLabel();
+        Label windowActivationDelayValue = CreateValueLabel();
+        Label clickFocusDelayValue = CreateValueLabel();
+        Label inputPressDurationValue = CreateValueLabel();
+        TextBox autoCreateSequenceValue = CreateMultilineValueBox(SequenceBoxHeight);
+
+        Label skeletronValue = CreateValueLabel();
+        Label wallOfFleshValue = CreateValueLabel();
+        Label destroyerValue = CreateValueLabel();
+        Label twinsValue = CreateValueLabel();
+        Label skeletronPrimeValue = CreateValueLabel();
+        Label planteraValue = CreateValueLabel();
+        Label golemValue = CreateValueLabel();
+        Label lunaticCultistValue = CreateValueLabel();
+        Label moonLordValue = CreateValueLabel();
+
         Label supportedVersionValue = CreateValueLabel();
-        Label processArchitectureValue = CreateValueLabel();
-        Label processPathValue = CreateValueLabel();
-        Label processVersionValue = CreateValueLabel();
-        Label mainModuleBaseValue = CreateValueLabel();
-        Label mainModuleSizeValue = CreateValueLabel();
         Label signatureProfileValue = CreateValueLabel();
         Label scanAttemptsValue = CreateValueLabel();
         Label lastScanValue = CreateValueLabel();
-        Label scanScopeValue = CreateValueLabel();
         Label scanPageStatsValue = CreateValueLabel();
         Label scanFailuresValue = CreateValueLabel();
-        Label signatureResultValue = CreateValueLabel();
+        Label mainModuleBaseValue = CreateValueLabel();
+        Label mainModuleSizeValue = CreateValueLabel();
         Label updateTimeAddressValue = CreateValueLabel();
         Label gameMenuAddressValue = CreateValueLabel();
-        Label gameMenuAddressSecondaryValue = CreateValueLabel();
         Label bossFlagsAddressValue = CreateValueLabel();
         Label hardmodeAddressValue = CreateValueLabel();
         Label failureStageValue = CreateValueLabel();
-        Label compatibilityHintValue = CreateValueLabel();
-        TextBox diagnosticSummaryValue = CreateSummaryTextBox();
+
+        Button copyAllButton = CreateActionButton(owner, "Copy all information");
 
         var watcher = new TerrariaWorldWatcher();
+        var savePreparation = new TerrariaSavePreparation();
+        TerrariaWindowSnapshot latestWindow = default;
+        TerrariaWatchSnapshot latestSnapshot = default;
+        TerrariaWatcherDiagnostics latestDiagnostics = default;
+        TerrariaSaveInventorySnapshot latestInventory = default;
 
         Control page = owner.BuildScrollPage(content =>
         {
-            TableLayoutPanel summarySection = CreateSection(owner, "Watcher Diagnostics");
-            AddSectionControl(summarySection, CreateSummaryLabel(owner, "Diagnostic summary"));
-            AddSectionControl(summarySection, diagnosticSummaryValue);
-            AddSection(content, summarySection);
+            FlowLayoutPanel actionBar = CreateActionBar();
+            actionBar.Controls.Add(copyAllButton);
+            AddSection(content, actionBar);
 
-            TableLayoutPanel windowSection = CreateSection(owner, "Window Detection");
+            TableLayoutPanel overviewSection = CreateSection(owner, "Quick Status");
+            TableLayoutPanel overviewGrid = CreateGrid();
+            AddValueRow(overviewGrid, owner, "Auto refresh", autoRefreshValue);
+            AddValueRow(overviewGrid, owner, "Last updated", lastUpdatedValue);
+            AddValueRow(overviewGrid, owner, "Terraria process", processDetectedValue);
+            AddValueRow(overviewGrid, owner, "Window", windowDetectedValue);
+            AddValueRow(overviewGrid, owner, "Watcher attached", watcherAttachedValue);
+            AddValueRow(overviewGrid, owner, "Memory ready", memoryReadyValue);
+            AddValueRow(overviewGrid, owner, "Entered world", enteredWorldValue);
+            AddValueRow(overviewGrid, owner, "Boss flags", bossFlagsReadyValue);
+            AddValueRow(overviewGrid, owner, "Game state", gameStateValue);
+            AddValueRow(overviewGrid, owner, "Signature result", signatureResultValue);
+            AddValueRow(overviewGrid, owner, "Window status", windowStatusValue);
+            AddValueRow(overviewGrid, owner, "Watcher status", watcherStatusValue);
+            AddSectionControl(overviewSection, overviewGrid);
+            AddSection(content, overviewSection);
+
+            TableLayoutPanel windowSection = CreateSection(owner, "Window & Coordinates");
             TableLayoutPanel windowGrid = CreateGrid();
-            AddValueRow(windowGrid, owner, "Auto refresh", autoRefreshValue);
-            AddValueRow(windowGrid, owner, "Last updated", lastUpdatedValue);
-            AddValueRow(windowGrid, owner, "Terraria process", processDetectedValue);
             AddValueRow(windowGrid, owner, "PID", processIdValue);
             AddValueRow(windowGrid, owner, "Start time", processStartTimeValue);
-            AddValueRow(windowGrid, owner, "Window", windowDetectedValue);
+            AddValueRow(windowGrid, owner, "Process path", processPathValue);
+            AddValueRow(windowGrid, owner, "Process architecture", processArchitectureValue);
+            AddValueRow(windowGrid, owner, "Process version", processVersionValue);
             AddValueRow(windowGrid, owner, "Window handle", windowHandleValue);
             AddValueRow(windowGrid, owner, "Window title", windowTitleValue);
             AddValueRow(windowGrid, owner, "Responding", respondingValue);
@@ -80,57 +129,99 @@ internal static class DebugSettingsPage
             AddValueRow(windowGrid, owner, "Foreground", foregroundValue);
             AddValueRow(windowGrid, owner, "Window bounds", windowBoundsValue);
             AddValueRow(windowGrid, owner, "Client size", clientSizeValue);
-            AddValueRow(windowGrid, owner, "Status", windowStatusValue);
+            AddValueRow(windowGrid, owner, "Menu scale", menuScaleValue);
+            AddValueRow(windowGrid, owner, "Logical menu size", logicalMenuSizeValue);
             AddSectionControl(windowSection, windowGrid);
             AddSection(content, windowSection);
 
-            TableLayoutPanel watcherSection = CreateSection(owner, "Watcher State");
-            TableLayoutPanel watcherGrid = CreateGrid();
-            AddValueRow(watcherGrid, owner, "Watcher attached", watcherAttachedValue);
-            AddValueRow(watcherGrid, owner, "Memory ready", memoryReadyValue);
-            AddValueRow(watcherGrid, owner, "Boss flags", bossFlagsValue);
-            AddValueRow(watcherGrid, owner, "Game state", gameStateValue);
-            AddValueRow(watcherGrid, owner, "Supported version", supportedVersionValue);
-            AddValueRow(watcherGrid, owner, "Process architecture", processArchitectureValue);
-            AddValueRow(watcherGrid, owner, "Process path", processPathValue);
-            AddValueRow(watcherGrid, owner, "Process version", processVersionValue);
-            AddValueRow(watcherGrid, owner, "Main module base", mainModuleBaseValue);
-            AddValueRow(watcherGrid, owner, "Main module size", mainModuleSizeValue);
-            AddValueRow(watcherGrid, owner, "Signature profile", signatureProfileValue);
-            AddValueRow(watcherGrid, owner, "Scan attempts", scanAttemptsValue);
-            AddValueRow(watcherGrid, owner, "Last scan", lastScanValue);
-            AddValueRow(watcherGrid, owner, "Scan scope", scanScopeValue);
-            AddValueRow(watcherGrid, owner, "Scan page stats", scanPageStatsValue);
-            AddValueRow(watcherGrid, owner, "Scan failures", scanFailuresValue);
-            AddValueRow(watcherGrid, owner, "Signature result", signatureResultValue);
-            AddValueRow(watcherGrid, owner, "UpdateTime address", updateTimeAddressValue);
-            AddValueRow(watcherGrid, owner, "gameMenu address", gameMenuAddressValue);
-            AddValueRow(watcherGrid, owner, "gameMenu address 2", gameMenuAddressSecondaryValue);
-            AddValueRow(watcherGrid, owner, "Boss flags address", bossFlagsAddressValue);
-            AddValueRow(watcherGrid, owner, "Hardmode address", hardmodeAddressValue);
-            AddValueRow(watcherGrid, owner, "Failure stage", failureStageValue);
-            AddValueRow(watcherGrid, owner, "Compatibility hint", compatibilityHintValue);
-            AddValueRow(watcherGrid, owner, "Status", watcherStatusValue);
-            AddSectionControl(watcherSection, watcherGrid);
-            AddSection(content, watcherSection);
+            TableLayoutPanel automationSection = CreateSection(owner, "Auto Create Route");
+            TableLayoutPanel automationGrid = CreateGrid();
+            AddValueRow(automationGrid, owner, "Player files", playerFilesValue);
+            AddValueRow(automationGrid, owner, "World files", worldFilesValue);
+            AddValueRow(automationGrid, owner, "Favorite players", favoritePlayersValue);
+            AddValueRow(automationGrid, owner, "Favorite worlds", favoriteWorldsValue);
+            AddValueRow(automationGrid, owner, "Player name", playerNameValue);
+            AddValueRow(automationGrid, owner, "Player difficulty", playerDifficultyValue);
+            AddValueRow(automationGrid, owner, "World size", worldSizeValue);
+            AddValueRow(automationGrid, owner, "World difficulty", worldDifficultyValue);
+            AddValueRow(automationGrid, owner, "World evil", worldEvilValue);
+            AddValueRow(automationGrid, owner, "Short action delay ms", shortActionDelayValue);
+            AddValueRow(automationGrid, owner, "Menu action delay ms", menuActionDelayValue);
+            AddValueRow(automationGrid, owner, "Window activation wait ms", windowActivationDelayValue);
+            AddValueRow(automationGrid, owner, "Click focus wait ms", clickFocusDelayValue);
+            AddValueRow(automationGrid, owner, "Mouse / key press ms", inputPressDurationValue);
+            AddSectionControl(automationSection, automationGrid);
+            AddSectionControl(automationSection, CreateMutedLabel(owner, "Click sequence"));
+            AddSectionControl(automationSection, autoCreateSequenceValue);
+            AddSection(content, automationSection);
+
+            TableLayoutPanel bossSection = CreateSection(owner, "Boss Progress");
+            TableLayoutPanel bossGrid = CreateGrid();
+            AddValueRow(bossGrid, owner, "Skeletron", skeletronValue);
+            AddValueRow(bossGrid, owner, "Wall of Flesh", wallOfFleshValue);
+            AddValueRow(bossGrid, owner, "Destroyer", destroyerValue);
+            AddValueRow(bossGrid, owner, "The Twins", twinsValue);
+            AddValueRow(bossGrid, owner, "Skeletron Prime", skeletronPrimeValue);
+            AddValueRow(bossGrid, owner, "Plantera", planteraValue);
+            AddValueRow(bossGrid, owner, "Golem", golemValue);
+            AddValueRow(bossGrid, owner, "Lunatic Cultist", lunaticCultistValue);
+            AddValueRow(bossGrid, owner, "Moon Lord", moonLordValue);
+            AddSectionControl(bossSection, bossGrid);
+            AddSection(content, bossSection);
+
+            TableLayoutPanel memorySection = CreateSection(owner, "Memory & Signatures");
+            TableLayoutPanel memoryGrid = CreateGrid();
+            AddValueRow(memoryGrid, owner, "Supported version", supportedVersionValue);
+            AddValueRow(memoryGrid, owner, "Signature profile", signatureProfileValue);
+            AddValueRow(memoryGrid, owner, "Scan attempts", scanAttemptsValue);
+            AddValueRow(memoryGrid, owner, "Last scan", lastScanValue);
+            AddValueRow(memoryGrid, owner, "Scan page stats", scanPageStatsValue);
+            AddValueRow(memoryGrid, owner, "Scan failures", scanFailuresValue);
+            AddValueRow(memoryGrid, owner, "Main module base", mainModuleBaseValue);
+            AddValueRow(memoryGrid, owner, "Main module size", mainModuleSizeValue);
+            AddValueRow(memoryGrid, owner, "UpdateTime address", updateTimeAddressValue);
+            AddValueRow(memoryGrid, owner, "gameMenu address", gameMenuAddressValue);
+            AddValueRow(memoryGrid, owner, "Boss flags address", bossFlagsAddressValue);
+            AddValueRow(memoryGrid, owner, "Hardmode address", hardmodeAddressValue);
+            AddValueRow(memoryGrid, owner, "Failure stage", failureStageValue);
+            AddSectionControl(memorySection, memoryGrid);
+            AddSection(content, memorySection);
         });
+
+        copyAllButton.Click += (_, _) => CopyAllInformation();
 
         void Refresh()
         {
             TerrariaWindowSnapshot window = TerrariaWindowProbe.Read();
             TerrariaWatchSnapshot snapshot = watcher.Poll();
             TerrariaWatcherDiagnostics diagnostics = watcher.GetDiagnostics();
+            TerrariaSaveInventorySnapshot inventory = savePreparation.ReadInventorySnapshot();
+            AutoCreateWorldSettings autoCreate = owner.Result.AutoCreate;
+            latestWindow = window;
+            latestSnapshot = snapshot;
+            latestDiagnostics = diagnostics;
+            latestInventory = inventory;
+
+            bool bossFlagsReady = HasAnyBossState(snapshot.BossStates);
 
             SetValue(autoRefreshValue, $"{RefreshIntervalMilliseconds} ms");
             SetValue(lastUpdatedValue, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff", CultureInfo.InvariantCulture));
-
             SetBool(processDetectedValue, owner, window.HasProcess);
-            SetValue(processIdValue, window.ProcessId?.ToString(CultureInfo.InvariantCulture) ?? owner.Localize("Unknown"));
-            SetValue(
-                processStartTimeValue,
-                window.ProcessStartTime?.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) ?? owner.Localize("Unknown"));
-
             SetBool(windowDetectedValue, owner, window.HasWindow);
+            SetBool(watcherAttachedValue, owner, snapshot.IsAttached);
+            SetBool(memoryReadyValue, owner, snapshot.IsReady);
+            SetBool(enteredWorldValue, owner, snapshot.EnteredWorld);
+            SetState(bossFlagsReadyValue, owner, bossFlagsReady ? "Ready" : "Pending");
+            SetValue(gameStateValue, owner.Localize(FormatGameState(snapshot.IsGameMenu)));
+            SetValue(signatureResultValue, FormatSignatureResult(diagnostics, owner));
+            SetValue(windowStatusValue, LocalizeStatus(window.Status, owner));
+            SetValue(watcherStatusValue, LocalizeStatus(snapshot.Status, owner));
+
+            SetValue(processIdValue, FormatProcessId(window.ProcessId, owner));
+            SetValue(processStartTimeValue, FormatDateTime(window.ProcessStartTime, owner));
+            SetValue(processPathValue, FormatText(diagnostics.ProcessPath, owner));
+            SetValue(processArchitectureValue, FormatText(diagnostics.ProcessArchitecture, owner));
+            SetValue(processVersionValue, FormatText(diagnostics.ProcessVersion, owner));
             SetValue(windowHandleValue, window.HasWindow ? $"0x{window.WindowHandle.ToInt64():X}" : owner.Localize("Unknown"));
             SetValue(windowTitleValue, string.IsNullOrWhiteSpace(window.WindowTitle) ? owner.Localize("Unknown") : window.WindowTitle);
             SetOptionalBool(respondingValue, owner, window.HasProcess ? window.IsResponding : null);
@@ -140,34 +231,72 @@ internal static class DebugSettingsPage
             SetOptionalBool(foregroundValue, owner, window.HasWindow ? window.IsForeground : null);
             SetValue(windowBoundsValue, FormatBounds(window.WindowBounds, owner));
             SetValue(clientSizeValue, FormatSize(window.ClientSize, owner));
-            SetValue(windowStatusValue, LocalizeStatus(window.Status, owner));
 
-            SetBool(watcherAttachedValue, owner, snapshot.IsAttached);
-            SetBool(memoryReadyValue, owner, snapshot.IsReady);
-            SetState(bossFlagsValue, owner, snapshot.BossStates.Skeletron.HasValue ? "Ready" : "Pending");
-            SetState(gameStateValue, owner, FormatGameState(snapshot.IsGameMenu));
-            SetValue(supportedVersionValue, diagnostics.SupportedVersion);
-            SetValue(processArchitectureValue, diagnostics.ProcessArchitecture);
-            SetValue(processPathValue, diagnostics.ProcessPath ?? owner.Localize("Unknown"));
-            SetValue(processVersionValue, diagnostics.ProcessVersion ?? owner.Localize("Unknown"));
-            SetValue(mainModuleBaseValue, FormatAddress(diagnostics.MainModuleBaseAddress, owner));
-            SetValue(mainModuleSizeValue, FormatByteCount(diagnostics.MainModuleSize, owner));
+            if (TryCreateGeometry(window.ClientSize, out TerrariaMenuGeometry geometry))
+            {
+                SetValue(menuScaleValue, FormatScale(geometry.Scale));
+                SetValue(logicalMenuSizeValue, FormatLogicalSize(geometry));
+                SetSequenceText(autoCreateSequenceValue, BuildAutoCreateSequenceText(autoCreate, geometry, inventory.FavoritePlayers, owner));
+            }
+            else
+            {
+                SetValue(menuScaleValue, owner.Localize("Unknown"));
+                SetValue(logicalMenuSizeValue, owner.Localize("Unknown"));
+                SetSequenceText(autoCreateSequenceValue, owner.Localize("Unavailable because client size is unknown."));
+            }
+
+            SetValue(playerFilesValue, inventory.PlayerFiles.ToString(CultureInfo.InvariantCulture));
+            SetValue(worldFilesValue, inventory.WorldFiles.ToString(CultureInfo.InvariantCulture));
+            SetValue(favoritePlayersValue, inventory.FavoritePlayers.ToString(CultureInfo.InvariantCulture));
+            SetValue(favoriteWorldsValue, inventory.FavoriteWorlds.ToString(CultureInfo.InvariantCulture));
+            SetValue(playerNameValue, FormatPlayerName(autoCreate.PlayerName));
+            SetValue(playerDifficultyValue, owner.Localize(AutoCreatePlayerDifficulty.Normalize(autoCreate.PlayerDifficulty)));
+            SetValue(worldSizeValue, owner.Localize(AutoCreateWorldSize.Normalize(autoCreate.WorldSize)));
+            SetValue(worldDifficultyValue, owner.Localize(AutoCreateWorldDifficulty.Normalize(autoCreate.WorldDifficulty)));
+            SetValue(worldEvilValue, owner.Localize(AutoCreateWorldEvil.Normalize(autoCreate.WorldEvil)));
+            SetValue(shortActionDelayValue, autoCreate.ShortActionDelayMilliseconds.ToString(CultureInfo.InvariantCulture));
+            SetValue(menuActionDelayValue, autoCreate.MenuActionDelayMilliseconds.ToString(CultureInfo.InvariantCulture));
+            SetValue(windowActivationDelayValue, autoCreate.WindowActivationDelayMilliseconds.ToString(CultureInfo.InvariantCulture));
+            SetValue(clickFocusDelayValue, autoCreate.ClickFocusDelayMilliseconds.ToString(CultureInfo.InvariantCulture));
+            SetValue(inputPressDurationValue, autoCreate.InputPressDurationMilliseconds.ToString(CultureInfo.InvariantCulture));
+
+            SetBossState(skeletronValue, snapshot.BossStates.Skeletron, owner);
+            SetBossState(wallOfFleshValue, snapshot.BossStates.WallOfFlesh, owner);
+            SetBossState(destroyerValue, snapshot.BossStates.Destroyer, owner);
+            SetBossState(twinsValue, snapshot.BossStates.Twins, owner);
+            SetBossState(skeletronPrimeValue, snapshot.BossStates.SkeletronPrime, owner);
+            SetBossState(planteraValue, snapshot.BossStates.Plantera, owner);
+            SetBossState(golemValue, snapshot.BossStates.Golem, owner);
+            SetBossState(lunaticCultistValue, snapshot.BossStates.LunaticCultist, owner);
+            SetBossState(moonLordValue, snapshot.BossStates.MoonLord, owner);
+
+            SetValue(supportedVersionValue, FormatText(diagnostics.SupportedVersion, owner));
             SetValue(signatureProfileValue, owner.Localize(diagnostics.SignatureProfile));
             SetValue(scanAttemptsValue, diagnostics.SignatureScanAttempts.ToString(CultureInfo.InvariantCulture));
             SetValue(lastScanValue, FormatTimestamp(diagnostics.LastSignatureScanUtc, owner));
-            SetValue(scanScopeValue, owner.Localize(diagnostics.LastSignatureScan?.ScopeDescription ?? Terraria1456Memory.SignatureScanScopeLabel));
             SetValue(scanPageStatsValue, FormatScanStats(diagnostics.LastSignatureScan, owner));
             SetValue(scanFailuresValue, FormatScanFailures(diagnostics.LastSignatureScan, owner));
-            SetValue(signatureResultValue, FormatSignatureResult(diagnostics, owner));
+            SetValue(mainModuleBaseValue, FormatAddress(diagnostics.MainModuleBaseAddress, owner));
+            SetValue(mainModuleSizeValue, FormatByteCount(diagnostics.MainModuleSize, owner));
             SetValue(updateTimeAddressValue, FormatAddress(diagnostics.UpdateTimeAddress, owner));
             SetValue(gameMenuAddressValue, FormatAddress(diagnostics.GameMenuAddress, owner));
-            SetValue(gameMenuAddressSecondaryValue, FormatAddress(diagnostics.GameMenuSecondaryAddress, owner));
             SetValue(bossFlagsAddressValue, FormatAddress(diagnostics.BossFlagsBaseAddress, owner));
             SetValue(hardmodeAddressValue, FormatAddress(diagnostics.HardmodeAddress, owner));
             SetValue(failureStageValue, LocalizeStage(diagnostics.Stage, owner));
-            SetValue(compatibilityHintValue, owner.Localize(diagnostics.CompatibilityHint));
-            SetValue(watcherStatusValue, LocalizeStatus(snapshot.Status, owner));
-            diagnosticSummaryValue.Text = BuildDiagnosticSummary(window, snapshot, diagnostics, owner);
+        }
+
+        void CopyAllInformation()
+        {
+            Refresh();
+
+            try
+            {
+                Clipboard.SetText(BuildDiagnosticReport(latestWindow, latestSnapshot, latestDiagnostics, latestInventory, owner.Result.AutoCreate, owner));
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Error(ex, "Failed to copy Terraria debug information.");
+            }
         }
 
         var refreshTimer = new System.Windows.Forms.Timer
@@ -188,28 +317,270 @@ internal static class DebugSettingsPage
         return page;
     }
 
-    private static string BuildDiagnosticSummary(
+    private static string BuildDiagnosticReport(
         TerrariaWindowSnapshot window,
         TerrariaWatchSnapshot snapshot,
         TerrariaWatcherDiagnostics diagnostics,
+        TerrariaSaveInventorySnapshot inventory,
+        AutoCreateWorldSettings autoCreate,
         SettingsForm owner)
     {
-        return string.Join(
-            Environment.NewLine,
+        var lines = new List<string>();
+        bool bossFlagsReady = HasAnyBossState(snapshot.BossStates);
+
+        AppendReportSection(
+            lines,
+            owner,
+            "Quick Status",
             [
-                string.Format(owner.Localize("Process: PID {0} | start {1} | arch {2}"), FormatProcessId(snapshot.ProcessId, owner), FormatDateTime(window.ProcessStartTime, owner), diagnostics.ProcessArchitecture),
-                string.Format(owner.Localize("Path: {0}"), diagnostics.ProcessPath ?? owner.Localize("Unknown")),
-                string.Format(owner.Localize("Version: {0} | module base {1} | module size {2}"), diagnostics.ProcessVersion ?? owner.Localize("Unknown"), FormatAddress(diagnostics.MainModuleBaseAddress, owner), FormatByteCount(diagnostics.MainModuleSize, owner)),
-                string.Format(owner.Localize("Watcher: attached {0} | ready {1} | game state {2}"), FormatBool(snapshot.IsAttached, owner), FormatBool(snapshot.IsReady, owner), owner.Localize(FormatGameState(snapshot.IsGameMenu))),
-                string.Format(owner.Localize("Signature: {0} | profile {1} | target {2}"), FormatSignatureResult(diagnostics, owner), owner.Localize(diagnostics.SignatureProfile), diagnostics.SupportedVersion),
-                string.Format(owner.Localize("Scan: attempts {0} | last {1}"), diagnostics.SignatureScanAttempts.ToString(CultureInfo.InvariantCulture), FormatTimestamp(diagnostics.LastSignatureScanUtc, owner)),
-                string.Format(owner.Localize("Pages: {0}"), FormatScanStats(diagnostics.LastSignatureScan, owner)),
-                string.Format(owner.Localize("Failures: {0}"), FormatScanFailures(diagnostics.LastSignatureScan, owner)),
-                string.Format(owner.Localize("Pointers: UpdateTime {0} | gameMenu {1} | gameMenu2 {2} | bossFlags {3} | hardmode {4}"), FormatAddress(diagnostics.UpdateTimeAddress, owner), FormatAddress(diagnostics.GameMenuAddress, owner), FormatAddress(diagnostics.GameMenuSecondaryAddress, owner), FormatAddress(diagnostics.BossFlagsBaseAddress, owner), FormatAddress(diagnostics.HardmodeAddress, owner)),
-                string.Format(owner.Localize("Hint: {0}"), owner.Localize(diagnostics.CompatibilityHint)),
-                string.Format(owner.Localize("Watcher status: {0}"), LocalizeStatus(snapshot.Status, owner)),
-                string.Format(owner.Localize("Window status: {0}"), LocalizeStatus(window.Status, owner))
+                ("Auto refresh", $"{RefreshIntervalMilliseconds} ms"),
+                ("Last updated", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff", CultureInfo.InvariantCulture)),
+                ("Terraria process", FormatBool(window.HasProcess, owner)),
+                ("Window", FormatBool(window.HasWindow, owner)),
+                ("Watcher attached", FormatBool(snapshot.IsAttached, owner)),
+                ("Memory ready", FormatBool(snapshot.IsReady, owner)),
+                ("Entered world", FormatBool(snapshot.EnteredWorld, owner)),
+                ("Boss flags", owner.Localize(bossFlagsReady ? "Ready" : "Pending")),
+                ("Game state", owner.Localize(FormatGameState(snapshot.IsGameMenu))),
+                ("Signature result", FormatSignatureResult(diagnostics, owner)),
+                ("Window status", LocalizeStatus(window.Status, owner)),
+                ("Watcher status", LocalizeStatus(snapshot.Status, owner))
             ]);
+
+        string menuScale = owner.Localize("Unknown");
+        string logicalMenuSize = owner.Localize("Unknown");
+        string autoCreateSequence = owner.Localize("Unavailable because client size is unknown.");
+        if (TryCreateGeometry(window.ClientSize, out TerrariaMenuGeometry geometry))
+        {
+            menuScale = FormatScale(geometry.Scale);
+            logicalMenuSize = FormatLogicalSize(geometry);
+            autoCreateSequence = BuildAutoCreateSequenceText(autoCreate, geometry, inventory.FavoritePlayers, owner);
+        }
+
+        AppendReportSection(
+            lines,
+            owner,
+            "Window & Coordinates",
+            [
+                ("PID", FormatProcessId(window.ProcessId, owner)),
+                ("Start time", FormatDateTime(window.ProcessStartTime, owner)),
+                ("Process path", FormatText(diagnostics.ProcessPath, owner)),
+                ("Process architecture", FormatText(diagnostics.ProcessArchitecture, owner)),
+                ("Process version", FormatText(diagnostics.ProcessVersion, owner)),
+                ("Window handle", window.HasWindow ? $"0x{window.WindowHandle.ToInt64():X}" : owner.Localize("Unknown")),
+                ("Window title", string.IsNullOrWhiteSpace(window.WindowTitle) ? owner.Localize("Unknown") : window.WindowTitle),
+                ("Responding", window.HasProcess ? FormatBool(window.IsResponding, owner) : owner.Localize("Unknown")),
+                ("Visible", window.HasWindow ? FormatBool(window.IsVisible, owner) : owner.Localize("Unknown")),
+                ("Minimized", window.HasWindow ? FormatBool(window.IsMinimized, owner) : owner.Localize("Unknown")),
+                ("Maximized", window.HasWindow ? FormatBool(window.IsMaximized, owner) : owner.Localize("Unknown")),
+                ("Foreground", window.HasWindow ? FormatBool(window.IsForeground, owner) : owner.Localize("Unknown")),
+                ("Window bounds", FormatBounds(window.WindowBounds, owner)),
+                ("Client size", FormatSize(window.ClientSize, owner)),
+                ("Menu scale", menuScale),
+                ("Logical menu size", logicalMenuSize)
+            ]);
+
+        AppendReportSection(
+            lines,
+            owner,
+            "Auto Create Route",
+            [
+                ("Player files", inventory.PlayerFiles.ToString(CultureInfo.InvariantCulture)),
+                ("World files", inventory.WorldFiles.ToString(CultureInfo.InvariantCulture)),
+                ("Favorite players", inventory.FavoritePlayers.ToString(CultureInfo.InvariantCulture)),
+                ("Favorite worlds", inventory.FavoriteWorlds.ToString(CultureInfo.InvariantCulture)),
+                ("Player name", FormatPlayerName(autoCreate.PlayerName)),
+                ("Player difficulty", owner.Localize(AutoCreatePlayerDifficulty.Normalize(autoCreate.PlayerDifficulty))),
+                ("World size", owner.Localize(AutoCreateWorldSize.Normalize(autoCreate.WorldSize))),
+                ("World difficulty", owner.Localize(AutoCreateWorldDifficulty.Normalize(autoCreate.WorldDifficulty))),
+                ("World evil", owner.Localize(AutoCreateWorldEvil.Normalize(autoCreate.WorldEvil))),
+                ("Short action delay ms", autoCreate.ShortActionDelayMilliseconds.ToString(CultureInfo.InvariantCulture)),
+                ("Menu action delay ms", autoCreate.MenuActionDelayMilliseconds.ToString(CultureInfo.InvariantCulture)),
+                ("Window activation wait ms", autoCreate.WindowActivationDelayMilliseconds.ToString(CultureInfo.InvariantCulture)),
+                ("Click focus wait ms", autoCreate.ClickFocusDelayMilliseconds.ToString(CultureInfo.InvariantCulture)),
+                ("Mouse / key press ms", autoCreate.InputPressDurationMilliseconds.ToString(CultureInfo.InvariantCulture))
+            ]);
+
+        AppendMultilineSection(lines, owner, "Click sequence", autoCreateSequence);
+
+        AppendReportSection(
+            lines,
+            owner,
+            "Boss Progress",
+            [
+                ("Skeletron", FormatOptionalBool(snapshot.BossStates.Skeletron, owner)),
+                ("Wall of Flesh", FormatOptionalBool(snapshot.BossStates.WallOfFlesh, owner)),
+                ("Destroyer", FormatOptionalBool(snapshot.BossStates.Destroyer, owner)),
+                ("The Twins", FormatOptionalBool(snapshot.BossStates.Twins, owner)),
+                ("Skeletron Prime", FormatOptionalBool(snapshot.BossStates.SkeletronPrime, owner)),
+                ("Plantera", FormatOptionalBool(snapshot.BossStates.Plantera, owner)),
+                ("Golem", FormatOptionalBool(snapshot.BossStates.Golem, owner)),
+                ("Lunatic Cultist", FormatOptionalBool(snapshot.BossStates.LunaticCultist, owner)),
+                ("Moon Lord", FormatOptionalBool(snapshot.BossStates.MoonLord, owner))
+            ]);
+
+        AppendReportSection(
+            lines,
+            owner,
+            "Memory & Signatures",
+            [
+                ("Supported version", FormatText(diagnostics.SupportedVersion, owner)),
+                ("Signature profile", owner.Localize(diagnostics.SignatureProfile)),
+                ("Scan attempts", diagnostics.SignatureScanAttempts.ToString(CultureInfo.InvariantCulture)),
+                ("Last scan", FormatTimestamp(diagnostics.LastSignatureScanUtc, owner)),
+                ("Scan page stats", FormatScanStats(diagnostics.LastSignatureScan, owner)),
+                ("Scan failures", FormatScanFailures(diagnostics.LastSignatureScan, owner)),
+                ("Main module base", FormatAddress(diagnostics.MainModuleBaseAddress, owner)),
+                ("Main module size", FormatByteCount(diagnostics.MainModuleSize, owner)),
+                ("UpdateTime address", FormatAddress(diagnostics.UpdateTimeAddress, owner)),
+                ("gameMenu address", FormatAddress(diagnostics.GameMenuAddress, owner)),
+                ("Boss flags address", FormatAddress(diagnostics.BossFlagsBaseAddress, owner)),
+                ("Hardmode address", FormatAddress(diagnostics.HardmodeAddress, owner)),
+                ("Failure stage", LocalizeStage(diagnostics.Stage, owner))
+            ]);
+
+        return string.Join(Environment.NewLine, lines);
+    }
+
+    private static void AppendReportSection(
+        List<string> lines,
+        SettingsForm owner,
+        string title,
+        params (string Label, string Value)[] rows)
+    {
+        if (lines.Count > 0)
+        {
+            lines.Add(string.Empty);
+        }
+
+        lines.Add(owner.Localize(title));
+        foreach ((string label, string value) in rows)
+        {
+            lines.Add($"{owner.Localize(label)}: {value}");
+        }
+    }
+
+    private static void AppendMultilineSection(List<string> lines, SettingsForm owner, string title, string content)
+    {
+        if (lines.Count > 0)
+        {
+            lines.Add(string.Empty);
+        }
+
+        lines.Add(owner.Localize(title));
+        lines.AddRange(content.Split([Environment.NewLine], StringSplitOptions.None));
+    }
+
+    private static string BuildAutoCreateSequenceText(
+        AutoCreateWorldSettings autoCreate,
+        TerrariaMenuGeometry geometry,
+        int favoritePlayers,
+        SettingsForm owner)
+    {
+        var lines = new List<string>();
+        int step = 1;
+
+        AppendSequenceStep(lines, owner, ref step, "Single Player", geometry.MainMenuSinglePlayer());
+        AppendSequenceStep(lines, owner, ref step, "New Player", geometry.SelectMenuNewButton());
+
+        if (!string.IsNullOrWhiteSpace(autoCreate.PlayerTemplateCode))
+        {
+            AppendSequenceStep(lines, owner, ref step, "Character Clothing Tab", geometry.CharacterClothingCategoryButton());
+            AppendSequenceStep(lines, owner, ref step, "Paste Player Template", geometry.CharacterTemplatePasteButton());
+        }
+
+        string normalizedPlayerDifficulty = AutoCreatePlayerDifficulty.Normalize(autoCreate.PlayerDifficulty);
+        if (!string.Equals(normalizedPlayerDifficulty, AutoCreatePlayerDifficulty.Softcore, StringComparison.OrdinalIgnoreCase))
+        {
+            AppendSequenceStep(lines, owner, ref step, "Character Info Tab", geometry.CharacterInfoCategoryButton());
+            AppendSequenceStep(
+                lines,
+                owner,
+                ref step,
+                "Player difficulty",
+                geometry.PlayerDifficultyButton(normalizedPlayerDifficulty),
+                owner.Localize(normalizedPlayerDifficulty));
+        }
+
+        AppendSequenceStep(lines, owner, ref step, "Create Player", geometry.CreatePlayerButton());
+        AppendSequenceStep(lines, owner, ref step, "Select Created Player", geometry.PlayerPlayButton(favoritePlayers));
+        AppendSequenceStep(lines, owner, ref step, "New World", geometry.SelectMenuNewButton());
+
+        string normalizedWorldSize = AutoCreateWorldSize.Normalize(autoCreate.WorldSize);
+        AppendSequenceStep(
+            lines,
+            owner,
+            ref step,
+            "World size",
+            geometry.WorldSizeButton(normalizedWorldSize),
+            owner.Localize(normalizedWorldSize));
+
+        string normalizedWorldDifficulty = AutoCreateWorldDifficulty.Normalize(autoCreate.WorldDifficulty);
+        AppendSequenceStep(
+            lines,
+            owner,
+            ref step,
+            "World difficulty",
+            geometry.WorldDifficultyButton(normalizedWorldDifficulty),
+            owner.Localize(normalizedWorldDifficulty));
+
+        string normalizedWorldEvil = AutoCreateWorldEvil.Normalize(autoCreate.WorldEvil);
+        AppendSequenceStep(
+            lines,
+            owner,
+            ref step,
+            "World evil",
+            geometry.WorldEvilButton(normalizedWorldEvil),
+            owner.Localize(normalizedWorldEvil));
+
+        AppendSequenceStep(lines, owner, ref step, "Advanced Seed", geometry.WorldAdvancedSeedButton());
+        AppendSequenceStep(lines, owner, ref step, "Randomize Visible Seed", geometry.AdvancedSeedRandomizeButton());
+        AppendSequenceStep(lines, owner, ref step, "Create World", geometry.CreateWorldButton());
+
+        return string.Join(Environment.NewLine, lines);
+    }
+
+    private static void AppendSequenceStep(
+        List<string> lines,
+        SettingsForm owner,
+        ref int step,
+        string label,
+        Point point,
+        string? detail = null)
+    {
+        string title = owner.Localize(label);
+        if (!string.IsNullOrWhiteSpace(detail))
+        {
+            title += $" ({detail})";
+        }
+
+        lines.Add($"{step.ToString(CultureInfo.InvariantCulture)}. {title} -> {FormatPoint(point)}");
+        step++;
+    }
+
+    private static bool TryCreateGeometry(Size? clientSize, out TerrariaMenuGeometry geometry)
+    {
+        if (clientSize is not Size size || size.Width <= 0 || size.Height <= 0)
+        {
+            geometry = default;
+            return false;
+        }
+
+        geometry = TerrariaMenuGeometry.From(size);
+        return true;
+    }
+
+    private static bool HasAnyBossState(TerrariaBossStates states)
+    {
+        return states.Skeletron.HasValue ||
+            states.WallOfFlesh.HasValue ||
+            states.Destroyer.HasValue ||
+            states.Twins.HasValue ||
+            states.SkeletronPrime.HasValue ||
+            states.Plantera.HasValue ||
+            states.Golem.HasValue ||
+            states.LunaticCultist.HasValue ||
+            states.MoonLord.HasValue;
     }
 
     private static string FormatGameState(bool? isGameMenu)
@@ -242,6 +613,18 @@ internal static class DebugSettingsPage
         }
 
         return string.Create(CultureInfo.InvariantCulture, $"{value.Width} x {value.Height}");
+    }
+
+    private static string FormatScale(float scale)
+    {
+        return scale.ToString("0.###", CultureInfo.InvariantCulture) + "x";
+    }
+
+    private static string FormatLogicalSize(TerrariaMenuGeometry geometry)
+    {
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"{geometry.LogicalWidth:0.##} x {geometry.LogicalHeight:0.##}");
     }
 
     private static string FormatProcessId(int? processId, SettingsForm owner)
@@ -330,6 +713,27 @@ internal static class DebugSettingsPage
         }
 
         return diagnostics.SignatureScanAttempts > 0 ? owner.Localize("Missing") : owner.Localize("Pending");
+    }
+
+    private static string FormatPlayerName(string? playerName)
+    {
+        string trimmed = playerName?.Trim() ?? string.Empty;
+        return trimmed.Length == 0 ? "1" : trimmed;
+    }
+
+    private static string FormatPoint(Point point)
+    {
+        return string.Create(CultureInfo.InvariantCulture, $"{point.X}, {point.Y}");
+    }
+
+    private static string FormatText(string? value, SettingsForm owner)
+    {
+        return string.IsNullOrWhiteSpace(value) ? owner.Localize("Unknown") : value;
+    }
+
+    private static string FormatOptionalBool(bool? value, SettingsForm owner)
+    {
+        return value.HasValue ? FormatBool(value.Value, owner) : owner.Localize("Unknown");
     }
 
     private static string LocalizeStage(string stage, SettingsForm owner)
@@ -465,6 +869,18 @@ internal static class DebugSettingsPage
         label.ForeColor = value ? UiTheme.Accent : UiTheme.Text;
     }
 
+    private static void SetBossState(Label label, bool? value, SettingsForm owner)
+    {
+        if (!value.HasValue)
+        {
+            SetValue(label, owner.Localize("Unknown"));
+            label.ForeColor = UiTheme.MutedText;
+            return;
+        }
+
+        SetBool(label, owner, value.Value);
+    }
+
     private static void SetOptionalBool(Label label, SettingsForm owner, bool? value)
     {
         if (!value.HasValue)
@@ -492,6 +908,11 @@ internal static class DebugSettingsPage
         {
             label.ForeColor = UiTheme.Text;
         }
+    }
+
+    private static void SetSequenceText(TextBox textBox, string text)
+    {
+        textBox.Text = text;
     }
 
     private static TableLayoutPanel CreateSection(SettingsForm owner, string title)
@@ -523,6 +944,23 @@ internal static class DebugSettingsPage
         return section;
     }
 
+    private static FlowLayoutPanel CreateActionBar()
+    {
+        var panel = new FlowLayoutPanel
+        {
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            BackColor = Color.Transparent,
+            Dock = DockStyle.Top,
+            FlowDirection = FlowDirection.LeftToRight,
+            Margin = new Padding(0, 0, 0, 18),
+            Padding = Padding.Empty,
+            WrapContents = false
+        };
+        UiTheme.EnableDoubleBuffering(panel);
+        return panel;
+    }
+
     private static TableLayoutPanel CreateGrid()
     {
         var grid = new TableLayoutPanel
@@ -536,7 +974,7 @@ internal static class DebugSettingsPage
             Padding = Padding.Empty
         };
         UiTheme.EnableDoubleBuffering(grid);
-        grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 220f));
+        grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 240f));
         grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
         return grid;
     }
@@ -574,20 +1012,20 @@ internal static class DebugSettingsPage
         };
     }
 
-    private static Label CreateSummaryLabel(SettingsForm owner, string text)
+    private static Label CreateMutedLabel(SettingsForm owner, string text)
     {
         return new Label
         {
             AutoSize = true,
             Dock = DockStyle.Fill,
             ForeColor = UiTheme.MutedText,
-            Margin = new Padding(0, 0, 0, 10),
+            Margin = new Padding(0, 12, 0, 10),
             Text = owner.Localize(text),
             TextAlign = ContentAlignment.MiddleLeft
         };
     }
 
-    private static TextBox CreateSummaryTextBox()
+    private static TextBox CreateMultilineValueBox(int height)
     {
         return new TextBox
         {
@@ -596,15 +1034,27 @@ internal static class DebugSettingsPage
             Dock = DockStyle.Top,
             Font = UiTheme.FormFont(9.5f),
             ForeColor = UiTheme.Text,
-            Height = SummaryHeight,
+            Height = height,
             Margin = Padding.Empty,
             Multiline = true,
             ReadOnly = true,
             ScrollBars = ScrollBars.Vertical,
             ShortcutsEnabled = true,
             TabStop = false,
-            WordWrap = true
+            WordWrap = false
         };
+    }
+
+    private static Button CreateActionButton(SettingsForm owner, string text)
+    {
+        var button = new Button
+        {
+            AutoSize = true,
+            Margin = Padding.Empty,
+            Text = owner.Localize(text)
+        };
+        UiTheme.StyleButton(button, accent: true, minimumWidth: 200);
+        return button;
     }
 
     private static void AddSection(TableLayoutPanel parent, Control section)

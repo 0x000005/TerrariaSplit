@@ -9,7 +9,7 @@ internal static class TerrariaWindowProbe
 {
     public static TerrariaWindowSnapshot Read()
     {
-        Process? process = FindTerrariaProcess();
+        Process? process = TerrariaProcessFinder.FindNewest();
         if (process is null)
         {
             return new TerrariaWindowSnapshot(
@@ -200,41 +200,6 @@ internal static class TerrariaWindowProbe
 
         bounds = Rectangle.FromLTRB(rect.Left, rect.Top, rect.Right, rect.Bottom);
         return true;
-    }
-
-    private static Process? FindTerrariaProcess()
-    {
-        Process[] processes = Process.GetProcessesByName(Terraria1456Memory.ProcessName);
-        if (processes.Length == 0)
-        {
-            return null;
-        }
-
-        Process selected = processes
-            .OrderByDescending(ProcessStartTimeOrMinValue)
-            .First();
-
-        foreach (Process process in processes)
-        {
-            if (!ReferenceEquals(process, selected))
-            {
-                process.Dispose();
-            }
-        }
-
-        return selected;
-    }
-
-    private static DateTime ProcessStartTimeOrMinValue(Process process)
-    {
-        try
-        {
-            return process.StartTime;
-        }
-        catch
-        {
-            return DateTime.MinValue;
-        }
     }
 
     [StructLayout(LayoutKind.Sequential)]

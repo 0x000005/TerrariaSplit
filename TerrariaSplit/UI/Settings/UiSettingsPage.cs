@@ -2,14 +2,19 @@ using System.Windows.Forms;
 
 namespace TerrariaSplit;
 
-internal static class UiSettingsPage
+internal sealed class UiSettingsPage : SettingsPageBase
 {
-    public static Control Build(SettingsForm owner)
+    protected override Control BuildPage(SettingsPageContext context)
     {
-        return owner.BuildScrollPage(content =>
+        return context.BuildScrollPage(content =>
         {
-            owner.AddColumnSettingsSection(content);
-            owner.AddTimerSettingsSection(content);
+            Owner.AddColumnSettingsSection(content);
+            Owner.AddTimerSettingsSection(content);
         });
+    }
+
+    public override void Apply(AppSettings settings)
+    {
+        Owner.ApplyUiSettings(settings);
     }
 }
