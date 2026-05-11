@@ -20,8 +20,15 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
         { "Language", "语言" },
         { "Pause / Resume", "暂停 / 继续" },
         { "Reset at Menu", "在菜单时重置" },
+        { "Reset (Disabled in world)", "重置（在世界内不生效）" },
         { "Mouse passthrough", "鼠标穿透" },
         { "Create world flow", "自动创建世界" },
+        { "Create world (Disabled in world)", "创建世界（在世界内不生效）" },
+        { "Hotkey warning", "快捷键警告" },
+        { "Some hotkeys could not be registered:", "部分快捷键无法注册：" },
+        { "{0}: {1} is duplicated; only the first action using this key is active.", "{0}：{1} 与其他快捷键重复；只有第一个使用该按键的动作会生效。" },
+        { "{0}: {1} is not allowed as a hotkey.", "{0}：{1} 不允许作为快捷键。" },
+        { "{0}: {1} registration failed. It may be used by another program. ({2})", "{0}：{1} 注册失败，可能已被其他程序占用。（{2}）" },
         { "Always on top", "置顶显示" },
         { "Practice mode", "练习模式" },
         { "Allow manual time editing", "允许手动修改时间" },
@@ -230,8 +237,6 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Random", "\u968F\u673A" }
       , { "Corruption", "\u8150\u5316" }
       , { "Crimson", "\u7329\u7EA2" }
-      , { "Reset (Disabled in world)", "重置（在世界内不生效）" }
-      , { "Create world (Disabled in world)", "创建世界（在世界内不生效）" }
       , { "Debug", "\u8C03\u8BD5" }
       , { "Copy all information", "\u590D\u5236\u6240\u6709\u4FE1\u606F" }
       , { "Quick Status", "\u5FEB\u901F\u72B6\u6001" }

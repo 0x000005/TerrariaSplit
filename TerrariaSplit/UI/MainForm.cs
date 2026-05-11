@@ -30,6 +30,8 @@ internal sealed partial class MainForm : Form
     private readonly RunFinalizer runFinalizer = new();
     private readonly SoundPlayerService soundPlayer = new();
     private readonly System.Windows.Forms.Timer uiTimer = new();
+    private readonly GlobalHotkeyManager hotkeyManager = new();
+    private readonly Queue<TimerHotkeyAction> pendingHotkeyActions = new();
     private readonly Dictionary<string, IconPair> iconCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<FontKey, Font> fontCache = new();
     private readonly Dictionary<int, SegmentBestDeltaHighlight> segmentBestDeltaHighlights = new();
@@ -42,6 +44,8 @@ internal sealed partial class MainForm : Form
     private bool runStatsRecorded;
     private bool closeFinalizationPending;
     private bool closeFinalizationComplete;
+    private bool settingsFormOpen;
+    private string? lastHotkeyWarningText;
     private readonly PendingMenuHotkeyScheduler pendingMenuHotkeys = new();
     private readonly TimerController timerController;
 
@@ -87,6 +91,15 @@ internal sealed partial class MainForm : Form
         uiTimer.Start();
     }
 
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        if (!settingsFormOpen)
+        {
+            RegisterConfiguredHotkeys();
+        }
+    }
+
     private void UpdateContextMenu()
     {
         contextMenuBuilder.Rebuild(
@@ -101,6 +114,7 @@ internal sealed partial class MainForm : Form
     protected override void OnFormClosed(FormClosedEventArgs e)
     {
         uiTimer.Stop();
+        hotkeyManager.Dispose();
         watcher.Dispose();
         createWorldAutomation.Dispose();
 
@@ -117,6 +131,12 @@ internal sealed partial class MainForm : Form
         }
 
         base.OnFormClosed(e);
+    }
+
+    protected override void OnHandleDestroyed(EventArgs e)
+    {
+        hotkeyManager.Dispose();
+        base.OnHandleDestroyed(e);
     }
 
     protected override void OnFormClosing(FormClosingEventArgs e)
@@ -241,6 +261,13 @@ internal sealed partial class MainForm : Form
         const int htBottomLeft = 16;
         const int htBottomRight = 17;
 
+        if (hotkeyManager.TryGetAction(m, out TimerHotkeyAction action))
+        {
+            pendingHotkeyActions.Enqueue(action);
+            m.Result = IntPtr.Zero;
+            return;
+        }
+
         base.WndProc(ref m);
 
         if (mouseClickThrough && m.Msg == wmNcHitTest)
@@ -300,7 +327,10 @@ internal sealed partial class MainForm : Form
 
     private void Tick()
     {
-        TimerControllerTickResult tickResult = timerController.Tick(settings, CanStartCreateWorldAutomation);
+        TimerControllerTickResult tickResult = timerController.Tick(
+            settings,
+            DrainPendingHotkeyActions(),
+            CanStartCreateWorldAutomation);
         snapshot = tickResult.Snapshot;
 
         if (tickResult.PauseSoundRequested)
@@ -354,6 +384,18 @@ internal sealed partial class MainForm : Form
 
         Text = $"TerrariaSplit - {FormatTimerPhase()} - {FormatWorldState()}";
         Invalidate();
+    }
+
+    private TimerHotkeyAction[] DrainPendingHotkeyActions()
+    {
+        if (pendingHotkeyActions.Count == 0)
+        {
+            return [];
+        }
+
+        TimerHotkeyAction[] actions = pendingHotkeyActions.ToArray();
+        pendingHotkeyActions.Clear();
+        return actions;
     }
 
     private bool ShowPersonalBestUpdateConfirmation(string promptText)
@@ -431,15 +473,29 @@ internal sealed partial class MainForm : Form
 
     private void OpenSettings()
     {
-        using var form = new SettingsForm(settings);
-        form.TopMost = TopMost;
-        form.Applied += (_, _) => ApplySettings(form.Result);
-        if (form.ShowDialog(this) != DialogResult.OK)
+        settingsFormOpen = true;
+        hotkeyManager.Dispose();
+        pendingHotkeyActions.Clear();
+        try
         {
-            return;
-        }
+            using var form = new SettingsForm(settings);
+            form.TopMost = TopMost;
+            form.Applied += (_, _) => ApplySettings(form.Result);
+            if (form.ShowDialog(this) != DialogResult.OK)
+            {
+                return;
+            }
 
-        ApplySettings(form.Result);
+            ApplySettings(form.Result);
+        }
+        finally
+        {
+            settingsFormOpen = false;
+            if (IsHandleCreated)
+            {
+                RegisterConfiguredHotkeys();
+            }
+        }
     }
 
     private void ApplySettings(AppSettings appliedSettings)
@@ -468,6 +524,11 @@ internal sealed partial class MainForm : Form
         splitTracker.SetDefinitions(BossSplitDefinitions.Build(settings));
         ResetRun();
         TopMost = settings.AlwaysOnTop;
+        if (IsHandleCreated && !settingsFormOpen)
+        {
+            RegisterConfiguredHotkeys();
+        }
+
         ApplyCaptureBackgroundColor();
         MinimumSize = SplitLayoutCalculator.GetMinimumWindowSize(settings);
         Width = Math.Max(MinimumSize.Width, SplitLayoutCalculator.GetDefaultWindowWidth(settings));
@@ -543,6 +604,8 @@ internal sealed partial class MainForm : Form
             return;
         }
 
+        hotkeyManager.Dispose();
+        pendingHotkeyActions.Clear();
         ResetRun(recordStats: true);
 
         try
@@ -553,6 +616,79 @@ internal sealed partial class MainForm : Form
         {
             AppLogger.Error(ex, "Unhandled create world automation error.");
         }
+        finally
+        {
+            if (IsHandleCreated && !settingsFormOpen)
+            {
+                RegisterConfiguredHotkeys();
+            }
+        }
+    }
+
+    private void RegisterConfiguredHotkeys()
+    {
+        IReadOnlyList<HotkeyRegistrationWarning> warnings = hotkeyManager.RegisterConfiguredHotkeys(Handle, settings);
+        ShowHotkeyRegistrationWarnings(warnings);
+    }
+
+    private void ShowHotkeyRegistrationWarnings(IReadOnlyList<HotkeyRegistrationWarning> warnings)
+    {
+        if (warnings.Count == 0)
+        {
+            lastHotkeyWarningText = null;
+            return;
+        }
+
+        string warningText = string.Join(Environment.NewLine, warnings.Select(FormatHotkeyRegistrationWarning));
+        if (string.Equals(warningText, lastHotkeyWarningText, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        lastHotkeyWarningText = warningText;
+        string message = Localizer.Get("Some hotkeys could not be registered:", settings) +
+            Environment.NewLine +
+            warningText;
+        MessageBox.Show(
+            this,
+            message,
+            Localizer.Get("Hotkey warning", settings),
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Warning);
+    }
+
+    private string FormatHotkeyRegistrationWarning(HotkeyRegistrationWarning warning)
+    {
+        string actionName = Localizer.Get(GetHotkeyActionDisplayName(warning.Action), settings);
+        return warning.Kind switch
+        {
+            HotkeyRegistrationWarningKind.Duplicate => string.Format(
+                Localizer.Get("{0}: {1} is duplicated; only the first action using this key is active.", settings),
+                actionName,
+                warning.Keys),
+            HotkeyRegistrationWarningKind.Invalid => string.Format(
+                Localizer.Get("{0}: {1} is not allowed as a hotkey.", settings),
+                actionName,
+                warning.Keys),
+            HotkeyRegistrationWarningKind.SystemRegistrationFailed => string.Format(
+                Localizer.Get("{0}: {1} registration failed. It may be used by another program. ({2})", settings),
+                actionName,
+                warning.Keys,
+                warning.Detail),
+            _ => $"{actionName}: {warning.Keys}"
+        };
+    }
+
+    private static string GetHotkeyActionDisplayName(TimerHotkeyAction action)
+    {
+        return action switch
+        {
+            TimerHotkeyAction.PauseResume => "Pause / Resume",
+            TimerHotkeyAction.Reset => "Reset (Disabled in world)",
+            TimerHotkeyAction.MouseClickThrough => "Mouse passthrough",
+            TimerHotkeyAction.CreateWorld => "Create world (Disabled in world)",
+            _ => action.ToString()
+        };
     }
 
     private bool CanStartCreateWorldAutomation(TerrariaWatchSnapshot currentSnapshot)

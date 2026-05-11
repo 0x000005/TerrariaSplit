@@ -5,9 +5,9 @@ namespace TerrariaSplit;
 
 internal sealed class AppSettings
 {
-    public string PauseResumeKey { get; set; } = Keys.R.ToString();
-    public string ResetKey { get; set; } = Keys.T.ToString();
-    public string MouseClickThroughKey { get; set; } = Keys.I.ToString();
+    public string PauseResumeKey { get; set; } = Keys.F12.ToString();
+    public string ResetKey { get; set; } = Keys.F6.ToString();
+    public string MouseClickThroughKey { get; set; } = Keys.F9.ToString();
     public string CreateWorldKey { get; set; } = Keys.F7.ToString();
     public bool ShowMouseClickThroughIndicator { get; set; }
     public string Language { get; set; } = "English";
@@ -55,13 +55,13 @@ internal sealed class AppSettings
     public int CurrentBossIconBrightnessBoostPercent { get; set; } = 35;
 
     [JsonIgnore]
-    public Keys PauseResumeKeys => ParseKey(PauseResumeKey, Keys.R);
+    public Keys PauseResumeKeys => ParseKey(PauseResumeKey, Keys.F12);
 
     [JsonIgnore]
-    public Keys ResetKeys => ParseKey(ResetKey, Keys.T);
+    public Keys ResetKeys => ParseKey(ResetKey, Keys.F6);
 
     [JsonIgnore]
-    public Keys MouseClickThroughKeys => ParseKey(MouseClickThroughKey, Keys.I);
+    public Keys MouseClickThroughKeys => ParseKey(MouseClickThroughKey, Keys.F9);
 
     [JsonIgnore]
     public Keys CreateWorldKeys => ParseKey(CreateWorldKey, Keys.F7);
@@ -136,7 +136,13 @@ internal sealed class AppSettings
 
     private static Keys ParseKey(string? value, Keys fallback)
     {
-        return Enum.TryParse(value, ignoreCase: true, out Keys key) ? key : fallback;
+        if (Enum.TryParse(value, ignoreCase: true, out Keys key) &&
+            HotkeyKeyValidator.IsAllowed(key))
+        {
+            return key;
+        }
+
+        return fallback;
     }
 
     public ReferenceSplitSet GetActiveReferenceSet()

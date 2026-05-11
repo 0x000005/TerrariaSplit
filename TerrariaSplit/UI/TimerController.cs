@@ -1,5 +1,13 @@
 namespace TerrariaSplit;
 
+internal enum TimerHotkeyAction
+{
+    PauseResume,
+    Reset,
+    MouseClickThrough,
+    CreateWorld
+}
+
 internal sealed class TimerController
 {
     private readonly SplitTimer runTimer;
@@ -24,6 +32,7 @@ internal sealed class TimerController
 
     public TimerControllerTickResult Tick(
         AppSettings settings,
+        IReadOnlyCollection<TimerHotkeyAction> hotkeyActions,
         Func<TerrariaWatchSnapshot, bool> canStartCreateWorldAutomation)
     {
         TerrariaWatchSnapshot snapshot = watcher.Poll();
@@ -33,25 +42,44 @@ internal sealed class TimerController
         int? completedSplitIndex = null;
         bool runCompleted = false;
 
-        if (Keyboard.PollPressed(settings.PauseResumeKeys))
+        foreach (TimerHotkeyAction action in hotkeyActions)
         {
-            SplitTimerPhase previousPhase = runTimer.Phase;
-            runTimer.TogglePause();
-            pauseSoundRequested = previousPhase == SplitTimerPhase.Running && runTimer.Phase == SplitTimerPhase.Paused;
-        }
-
-        if (Keyboard.PollPressed(settings.ResetKeys))
-        {
-            if (CanReset(snapshot))
+            if (action == TimerHotkeyAction.PauseResume)
             {
-                return TimerControllerTickResult.RequestMenuAction(
-                    snapshot,
-                    MenuHotkeyActionKind.Reset,
-                    pauseSoundRequested,
-                    toggleMouseClickThroughRequested);
+                SplitTimerPhase previousPhase = runTimer.Phase;
+                runTimer.TogglePause();
+                pauseSoundRequested = previousPhase == SplitTimerPhase.Running && runTimer.Phase == SplitTimerPhase.Paused;
             }
+            else if (action == TimerHotkeyAction.Reset)
+            {
+                if (CanReset(snapshot))
+                {
+                    return TimerControllerTickResult.RequestMenuAction(
+                        snapshot,
+                        MenuHotkeyActionKind.Reset,
+                        pauseSoundRequested,
+                        toggleMouseClickThroughRequested);
+                }
 
-            QueuePendingMenuHotkeyAction(MenuHotkeyActionKind.Reset);
+                QueuePendingMenuHotkeyAction(MenuHotkeyActionKind.Reset);
+            }
+            else if (action == TimerHotkeyAction.MouseClickThrough)
+            {
+                toggleMouseClickThroughRequested = true;
+            }
+            else if (action == TimerHotkeyAction.CreateWorld)
+            {
+                if (canStartCreateWorldAutomation(snapshot))
+                {
+                    return TimerControllerTickResult.RequestMenuAction(
+                        snapshot,
+                        MenuHotkeyActionKind.CreateWorld,
+                        pauseSoundRequested,
+                        toggleMouseClickThroughRequested);
+                }
+
+                QueuePendingMenuHotkeyAction(MenuHotkeyActionKind.CreateWorld);
+            }
         }
 
         if (TryConsumePendingMenuHotkeyAction(snapshot, canStartCreateWorldAutomation, out MenuHotkeyActionKind pendingAction))
@@ -61,25 +89,6 @@ internal sealed class TimerController
                 pendingAction,
                 pauseSoundRequested,
                 toggleMouseClickThroughRequested);
-        }
-
-        if (Keyboard.PollPressed(settings.MouseClickThroughKeys))
-        {
-            toggleMouseClickThroughRequested = true;
-        }
-
-        if (Keyboard.PollPressed(settings.CreateWorldKeys))
-        {
-            if (canStartCreateWorldAutomation(snapshot))
-            {
-                return TimerControllerTickResult.RequestMenuAction(
-                    snapshot,
-                    MenuHotkeyActionKind.CreateWorld,
-                    pauseSoundRequested,
-                    toggleMouseClickThroughRequested);
-            }
-
-            QueuePendingMenuHotkeyAction(MenuHotkeyActionKind.CreateWorld);
         }
 
         if (snapshot.EnteredWorld && runTimer.Phase == SplitTimerPhase.NotStarted)

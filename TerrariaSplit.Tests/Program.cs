@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Windows.Forms;
 using TerrariaSplit;
 
 var tests = new (string Name, Action Test)[]
@@ -9,7 +10,9 @@ var tests = new (string Name, Action Test)[]
     ("BossRouteGroups groups enabled entries by segment", TestBossRouteGroups),
     ("TerrariaMenuGeometry maps 900p menu coordinates", TestTerrariaMenuGeometry),
     ("Localizer returns English fallback and Chinese Crimson", TestLocalizer),
-    ("SettingsNormalizer clamps auto-create timings", TestSettingsNormalize)
+    ("SettingsNormalizer clamps auto-create timings", TestSettingsNormalize),
+    ("Hotkey validator rejects reserved keys", TestHotkeyValidatorRejectsReservedKeys),
+    ("AppSettings falls back from invalid hotkeys", TestAppSettingsInvalidHotkeyFallback)
 };
 
 int failures = 0;
@@ -104,6 +107,33 @@ static void TestSettingsNormalize()
     AssertEqual(5000, settings.AutoCreate.WindowActivationDelayMilliseconds);
     AssertEqual(0, settings.AutoCreate.ClickFocusDelayMilliseconds);
     AssertEqual(1, settings.AutoCreate.InputPressDurationMilliseconds);
+}
+
+static void TestHotkeyValidatorRejectsReservedKeys()
+{
+    AssertEqual(false, HotkeyKeyValidator.IsAllowed(Keys.ControlKey));
+    AssertEqual(false, HotkeyKeyValidator.IsAllowed(Keys.LShiftKey));
+    AssertEqual(false, HotkeyKeyValidator.IsAllowed(Keys.RMenu));
+    AssertEqual(false, HotkeyKeyValidator.IsAllowed(Keys.LWin));
+    AssertEqual(false, HotkeyKeyValidator.IsAllowed(Keys.CapsLock));
+    AssertEqual(true, HotkeyKeyValidator.IsAllowed(Keys.F6));
+    AssertEqual(true, HotkeyKeyValidator.IsAllowed(Keys.Control | Keys.F6));
+}
+
+static void TestAppSettingsInvalidHotkeyFallback()
+{
+    var settings = new AppSettings
+    {
+        PauseResumeKey = Keys.ControlKey.ToString(),
+        ResetKey = Keys.LShiftKey.ToString(),
+        MouseClickThroughKey = Keys.RMenu.ToString(),
+        CreateWorldKey = Keys.LWin.ToString()
+    };
+
+    AssertEqual(Keys.F12, settings.PauseResumeKeys);
+    AssertEqual(Keys.F6, settings.ResetKeys);
+    AssertEqual(Keys.F9, settings.MouseClickThroughKeys);
+    AssertEqual(Keys.F7, settings.CreateWorldKeys);
 }
 
 static void AssertEqual<T>(T expected, T actual)

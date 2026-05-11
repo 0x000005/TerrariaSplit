@@ -1343,7 +1343,7 @@ void ApplyToSettings()
 
         public void SetHotkey(Keys hotkey)
         {
-            Hotkey = hotkey == Keys.None ? Keys.I : hotkey;
+            Hotkey = HotkeyKeyValidator.IsAllowed(hotkey) ? hotkey : Keys.I;
             Text = Hotkey.ToString();
         }
 
@@ -1352,9 +1352,10 @@ void ApplyToSettings()
             base.OnKeyDown(e);
 
             Keys key = e.KeyCode;
-            if (key is Keys.ControlKey or Keys.ShiftKey or Keys.Menu)
+            if (!HotkeyKeyValidator.IsAllowed(key))
             {
-                key = e.KeyData & Keys.KeyCode;
+                e.SuppressKeyPress = true;
+                return;
             }
 
             if (key != Keys.None)
