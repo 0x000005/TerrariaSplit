@@ -27,6 +27,11 @@ internal readonly record struct TerrariaMenuGeometry(float Scale, float LogicalW
         return ToClient(LogicalWidth / 2f + 130f, 534f);
     }
 
+    public Point VirtualKeyboardSubmitButton()
+    {
+        return ToClient(LogicalWidth / 2f, 350f);
+    }
+
     public Point CharacterClothingCategoryButton()
     {
         return ToClient(LogicalWidth / 2f - 176f, 294f);
@@ -101,6 +106,11 @@ internal readonly record struct TerrariaMenuGeometry(float Scale, float LogicalW
     public Point AdvancedSeedRandomizeButton()
     {
         return ToClient(LogicalWidth / 2f - 220f, 230f);
+    }
+
+    public Point WorldAdvancedApplyButton()
+    {
+        return ToClient(LogicalWidth / 2f, 534f);
     }
 
     public Point PlayerPlayButton(int favoritePlayers)

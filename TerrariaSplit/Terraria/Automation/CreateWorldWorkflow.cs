@@ -109,7 +109,7 @@ internal sealed class CreateWorldWorkflow : IDisposable
                 return;
             }
 
-            if (!await ConfirmPlayerNameAsync(autoCreate.PlayerName, cancellationToken))
+            if (!await ConfirmPlayerNameAsync(autoCreate.PlayerName, geometry, cancellationToken))
             {
                 return;
             }
@@ -234,10 +234,7 @@ internal sealed class CreateWorldWorkflow : IDisposable
             return false;
         }
 
-        AppLogger.Info("Create world automation pressing Escape to apply visible seed.");
-        navigator.PressKey(Keys.Escape);
-        await DelayAsync(menuActionDelay, cancellationToken);
-        return true;
+        return await ClickAsync("apply visible seed", geometry.WorldAdvancedApplyButton(), menuActionDelay, cancellationToken);
     }
 
     private async Task<bool> ClickPlayerAndRequireWorldSelectAsync(
@@ -272,16 +269,12 @@ internal sealed class CreateWorldWorkflow : IDisposable
         navigator.ApplyTiming(settings);
     }
 
-    private async Task<bool> ConfirmPlayerNameAsync(string playerName, CancellationToken cancellationToken)
+    private async Task<bool> ConfirmPlayerNameAsync(
+        string playerName,
+        TerrariaMenuGeometry geometry,
+        CancellationToken cancellationToken)
     {
-        string normalizedName = playerName.Trim();
-        if (normalizedName.Length == 0)
-        {
-            navigator.PressKey(Keys.D1);
-            await DelayAsync(shortActionDelay, cancellationToken);
-            navigator.PressKey(Keys.Return);
-            return true;
-        }
+        string normalizedName = string.IsNullOrWhiteSpace(playerName) ? "1" : playerName.Trim();
 
         if (!TrySetClipboardTextWithBackup(normalizedName, out string? previousText, out bool hadPreviousText))
         {
@@ -294,8 +287,7 @@ internal sealed class CreateWorldWorkflow : IDisposable
             await DelayAsync(shortActionDelay, cancellationToken);
             navigator.PressModifiedKey(Keys.ControlKey, Keys.V);
             await DelayAsync(shortActionDelay, cancellationToken);
-            navigator.PressKey(Keys.Return);
-            return true;
+            return await ClickAsync("submit player name", geometry.VirtualKeyboardSubmitButton(), menuActionDelay, cancellationToken);
         }
         finally
         {
