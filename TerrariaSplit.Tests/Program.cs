@@ -137,8 +137,9 @@ static void TestHotkeyValidatorRejectsReservedKeys()
     AssertEqual(false, HotkeyKeyValidator.IsAllowed(Keys.RMenu));
     AssertEqual(false, HotkeyKeyValidator.IsAllowed(Keys.LWin));
     AssertEqual(false, HotkeyKeyValidator.IsAllowed(Keys.CapsLock));
+    AssertEqual(true, HotkeyKeyValidator.IsAllowed(Keys.A));
     AssertEqual(true, HotkeyKeyValidator.IsAllowed(Keys.F6));
-    AssertEqual(true, HotkeyKeyValidator.IsAllowed(Keys.Control | Keys.F6));
+    AssertEqual(false, HotkeyKeyValidator.IsAllowed(Keys.Control | Keys.F6));
 }
 
 static void TestAppSettingsInvalidHotkeyFallback()

@@ -39,6 +39,12 @@ internal static class HotkeyKeyValidator
 
     public static bool TryNormalize(Keys keys, out Keys normalized)
     {
+        if ((keys & Keys.Modifiers) != Keys.None)
+        {
+            normalized = Keys.None;
+            return false;
+        }
+
         Keys keyCode = keys & Keys.KeyCode;
         if (keyCode == Keys.None || BlockedKeyCodes.Contains(keyCode) || (uint)keyCode > byte.MaxValue)
         {
@@ -46,7 +52,7 @@ internal static class HotkeyKeyValidator
             return false;
         }
 
-        normalized = keyCode | (keys & Keys.Modifiers);
+        normalized = keyCode;
         return true;
     }
 }

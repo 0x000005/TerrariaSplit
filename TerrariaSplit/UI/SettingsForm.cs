@@ -1359,7 +1359,7 @@ internal sealed partial class SettingsForm : Form
 
         public void SetHotkey(Keys hotkey)
         {
-            Hotkey = HotkeyKeyValidator.IsAllowed(hotkey) ? hotkey : Keys.I;
+            Hotkey = HotkeyKeyValidator.IsAllowed(hotkey) ? hotkey : Keys.F12;
             Text = Hotkey.ToString();
         }
 
