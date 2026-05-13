@@ -244,9 +244,9 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Auto Create Route", "\u81EA\u52A8\u521B\u56FE\u8DEF\u7EBF" }
       , { "Boss Progress", "BOSS \u8FDB\u5EA6" }
       , { "Memory & Signatures", "\u5185\u5B58\u4E0E\u7B7E\u540D" }
+      , { "Performance", "\u6027\u80FD" }
       , { "Window Detection", "\u7A97\u53E3\u68C0\u6D4B" }
       , { "Watcher State", "\u76D1\u6D4B\u72B6\u6001" }
-      , { "Auto refresh", "\u81EA\u52A8\u5237\u65B0" }
       , { "Last updated", "\u6700\u8FD1\u66F4\u65B0" }
       , { "Terraria process", "\u6CF0\u62C9\u8FDB\u7A0B" }
       , { "PID", "\u8FDB\u7A0B ID" }
@@ -263,29 +263,26 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Client size", "\u5BA2\u6237\u533A\u5927\u5C0F" }
       , { "Watcher attached", "\u5DF2\u9644\u52A0\u76D1\u6D4B" }
       , { "Memory ready", "\u5185\u5B58\u5C31\u7EEA" }
-      , { "Boss flags", "BOSS \u6807\u8BB0" }
+      , { "Boss flags ready", "BOSS \u6807\u8BB0\u5C31\u7EEA" }
       , { "Game state", "\u6E38\u620F\u72B6\u6001" }
-      , { "Entered world", "\u5DF2\u8FDB\u5165\u4E16\u754C" }
-      , { "Supported version", "\u9002\u914D\u7248\u672C" }
+      , { "Control tick", "\u63A7\u5236\u5237\u65B0" }
+      , { "Watcher poll", "\u76D1\u6D4B\u8F6E\u8BE2" }
+      , { "Paint", "\u7ED8\u5236" }
       , { "Process architecture", "\u8FDB\u7A0B\u67B6\u6784" }
       , { "Process path", "\u8FDB\u7A0B\u8DEF\u5F84" }
       , { "Process version", "\u8FDB\u7A0B\u7248\u672C" }
       , { "Main module base", "\u4E3B\u6A21\u5757\u57FA\u5740" }
       , { "Main module size", "\u4E3B\u6A21\u5757\u5927\u5C0F" }
-      , { "Signature profile", "\u7B7E\u540D\u914D\u7F6E" }
       , { "Scan attempts", "\u626B\u63CF\u6B21\u6570" }
       , { "Last scan", "\u6700\u8FD1\u626B\u63CF" }
       , { "Scan page stats", "\u5185\u5B58\u9875\u626B\u63CF\u7EDF\u8BA1" }
       , { "Scan failures", "\u626B\u63CF\u5931\u8D25\u7EDF\u8BA1" }
-      , { "Signature result", "\u7B7E\u540D\u7ED3\u679C" }
       , { "UpdateTime address", "UpdateTime \u5730\u5740" }
-      , { "gameMenu address", "gameMenu \u5730\u5740" }
       , { "Boss flags address", "Boss \u6807\u8BB0\u5730\u5740" }
       , { "Hardmode address", "Hardmode \u5730\u5740" }
       , { "Failure stage", "\u5931\u8D25\u9636\u6BB5" }
       , { "Status", "\u72B6\u6001" }
       , { "Window status", "\u7A97\u53E3\u72B6\u6001" }
-      , { "Watcher status", "\u76D1\u6D4B\u72B6\u6001" }
       , { "Menu scale", "\u83DC\u5355\u7F29\u653E" }
       , { "Logical menu size", "\u903B\u8F91\u83DC\u5355\u5C3A\u5BF8" }
       , { "Player files", "\u4EBA\u7269\u6587\u4EF6\u6570" }
@@ -312,7 +309,8 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Missing", "\u672A\u5339\u914D" }
       , { "In menu", "\u83DC\u5355\u4E2D" }
       , { "In world", "\u4E16\u754C\u5185" }
-      , { "private {0}/{1} scanned, {2} read; image {3}/{4} scanned, {5} read", "\u79C1\u6709\u9875\u5DF2\u626B {0}/{1}\uFF0C\u8BFB\u53D6 {2}\uFF1B\u6620\u50CF\u9875\u5DF2\u626B {3}/{4}\uFF0C\u8BFB\u53D6 {5}" }
+      , { "count {0}, last {1}, avg {2}, max {3}", "\u6B21\u6570 {0}\uFF0C\u6700\u8FD1 {1}\uFF0C\u5E73\u5747 {2}\uFF0C\u6700\u9AD8 {3}" }
+      , { "private {0}/{1} scanned, {2} read; image {3}/{4} scanned, {5} read; total {6}; {7}", "\u79C1\u6709\u9875\u5DF2\u626B {0}/{1}\uFF0C\u8BFB\u53D6 {2}\uFF1B\u6620\u50CF\u9875\u5DF2\u626B {3}/{4}\uFF0C\u8BFB\u53D6 {5}\uFF1B\u603B\u8BA1 {6}\uFF1B{7}" }
       , { "read failures {0}, oversized skipped {1}", "\u8BFB\u53D6\u5931\u8D25 {0}\uFF0C\u8DF3\u8FC7\u8FC7\u5927\u9875 {1}" }
       , { "Matched at {0}", "\u5339\u914D\u4E8E {0}" }
       , { "waiting for Terraria.exe", "\u7B49\u5F85 Terraria.exe" }
@@ -332,7 +330,7 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "found signature but not menu-state pointer", "\u5DF2\u627E\u5230\u7B7E\u540D\uFF0C\u4F46\u672A\u627E\u5230\u83DC\u5355\u72B6\u6001\u6307\u9488" }
       , { "waiting for UpdateTime signature", "\u7B49\u5F85 UpdateTime \u7B7E\u540D" }
       , { "ready via fallback", "\u5DF2\u901A\u8FC7\u56DE\u9000\u65B9\u6848\u5C31\u7EEA" }
-      , { "ready via gameMenu fallback", "\u5DF2\u901A\u8FC7 gameMenu \u56DE\u9000\u65B9\u6848\u5C31\u7EEA" }
+      , { "ready via gameMenu fallback", "\u5DF2\u901A\u8FC7\u83DC\u5355\u72B6\u6001\u56DE\u9000\u65B9\u6848\u5C31\u7EEA" }
       , { "ready via boss fallback", "\u5DF2\u901A\u8FC7 Boss \u56DE\u9000\u65B9\u6848\u5C31\u7EEA" }
       , { "timer ready via fallback", "\u8BA1\u65F6\u5668\u5DF2\u901A\u8FC7\u56DE\u9000\u65B9\u6848\u5C31\u7EEA" }
       , { "timer ready via fallback; boss scan pending", "\u8BA1\u65F6\u5668\u5DF2\u901A\u8FC7\u56DE\u9000\u65B9\u6848\u5C31\u7EEA\uFF1BBoss \u626B\u63CF\u5F85\u5B8C\u6210" }
@@ -354,11 +352,11 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Target Terraria process is x64. The current UpdateTime signature was authored from an x86-style function prologue.", "\u76EE\u6807 Terraria \u8FDB\u7A0B\u4E3A x64\u3002\u5F53\u524D UpdateTime \u7B7E\u540D\u662F\u6309 x86 \u98CE\u683C\u51FD\u6570\u524D\u5E8F\u7F16\u5199\u7684\u3002" }
       , { "Watcher first became ready while Terraria was already in a world. The timer starts only on a menu-to-world transition, so return to the main menu once and enter the world again.", "\u76D1\u6D4B\u5668\u9996\u6B21\u5C31\u7EEA\u65F6\uFF0CTerraria \u5DF2\u7ECF\u5904\u4E8E\u4E16\u754C\u5185\u3002\u8BA1\u65F6\u53EA\u4F1A\u5728\u4ECE\u83DC\u5355\u8FDB\u5165\u4E16\u754C\u7684\u5207\u6362\u65F6\u5F00\u59CB\uFF0C\u6240\u4EE5\u8BF7\u5148\u8FD4\u56DE\u4E3B\u83DC\u5355\u4E00\u6B21\uFF0C\u518D\u91CD\u65B0\u8FDB\u5165\u4E16\u754C\u3002" }
       , { "Fallback signatures resolved menu state and boss progression when the primary UpdateTime anchor was unavailable on this runtime.", "\u5F53\u524D\u8FD0\u884C\u65F6\u4E0B\u4E3B UpdateTime \u951A\u70B9\u4E0D\u53EF\u7528\uFF0C\u5DF2\u901A\u8FC7\u56DE\u9000\u7B7E\u540D\u89E3\u6790\u83DC\u5355\u72B6\u6001\u548C Boss \u8FDB\u5EA6\u3002" }
-      , { "Fallback menu-state signature resolved a stronger UpdateTime-adjacent gameMenu access pattern when the direct UpdateTime anchor was unavailable on this runtime.", "\u5F53\u524D\u8FD0\u884C\u65F6\u4E0B\u76F4\u63A5 UpdateTime \u951A\u70B9\u4E0D\u53EF\u7528\uFF0C\u5DF2\u901A\u8FC7\u83DC\u5355\u72B6\u6001\u56DE\u9000\u7B7E\u540D\u89E3\u6790\u5230\u66F4\u7A33\u5B9A\u7684\u90BB\u8FD1 gameMenu \u8BBF\u95EE\u6A21\u5F0F\u3002" }
+      , { "Fallback menu-state signature resolved a stronger UpdateTime-adjacent gameMenu access pattern when the direct UpdateTime anchor was unavailable on this runtime.", "\u5F53\u524D\u8FD0\u884C\u65F6\u4E0B\u76F4\u63A5 UpdateTime \u951A\u70B9\u4E0D\u53EF\u7528\uFF0C\u5DF2\u901A\u8FC7\u83DC\u5355\u72B6\u6001\u56DE\u9000\u7B7E\u540D\u89E3\u6790\u5230\u66F4\u7A33\u5B9A\u7684\u83DC\u5355\u72B6\u6001\u8BBF\u95EE\u6A21\u5F0F\u3002" }
       , { "Boss progression fallback resolved hardmode and boss flags when the UpdateTime-relative boss pointer offsets were unavailable.", "\u5F53\u76F8\u5BF9 UpdateTime \u7684 Boss \u6307\u9488\u504F\u79FB\u4E0D\u53EF\u7528\u65F6\uFF0C\u5DF2\u901A\u8FC7 Boss \u8FDB\u5EA6\u56DE\u9000\u89E3\u6790 hardmode \u4E0E Boss \u6807\u8BB0\u3002" }
       , { "UpdateTime did not match any scanned private or image executable page.", "UpdateTime \u672A\u5728\u4EFB\u4F55\u5DF2\u626B\u63CF\u7684\u79C1\u6709\u6216\u6620\u50CF\u53EF\u6267\u884C\u9875\u4E2D\u5339\u914D\u5230\u3002" }
       , { "UpdateTime matched, but the expected menu-state pointer offset did not resolve to readable memory.", "UpdateTime \u5DF2\u5339\u914D\uFF0C\u4F46\u9884\u671F\u7684\u83DC\u5355\u72B6\u6001\u6307\u9488\u504F\u79FB\u672A\u80FD\u89E3\u6790\u5230\u53EF\u8BFB\u5185\u5B58\u3002" }
-      , { "gameMenu resolved, but boss and hardmode pointers are still pending or unreadable.", "gameMenu \u5DF2\u89E3\u6790\uFF0C\u4F46 Boss \u4E0E hardmode \u6307\u9488\u4ECD\u5728\u7B49\u5F85\u89E3\u6790\u6216\u4E0D\u53EF\u8BFB\u3002" }
+      , { "gameMenu resolved, but boss and hardmode pointers are still pending or unreadable.", "\u83DC\u5355\u72B6\u6001\u5DF2\u89E3\u6790\uFF0C\u4F46 Boss \u4E0E hardmode \u6307\u9488\u4ECD\u5728\u7B49\u5F85\u89E3\u6790\u6216\u4E0D\u53EF\u8BFB\u3002" }
       , { "Watcher resolved all current pointers.", "\u76D1\u6D4B\u5668\u5DF2\u89E3\u6790\u5F53\u524D\u6240\u6709\u6307\u9488\u3002" }
     };
 

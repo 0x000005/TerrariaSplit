@@ -8,28 +8,24 @@ internal static class DebugSettingsPage
 {
     private const int RefreshIntervalMilliseconds = 500;
     private const int SequenceBoxHeight = 220;
+    private static readonly Color QuickStatusNormalColor = UiTheme.Accent;
+    private static readonly Color QuickStatusProblemColor = Color.FromArgb(225, 92, 88);
+    private static readonly Color QuickStatusMenuColor = Color.FromArgb(107, 157, 216);
 
     public static Control Build(SettingsForm owner)
     {
-        Label autoRefreshValue = CreateValueLabel();
         Label lastUpdatedValue = CreateValueLabel();
         Label processDetectedValue = CreateValueLabel();
         Label windowDetectedValue = CreateValueLabel();
         Label watcherAttachedValue = CreateValueLabel();
         Label memoryReadyValue = CreateValueLabel();
-        Label enteredWorldValue = CreateValueLabel();
         Label bossFlagsReadyValue = CreateValueLabel();
         Label gameStateValue = CreateValueLabel();
-        Label signatureResultValue = CreateValueLabel();
         Label windowStatusValue = CreateValueLabel();
-        Label watcherStatusValue = CreateValueLabel();
 
         Label controlTickValue = CreateValueLabel();
         Label watcherPollValue = CreateValueLabel();
         Label paintValue = CreateValueLabel();
-        Label renderIntervalValue = CreateValueLabel();
-        Label watcherPollIntervalValue = CreateValueLabel();
-        Label processLookupIntervalValue = CreateValueLabel();
 
         Label processIdValue = CreateValueLabel();
         Label processStartTimeValue = CreateValueLabel();
@@ -74,7 +70,6 @@ internal static class DebugSettingsPage
         Label lunaticCultistValue = CreateValueLabel();
         Label moonLordValue = CreateValueLabel();
 
-        Label supportedVersionValue = CreateValueLabel();
         Label scanAttemptsValue = CreateValueLabel();
         Label lastScanValue = CreateValueLabel();
         Label scanPageStatsValue = CreateValueLabel();
@@ -82,7 +77,6 @@ internal static class DebugSettingsPage
         Label mainModuleBaseValue = CreateValueLabel();
         Label mainModuleSizeValue = CreateValueLabel();
         Label updateTimeAddressValue = CreateValueLabel();
-        Label gameMenuAddressValue = CreateValueLabel();
         Label bossFlagsAddressValue = CreateValueLabel();
         Label hardmodeAddressValue = CreateValueLabel();
         Label failureStageValue = CreateValueLabel();
@@ -105,18 +99,14 @@ internal static class DebugSettingsPage
 
             TableLayoutPanel overviewSection = CreateSection(owner, "Quick Status");
             TableLayoutPanel overviewGrid = CreateGrid();
-            AddValueRow(overviewGrid, owner, "Auto refresh", autoRefreshValue);
-            AddValueRow(overviewGrid, owner, "Last updated", lastUpdatedValue);
             AddValueRow(overviewGrid, owner, "Terraria process", processDetectedValue);
             AddValueRow(overviewGrid, owner, "Window", windowDetectedValue);
+            AddValueRow(overviewGrid, owner, "Window status", windowStatusValue);
             AddValueRow(overviewGrid, owner, "Watcher attached", watcherAttachedValue);
             AddValueRow(overviewGrid, owner, "Memory ready", memoryReadyValue);
-            AddValueRow(overviewGrid, owner, "Entered world", enteredWorldValue);
-            AddValueRow(overviewGrid, owner, "Boss flags", bossFlagsReadyValue);
+            AddValueRow(overviewGrid, owner, "Boss flags ready", bossFlagsReadyValue);
             AddValueRow(overviewGrid, owner, "Game state", gameStateValue);
-            AddValueRow(overviewGrid, owner, "Signature result", signatureResultValue);
-            AddValueRow(overviewGrid, owner, "Window status", windowStatusValue);
-            AddValueRow(overviewGrid, owner, "Watcher status", watcherStatusValue);
+            AddValueRow(overviewGrid, owner, "Last updated", lastUpdatedValue);
             AddSectionControl(overviewSection, overviewGrid);
             AddSection(content, overviewSection);
 
@@ -125,9 +115,6 @@ internal static class DebugSettingsPage
             AddValueRow(performanceGrid, owner, "Control tick", controlTickValue);
             AddValueRow(performanceGrid, owner, "Watcher poll", watcherPollValue);
             AddValueRow(performanceGrid, owner, "Paint", paintValue);
-            AddValueRow(performanceGrid, owner, "Timer render interval", renderIntervalValue);
-            AddValueRow(performanceGrid, owner, "Watcher poll interval", watcherPollIntervalValue);
-            AddValueRow(performanceGrid, owner, "Process lookup interval", processLookupIntervalValue);
             AddSectionControl(performanceSection, performanceGrid);
             AddSection(content, performanceSection);
 
@@ -189,7 +176,6 @@ internal static class DebugSettingsPage
 
             TableLayoutPanel memorySection = CreateSection(owner, "Memory & Signatures");
             TableLayoutPanel memoryGrid = CreateGrid();
-            AddValueRow(memoryGrid, owner, "Supported version", supportedVersionValue);
             AddValueRow(memoryGrid, owner, "Scan attempts", scanAttemptsValue);
             AddValueRow(memoryGrid, owner, "Last scan", lastScanValue);
             AddValueRow(memoryGrid, owner, "Scan page stats", scanPageStatsValue);
@@ -197,7 +183,6 @@ internal static class DebugSettingsPage
             AddValueRow(memoryGrid, owner, "Main module base", mainModuleBaseValue);
             AddValueRow(memoryGrid, owner, "Main module size", mainModuleSizeValue);
             AddValueRow(memoryGrid, owner, "UpdateTime address", updateTimeAddressValue);
-            AddValueRow(memoryGrid, owner, "gameMenu address", gameMenuAddressValue);
             AddValueRow(memoryGrid, owner, "Boss flags address", bossFlagsAddressValue);
             AddValueRow(memoryGrid, owner, "Hardmode address", hardmodeAddressValue);
             AddValueRow(memoryGrid, owner, "Failure stage", failureStageValue);
@@ -223,18 +208,17 @@ internal static class DebugSettingsPage
 
             bool bossFlagsReady = HasAnyBossState(snapshot.BossStates);
 
-            SetValue(autoRefreshValue, $"{RefreshIntervalMilliseconds} ms");
-            SetValue(lastUpdatedValue, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff", CultureInfo.InvariantCulture));
-            SetBool(processDetectedValue, owner, window.HasProcess);
-            SetBool(windowDetectedValue, owner, window.HasWindow);
-            SetBool(watcherAttachedValue, owner, snapshot.IsAttached);
-            SetBool(memoryReadyValue, owner, snapshot.IsReady);
-            SetBool(enteredWorldValue, owner, snapshot.EnteredWorld);
-            SetState(bossFlagsReadyValue, owner, bossFlagsReady ? "Ready" : "Pending");
-            SetValue(gameStateValue, owner.Localize(FormatGameState(snapshot.IsGameMenu)));
-            SetValue(signatureResultValue, FormatSignatureResult(diagnostics, owner));
-            SetValue(windowStatusValue, LocalizeStatus(window.Status, owner));
-            SetValue(watcherStatusValue, LocalizeStatus(snapshot.Status, owner));
+            SetValue(
+                lastUpdatedValue,
+                DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff", CultureInfo.InvariantCulture),
+                UiTheme.MutedText);
+            SetQuickBool(processDetectedValue, owner, window.HasProcess);
+            SetQuickBool(windowDetectedValue, owner, window.HasWindow);
+            SetQuickBool(watcherAttachedValue, owner, snapshot.IsAttached);
+            SetQuickBool(memoryReadyValue, owner, snapshot.IsReady);
+            SetQuickBool(bossFlagsReadyValue, owner, bossFlagsReady);
+            SetQuickGameState(gameStateValue, owner, snapshot.IsGameMenu);
+            SetQuickStatus(windowStatusValue, window.Status, owner);
 
             SetValue(
                 controlTickValue,
@@ -242,25 +226,24 @@ internal static class DebugSettingsPage
                     runtime.ControlTickCount,
                     runtime.LastControlTickMilliseconds,
                     runtime.AverageControlTickMilliseconds,
-                    runtime.MaxControlTickMilliseconds));
+                    runtime.MaxControlTickMilliseconds,
+                    owner));
             SetValue(
                 watcherPollValue,
                 FormatTimingSummary(
                     runtime.WatcherPollCount,
                     runtime.LastWatcherPollMilliseconds,
                     runtime.AverageWatcherPollMilliseconds,
-                    runtime.MaxWatcherPollMilliseconds));
+                    runtime.MaxWatcherPollMilliseconds,
+                    owner));
             SetValue(
                 paintValue,
                 FormatTimingSummary(
                     runtime.PaintCount,
                     runtime.LastPaintMilliseconds,
                     runtime.AveragePaintMilliseconds,
-                    runtime.MaxPaintMilliseconds));
-            SetValue(renderIntervalValue, FormatMilliseconds(runtime.TimerRenderIntervalMilliseconds, owner));
-            SetValue(watcherPollIntervalValue, FormatMilliseconds(runtime.WatcherPollIntervalMilliseconds, owner));
-            SetValue(processLookupIntervalValue, FormatMilliseconds(runtime.ProcessLookupIntervalMilliseconds, owner));
-
+                    runtime.MaxPaintMilliseconds,
+                    owner));
             SetValue(processIdValue, FormatProcessId(window.ProcessId, owner));
             SetValue(processStartTimeValue, FormatDateTime(window.ProcessStartTime, owner));
             SetValue(processPathValue, FormatText(diagnostics.ProcessPath, owner));
@@ -314,7 +297,6 @@ internal static class DebugSettingsPage
             SetBossState(lunaticCultistValue, snapshot.BossStates.LunaticCultist, owner);
             SetBossState(moonLordValue, snapshot.BossStates.MoonLord, owner);
 
-            SetValue(supportedVersionValue, FormatText(diagnostics.SupportedVersion, owner));
             SetValue(scanAttemptsValue, diagnostics.SignatureScanAttempts.ToString(CultureInfo.InvariantCulture));
             SetValue(lastScanValue, FormatTimestamp(diagnostics.LastSignatureScanUtc, owner));
             SetValue(scanPageStatsValue, FormatScanStats(diagnostics.LastSignatureScan, owner));
@@ -322,7 +304,6 @@ internal static class DebugSettingsPage
             SetValue(mainModuleBaseValue, FormatAddress(diagnostics.MainModuleBaseAddress, owner));
             SetValue(mainModuleSizeValue, FormatByteCount(diagnostics.MainModuleSize, owner));
             SetValue(updateTimeAddressValue, FormatAddress(diagnostics.UpdateTimeAddress, owner));
-            SetValue(gameMenuAddressValue, FormatAddress(diagnostics.GameMenuAddress, owner));
             SetValue(bossFlagsAddressValue, FormatAddress(diagnostics.BossFlagsBaseAddress, owner));
             SetValue(hardmodeAddressValue, FormatAddress(diagnostics.HardmodeAddress, owner));
             SetValue(failureStageValue, LocalizeStage(diagnostics.Stage, owner));
@@ -377,18 +358,14 @@ internal static class DebugSettingsPage
             owner,
             "Quick Status",
             [
-                ("Auto refresh", $"{RefreshIntervalMilliseconds} ms"),
-                ("Last updated", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff", CultureInfo.InvariantCulture)),
                 ("Terraria process", FormatBool(window.HasProcess, owner)),
                 ("Window", FormatBool(window.HasWindow, owner)),
+                ("Window status", LocalizeStatus(window.Status, owner)),
                 ("Watcher attached", FormatBool(snapshot.IsAttached, owner)),
                 ("Memory ready", FormatBool(snapshot.IsReady, owner)),
-                ("Entered world", FormatBool(snapshot.EnteredWorld, owner)),
-                ("Boss flags", owner.Localize(bossFlagsReady ? "Ready" : "Pending")),
+                ("Boss flags ready", FormatBool(bossFlagsReady, owner)),
                 ("Game state", owner.Localize(FormatGameState(snapshot.IsGameMenu))),
-                ("Signature result", FormatSignatureResult(diagnostics, owner)),
-                ("Window status", LocalizeStatus(window.Status, owner)),
-                ("Watcher status", LocalizeStatus(snapshot.Status, owner))
+                ("Last updated", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff", CultureInfo.InvariantCulture))
             ]);
 
         AppendReportSection(
@@ -400,20 +377,20 @@ internal static class DebugSettingsPage
                     runtime.ControlTickCount,
                     runtime.LastControlTickMilliseconds,
                     runtime.AverageControlTickMilliseconds,
-                    runtime.MaxControlTickMilliseconds)),
+                    runtime.MaxControlTickMilliseconds,
+                    owner)),
                 ("Watcher poll", FormatTimingSummary(
                     runtime.WatcherPollCount,
                     runtime.LastWatcherPollMilliseconds,
                     runtime.AverageWatcherPollMilliseconds,
-                    runtime.MaxWatcherPollMilliseconds)),
+                    runtime.MaxWatcherPollMilliseconds,
+                    owner)),
                 ("Paint", FormatTimingSummary(
                     runtime.PaintCount,
                     runtime.LastPaintMilliseconds,
                     runtime.AveragePaintMilliseconds,
-                    runtime.MaxPaintMilliseconds)),
-                ("Timer render interval", FormatMilliseconds(runtime.TimerRenderIntervalMilliseconds, owner)),
-                ("Watcher poll interval", FormatMilliseconds(runtime.WatcherPollIntervalMilliseconds, owner)),
-                ("Process lookup interval", FormatMilliseconds(runtime.ProcessLookupIntervalMilliseconds, owner))
+                    runtime.MaxPaintMilliseconds,
+                    owner))
             ]);
 
         string menuScale = owner.Localize("Unknown");
@@ -493,7 +470,6 @@ internal static class DebugSettingsPage
             owner,
             "Memory & Signatures",
             [
-                ("Supported version", FormatText(diagnostics.SupportedVersion, owner)),
                 ("Scan attempts", diagnostics.SignatureScanAttempts.ToString(CultureInfo.InvariantCulture)),
                 ("Last scan", FormatTimestamp(diagnostics.LastSignatureScanUtc, owner)),
                 ("Scan page stats", FormatScanStats(diagnostics.LastSignatureScan, owner)),
@@ -501,7 +477,6 @@ internal static class DebugSettingsPage
                 ("Main module base", FormatAddress(diagnostics.MainModuleBaseAddress, owner)),
                 ("Main module size", FormatByteCount(diagnostics.MainModuleSize, owner)),
                 ("UpdateTime address", FormatAddress(diagnostics.UpdateTimeAddress, owner)),
-                ("gameMenu address", FormatAddress(diagnostics.GameMenuAddress, owner)),
                 ("Boss flags address", FormatAddress(diagnostics.BossFlagsBaseAddress, owner)),
                 ("Hardmode address", FormatAddress(diagnostics.HardmodeAddress, owner)),
                 ("Failure stage", LocalizeStage(diagnostics.Stage, owner))
@@ -724,22 +699,20 @@ internal static class DebugSettingsPage
             : owner.Localize("Unknown");
     }
 
-    private static string FormatTimingSummary(int count, double lastMilliseconds, double averageMilliseconds, double maxMilliseconds)
+    private static string FormatTimingSummary(
+        int count,
+        double lastMilliseconds,
+        double averageMilliseconds,
+        double maxMilliseconds,
+        SettingsForm owner)
     {
         return string.Format(
             CultureInfo.InvariantCulture,
-            "count {0}, last {1}, avg {2}, max {3}",
+            owner.Localize("count {0}, last {1}, avg {2}, max {3}"),
             count,
             FormatMilliseconds(lastMilliseconds),
             FormatMilliseconds(averageMilliseconds),
             FormatMilliseconds(maxMilliseconds));
-    }
-
-    private static string FormatMilliseconds(double milliseconds, SettingsForm owner)
-    {
-        return milliseconds >= 0
-            ? FormatMilliseconds(milliseconds)
-            : owner.Localize("Unknown");
     }
 
     private static string FormatMilliseconds(double milliseconds)
@@ -796,16 +769,6 @@ internal static class DebugSettingsPage
             owner.Localize("read failures {0}, oversized skipped {1}"),
             value.ReadFailures,
             value.OversizedPagesSkipped);
-    }
-
-    private static string FormatSignatureResult(TerrariaWatcherDiagnostics diagnostics, SettingsForm owner)
-    {
-        if (diagnostics.UpdateTimeAddress != IntPtr.Zero)
-        {
-            return string.Format(owner.Localize("Matched at {0}"), FormatAddress(diagnostics.UpdateTimeAddress, owner));
-        }
-
-        return diagnostics.SignatureScanAttempts > 0 ? owner.Localize("Missing") : owner.Localize("Pending");
     }
 
     private static string FormatPlayerName(string? playerName)
@@ -956,10 +919,33 @@ internal static class DebugSettingsPage
         return owner.Localize(value ? "Yes" : "No");
     }
 
+    private static void SetQuickBool(Label label, SettingsForm owner, bool value)
+    {
+        SetValue(label, FormatBool(value, owner), value ? QuickStatusNormalColor : QuickStatusProblemColor);
+    }
+
+    private static void SetQuickGameState(Label label, SettingsForm owner, bool? isGameMenu)
+    {
+        Color color = isGameMenu switch
+        {
+            false => QuickStatusNormalColor,
+            true => QuickStatusMenuColor,
+            null => QuickStatusProblemColor
+        };
+        SetValue(label, owner.Localize(FormatGameState(isGameMenu)), color);
+    }
+
+    private static void SetQuickStatus(Label label, string status, SettingsForm owner)
+    {
+        SetValue(
+            label,
+            LocalizeStatus(status, owner),
+            IsNormalStatus(status) ? QuickStatusNormalColor : QuickStatusProblemColor);
+    }
+
     private static void SetBool(Label label, SettingsForm owner, bool value)
     {
         SetValue(label, FormatBool(value, owner));
-        label.ForeColor = value ? UiTheme.Accent : UiTheme.Text;
     }
 
     private static void SetBossState(Label label, bool? value, SettingsForm owner)
@@ -967,7 +953,6 @@ internal static class DebugSettingsPage
         if (!value.HasValue)
         {
             SetValue(label, owner.Localize("Unknown"));
-            label.ForeColor = UiTheme.MutedText;
             return;
         }
 
@@ -979,28 +964,56 @@ internal static class DebugSettingsPage
         if (!value.HasValue)
         {
             SetValue(label, owner.Localize("Unknown"));
-            label.ForeColor = UiTheme.MutedText;
             return;
         }
 
         SetBool(label, owner, value.Value);
     }
 
-    private static void SetState(Label label, SettingsForm owner, string key)
-    {
-        SetValue(label, owner.Localize(key));
-        label.ForeColor = string.Equals(key, "Ready", StringComparison.OrdinalIgnoreCase)
-            ? UiTheme.Accent
-            : UiTheme.Text;
-    }
-
     private static void SetValue(Label label, string text)
     {
+        SetValue(label, text, UiTheme.Text);
+    }
+
+    private static void SetValue(Label label, string text, Color color)
+    {
         label.Text = text;
-        if (label.ForeColor != UiTheme.MutedText && label.ForeColor != UiTheme.Accent)
+        label.ForeColor = color;
+    }
+
+    private static bool IsNormalStatus(string status)
+    {
+        if (string.IsNullOrWhiteSpace(status))
         {
-            label.ForeColor = UiTheme.Text;
+            return false;
         }
+
+        if (ContainsStatusText(status, "cannot") ||
+            ContainsStatusText(status, "changed while") ||
+            ContainsStatusText(status, "unreadable") ||
+            ContainsStatusText(status, "lost") ||
+            ContainsStatusText(status, "missing") ||
+            ContainsStatusText(status, "unavailable"))
+        {
+            return false;
+        }
+
+        if (ContainsStatusText(status, "not ready") ||
+            ContainsStatusText(status, "pending") ||
+            ContainsStatusText(status, "scanning") ||
+            ContainsStatusText(status, "found signature but not"))
+        {
+            return false;
+        }
+
+        return status.StartsWith("attached to Terraria", StringComparison.OrdinalIgnoreCase) ||
+            status.StartsWith("ready", StringComparison.OrdinalIgnoreCase) ||
+            status.StartsWith("timer ready", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool ContainsStatusText(string status, string value)
+    {
+        return status.Contains(value, StringComparison.OrdinalIgnoreCase);
     }
 
     private static void SetSequenceText(TextBox textBox, string text)

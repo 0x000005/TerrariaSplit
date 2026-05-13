@@ -7,11 +7,13 @@ internal sealed class CreateWorldWorkflow : IDisposable
 {
     private static readonly TimeSpan PlayerCreateTimeout = TimeSpan.FromSeconds(0.5);
     private static readonly TimeSpan SavePollInterval = TimeSpan.FromMilliseconds(50);
+    private static readonly TimeSpan EscapePollInterval = TimeSpan.FromMilliseconds(25);
 
     private readonly TerrariaSavePreparation savePreparation = new();
     private readonly TerrariaWindowController window = new();
     private TimeSpan shortActionDelay = TimeSpan.FromMilliseconds(AutoCreateWorldSettings.DefaultShortActionDelayMilliseconds);
     private TimeSpan menuActionDelay = TimeSpan.FromMilliseconds(AutoCreateWorldSettings.DefaultMenuActionDelayMilliseconds);
+    private bool escapeCancellationLogged;
 
     public bool IsRunning { get; private set; }
 
@@ -28,6 +30,8 @@ internal sealed class CreateWorldWorkflow : IDisposable
         }
 
         IsRunning = true;
+        escapeCancellationLogged = false;
+        ClearEscapeKeyState();
         try
         {
             AutoCreateWorldSettings autoCreate = settings.AutoCreate;
@@ -242,8 +246,10 @@ internal sealed class CreateWorldWorkflow : IDisposable
 
         try
         {
+            ThrowIfCancellationRequested(cancellationToken);
             window.PressModifiedKey(Keys.ControlKey, Keys.A);
             await DelayAsync(shortActionDelay, cancellationToken);
+            ThrowIfCancellationRequested(cancellationToken);
             window.PressModifiedKey(Keys.ControlKey, Keys.V);
             await DelayAsync(shortActionDelay, cancellationToken);
             return await ClickAsync("submit player name", geometry.VirtualKeyboardSubmitButton(), menuActionDelay, cancellationToken);
@@ -322,6 +328,7 @@ internal sealed class CreateWorldWorkflow : IDisposable
     {
         try
         {
+            ThrowIfCancellationRequested(cancellationToken);
             return await action(cancellationToken);
         }
         catch (OperationCanceledException)
@@ -349,6 +356,7 @@ internal sealed class CreateWorldWorkflow : IDisposable
         TimeSpan delay,
         CancellationToken cancellationToken)
     {
+        ThrowIfCancellationRequested(cancellationToken);
         bool clicked = window.TryClickClient(point.X, point.Y, out Size clientSize);
         Log(new AutomationStepResult(
             $"click {step}",
@@ -362,6 +370,7 @@ internal sealed class CreateWorldWorkflow : IDisposable
         }
 
         await DelayAsync(delay, cancellationToken);
+        ThrowIfCancellationRequested(cancellationToken);
         return true;
     }
 
@@ -390,6 +399,7 @@ internal sealed class CreateWorldWorkflow : IDisposable
         DateTime deadline = DateTime.UtcNow + timeout;
         while (DateTime.UtcNow <= deadline)
         {
+            ThrowIfCancellationRequested(cancellationToken);
             Dictionary<string, DateTime> after = savePreparation.SnapshotSaveFiles(directoryName, pattern);
             if (after.Any(pair => !before.TryGetValue(pair.Key, out DateTime previousWriteTime) || pair.Value > previousWriteTime))
             {
@@ -403,9 +413,55 @@ internal sealed class CreateWorldWorkflow : IDisposable
         return false;
     }
 
-    private static Task DelayAsync(TimeSpan delay, CancellationToken cancellationToken)
+    private async Task DelayAsync(TimeSpan delay, CancellationToken cancellationToken)
     {
-        return Task.Delay(delay, cancellationToken);
+        ThrowIfCancellationRequested(cancellationToken);
+        if (delay <= TimeSpan.Zero)
+        {
+            return;
+        }
+
+        DateTime deadline = DateTime.UtcNow + delay;
+        while (true)
+        {
+            ThrowIfCancellationRequested(cancellationToken);
+            TimeSpan remaining = deadline - DateTime.UtcNow;
+            if (remaining <= TimeSpan.Zero)
+            {
+                return;
+            }
+
+            TimeSpan interval = remaining < EscapePollInterval ? remaining : EscapePollInterval;
+            await Task.Delay(interval, cancellationToken);
+        }
+    }
+
+    private void ThrowIfCancellationRequested(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!IsEscapePressed())
+        {
+            return;
+        }
+
+        if (!escapeCancellationLogged)
+        {
+            escapeCancellationLogged = true;
+            AppLogger.Info("Create world automation cancelled by Escape.");
+        }
+
+        throw new OperationCanceledException("Create world automation cancelled by Escape.", cancellationToken);
+    }
+
+    private static bool IsEscapePressed()
+    {
+        short state = NativeMethods.GetAsyncKeyState((int)Keys.Escape);
+        return (state & 0x8000) != 0 || (state & 0x0001) != 0;
+    }
+
+    private static void ClearEscapeKeyState()
+    {
+        _ = NativeMethods.GetAsyncKeyState((int)Keys.Escape);
     }
 
     private static void Log(AutomationStepResult result)
