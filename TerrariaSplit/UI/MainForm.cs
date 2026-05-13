@@ -464,7 +464,9 @@ internal sealed partial class MainForm : Form
 
         if (runTimer.Phase == SplitTimerPhase.Running)
         {
-            InvalidateRuntimeRenderRegion();
+            // Tight dirty rectangles can leave stale glyph pixels in capture clients when
+            // the transparent overlay is repainted continuously.
+            Invalidate();
             return;
         }
 

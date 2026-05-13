@@ -1092,6 +1092,7 @@ internal sealed partial class SettingsForm : Form
         targetSettings.MouseClickThroughKey = mouseClickThroughKeyBox.Hotkey.ToString();
         targetSettings.CreateWorldKey = createWorldKeyBox.Hotkey.ToString();
         targetSettings.ShowMouseClickThroughIndicator = showMouseClickThroughIndicatorBox.Checked;
+        targetSettings.Columns.ScalePercent = ParseIntBox(globalScaleBox, 100, 25, 300);
         targetSettings.AlwaysOnTop = alwaysOnTopBox.Checked;
         targetSettings.PracticeMode = practiceModeBox.Checked;
     }
@@ -1171,31 +1172,29 @@ internal sealed partial class SettingsForm : Form
         ApplyFontSettings("Timer", targetSettings.Columns.Timer);
         ApplyFontSettings("TimerMilliseconds", targetSettings.Columns.TimerMilliseconds);
 
-        targetSettings.Columns.ScalePercent = ParseIntBox(globalScaleBox, 100, 25, 300);
+        targetSettings.EnableDynamicDeltaTimeUnits = enableDynamicDeltaTimeUnitsBox.Checked;
         targetSettings.Columns.TimerOffsetX = ParseIntBox(timerOffsetXBox, 0, -2000, 2000);
         targetSettings.Columns.TimerOffsetY = ParseIntBox(timerOffsetYBox, 0, -2000, 2000);
-
-        targetSettings.UndefeatedIconGrayscalePercent = ParseIntBox(undefeatedIconGrayscaleBox, 80, 0, 100);
-        targetSettings.UndefeatedIconBrightnessPercent = ParseIntBox(undefeatedIconBrightnessBox, 40, 0, 100);
-        targetSettings.CurrentBossIconGrayscaleWeakenPercent = ParseIntBox(currentBossIconGrayscaleWeakenBox, 40, 0, 100);
-        targetSettings.CurrentBossIconBrightnessBoostPercent = ParseIntBox(currentBossIconBrightnessBoostBox, 35, 0, 100);
     }
 
     internal void ApplyAnimationSettings(AppSettings targetSettings)
     {
+        targetSettings.EnableDefeatedBossIconLighting = enableDefeatedBossIconLightingBox.Checked;
+        targetSettings.UndefeatedIconGrayscalePercent = ParseIntBox(undefeatedIconGrayscaleBox, 80, 0, 100);
+        targetSettings.UndefeatedIconBrightnessPercent = ParseIntBox(undefeatedIconBrightnessBox, 40, 0, 100);
+        targetSettings.CurrentBossIconGrayscaleWeakenPercent = ParseIntBox(currentBossIconGrayscaleWeakenBox, 40, 0, 100);
+        targetSettings.CurrentBossIconBrightnessBoostPercent = ParseIntBox(currentBossIconBrightnessBoostBox, 35, 0, 100);
         targetSettings.ShowSplitCompletionAnimation = showSplitCompletionAnimationBox.Checked;
         targetSettings.ShowCurrentSplitHighlight = showCurrentSplitHighlightBox.Checked;
         targetSettings.CurrentSplitHighlightScalePercent = ParseIntBox(currentSplitHighlightScaleBox, 112, 100, 140);
         targetSettings.CurrentSplitDepthStrengthPercent = ParseIntBox(currentSplitDepthStrengthBox, 45, 0, 100);
         targetSettings.ShowEarlyDeltaTime = showEarlyDeltaTimeBox.Checked;
         targetSettings.EarlyDeltaTimeSeconds = ParseIntBox(earlyDeltaTimeSecondsBox, 60, 0, 3600);
-        targetSettings.EnableDynamicDeltaTimeUnits = enableDynamicDeltaTimeUnitsBox.Checked;
         targetSettings.EnableDeltaGradientColor = enableDeltaGradientColorBox.Checked;
         targetSettings.EnableTimerGradientColor = enableTimerGradientColorBox.Checked;
         targetSettings.DeltaGradientThresholdSeconds = ParseTimeBox(deltaGradientThresholdBox, 120, 1, 3600);
         targetSettings.DeltaGradientCurve = GetSelectedDeltaGradientCurve(deltaGradientCurveBox);
         targetSettings.ShowSegmentBestDeltaHighlight = showSegmentBestDeltaHighlightBox.Checked;
-        targetSettings.EnableDefeatedBossIconLighting = enableDefeatedBossIconLightingBox.Checked;
         targetSettings.SplitCompletionAnimationDurationSeconds = ParseFloatBox(splitCompletionAnimationDurationBox, 4.2f, 2f, 20f);
         targetSettings.SplitCompletionOutlineThicknessPercent = ParseIntBox(splitCompletionOutlineThicknessBox, 30, 0, 100);
         SaveAnimationOutlineControls();

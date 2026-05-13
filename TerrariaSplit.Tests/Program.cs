@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Reflection;
 using System.Windows.Forms;
 using TerrariaSplit;
 
@@ -13,7 +14,10 @@ var tests = new (string Name, Action Test)[]
     ("Localizer returns English fallback and Chinese Crimson", TestLocalizer),
     ("SettingsNormalizer clamps auto-create timings", TestSettingsNormalize),
     ("Hotkey validator rejects reserved keys", TestHotkeyValidatorRejectsReservedKeys),
-    ("AppSettings falls back from invalid hotkeys", TestAppSettingsInvalidHotkeyFallback)
+    ("AppSettings falls back from invalid hotkeys", TestAppSettingsInvalidHotkeyFallback),
+    ("Settings form applies global scale from General page", TestSettingsFormAppliesGlobalScaleFromGeneralPage),
+    ("Settings form applies dynamic delta units from UI page", TestSettingsFormAppliesDynamicDeltaUnitsFromUiPage),
+    ("Settings form keeps uncreated animation fields unchanged", TestSettingsFormKeepsUncreatedAnimationFieldsUnchanged)
 };
 
 int failures = 0;
@@ -151,6 +155,102 @@ static void TestAppSettingsInvalidHotkeyFallback()
     AssertEqual(Keys.F6, settings.ResetKeys);
     AssertEqual(Keys.F9, settings.MouseClickThroughKeys);
     AssertEqual(Keys.F7, settings.CreateWorldKeys);
+}
+
+static void TestSettingsFormAppliesGlobalScaleFromGeneralPage()
+{
+    RunSta(() =>
+    {
+        using var form = new SettingsForm(new AppSettings());
+        GetPrivateField<TextBox>(form, "globalScaleBox").Text = "175";
+
+        InvokePrivate(form, "ApplyToSettings");
+
+        AssertEqual(175, form.Result.Columns.ScalePercent);
+    });
+}
+
+static void TestSettingsFormAppliesDynamicDeltaUnitsFromUiPage()
+{
+    RunSta(() =>
+    {
+        using var form = new SettingsForm(new AppSettings { EnableDynamicDeltaTimeUnits = true });
+        InvokePrivate(form, "EnsurePageCreated", 4);
+        GetPrivateField<CheckBox>(form, "enableDynamicDeltaTimeUnitsBox").Checked = false;
+
+        InvokePrivate(form, "ApplyToSettings");
+
+        AssertEqual(false, form.Result.EnableDynamicDeltaTimeUnits);
+    });
+}
+
+static void TestSettingsFormKeepsUncreatedAnimationFieldsUnchanged()
+{
+    RunSta(() =>
+    {
+        var settings = new AppSettings
+        {
+            UndefeatedIconGrayscalePercent = 22,
+            UndefeatedIconBrightnessPercent = 73,
+            CurrentBossIconGrayscaleWeakenPercent = 11,
+            CurrentBossIconBrightnessBoostPercent = 64
+        };
+        using var form = new SettingsForm(settings);
+        InvokePrivate(form, "EnsurePageCreated", 4);
+
+        InvokePrivate(form, "ApplyToSettings");
+
+        AssertEqual(22, form.Result.UndefeatedIconGrayscalePercent);
+        AssertEqual(73, form.Result.UndefeatedIconBrightnessPercent);
+        AssertEqual(11, form.Result.CurrentBossIconGrayscaleWeakenPercent);
+        AssertEqual(64, form.Result.CurrentBossIconBrightnessBoostPercent);
+    });
+}
+
+static void RunSta(Action action)
+{
+    Exception? failure = null;
+    var thread = new Thread(() =>
+    {
+        try
+        {
+            action();
+        }
+        catch (Exception ex)
+        {
+            failure = ex;
+        }
+    });
+    thread.SetApartmentState(ApartmentState.STA);
+    thread.Start();
+    thread.Join();
+
+    if (failure is not null)
+    {
+        throw failure;
+    }
+}
+
+static T GetPrivateField<T>(object target, string name)
+{
+    FieldInfo field = target.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)
+        ?? throw new InvalidOperationException($"Missing private field {name}.");
+    return (T)(field.GetValue(target) ?? throw new InvalidOperationException($"Private field {name} is null."));
+}
+
+static object? InvokePrivate(object target, string name, params object?[] args)
+{
+    MethodInfo method = target.GetType().GetMethod(name, BindingFlags.Instance | BindingFlags.NonPublic)
+        ?? throw new InvalidOperationException($"Missing private method {name}.");
+
+    try
+    {
+        return method.Invoke(target, args);
+    }
+    catch (TargetInvocationException ex) when (ex.InnerException is not null)
+    {
+        throw ex.InnerException;
+    }
 }
 
 static void AssertEqual<T>(T expected, T actual)
