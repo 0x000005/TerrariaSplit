@@ -5,23 +5,15 @@ namespace TerrariaSplit;
 
 internal sealed class CreateWorldWorkflow : IDisposable
 {
-    private static readonly TimeSpan MenuStateTimeout = TimeSpan.FromSeconds(3);
-    private static readonly TimeSpan PlayerSelectTransitionTimeout = TimeSpan.FromSeconds(5);
-    private static readonly TimeSpan PlayerCreateTimeout = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan PlayerCreateTimeout = TimeSpan.FromSeconds(0.5);
     private static readonly TimeSpan SavePollInterval = TimeSpan.FromMilliseconds(50);
-    private static readonly int[] MainMenuModes = { 0 };
 
     private readonly TerrariaSavePreparation savePreparation = new();
-    private readonly TerrariaMenuNavigator navigator = new();
+    private readonly TerrariaWindowController window = new();
     private TimeSpan shortActionDelay = TimeSpan.FromMilliseconds(AutoCreateWorldSettings.DefaultShortActionDelayMilliseconds);
     private TimeSpan menuActionDelay = TimeSpan.FromMilliseconds(AutoCreateWorldSettings.DefaultMenuActionDelayMilliseconds);
 
     public bool IsRunning { get; private set; }
-
-    public bool IsAtMainMenu()
-    {
-        return !IsRunning && navigator.IsAtMenuMode(MainMenuModes);
-    }
 
     public Task RunAsync(CancellationToken cancellationToken = default)
     {
@@ -40,25 +32,12 @@ internal sealed class CreateWorldWorkflow : IDisposable
         {
             AutoCreateWorldSettings autoCreate = settings.AutoCreate;
             ApplyTiming(autoCreate);
-            TerrariaSaveCleanupResult cleanup = default;
-            if (!await RunStepAsync(
-                    "save cleanup",
-                    _ =>
-                    {
-                        cleanup = savePreparation.MoveNonFavoritesToBackup();
-                        return Task.FromResult(true);
-                    },
-                    cancellationToken))
-            {
-                return;
-            }
-
             Size clientSize = Size.Empty;
             if (!await RunStepAsync(
                     "activate Terraria window",
                     _ =>
                     {
-                        if (!navigator.TryActivate(out Size activatedSize))
+                        if (!TryActivate(out Size activatedSize))
                         {
                             AppLogger.Info("Create world automation could not activate Terraria window.");
                             return Task.FromResult(false);
@@ -73,17 +52,21 @@ internal sealed class CreateWorldWorkflow : IDisposable
             }
 
             TerrariaMenuGeometry geometry = TerrariaMenuGeometry.From(clientSize);
-            if (!await RequireMenuModeAsync("main menu before Single Player", TimeSpan.FromSeconds(1), cancellationToken, 0))
+
+            TerrariaSaveCleanupResult cleanup = default;
+            if (!await RunStepAsync(
+                    "save cleanup",
+                    _ =>
+                    {
+                        cleanup = savePreparation.MoveNonFavoritesToBackup();
+                        return Task.FromResult(true);
+                    },
+                    cancellationToken))
             {
                 return;
             }
 
             if (!await ClickAsync("Single Player", geometry.MainMenuSinglePlayer(), menuActionDelay, cancellationToken))
-            {
-                return;
-            }
-
-            if (!await RequireMenuModeAsync("Single Player", MenuStateTimeout, cancellationToken, 888))
             {
                 return;
             }
@@ -119,17 +102,7 @@ internal sealed class CreateWorldWorkflow : IDisposable
                 return;
             }
 
-            if (!await ObserveMenuModeAsync("player creation return transition", TimeSpan.FromSeconds(2), cancellationToken, 1))
-            {
-                return;
-            }
-
-            if (!await RequireMenuModeAsync("player select after creating player", MenuStateTimeout, cancellationToken, 888))
-            {
-                return;
-            }
-
-            if (!await ClickPlayerAndRequireWorldSelectAsync(geometry, cleanup.FavoritePlayers, cancellationToken))
+            if (!await ClickPlayerAsync(geometry, cleanup.FavoritePlayers, cancellationToken))
             {
                 return;
             }
@@ -237,36 +210,22 @@ internal sealed class CreateWorldWorkflow : IDisposable
         return await ClickAsync("apply visible seed", geometry.WorldAdvancedApplyButton(), menuActionDelay, cancellationToken);
     }
 
-    private async Task<bool> ClickPlayerAndRequireWorldSelectAsync(
+    private async Task<bool> ClickPlayerAsync(
         TerrariaMenuGeometry geometry,
         int favoritePlayers,
         CancellationToken cancellationToken)
     {
         Point point = geometry.PlayerPlayButton(favoritePlayers);
-        if (!await ClickOnceAsync("first non-favorite player play button", point, shortActionDelay, cancellationToken))
-        {
-            return false;
-        }
-
-        if (!await ObserveMenuModeOnceAsync("player selection transition", PlayerSelectTransitionTimeout, cancellationToken, 6))
-        {
-            return false;
-        }
-
-        if (!await RequireMenuModeOnceAsync("world select after player selection", MenuStateTimeout, cancellationToken, 888))
-        {
-            return false;
-        }
-
-        await DelayAsync(menuActionDelay, cancellationToken);
-        return true;
+        return await ClickOnceAsync("first non-favorite player play button", point, menuActionDelay, cancellationToken);
     }
 
     private void ApplyTiming(AutoCreateWorldSettings settings)
     {
         shortActionDelay = TimeSpan.FromMilliseconds(settings.ShortActionDelayMilliseconds);
         menuActionDelay = TimeSpan.FromMilliseconds(settings.MenuActionDelayMilliseconds);
-        navigator.ApplyTiming(settings);
+        window.WindowActivationDelayMilliseconds = settings.WindowActivationDelayMilliseconds;
+        window.ClickFocusDelayMilliseconds = settings.ClickFocusDelayMilliseconds;
+        window.InputPressDurationMilliseconds = settings.InputPressDurationMilliseconds;
     }
 
     private async Task<bool> ConfirmPlayerNameAsync(
@@ -283,9 +242,9 @@ internal sealed class CreateWorldWorkflow : IDisposable
 
         try
         {
-            navigator.PressModifiedKey(Keys.ControlKey, Keys.A);
+            window.PressModifiedKey(Keys.ControlKey, Keys.A);
             await DelayAsync(shortActionDelay, cancellationToken);
-            navigator.PressModifiedKey(Keys.ControlKey, Keys.V);
+            window.PressModifiedKey(Keys.ControlKey, Keys.V);
             await DelayAsync(shortActionDelay, cancellationToken);
             return await ClickAsync("submit player name", geometry.VirtualKeyboardSubmitButton(), menuActionDelay, cancellationToken);
         }
@@ -343,7 +302,17 @@ internal sealed class CreateWorldWorkflow : IDisposable
 
     public void Dispose()
     {
-        navigator.Dispose();
+    }
+
+    private bool TryActivate(out Size clientSize)
+    {
+        bool success = window.TryActivate(out clientSize);
+        Log(new AutomationStepResult(
+            "activate Terraria window",
+            success,
+            ClientSize: clientSize,
+            Detail: success ? null : "window activation failed"));
+        return success;
     }
 
     private async Task<bool> RunStepAsync(
@@ -380,49 +349,20 @@ internal sealed class CreateWorldWorkflow : IDisposable
         TimeSpan delay,
         CancellationToken cancellationToken)
     {
-        return await navigator.ClickAsync(step, point, delay, cancellationToken);
-    }
+        bool clicked = window.TryClickClient(point.X, point.Y, out Size clientSize);
+        Log(new AutomationStepResult(
+            $"click {step}",
+            clicked,
+            point,
+            clientSize,
+            Detail: clicked ? null : "window click failed"));
+        if (!clicked)
+        {
+            return false;
+        }
 
-    private async Task<bool> RequireMenuModeAsync(
-        string step,
-        TimeSpan timeout,
-        CancellationToken cancellationToken,
-        params int[] expectedModes)
-    {
-        return await RunStepAsync(
-            $"wait for {step}",
-            ct => RequireMenuModeOnceAsync(step, timeout, ct, expectedModes),
-            cancellationToken);
-    }
-
-    private async Task<bool> RequireMenuModeOnceAsync(
-        string step,
-        TimeSpan timeout,
-        CancellationToken cancellationToken,
-        params int[] expectedModes)
-    {
-        return await navigator.RequireMenuModeAsync(step, timeout, cancellationToken, expectedModes);
-    }
-
-    private async Task<bool> ObserveMenuModeAsync(
-        string step,
-        TimeSpan timeout,
-        CancellationToken cancellationToken,
-        params int[] expectedModes)
-    {
-        return await RunStepAsync(
-            $"observe {step}",
-            ct => ObserveMenuModeOnceAsync(step, timeout, ct, expectedModes),
-            cancellationToken);
-    }
-
-    private async Task<bool> ObserveMenuModeOnceAsync(
-        string step,
-        TimeSpan timeout,
-        CancellationToken cancellationToken,
-        params int[] expectedModes)
-    {
-        return await navigator.ObserveMenuModeAsync(step, timeout, cancellationToken, expectedModes);
+        await DelayAsync(delay, cancellationToken);
+        return true;
     }
 
     private async Task<bool> WaitForNewOrChangedSaveFileAsync(
@@ -466,6 +406,11 @@ internal sealed class CreateWorldWorkflow : IDisposable
     private static Task DelayAsync(TimeSpan delay, CancellationToken cancellationToken)
     {
         return Task.Delay(delay, cancellationToken);
+    }
+
+    private static void Log(AutomationStepResult result)
+    {
+        AppLogger.Info(result.ToLogMessage());
     }
 
 }

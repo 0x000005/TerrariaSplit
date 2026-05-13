@@ -11,6 +11,7 @@ internal sealed partial class MainForm : Form
     private static readonly Color DefaultCaptureBackgroundColor = Color.FromArgb(1, 2, 3);
     private static readonly TimeSpan SplitCompletionFadeDuration = TimeSpan.FromSeconds(0.45);
     private static readonly TimeSpan ResetMenuGraceDuration = TimeSpan.FromSeconds(0.5);
+    private static readonly TimeSpan CreateWorldHotkeyPendingDuration = TimeSpan.FromSeconds(0.5);
     private static readonly TimeSpan SplitCompletionDeltaIntroGap = TimeSpan.FromSeconds(0.06);
     private const int ResizeBorder = 8;
     private const int RowGap = 9;
@@ -31,7 +32,7 @@ internal sealed partial class MainForm : Form
     private readonly SoundPlayerService soundPlayer = new();
     private readonly System.Windows.Forms.Timer uiTimer = new();
     private readonly GlobalHotkeyManager hotkeyManager = new();
-    private readonly Queue<TimerHotkeyAction> pendingHotkeyActions = new();
+    private readonly Queue<TimerHotkeyRequest> pendingHotkeyRequests = new();
     private readonly Dictionary<string, IconPair> iconCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<FontKey, Font> fontCache = new();
     private readonly Dictionary<int, SegmentBestDeltaHighlight> segmentBestDeltaHighlights = new();
@@ -46,6 +47,7 @@ internal sealed partial class MainForm : Form
     private bool closeFinalizationComplete;
     private bool settingsFormOpen;
     private string? lastHotkeyWarningText;
+    private DateTime? pendingCreateWorldDeadlineUtc;
     private readonly PendingMenuHotkeyScheduler pendingMenuHotkeys = new();
     private readonly TimerController timerController;
 
@@ -263,7 +265,13 @@ internal sealed partial class MainForm : Form
 
         if (hotkeyManager.TryGetAction(m, out TimerHotkeyAction action))
         {
-            pendingHotkeyActions.Enqueue(action);
+            if (createWorldAutomation.IsRunning && action != TimerHotkeyAction.CreateWorld)
+            {
+                m.Result = IntPtr.Zero;
+                return;
+            }
+
+            pendingHotkeyRequests.Enqueue(new TimerHotkeyRequest(action, DateTime.UtcNow));
             m.Result = IntPtr.Zero;
             return;
         }
@@ -327,10 +335,7 @@ internal sealed partial class MainForm : Form
 
     private void Tick()
     {
-        TimerControllerTickResult tickResult = timerController.Tick(
-            settings,
-            DrainPendingHotkeyActions(),
-            CanStartCreateWorldAutomation);
+        TimerControllerTickResult tickResult = timerController.Tick(DrainPendingHotkeyRequests());
         snapshot = tickResult.Snapshot;
 
         if (tickResult.PauseSoundRequested)
@@ -343,17 +348,19 @@ internal sealed partial class MainForm : Form
             SetMouseClickThrough(!mouseClickThrough);
         }
 
-        if (tickResult.RequestedMenuAction is MenuHotkeyActionKind action)
+        if (tickResult.CreateWorldRequestedAtUtc is DateTime createWorldRequestedAtUtc)
         {
-            if (action == MenuHotkeyActionKind.Reset)
-            {
-                ExecuteReset();
-            }
-            else
-            {
-                StartCreateWorldAutomation();
-            }
+            QueuePendingCreateWorldAutomationRequest(createWorldRequestedAtUtc);
+        }
 
+        if (tickResult.RequestedMenuAction == MenuHotkeyActionKind.Reset)
+        {
+            ExecuteReset();
+            return;
+        }
+
+        if (TryStartPendingCreateWorldAutomation())
+        {
             return;
         }
 
@@ -386,16 +393,16 @@ internal sealed partial class MainForm : Form
         Invalidate();
     }
 
-    private TimerHotkeyAction[] DrainPendingHotkeyActions()
+    private TimerHotkeyRequest[] DrainPendingHotkeyRequests()
     {
-        if (pendingHotkeyActions.Count == 0)
+        if (pendingHotkeyRequests.Count == 0)
         {
             return [];
         }
 
-        TimerHotkeyAction[] actions = pendingHotkeyActions.ToArray();
-        pendingHotkeyActions.Clear();
-        return actions;
+        TimerHotkeyRequest[] requests = pendingHotkeyRequests.ToArray();
+        pendingHotkeyRequests.Clear();
+        return requests;
     }
 
     private bool ShowPersonalBestUpdateConfirmation(string promptText)
@@ -429,6 +436,7 @@ internal sealed partial class MainForm : Form
     private void ExecuteReset()
     {
         pendingMenuHotkeys.Clear();
+        ClearPendingCreateWorldAutomationRequest();
         soundPlayer.Play(settings.Sounds.Reset);
         ResetRun(recordStats: true);
     }
@@ -475,7 +483,8 @@ internal sealed partial class MainForm : Form
     {
         settingsFormOpen = true;
         hotkeyManager.Dispose();
-        pendingHotkeyActions.Clear();
+        pendingHotkeyRequests.Clear();
+        ClearPendingCreateWorldAutomationRequest();
         try
         {
             using var form = new SettingsForm(settings);
@@ -574,6 +583,7 @@ internal sealed partial class MainForm : Form
         splitTracker.Reset();
         splitCompletionAnimation = null;
         pendingMenuHotkeys.Clear();
+        ClearPendingCreateWorldAutomationRequest();
         segmentBestDeltaHighlights.Clear();
         runStatsRecorded = false;
         Invalidate();
@@ -599,13 +609,8 @@ internal sealed partial class MainForm : Form
 
     private async void StartCreateWorldAutomation()
     {
-        if (!CanStartCreateWorldAutomation())
-        {
-            return;
-        }
-
-        hotkeyManager.Dispose();
-        pendingHotkeyActions.Clear();
+        pendingHotkeyRequests.Clear();
+        ClearPendingCreateWorldAutomationRequest();
         ResetRun(recordStats: true);
 
         try
@@ -616,13 +621,44 @@ internal sealed partial class MainForm : Form
         {
             AppLogger.Error(ex, "Unhandled create world automation error.");
         }
-        finally
+    }
+
+    private void QueuePendingCreateWorldAutomationRequest(DateTime requestedAtUtc)
+    {
+        pendingCreateWorldDeadlineUtc = requestedAtUtc + CreateWorldHotkeyPendingDuration;
+
+        if (createWorldAutomation.IsRunning)
         {
-            if (IsHandleCreated && !settingsFormOpen)
-            {
-                RegisterConfiguredHotkeys();
-            }
+            createWorldAutomation.Cancel();
+            return;
         }
+    }
+
+    private bool TryStartPendingCreateWorldAutomation()
+    {
+        if (pendingCreateWorldDeadlineUtc is not DateTime deadlineUtc || createWorldAutomation.IsRunning)
+        {
+            return false;
+        }
+
+        if (DateTime.UtcNow > deadlineUtc)
+        {
+            ClearPendingCreateWorldAutomationRequest();
+            return false;
+        }
+
+        if (snapshot.IsGameMenu != true)
+        {
+            return false;
+        }
+
+        StartCreateWorldAutomation();
+        return true;
+    }
+
+    private void ClearPendingCreateWorldAutomationRequest()
+    {
+        pendingCreateWorldDeadlineUtc = null;
     }
 
     private void RegisterConfiguredHotkeys()
@@ -689,16 +725,6 @@ internal sealed partial class MainForm : Form
             TimerHotkeyAction.CreateWorld => "Create world (Disabled in world)",
             _ => action.ToString()
         };
-    }
-
-    private bool CanStartCreateWorldAutomation(TerrariaWatchSnapshot currentSnapshot)
-    {
-        return currentSnapshot.IsGameMenu == true && createWorldAutomation.IsAtMainMenu();
-    }
-
-    private bool CanStartCreateWorldAutomation()
-    {
-        return CanStartCreateWorldAutomation(snapshot);
     }
 
     private void UpdateMouseClickThroughStyle()

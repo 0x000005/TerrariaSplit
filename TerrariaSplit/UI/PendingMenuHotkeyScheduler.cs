@@ -2,17 +2,16 @@ namespace TerrariaSplit;
 
 internal enum MenuHotkeyActionKind
 {
-    Reset,
-    CreateWorld
+    Reset
 }
 
 internal sealed class PendingMenuHotkeyScheduler
 {
     private PendingMenuHotkeyAction? pendingAction;
 
-    public void Queue(MenuHotkeyActionKind kind, TimeSpan graceDuration)
+    public void Queue(MenuHotkeyActionKind kind, DateTime requestedAtUtc, TimeSpan graceDuration)
     {
-        pendingAction = new PendingMenuHotkeyAction(kind, DateTime.UtcNow + graceDuration);
+        pendingAction = new PendingMenuHotkeyAction(kind, requestedAtUtc + graceDuration);
     }
 
     public bool TryConsume(Func<MenuHotkeyActionKind, bool> canExecute, out MenuHotkeyActionKind kind)

@@ -4,7 +4,7 @@ namespace TerrariaSplit;
 
 internal sealed class TerrariaSaveFileCleaner
 {
-    private const int MaxDeletedSavesPerKind = 100;
+    private const int MaxDeletedBackupFolders = 50;
     private const string FavoritesFileName = "favorites.json";
     private const string DeletedSavesDirectoryName = "TerrariaSplitDeleted";
 
@@ -21,8 +21,7 @@ internal sealed class TerrariaSaveFileCleaner
         int favoriteWorlds = CountExistingFavoriteFiles(Path.Combine(root, "Worlds"), "*.wld", favorites.Worlds);
         int movedPlayers = MoveNonFavoritePlayers(root, backupRoot, favorites.Players);
         int movedWorlds = MoveNonFavoriteWorlds(root, backupRoot, favorites.Worlds);
-        PruneDeletedBackups(deletedRoot, "Players", "*.plr", includeCompanionDirectory: true);
-        PruneDeletedBackups(deletedRoot, "Worlds", "*.wld", includeCompanionDirectory: false);
+        PruneDeletedBackupFolders(deletedRoot);
         return new TerrariaSaveCleanupResult(
             root,
             backupRoot,
@@ -95,7 +94,7 @@ internal sealed class TerrariaSaveFileCleaner
         return moved;
     }
 
-    private static void PruneDeletedBackups(string deletedRoot, string categoryName, string pattern, bool includeCompanionDirectory)
+    private static void PruneDeletedBackupFolders(string deletedRoot)
     {
         if (!Directory.Exists(deletedRoot))
         {
@@ -104,12 +103,11 @@ internal sealed class TerrariaSaveFileCleaner
 
         try
         {
-            List<DeletedBackupEntry> entries = EnumerateDeletedBackups(deletedRoot, categoryName, pattern, includeCompanionDirectory)
-                .OrderBy(entry => entry.BatchName, StringComparer.Ordinal)
-                .ThenBy(entry => entry.PrimaryPath, StringComparer.OrdinalIgnoreCase)
+            List<string> batchPaths = Directory.EnumerateDirectories(deletedRoot)
+                .OrderBy(Path.GetFileName, StringComparer.Ordinal)
                 .ToList();
 
-            int removeCount = entries.Count - MaxDeletedSavesPerKind;
+            int removeCount = batchPaths.Count - MaxDeletedBackupFolders;
             if (removeCount <= 0)
             {
                 return;
@@ -117,51 +115,13 @@ internal sealed class TerrariaSaveFileCleaner
 
             for (int i = 0; i < removeCount; i++)
             {
-                DeleteDeletedBackup(entries[i]);
+                Directory.Delete(batchPaths[i], recursive: true);
             }
         }
         catch (Exception ex)
         {
-            AppLogger.Error(ex, $"Failed to prune TerrariaSplit deleted {categoryName} backups.");
+            AppLogger.Error(ex, "Failed to prune TerrariaSplit deleted backup folders.");
         }
-    }
-
-    private static IEnumerable<DeletedBackupEntry> EnumerateDeletedBackups(
-        string deletedRoot,
-        string categoryName,
-        string pattern,
-        bool includeCompanionDirectory)
-    {
-        foreach (string batchPath in Directory.EnumerateDirectories(deletedRoot))
-        {
-            string categoryPath = Path.Combine(batchPath, categoryName);
-            if (!Directory.Exists(categoryPath))
-            {
-                continue;
-            }
-
-            foreach (string primaryPath in Directory.EnumerateFiles(categoryPath, pattern, SearchOption.TopDirectoryOnly))
-            {
-                string stem = Path.GetFileNameWithoutExtension(primaryPath);
-                yield return new DeletedBackupEntry(
-                    batchPath,
-                    Path.GetFileName(batchPath),
-                    categoryPath,
-                    primaryPath,
-                    primaryPath + ".bak",
-                    includeCompanionDirectory ? Path.Combine(categoryPath, stem) : null);
-            }
-        }
-    }
-
-    private static void DeleteDeletedBackup(DeletedBackupEntry entry)
-    {
-        DeleteFileIfExists(entry.PrimaryPath);
-        DeleteFileIfExists(entry.BackupPath);
-        DeleteDirectoryIfExists(entry.CompanionDirectory);
-        DeleteDirectoryIfEmpty(entry.CategoryPath);
-        DeleteEmptyChildDirectories(entry.BatchPath);
-        DeleteDirectoryIfEmpty(entry.BatchPath);
     }
 
     private static void MoveFileIfExists(string source, string destination)
@@ -184,43 +144,6 @@ internal sealed class TerrariaSaveFileCleaner
 
         Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
         Directory.Move(source, GetAvailablePath(destination));
-    }
-
-    private static void DeleteFileIfExists(string? path)
-    {
-        if (path is not null && File.Exists(path))
-        {
-            File.Delete(path);
-        }
-    }
-
-    private static void DeleteDirectoryIfExists(string? path)
-    {
-        if (path is not null && Directory.Exists(path))
-        {
-            Directory.Delete(path, recursive: true);
-        }
-    }
-
-    private static void DeleteDirectoryIfEmpty(string path)
-    {
-        if (Directory.Exists(path) && !Directory.EnumerateFileSystemEntries(path).Any())
-        {
-            Directory.Delete(path);
-        }
-    }
-
-    private static void DeleteEmptyChildDirectories(string path)
-    {
-        if (!Directory.Exists(path))
-        {
-            return;
-        }
-
-        foreach (string childPath in Directory.EnumerateDirectories(path))
-        {
-            DeleteDirectoryIfEmpty(childPath);
-        }
     }
 
     private static string GetAvailablePath(string path)
@@ -312,14 +235,6 @@ internal sealed class TerrariaSaveFileCleaner
             new HashSet<string>(StringComparer.OrdinalIgnoreCase),
             new HashSet<string>(StringComparer.OrdinalIgnoreCase));
     }
-
-    private readonly record struct DeletedBackupEntry(
-        string BatchPath,
-        string BatchName,
-        string CategoryPath,
-        string PrimaryPath,
-        string BackupPath,
-        string? CompanionDirectory);
 }
 
 internal readonly record struct TerrariaSaveCleanupResult(

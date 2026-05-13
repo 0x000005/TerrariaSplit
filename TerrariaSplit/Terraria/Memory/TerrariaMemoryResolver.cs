@@ -78,7 +78,10 @@ internal sealed class TerrariaMemoryResolver
             {
                 usingGameMenuFallback = false;
                 TryResolveBossAddressesWithFallbacks(memory, resolvedUpdateTimeAddress);
-                return new TerrariaMemoryResolveResult(BuildResolutionStage(), BuildResolutionStatusDetail(), isGameMenu);
+                return new TerrariaMemoryResolveResult(
+                    BuildResolutionStage(),
+                    BuildResolutionStatusDetail(),
+                    isGameMenu);
             }
 
             if (gameMenuAddress != IntPtr.Zero)
@@ -107,16 +110,25 @@ internal sealed class TerrariaMemoryResolver
             updateTimeAddress = fallbackAnchorAddress;
             usingGameMenuFallback = true;
             TryResolveBossAddressesWithFallbacks(memory, null);
-            return new TerrariaMemoryResolveResult(BuildResolutionStage(), BuildResolutionStatusDetail(), fallbackGameMenu);
+            return new TerrariaMemoryResolveResult(
+                BuildResolutionStage(),
+                BuildResolutionStatusDetail(),
+                fallbackGameMenu);
         }
 
         if (gameMenuAddress != IntPtr.Zero)
         {
-            return new TerrariaMemoryResolveResult(BuildResolutionStage(), BuildResolutionStatusDetail(), null);
+            return new TerrariaMemoryResolveResult(
+                BuildResolutionStage(),
+                BuildResolutionStatusDetail(),
+                null);
         }
 
         updateTimeAddress = IntPtr.Zero;
-        return new TerrariaMemoryResolveResult("signature missing", "waiting for UpdateTime signature", null);
+        return new TerrariaMemoryResolveResult(
+            "signature missing",
+            "waiting for UpdateTime signature",
+            null);
     }
 
     public bool TryReadGameMenuState(IProcessMemoryReader memory, out bool isGameMenu)
@@ -327,14 +339,6 @@ internal sealed class TerrariaMemoryResolver
     {
         isGameMenu = false;
 
-        IntPtr firstMenuModeInlineAddressLocation = IntPtr.Add(
-            fallbackAnchorAddress,
-            profile.GameMenuFallbackMenuModeInlineAddressOffset);
-        if (!memory.TryReadPointer(firstMenuModeInlineAddressLocation, out IntPtr resolvedMenuModeAddress))
-        {
-            return false;
-        }
-
         IntPtr gameMenuInlineAddressLocation = IntPtr.Add(
             fallbackAnchorAddress,
             profile.GameMenuFallbackGameMenuInlineAddressOffset);
@@ -343,21 +347,7 @@ internal sealed class TerrariaMemoryResolver
             return false;
         }
 
-        IntPtr secondMenuModeInlineAddressLocation = IntPtr.Add(
-            fallbackAnchorAddress,
-            profile.GameMenuFallbackSecondMenuModeInlineAddressOffset);
-        if (!memory.TryReadPointer(secondMenuModeInlineAddressLocation, out IntPtr resolvedSecondMenuModeAddress))
-        {
-            return false;
-        }
-
-        if (resolvedMenuModeAddress != resolvedSecondMenuModeAddress)
-        {
-            return false;
-        }
-
-        if (!memory.TryReadInt32(resolvedMenuModeAddress, out _) ||
-            !memory.TryReadBool(resolvedGameMenuAddress, out isGameMenu))
+        if (!memory.TryReadBool(resolvedGameMenuAddress, out isGameMenu))
         {
             return false;
         }

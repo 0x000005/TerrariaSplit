@@ -8,6 +8,8 @@ internal enum TimerHotkeyAction
     CreateWorld
 }
 
+internal readonly record struct TimerHotkeyRequest(TimerHotkeyAction Action, DateTime RequestedAtUtc);
+
 internal sealed class TimerController
 {
     private readonly SplitTimer runTimer;
@@ -30,20 +32,19 @@ internal sealed class TimerController
         this.pendingMenuGraceDuration = pendingMenuGraceDuration;
     }
 
-    public TimerControllerTickResult Tick(
-        AppSettings settings,
-        IReadOnlyCollection<TimerHotkeyAction> hotkeyActions,
-        Func<TerrariaWatchSnapshot, bool> canStartCreateWorldAutomation)
+    public TimerControllerTickResult Tick(IReadOnlyCollection<TimerHotkeyRequest> hotkeyRequests)
     {
         TerrariaWatchSnapshot snapshot = watcher.Poll();
         bool pauseSoundRequested = false;
         bool toggleMouseClickThroughRequested = false;
+        DateTime? createWorldRequestedAtUtc = null;
         bool runStarted = false;
         int? completedSplitIndex = null;
         bool runCompleted = false;
 
-        foreach (TimerHotkeyAction action in hotkeyActions)
+        foreach (TimerHotkeyRequest request in hotkeyRequests)
         {
+            TimerHotkeyAction action = request.Action;
             if (action == TimerHotkeyAction.PauseResume)
             {
                 SplitTimerPhase previousPhase = runTimer.Phase;
@@ -61,7 +62,7 @@ internal sealed class TimerController
                         toggleMouseClickThroughRequested);
                 }
 
-                QueuePendingMenuHotkeyAction(MenuHotkeyActionKind.Reset);
+                QueuePendingMenuHotkeyAction(MenuHotkeyActionKind.Reset, request.RequestedAtUtc);
             }
             else if (action == TimerHotkeyAction.MouseClickThrough)
             {
@@ -69,26 +70,18 @@ internal sealed class TimerController
             }
             else if (action == TimerHotkeyAction.CreateWorld)
             {
-                if (canStartCreateWorldAutomation(snapshot))
-                {
-                    return TimerControllerTickResult.RequestMenuAction(
-                        snapshot,
-                        MenuHotkeyActionKind.CreateWorld,
-                        pauseSoundRequested,
-                        toggleMouseClickThroughRequested);
-                }
-
-                QueuePendingMenuHotkeyAction(MenuHotkeyActionKind.CreateWorld);
+                createWorldRequestedAtUtc = request.RequestedAtUtc;
             }
         }
 
-        if (TryConsumePendingMenuHotkeyAction(snapshot, canStartCreateWorldAutomation, out MenuHotkeyActionKind pendingAction))
+        if (TryConsumePendingMenuHotkeyAction(snapshot, out MenuHotkeyActionKind pendingAction))
         {
             return TimerControllerTickResult.RequestMenuAction(
                 snapshot,
                 pendingAction,
                 pauseSoundRequested,
-                toggleMouseClickThroughRequested);
+                toggleMouseClickThroughRequested,
+                createWorldRequestedAtUtc);
         }
 
         if (snapshot.EnteredWorld && runTimer.Phase == SplitTimerPhase.NotStarted)
@@ -116,36 +109,32 @@ internal sealed class TimerController
             snapshot,
             pauseSoundRequested,
             toggleMouseClickThroughRequested,
+            createWorldRequestedAtUtc,
             RequestedMenuAction: null,
             runStarted,
             completedSplitIndex,
             runCompleted);
     }
 
-    private void QueuePendingMenuHotkeyAction(MenuHotkeyActionKind kind)
+    private void QueuePendingMenuHotkeyAction(MenuHotkeyActionKind kind, DateTime requestedAtUtc)
     {
-        pendingMenuHotkeys.Queue(kind, pendingMenuGraceDuration);
+        pendingMenuHotkeys.Queue(kind, requestedAtUtc, pendingMenuGraceDuration);
     }
 
-    private bool TryConsumePendingMenuHotkeyAction(
-        TerrariaWatchSnapshot snapshot,
-        Func<TerrariaWatchSnapshot, bool> canStartCreateWorldAutomation,
-        out MenuHotkeyActionKind kind)
+    private bool TryConsumePendingMenuHotkeyAction(TerrariaWatchSnapshot snapshot, out MenuHotkeyActionKind kind)
     {
         return pendingMenuHotkeys.TryConsume(
-            pendingKind => CanExecutePendingMenuHotkeyAction(pendingKind, snapshot, canStartCreateWorldAutomation),
+            pendingKind => CanExecutePendingMenuHotkeyAction(pendingKind, snapshot),
             out kind);
     }
 
     private static bool CanExecutePendingMenuHotkeyAction(
         MenuHotkeyActionKind kind,
-        TerrariaWatchSnapshot snapshot,
-        Func<TerrariaWatchSnapshot, bool> canStartCreateWorldAutomation)
+        TerrariaWatchSnapshot snapshot)
     {
         return kind switch
         {
             MenuHotkeyActionKind.Reset => snapshot.IsGameMenu == true,
-            MenuHotkeyActionKind.CreateWorld => canStartCreateWorldAutomation(snapshot),
             _ => false
         };
     }
@@ -160,6 +149,7 @@ internal readonly record struct TimerControllerTickResult(
     TerrariaWatchSnapshot Snapshot,
     bool PauseSoundRequested,
     bool ToggleMouseClickThroughRequested,
+    DateTime? CreateWorldRequestedAtUtc,
     MenuHotkeyActionKind? RequestedMenuAction,
     bool RunStarted,
     int? CompletedSplitIndex,
@@ -169,12 +159,14 @@ internal readonly record struct TimerControllerTickResult(
         TerrariaWatchSnapshot snapshot,
         MenuHotkeyActionKind action,
         bool pauseSoundRequested,
-        bool toggleMouseClickThroughRequested)
+        bool toggleMouseClickThroughRequested,
+        DateTime? createWorldRequestedAtUtc = null)
     {
         return new TimerControllerTickResult(
             snapshot,
             pauseSoundRequested,
             toggleMouseClickThroughRequested,
+            createWorldRequestedAtUtc,
             action,
             RunStarted: false,
             CompletedSplitIndex: null,

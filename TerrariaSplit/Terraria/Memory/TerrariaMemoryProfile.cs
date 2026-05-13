@@ -11,9 +11,7 @@ internal sealed class TerrariaMemoryProfile
         string gameMenuFallbackSignature,
         string bossProgressionFallbackSignature,
         int gameMenuPointerOffset,
-        int gameMenuFallbackMenuModeInlineAddressOffset,
         int gameMenuFallbackGameMenuInlineAddressOffset,
-        int gameMenuFallbackSecondMenuModeInlineAddressOffset,
         int bossProgressionFallbackSkeletronInlineAddressOffset,
         int bossProgressionFallbackHardmodeInlineAddressOffset,
         int bossFlagsPointerOffset,
@@ -35,9 +33,7 @@ internal sealed class TerrariaMemoryProfile
         GameMenuFallbackSignature = SignaturePattern.Parse(gameMenuFallbackSignature);
         BossProgressionFallbackSignature = SignaturePattern.Parse(bossProgressionFallbackSignature);
         GameMenuPointerOffset = gameMenuPointerOffset;
-        GameMenuFallbackMenuModeInlineAddressOffset = gameMenuFallbackMenuModeInlineAddressOffset;
         GameMenuFallbackGameMenuInlineAddressOffset = gameMenuFallbackGameMenuInlineAddressOffset;
-        GameMenuFallbackSecondMenuModeInlineAddressOffset = gameMenuFallbackSecondMenuModeInlineAddressOffset;
         BossProgressionFallbackSkeletronInlineAddressOffset = bossProgressionFallbackSkeletronInlineAddressOffset;
         BossProgressionFallbackHardmodeInlineAddressOffset = bossProgressionFallbackHardmodeInlineAddressOffset;
         BossFlagsPointerOffset = bossFlagsPointerOffset;
@@ -68,11 +64,7 @@ internal sealed class TerrariaMemoryProfile
 
     public int GameMenuPointerOffset { get; }
 
-    public int GameMenuFallbackMenuModeInlineAddressOffset { get; }
-
     public int GameMenuFallbackGameMenuInlineAddressOffset { get; }
-
-    public int GameMenuFallbackSecondMenuModeInlineAddressOffset { get; }
 
     public int BossProgressionFallbackSkeletronInlineAddressOffset { get; }
 
