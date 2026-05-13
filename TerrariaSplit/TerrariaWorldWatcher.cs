@@ -9,12 +9,14 @@ internal sealed class TerrariaWorldWatcher : IDisposable
     private readonly TerrariaMemoryResolver resolver;
     private readonly TimeSpan initialScanInterval = TimeSpan.FromMilliseconds(250);
     private readonly TimeSpan rescanInterval = TimeSpan.FromSeconds(2);
+    private readonly TimeSpan processLookupInterval = TimeSpan.FromSeconds(1);
 
     private Process? process;
     private ProcessMemoryReader? memory;
     private bool? previousGameMenu;
     private bool awaitingInitialMenuObservation;
     private DateTime nextScanUtc = DateTime.MinValue;
+    private DateTime nextProcessLookupUtc = DateTime.MinValue;
     private string diagnosticStage = "waiting for process";
     private string status = "waiting for Terraria.exe";
 
@@ -33,7 +35,21 @@ internal sealed class TerrariaWorldWatcher : IDisposable
     {
         if (!HasLiveProcess())
         {
-            AttachToProcess();
+            if (DateTime.UtcNow >= nextProcessLookupUtc)
+            {
+                AttachToProcess();
+            }
+            else
+            {
+                process?.Dispose();
+                process = null;
+                memory = null;
+                resolver.Reset();
+                previousGameMenu = null;
+                awaitingInitialMenuObservation = false;
+                diagnosticStage = "waiting for process";
+                status = "waiting for Terraria.exe";
+            }
         }
 
         if (process is null || memory is null)
@@ -163,6 +179,7 @@ internal sealed class TerrariaWorldWatcher : IDisposable
         {
             diagnosticStage = "waiting for process";
             status = "waiting for Terraria.exe";
+            nextProcessLookupUtc = DateTime.UtcNow + processLookupInterval;
             return;
         }
 
@@ -170,6 +187,7 @@ internal sealed class TerrariaWorldWatcher : IDisposable
         {
             memory = new ProcessMemoryReader(candidate);
             process = candidate;
+            nextProcessLookupUtc = DateTime.MinValue;
             nextScanUtc = DateTime.MinValue;
             diagnosticStage = "scanning for signature";
             status = BuildAttachedStatus($"scanning for {profile.SupportedVersionLabel} memory");
@@ -179,12 +197,14 @@ internal sealed class TerrariaWorldWatcher : IDisposable
             candidate.Dispose();
             diagnosticStage = "cannot read process";
             status = $"cannot read Terraria process: {ex.Message}";
+            nextProcessLookupUtc = DateTime.UtcNow + processLookupInterval;
         }
         catch (InvalidOperationException ex)
         {
             candidate.Dispose();
             diagnosticStage = "cannot attach process";
             status = $"cannot attach to Terraria process: {ex.Message}";
+            nextProcessLookupUtc = DateTime.UtcNow + processLookupInterval;
         }
     }
 

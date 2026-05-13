@@ -18,6 +18,7 @@ internal sealed partial class SettingsForm : Form
     private const int AnimationPageIndex = 5;
     private const int SoundPageIndex = 6;
     private const int ColorPageIndex = 7;
+    private const int DebugPageIndex = 8;
 
     private static readonly Color WindowColor = UiTheme.Window;
     private static readonly Color SectionColor = UiTheme.Surface;
@@ -27,6 +28,7 @@ internal sealed partial class SettingsForm : Form
     private static readonly Color MutedTextColor = UiTheme.MutedText;
 
     private readonly AppSettings settings;
+    private readonly Func<RuntimePerformanceDiagnostics>? runtimeDiagnosticsProvider;
     private readonly HotkeyTextBox pauseKeyBox = new();
     private readonly HotkeyTextBox resetKeyBox = new();
     private readonly HotkeyTextBox mouseClickThroughKeyBox = new();
@@ -109,9 +111,12 @@ internal sealed partial class SettingsForm : Form
     private Point dragStartCursor;
     private Point dragStartLocation;
 
-    public SettingsForm(AppSettings currentSettings)
+    public SettingsForm(
+        AppSettings currentSettings,
+        Func<RuntimePerformanceDiagnostics>? runtimeDiagnosticsProvider = null)
     {
         settings = AppSettingsStore.Clone(currentSettings);
+        this.runtimeDiagnosticsProvider = runtimeDiagnosticsProvider;
 
         Text = Localizer.Get("TerrariaSplit Settings", settings);
         StartPosition = FormStartPosition.CenterParent;
@@ -126,6 +131,11 @@ internal sealed partial class SettingsForm : Form
     }
 
     public AppSettings Result => settings;
+
+    internal RuntimePerformanceDiagnostics GetRuntimeDiagnostics()
+    {
+        return runtimeDiagnosticsProvider?.Invoke() ?? RuntimePerformanceDiagnostics.Empty;
+    }
 
     internal string Localize(string key)
     {
@@ -436,17 +446,22 @@ internal sealed partial class SettingsForm : Form
         }
     }
 
-    private void EnsureAllPagesCreated()
+    private bool IsPageCreated(int index)
     {
-        for (int i = 0; i < pages.Count; i++)
-        {
-            EnsurePageCreated(i);
-        }
+        return index >= 0 && index < pages.Count && pages[index].Page is not null;
     }
 
     private void ApplyPage(int index)
     {
         pages[index].PageDefinition.Apply(settings);
+    }
+
+    private void ApplyCreatedPage(int index)
+    {
+        if (IsPageCreated(index))
+        {
+            ApplyPage(index);
+        }
     }
 
     private Button CreateNavButton(string text)
@@ -1049,22 +1064,24 @@ internal sealed partial class SettingsForm : Form
             textBox.Text = dialog.FileName;
         }
     }
-void ApplyToSettings()
+    private void ApplyToSettings()
     {
-        EnsurePageCreated(BossPageIndex);
-        ApplyBossPageRouteChanges();
-        EnsureAllPagesCreated();
+        if (IsPageCreated(BossPageIndex))
+        {
+            ApplyBossPageRouteChanges();
+        }
 
-        ApplyPage(GeneralPageIndex);
-        ApplyPage(AutoCreatePageIndex);
-        ApplyPage(DataPageIndex);
-        ApplyPage(BossPageIndex);
+        ApplyCreatedPage(GeneralPageIndex);
+        ApplyCreatedPage(AutoCreatePageIndex);
+        ApplyCreatedPage(DataPageIndex);
+        ApplyCreatedPage(BossPageIndex);
         AppSettingsStore.Normalize(settings);
-        ApplyPage(AnimationPageIndex);
+        ApplyCreatedPage(AnimationPageIndex);
         AppSettingsStore.Normalize(settings);
-        ApplyPage(UiPageIndex);
-        ApplyPage(ColorPageIndex);
-        ApplyPage(SoundPageIndex);
+        ApplyCreatedPage(UiPageIndex);
+        ApplyCreatedPage(ColorPageIndex);
+        ApplyCreatedPage(SoundPageIndex);
+        ApplyCreatedPage(DebugPageIndex);
     }
 
     internal void ApplyGeneralSettings(AppSettings targetSettings)

@@ -162,16 +162,31 @@ internal sealed class TerrariaMemoryResolver
 
     public TerrariaBossStates ReadBossStates(IProcessMemoryReader memory)
     {
+        bool? wallOfFlesh = ReadHardmodeFlag(memory);
+        if (!TryReadBossFlagBlock(memory, out byte[] bossFlags, out int minimumBossFlagOffset))
+        {
+            return new TerrariaBossStates(
+                null,
+                wallOfFlesh,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
+        }
+
         return new TerrariaBossStates(
-            ReadBossFlag(memory, profile.SkeletronDefeatedFlagOffset),
-            ReadHardmodeFlag(memory),
-            ReadBossFlag(memory, profile.DestroyerDefeatedFlagOffset),
-            ReadBossFlag(memory, profile.TwinsDefeatedFlagOffset),
-            ReadBossFlag(memory, profile.SkeletronPrimeDefeatedFlagOffset),
-            ReadBossFlag(memory, profile.PlanteraDefeatedFlagOffset),
-            ReadBossFlag(memory, profile.GolemDefeatedFlagOffset),
-            ReadBossFlag(memory, profile.LunaticCultistDefeatedFlagOffset),
-            ReadBossFlag(memory, profile.MoonLordDefeatedFlagOffset));
+            ReadBossFlag(bossFlags, minimumBossFlagOffset, profile.SkeletronDefeatedFlagOffset),
+            wallOfFlesh,
+            ReadBossFlag(bossFlags, minimumBossFlagOffset, profile.DestroyerDefeatedFlagOffset),
+            ReadBossFlag(bossFlags, minimumBossFlagOffset, profile.TwinsDefeatedFlagOffset),
+            ReadBossFlag(bossFlags, minimumBossFlagOffset, profile.SkeletronPrimeDefeatedFlagOffset),
+            ReadBossFlag(bossFlags, minimumBossFlagOffset, profile.PlanteraDefeatedFlagOffset),
+            ReadBossFlag(bossFlags, minimumBossFlagOffset, profile.GolemDefeatedFlagOffset),
+            ReadBossFlag(bossFlags, minimumBossFlagOffset, profile.LunaticCultistDefeatedFlagOffset),
+            ReadBossFlag(bossFlags, minimumBossFlagOffset, profile.MoonLordDefeatedFlagOffset));
     }
 
     public string BuildResolutionStage()
@@ -357,20 +372,50 @@ internal sealed class TerrariaMemoryResolver
         return true;
     }
 
-    private bool? ReadBossFlag(IProcessMemoryReader memory, int offset)
+    private bool TryReadBossFlagBlock(
+        IProcessMemoryReader memory,
+        out byte[] bytes,
+        out int minimumOffset)
     {
+        bytes = null!;
+        minimumOffset = 0;
+
         if (bossFlagsBaseAddress == IntPtr.Zero)
         {
-            return null;
+            return false;
         }
 
-        if (memory.TryReadBool(IntPtr.Add(bossFlagsBaseAddress, offset), out bool value))
+        int[] offsets =
+        [
+            profile.SkeletronDefeatedFlagOffset,
+            profile.DestroyerDefeatedFlagOffset,
+            profile.TwinsDefeatedFlagOffset,
+            profile.SkeletronPrimeDefeatedFlagOffset,
+            profile.PlanteraDefeatedFlagOffset,
+            profile.GolemDefeatedFlagOffset,
+            profile.LunaticCultistDefeatedFlagOffset,
+            profile.MoonLordDefeatedFlagOffset
+        ];
+        minimumOffset = offsets.Min();
+        int maximumOffset = offsets.Max();
+        int length = maximumOffset - minimumOffset + 1;
+
+        if (memory.TryReadBytes(IntPtr.Add(bossFlagsBaseAddress, minimumOffset), length, out byte[]? readBytes))
         {
-            return value;
+            bytes = readBytes;
+            return true;
         }
 
         bossFlagsBaseAddress = IntPtr.Zero;
-        return null;
+        return false;
+    }
+
+    private static bool? ReadBossFlag(byte[] bytes, int minimumOffset, int offset)
+    {
+        int index = offset - minimumOffset;
+        return index >= 0 && index < bytes.Length
+            ? bytes[index] != 0
+            : null;
     }
 
     private bool? ReadHardmodeFlag(IProcessMemoryReader memory)

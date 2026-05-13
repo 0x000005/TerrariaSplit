@@ -10,7 +10,10 @@ internal readonly record struct SignatureScanDiagnostics(
     long ImageExecutableBytesScanned,
     int OversizedPagesSkipped,
     int ReadFailures,
-    IntPtr MatchAddress)
+    IntPtr MatchAddress,
+    double ElapsedMilliseconds)
 {
     public bool MatchFound => MatchAddress != IntPtr.Zero;
+
+    public long TotalExecutableBytesScanned => PrivateExecutableBytesScanned + ImageExecutableBytesScanned;
 }

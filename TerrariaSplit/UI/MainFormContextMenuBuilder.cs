@@ -25,6 +25,16 @@ internal sealed class MainFormContextMenuBuilder
         Action<string> switchSettingsFile)
     {
         var menu = new ToolStripMenuItem(Localizer.Get("Switch config", settings));
+        menu.DropDownOpening += (_, _) => PopulateSettingsFileMenu(menu, settings, switchSettingsFile);
+        return menu;
+    }
+
+    private static void PopulateSettingsFileMenu(
+        ToolStripMenuItem menu,
+        AppSettings settings,
+        Action<string> switchSettingsFile)
+    {
+        menu.DropDownItems.Clear();
         IReadOnlyList<string> files = AppSettingsStore.GetSettingsFiles();
         if (files.Count == 0)
         {
@@ -33,7 +43,7 @@ internal sealed class MainFormContextMenuBuilder
                 Enabled = false
             };
             menu.DropDownItems.Add(empty);
-            return menu;
+            return;
         }
 
         string activePath = Path.GetFullPath(AppSettingsStore.SettingsPath);
@@ -48,7 +58,5 @@ internal sealed class MainFormContextMenuBuilder
             item.Click += (_, _) => switchSettingsFile(filePath);
             menu.DropDownItems.Add(item);
         }
-
-        return menu;
     }
 }

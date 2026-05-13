@@ -6,6 +6,7 @@ var tests = new (string Name, Action Test)[]
 {
     ("SignaturePattern matches wildcard bytes", TestSignaturePatternWildcard),
     ("SplitTimerFormatter formats minute and hour values", TestSplitTimerFormatter),
+    ("Rolling performance counter keeps a bounded window", TestRollingPerformanceCounter),
     ("SplitTimer clamps practice time at zero", TestSplitTimerPracticeClamp),
     ("BossRouteGroups groups enabled entries by segment", TestBossRouteGroups),
     ("TerrariaMenuGeometry maps 900p menu coordinates", TestTerrariaMenuGeometry),
@@ -45,7 +46,23 @@ static void TestSignaturePatternWildcard()
 static void TestSplitTimerFormatter()
 {
     AssertEqual("01:02.34", SplitTimerFormatter.Format(new TimeSpan(0, 0, 1, 2, 340)));
+    AssertEqual("00:00.01", SplitTimerFormatter.Format(TimeSpan.FromMilliseconds(10)));
     AssertEqual("1:02:03.04", SplitTimerFormatter.Format(new TimeSpan(0, 1, 2, 3, 40)));
+}
+
+static void TestRollingPerformanceCounter()
+{
+    var counter = new RollingPerformanceCounter(capacity: 3);
+    counter.Record(1);
+    counter.Record(2);
+    counter.Record(5);
+    counter.Record(8);
+
+    AssertEqual(4, counter.TotalCount);
+    AssertEqual(3, counter.SampleCount);
+    AssertEqual(8d, counter.LastMilliseconds);
+    AssertEqual(5d, counter.AverageMilliseconds);
+    AssertEqual(8d, counter.MaxMilliseconds);
 }
 
 static void TestSplitTimerPracticeClamp()

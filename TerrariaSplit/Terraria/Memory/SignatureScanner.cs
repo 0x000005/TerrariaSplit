@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 namespace TerrariaSplit;
 
 internal static class SignatureScanner
@@ -10,6 +12,7 @@ internal static class SignatureScanner
         string scopeDescription,
         out SignatureScanDiagnostics diagnostics)
     {
+        long startTimestamp = Stopwatch.GetTimestamp();
         int privateExecutablePagesSeen = 0;
         int privateExecutablePagesScanned = 0;
         long privateExecutableBytesScanned = 0;
@@ -95,7 +98,8 @@ internal static class SignatureScanner
             imageExecutableBytesScanned,
             oversizedPagesSkipped,
             readFailures,
-            matchAddress);
+            matchAddress,
+            Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds);
 
         return matchAddress;
     }

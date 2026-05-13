@@ -10,7 +10,6 @@ internal sealed partial class MainForm : Form
 
     private void DrawOverlay(Graphics graphics)
     {
-        UiPalette palette = UiPalette.From(settings.Colors);
         IReadOnlyList<BossSplitStatus> statuses = splitTracker.Statuses;
         if (!TryGetLayout(out SplitLayout layout))
         {
@@ -340,12 +339,35 @@ internal sealed partial class MainForm : Form
 
     private bool TryGetLayout(out SplitLayout layout)
     {
-        return SplitLayoutCalculator.TryCreate(
-            ClientRectangle,
-            splitTracker.Statuses.Count,
-            RowGap,
-            ScaleInt,
-            out layout);
+        Rectangle bounds = ClientRectangle;
+        int statusCount = splitTracker.Statuses.Count;
+        int scalePercent = settings.Columns.ScalePercent;
+        if (hasCachedLayout &&
+            cachedLayoutBounds == bounds &&
+            cachedLayoutStatusCount == statusCount &&
+            cachedLayoutScalePercent == scalePercent)
+        {
+            layout = cachedLayout;
+            return true;
+        }
+
+        if (!SplitLayoutCalculator.TryCreate(
+                bounds,
+                statusCount,
+                RowGap,
+                ScaleInt,
+                out layout))
+        {
+            hasCachedLayout = false;
+            return false;
+        }
+
+        cachedLayout = layout;
+        cachedLayoutBounds = bounds;
+        cachedLayoutStatusCount = statusCount;
+        cachedLayoutScalePercent = scalePercent;
+        hasCachedLayout = true;
+        return true;
     }
 
 
@@ -776,8 +798,6 @@ internal sealed partial class MainForm : Form
         TimeSpan elapsed,
         float opacity)
     {
-        UiPalette palette = UiPalette.From(settings.Colors);
-
         Rectangle iconRect = GetSplitCompletionIconRect(listBounds, centerX);
         int sidePadding = Math.Max(ScaleInt(8), (int)Math.Round(listBounds.Width * 0.03f));
         int top = iconRect.Bottom + Math.Max(ScaleInt(6), (int)Math.Round(listBounds.Height * 0.02f));

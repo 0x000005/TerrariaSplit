@@ -14,27 +14,25 @@ internal sealed class TimerController
 {
     private readonly SplitTimer runTimer;
     private readonly BossSplitTracker splitTracker;
-    private readonly TerrariaWorldWatcher watcher;
     private readonly PendingMenuHotkeyScheduler pendingMenuHotkeys;
     private readonly TimeSpan pendingMenuGraceDuration;
 
     public TimerController(
         SplitTimer runTimer,
         BossSplitTracker splitTracker,
-        TerrariaWorldWatcher watcher,
         PendingMenuHotkeyScheduler pendingMenuHotkeys,
         TimeSpan pendingMenuGraceDuration)
     {
         this.runTimer = runTimer;
         this.splitTracker = splitTracker;
-        this.watcher = watcher;
         this.pendingMenuHotkeys = pendingMenuHotkeys;
         this.pendingMenuGraceDuration = pendingMenuGraceDuration;
     }
 
-    public TimerControllerTickResult Tick(IReadOnlyCollection<TimerHotkeyRequest> hotkeyRequests)
+    public TimerControllerTickResult Tick(
+        TerrariaWatchSnapshot snapshot,
+        IReadOnlyCollection<TimerHotkeyRequest> hotkeyRequests)
     {
-        TerrariaWatchSnapshot snapshot = watcher.Poll();
         bool pauseSoundRequested = false;
         bool toggleMouseClickThroughRequested = false;
         DateTime? createWorldRequestedAtUtc = null;

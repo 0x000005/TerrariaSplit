@@ -24,6 +24,13 @@ internal static class DebugSettingsPage
         Label windowStatusValue = CreateValueLabel();
         Label watcherStatusValue = CreateValueLabel();
 
+        Label controlTickValue = CreateValueLabel();
+        Label watcherPollValue = CreateValueLabel();
+        Label paintValue = CreateValueLabel();
+        Label renderIntervalValue = CreateValueLabel();
+        Label watcherPollIntervalValue = CreateValueLabel();
+        Label processLookupIntervalValue = CreateValueLabel();
+
         Label processIdValue = CreateValueLabel();
         Label processStartTimeValue = CreateValueLabel();
         Label processPathValue = CreateValueLabel();
@@ -68,7 +75,6 @@ internal static class DebugSettingsPage
         Label moonLordValue = CreateValueLabel();
 
         Label supportedVersionValue = CreateValueLabel();
-        Label signatureProfileValue = CreateValueLabel();
         Label scanAttemptsValue = CreateValueLabel();
         Label lastScanValue = CreateValueLabel();
         Label scanPageStatsValue = CreateValueLabel();
@@ -89,6 +95,7 @@ internal static class DebugSettingsPage
         TerrariaWatchSnapshot latestSnapshot = default;
         TerrariaWatcherDiagnostics latestDiagnostics = default;
         TerrariaSaveInventorySnapshot latestInventory = default;
+        RuntimePerformanceDiagnostics latestRuntime = RuntimePerformanceDiagnostics.Empty;
 
         Control page = owner.BuildScrollPage(content =>
         {
@@ -112,6 +119,17 @@ internal static class DebugSettingsPage
             AddValueRow(overviewGrid, owner, "Watcher status", watcherStatusValue);
             AddSectionControl(overviewSection, overviewGrid);
             AddSection(content, overviewSection);
+
+            TableLayoutPanel performanceSection = CreateSection(owner, "Performance");
+            TableLayoutPanel performanceGrid = CreateGrid();
+            AddValueRow(performanceGrid, owner, "Control tick", controlTickValue);
+            AddValueRow(performanceGrid, owner, "Watcher poll", watcherPollValue);
+            AddValueRow(performanceGrid, owner, "Paint", paintValue);
+            AddValueRow(performanceGrid, owner, "Timer render interval", renderIntervalValue);
+            AddValueRow(performanceGrid, owner, "Watcher poll interval", watcherPollIntervalValue);
+            AddValueRow(performanceGrid, owner, "Process lookup interval", processLookupIntervalValue);
+            AddSectionControl(performanceSection, performanceGrid);
+            AddSection(content, performanceSection);
 
             TableLayoutPanel windowSection = CreateSection(owner, "Window & Coordinates");
             TableLayoutPanel windowGrid = CreateGrid();
@@ -172,7 +190,6 @@ internal static class DebugSettingsPage
             TableLayoutPanel memorySection = CreateSection(owner, "Memory & Signatures");
             TableLayoutPanel memoryGrid = CreateGrid();
             AddValueRow(memoryGrid, owner, "Supported version", supportedVersionValue);
-            AddValueRow(memoryGrid, owner, "Signature profile", signatureProfileValue);
             AddValueRow(memoryGrid, owner, "Scan attempts", scanAttemptsValue);
             AddValueRow(memoryGrid, owner, "Last scan", lastScanValue);
             AddValueRow(memoryGrid, owner, "Scan page stats", scanPageStatsValue);
@@ -196,11 +213,13 @@ internal static class DebugSettingsPage
             TerrariaWatchSnapshot snapshot = watcher.Poll();
             TerrariaWatcherDiagnostics diagnostics = watcher.GetDiagnostics();
             TerrariaSaveInventorySnapshot inventory = savePreparation.ReadInventorySnapshot();
+            RuntimePerformanceDiagnostics runtime = owner.GetRuntimeDiagnostics();
             AutoCreateWorldSettings autoCreate = owner.Result.AutoCreate;
             latestWindow = window;
             latestSnapshot = snapshot;
             latestDiagnostics = diagnostics;
             latestInventory = inventory;
+            latestRuntime = runtime;
 
             bool bossFlagsReady = HasAnyBossState(snapshot.BossStates);
 
@@ -216,6 +235,31 @@ internal static class DebugSettingsPage
             SetValue(signatureResultValue, FormatSignatureResult(diagnostics, owner));
             SetValue(windowStatusValue, LocalizeStatus(window.Status, owner));
             SetValue(watcherStatusValue, LocalizeStatus(snapshot.Status, owner));
+
+            SetValue(
+                controlTickValue,
+                FormatTimingSummary(
+                    runtime.ControlTickCount,
+                    runtime.LastControlTickMilliseconds,
+                    runtime.AverageControlTickMilliseconds,
+                    runtime.MaxControlTickMilliseconds));
+            SetValue(
+                watcherPollValue,
+                FormatTimingSummary(
+                    runtime.WatcherPollCount,
+                    runtime.LastWatcherPollMilliseconds,
+                    runtime.AverageWatcherPollMilliseconds,
+                    runtime.MaxWatcherPollMilliseconds));
+            SetValue(
+                paintValue,
+                FormatTimingSummary(
+                    runtime.PaintCount,
+                    runtime.LastPaintMilliseconds,
+                    runtime.AveragePaintMilliseconds,
+                    runtime.MaxPaintMilliseconds));
+            SetValue(renderIntervalValue, FormatMilliseconds(runtime.TimerRenderIntervalMilliseconds, owner));
+            SetValue(watcherPollIntervalValue, FormatMilliseconds(runtime.WatcherPollIntervalMilliseconds, owner));
+            SetValue(processLookupIntervalValue, FormatMilliseconds(runtime.ProcessLookupIntervalMilliseconds, owner));
 
             SetValue(processIdValue, FormatProcessId(window.ProcessId, owner));
             SetValue(processStartTimeValue, FormatDateTime(window.ProcessStartTime, owner));
@@ -271,7 +315,6 @@ internal static class DebugSettingsPage
             SetBossState(moonLordValue, snapshot.BossStates.MoonLord, owner);
 
             SetValue(supportedVersionValue, FormatText(diagnostics.SupportedVersion, owner));
-            SetValue(signatureProfileValue, owner.Localize(diagnostics.SignatureProfile));
             SetValue(scanAttemptsValue, diagnostics.SignatureScanAttempts.ToString(CultureInfo.InvariantCulture));
             SetValue(lastScanValue, FormatTimestamp(diagnostics.LastSignatureScanUtc, owner));
             SetValue(scanPageStatsValue, FormatScanStats(diagnostics.LastSignatureScan, owner));
@@ -291,7 +334,7 @@ internal static class DebugSettingsPage
 
             try
             {
-                Clipboard.SetText(BuildDiagnosticReport(latestWindow, latestSnapshot, latestDiagnostics, latestInventory, owner.Result.AutoCreate, owner));
+                Clipboard.SetText(BuildDiagnosticReport(latestWindow, latestSnapshot, latestDiagnostics, latestInventory, latestRuntime, owner.Result.AutoCreate, owner));
             }
             catch (Exception ex)
             {
@@ -322,6 +365,7 @@ internal static class DebugSettingsPage
         TerrariaWatchSnapshot snapshot,
         TerrariaWatcherDiagnostics diagnostics,
         TerrariaSaveInventorySnapshot inventory,
+        RuntimePerformanceDiagnostics runtime,
         AutoCreateWorldSettings autoCreate,
         SettingsForm owner)
     {
@@ -345,6 +389,31 @@ internal static class DebugSettingsPage
                 ("Signature result", FormatSignatureResult(diagnostics, owner)),
                 ("Window status", LocalizeStatus(window.Status, owner)),
                 ("Watcher status", LocalizeStatus(snapshot.Status, owner))
+            ]);
+
+        AppendReportSection(
+            lines,
+            owner,
+            "Performance",
+            [
+                ("Control tick", FormatTimingSummary(
+                    runtime.ControlTickCount,
+                    runtime.LastControlTickMilliseconds,
+                    runtime.AverageControlTickMilliseconds,
+                    runtime.MaxControlTickMilliseconds)),
+                ("Watcher poll", FormatTimingSummary(
+                    runtime.WatcherPollCount,
+                    runtime.LastWatcherPollMilliseconds,
+                    runtime.AverageWatcherPollMilliseconds,
+                    runtime.MaxWatcherPollMilliseconds)),
+                ("Paint", FormatTimingSummary(
+                    runtime.PaintCount,
+                    runtime.LastPaintMilliseconds,
+                    runtime.AveragePaintMilliseconds,
+                    runtime.MaxPaintMilliseconds)),
+                ("Timer render interval", FormatMilliseconds(runtime.TimerRenderIntervalMilliseconds, owner)),
+                ("Watcher poll interval", FormatMilliseconds(runtime.WatcherPollIntervalMilliseconds, owner)),
+                ("Process lookup interval", FormatMilliseconds(runtime.ProcessLookupIntervalMilliseconds, owner))
             ]);
 
         string menuScale = owner.Localize("Unknown");
@@ -425,7 +494,6 @@ internal static class DebugSettingsPage
             "Memory & Signatures",
             [
                 ("Supported version", FormatText(diagnostics.SupportedVersion, owner)),
-                ("Signature profile", owner.Localize(diagnostics.SignatureProfile)),
                 ("Scan attempts", diagnostics.SignatureScanAttempts.ToString(CultureInfo.InvariantCulture)),
                 ("Last scan", FormatTimestamp(diagnostics.LastSignatureScanUtc, owner)),
                 ("Scan page stats", FormatScanStats(diagnostics.LastSignatureScan, owner)),
@@ -656,6 +724,29 @@ internal static class DebugSettingsPage
             : owner.Localize("Unknown");
     }
 
+    private static string FormatTimingSummary(int count, double lastMilliseconds, double averageMilliseconds, double maxMilliseconds)
+    {
+        return string.Format(
+            CultureInfo.InvariantCulture,
+            "count {0}, last {1}, avg {2}, max {3}",
+            count,
+            FormatMilliseconds(lastMilliseconds),
+            FormatMilliseconds(averageMilliseconds),
+            FormatMilliseconds(maxMilliseconds));
+    }
+
+    private static string FormatMilliseconds(double milliseconds, SettingsForm owner)
+    {
+        return milliseconds >= 0
+            ? FormatMilliseconds(milliseconds)
+            : owner.Localize("Unknown");
+    }
+
+    private static string FormatMilliseconds(double milliseconds)
+    {
+        return milliseconds.ToString("0.###", CultureInfo.InvariantCulture) + " ms";
+    }
+
     private static string FormatBytes(long bytes)
     {
         string[] units = ["B", "KB", "MB", "GB"];
@@ -682,13 +773,15 @@ internal static class DebugSettingsPage
 
         return string.Format(
             CultureInfo.InvariantCulture,
-            owner.Localize("private {0}/{1} scanned, {2} read; image {3}/{4} scanned, {5} read"),
+            owner.Localize("private {0}/{1} scanned, {2} read; image {3}/{4} scanned, {5} read; total {6}; {7}"),
             value.PrivateExecutablePagesScanned,
             value.PrivateExecutablePagesSeen,
             FormatBytes(value.PrivateExecutableBytesScanned),
             value.ImageExecutablePagesScanned,
             value.ImageExecutablePagesSeen,
-            FormatBytes(value.ImageExecutableBytesScanned));
+            FormatBytes(value.ImageExecutableBytesScanned),
+            FormatBytes(value.TotalExecutableBytesScanned),
+            FormatMilliseconds(value.ElapsedMilliseconds));
     }
 
     private static string FormatScanFailures(SignatureScanDiagnostics? diagnostics, SettingsForm owner)
