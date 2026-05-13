@@ -13,4 +13,6 @@ obj/
 .codex-build-check/
 .codex-verify/
 .nuget/
-codex
+codex.codex_tmp_publish_probe/ 
+codex-build-check/
+.codex-build-inspect/
