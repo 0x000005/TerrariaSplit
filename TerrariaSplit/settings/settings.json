@@ -235,13 +235,13 @@
     "TimerOffsetY": 0
   },
   "TextEffects": {
-    "TimeShadowDepthPercent": 0,
+    "TimeShadowPercent": 0,
     "TimeOutlineThicknessPercent": 0,
-    "DeltaShadowDepthPercent": 0,
+    "DeltaShadowPercent": 0,
     "DeltaOutlineThicknessPercent": 0,
-    "TimerShadowDepthPercent": 0,
+    "TimerShadowPercent": 0,
     "TimerOutlineThicknessPercent": 0,
-    "TimerMillisecondsShadowDepthPercent": 0,
+    "TimerMillisecondsShadowPercent": 0,
     "TimerMillisecondsOutlineThicknessPercent": 0
   },
   "AutoCreate": {

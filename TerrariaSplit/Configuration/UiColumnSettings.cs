@@ -10,13 +10,13 @@ internal sealed class UiColumnSettings
 
 internal sealed class UiTextEffectSettings
 {
-    public int TimeShadowDepthPercent { get; set; }
+    public int TimeShadowPercent { get; set; }
     public int TimeOutlineThicknessPercent { get; set; }
-    public int DeltaShadowDepthPercent { get; set; }
+    public int DeltaShadowPercent { get; set; }
     public int DeltaOutlineThicknessPercent { get; set; }
-    public int TimerShadowDepthPercent { get; set; }
+    public int TimerShadowPercent { get; set; }
     public int TimerOutlineThicknessPercent { get; set; }
-    public int TimerMillisecondsShadowDepthPercent { get; set; }
+    public int TimerMillisecondsShadowPercent { get; set; }
     public int TimerMillisecondsOutlineThicknessPercent { get; set; }
 }
 

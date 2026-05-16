@@ -107,13 +107,13 @@ internal static class SettingsNormalizer
 
     private static void NormalizeTextEffects(UiTextEffectSettings effects)
     {
-        effects.TimeShadowDepthPercent = ClampPercent(effects.TimeShadowDepthPercent);
+        effects.TimeShadowPercent = ClampPercent(effects.TimeShadowPercent);
         effects.TimeOutlineThicknessPercent = ClampPercent(effects.TimeOutlineThicknessPercent);
-        effects.DeltaShadowDepthPercent = ClampPercent(effects.DeltaShadowDepthPercent);
+        effects.DeltaShadowPercent = ClampPercent(effects.DeltaShadowPercent);
         effects.DeltaOutlineThicknessPercent = ClampPercent(effects.DeltaOutlineThicknessPercent);
-        effects.TimerShadowDepthPercent = ClampPercent(effects.TimerShadowDepthPercent);
+        effects.TimerShadowPercent = ClampPercent(effects.TimerShadowPercent);
         effects.TimerOutlineThicknessPercent = ClampPercent(effects.TimerOutlineThicknessPercent);
-        effects.TimerMillisecondsShadowDepthPercent = ClampPercent(effects.TimerMillisecondsShadowDepthPercent);
+        effects.TimerMillisecondsShadowPercent = ClampPercent(effects.TimerMillisecondsShadowPercent);
         effects.TimerMillisecondsOutlineThicknessPercent = ClampPercent(effects.TimerMillisecondsOutlineThicknessPercent);
     }
 

@@ -1,6 +1,7 @@
-﻿using System.Drawing;
+using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
+using System.Drawing.Text;
 using System.Windows.Forms;
 
 namespace TerrariaSplit;
@@ -1392,7 +1393,7 @@ internal sealed partial class MainForm : Form
             palette.SplitText,
             palette.SplitTextOutline,
             palette.SplitTextShadow,
-            settings.TextEffects.TimeShadowDepthPercent,
+            settings.TextEffects.TimeShadowPercent,
             settings.TextEffects.TimeOutlineThicknessPercent);
     }
 
@@ -1418,7 +1419,7 @@ internal sealed partial class MainForm : Form
             fill,
             outline,
             shadow,
-            settings.TextEffects.TimeShadowDepthPercent,
+            settings.TextEffects.TimeShadowPercent,
             settings.TextEffects.TimeOutlineThicknessPercent);
     }
 
@@ -1429,7 +1430,7 @@ internal sealed partial class MainForm : Form
             fill,
             outline,
             shadow,
-            settings.TextEffects.DeltaShadowDepthPercent,
+            settings.TextEffects.DeltaShadowPercent,
             settings.TextEffects.DeltaOutlineThicknessPercent);
     }
 
@@ -1441,8 +1442,8 @@ internal sealed partial class MainForm : Form
             outline,
             shadow,
             milliseconds
-                ? settings.TextEffects.TimerMillisecondsShadowDepthPercent
-                : settings.TextEffects.TimerShadowDepthPercent,
+                ? settings.TextEffects.TimerMillisecondsShadowPercent
+                : settings.TextEffects.TimerShadowPercent,
             milliseconds
                 ? settings.TextEffects.TimerMillisecondsOutlineThicknessPercent
                 : settings.TextEffects.TimerOutlineThicknessPercent);
@@ -1511,8 +1512,17 @@ internal sealed partial class MainForm : Form
                 font,
                 new RectangleF(bounds.X, bounds.Y, bounds.Width, bounds.Height),
                 format);
-            DrawTextEffects(graphics, path, font, style, opacity);
-            FillTextPath(graphics, path, style.Fill, opacity);
+            DrawSupersampledTextLayer(
+                graphics,
+                path,
+                font,
+                style,
+                opacity,
+                targetGraphics =>
+                {
+                    using var fillBrush = new SolidBrush(WithOpacity(style.Fill, opacity));
+                    targetGraphics.DrawString(text, font, fillBrush, bounds, format);
+                });
             return;
         }
 
@@ -1539,8 +1549,17 @@ internal sealed partial class MainForm : Form
         if (HasTextEffects(style))
         {
             using GraphicsPath path = CreateTextPath(graphics, text, font, x, y, format);
-            DrawTextEffects(graphics, path, font, style, opacity);
-            FillTextPath(graphics, path, style.Fill, opacity);
+            DrawSupersampledTextLayer(
+                graphics,
+                path,
+                font,
+                style,
+                opacity,
+                targetGraphics =>
+                {
+                    using var fillBrush = new SolidBrush(WithOpacity(style.Fill, opacity));
+                    targetGraphics.DrawString(text, font, fillBrush, x, y, format);
+                });
             return;
         }
 
@@ -1551,7 +1570,114 @@ internal sealed partial class MainForm : Form
 
     private static bool HasTextEffects(TextRenderStyle style)
     {
-        return style.ShadowDepthPercent > 0 || style.OutlineThicknessPercent > 0;
+        return style.ShadowPercent > 0 || style.OutlineThicknessPercent > 0;
+    }
+
+
+    private static void DrawSupersampledTextLayer(
+        Graphics graphics,
+        GraphicsPath path,
+        Font font,
+        TextRenderStyle style,
+        float opacity,
+        Action<Graphics> drawFill)
+    {
+        if (path.PointCount == 0)
+        {
+            return;
+        }
+
+        RectangleF layerBounds = GetTextEffectLayerBounds(graphics, path, font, style);
+        if (layerBounds.Width <= 0f || layerBounds.Height <= 0f)
+        {
+            return;
+        }
+
+        int scale = TextEffectSupersampleScale;
+        int layerWidth = (int)Math.Ceiling(layerBounds.Width * scale);
+        int layerHeight = (int)Math.Ceiling(layerBounds.Height * scale);
+        if (layerWidth <= 0 || layerHeight <= 0 || layerWidth > 4096 || layerHeight > 4096)
+        {
+            DrawTextEffects(graphics, path, font, style, opacity);
+            drawFill(graphics);
+            return;
+        }
+
+        using var layer = new Bitmap(layerWidth, layerHeight, PixelFormat.Format32bppPArgb);
+        using (Graphics layerGraphics = Graphics.FromImage(layer))
+        {
+            layerGraphics.Clear(Color.Transparent);
+            layerGraphics.SmoothingMode = SmoothingMode.AntiAlias;
+            layerGraphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+            layerGraphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
+            layerGraphics.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
+            layerGraphics.CompositingMode = CompositingMode.SourceOver;
+            layerGraphics.CompositingQuality = CompositingQuality.HighQuality;
+            using var transform = new Matrix(
+                scale,
+                0f,
+                0f,
+                scale,
+                -layerBounds.X * scale,
+                -layerBounds.Y * scale);
+            layerGraphics.Transform = transform;
+
+            DrawTextEffects(layerGraphics, path, font, style, opacity);
+            drawFill(layerGraphics);
+        }
+
+        GraphicsState state = graphics.Save();
+        try
+        {
+            graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+            graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
+            graphics.CompositingMode = CompositingMode.SourceOver;
+            graphics.CompositingQuality = CompositingQuality.HighQuality;
+            graphics.DrawImage(
+                layer,
+                new RectangleF(
+                    layerBounds.X,
+                    layerBounds.Y,
+                    layerWidth / (float)scale,
+                    layerHeight / (float)scale));
+        }
+        finally
+        {
+            graphics.Restore(state);
+        }
+    }
+
+
+    private static RectangleF GetTextEffectLayerBounds(
+        Graphics graphics,
+        GraphicsPath path,
+        Font font,
+        TextRenderStyle style)
+    {
+        RectangleF bounds = path.GetBounds();
+        float shadowOffset = GetTextShadowOpacity(style.ShadowPercent) > 0f
+            ? GetTextShadowOffset(graphics, font)
+            : 0f;
+        if (shadowOffset > 0f)
+        {
+            bounds = RectangleF.Union(
+                bounds,
+                new RectangleF(
+                    bounds.X + shadowOffset,
+                    bounds.Y + shadowOffset,
+                    bounds.Width,
+                    bounds.Height));
+        }
+
+        float outlineRadius = style.OutlineThicknessPercent > 0
+            ? GetTextOutlineRadius(graphics, font, style.OutlineThicknessPercent)
+            : 0f;
+        float padding = MathF.Ceiling(Math.Max(outlineRadius, shadowOffset) + 3f);
+        return RectangleF.FromLTRB(
+            MathF.Floor(bounds.Left - padding),
+            MathF.Floor(bounds.Top - padding),
+            MathF.Ceiling(bounds.Right + padding),
+            MathF.Ceiling(bounds.Bottom + padding));
     }
 
 
@@ -1567,7 +1693,7 @@ internal sealed partial class MainForm : Form
             return;
         }
 
-        float shadowOpacity = GetTextShadowOpacity(style.ShadowDepthPercent);
+        float shadowOpacity = GetTextShadowOpacity(style.ShadowPercent);
         if (shadowOpacity > 0f)
         {
             using GraphicsPath shadowPath = (GraphicsPath)path.Clone();
@@ -1588,18 +1714,6 @@ internal sealed partial class MainForm : Form
             using var outlineBrush = new SolidBrush(WithOpacity(style.Outline, opacity));
             graphics.FillPath(outlineBrush, outlinePath);
         }
-    }
-
-
-    private static void FillTextPath(Graphics graphics, GraphicsPath path, Color color, float opacity)
-    {
-        if (path.PointCount == 0)
-        {
-            return;
-        }
-
-        using var textBrush = new SolidBrush(WithOpacity(color, opacity));
-        graphics.FillPath(textBrush, path);
     }
 
 

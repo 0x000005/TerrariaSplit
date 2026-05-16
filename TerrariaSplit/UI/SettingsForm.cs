@@ -1,4 +1,4 @@
-﻿using System.Drawing;
+using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Globalization;
 using System.Windows.Forms;
@@ -95,13 +95,13 @@ internal sealed partial class SettingsForm : Form
     private readonly TextBox globalScaleBox = new();
     private readonly TextBox timerOffsetXBox = new();
     private readonly TextBox timerOffsetYBox = new();
-    private readonly TextBox timeShadowDepthBox = new();
+    private readonly TextBox timeShadowBox = new();
     private readonly TextBox timeOutlineThicknessBox = new();
-    private readonly TextBox deltaShadowDepthBox = new();
+    private readonly TextBox deltaShadowBox = new();
     private readonly TextBox deltaOutlineThicknessBox = new();
-    private readonly TextBox timerShadowDepthBox = new();
+    private readonly TextBox timerShadowBox = new();
     private readonly TextBox timerOutlineThicknessBox = new();
-    private readonly TextBox timerMillisecondsShadowDepthBox = new();
+    private readonly TextBox timerMillisecondsShadowBox = new();
     private readonly TextBox timerMillisecondsOutlineThicknessBox = new();
     private Button? addReferenceSetButton;
 
@@ -1256,13 +1256,13 @@ internal sealed partial class SettingsForm : Form
         targetSettings.Columns.TimerOffsetX = ParseIntBox(timerOffsetXBox, 0, -2000, 2000);
         targetSettings.Columns.TimerOffsetY = ParseIntBox(timerOffsetYBox, 0, -2000, 2000);
         targetSettings.TextEffects ??= new UiTextEffectSettings();
-        targetSettings.TextEffects.TimeShadowDepthPercent = ParseIntBox(timeShadowDepthBox, 0, 0, 100);
+        targetSettings.TextEffects.TimeShadowPercent = ParseIntBox(timeShadowBox, 0, 0, 100);
         targetSettings.TextEffects.TimeOutlineThicknessPercent = ParseIntBox(timeOutlineThicknessBox, 0, 0, 100);
-        targetSettings.TextEffects.DeltaShadowDepthPercent = ParseIntBox(deltaShadowDepthBox, 0, 0, 100);
+        targetSettings.TextEffects.DeltaShadowPercent = ParseIntBox(deltaShadowBox, 0, 0, 100);
         targetSettings.TextEffects.DeltaOutlineThicknessPercent = ParseIntBox(deltaOutlineThicknessBox, 0, 0, 100);
-        targetSettings.TextEffects.TimerShadowDepthPercent = ParseIntBox(timerShadowDepthBox, 0, 0, 100);
+        targetSettings.TextEffects.TimerShadowPercent = ParseIntBox(timerShadowBox, 0, 0, 100);
         targetSettings.TextEffects.TimerOutlineThicknessPercent = ParseIntBox(timerOutlineThicknessBox, 0, 0, 100);
-        targetSettings.TextEffects.TimerMillisecondsShadowDepthPercent = ParseIntBox(timerMillisecondsShadowDepthBox, 0, 0, 100);
+        targetSettings.TextEffects.TimerMillisecondsShadowPercent = ParseIntBox(timerMillisecondsShadowBox, 0, 0, 100);
         targetSettings.TextEffects.TimerMillisecondsOutlineThicknessPercent = ParseIntBox(timerMillisecondsOutlineThicknessBox, 0, 0, 100);
     }
 

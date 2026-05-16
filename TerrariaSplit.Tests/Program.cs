@@ -23,6 +23,9 @@ var tests = new (string Name, Action Test)[]
     ("Settings form applies text effects from UI page", TestSettingsFormAppliesTextEffectsFromUiPage),
     ("Settings form locks reference controls when PB reference is enabled", TestSettingsFormLocksReferenceControlsForPersonalBestReference),
     ("Settings form applies text outline and shadow colors", TestSettingsFormAppliesTextOutlineAndShadowColors),
+    ("Main form preserves size when applying non-layout settings", TestMainFormPreservesSizeWhenApplyingNonLayoutSettings),
+    ("Main form scales size when global scale changes", TestMainFormScalesSizeWhenGlobalScaleChanges),
+    ("Main form adjusts width when split columns change", TestMainFormAdjustsWidthWhenSplitColumnsChange),
     ("Settings form applies current delta gradient option", TestSettingsFormAppliesCurrentDeltaGradientOption),
     ("Settings form applies advanced UI scale patch option", TestSettingsFormAppliesAdvancedUiScalePatchOption),
     ("Settings form keeps uncreated animation fields unchanged", TestSettingsFormKeepsUncreatedAnimationFieldsUnchanged),
@@ -149,30 +152,30 @@ static void TestSettingsNormalizeTextEffects()
     {
         TextEffects = new UiTextEffectSettings
         {
-            TimeShadowDepthPercent = -1,
+            TimeShadowPercent = -1,
             TimeOutlineThicknessPercent = 101,
-            DeltaShadowDepthPercent = -99,
+            DeltaShadowPercent = -99,
             DeltaOutlineThicknessPercent = 900,
-            TimerShadowDepthPercent = -1,
+            TimerShadowPercent = -1,
             TimerOutlineThicknessPercent = 101,
-            TimerMillisecondsShadowDepthPercent = 42,
+            TimerMillisecondsShadowPercent = 42,
             TimerMillisecondsOutlineThicknessPercent = 77
         }
     };
 
     SettingsNormalizer.Normalize(settings);
-    AssertEqual(0, settings.TextEffects.TimeShadowDepthPercent);
+    AssertEqual(0, settings.TextEffects.TimeShadowPercent);
     AssertEqual(100, settings.TextEffects.TimeOutlineThicknessPercent);
-    AssertEqual(0, settings.TextEffects.DeltaShadowDepthPercent);
+    AssertEqual(0, settings.TextEffects.DeltaShadowPercent);
     AssertEqual(100, settings.TextEffects.DeltaOutlineThicknessPercent);
-    AssertEqual(0, settings.TextEffects.TimerShadowDepthPercent);
+    AssertEqual(0, settings.TextEffects.TimerShadowPercent);
     AssertEqual(100, settings.TextEffects.TimerOutlineThicknessPercent);
-    AssertEqual(42, settings.TextEffects.TimerMillisecondsShadowDepthPercent);
+    AssertEqual(42, settings.TextEffects.TimerMillisecondsShadowPercent);
     AssertEqual(77, settings.TextEffects.TimerMillisecondsOutlineThicknessPercent);
 
     settings.TextEffects = null!;
     SettingsNormalizer.Normalize(settings);
-    AssertEqual(0, settings.TextEffects.TimerShadowDepthPercent);
+    AssertEqual(0, settings.TextEffects.TimerShadowPercent);
 }
 
 static void TestHotkeyValidatorRejectsReservedKeys()
@@ -297,24 +300,24 @@ static void TestSettingsFormAppliesTextEffectsFromUiPage()
     {
         using var form = new SettingsForm(new AppSettings());
         InvokePrivate(form, "EnsurePageCreated", 3);
-        GetPrivateField<TextBox>(form, "timeShadowDepthBox").Text = "25";
+        GetPrivateField<TextBox>(form, "timeShadowBox").Text = "25";
         GetPrivateField<TextBox>(form, "timeOutlineThicknessBox").Text = "30";
-        GetPrivateField<TextBox>(form, "deltaShadowDepthBox").Text = "35";
+        GetPrivateField<TextBox>(form, "deltaShadowBox").Text = "35";
         GetPrivateField<TextBox>(form, "deltaOutlineThicknessBox").Text = "40";
-        GetPrivateField<TextBox>(form, "timerShadowDepthBox").Text = "25";
+        GetPrivateField<TextBox>(form, "timerShadowBox").Text = "25";
         GetPrivateField<TextBox>(form, "timerOutlineThicknessBox").Text = "30";
-        GetPrivateField<TextBox>(form, "timerMillisecondsShadowDepthBox").Text = "45";
+        GetPrivateField<TextBox>(form, "timerMillisecondsShadowBox").Text = "45";
         GetPrivateField<TextBox>(form, "timerMillisecondsOutlineThicknessBox").Text = "50";
 
         InvokePrivate(form, "ApplyToSettings");
 
-        AssertEqual(25, form.Result.TextEffects.TimeShadowDepthPercent);
+        AssertEqual(25, form.Result.TextEffects.TimeShadowPercent);
         AssertEqual(30, form.Result.TextEffects.TimeOutlineThicknessPercent);
-        AssertEqual(35, form.Result.TextEffects.DeltaShadowDepthPercent);
+        AssertEqual(35, form.Result.TextEffects.DeltaShadowPercent);
         AssertEqual(40, form.Result.TextEffects.DeltaOutlineThicknessPercent);
-        AssertEqual(25, form.Result.TextEffects.TimerShadowDepthPercent);
+        AssertEqual(25, form.Result.TextEffects.TimerShadowPercent);
         AssertEqual(30, form.Result.TextEffects.TimerOutlineThicknessPercent);
-        AssertEqual(45, form.Result.TextEffects.TimerMillisecondsShadowDepthPercent);
+        AssertEqual(45, form.Result.TextEffects.TimerMillisecondsShadowPercent);
         AssertEqual(50, form.Result.TextEffects.TimerMillisecondsOutlineThicknessPercent);
     });
 }
@@ -365,6 +368,73 @@ static void TestSettingsFormAppliesTextOutlineAndShadowColors()
         AssertEqual("#AABBCC", form.Result.Colors.TimerPausedTextShadow);
         AssertEqual("#DDEEFF", form.Result.Colors.SplitCompletionLabelText);
         AssertEqual("#FEDCBA", form.Result.Colors.SplitCompletionTimeText);
+    });
+}
+
+static void TestMainFormPreservesSizeWhenApplyingNonLayoutSettings()
+{
+    RunSta(() =>
+    {
+        using var form = new MainForm();
+        var previousSettings = new AppSettings();
+        SetMainFormSettings(form, previousSettings);
+        InvokePrivate(form, "ApplyLoadedSettings", (object?)null);
+        form.Size = new Size(1000, 900);
+
+        var settings = AppSettingsStore.Clone(previousSettings);
+        settings.Colors.TimerText = "#123456";
+        SetMainFormSettings(form, settings);
+
+        InvokePrivate(form, "ApplyLoadedSettings", previousSettings);
+
+        AssertEqual(new Size(1000, 900), form.Size);
+    });
+}
+
+static void TestMainFormScalesSizeWhenGlobalScaleChanges()
+{
+    RunSta(() =>
+    {
+        using var form = new MainForm();
+        var previousSettings = new AppSettings();
+        previousSettings.Columns.ScalePercent = 100;
+        SetMainFormSettings(form, previousSettings);
+        InvokePrivate(form, "ApplyLoadedSettings", (object?)null);
+        form.Size = new Size(600, 500);
+        Size previousSize = form.Size;
+
+        var settings = AppSettingsStore.Clone(previousSettings);
+        settings.Columns.ScalePercent = 150;
+        SetMainFormSettings(form, settings);
+
+        InvokePrivate(form, "ApplyLoadedSettings", previousSettings);
+
+        AssertEqual(
+            new Size(
+                (int)Math.Round(previousSize.Width * 1.5f, MidpointRounding.AwayFromZero),
+                (int)Math.Round(previousSize.Height * 1.5f, MidpointRounding.AwayFromZero)),
+            form.Size);
+    });
+}
+
+static void TestMainFormAdjustsWidthWhenSplitColumnsChange()
+{
+    RunSta(() =>
+    {
+        using var form = new MainForm();
+        var previousSettings = new AppSettings();
+        previousSettings.Columns.ScalePercent = 100;
+        SetMainFormSettings(form, previousSettings);
+        InvokePrivate(form, "ApplyLoadedSettings", (object?)null);
+
+        form.Size = new Size(600, 500);
+        var settings = AppSettingsStore.Clone(previousSettings);
+        settings.Columns.Time.Width += 100;
+        SetMainFormSettings(form, settings);
+
+        InvokePrivate(form, "ApplyLoadedSettings", previousSettings);
+
+        AssertEqual(new Size(700, 500), form.Size);
     });
 }
 
@@ -543,6 +613,13 @@ static T GetPrivateField<T>(object target, string name)
     FieldInfo field = target.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)
         ?? throw new InvalidOperationException($"Missing private field {name}.");
     return (T)(field.GetValue(target) ?? throw new InvalidOperationException($"Private field {name} is null."));
+}
+
+static void SetMainFormSettings(MainForm form, AppSettings settings)
+{
+    FieldInfo field = typeof(MainForm).GetField("settings", BindingFlags.Instance | BindingFlags.NonPublic)
+        ?? throw new InvalidOperationException("Missing MainForm settings field.");
+    field.SetValue(form, AppSettingsStore.Clone(settings));
 }
 
 static object? InvokePrivate(object target, string name, params object?[] args)

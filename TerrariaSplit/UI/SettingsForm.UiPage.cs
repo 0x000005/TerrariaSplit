@@ -1,4 +1,4 @@
-﻿using System.Drawing;
+using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Globalization;
 using System.Windows.Forms;
@@ -29,8 +29,8 @@ internal sealed partial class SettingsForm : Form
             "Time",
             "Time",
             settings.Columns.Time,
-            timeShadowDepthBox,
-            settings.TextEffects.TimeShadowDepthPercent,
+            timeShadowBox,
+            settings.TextEffects.TimeShadowPercent,
             timeOutlineThicknessBox,
             settings.TextEffects.TimeOutlineThicknessPercent);
         AddColumnSettingsRow(
@@ -38,8 +38,8 @@ internal sealed partial class SettingsForm : Form
             "Delta",
             "Delta",
             settings.Columns.Delta,
-            deltaShadowDepthBox,
-            settings.TextEffects.DeltaShadowDepthPercent,
+            deltaShadowBox,
+            settings.TextEffects.DeltaShadowPercent,
             deltaOutlineThicknessBox,
             settings.TextEffects.DeltaOutlineThicknessPercent);
 
@@ -59,8 +59,8 @@ internal sealed partial class SettingsForm : Form
         string label,
         string key,
         UiColumnSettings value,
-        TextBox? shadowDepthBox = null,
-        int shadowDepthPercent = 0,
+        TextBox? shadowBox = null,
+        int shadowPercent = 0,
         TextBox? outlineThicknessBox = null,
         int outlineThicknessPercent = 0,
         bool showBold = true)
@@ -76,7 +76,7 @@ internal sealed partial class SettingsForm : Form
 
         TextBox widthBox = CreateNumberBox(value.Width, 1, 1000);
         TextBox fontBox = CreateDecimalBox(value.FontSize, 6, 96);
-        Control shadowDepthControl = CreateEffectCell(shadowDepthBox, shadowDepthPercent);
+        Control shadowControl = CreateEffectCell(shadowBox, shadowPercent);
         Control outlineThicknessControl = CreateEffectCell(outlineThicknessBox, outlineThicknessPercent);
 
         CheckBox? boldBox = null;
@@ -102,7 +102,7 @@ internal sealed partial class SettingsForm : Form
         grid.Controls.Add(CreateCenteredCell(widthBox, 86), 2, row);
         grid.Controls.Add(CreateCenteredCell(fontBox, 92), 3, row);
         grid.Controls.Add(boldControl, 4, row);
-        grid.Controls.Add(shadowDepthControl, 5, row);
+        grid.Controls.Add(shadowControl, 5, row);
         grid.Controls.Add(outlineThicknessControl, 6, row);
     }
 
@@ -124,8 +124,8 @@ internal sealed partial class SettingsForm : Form
             "Before decimal",
             "Timer",
             settings.Columns.Timer,
-            timerShadowDepthBox,
-            settings.TextEffects.TimerShadowDepthPercent,
+            timerShadowBox,
+            settings.TextEffects.TimerShadowPercent,
             timerOutlineThicknessBox,
             settings.TextEffects.TimerOutlineThicknessPercent);
         AddFontSettingsRow(
@@ -133,8 +133,8 @@ internal sealed partial class SettingsForm : Form
             "After decimal",
             "TimerMilliseconds",
             settings.Columns.TimerMilliseconds,
-            timerMillisecondsShadowDepthBox,
-            settings.TextEffects.TimerMillisecondsShadowDepthPercent,
+            timerMillisecondsShadowBox,
+            settings.TextEffects.TimerMillisecondsShadowPercent,
             timerMillisecondsOutlineThicknessBox,
             settings.TextEffects.TimerMillisecondsOutlineThicknessPercent);
 
@@ -187,8 +187,8 @@ internal sealed partial class SettingsForm : Form
         string label,
         string key,
         UiColumnSettings value,
-        TextBox shadowDepthBox,
-        int shadowDepthPercent,
+        TextBox shadowBox,
+        int shadowPercent,
         TextBox outlineThicknessBox,
         int outlineThicknessPercent)
     {
@@ -202,7 +202,7 @@ internal sealed partial class SettingsForm : Form
         UiTheme.StyleCheckBox(showBox);
 
         TextBox fontBox = CreateDecimalBox(value.FontSize, 6, 96);
-        Control shadowDepthControl = CreateEffectCell(shadowDepthBox, shadowDepthPercent);
+        Control shadowControl = CreateEffectCell(shadowBox, shadowPercent);
         Control outlineThicknessControl = CreateEffectCell(outlineThicknessBox, outlineThicknessPercent);
         var boldBox = new CheckBox
         {
@@ -219,7 +219,7 @@ internal sealed partial class SettingsForm : Form
         grid.Controls.Add(CreateCenteredCell(showBox, 28), 1, row);
         grid.Controls.Add(CreateCenteredCell(fontBox, 92), 2, row);
         grid.Controls.Add(CreateCenteredCell(boldBox, 28), 3, row);
-        grid.Controls.Add(shadowDepthControl, 4, row);
+        grid.Controls.Add(shadowControl, 4, row);
         grid.Controls.Add(outlineThicknessControl, 5, row);
     }
 }

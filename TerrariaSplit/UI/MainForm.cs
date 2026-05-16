@@ -1,6 +1,7 @@
-﻿using System.Drawing;
+using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
+using System.Drawing.Text;
 using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices;
@@ -10,7 +11,6 @@ namespace TerrariaSplit;
 
 internal sealed partial class MainForm : Form
 {
-    private static readonly Color DefaultCaptureBackgroundColor = Color.FromArgb(1, 2, 3);
     private static readonly TimeSpan SplitCompletionFadeDuration = TimeSpan.FromSeconds(0.45);
     private static readonly TimeSpan ResetMenuGraceDuration = TimeSpan.FromSeconds(0.5);
     private static readonly TimeSpan CreateWorldHotkeyPendingDuration = TimeSpan.FromSeconds(0.5);
@@ -24,6 +24,14 @@ internal sealed partial class MainForm : Form
     private static readonly TimeSpan UiScalePatchRetryInterval = TimeSpan.FromSeconds(2);
     private const int ResizeBorder = 8;
     private const int RowGap = 9;
+    private const int WsExTransparent = 0x20;
+    private const int WsExLayered = 0x80000;
+    private const byte AcSrcOver = 0x00;
+    private const byte AcSrcAlpha = 0x01;
+    private const int UlwAlpha = 0x00000002;
+    private const uint BiRgb = 0;
+    private const uint DibRgbColors = 0;
+    private const int TextEffectSupersampleScale = 3;
     private const float SplitCompletionLabelFontRatio = 0.58f;
     private const float SplitCompletionDeltaFontRatio = 0.85f;
     private const float SplitCompletionDeltaOutroLeadRatio = 0.55f;
@@ -65,6 +73,8 @@ internal sealed partial class MainForm : Form
     private bool watcherPollInFlight;
     private bool uiScalePatchInFlight;
     private bool closing;
+    private bool layeredRenderPending;
+    private bool layeredRenderInProgress;
     private string currentWindowText = string.Empty;
     private bool hasCachedLayout;
     private SplitLayout cachedLayout;
@@ -95,13 +105,10 @@ internal sealed partial class MainForm : Form
         FormBorderStyle = FormBorderStyle.None;
         ShowInTaskbar = true;
         StartPosition = FormStartPosition.CenterScreen;
-        MinimumSize = SplitLayoutCalculator.GetMinimumWindowSize(settings);
-        Size = new Size(
-            SplitLayoutCalculator.GetDefaultWindowWidth(settings),
-            SplitLayoutCalculator.GetDefaultWindowHeight(settings));
+        ApplyLayoutBounds(useDefaultSize: true);
         DoubleBuffered = true;
         ResizeRedraw = true;
-        ApplyCaptureBackgroundColor();
+        ApplyLayeredOverlayWindowStyle();
         Padding = Padding.Empty;
 
         UpdateContextMenu();
@@ -126,13 +133,56 @@ internal sealed partial class MainForm : Form
         performance.ProcessLookupInterval = WatcherProcessLookupInterval;
     }
 
+    protected override CreateParams CreateParams
+    {
+        get
+        {
+            CreateParams parameters = base.CreateParams;
+            parameters.ExStyle |= WsExLayered;
+            if (mouseClickThrough)
+            {
+                parameters.ExStyle |= WsExTransparent;
+            }
+
+            return parameters;
+        }
+    }
+
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
+        UpdateMouseClickThroughStyle();
         if (!settingsFormOpen)
         {
             RegisterConfiguredHotkeys();
         }
+
+        Invalidate();
+        QueueLayeredOverlayRender();
+    }
+
+    protected override void OnShown(EventArgs e)
+    {
+        base.OnShown(e);
+        QueueLayeredOverlayRender();
+    }
+
+    protected override void OnInvalidated(InvalidateEventArgs e)
+    {
+        base.OnInvalidated(e);
+        QueueLayeredOverlayRender();
+    }
+
+    protected override void OnResize(EventArgs e)
+    {
+        base.OnResize(e);
+        QueueLayeredOverlayRender();
+    }
+
+    protected override void OnMove(EventArgs e)
+    {
+        base.OnMove(e);
+        QueueLayeredOverlayRender();
     }
 
     private void UpdateContextMenu()
@@ -270,28 +320,11 @@ internal sealed partial class MainForm : Form
 
     protected override void OnPaintBackground(PaintEventArgs e)
     {
-        e.Graphics.Clear(GetCaptureBackgroundColor());
     }
 
     protected override void OnPaint(PaintEventArgs e)
     {
-        long startTimestamp = Stopwatch.GetTimestamp();
-        base.OnPaint(e);
-
-        try
-        {
-            Graphics graphics = e.Graphics;
-            graphics.SmoothingMode = SmoothingMode.AntiAlias;
-            graphics.InterpolationMode = InterpolationMode.NearestNeighbor;
-            graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
-            graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.SingleBitPerPixelGridFit;
-
-            DrawOverlay(graphics);
-        }
-        finally
-        {
-            performance.RecordPaint(Stopwatch.GetElapsedTime(startTimestamp));
-        }
+        QueueLayeredOverlayRender();
     }
 
     protected override void WndProc(ref Message m)
@@ -856,9 +889,10 @@ internal sealed partial class MainForm : Form
 
     private void ApplySettings(AppSettings appliedSettings)
     {
+        AppSettings previousSettings = AppSettingsStore.Clone(settings);
         settings = AppSettingsStore.Clone(appliedSettings);
         AppSettingsStore.Save(settings);
-        ApplyLoadedSettings();
+        ApplyLoadedSettings(previousSettings);
     }
 
     private void SwitchSettingsFile(string path)
@@ -871,11 +905,12 @@ internal sealed partial class MainForm : Form
             return;
         }
 
+        AppSettings previousSettings = AppSettingsStore.Clone(settings);
         settings = AppSettingsStore.Load(path);
-        ApplyLoadedSettings();
+        ApplyLoadedSettings(previousSettings);
     }
 
-    private void ApplyLoadedSettings()
+    private void ApplyLoadedSettings(AppSettings? previousSettings = null)
     {
         palette = UiPalette.From(settings.Colors);
         splitTracker.SetDefinitions(BossSplitDefinitions.Build(settings));
@@ -887,13 +922,65 @@ internal sealed partial class MainForm : Form
             RegisterConfiguredHotkeys();
         }
 
-        ApplyCaptureBackgroundColor();
-        MinimumSize = SplitLayoutCalculator.GetMinimumWindowSize(settings);
-        Width = Math.Max(MinimumSize.Width, SplitLayoutCalculator.GetDefaultWindowWidth(settings));
-        Height = Math.Max(MinimumSize.Height, SplitLayoutCalculator.GetDefaultWindowHeight(settings));
+        ApplyLayeredOverlayWindowStyle();
+        ApplyLayoutBounds(useDefaultSize: false, previousSettings);
         UpdateContextMenu();
         ClearIconCache();
         Invalidate();
+    }
+
+    private void ApplyLayoutBounds(bool useDefaultSize, AppSettings? previousSettings = null)
+    {
+        Size minimumSize = SplitLayoutCalculator.GetMinimumWindowSize(settings);
+        if (useDefaultSize)
+        {
+            MinimumSize = minimumSize;
+            Size = new Size(
+                Math.Max(minimumSize.Width, SplitLayoutCalculator.GetDefaultWindowWidth(settings)),
+                Math.Max(minimumSize.Height, SplitLayoutCalculator.GetDefaultWindowHeight(settings)));
+            return;
+        }
+
+        Size targetSize = GetRuntimeLayoutSize(previousSettings);
+        MinimumSize = minimumSize;
+        int width = Math.Max(targetSize.Width, minimumSize.Width);
+        int height = Math.Max(targetSize.Height, minimumSize.Height);
+        if (width != Width || height != Height)
+        {
+            Size = new Size(width, height);
+        }
+    }
+
+    private Size GetRuntimeLayoutSize(AppSettings? previousSettings)
+    {
+        if (previousSettings is null)
+        {
+            return Size;
+        }
+
+        int oldScale = Math.Clamp(previousSettings.Columns.ScalePercent, 25, 300);
+        int newScale = Math.Clamp(settings.Columns.ScalePercent, 25, 300);
+        float ratio = newScale / (float)oldScale;
+        int width = Width;
+        int height = Height;
+        if (oldScale != newScale)
+        {
+            width = ScaleRuntimeDimension(width, ratio);
+            height = ScaleRuntimeDimension(height, ratio);
+        }
+
+        int scaledPreviousDefaultWidth = ScaleRuntimeDimension(
+            SplitLayoutCalculator.GetDefaultWindowWidth(previousSettings),
+            ratio);
+        int currentDefaultWidth = SplitLayoutCalculator.GetDefaultWindowWidth(settings);
+        width += currentDefaultWidth - scaledPreviousDefaultWidth;
+
+        return new Size(Math.Max(1, width), Math.Max(1, height));
+    }
+
+    private static int ScaleRuntimeDimension(int value, float ratio)
+    {
+        return Math.Max(1, (int)Math.Round(value * ratio, MidpointRounding.AwayFromZero));
     }
 
     private void ResetTerrariaUiScalePatchState()
@@ -903,16 +990,12 @@ internal sealed partial class MainForm : Form
         lastUiScalePatchLogKey = null;
     }
 
-    private void ApplyCaptureBackgroundColor()
+    private void ApplyLayeredOverlayWindowStyle()
     {
-        Color colorKey = GetCaptureBackgroundColor();
-        BackColor = colorKey;
-        TransparencyKey = colorKey;
-    }
-
-    private Color GetCaptureBackgroundColor()
-    {
-        return DefaultCaptureBackgroundColor;
+        BackColor = Color.Black;
+        TransparencyKey = Color.Empty;
+        UpdateMouseClickThroughStyle();
+        QueueLayeredOverlayRender();
     }
 
     private void OpenStatistics()
@@ -1105,21 +1188,241 @@ internal sealed partial class MainForm : Form
     private void UpdateMouseClickThroughStyle()
     {
         const int gwlExStyle = -20;
-        const int wsExTransparent = 0x20;
-        const int wsExLayered = 0x80000;
+
+        if (!IsHandleCreated)
+        {
+            return;
+        }
 
         IntPtr handle = Handle;
         int style = GetWindowLong(handle, gwlExStyle);
+        style |= WsExLayered;
         if (mouseClickThrough)
         {
-            style |= wsExTransparent | wsExLayered;
+            style |= WsExTransparent;
         }
         else
         {
-            style &= ~wsExTransparent;
+            style &= ~WsExTransparent;
         }
 
         SetWindowLong(handle, gwlExStyle, style);
+    }
+
+    private void QueueLayeredOverlayRender()
+    {
+        if (!IsHandleCreated || IsDisposed || Disposing || closing || layeredRenderPending)
+        {
+            return;
+        }
+
+        layeredRenderPending = true;
+        try
+        {
+            BeginInvoke(new Action(RenderLayeredOverlayNow));
+        }
+        catch (InvalidOperationException)
+        {
+            layeredRenderPending = false;
+        }
+    }
+
+    private void RenderLayeredOverlayNow()
+    {
+        if (!IsHandleCreated || IsDisposed || Disposing || closing)
+        {
+            layeredRenderPending = false;
+            return;
+        }
+
+        if (layeredRenderInProgress)
+        {
+            return;
+        }
+
+        layeredRenderPending = false;
+        layeredRenderInProgress = true;
+        long startTimestamp = Stopwatch.GetTimestamp();
+        try
+        {
+            if (!RenderLayeredOverlay())
+            {
+                AppLogger.Info($"Layered overlay update failed. Win32Error={Marshal.GetLastWin32Error()}.");
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error(ex, "Layered overlay render failed.");
+        }
+        finally
+        {
+            layeredRenderInProgress = false;
+            performance.RecordPaint(Stopwatch.GetElapsedTime(startTimestamp));
+        }
+    }
+
+    private bool RenderLayeredOverlay()
+    {
+        if (!IsHandleCreated || ClientSize.Width <= 0 || ClientSize.Height <= 0)
+        {
+            return false;
+        }
+
+        using var bitmap = new Bitmap(ClientSize.Width, ClientSize.Height, PixelFormat.Format32bppPArgb);
+        using (Graphics graphics = Graphics.FromImage(bitmap))
+        {
+            ConfigureOverlayGraphics(graphics);
+            graphics.Clear(Color.Transparent);
+            DrawOverlay(graphics);
+        }
+
+        return UpdateLayeredBitmap(bitmap);
+    }
+
+    private static void ConfigureOverlayGraphics(Graphics graphics)
+    {
+        graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        graphics.InterpolationMode = InterpolationMode.NearestNeighbor;
+        graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
+        graphics.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
+        graphics.CompositingMode = CompositingMode.SourceOver;
+        graphics.CompositingQuality = CompositingQuality.HighQuality;
+    }
+
+    private bool UpdateLayeredBitmap(Bitmap bitmap)
+    {
+        IntPtr screenDc = GetDC(IntPtr.Zero);
+        if (screenDc == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        IntPtr memoryDc = IntPtr.Zero;
+        IntPtr bitmapHandle = IntPtr.Zero;
+        IntPtr oldBitmap = IntPtr.Zero;
+        try
+        {
+            memoryDc = CreateCompatibleDC(screenDc);
+            if (memoryDc == IntPtr.Zero)
+            {
+                return false;
+            }
+
+            bitmapHandle = CreateLayeredBitmapHandle(bitmap, screenDc);
+            if (bitmapHandle == IntPtr.Zero)
+            {
+                return false;
+            }
+
+            oldBitmap = SelectObject(memoryDc, bitmapHandle);
+            if (oldBitmap == IntPtr.Zero)
+            {
+                return false;
+            }
+
+            var destination = new NativePoint(Left, Top);
+            var size = new NativeSize(bitmap.Width, bitmap.Height);
+            var source = new NativePoint(0, 0);
+            var blend = new BlendFunction
+            {
+                BlendOp = AcSrcOver,
+                BlendFlags = 0,
+                SourceConstantAlpha = 255,
+                AlphaFormat = AcSrcAlpha
+            };
+
+            return UpdateLayeredWindow(
+                Handle,
+                screenDc,
+                ref destination,
+                ref size,
+                memoryDc,
+                ref source,
+                0,
+                ref blend,
+                UlwAlpha);
+        }
+        finally
+        {
+            if (oldBitmap != IntPtr.Zero)
+            {
+                SelectObject(memoryDc, oldBitmap);
+            }
+
+            if (bitmapHandle != IntPtr.Zero)
+            {
+                DeleteObject(bitmapHandle);
+            }
+
+            if (memoryDc != IntPtr.Zero)
+            {
+                DeleteDC(memoryDc);
+            }
+
+            ReleaseDC(IntPtr.Zero, screenDc);
+        }
+    }
+
+    private static IntPtr CreateLayeredBitmapHandle(Bitmap bitmap, IntPtr deviceContext)
+    {
+        var bitmapInfo = new BitmapInfo
+        {
+            Header = new BitmapInfoHeader
+            {
+                Size = (uint)Marshal.SizeOf<BitmapInfoHeader>(),
+                Width = bitmap.Width,
+                Height = -bitmap.Height,
+                Planes = 1,
+                BitCount = 32,
+                Compression = BiRgb,
+                SizeImage = (uint)(bitmap.Width * bitmap.Height * 4)
+            }
+        };
+
+        IntPtr bitmapHandle = CreateDIBSection(
+            deviceContext,
+            ref bitmapInfo,
+            DibRgbColors,
+            out IntPtr bits,
+            IntPtr.Zero,
+            0);
+        if (bitmapHandle == IntPtr.Zero || bits == IntPtr.Zero)
+        {
+            if (bitmapHandle != IntPtr.Zero)
+            {
+                DeleteObject(bitmapHandle);
+            }
+
+            return IntPtr.Zero;
+        }
+
+        CopyBitmapPixels(bitmap, bits);
+        return bitmapHandle;
+    }
+
+    private static void CopyBitmapPixels(Bitmap bitmap, IntPtr destination)
+    {
+        var rect = new Rectangle(0, 0, bitmap.Width, bitmap.Height);
+        BitmapData data = bitmap.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format32bppPArgb);
+        try
+        {
+            int rowBytes = bitmap.Width * 4;
+            byte[] buffer = new byte[rowBytes];
+            int sourceStride = data.Stride;
+            for (int y = 0; y < bitmap.Height; y++)
+            {
+                IntPtr sourceRow = sourceStride >= 0
+                    ? IntPtr.Add(data.Scan0, y * sourceStride)
+                    : IntPtr.Add(data.Scan0, (bitmap.Height - 1 - y) * -sourceStride);
+                IntPtr destinationRow = IntPtr.Add(destination, y * rowBytes);
+                Marshal.Copy(sourceRow, buffer, 0, rowBytes);
+                Marshal.Copy(buffer, 0, destinationRow, rowBytes);
+            }
+        }
+        finally
+        {
+            bitmap.UnlockBits(data);
+        }
     }
 
     private void ClearIconCache()
@@ -1230,6 +1533,105 @@ internal sealed partial class MainForm : Form
 
     [DllImport("user32.dll")]
     private static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern IntPtr GetDC(IntPtr hWnd);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern int ReleaseDC(IntPtr hWnd, IntPtr hDc);
+
+    [DllImport("gdi32.dll", SetLastError = true)]
+    private static extern IntPtr CreateCompatibleDC(IntPtr hDc);
+
+    [DllImport("gdi32.dll", SetLastError = true)]
+    private static extern bool DeleteDC(IntPtr hDc);
+
+    [DllImport("gdi32.dll", SetLastError = true)]
+    private static extern IntPtr SelectObject(IntPtr hDc, IntPtr hObject);
+
+    [DllImport("gdi32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool DeleteObject(IntPtr hObject);
+
+    [DllImport("gdi32.dll", SetLastError = true)]
+    private static extern IntPtr CreateDIBSection(
+        IntPtr hdc,
+        ref BitmapInfo pbmi,
+        uint usage,
+        out IntPtr bits,
+        IntPtr section,
+        uint offset);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool UpdateLayeredWindow(
+        IntPtr hWnd,
+        IntPtr hdcDst,
+        ref NativePoint pptDst,
+        ref NativeSize psize,
+        IntPtr hdcSrc,
+        ref NativePoint pptSrc,
+        int crKey,
+        ref BlendFunction pblend,
+        int dwFlags);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativePoint
+    {
+        public int X;
+        public int Y;
+
+        public NativePoint(int x, int y)
+        {
+            X = x;
+            Y = y;
+        }
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativeSize
+    {
+        public int Width;
+        public int Height;
+
+        public NativeSize(int width, int height)
+        {
+            Width = width;
+            Height = height;
+        }
+    }
+
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    private struct BlendFunction
+    {
+        public byte BlendOp;
+        public byte BlendFlags;
+        public byte SourceConstantAlpha;
+        public byte AlphaFormat;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct BitmapInfo
+    {
+        public BitmapInfoHeader Header;
+        public uint Colors;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct BitmapInfoHeader
+    {
+        public uint Size;
+        public int Width;
+        public int Height;
+        public ushort Planes;
+        public ushort BitCount;
+        public uint Compression;
+        public uint SizeImage;
+        public int XPelsPerMeter;
+        public int YPelsPerMeter;
+        public uint ClrUsed;
+        public uint ClrImportant;
+    }
 
     private sealed class PersonalBestUpdatePromptForm : Form
     {
@@ -1417,7 +1819,7 @@ internal sealed partial class MainForm : Form
         Color Fill,
         Color Outline,
         Color Shadow,
-        int ShadowDepthPercent,
+        int ShadowPercent,
         int OutlineThicknessPercent);
 
     private readonly record struct UiPalette(
