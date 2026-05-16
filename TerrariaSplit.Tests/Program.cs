@@ -15,9 +15,12 @@ var tests = new (string Name, Action Test)[]
     ("SettingsNormalizer clamps auto-create timings", TestSettingsNormalize),
     ("Hotkey validator rejects reserved keys", TestHotkeyValidatorRejectsReservedKeys),
     ("AppSettings falls back from invalid hotkeys", TestAppSettingsInvalidHotkeyFallback),
+    ("AppSettings uses PB as reference time", TestAppSettingsUsesPersonalBestAsReferenceTime),
     ("Settings form orders moved pages", TestSettingsFormOrdersMovedPages),
     ("Settings form applies global scale from General page", TestSettingsFormAppliesGlobalScaleFromGeneralPage),
     ("Settings form applies dynamic delta units from UI page", TestSettingsFormAppliesDynamicDeltaUnitsFromUiPage),
+    ("Settings form locks reference controls when PB reference is enabled", TestSettingsFormLocksReferenceControlsForPersonalBestReference),
+    ("Settings form applies current delta gradient option", TestSettingsFormAppliesCurrentDeltaGradientOption),
     ("Settings form applies advanced UI scale patch option", TestSettingsFormAppliesAdvancedUiScalePatchOption),
     ("Settings form keeps uncreated animation fields unchanged", TestSettingsFormKeepsUncreatedAnimationFieldsUnchanged),
     ("Terraria UI scale patch rewrites target IL constants", TestTerrariaUiScalePatchPlan)
@@ -165,6 +168,42 @@ static void TestAppSettingsInvalidHotkeyFallback()
     AssertEqual(Keys.F7, settings.CreateWorldKeys);
 }
 
+static void TestAppSettingsUsesPersonalBestAsReferenceTime()
+{
+    var settings = new AppSettings
+    {
+        UsePersonalBestAsReferenceTime = true,
+        ReferenceSplitSets =
+        [
+            AppSettings.CreateReferenceSet("WR", new Dictionary<string, string>
+            {
+                ["Skeletron"] = "01:00"
+            })
+        ],
+        PersonalBestTimes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Skeletron"] = "00:30"
+        }
+    };
+    SettingsNormalizer.Normalize(settings);
+
+    var definition = new BossSplitDefinition(
+        "Skeletron",
+        "Skeletron",
+        Array.Empty<BossFlag>(),
+        Array.Empty<string>(),
+        Array.Empty<string>(),
+        ["Skeletron"]);
+
+    AssertEqual(AppSettings.PersonalBestReferenceSetName, settings.GetActiveReferenceSet().Name);
+    AssertEqual("00:30", settings.GetReferenceText("Skeletron"));
+    AssertEqual(true, settings.TryGetReferenceSplit(definition, out TimeSpan split));
+    AssertEqual(TimeSpan.FromSeconds(30), split);
+
+    settings.SetReferenceText("Skeletron", "05:00");
+    AssertEqual("00:30", settings.GetReferenceText("Skeletron"));
+}
+
 static void TestSettingsFormAppliesGlobalScaleFromGeneralPage()
 {
     RunSta(() =>
@@ -214,6 +253,51 @@ static void TestSettingsFormAppliesDynamicDeltaUnitsFromUiPage()
         InvokePrivate(form, "ApplyToSettings");
 
         AssertEqual(false, form.Result.EnableDynamicDeltaTimeUnits);
+    });
+}
+
+static void TestSettingsFormLocksReferenceControlsForPersonalBestReference()
+{
+    RunSta(() =>
+    {
+        using var form = new SettingsForm(new AppSettings
+        {
+            UsePersonalBestAsReferenceTime = true,
+            PersonalBestTimes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Skeletron"] = "00:30"
+            }
+        });
+        InvokePrivate(form, "EnsurePageCreated", 2);
+
+        AssertEqual(true, GetPrivateField<CheckBox>(form, "usePersonalBestAsReferenceTimeBox").Checked);
+        AssertEqual(false, GetPrivateField<ComboBox>(form, "referenceSetBox").Enabled);
+        AssertEqual(false, GetPrivateField<TextBox>(form, "newReferenceSetNameBox").Enabled);
+
+        Dictionary<string, TextBox> splitTextBoxes = GetPrivateField<Dictionary<string, TextBox>>(form, "splitTextBoxes");
+        AssertEqual("00:30", splitTextBoxes["Skeletron"].Text);
+        AssertEqual(true, splitTextBoxes["Skeletron"].ReadOnly);
+    });
+}
+
+static void TestSettingsFormAppliesCurrentDeltaGradientOption()
+{
+    RunSta(() =>
+    {
+        using var form = new SettingsForm(new AppSettings
+        {
+            EnableDeltaGradientColor = false,
+            EnableCurrentDeltaGradientColor = true,
+            EnableTimerGradientColor = false
+        });
+        InvokePrivate(form, "EnsurePageCreated", 4);
+        GetPrivateField<CheckBox>(form, "enableCurrentDeltaGradientColorBox").Checked = false;
+
+        InvokePrivate(form, "ApplyToSettings");
+
+        AssertEqual(false, form.Result.EnableDeltaGradientColor);
+        AssertEqual(false, form.Result.EnableCurrentDeltaGradientColor);
+        AssertEqual(false, form.Result.EnableTimerGradientColor);
     });
 }
 

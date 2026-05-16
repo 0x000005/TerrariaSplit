@@ -12,13 +12,22 @@ internal sealed partial class SettingsForm : Form
     {
         TableLayoutPanel section = CreateSection("Reference Data");
 
+        ConfigureCheckBox(usePersonalBestAsReferenceTimeBox, settings.UsePersonalBestAsReferenceTime);
+        usePersonalBestAsReferenceTimeBox.CheckedChanged += (_, _) => ToggleUsePersonalBestAsReferenceTime();
+
+        TableLayoutPanel modeGrid = CreateGrid(
+            ColumnStylePercent(100f),
+            ColumnStyleAbsolute(280f));
+        AddSettingRow(modeGrid, "Use PB as reference time", usePersonalBestAsReferenceTimeBox);
+        AddSectionControl(section, modeGrid);
+
         ConfigureReferenceSetBox();
         newReferenceSetNameBox.PlaceholderText = Localizer.Get("new group name", settings);
         newReferenceSetNameBox.Dock = DockStyle.Fill;
         UiTheme.StyleTextBox(newReferenceSetNameBox);
 
-        Button addButton = CreateButton("Add", accent: false, minimumWidth: 120);
-        addButton.Click += (_, _) => AddReferenceSet();
+        addReferenceSetButton = CreateButton("Add", accent: false, minimumWidth: 120);
+        addReferenceSetButton.Click += (_, _) => AddReferenceSet();
 
         TableLayoutPanel selectorGrid = CreateGrid(
             ColumnStyleAbsolute(220f),
@@ -30,7 +39,7 @@ internal sealed partial class SettingsForm : Form
         selectorGrid.Controls.Add(CreateRowLabel("Active group"), 0, selectorRow);
         selectorGrid.Controls.Add(referenceSetBox, 1, selectorRow);
         selectorGrid.Controls.Add(newReferenceSetNameBox, 3, selectorRow);
-        selectorGrid.Controls.Add(CreateButtonPanel(addButton), 4, selectorRow);
+        selectorGrid.Controls.Add(CreateButtonPanel(addReferenceSetButton), 4, selectorRow);
         AddSectionControl(section, selectorGrid);
 
         TableLayoutPanel grid = CreateGrid(
@@ -43,12 +52,13 @@ internal sealed partial class SettingsForm : Form
                 continue;
             }
 
-            TextBox textBox = CreateTextBox(settings.GetReferenceText(unit.Id));
+            TextBox textBox = CreateTextBox(GetDisplayedReferenceTimeText(unit.Id));
             textBox.PlaceholderText = "m:ss or h:mm:ss";
             splitTextBoxes[unit.Id] = textBox;
             AddSettingRow(grid, Localizer.Get(unit.DisplayName, settings), textBox);
         }
 
+        RefreshReferenceDataEditState();
         AddSectionControl(section, grid);
         AddSection(parent, section);
     }
@@ -133,6 +143,7 @@ internal sealed partial class SettingsForm : Form
 
                 TextBox textBox = CreateTextBox(settings.GetPersonalBestTimeText(unit.Id));
                 textBox.PlaceholderText = "m:ss or h:mm:ss";
+                textBox.TextChanged += (_, _) => RefreshReferenceDataFromPersonalBest();
                 personalBestTimeTextBoxes[unit.Id] = textBox;
                 AddSettingRow(personalBestTimeGrid, Localizer.Get(unit.DisplayName, settings), textBox);
             }
@@ -194,6 +205,14 @@ internal sealed partial class SettingsForm : Form
     {
         referenceSetBox.Dock = DockStyle.Fill;
         UiTheme.StyleComboBox(referenceSetBox);
+        PopulateReferenceSetBox();
+        referenceSetBox.SelectedIndexChanged += (_, _) => SwitchReferenceSet();
+    }
+
+
+    private void PopulateReferenceSetBox()
+    {
+        updatingReferenceSetSelection = true;
         referenceSetBox.Items.Clear();
 
         foreach (ReferenceSplitSet set in settings.ReferenceSplitSets)
@@ -201,8 +220,13 @@ internal sealed partial class SettingsForm : Form
             referenceSetBox.Items.Add(set.Name);
         }
 
-        referenceSetBox.SelectedItem = settings.GetActiveReferenceSet().Name;
-        referenceSetBox.SelectedIndexChanged += (_, _) => SwitchReferenceSet();
+        referenceSetBox.SelectedItem = settings.ActiveReferenceSplitSet;
+        if (referenceSetBox.SelectedIndex < 0 && referenceSetBox.Items.Count > 0)
+        {
+            referenceSetBox.SelectedIndex = 0;
+        }
+
+        updatingReferenceSetSelection = false;
     }
 
 
@@ -228,7 +252,7 @@ internal sealed partial class SettingsForm : Form
 
     private void SwitchReferenceSet()
     {
-        if (updatingReferenceSetSelection)
+        if (updatingReferenceSetSelection || settings.UsePersonalBestAsReferenceTime)
         {
             return;
         }
@@ -271,6 +295,11 @@ internal sealed partial class SettingsForm : Form
 
     private void AddReferenceSet()
     {
+        if (settings.UsePersonalBestAsReferenceTime)
+        {
+            return;
+        }
+
         SaveReferenceTextBoxes();
         string name = newReferenceSetNameBox.Text.Trim();
         if (name.Length == 0 ||
@@ -288,6 +317,11 @@ internal sealed partial class SettingsForm : Form
 
     private void DeleteReferenceSet()
     {
+        if (settings.UsePersonalBestAsReferenceTime)
+        {
+            return;
+        }
+
         if (settings.ReferenceSplitSets.Count <= 1 ||
             referenceSetBox.SelectedItem is not string selectedName)
         {
@@ -313,6 +347,11 @@ internal sealed partial class SettingsForm : Form
 
     private void SaveReferenceTextBoxes()
     {
+        if (settings.UsePersonalBestAsReferenceTime)
+        {
+            return;
+        }
+
         ReferenceSplitSet activeSet = settings.GetActiveReferenceSet();
         foreach ((string name, TextBox textBox) in splitTextBoxes)
         {
@@ -364,12 +403,9 @@ internal sealed partial class SettingsForm : Form
 
     private void LoadReferenceTextBoxes()
     {
-        ReferenceSplitSet activeSet = settings.GetActiveReferenceSet();
         foreach ((string name, TextBox textBox) in splitTextBoxes)
         {
-            textBox.Text = activeSet.Splits.TryGetValue(name, out string? value)
-                ? value
-                : string.Empty;
+            textBox.Text = GetDisplayedReferenceTimeText(name);
         }
     }
 
@@ -389,5 +425,80 @@ internal sealed partial class SettingsForm : Form
         {
             textBox.Text = settings.GetPersonalBestSegmentText(name);
         }
+    }
+
+
+    private void ToggleUsePersonalBestAsReferenceTime()
+    {
+        bool usePersonalBest = usePersonalBestAsReferenceTimeBox.Checked;
+        if (!settings.UsePersonalBestAsReferenceTime && usePersonalBest)
+        {
+            SaveReferenceTextBoxes();
+        }
+
+        settings.UsePersonalBestAsReferenceTime = usePersonalBest;
+        if (!usePersonalBest)
+        {
+            EnsureReferenceSetsLoadedForEditing();
+        }
+
+        RefreshReferenceDataEditState();
+    }
+
+
+    private void EnsureReferenceSetsLoadedForEditing()
+    {
+        if (referenceSetsLoadedForEditing)
+        {
+            return;
+        }
+
+        settings.ReferenceSplitSets = SplitTimeSetStore.LoadReferenceSets();
+        referenceSetsLoadedForEditing = true;
+        SettingsNormalizer.Normalize(settings);
+        PopulateReferenceSetBox();
+    }
+
+
+    private void RefreshReferenceDataEditState()
+    {
+        bool usePersonalBest = usePersonalBestAsReferenceTimeBox.Checked;
+        referenceSetBox.Enabled = !usePersonalBest;
+        newReferenceSetNameBox.Enabled = !usePersonalBest;
+        if (addReferenceSetButton is not null)
+        {
+            addReferenceSetButton.Enabled = !usePersonalBest;
+        }
+
+        foreach (TextBox textBox in splitTextBoxes.Values)
+        {
+            textBox.ReadOnly = usePersonalBest;
+            textBox.TabStop = !usePersonalBest;
+            textBox.Cursor = usePersonalBest ? Cursors.Default : Cursors.IBeam;
+        }
+
+        LoadReferenceTextBoxes();
+    }
+
+
+    private void RefreshReferenceDataFromPersonalBest()
+    {
+        if (usePersonalBestAsReferenceTimeBox.Checked)
+        {
+            LoadReferenceTextBoxes();
+        }
+    }
+
+
+    private string GetDisplayedReferenceTimeText(string name)
+    {
+        if (!usePersonalBestAsReferenceTimeBox.Checked)
+        {
+            return settings.GetReferenceText(name);
+        }
+
+        return personalBestTimeTextBoxes.TryGetValue(name, out TextBox? personalBestTextBox)
+            ? personalBestTextBox.Text
+            : settings.GetPersonalBestTimeText(name);
     }
 }

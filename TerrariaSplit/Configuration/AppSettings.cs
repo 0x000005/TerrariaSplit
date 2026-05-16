@@ -5,6 +5,8 @@ namespace TerrariaSplit;
 
 internal sealed class AppSettings
 {
+    public const string PersonalBestReferenceSetName = "PB";
+
     public string PauseResumeKey { get; set; } = Keys.F12.ToString();
     public string ResetKey { get; set; } = Keys.F6.ToString();
     public string MouseClickThroughKey { get; set; } = Keys.F9.ToString();
@@ -17,6 +19,7 @@ internal sealed class AppSettings
     public Dictionary<string, string> BossIconPaths { get; set; } = new();
     public List<ReferenceSplitSet> ReferenceSplitSets { get; set; } = new();
     public string ActiveReferenceSplitSet { get; set; } = "WR";
+    public bool UsePersonalBestAsReferenceTime { get; set; }
     public List<ReferenceSplitSet> PersonalBestTimeSets { get; set; } = new();
     public string ActivePersonalBestTimeSet { get; set; } = "Personal";
     public List<ReferenceSplitSet> PersonalBestSegmentSets { get; set; } = new();
@@ -39,6 +42,7 @@ internal sealed class AppSettings
     public int EarlyDeltaTimeSeconds { get; set; } = 60;
     public bool EnableDynamicDeltaTimeUnits { get; set; } = true;
     public bool EnableDeltaGradientColor { get; set; } = true;
+    public bool EnableCurrentDeltaGradientColor { get; set; } = true;
     public bool EnableTimerGradientColor { get; set; } = true;
     public int DeltaGradientThresholdSeconds { get; set; } = 120;
     public string DeltaGradientCurve { get; set; } = DeltaGradientCurves.SoftStep;
@@ -122,6 +126,11 @@ internal sealed class AppSettings
 
     public void SetReferenceText(string name, string value)
     {
+        if (UsePersonalBestAsReferenceTime)
+        {
+            return;
+        }
+
         GetActiveReferenceSet().Splits[name] = value;
     }
 
@@ -148,6 +157,11 @@ internal sealed class AppSettings
 
     public ReferenceSplitSet GetActiveReferenceSet()
     {
+        if (UsePersonalBestAsReferenceTime)
+        {
+            return CreatePersonalBestReferenceSet();
+        }
+
         ReferenceSplitSet? activeSet = ReferenceSplitSets.FirstOrDefault(
             set => string.Equals(set.Name, ActiveReferenceSplitSet, StringComparison.OrdinalIgnoreCase));
         if (activeSet is not null)
@@ -162,6 +176,11 @@ internal sealed class AppSettings
 
         ActiveReferenceSplitSet = ReferenceSplitSets[0].Name;
         return ReferenceSplitSets[0];
+    }
+
+    public ReferenceSplitSet CreatePersonalBestReferenceSet()
+    {
+        return CreateReferenceSet(PersonalBestReferenceSetName, PersonalBestTimes);
     }
 
     public ReferenceSplitSet GetActivePersonalBestTimeSet()

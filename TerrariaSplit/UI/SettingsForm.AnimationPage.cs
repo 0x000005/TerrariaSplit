@@ -21,6 +21,7 @@ internal sealed partial class SettingsForm : Form
         ConfigureCheckBox(showEarlyDeltaTimeBox, settings.ShowEarlyDeltaTime);
         ConfigureNumberBox(earlyDeltaTimeSecondsBox, settings.EarlyDeltaTimeSeconds, 0, 3600);
         ConfigureCheckBox(enableDeltaGradientColorBox, settings.EnableDeltaGradientColor);
+        ConfigureCheckBox(enableCurrentDeltaGradientColorBox, settings.EnableCurrentDeltaGradientColor);
         ConfigureCheckBox(enableTimerGradientColorBox, settings.EnableTimerGradientColor);
         ConfigureTimeBox(deltaGradientThresholdBox, settings.DeltaGradientThresholdSeconds, 1, 3600);
         ConfigureDeltaGradientCurveBox();
@@ -67,7 +68,8 @@ internal sealed partial class SettingsForm : Form
         TableLayoutPanel deltaGradientGrid = CreateGrid(
             ColumnStylePercent(100f),
             ColumnStyleAbsolute(280f));
-        AddSettingRow(deltaGradientGrid, "Enabled (Delta)", enableDeltaGradientColorBox);
+        AddSettingRow(deltaGradientGrid, "Enabled (Historical delta)", enableDeltaGradientColorBox);
+        AddSettingRow(deltaGradientGrid, "Enabled (Current delta)", enableCurrentDeltaGradientColorBox);
         AddSettingRow(deltaGradientGrid, "Enabled (Main timer)", enableTimerGradientColorBox);
         AddSettingRow(deltaGradientGrid, "Threshold time", deltaGradientThresholdBox);
         AddSettingRow(deltaGradientGrid, "Gradient mode", deltaGradientCurveBox);
@@ -334,7 +336,7 @@ internal sealed partial class SettingsForm : Form
         int rowHeight = Math.Max(1, (fillBounds.Height - gap) / 2);
         var deltaRow = new Rectangle(fillBounds.Left, fillBounds.Top, fillBounds.Width, rowHeight);
         var timerRow = new Rectangle(fillBounds.Left, deltaRow.Bottom + gap, fillBounds.Width, Math.Max(1, fillBounds.Bottom - deltaRow.Bottom - gap));
-        DrawDeltaGradientPreviewRow(graphics, deltaRow, Localizer.Get("Delta", settings), GetPreviewDeltaGradientPalette());
+        DrawDeltaGradientPreviewRow(graphics, deltaRow, Localizer.Get("Historical delta", settings), GetPreviewDeltaGradientPalette());
         DrawDeltaGradientPreviewRow(graphics, timerRow, Localizer.Get("Main timer", settings), GetPreviewTimerGradientPalette());
         using var separatorPen = new Pen(BorderColor);
         graphics.DrawLine(separatorPen, fillBounds.Left, deltaRow.Bottom, fillBounds.Right, deltaRow.Bottom);

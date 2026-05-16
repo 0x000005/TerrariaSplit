@@ -108,6 +108,7 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
         { "Add", "添加" },
         { "Delete", "删除" },
         { "Active group", "当前组" },
+        { "Use PB as reference time", "参考时间使用 PB" },
         { "Text Colors", "文字颜色" },
         { "Reference text", "参考时间文字" },
         { "Reference", "参考" },
@@ -202,8 +203,11 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Special Options", "\u7279\u6B8A\u9009\u9879" }
       , { "Delta gradient", "\u8BEF\u5DEE\u6E10\u53D8" }
       , { "Delta time gradient", "\u5DEE\u503C\u65F6\u95F4\u6E10\u53D8" }
+      , { "Historical delta", "\u5386\u6B21\u5DEE\u503C" }
       , { "Dynamic delta time units", "\u5DEE\u503C\u65F6\u95F4\u5355\u4F4D\u52A8\u6001\u8C03\u6574" }
       , { "Enabled (Delta)", "\u542F\u7528\uff08\u5DEE\u503C\uff09" }
+      , { "Enabled (Historical delta)", "\u542F\u7528\uff08\u5386\u6B21\u5DEE\u503C\uff09" }
+      , { "Enabled (Current delta)", "\u542F\u7528\uff08\u5F53\u524D\u5DEE\u503C\uff09" }
       , { "Enabled (Main timer)", "\u542F\u7528\uff08\u4E3B\u8BA1\u65F6\u5668\uff09" }
       , { "Threshold time", "\u9608\u503C\u65F6\u95F4" }
       , { "Gradient mode", "\u6E10\u53D8\u65B9\u5F0F" }

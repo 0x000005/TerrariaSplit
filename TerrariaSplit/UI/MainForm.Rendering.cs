@@ -109,7 +109,10 @@ internal sealed partial class MainForm : Form
 
         if (columns.Delta is Rectangle deltaRect)
         {
-            Color deltaColor = GetDeltaComparisonColor(comparison, palette);
+            bool enableDeltaGradient = status.Time is TimeSpan
+                ? settings.EnableDeltaGradientColor
+                : settings.EnableCurrentDeltaGradientColor;
+            Color deltaColor = GetDeltaComparisonColor(comparison, palette, enableDeltaGradient);
             if (TryGetSegmentBestDeltaHighlight(rowIndex, out SegmentBestDeltaHighlight highlight))
             {
                 double seconds = (DateTime.UtcNow - highlight.StartedAtUtc).TotalSeconds;
@@ -1111,7 +1114,10 @@ internal sealed partial class MainForm : Form
 
         if (!string.IsNullOrEmpty(deltaText))
         {
-            Color deltaColor = GetDeltaComparisonColor(comparison, palette);
+            Color deltaColor = GetDeltaComparisonColor(
+                comparison,
+                palette,
+                settings.EnableCurrentDeltaGradientColor);
             if (settings.ShowSegmentBestDeltaHighlight &&
                 comparison.Delta is TimeSpan deltaValue &&
                 deltaValue < TimeSpan.Zero)
@@ -1821,7 +1827,10 @@ internal sealed partial class MainForm : Form
     }
 
 
-    private Color GetDeltaComparisonColor(SplitComparison comparison, UiPalette palette)
+    private Color GetDeltaComparisonColor(
+        SplitComparison comparison,
+        UiPalette palette,
+        bool enableGradient)
     {
         TimeSpan? delta = comparison.Delta;
         if (delta is null)
@@ -1829,7 +1838,7 @@ internal sealed partial class MainForm : Form
             return palette.DeltaBehindText;
         }
 
-        if (settings.EnableDeltaGradientColor)
+        if (enableGradient)
         {
             return GetGradientDeltaColor(
                 delta.Value,

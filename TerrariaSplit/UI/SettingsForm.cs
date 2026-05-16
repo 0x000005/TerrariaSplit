@@ -51,6 +51,7 @@ internal sealed partial class SettingsForm : Form
     private readonly TextBox autoCreateInputPressDurationBox = new();
     private readonly ComboBox referenceSetBox = new();
     private readonly TextBox newReferenceSetNameBox = new();
+    private readonly CheckBox usePersonalBestAsReferenceTimeBox = new();
     private readonly ComboBox personalBestTimeSetBox = new();
     private readonly ComboBox personalBestSegmentSetBox = new();
     private readonly CheckBox autoUpdatePersonalBestDataBox = new();
@@ -63,6 +64,7 @@ internal sealed partial class SettingsForm : Form
     private readonly TextBox earlyDeltaTimeSecondsBox = new();
     private readonly CheckBox enableDynamicDeltaTimeUnitsBox = new();
     private readonly CheckBox enableDeltaGradientColorBox = new();
+    private readonly CheckBox enableCurrentDeltaGradientColorBox = new();
     private readonly CheckBox enableTimerGradientColorBox = new();
     private readonly TextBox deltaGradientThresholdBox = new();
     private readonly ComboBox deltaGradientCurveBox = new();
@@ -93,6 +95,7 @@ internal sealed partial class SettingsForm : Form
     private readonly TextBox globalScaleBox = new();
     private readonly TextBox timerOffsetXBox = new();
     private readonly TextBox timerOffsetYBox = new();
+    private Button? addReferenceSetButton;
 
     private TableLayoutPanel? personalBestTimeGrid;
     private TableLayoutPanel? personalBestSegmentGrid;
@@ -107,6 +110,7 @@ internal sealed partial class SettingsForm : Form
     private readonly List<SettingsPageDescriptor> pages = new();
     private Panel? pageHost;
     private bool updatingReferenceSetSelection;
+    private bool referenceSetsLoadedForEditing;
     private int selectedPageIndex = -1;
     private bool bossRouteDirty;
     private bool dragging;
@@ -119,6 +123,7 @@ internal sealed partial class SettingsForm : Form
     {
         settings = AppSettingsStore.Clone(currentSettings);
         this.runtimeDiagnosticsProvider = runtimeDiagnosticsProvider;
+        referenceSetsLoadedForEditing = !settings.UsePersonalBestAsReferenceTime;
 
         Text = Localizer.Get("TerrariaSplit Settings", settings);
         StartPosition = FormStartPosition.CenterParent;
@@ -1166,14 +1171,24 @@ internal sealed partial class SettingsForm : Form
 
     internal void ApplyDataSettings(AppSettings targetSettings)
     {
+        targetSettings.UsePersonalBestAsReferenceTime = usePersonalBestAsReferenceTimeBox.Checked;
         targetSettings.AutoUpdatePersonalBestData = autoUpdatePersonalBestDataBox.Checked;
         targetSettings.AskBeforeUpdatingPersonalBestData = askBeforeUpdatingPersonalBestDataBox.Checked;
-        SaveReferenceTextBoxes();
+        if (!targetSettings.UsePersonalBestAsReferenceTime)
+        {
+            EnsureReferenceSetsLoadedForEditing();
+            SaveReferenceTextBoxes();
+        }
+
         SavePersonalBestTextBoxes();
 
-        targetSettings.ActiveReferenceSplitSet = referenceSetBox.SelectedItem is string selectedReferenceSet
-            ? selectedReferenceSet
-            : targetSettings.GetActiveReferenceSet().Name;
+        if (!targetSettings.UsePersonalBestAsReferenceTime)
+        {
+            targetSettings.ActiveReferenceSplitSet = referenceSetBox.SelectedItem is string selectedReferenceSet
+                ? selectedReferenceSet
+                : targetSettings.GetActiveReferenceSet().Name;
+        }
+
         targetSettings.ActivePersonalBestTimeSet = personalBestTimeSetBox.SelectedItem is string selectedPersonalBestTimeSet
             ? selectedPersonalBestTimeSet
             : targetSettings.GetActivePersonalBestTimeSet().Name;
@@ -1209,6 +1224,7 @@ internal sealed partial class SettingsForm : Form
         targetSettings.ShowEarlyDeltaTime = showEarlyDeltaTimeBox.Checked;
         targetSettings.EarlyDeltaTimeSeconds = ParseIntBox(earlyDeltaTimeSecondsBox, 60, 0, 3600);
         targetSettings.EnableDeltaGradientColor = enableDeltaGradientColorBox.Checked;
+        targetSettings.EnableCurrentDeltaGradientColor = enableCurrentDeltaGradientColorBox.Checked;
         targetSettings.EnableTimerGradientColor = enableTimerGradientColorBox.Checked;
         targetSettings.DeltaGradientThresholdSeconds = ParseTimeBox(deltaGradientThresholdBox, 120, 1, 3600);
         targetSettings.DeltaGradientCurve = GetSelectedDeltaGradientCurve(deltaGradientCurveBox);

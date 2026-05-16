@@ -4,7 +4,11 @@ internal static class SplitSetLoader
 {
     public static void LoadInto(AppSettings settings)
     {
-        settings.ReferenceSplitSets = SplitTimeSetStore.LoadReferenceSets();
+        if (!settings.UsePersonalBestAsReferenceTime)
+        {
+            settings.ReferenceSplitSets = SplitTimeSetStore.LoadReferenceSets();
+        }
+
         LoadPersonalBestTimeSets(settings);
         LoadPersonalBestSegmentSets(settings);
         SettingsNormalizer.Normalize(settings);

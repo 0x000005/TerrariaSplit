@@ -66,7 +66,11 @@ internal static class AppSettingsStore
     public static void Save(AppSettings settings)
     {
         Normalize(settings);
-        SplitTimeSetStore.SaveReferenceSets(settings.ReferenceSplitSets);
+        if (!settings.UsePersonalBestAsReferenceTime)
+        {
+            SplitTimeSetStore.SaveReferenceSets(settings.ReferenceSplitSets);
+        }
+
         settings.SyncActivePersonalBestTimeSetFromDictionary();
         settings.SyncActivePersonalBestSegmentSetFromDictionary();
         SplitTimeSetStore.SavePersonalBestTimeSets(settings.PersonalBestTimeSets);
