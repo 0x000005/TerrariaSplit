@@ -48,6 +48,7 @@ internal sealed class AppSettings
     public UiSoundSettings Sounds { get; set; } = new();
     public UiColumnLayoutSettings Columns { get; set; } = new();
     public AutoCreateWorldSettings AutoCreate { get; set; } = new();
+    public AdvancedSettings Advanced { get; set; } = new();
     public bool EnableDefeatedBossIconLighting { get; set; } = true;
     public int UndefeatedIconGrayscalePercent { get; set; } = 80;
     public int UndefeatedIconBrightnessPercent { get; set; } = 40;
@@ -261,6 +262,11 @@ internal sealed class AppSettings
 
         return set;
     }
+}
+
+internal sealed class AdvancedSettings
+{
+    public bool EnableTerrariaUiScalePatch { get; set; }
 }
 
 internal sealed class AutoCreateWorldSettings

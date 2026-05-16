@@ -20,6 +20,7 @@ internal static class SettingsNormalizer
         settings.Sounds ??= new UiSoundSettings();
         settings.Columns ??= new UiColumnLayoutSettings();
         settings.AutoCreate ??= new AutoCreateWorldSettings();
+        settings.Advanced ??= new AdvancedSettings();
         NormalizeAutoCreate(settings.AutoCreate);
         settings.SplitCompletionAnimationDurationSeconds = Math.Clamp(settings.SplitCompletionAnimationDurationSeconds, 2f, 20f);
         settings.SplitCompletionOutlineThicknessPercent = Math.Clamp(settings.SplitCompletionOutlineThicknessPercent, 0, 100);

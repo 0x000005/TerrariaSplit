@@ -11,14 +11,15 @@ internal sealed partial class SettingsForm : Form
     private const int RowHeight = 56;
     private const int HeaderRowHeight = 40;
     private const int GeneralPageIndex = 0;
-    private const int AutoCreatePageIndex = 1;
-    private const int BossPageIndex = 2;
-    private const int DataPageIndex = 3;
-    private const int UiPageIndex = 4;
-    private const int AnimationPageIndex = 5;
+    private const int BossPageIndex = 1;
+    private const int DataPageIndex = 2;
+    private const int UiPageIndex = 3;
+    private const int AnimationPageIndex = 4;
+    private const int AutoCreatePageIndex = 5;
     private const int SoundPageIndex = 6;
     private const int ColorPageIndex = 7;
-    private const int DebugPageIndex = 8;
+    private const int AdvancedPageIndex = 8;
+    private const int DebugPageIndex = 9;
 
     private static readonly Color WindowColor = UiTheme.Window;
     private static readonly Color SectionColor = UiTheme.Surface;
@@ -67,6 +68,7 @@ internal sealed partial class SettingsForm : Form
     private readonly ComboBox deltaGradientCurveBox = new();
     private readonly CheckBox showSegmentBestDeltaHighlightBox = new();
     private readonly CheckBox enableDefeatedBossIconLightingBox = new();
+    private readonly CheckBox enableTerrariaUiScalePatchBox = new();
     private readonly TextBox splitCompletionAnimationDurationBox = new();
     private readonly TextBox splitCompletionOutlineThicknessBox = new();
     private readonly TextBox undefeatedIconGrayscaleBox = new();
@@ -353,13 +355,14 @@ internal sealed partial class SettingsForm : Form
 
         pages.Clear();
         AddSettingsPage("General", new GeneralSettingsPage());
-        AddSettingsPage("Create World", new AutoCreateSettingsPage());
         AddSettingsPage("BOSS", new BossSettingsPage());
         AddSettingsPage("Data", new DataSettingsPage());
         AddSettingsPage("UI", new UiSettingsPage());
         AddSettingsPage("Effects", new AnimationSettingsPage());
+        AddSettingsPage("Create World", new AutoCreateSettingsPage());
         AddSettingsPage("Sounds", new SoundSettingsPage());
         AddSettingsPage("Colors", new ColorSettingsPage());
+        AddSettingsPage("Advanced", new AdvancedSettingsPage());
         AddSettingsPage("Debug", new DelegateSettingsPage(context => DebugSettingsPage.Build(context.Owner)));
 
         foreach (SettingsPageDescriptor page in pages)
@@ -375,14 +378,14 @@ internal sealed partial class SettingsForm : Form
             }
 
             bool refreshedAnimation = false;
-            if (selectedPageIndex == 2 && index != selectedPageIndex)
+            if (selectedPageIndex == BossPageIndex && index != selectedPageIndex)
             {
                 refreshedAnimation = ApplyBossPageRouteChanges();
             }
 
             Control selectedPage = EnsurePageCreated(index);
 
-            if (index == 5 && !refreshedAnimation)
+            if (index == AnimationPageIndex && !refreshedAnimation)
             {
                 RefreshAnimationOutlineGrid();
             }
@@ -778,6 +781,20 @@ internal sealed partial class SettingsForm : Form
         };
     }
 
+    private Label CreateWrappedFieldLabel(string text, Color color)
+    {
+        return new Label
+        {
+            AutoSize = true,
+            Dock = DockStyle.Top,
+            Font = UiTheme.FormFont(),
+            ForeColor = color,
+            Margin = new Padding(0, 8, 0, 8),
+            MaximumSize = new Size(920, 0),
+            Text = Localizer.Get(text, settings)
+        };
+    }
+
     private static void ClearGrid(TableLayoutPanel grid)
     {
         foreach (Control control in grid.Controls.Cast<Control>().ToArray())
@@ -1079,6 +1096,7 @@ internal sealed partial class SettingsForm : Form
         ApplyCreatedPage(AnimationPageIndex);
         AppSettingsStore.Normalize(settings);
         ApplyCreatedPage(UiPageIndex);
+        ApplyCreatedPage(AdvancedPageIndex);
         ApplyCreatedPage(ColorPageIndex);
         ApplyCreatedPage(SoundPageIndex);
         ApplyCreatedPage(DebugPageIndex);
@@ -1224,6 +1242,13 @@ internal sealed partial class SettingsForm : Form
         SetSound(nameof(targetSettings.Sounds.SplitAheadReferenceBehindSegment), value => targetSettings.Sounds.SplitAheadReferenceBehindSegment = value);
         SetSound(nameof(targetSettings.Sounds.SplitAheadReferenceAheadSegment), value => targetSettings.Sounds.SplitAheadReferenceAheadSegment = value);
     }
+
+    internal void ApplyAdvancedSettings(AppSettings targetSettings)
+    {
+        targetSettings.Advanced ??= new AdvancedSettings();
+        targetSettings.Advanced.EnableTerrariaUiScalePatch = enableTerrariaUiScalePatchBox.Checked;
+    }
+
     private void ApplyAndNotify()
     {
         ApplyToSettings();

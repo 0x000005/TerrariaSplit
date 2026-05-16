@@ -2,6 +2,7 @@
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Diagnostics;
+using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
@@ -20,6 +21,7 @@ internal sealed partial class MainForm : Form
     private static readonly TimeSpan WatcherIdlePollInterval = TimeSpan.FromMilliseconds(100);
     private static readonly TimeSpan WatcherScanPollInterval = TimeSpan.FromMilliseconds(250);
     private static readonly TimeSpan WatcherProcessLookupInterval = TimeSpan.FromSeconds(1);
+    private static readonly TimeSpan UiScalePatchRetryInterval = TimeSpan.FromSeconds(2);
     private const int ResizeBorder = 8;
     private const int RowGap = 9;
     private const float SplitCompletionLabelFontRatio = 0.58f;
@@ -37,6 +39,7 @@ internal sealed partial class MainForm : Form
     private readonly MainFormContextMenuBuilder contextMenuBuilder = new();
     private readonly RunFinalizer runFinalizer = new();
     private readonly SoundPlayerService soundPlayer = new();
+    private readonly TerrariaUiScalePatch uiScalePatch = new();
     private readonly System.Windows.Forms.Timer controlTimer = new();
     private readonly System.Windows.Forms.Timer renderTimer = new();
     private readonly GlobalHotkeyManager hotkeyManager = new();
@@ -58,7 +61,9 @@ internal sealed partial class MainForm : Form
     private string? lastHotkeyWarningText;
     private DateTime? pendingCreateWorldDeadlineUtc;
     private DateTime nextWatcherPollUtc = DateTime.MinValue;
+    private DateTime nextUiScalePatchAttemptUtc = DateTime.MinValue;
     private bool watcherPollInFlight;
+    private bool uiScalePatchInFlight;
     private bool closing;
     private string currentWindowText = string.Empty;
     private bool hasCachedLayout;
@@ -67,6 +72,8 @@ internal sealed partial class MainForm : Form
     private int cachedLayoutStatusCount = -1;
     private int cachedLayoutScalePercent;
     private readonly PendingMenuHotkeyScheduler pendingMenuHotkeys = new();
+    private int? uiScalePatchAppliedProcessId;
+    private string? lastUiScalePatchLogKey;
     private readonly TimerController timerController;
 
     private AppSettings settings = AppSettingsStore.Load();
@@ -377,6 +384,7 @@ internal sealed partial class MainForm : Form
         try
         {
             ScheduleWatcherPoll();
+            ScheduleTerrariaUiScalePatch();
             bool consumedEnteredWorld = snapshot.EnteredWorld;
             TimerControllerTickResult tickResult = timerController.Tick(snapshot, DrainPendingHotkeyRequests());
             if (consumedEnteredWorld)
@@ -580,6 +588,114 @@ internal sealed partial class MainForm : Form
             : WatcherIdlePollInterval;
     }
 
+    private void ScheduleTerrariaUiScalePatch()
+    {
+        if (closing || settings.Advanced?.EnableTerrariaUiScalePatch != true)
+        {
+            uiScalePatchAppliedProcessId = null;
+            return;
+        }
+
+        if (uiScalePatchAppliedProcessId is int appliedProcessId)
+        {
+            if (snapshot.ProcessId == appliedProcessId ||
+                (!snapshot.ProcessId.HasValue && IsProcessStillRunning(appliedProcessId)))
+            {
+                return;
+            }
+
+            uiScalePatchAppliedProcessId = null;
+        }
+
+        if (uiScalePatchInFlight || DateTime.UtcNow < nextUiScalePatchAttemptUtc)
+        {
+            return;
+        }
+
+        uiScalePatchInFlight = true;
+        int? fallbackProcessId = snapshot.ProcessId;
+        _ = Task.Run(uiScalePatch.TryApply).ContinueWith(task =>
+        {
+            TerrariaUiScalePatchResult result = task.Status == TaskStatus.RanToCompletion
+                ? task.Result
+                : new TerrariaUiScalePatchResult(
+                    TerrariaUiScalePatchStatus.Failed,
+                    fallbackProcessId,
+                    task.Exception?.GetBaseException().Message ?? "Unexpected Terraria UI scale patch failure.");
+
+            if (closing)
+            {
+                return;
+            }
+
+            try
+            {
+                BeginInvoke(new Action(() => CompleteTerrariaUiScalePatch(result)));
+            }
+            catch (ObjectDisposedException)
+            {
+                uiScalePatchInFlight = false;
+            }
+            catch (InvalidOperationException)
+            {
+                uiScalePatchInFlight = false;
+            }
+        }, TaskScheduler.Default);
+    }
+
+    private void CompleteTerrariaUiScalePatch(TerrariaUiScalePatchResult result)
+    {
+        uiScalePatchInFlight = false;
+        nextUiScalePatchAttemptUtc = DateTime.UtcNow + UiScalePatchRetryInterval;
+
+        if (result.Status == TerrariaUiScalePatchStatus.NoProcess)
+        {
+            uiScalePatchAppliedProcessId = null;
+            return;
+        }
+
+        if (result.IsSuccess && result.ProcessId.HasValue)
+        {
+            uiScalePatchAppliedProcessId = result.ProcessId.Value;
+        }
+
+        LogTerrariaUiScalePatchResult(result);
+    }
+
+    private void LogTerrariaUiScalePatchResult(TerrariaUiScalePatchResult result)
+    {
+        string logKey = string.Create(
+            CultureInfo.InvariantCulture,
+            $"{result.Status}:{result.ProcessId}:{result.Message}");
+        if (string.Equals(logKey, lastUiScalePatchLogKey, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        lastUiScalePatchLogKey = logKey;
+        string pid = result.ProcessId.HasValue
+            ? string.Create(CultureInfo.InvariantCulture, $"PID {result.ProcessId.Value}")
+            : "no PID";
+        AppLogger.Info($"Terraria UI scale enhancement {result.Status} for {pid}: {result.Message}");
+    }
+
+    private static bool IsProcessStillRunning(int processId)
+    {
+        try
+        {
+            using Process process = Process.GetProcessById(processId);
+            return !process.HasExited;
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
+    }
+
     private void InvalidateRuntimeRenderRegion()
     {
         bool invalidated = false;
@@ -764,6 +880,7 @@ internal sealed partial class MainForm : Form
         palette = UiPalette.From(settings.Colors);
         splitTracker.SetDefinitions(BossSplitDefinitions.Build(settings));
         ResetRun();
+        ResetTerrariaUiScalePatchState();
         TopMost = settings.AlwaysOnTop;
         if (IsHandleCreated && !settingsFormOpen)
         {
@@ -777,6 +894,13 @@ internal sealed partial class MainForm : Form
         UpdateContextMenu();
         ClearIconCache();
         Invalidate();
+    }
+
+    private void ResetTerrariaUiScalePatchState()
+    {
+        nextUiScalePatchAttemptUtc = DateTime.MinValue;
+        uiScalePatchAppliedProcessId = null;
+        lastUiScalePatchLogKey = null;
     }
 
     private void ApplyCaptureBackgroundColor()
@@ -918,12 +1042,30 @@ internal sealed partial class MainForm : Form
         string message = Localizer.Get("Some hotkeys could not be registered:", settings) +
             Environment.NewLine +
             warningText;
-        MessageBox.Show(
-            this,
+        ShowTopMostHotkeyWarning(message);
+    }
+
+    private void ShowTopMostHotkeyWarning(string message)
+    {
+        const uint mbOk = 0x00000000;
+        const uint mbIconWarning = 0x00000030;
+        const uint mbSetForeground = 0x00010000;
+        const uint mbTopMost = 0x00040000;
+
+        int result = NativeMethods.MessageBox(
+            IsHandleCreated ? Handle : IntPtr.Zero,
             message,
             Localizer.Get("Hotkey warning", settings),
-            MessageBoxButtons.OK,
-            MessageBoxIcon.Warning);
+            mbOk | mbIconWarning | mbSetForeground | mbTopMost);
+        if (result == 0)
+        {
+            MessageBox.Show(
+                this,
+                message,
+                Localizer.Get("Hotkey warning", settings),
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+        }
     }
 
     private string FormatHotkeyRegistrationWarning(HotkeyRegistrationWarning warning)

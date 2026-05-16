@@ -454,10 +454,9 @@ internal sealed partial class SettingsForm : Form
         Color[] baseColors =
         {
             ColorText.Parse(settings.Colors.DeltaAheadText, Color.FromArgb(114, 213, 114)),
-            ColorText.Parse(settings.Colors.DeltaBehindText, Color.FromArgb(240, 112, 112)),
             ColorText.Parse(settings.Colors.DeltaBehindText, Color.FromArgb(240, 112, 112))
         };
-        string[] texts = { "-0:01.23", "+0:00.00", "+0:01.23" };
+        string[] texts = { "-0:01.23", "+0:01.23" };
         int columns = texts.Length;
         for (int i = 0; i < columns; i++)
         {

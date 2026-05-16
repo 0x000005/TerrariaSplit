@@ -5,6 +5,16 @@ namespace TerrariaSplit;
 internal static class NativeMethods
 {
     [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern IntPtr OpenProcess(
+        ProcessAccessRights desiredAccess,
+        [MarshalAs(UnmanagedType.Bool)] bool inheritHandle,
+        int processId);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool CloseHandle(IntPtr handle);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool ReadProcessMemory(
         IntPtr process,
@@ -12,6 +22,31 @@ internal static class NativeMethods
         [Out] byte[] buffer,
         UIntPtr size,
         out UIntPtr bytesRead);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool WriteProcessMemory(
+        IntPtr process,
+        IntPtr baseAddress,
+        byte[] buffer,
+        UIntPtr size,
+        out UIntPtr bytesWritten);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool VirtualProtectEx(
+        IntPtr process,
+        IntPtr address,
+        UIntPtr size,
+        MemoryPageProtect newProtect,
+        out MemoryPageProtect oldProtect);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool FlushInstructionCache(
+        IntPtr process,
+        IntPtr baseAddress,
+        UIntPtr size);
 
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -40,4 +75,20 @@ internal static class NativeMethods
 
     [DllImport("user32.dll")]
     public static extern short GetAsyncKeyState(int virtualKey);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    public static extern int MessageBox(
+        IntPtr hWnd,
+        string text,
+        string caption,
+        uint type);
+}
+
+[Flags]
+internal enum ProcessAccessRights : uint
+{
+    QueryInformation = 0x0400,
+    VirtualMemoryOperation = 0x0008,
+    VirtualMemoryRead = 0x0010,
+    VirtualMemoryWrite = 0x0020
 }

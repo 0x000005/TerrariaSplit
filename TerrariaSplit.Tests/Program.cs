@@ -15,9 +15,12 @@ var tests = new (string Name, Action Test)[]
     ("SettingsNormalizer clamps auto-create timings", TestSettingsNormalize),
     ("Hotkey validator rejects reserved keys", TestHotkeyValidatorRejectsReservedKeys),
     ("AppSettings falls back from invalid hotkeys", TestAppSettingsInvalidHotkeyFallback),
+    ("Settings form orders moved pages", TestSettingsFormOrdersMovedPages),
     ("Settings form applies global scale from General page", TestSettingsFormAppliesGlobalScaleFromGeneralPage),
     ("Settings form applies dynamic delta units from UI page", TestSettingsFormAppliesDynamicDeltaUnitsFromUiPage),
-    ("Settings form keeps uncreated animation fields unchanged", TestSettingsFormKeepsUncreatedAnimationFieldsUnchanged)
+    ("Settings form applies advanced UI scale patch option", TestSettingsFormAppliesAdvancedUiScalePatchOption),
+    ("Settings form keeps uncreated animation fields unchanged", TestSettingsFormKeepsUncreatedAnimationFieldsUnchanged),
+    ("Terraria UI scale patch rewrites target IL constants", TestTerrariaUiScalePatchPlan)
 };
 
 int failures = 0;
@@ -128,6 +131,10 @@ static void TestSettingsNormalize()
     AssertEqual(5000, settings.AutoCreate.WindowActivationDelayMilliseconds);
     AssertEqual(0, settings.AutoCreate.ClickFocusDelayMilliseconds);
     AssertEqual(1, settings.AutoCreate.InputPressDurationMilliseconds);
+
+    settings.Advanced = null!;
+    SettingsNormalizer.Normalize(settings);
+    AssertEqual(false, settings.Advanced.EnableTerrariaUiScalePatch);
 }
 
 static void TestHotkeyValidatorRejectsReservedKeys()
@@ -171,12 +178,37 @@ static void TestSettingsFormAppliesGlobalScaleFromGeneralPage()
     });
 }
 
+static void TestSettingsFormOrdersMovedPages()
+{
+    RunSta(() =>
+    {
+        using var form = new SettingsForm(new AppSettings());
+        var pages = (System.Collections.IEnumerable)GetPrivateField<object>(form, "pages");
+        var labels = new List<string>();
+
+        foreach (object page in pages)
+        {
+            PropertyInfo navProperty = page.GetType().GetProperty(
+                    "Nav",
+                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                ?? throw new InvalidOperationException("Missing settings page nav property.");
+            var nav = (Button)(navProperty.GetValue(page)
+                ?? throw new InvalidOperationException("Settings page nav is null."));
+            labels.Add(nav.Text);
+        }
+
+        AssertEqual(
+            "General|BOSS|Data|UI|Effects|Create World|Sounds|Colors|Advanced|Debug",
+            string.Join('|', labels));
+    });
+}
+
 static void TestSettingsFormAppliesDynamicDeltaUnitsFromUiPage()
 {
     RunSta(() =>
     {
         using var form = new SettingsForm(new AppSettings { EnableDynamicDeltaTimeUnits = true });
-        InvokePrivate(form, "EnsurePageCreated", 4);
+        InvokePrivate(form, "EnsurePageCreated", 3);
         GetPrivateField<CheckBox>(form, "enableDynamicDeltaTimeUnitsBox").Checked = false;
 
         InvokePrivate(form, "ApplyToSettings");
@@ -197,7 +229,7 @@ static void TestSettingsFormKeepsUncreatedAnimationFieldsUnchanged()
             CurrentBossIconBrightnessBoostPercent = 64
         };
         using var form = new SettingsForm(settings);
-        InvokePrivate(form, "EnsurePageCreated", 4);
+        InvokePrivate(form, "EnsurePageCreated", 3);
 
         InvokePrivate(form, "ApplyToSettings");
 
@@ -206,6 +238,108 @@ static void TestSettingsFormKeepsUncreatedAnimationFieldsUnchanged()
         AssertEqual(11, form.Result.CurrentBossIconGrayscaleWeakenPercent);
         AssertEqual(64, form.Result.CurrentBossIconBrightnessBoostPercent);
     });
+}
+
+static void TestSettingsFormAppliesAdvancedUiScalePatchOption()
+{
+    RunSta(() =>
+    {
+        using var form = new SettingsForm(new AppSettings());
+        InvokePrivate(form, "EnsurePageCreated", 8);
+        GetPrivateField<CheckBox>(form, "enableTerrariaUiScalePatchBox").Checked = true;
+
+        InvokePrivate(form, "ApplyToSettings");
+
+        AssertEqual(true, form.Result.Advanced.EnableTerrariaUiScalePatch);
+    });
+}
+
+static void TestTerrariaUiScalePatchPlan()
+{
+    IReadOnlyList<byte[]> originalPatterns = GetUiScalePatchPatterns("OriginalPattern");
+    IReadOnlyList<byte[]> patchedPatterns = GetUiScalePatchPatterns("PatchedPattern");
+    byte[] buffer = BuildPatternBuffer(originalPatterns);
+
+    TerrariaUiScalePatchPlan plan = TerrariaUiScalePatch.CreatePlan(buffer, IntPtr.Zero);
+    AssertEqual(true, plan.CanApply);
+    AssertEqual(false, plan.AlreadyApplied);
+    AssertEqual(originalPatterns.Count, plan.Writes.Count);
+
+    byte[] patched = TerrariaUiScalePatch.ApplyToBufferForTest(buffer);
+    TerrariaUiScalePatchPlan patchedPlan = TerrariaUiScalePatch.CreatePlan(patched, IntPtr.Zero);
+    AssertEqual(true, patchedPlan.CanApply);
+    AssertEqual(true, patchedPlan.AlreadyApplied);
+
+    foreach (byte[] pattern in patchedPatterns)
+    {
+        AssertEqual(true, ContainsPattern(patched, pattern));
+    }
+}
+
+static IReadOnlyList<byte[]> GetUiScalePatchPatterns(string propertyName)
+{
+    FieldInfo operationsField = typeof(TerrariaUiScalePatch).GetField(
+            "Operations",
+            BindingFlags.Static | BindingFlags.NonPublic)
+        ?? throw new InvalidOperationException("Missing Terraria UI scale patch operations.");
+    var operations = (Array)(operationsField.GetValue(null)
+        ?? throw new InvalidOperationException("Terraria UI scale patch operations are null."));
+    var patterns = new List<byte[]>();
+
+    foreach (object operation in operations)
+    {
+        PropertyInfo property = operation.GetType().GetProperty(
+                propertyName,
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException($"Missing patch operation property {propertyName}.");
+        patterns.Add((byte[])(property.GetValue(operation)
+            ?? throw new InvalidOperationException($"Patch operation property {propertyName} is null.")));
+    }
+
+    return patterns;
+}
+
+static byte[] BuildPatternBuffer(IReadOnlyList<byte[]> patterns)
+{
+    var bytes = new List<byte>();
+    for (int index = 0; index < patterns.Count; index++)
+    {
+        bytes.Add(0x41);
+        bytes.Add((byte)index);
+        bytes.Add(0x52);
+        bytes.AddRange(patterns[index]);
+        bytes.Add(0x7F);
+    }
+
+    return bytes.ToArray();
+}
+
+static bool ContainsPattern(byte[] buffer, byte[] pattern)
+{
+    if (pattern.Length == 0 || buffer.Length < pattern.Length)
+    {
+        return false;
+    }
+
+    for (int start = 0; start <= buffer.Length - pattern.Length; start++)
+    {
+        bool matches = true;
+        for (int index = 0; index < pattern.Length; index++)
+        {
+            if (buffer[start + index] != pattern[index])
+            {
+                matches = false;
+                break;
+            }
+        }
+
+        if (matches)
+        {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 static void RunSta(Action action)
