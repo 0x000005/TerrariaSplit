@@ -26,6 +26,7 @@ internal sealed partial class SettingsForm : Form
         ConfigureTimeBox(deltaGradientThresholdBox, settings.DeltaGradientThresholdSeconds, 1, 3600);
         ConfigureDeltaGradientCurveBox();
         enableDeltaGradientColorBox.CheckedChanged += (_, _) => InvalidateDeltaGradientPreview();
+        enableCurrentDeltaGradientColorBox.CheckedChanged += (_, _) => InvalidateDeltaGradientPreview();
         enableTimerGradientColorBox.CheckedChanged += (_, _) => InvalidateDeltaGradientPreview();
         deltaGradientThresholdBox.TextChanged += (_, _) => InvalidateDeltaGradientPreview();
         ConfigureCheckBox(showSplitCompletionAnimationBox, settings.ShowSplitCompletionAnimation);
@@ -96,7 +97,7 @@ internal sealed partial class SettingsForm : Form
         TableLayoutPanel outlineOptionGrid = CreateGrid(
             ColumnStylePercent(100f),
             ColumnStyleAbsolute(280f));
-        AddSettingRow(outlineOptionGrid, "Outline thickness %", splitCompletionOutlineThicknessBox);
+        AddSettingRow(outlineOptionGrid, "Outline %", splitCompletionOutlineThicknessBox);
         AddSectionControl(section, outlineOptionGrid);
 
         animationOutlineGrid = CreateGrid(
@@ -336,7 +337,7 @@ internal sealed partial class SettingsForm : Form
         int rowHeight = Math.Max(1, (fillBounds.Height - gap) / 2);
         var deltaRow = new Rectangle(fillBounds.Left, fillBounds.Top, fillBounds.Width, rowHeight);
         var timerRow = new Rectangle(fillBounds.Left, deltaRow.Bottom + gap, fillBounds.Width, Math.Max(1, fillBounds.Bottom - deltaRow.Bottom - gap));
-        DrawDeltaGradientPreviewRow(graphics, deltaRow, Localizer.Get("Historical delta", settings), GetPreviewDeltaGradientPalette());
+        DrawDeltaGradientPreviewRow(graphics, deltaRow, Localizer.Get("Delta", settings), GetPreviewDeltaGradientPalette());
         DrawDeltaGradientPreviewRow(graphics, timerRow, Localizer.Get("Main timer", settings), GetPreviewTimerGradientPalette());
         using var separatorPen = new Pen(BorderColor);
         graphics.DrawLine(separatorPen, fillBounds.Left, deltaRow.Bottom, fillBounds.Right, deltaRow.Bottom);
@@ -389,7 +390,7 @@ internal sealed partial class SettingsForm : Form
             GetPreviewColor(nameof(settings.Colors.DeltaAheadText), settings.Colors.DeltaAheadText, Color.FromArgb(114, 213, 114)),
             GetPreviewColor(nameof(settings.Colors.TimerText), settings.Colors.TimerText, Color.FromArgb(242, 242, 242)),
             GetPreviewColor(nameof(settings.Colors.DeltaBehindText), settings.Colors.DeltaBehindText, Color.FromArgb(240, 112, 112)),
-            enableDeltaGradientColorBox.Checked);
+            enableDeltaGradientColorBox.Checked || enableCurrentDeltaGradientColorBox.Checked);
     }
 
 

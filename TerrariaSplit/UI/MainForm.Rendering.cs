@@ -7,7 +7,6 @@ namespace TerrariaSplit;
 
 internal sealed partial class MainForm : Form
 {
-
     private void DrawOverlay(Graphics graphics)
     {
         IReadOnlyList<BossSplitStatus> statuses = splitTracker.Statuses;
@@ -90,21 +89,21 @@ internal sealed partial class MainForm : Form
         if (columns.Time is Rectangle timeRect)
         {
             bool showSplitTime = status.IsCompleted && status.Time is not null;
-            Color timeColor = showSplitTime
-                ? palette.SplitText
-                : isCurrent ? palette.ActiveReferenceText : palette.ReferenceText;
             string timeText = showSplitTime
                 ? TimeText.FormatSplit(status.Time!.Value)
                 : FormatReferenceTime(status.Definition);
+            TextRenderStyle timeStyle = showSplitTime
+                ? GetSplitTextStyle(palette)
+                : GetReferenceTextStyle(palette, isCurrent);
 
-            using var timeBrush = new SolidBrush(WithOpacity(timeColor, opacity));
-            DrawText(
+            DrawStyledText(
                 graphics,
                 timeText,
                 GetColumnFont(settings.Columns.Time, sizeScale: wheelScale),
-                timeBrush,
+                timeStyle,
                 timeRect,
-                ContentAlignment.MiddleRight);
+                ContentAlignment.MiddleRight,
+                opacity);
         }
 
         if (columns.Delta is Rectangle deltaRect)
@@ -113,20 +112,21 @@ internal sealed partial class MainForm : Form
                 ? settings.EnableDeltaGradientColor
                 : settings.EnableCurrentDeltaGradientColor;
             Color deltaColor = GetDeltaComparisonColor(comparison, palette, enableDeltaGradient);
+            TextRenderStyle deltaStyle = GetDeltaTextStyle(comparison, palette);
             if (TryGetSegmentBestDeltaHighlight(rowIndex, out SegmentBestDeltaHighlight highlight))
             {
                 double seconds = (DateTime.UtcNow - highlight.StartedAtUtc).TotalSeconds;
                 deltaColor = SegmentBestDeltaHighlightStyles.Apply(deltaColor, highlight.Style, seconds);
             }
 
-            using var compareBrush = new SolidBrush(WithOpacity(deltaColor, opacity));
-            DrawText(
+            DrawStyledText(
                 graphics,
                 FormatSplitDelta(comparison),
                 GetColumnFont(settings.Columns.Delta, sizeScale: wheelScale),
-                compareBrush,
+                deltaStyle with { Fill = deltaColor },
                 deltaRect,
-                ContentAlignment.MiddleLeft);
+                ContentAlignment.MiddleLeft,
+                opacity);
         }
     }
 
@@ -487,8 +487,12 @@ internal sealed partial class MainForm : Form
         }
 
         Rectangle timeRect = GetTimerTextBounds(rect);
-        using var timerTextBrush = new SolidBrush(GetTimerTextColor(palette));
-        TimerTextLayout timerTextLayout = DrawTimerText(graphics, runTimer.Elapsed, timerTextBrush, timeRect);
+        TimerTextLayout timerTextLayout = DrawTimerText(
+            graphics,
+            runTimer.Elapsed,
+            GetTimerTextStyle(palette, milliseconds: false),
+            GetTimerTextStyle(palette, milliseconds: true),
+            timeRect);
         if (settings.ShowMouseClickThroughIndicator && !mouseClickThrough)
         {
             DrawMouseClickThroughIndicator(graphics, timeRect, timerTextLayout);
@@ -1071,7 +1075,7 @@ internal sealed partial class MainForm : Form
 
         int labelHeight = Math.Max(1, (int)Math.Ceiling(labelFont.GetHeight(graphics)));
         var labelRect = new Rectangle(bounds.Left, bounds.Top, bounds.Width, labelHeight);
-        using var labelBrush = new SolidBrush(WithOpacity(Color.FromArgb(222, 222, 226), opacity * 0.86f));
+        using var labelBrush = new SolidBrush(WithOpacity(palette.SplitCompletionLabelText, opacity * 0.86f));
         DrawText(
             graphics,
             label,
@@ -1098,7 +1102,7 @@ internal sealed partial class MainForm : Form
                 graphics,
                 value,
                 valueFont,
-                Color.White,
+                palette.SplitCompletionTimeText,
                 startX,
                 valueY,
                 format,
@@ -1109,7 +1113,7 @@ internal sealed partial class MainForm : Form
         }
         else
         {
-            DrawString(graphics, value, valueFont, Color.White, startX, valueY, format, opacity);
+            DrawString(graphics, value, valueFont, palette.SplitCompletionTimeText, startX, valueY, format, opacity);
         }
 
         if (!string.IsNullOrEmpty(deltaText))
@@ -1368,6 +1372,83 @@ internal sealed partial class MainForm : Form
     }
 
 
+    private TextRenderStyle GetReferenceTextStyle(UiPalette palette, bool active)
+    {
+        return active
+            ? CreateReferenceTextStyle(
+                palette.ActiveReferenceText,
+                palette.ActiveReferenceTextOutline,
+                palette.ActiveReferenceTextShadow)
+            : CreateReferenceTextStyle(
+                palette.ReferenceText,
+                palette.ReferenceTextOutline,
+                palette.ReferenceTextShadow);
+    }
+
+
+    private TextRenderStyle GetSplitTextStyle(UiPalette palette)
+    {
+        return new TextRenderStyle(
+            palette.SplitText,
+            palette.SplitTextOutline,
+            palette.SplitTextShadow,
+            settings.TextEffects.TimeShadowDepthPercent,
+            settings.TextEffects.TimeOutlineThicknessPercent);
+    }
+
+
+    private TextRenderStyle GetDeltaTextStyle(SplitComparison comparison, UiPalette palette)
+    {
+        bool ahead = comparison.Delta is TimeSpan delta && delta < TimeSpan.Zero;
+        return ahead
+            ? CreateDeltaTextStyle(
+                palette.DeltaAheadText,
+                palette.DeltaAheadTextOutline,
+                palette.DeltaAheadTextShadow)
+            : CreateDeltaTextStyle(
+                palette.DeltaBehindText,
+                palette.DeltaBehindTextOutline,
+                palette.DeltaBehindTextShadow);
+    }
+
+
+    private TextRenderStyle CreateReferenceTextStyle(Color fill, Color outline, Color shadow)
+    {
+        return new TextRenderStyle(
+            fill,
+            outline,
+            shadow,
+            settings.TextEffects.TimeShadowDepthPercent,
+            settings.TextEffects.TimeOutlineThicknessPercent);
+    }
+
+
+    private TextRenderStyle CreateDeltaTextStyle(Color fill, Color outline, Color shadow)
+    {
+        return new TextRenderStyle(
+            fill,
+            outline,
+            shadow,
+            settings.TextEffects.DeltaShadowDepthPercent,
+            settings.TextEffects.DeltaOutlineThicknessPercent);
+    }
+
+
+    private TextRenderStyle CreateTimerTextStyle(Color fill, Color outline, Color shadow, bool milliseconds)
+    {
+        return new TextRenderStyle(
+            fill,
+            outline,
+            shadow,
+            milliseconds
+                ? settings.TextEffects.TimerMillisecondsShadowDepthPercent
+                : settings.TextEffects.TimerShadowDepthPercent,
+            milliseconds
+                ? settings.TextEffects.TimerMillisecondsOutlineThicknessPercent
+                : settings.TextEffects.TimerOutlineThicknessPercent);
+    }
+
+
     private static void DrawText(
         Graphics graphics,
         string text,
@@ -1391,6 +1472,175 @@ internal sealed partial class MainForm : Form
         };
 
         graphics.DrawString(text, font, brush, bounds, format);
+    }
+
+
+    private static void DrawStyledText(
+        Graphics graphics,
+        string text,
+        Font font,
+        TextRenderStyle style,
+        Rectangle bounds,
+        ContentAlignment alignment,
+        float opacity)
+    {
+        if (string.IsNullOrEmpty(text) || opacity <= 0.01f)
+        {
+            return;
+        }
+
+        using var format = new StringFormat
+        {
+            Trimming = StringTrimming.EllipsisCharacter,
+            FormatFlags = StringFormatFlags.NoWrap,
+            LineAlignment = StringAlignment.Center
+        };
+
+        format.Alignment = alignment switch
+        {
+            ContentAlignment.MiddleRight => StringAlignment.Far,
+            ContentAlignment.MiddleCenter => StringAlignment.Center,
+            _ => StringAlignment.Near
+        };
+
+        if (HasTextEffects(style))
+        {
+            using GraphicsPath path = CreateTextPath(
+                graphics,
+                text,
+                font,
+                new RectangleF(bounds.X, bounds.Y, bounds.Width, bounds.Height),
+                format);
+            DrawTextEffects(graphics, path, font, style, opacity);
+            FillTextPath(graphics, path, style.Fill, opacity);
+            return;
+        }
+
+        using var textBrush = new SolidBrush(WithOpacity(style.Fill, opacity));
+        graphics.DrawString(text, font, textBrush, bounds, format);
+    }
+
+
+    private static void DrawStyledString(
+        Graphics graphics,
+        string text,
+        Font font,
+        TextRenderStyle style,
+        float x,
+        float y,
+        StringFormat format,
+        float opacity)
+    {
+        if (string.IsNullOrEmpty(text) || opacity <= 0.01f)
+        {
+            return;
+        }
+
+        if (HasTextEffects(style))
+        {
+            using GraphicsPath path = CreateTextPath(graphics, text, font, x, y, format);
+            DrawTextEffects(graphics, path, font, style, opacity);
+            FillTextPath(graphics, path, style.Fill, opacity);
+            return;
+        }
+
+        using var textBrush = new SolidBrush(WithOpacity(style.Fill, opacity));
+        graphics.DrawString(text, font, textBrush, x, y, format);
+    }
+
+
+    private static bool HasTextEffects(TextRenderStyle style)
+    {
+        return style.ShadowDepthPercent > 0 || style.OutlineThicknessPercent > 0;
+    }
+
+
+    private static void DrawTextEffects(
+        Graphics graphics,
+        GraphicsPath path,
+        Font font,
+        TextRenderStyle style,
+        float opacity)
+    {
+        if (path.PointCount == 0)
+        {
+            return;
+        }
+
+        float shadowOpacity = GetTextShadowOpacity(style.ShadowDepthPercent);
+        if (shadowOpacity > 0f)
+        {
+            using GraphicsPath shadowPath = (GraphicsPath)path.Clone();
+            using var matrix = new Matrix();
+            float offset = GetTextShadowOffset(graphics, font);
+            matrix.Translate(offset, offset);
+            shadowPath.Transform(matrix);
+
+            using var shadowBrush = new SolidBrush(WithOpacity(style.Shadow, opacity * shadowOpacity));
+            graphics.FillPath(shadowBrush, shadowPath);
+        }
+
+        if (style.OutlineThicknessPercent > 0)
+        {
+            using GraphicsPath outlinePath = CreateWidenedOutlinePath(
+                path,
+                GetTextOutlineRadius(graphics, font, style.OutlineThicknessPercent));
+            using var outlineBrush = new SolidBrush(WithOpacity(style.Outline, opacity));
+            graphics.FillPath(outlineBrush, outlinePath);
+        }
+    }
+
+
+    private static void FillTextPath(Graphics graphics, GraphicsPath path, Color color, float opacity)
+    {
+        if (path.PointCount == 0)
+        {
+            return;
+        }
+
+        using var textBrush = new SolidBrush(WithOpacity(color, opacity));
+        graphics.FillPath(textBrush, path);
+    }
+
+
+    private static GraphicsPath CreateWidenedOutlinePath(GraphicsPath path, float radius)
+    {
+        GraphicsPath outlinePath = (GraphicsPath)path.Clone();
+        using var outlinePen = new Pen(Color.Black, Math.Max(0.2f, radius * 2f))
+        {
+            LineJoin = LineJoin.Round,
+            StartCap = LineCap.Round,
+            EndCap = LineCap.Round
+        };
+        outlinePath.Widen(outlinePen);
+
+        return outlinePath;
+    }
+
+
+    private static float GetTextShadowOpacity(int shadowPercent)
+    {
+        float amount = Math.Clamp(shadowPercent, 0, 100) / 100f;
+        if (amount <= 0f)
+        {
+            return 0f;
+        }
+
+        return Math.Clamp(0.08f + 0.58f * MathF.Pow(amount, 0.85f), 0f, 0.66f);
+    }
+
+
+    private static float GetTextShadowOffset(Graphics graphics, Font font)
+    {
+        return Math.Clamp(GetFontPixelsPerEm(graphics, font) * 0.08f, 1f, 4f);
+    }
+
+
+    private static float GetTextOutlineRadius(Graphics graphics, Font font, int thicknessPercent)
+    {
+        float amount = Math.Clamp(thicknessPercent, 0, 100) / 100f;
+        float radius = GetFontPixelsPerEm(graphics, font) * 0.075f * amount + 0.15f;
+        return Math.Clamp(radius, 0.2f, 3.5f);
     }
 
 
@@ -1513,6 +1763,21 @@ internal sealed partial class MainForm : Form
     }
 
 
+    private static GraphicsPath CreateTextPath(Graphics graphics, string text, Font font, RectangleF bounds, StringFormat format)
+    {
+        var path = new GraphicsPath();
+        using StringFormat pathFormat = (StringFormat)format.Clone();
+        path.AddString(
+            text,
+            font.FontFamily,
+            (int)font.Style,
+            emSize: GetFontPixelsPerEm(graphics, font),
+            layoutRect: bounds,
+            format: pathFormat);
+        return path;
+    }
+
+
     private static float AlignTextPathBottom(
         Graphics graphics,
         string referenceText,
@@ -1600,7 +1865,12 @@ internal sealed partial class MainForm : Form
     }
 
 
-    private TimerTextLayout DrawTimerText(Graphics graphics, TimeSpan elapsed, Brush brush, Rectangle bounds)
+    private TimerTextLayout DrawTimerText(
+        Graphics graphics,
+        TimeSpan elapsed,
+        TextRenderStyle mainStyle,
+        TextRenderStyle millisecondsStyle,
+        Rectangle bounds)
     {
         if (!settings.Columns.Timer.Show && !settings.Columns.TimerMilliseconds.Show)
         {
@@ -1636,12 +1906,12 @@ internal sealed partial class MainForm : Form
 
         if (settings.Columns.Timer.Show)
         {
-            graphics.DrawString(mainText, mainFont, brush, mainX, mainY, format);
+            DrawStyledString(graphics, mainText, mainFont, mainStyle, mainX, mainY, format, 1f);
         }
 
         if (settings.Columns.TimerMilliseconds.Show)
         {
-            graphics.DrawString(millisecondsText, millisecondsFont, brush, millisecondsX, millisecondsY, format);
+            DrawStyledString(graphics, millisecondsText, millisecondsFont, millisecondsStyle, millisecondsX, millisecondsY, format, 1f);
         }
 
         float groupWidth = (settings.Columns.Timer.Show ? mainSize.Width : 0f) + gap +
@@ -1739,11 +2009,11 @@ internal sealed partial class MainForm : Form
     }
 
 
-    private Color GetTimerTextColor(UiPalette palette)
+    private TextRenderStyle GetTimerTextStyle(UiPalette palette, bool milliseconds)
     {
         if (runTimer.Phase == SplitTimerPhase.NotStarted)
         {
-            return palette.TimerText;
+            return CreateTimerTextStyle(palette.TimerText, palette.TimerTextOutline, palette.TimerTextShadow, milliseconds);
         }
 
         IReadOnlyList<BossSplitStatus> statuses = splitTracker.Statuses;
@@ -1751,8 +2021,16 @@ internal sealed partial class MainForm : Form
             settings.TryGetReferenceSplit(moonLordStatus.Definition, out TimeSpan moonLordReference))
         {
             return moonLordTime < moonLordReference
-                ? palette.TimerRecordText
-                : palette.TimerNoRecordText;
+                ? CreateTimerTextStyle(
+                    palette.TimerRecordText,
+                    palette.TimerRecordTextOutline,
+                    palette.TimerRecordTextShadow,
+                    milliseconds)
+                : CreateTimerTextStyle(
+                    palette.TimerNoRecordText,
+                    palette.TimerNoRecordTextOutline,
+                    palette.TimerNoRecordTextShadow,
+                    milliseconds);
         }
 
         if (statuses.Count > 0 && statuses[^1].Time is TimeSpan finalTime)
@@ -1760,27 +2038,39 @@ internal sealed partial class MainForm : Form
             if (settings.TryGetReferenceSplit(statuses[^1].Definition, out TimeSpan finalReference) &&
                 finalTime < finalReference)
             {
-                return palette.TimerRecordText;
+                return CreateTimerTextStyle(
+                    palette.TimerRecordText,
+                    palette.TimerRecordTextOutline,
+                    palette.TimerRecordTextShadow,
+                    milliseconds);
             }
 
             if (settings.TryGetReferenceSplit(statuses[^1].Definition, out finalReference) &&
                 settings.EnableTimerGradientColor)
             {
-                return GetGradientDeltaColor(
-                    finalTime - finalReference,
-                    palette.TimerAheadText,
-                    palette.TimerText,
-                    palette.TimerBehindText);
+                return GetTimerGradientTextStyle(finalTime - finalReference, palette, milliseconds);
             }
 
             return runTimer.Phase == SplitTimerPhase.Paused
-                ? palette.TimerPausedText
-                : palette.TimerBehindText;
+                ? CreateTimerTextStyle(
+                    palette.TimerPausedText,
+                    palette.TimerPausedTextOutline,
+                    palette.TimerPausedTextShadow,
+                    milliseconds)
+                : CreateTimerTextStyle(
+                    palette.TimerBehindText,
+                    palette.TimerBehindTextOutline,
+                    palette.TimerBehindTextShadow,
+                    milliseconds);
         }
 
         if (runTimer.Phase == SplitTimerPhase.Paused)
         {
-            return palette.TimerPausedText;
+            return CreateTimerTextStyle(
+                palette.TimerPausedText,
+                palette.TimerPausedTextOutline,
+                palette.TimerPausedTextShadow,
+                milliseconds);
         }
 
         if (splitTracker.CurrentIndex < statuses.Count &&
@@ -1788,17 +2078,53 @@ internal sealed partial class MainForm : Form
         {
             if (settings.EnableTimerGradientColor)
             {
-                return GetGradientDeltaColor(
-                    runTimer.Elapsed - currentReference,
-                    palette.TimerAheadText,
-                    palette.TimerText,
-                    palette.TimerBehindText);
+                return GetTimerGradientTextStyle(runTimer.Elapsed - currentReference, palette, milliseconds);
             }
 
-            return runTimer.Elapsed <= currentReference ? palette.TimerAheadText : palette.TimerBehindText;
+            return runTimer.Elapsed <= currentReference
+                ? CreateTimerTextStyle(
+                    palette.TimerAheadText,
+                    palette.TimerAheadTextOutline,
+                    palette.TimerAheadTextShadow,
+                    milliseconds)
+                : CreateTimerTextStyle(
+                    palette.TimerBehindText,
+                    palette.TimerBehindTextOutline,
+                    palette.TimerBehindTextShadow,
+                    milliseconds);
         }
 
-        return palette.TimerText;
+        return CreateTimerTextStyle(palette.TimerText, palette.TimerTextOutline, palette.TimerTextShadow, milliseconds);
+    }
+
+
+    private TextRenderStyle GetTimerGradientTextStyle(TimeSpan delta, UiPalette palette, bool milliseconds)
+    {
+        TextRenderStyle style = delta < TimeSpan.Zero
+            ? CreateTimerTextStyle(
+                palette.TimerAheadText,
+                palette.TimerAheadTextOutline,
+                palette.TimerAheadTextShadow,
+                milliseconds)
+            : delta > TimeSpan.Zero
+                ? CreateTimerTextStyle(
+                    palette.TimerBehindText,
+                    palette.TimerBehindTextOutline,
+                    palette.TimerBehindTextShadow,
+                    milliseconds)
+                : CreateTimerTextStyle(
+                    palette.TimerText,
+                    palette.TimerTextOutline,
+                    palette.TimerTextShadow,
+                    milliseconds);
+        return style with
+        {
+            Fill = GetGradientDeltaColor(
+                delta,
+                palette.TimerAheadText,
+                palette.TimerText,
+                palette.TimerBehindText)
+        };
     }
 
 

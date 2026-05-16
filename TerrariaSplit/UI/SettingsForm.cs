@@ -95,6 +95,14 @@ internal sealed partial class SettingsForm : Form
     private readonly TextBox globalScaleBox = new();
     private readonly TextBox timerOffsetXBox = new();
     private readonly TextBox timerOffsetYBox = new();
+    private readonly TextBox timeShadowDepthBox = new();
+    private readonly TextBox timeOutlineThicknessBox = new();
+    private readonly TextBox deltaShadowDepthBox = new();
+    private readonly TextBox deltaOutlineThicknessBox = new();
+    private readonly TextBox timerShadowDepthBox = new();
+    private readonly TextBox timerOutlineThicknessBox = new();
+    private readonly TextBox timerMillisecondsShadowDepthBox = new();
+    private readonly TextBox timerMillisecondsOutlineThicknessBox = new();
     private Button? addReferenceSetButton;
 
     private TableLayoutPanel? personalBestTimeGrid;
@@ -674,7 +682,35 @@ internal sealed partial class SettingsForm : Form
         grid.Controls.Add(CreateAlignedCell(control, controlWidth, HorizontalAlignment.Right), 1, row);
     }
 
-    private void AddColorRow(TableLayoutPanel grid, string label, string key, string value)
+    private void AddTextColorRow(
+        TableLayoutPanel grid,
+        string label,
+        string textKey,
+        string textValue,
+        string outlineKey,
+        string outlineValue,
+        string shadowKey,
+        string shadowValue)
+    {
+        int row = AddGridRow(grid);
+        grid.Controls.Add(CreateRowLabel(label), 0, row);
+        grid.Controls.Add(CreateColorEditor(textKey, textValue), 1, row);
+        grid.Controls.Add(CreateColorEditor(outlineKey, outlineValue), 2, row);
+        grid.Controls.Add(CreateColorEditor(shadowKey, shadowValue), 3, row);
+    }
+
+    private void AddColorRow(
+        TableLayoutPanel grid,
+        string label,
+        string key,
+        string value)
+    {
+        int row = AddGridRow(grid);
+        grid.Controls.Add(CreateRowLabel(label), 0, row);
+        grid.Controls.Add(CreateColorEditor(key, value), 1, row);
+    }
+
+    private Control CreateColorEditor(string key, string value)
     {
         TextBox textBox = CreateTextBox(value);
         colorTextBoxes[key] = textBox;
@@ -686,10 +722,21 @@ internal sealed partial class SettingsForm : Form
             InvalidateDeltaGradientPreview();
         };
 
-        int row = AddGridRow(grid);
-        grid.Controls.Add(CreateRowLabel(label), 0, row);
-        grid.Controls.Add(textBox, 1, row);
-        grid.Controls.Add(pickButton, 2, row);
+        var editor = new TableLayoutPanel
+        {
+            BackColor = SectionColor,
+            ColumnCount = 2,
+            Dock = DockStyle.Fill,
+            Margin = Padding.Empty,
+            Padding = Padding.Empty,
+            RowCount = 1
+        };
+        editor.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+        editor.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 58f));
+        editor.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+        editor.Controls.Add(textBox, 0, 0);
+        editor.Controls.Add(pickButton, 1, 0);
+        return editor;
     }
 
     private void AddSoundRow(TableLayoutPanel grid, string label, string key, string value)
@@ -1208,6 +1255,15 @@ internal sealed partial class SettingsForm : Form
         targetSettings.EnableDynamicDeltaTimeUnits = enableDynamicDeltaTimeUnitsBox.Checked;
         targetSettings.Columns.TimerOffsetX = ParseIntBox(timerOffsetXBox, 0, -2000, 2000);
         targetSettings.Columns.TimerOffsetY = ParseIntBox(timerOffsetYBox, 0, -2000, 2000);
+        targetSettings.TextEffects ??= new UiTextEffectSettings();
+        targetSettings.TextEffects.TimeShadowDepthPercent = ParseIntBox(timeShadowDepthBox, 0, 0, 100);
+        targetSettings.TextEffects.TimeOutlineThicknessPercent = ParseIntBox(timeOutlineThicknessBox, 0, 0, 100);
+        targetSettings.TextEffects.DeltaShadowDepthPercent = ParseIntBox(deltaShadowDepthBox, 0, 0, 100);
+        targetSettings.TextEffects.DeltaOutlineThicknessPercent = ParseIntBox(deltaOutlineThicknessBox, 0, 0, 100);
+        targetSettings.TextEffects.TimerShadowDepthPercent = ParseIntBox(timerShadowDepthBox, 0, 0, 100);
+        targetSettings.TextEffects.TimerOutlineThicknessPercent = ParseIntBox(timerOutlineThicknessBox, 0, 0, 100);
+        targetSettings.TextEffects.TimerMillisecondsShadowDepthPercent = ParseIntBox(timerMillisecondsShadowDepthBox, 0, 0, 100);
+        targetSettings.TextEffects.TimerMillisecondsOutlineThicknessPercent = ParseIntBox(timerMillisecondsOutlineThicknessBox, 0, 0, 100);
     }
 
     internal void ApplyAnimationSettings(AppSettings targetSettings)
@@ -1237,16 +1293,40 @@ internal sealed partial class SettingsForm : Form
     internal void ApplyColorSettings(AppSettings targetSettings)
     {
         SetColor(nameof(targetSettings.Colors.ReferenceText), value => targetSettings.Colors.ReferenceText = value);
+        SetColor(nameof(targetSettings.Colors.ReferenceTextOutline), value => targetSettings.Colors.ReferenceTextOutline = value);
+        SetColor(nameof(targetSettings.Colors.ReferenceTextShadow), value => targetSettings.Colors.ReferenceTextShadow = value);
         SetColor(nameof(targetSettings.Colors.ActiveReferenceText), value => targetSettings.Colors.ActiveReferenceText = value);
+        SetColor(nameof(targetSettings.Colors.ActiveReferenceTextOutline), value => targetSettings.Colors.ActiveReferenceTextOutline = value);
+        SetColor(nameof(targetSettings.Colors.ActiveReferenceTextShadow), value => targetSettings.Colors.ActiveReferenceTextShadow = value);
         SetColor(nameof(targetSettings.Colors.SplitText), value => targetSettings.Colors.SplitText = value);
+        SetColor(nameof(targetSettings.Colors.SplitTextOutline), value => targetSettings.Colors.SplitTextOutline = value);
+        SetColor(nameof(targetSettings.Colors.SplitTextShadow), value => targetSettings.Colors.SplitTextShadow = value);
         SetColor(nameof(targetSettings.Colors.DeltaAheadText), value => targetSettings.Colors.DeltaAheadText = value);
+        SetColor(nameof(targetSettings.Colors.DeltaAheadTextOutline), value => targetSettings.Colors.DeltaAheadTextOutline = value);
+        SetColor(nameof(targetSettings.Colors.DeltaAheadTextShadow), value => targetSettings.Colors.DeltaAheadTextShadow = value);
         SetColor(nameof(targetSettings.Colors.DeltaBehindText), value => targetSettings.Colors.DeltaBehindText = value);
+        SetColor(nameof(targetSettings.Colors.DeltaBehindTextOutline), value => targetSettings.Colors.DeltaBehindTextOutline = value);
+        SetColor(nameof(targetSettings.Colors.DeltaBehindTextShadow), value => targetSettings.Colors.DeltaBehindTextShadow = value);
         SetColor(nameof(targetSettings.Colors.TimerText), value => targetSettings.Colors.TimerText = value);
+        SetColor(nameof(targetSettings.Colors.TimerTextOutline), value => targetSettings.Colors.TimerTextOutline = value);
+        SetColor(nameof(targetSettings.Colors.TimerTextShadow), value => targetSettings.Colors.TimerTextShadow = value);
         SetColor(nameof(targetSettings.Colors.TimerAheadText), value => targetSettings.Colors.TimerAheadText = value);
+        SetColor(nameof(targetSettings.Colors.TimerAheadTextOutline), value => targetSettings.Colors.TimerAheadTextOutline = value);
+        SetColor(nameof(targetSettings.Colors.TimerAheadTextShadow), value => targetSettings.Colors.TimerAheadTextShadow = value);
         SetColor(nameof(targetSettings.Colors.TimerBehindText), value => targetSettings.Colors.TimerBehindText = value);
+        SetColor(nameof(targetSettings.Colors.TimerBehindTextOutline), value => targetSettings.Colors.TimerBehindTextOutline = value);
+        SetColor(nameof(targetSettings.Colors.TimerBehindTextShadow), value => targetSettings.Colors.TimerBehindTextShadow = value);
         SetColor(nameof(targetSettings.Colors.TimerRecordText), value => targetSettings.Colors.TimerRecordText = value);
+        SetColor(nameof(targetSettings.Colors.TimerRecordTextOutline), value => targetSettings.Colors.TimerRecordTextOutline = value);
+        SetColor(nameof(targetSettings.Colors.TimerRecordTextShadow), value => targetSettings.Colors.TimerRecordTextShadow = value);
         SetColor(nameof(targetSettings.Colors.TimerNoRecordText), value => targetSettings.Colors.TimerNoRecordText = value);
+        SetColor(nameof(targetSettings.Colors.TimerNoRecordTextOutline), value => targetSettings.Colors.TimerNoRecordTextOutline = value);
+        SetColor(nameof(targetSettings.Colors.TimerNoRecordTextShadow), value => targetSettings.Colors.TimerNoRecordTextShadow = value);
         SetColor(nameof(targetSettings.Colors.TimerPausedText), value => targetSettings.Colors.TimerPausedText = value);
+        SetColor(nameof(targetSettings.Colors.TimerPausedTextOutline), value => targetSettings.Colors.TimerPausedTextOutline = value);
+        SetColor(nameof(targetSettings.Colors.TimerPausedTextShadow), value => targetSettings.Colors.TimerPausedTextShadow = value);
+        SetColor(nameof(targetSettings.Colors.SplitCompletionLabelText), value => targetSettings.Colors.SplitCompletionLabelText = value);
+        SetColor(nameof(targetSettings.Colors.SplitCompletionTimeText), value => targetSettings.Colors.SplitCompletionTimeText = value);
     }
 
     internal void ApplySoundSettings(AppSettings targetSettings)
@@ -1272,7 +1352,7 @@ internal sealed partial class SettingsForm : Form
         PopulatePersonalBestSegmentGrid();
         Applied?.Invoke(this, EventArgs.Empty);
     }
-  private void SetColor(string key, Action<string> setter)
+    private void SetColor(string key, Action<string> setter)
     {
         if (colorTextBoxes.TryGetValue(key, out TextBox? textBox))
         {
@@ -1298,7 +1378,10 @@ internal sealed partial class SettingsForm : Form
         target.Show = controls.Show.Checked;
         target.Width = ParseIntBox(controls.Width, target.Width, 1, 1000);
         target.FontSize = ParseFloatBox(controls.FontSize, target.FontSize, 6f, 96f);
-        target.Bold = controls.Bold.Checked;
+        if (controls.Bold is not null)
+        {
+            target.Bold = controls.Bold.Checked;
+        }
     }
 
     private void ApplyFontSettings(string key, UiColumnSettings target)
@@ -1341,7 +1424,7 @@ internal sealed partial class SettingsForm : Form
             : 1m;
     }
 
-    private sealed record ColumnControls(CheckBox Show, TextBox Width, TextBox FontSize, CheckBox Bold);
+    private sealed record ColumnControls(CheckBox Show, TextBox Width, TextBox FontSize, CheckBox? Bold);
 
     private sealed record FontControls(CheckBox Show, TextBox FontSize, CheckBox Bold);
 

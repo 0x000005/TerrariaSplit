@@ -51,6 +51,7 @@ internal sealed class AppSettings
     public UiColorSettings Colors { get; set; } = new();
     public UiSoundSettings Sounds { get; set; } = new();
     public UiColumnLayoutSettings Columns { get; set; } = new();
+    public UiTextEffectSettings TextEffects { get; set; } = new();
     public AutoCreateWorldSettings AutoCreate { get; set; } = new();
     public AdvancedSettings Advanced { get; set; } = new();
     public bool EnableDefeatedBossIconLighting { get; set; } = true;

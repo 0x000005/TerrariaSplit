@@ -18,12 +18,30 @@ internal sealed partial class SettingsForm : Form
             ColumnStyleAbsolute(92f),
             ColumnStyleAbsolute(118f),
             ColumnStyleAbsolute(132f),
-            ColumnStyleAbsolute(92f));
+            ColumnStyleAbsolute(92f),
+            ColumnStyleAbsolute(152f),
+            ColumnStyleAbsolute(172f));
 
-        AddHeaderRow(grid, ContentAlignment.MiddleLeft, "Column", "Show", "Width", "Font", "Bold");
-        AddColumnSettingsRow(grid, "Icon", "Icon", settings.Columns.Icon);
-        AddColumnSettingsRow(grid, "Time", "Time", settings.Columns.Time);
-        AddColumnSettingsRow(grid, "Delta", "Delta", settings.Columns.Delta);
+        AddHeaderRow(grid, ContentAlignment.MiddleLeft, "Column", "Show", "Width", "Font", "Bold", "Shadow %", "Outline %");
+        AddColumnSettingsRow(grid, "Icon", "Icon", settings.Columns.Icon, showBold: false);
+        AddColumnSettingsRow(
+            grid,
+            "Time",
+            "Time",
+            settings.Columns.Time,
+            timeShadowDepthBox,
+            settings.TextEffects.TimeShadowDepthPercent,
+            timeOutlineThicknessBox,
+            settings.TextEffects.TimeOutlineThicknessPercent);
+        AddColumnSettingsRow(
+            grid,
+            "Delta",
+            "Delta",
+            settings.Columns.Delta,
+            deltaShadowDepthBox,
+            settings.TextEffects.DeltaShadowDepthPercent,
+            deltaOutlineThicknessBox,
+            settings.TextEffects.DeltaOutlineThicknessPercent);
 
         TableLayoutPanel optionsGrid = CreateGrid(
             ColumnStylePercent(100f),
@@ -36,7 +54,16 @@ internal sealed partial class SettingsForm : Form
     }
 
 
-    private void AddColumnSettingsRow(TableLayoutPanel grid, string label, string key, UiColumnSettings value)
+    private void AddColumnSettingsRow(
+        TableLayoutPanel grid,
+        string label,
+        string key,
+        UiColumnSettings value,
+        TextBox? shadowDepthBox = null,
+        int shadowDepthPercent = 0,
+        TextBox? outlineThicknessBox = null,
+        int outlineThicknessPercent = 0,
+        bool showBold = true)
     {
         var showBox = new CheckBox
         {
@@ -49,15 +76,23 @@ internal sealed partial class SettingsForm : Form
 
         TextBox widthBox = CreateNumberBox(value.Width, 1, 1000);
         TextBox fontBox = CreateDecimalBox(value.FontSize, 6, 96);
+        Control shadowDepthControl = CreateEffectCell(shadowDepthBox, shadowDepthPercent);
+        Control outlineThicknessControl = CreateEffectCell(outlineThicknessBox, outlineThicknessPercent);
 
-        var boldBox = new CheckBox
+        CheckBox? boldBox = null;
+        Control boldControl = CreateEmptySettingsCell();
+        if (showBold)
         {
-            Checked = value.Bold,
-            Dock = DockStyle.Fill,
-            ForeColor = TextColor,
-            TextAlign = ContentAlignment.MiddleCenter
-        };
-        UiTheme.StyleCheckBox(boldBox);
+            boldBox = new CheckBox
+            {
+                Checked = value.Bold,
+                Dock = DockStyle.Fill,
+                ForeColor = TextColor,
+                TextAlign = ContentAlignment.MiddleCenter
+            };
+            UiTheme.StyleCheckBox(boldBox);
+            boldControl = CreateCenteredCell(boldBox, 28);
+        }
 
         columnControls[key] = new ColumnControls(showBox, widthBox, fontBox, boldBox);
 
@@ -66,7 +101,9 @@ internal sealed partial class SettingsForm : Form
         grid.Controls.Add(CreateCenteredCell(showBox, 28), 1, row);
         grid.Controls.Add(CreateCenteredCell(widthBox, 86), 2, row);
         grid.Controls.Add(CreateCenteredCell(fontBox, 92), 3, row);
-        grid.Controls.Add(CreateCenteredCell(boldBox, 28), 4, row);
+        grid.Controls.Add(boldControl, 4, row);
+        grid.Controls.Add(shadowDepthControl, 5, row);
+        grid.Controls.Add(outlineThicknessControl, 6, row);
     }
 
 
@@ -77,11 +114,29 @@ internal sealed partial class SettingsForm : Form
             ColumnStylePercent(100f),
             ColumnStyleAbsolute(92f),
             ColumnStyleAbsolute(132f),
-            ColumnStyleAbsolute(92f));
+            ColumnStyleAbsolute(92f),
+            ColumnStyleAbsolute(152f),
+            ColumnStyleAbsolute(172f));
 
-        AddHeaderRow(grid, ContentAlignment.MiddleLeft, "Section", "Show", "Font", "Bold");
-        AddFontSettingsRow(grid, "Before decimal", "Timer", settings.Columns.Timer);
-        AddFontSettingsRow(grid, "After decimal", "TimerMilliseconds", settings.Columns.TimerMilliseconds);
+        AddHeaderRow(grid, ContentAlignment.MiddleLeft, "Section", "Show", "Font", "Bold", "Shadow %", "Outline %");
+        AddFontSettingsRow(
+            grid,
+            "Before decimal",
+            "Timer",
+            settings.Columns.Timer,
+            timerShadowDepthBox,
+            settings.TextEffects.TimerShadowDepthPercent,
+            timerOutlineThicknessBox,
+            settings.TextEffects.TimerOutlineThicknessPercent);
+        AddFontSettingsRow(
+            grid,
+            "After decimal",
+            "TimerMilliseconds",
+            settings.Columns.TimerMilliseconds,
+            timerMillisecondsShadowDepthBox,
+            settings.TextEffects.TimerMillisecondsShadowDepthPercent,
+            timerMillisecondsOutlineThicknessBox,
+            settings.TextEffects.TimerMillisecondsOutlineThicknessPercent);
 
         ConfigureNumberBox(timerOffsetXBox, settings.Columns.TimerOffsetX, -2000, 2000);
         ConfigureNumberBox(timerOffsetYBox, settings.Columns.TimerOffsetY, -2000, 2000);
@@ -97,7 +152,45 @@ internal sealed partial class SettingsForm : Form
     }
 
 
-    private void AddFontSettingsRow(TableLayoutPanel grid, string label, string key, UiColumnSettings value)
+    private Control CreateEffectCell(TextBox? textBox, int value)
+    {
+        if (textBox is null)
+        {
+            return new Panel
+            {
+                BackColor = SectionColor,
+                Dock = DockStyle.Fill,
+                Margin = Padding.Empty,
+                Padding = Padding.Empty
+            };
+        }
+
+        ConfigureNumberBox(textBox, value, 0, 100);
+        return CreateCenteredCell(textBox, 112);
+    }
+
+
+    private Control CreateEmptySettingsCell()
+    {
+        return new Panel
+        {
+            BackColor = SectionColor,
+            Dock = DockStyle.Fill,
+            Margin = Padding.Empty,
+            Padding = Padding.Empty
+        };
+    }
+
+
+    private void AddFontSettingsRow(
+        TableLayoutPanel grid,
+        string label,
+        string key,
+        UiColumnSettings value,
+        TextBox shadowDepthBox,
+        int shadowDepthPercent,
+        TextBox outlineThicknessBox,
+        int outlineThicknessPercent)
     {
         var showBox = new CheckBox
         {
@@ -109,6 +202,8 @@ internal sealed partial class SettingsForm : Form
         UiTheme.StyleCheckBox(showBox);
 
         TextBox fontBox = CreateDecimalBox(value.FontSize, 6, 96);
+        Control shadowDepthControl = CreateEffectCell(shadowDepthBox, shadowDepthPercent);
+        Control outlineThicknessControl = CreateEffectCell(outlineThicknessBox, outlineThicknessPercent);
         var boldBox = new CheckBox
         {
             Checked = value.Bold,
@@ -124,5 +219,7 @@ internal sealed partial class SettingsForm : Form
         grid.Controls.Add(CreateCenteredCell(showBox, 28), 1, row);
         grid.Controls.Add(CreateCenteredCell(fontBox, 92), 2, row);
         grid.Controls.Add(CreateCenteredCell(boldBox, 28), 3, row);
+        grid.Controls.Add(shadowDepthControl, 4, row);
+        grid.Controls.Add(outlineThicknessControl, 5, row);
     }
 }

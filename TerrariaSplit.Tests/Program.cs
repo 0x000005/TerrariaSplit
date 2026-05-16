@@ -13,13 +13,16 @@ var tests = new (string Name, Action Test)[]
     ("TerrariaMenuGeometry maps 900p menu coordinates", TestTerrariaMenuGeometry),
     ("Localizer returns English fallback and Chinese Crimson", TestLocalizer),
     ("SettingsNormalizer clamps auto-create timings", TestSettingsNormalize),
+    ("SettingsNormalizer clamps text effects", TestSettingsNormalizeTextEffects),
     ("Hotkey validator rejects reserved keys", TestHotkeyValidatorRejectsReservedKeys),
     ("AppSettings falls back from invalid hotkeys", TestAppSettingsInvalidHotkeyFallback),
     ("AppSettings uses PB as reference time", TestAppSettingsUsesPersonalBestAsReferenceTime),
     ("Settings form orders moved pages", TestSettingsFormOrdersMovedPages),
     ("Settings form applies global scale from General page", TestSettingsFormAppliesGlobalScaleFromGeneralPage),
     ("Settings form applies dynamic delta units from UI page", TestSettingsFormAppliesDynamicDeltaUnitsFromUiPage),
+    ("Settings form applies text effects from UI page", TestSettingsFormAppliesTextEffectsFromUiPage),
     ("Settings form locks reference controls when PB reference is enabled", TestSettingsFormLocksReferenceControlsForPersonalBestReference),
+    ("Settings form applies text outline and shadow colors", TestSettingsFormAppliesTextOutlineAndShadowColors),
     ("Settings form applies current delta gradient option", TestSettingsFormAppliesCurrentDeltaGradientOption),
     ("Settings form applies advanced UI scale patch option", TestSettingsFormAppliesAdvancedUiScalePatchOption),
     ("Settings form keeps uncreated animation fields unchanged", TestSettingsFormKeepsUncreatedAnimationFieldsUnchanged),
@@ -140,6 +143,38 @@ static void TestSettingsNormalize()
     AssertEqual(false, settings.Advanced.EnableTerrariaUiScalePatch);
 }
 
+static void TestSettingsNormalizeTextEffects()
+{
+    var settings = new AppSettings
+    {
+        TextEffects = new UiTextEffectSettings
+        {
+            TimeShadowDepthPercent = -1,
+            TimeOutlineThicknessPercent = 101,
+            DeltaShadowDepthPercent = -99,
+            DeltaOutlineThicknessPercent = 900,
+            TimerShadowDepthPercent = -1,
+            TimerOutlineThicknessPercent = 101,
+            TimerMillisecondsShadowDepthPercent = 42,
+            TimerMillisecondsOutlineThicknessPercent = 77
+        }
+    };
+
+    SettingsNormalizer.Normalize(settings);
+    AssertEqual(0, settings.TextEffects.TimeShadowDepthPercent);
+    AssertEqual(100, settings.TextEffects.TimeOutlineThicknessPercent);
+    AssertEqual(0, settings.TextEffects.DeltaShadowDepthPercent);
+    AssertEqual(100, settings.TextEffects.DeltaOutlineThicknessPercent);
+    AssertEqual(0, settings.TextEffects.TimerShadowDepthPercent);
+    AssertEqual(100, settings.TextEffects.TimerOutlineThicknessPercent);
+    AssertEqual(42, settings.TextEffects.TimerMillisecondsShadowDepthPercent);
+    AssertEqual(77, settings.TextEffects.TimerMillisecondsOutlineThicknessPercent);
+
+    settings.TextEffects = null!;
+    SettingsNormalizer.Normalize(settings);
+    AssertEqual(0, settings.TextEffects.TimerShadowDepthPercent);
+}
+
 static void TestHotkeyValidatorRejectsReservedKeys()
 {
     AssertEqual(false, HotkeyKeyValidator.IsAllowed(Keys.ControlKey));
@@ -256,6 +291,34 @@ static void TestSettingsFormAppliesDynamicDeltaUnitsFromUiPage()
     });
 }
 
+static void TestSettingsFormAppliesTextEffectsFromUiPage()
+{
+    RunSta(() =>
+    {
+        using var form = new SettingsForm(new AppSettings());
+        InvokePrivate(form, "EnsurePageCreated", 3);
+        GetPrivateField<TextBox>(form, "timeShadowDepthBox").Text = "25";
+        GetPrivateField<TextBox>(form, "timeOutlineThicknessBox").Text = "30";
+        GetPrivateField<TextBox>(form, "deltaShadowDepthBox").Text = "35";
+        GetPrivateField<TextBox>(form, "deltaOutlineThicknessBox").Text = "40";
+        GetPrivateField<TextBox>(form, "timerShadowDepthBox").Text = "25";
+        GetPrivateField<TextBox>(form, "timerOutlineThicknessBox").Text = "30";
+        GetPrivateField<TextBox>(form, "timerMillisecondsShadowDepthBox").Text = "45";
+        GetPrivateField<TextBox>(form, "timerMillisecondsOutlineThicknessBox").Text = "50";
+
+        InvokePrivate(form, "ApplyToSettings");
+
+        AssertEqual(25, form.Result.TextEffects.TimeShadowDepthPercent);
+        AssertEqual(30, form.Result.TextEffects.TimeOutlineThicknessPercent);
+        AssertEqual(35, form.Result.TextEffects.DeltaShadowDepthPercent);
+        AssertEqual(40, form.Result.TextEffects.DeltaOutlineThicknessPercent);
+        AssertEqual(25, form.Result.TextEffects.TimerShadowDepthPercent);
+        AssertEqual(30, form.Result.TextEffects.TimerOutlineThicknessPercent);
+        AssertEqual(45, form.Result.TextEffects.TimerMillisecondsShadowDepthPercent);
+        AssertEqual(50, form.Result.TextEffects.TimerMillisecondsOutlineThicknessPercent);
+    });
+}
+
 static void TestSettingsFormLocksReferenceControlsForPersonalBestReference()
 {
     RunSta(() =>
@@ -277,6 +340,31 @@ static void TestSettingsFormLocksReferenceControlsForPersonalBestReference()
         Dictionary<string, TextBox> splitTextBoxes = GetPrivateField<Dictionary<string, TextBox>>(form, "splitTextBoxes");
         AssertEqual("00:30", splitTextBoxes["Skeletron"].Text);
         AssertEqual(true, splitTextBoxes["Skeletron"].ReadOnly);
+    });
+}
+
+static void TestSettingsFormAppliesTextOutlineAndShadowColors()
+{
+    RunSta(() =>
+    {
+        using var form = new SettingsForm(new AppSettings());
+        InvokePrivate(form, "EnsurePageCreated", 7);
+        Dictionary<string, TextBox> colorTextBoxes = GetPrivateField<Dictionary<string, TextBox>>(form, "colorTextBoxes");
+        colorTextBoxes[nameof(UiColorSettings.ReferenceTextOutline)].Text = "#112233";
+        colorTextBoxes[nameof(UiColorSettings.ReferenceTextShadow)].Text = "#445566";
+        colorTextBoxes[nameof(UiColorSettings.TimerPausedTextOutline)].Text = "#778899";
+        colorTextBoxes[nameof(UiColorSettings.TimerPausedTextShadow)].Text = "#AABBCC";
+        colorTextBoxes[nameof(UiColorSettings.SplitCompletionLabelText)].Text = "#DDEEFF";
+        colorTextBoxes[nameof(UiColorSettings.SplitCompletionTimeText)].Text = "#FEDCBA";
+
+        InvokePrivate(form, "ApplyToSettings");
+
+        AssertEqual("#112233", form.Result.Colors.ReferenceTextOutline);
+        AssertEqual("#445566", form.Result.Colors.ReferenceTextShadow);
+        AssertEqual("#778899", form.Result.Colors.TimerPausedTextOutline);
+        AssertEqual("#AABBCC", form.Result.Colors.TimerPausedTextShadow);
+        AssertEqual("#DDEEFF", form.Result.Colors.SplitCompletionLabelText);
+        AssertEqual("#FEDCBA", form.Result.Colors.SplitCompletionTimeText);
     });
 }
 

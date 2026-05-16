@@ -8,6 +8,18 @@ internal sealed class UiColumnSettings
     public bool Bold { get; set; }
 }
 
+internal sealed class UiTextEffectSettings
+{
+    public int TimeShadowDepthPercent { get; set; }
+    public int TimeOutlineThicknessPercent { get; set; }
+    public int DeltaShadowDepthPercent { get; set; }
+    public int DeltaOutlineThicknessPercent { get; set; }
+    public int TimerShadowDepthPercent { get; set; }
+    public int TimerOutlineThicknessPercent { get; set; }
+    public int TimerMillisecondsShadowDepthPercent { get; set; }
+    public int TimerMillisecondsOutlineThicknessPercent { get; set; }
+}
+
 internal sealed class UiColumnLayoutSettings
 {
     public int ScalePercent { get; set; } = 100;

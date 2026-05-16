@@ -19,6 +19,7 @@ internal static class SettingsNormalizer
         settings.Colors ??= new UiColorSettings();
         settings.Sounds ??= new UiSoundSettings();
         settings.Columns ??= new UiColumnLayoutSettings();
+        settings.TextEffects ??= new UiTextEffectSettings();
         settings.AutoCreate ??= new AutoCreateWorldSettings();
         settings.Advanced ??= new AdvancedSettings();
         NormalizeAutoCreate(settings.AutoCreate);
@@ -33,6 +34,7 @@ internal static class SettingsNormalizer
         settings.CurrentBossIconBrightnessBoostPercent = Math.Clamp(settings.CurrentBossIconBrightnessBoostPercent, 0, 100);
         NormalizeRoute(settings);
         NormalizeColumnSettings(settings.Columns);
+        NormalizeTextEffects(settings.TextEffects);
         RemoveUnknownBossUnitKeys(settings);
 
         foreach (BossUnitDefinition unit in BossSplitDefinitions.Units)
@@ -101,6 +103,23 @@ internal static class SettingsNormalizer
         {
             column.FontSize = defaults.FontSize;
         }
+    }
+
+    private static void NormalizeTextEffects(UiTextEffectSettings effects)
+    {
+        effects.TimeShadowDepthPercent = ClampPercent(effects.TimeShadowDepthPercent);
+        effects.TimeOutlineThicknessPercent = ClampPercent(effects.TimeOutlineThicknessPercent);
+        effects.DeltaShadowDepthPercent = ClampPercent(effects.DeltaShadowDepthPercent);
+        effects.DeltaOutlineThicknessPercent = ClampPercent(effects.DeltaOutlineThicknessPercent);
+        effects.TimerShadowDepthPercent = ClampPercent(effects.TimerShadowDepthPercent);
+        effects.TimerOutlineThicknessPercent = ClampPercent(effects.TimerOutlineThicknessPercent);
+        effects.TimerMillisecondsShadowDepthPercent = ClampPercent(effects.TimerMillisecondsShadowDepthPercent);
+        effects.TimerMillisecondsOutlineThicknessPercent = ClampPercent(effects.TimerMillisecondsOutlineThicknessPercent);
+    }
+
+    private static int ClampPercent(int value)
+    {
+        return Math.Clamp(value, 0, 100);
     }
 
     private static void NormalizeReferenceSets(AppSettings settings)

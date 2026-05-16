@@ -3,14 +3,38 @@ namespace TerrariaSplit;
 internal sealed class UiColorSettings
 {
     public string ReferenceText { get; set; } = "#E2E2E2";
+    public string ReferenceTextOutline { get; set; } = "#101010";
+    public string ReferenceTextShadow { get; set; } = "#000000";
     public string ActiveReferenceText { get; set; } = "#FDE679";
+    public string ActiveReferenceTextOutline { get; set; } = "#101010";
+    public string ActiveReferenceTextShadow { get; set; } = "#000000";
     public string SplitText { get; set; } = "#F0A040";
+    public string SplitTextOutline { get; set; } = "#101010";
+    public string SplitTextShadow { get; set; } = "#000000";
     public string DeltaAheadText { get; set; } = "#72D572";
+    public string DeltaAheadTextOutline { get; set; } = "#101010";
+    public string DeltaAheadTextShadow { get; set; } = "#000000";
     public string DeltaBehindText { get; set; } = "#F07070";
+    public string DeltaBehindTextOutline { get; set; } = "#101010";
+    public string DeltaBehindTextShadow { get; set; } = "#000000";
     public string TimerText { get; set; } = "#F2F2F2";
+    public string TimerTextOutline { get; set; } = "#101010";
+    public string TimerTextShadow { get; set; } = "#000000";
     public string TimerAheadText { get; set; } = "#72D572";
+    public string TimerAheadTextOutline { get; set; } = "#101010";
+    public string TimerAheadTextShadow { get; set; } = "#000000";
     public string TimerBehindText { get; set; } = "#F07070";
+    public string TimerBehindTextOutline { get; set; } = "#101010";
+    public string TimerBehindTextShadow { get; set; } = "#000000";
     public string TimerRecordText { get; set; } = "#69A7FF";
+    public string TimerRecordTextOutline { get; set; } = "#101010";
+    public string TimerRecordTextShadow { get; set; } = "#000000";
     public string TimerNoRecordText { get; set; } = "#FF0000";
+    public string TimerNoRecordTextOutline { get; set; } = "#101010";
+    public string TimerNoRecordTextShadow { get; set; } = "#000000";
     public string TimerPausedText { get; set; } = "#D8D8D8";
+    public string TimerPausedTextOutline { get; set; } = "#101010";
+    public string TimerPausedTextShadow { get; set; } = "#000000";
+    public string SplitCompletionLabelText { get; set; } = "#DEDEE2";
+    public string SplitCompletionTimeText { get; set; } = "#FFFFFF";
 }
