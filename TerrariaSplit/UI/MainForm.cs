@@ -44,6 +44,7 @@ internal sealed partial class MainForm : Form
     private readonly BossSplitTracker splitTracker = new();
     private readonly TerrariaWorldWatcher watcher = new();
     private readonly TerrariaCreateWorldAutomation createWorldAutomation = new();
+    private readonly TerrariaPracticeWorldAutomation practiceWorldAutomation = new();
     private readonly MainFormContextMenuBuilder contextMenuBuilder = new();
     private readonly RunFinalizer runFinalizer = new();
     private readonly SoundPlayerService soundPlayer = new();
@@ -68,6 +69,7 @@ internal sealed partial class MainForm : Form
     private bool settingsFormOpen;
     private string? lastHotkeyWarningText;
     private DateTime? pendingCreateWorldDeadlineUtc;
+    private DateTime? pendingPracticeWorldDeadlineUtc;
     private DateTime nextWatcherPollUtc = DateTime.MinValue;
     private DateTime nextUiScalePatchAttemptUtc = DateTime.MinValue;
     private bool watcherPollInFlight;
@@ -206,6 +208,7 @@ internal sealed partial class MainForm : Form
         hotkeyManager.Dispose();
         watcher.Dispose();
         createWorldAutomation.Dispose();
+        practiceWorldAutomation.Dispose();
 
         foreach (IconPair iconPair in iconCache.Values)
         {
@@ -349,6 +352,12 @@ internal sealed partial class MainForm : Form
                 return;
             }
 
+            if (practiceWorldAutomation.IsRunning && action != TimerHotkeyAction.PracticeWorld)
+            {
+                m.Result = IntPtr.Zero;
+                return;
+            }
+
             pendingHotkeyRequests.Enqueue(new TimerHotkeyRequest(action, DateTime.UtcNow));
             m.Result = IntPtr.Zero;
             return;
@@ -443,6 +452,11 @@ internal sealed partial class MainForm : Form
                 QueuePendingCreateWorldAutomationRequest(createWorldRequestedAtUtc);
             }
 
+            if (tickResult.PracticeWorldRequestedAtUtc is DateTime practiceWorldRequestedAtUtc)
+            {
+                QueuePendingPracticeWorldSelectorRequest(practiceWorldRequestedAtUtc);
+            }
+
             if (tickResult.RequestedMenuAction == MenuHotkeyActionKind.Reset)
             {
                 ExecuteReset();
@@ -450,6 +464,11 @@ internal sealed partial class MainForm : Form
             }
 
             if (TryStartPendingCreateWorldAutomation())
+            {
+                return;
+            }
+
+            if (TryShowPendingPracticeWorldSelector())
             {
                 return;
             }
@@ -865,6 +884,7 @@ internal sealed partial class MainForm : Form
         hotkeyManager.Dispose();
         pendingHotkeyRequests.Clear();
         ClearPendingCreateWorldAutomationRequest();
+        ClearPendingPracticeWorldSelectorRequest();
         try
         {
             using var form = new SettingsForm(settings, GetRuntimeDiagnostics);
@@ -1023,6 +1043,7 @@ internal sealed partial class MainForm : Form
         splitCompletionAnimation = null;
         pendingMenuHotkeys.Clear();
         ClearPendingCreateWorldAutomationRequest();
+        ClearPendingPracticeWorldSelectorRequest();
         segmentBestDeltaHighlights.Clear();
         runStatsRecorded = false;
         UpdateRenderTimerState();
@@ -1051,6 +1072,7 @@ internal sealed partial class MainForm : Form
     {
         pendingHotkeyRequests.Clear();
         ClearPendingCreateWorldAutomationRequest();
+        ClearPendingPracticeWorldSelectorRequest();
         ResetRun(recordStats: true);
 
         try
@@ -1070,6 +1092,17 @@ internal sealed partial class MainForm : Form
         if (createWorldAutomation.IsRunning)
         {
             createWorldAutomation.Cancel();
+            return;
+        }
+    }
+
+    private void QueuePendingPracticeWorldSelectorRequest(DateTime requestedAtUtc)
+    {
+        pendingPracticeWorldDeadlineUtc = requestedAtUtc + CreateWorldHotkeyPendingDuration;
+
+        if (practiceWorldAutomation.IsRunning)
+        {
+            practiceWorldAutomation.Cancel();
             return;
         }
     }
@@ -1099,6 +1132,81 @@ internal sealed partial class MainForm : Form
     private void ClearPendingCreateWorldAutomationRequest()
     {
         pendingCreateWorldDeadlineUtc = null;
+    }
+
+    private bool TryShowPendingPracticeWorldSelector()
+    {
+        if (pendingPracticeWorldDeadlineUtc is not DateTime deadlineUtc || practiceWorldAutomation.IsRunning)
+        {
+            return false;
+        }
+
+        if (DateTime.UtcNow > deadlineUtc)
+        {
+            ClearPendingPracticeWorldSelectorRequest();
+            return false;
+        }
+
+        if (snapshot.IsGameMenu != true)
+        {
+            return false;
+        }
+
+        ClearPendingPracticeWorldSelectorRequest();
+        ResetRun(recordStats: true);
+        ShowPracticeWorldSelector();
+        return true;
+    }
+
+    private void ClearPendingPracticeWorldSelectorRequest()
+    {
+        pendingPracticeWorldDeadlineUtc = null;
+    }
+
+    private void ShowPracticeWorldSelector()
+    {
+        using var form = new PracticeWorldSelectorForm(settings);
+        var window = new TerrariaWindowController();
+        if (window.TryGetClientScreenBounds(out Rectangle terrariaBounds))
+        {
+            form.Location = new Point(
+                terrariaBounds.Left + Math.Max(0, (terrariaBounds.Width - form.Width) / 2),
+                terrariaBounds.Top + Math.Max(0, (terrariaBounds.Height - form.Height) / 2));
+        }
+        else
+        {
+            Rectangle workingArea = Screen.FromControl(this).WorkingArea;
+            form.Location = new Point(
+                workingArea.Left + Math.Max(0, (workingArea.Width - form.Width) / 2),
+                workingArea.Top + Math.Max(0, (workingArea.Height - form.Height) / 2));
+        }
+
+        if (form.ShowDialog(this) == DialogResult.OK && form.SelectedSlot is PracticeWorldSlot selectedSlot)
+        {
+            StartPracticeWorldAutomation(selectedSlot);
+        }
+    }
+
+    private async void StartPracticeWorldAutomation(PracticeWorldSlot selectedSlot)
+    {
+        if (!PracticeWorldSaveInstaller.TryValidate(selectedSlot, out string validationMessage))
+        {
+            AppLogger.Info(validationMessage);
+            return;
+        }
+
+        pendingHotkeyRequests.Clear();
+        ClearPendingCreateWorldAutomationRequest();
+        ClearPendingPracticeWorldSelectorRequest();
+
+        try
+        {
+            await practiceWorldAutomation.RunAsync(AppSettingsStore.Clone(settings), selectedSlot);
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error(ex, "Unhandled practice world automation error.");
+        }
     }
 
     private void RegisterConfiguredHotkeys()
@@ -1181,6 +1289,7 @@ internal sealed partial class MainForm : Form
             TimerHotkeyAction.Reset => "Reset (Disabled in world)",
             TimerHotkeyAction.MouseClickThrough => "Mouse passthrough",
             TimerHotkeyAction.CreateWorld => "Create world (Disabled in world)",
+            TimerHotkeyAction.PracticeWorld => "Quick enter world (Disabled in world)",
             _ => action.ToString()
         };
     }

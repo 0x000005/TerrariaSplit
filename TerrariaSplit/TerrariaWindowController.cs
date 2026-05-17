@@ -41,6 +41,35 @@ internal sealed class TerrariaWindowController
         return clientSize.Width > 0 && clientSize.Height > 0;
     }
 
+    public bool TryGetClientScreenBounds(out Rectangle bounds)
+    {
+        bounds = Rectangle.Empty;
+        Process? process = TerrariaProcessFinder.FindNewest();
+        if (process is null || process.MainWindowHandle == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        IntPtr handle = process.MainWindowHandle;
+        if (!GetClientRect(handle, out Rect rect))
+        {
+            return false;
+        }
+
+        var origin = new PointStruct { X = 0, Y = 0 };
+        if (!ClientToScreen(handle, ref origin))
+        {
+            return false;
+        }
+
+        bounds = new Rectangle(
+            origin.X,
+            origin.Y,
+            Math.Max(0, rect.Right - rect.Left),
+            Math.Max(0, rect.Bottom - rect.Top));
+        return bounds.Width > 0 && bounds.Height > 0;
+    }
+
     public bool TryClickClient(int x, int y)
     {
         return TryClickClient(x, y, out _);

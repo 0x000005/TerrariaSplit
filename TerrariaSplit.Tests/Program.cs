@@ -13,6 +13,7 @@ var tests = new (string Name, Action Test)[]
     ("TerrariaMenuGeometry maps 900p menu coordinates", TestTerrariaMenuGeometry),
     ("Localizer returns English fallback and Chinese Crimson", TestLocalizer),
     ("SettingsNormalizer clamps auto-create timings", TestSettingsNormalize),
+    ("SettingsNormalizer normalizes practice world slots", TestSettingsNormalizePracticeWorlds),
     ("SettingsNormalizer clamps text effects", TestSettingsNormalizeTextEffects),
     ("Hotkey validator rejects reserved keys", TestHotkeyValidatorRejectsReservedKeys),
     ("AppSettings falls back from invalid hotkeys", TestAppSettingsInvalidHotkeyFallback),
@@ -21,6 +22,7 @@ var tests = new (string Name, Action Test)[]
     ("Settings form applies global scale from General page", TestSettingsFormAppliesGlobalScaleFromGeneralPage),
     ("Settings form applies dynamic delta units from UI page", TestSettingsFormAppliesDynamicDeltaUnitsFromUiPage),
     ("Settings form applies text effects from UI page", TestSettingsFormAppliesTextEffectsFromUiPage),
+    ("Settings form applies practice world slots", TestSettingsFormAppliesPracticeWorldSlots),
     ("Settings form locks reference controls when PB reference is enabled", TestSettingsFormLocksReferenceControlsForPersonalBestReference),
     ("Settings form applies text outline and shadow colors", TestSettingsFormAppliesTextOutlineAndShadowColors),
     ("Main form preserves size when applying non-layout settings", TestMainFormPreservesSizeWhenApplyingNonLayoutSettings),
@@ -146,6 +148,38 @@ static void TestSettingsNormalize()
     AssertEqual(false, settings.Advanced.EnableTerrariaUiScalePatch);
 }
 
+static void TestSettingsNormalizePracticeWorlds()
+{
+    var settings = new AppSettings
+    {
+        PracticeWorlds = new PracticeWorldSettings
+        {
+            Slots =
+            [
+                new PracticeWorldSlot
+                {
+                    Name = "  Skeletron  ",
+                    PlayerFilePath = "  C:\\practice\\player.plr  ",
+                    WorldFilePath = "  C:\\practice\\world.wld  "
+                },
+                null!
+            ]
+        }
+    };
+
+    SettingsNormalizer.Normalize(settings);
+
+    AssertEqual(PracticeWorldSettings.SlotCount, settings.PracticeWorlds.Slots.Count);
+    AssertEqual("Skeletron", settings.PracticeWorlds.Slots[0].Name);
+    AssertEqual("C:\\practice\\player.plr", settings.PracticeWorlds.Slots[0].PlayerFilePath);
+    AssertEqual("C:\\practice\\world.wld", settings.PracticeWorlds.Slots[0].WorldFilePath);
+    AssertEqual(string.Empty, settings.PracticeWorlds.Slots[1].Name);
+
+    settings.PracticeWorlds = null!;
+    SettingsNormalizer.Normalize(settings);
+    AssertEqual(PracticeWorldSettings.SlotCount, settings.PracticeWorlds.Slots.Count);
+}
+
 static void TestSettingsNormalizeTextEffects()
 {
     var settings = new AppSettings
@@ -197,13 +231,15 @@ static void TestAppSettingsInvalidHotkeyFallback()
         PauseResumeKey = Keys.ControlKey.ToString(),
         ResetKey = Keys.LShiftKey.ToString(),
         MouseClickThroughKey = Keys.RMenu.ToString(),
-        CreateWorldKey = Keys.LWin.ToString()
+        CreateWorldKey = Keys.LWin.ToString(),
+        PracticeWorldKey = Keys.LWin.ToString()
     };
 
     AssertEqual(Keys.F12, settings.PauseResumeKeys);
     AssertEqual(Keys.F6, settings.ResetKeys);
     AssertEqual(Keys.F9, settings.MouseClickThroughKeys);
     AssertEqual(Keys.F7, settings.CreateWorldKeys);
+    AssertEqual(Keys.F8, settings.PracticeWorldKeys);
 }
 
 static void TestAppSettingsUsesPersonalBestAsReferenceTime()
@@ -275,7 +311,7 @@ static void TestSettingsFormOrdersMovedPages()
         }
 
         AssertEqual(
-            "General|BOSS|Data|UI|Effects|Create World|Sounds|Colors|Advanced|Debug",
+            "General|BOSS|Data|UI|Effects|Automation|Sounds|Colors|Advanced|Debug",
             string.Join('|', labels));
     });
 }
@@ -319,6 +355,33 @@ static void TestSettingsFormAppliesTextEffectsFromUiPage()
         AssertEqual(30, form.Result.TextEffects.TimerOutlineThicknessPercent);
         AssertEqual(45, form.Result.TextEffects.TimerMillisecondsShadowPercent);
         AssertEqual(50, form.Result.TextEffects.TimerMillisecondsOutlineThicknessPercent);
+    });
+}
+
+static void TestSettingsFormAppliesPracticeWorldSlots()
+{
+    RunSta(() =>
+    {
+        using var form = new SettingsForm(new AppSettings());
+        InvokePrivate(form, "EnsurePageCreated", 5);
+        TextBox practiceKeyBox = GetPrivateField<TextBox>(form, "practiceWorldKeyBox");
+        SetHotkeyBox(practiceKeyBox, Keys.F10);
+
+        var controls = ((System.Collections.IEnumerable)GetPrivateField<object>(form, "practiceSlotControls"))
+            .Cast<object>()
+            .ToList();
+        object firstSlot = controls[0];
+        GetProperty<TextBox>(firstSlot, "NameBox").Text = "Plantera";
+        GetProperty<TextBox>(firstSlot, "PlayerFilePathBox").Text = "C:\\practice\\player.plr";
+        GetProperty<TextBox>(firstSlot, "WorldFilePathBox").Text = "C:\\practice\\world.wld";
+
+        InvokePrivate(form, "ApplyToSettings");
+
+        AssertEqual(Keys.F10.ToString(), form.Result.PracticeWorldKey);
+        AssertEqual(PracticeWorldSettings.SlotCount, form.Result.PracticeWorlds.Slots.Count);
+        AssertEqual("Plantera", form.Result.PracticeWorlds.Slots[0].Name);
+        AssertEqual("C:\\practice\\player.plr", form.Result.PracticeWorlds.Slots[0].PlayerFilePath);
+        AssertEqual("C:\\practice\\world.wld", form.Result.PracticeWorlds.Slots[0].WorldFilePath);
     });
 }
 
@@ -613,6 +676,24 @@ static T GetPrivateField<T>(object target, string name)
     FieldInfo field = target.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)
         ?? throw new InvalidOperationException($"Missing private field {name}.");
     return (T)(field.GetValue(target) ?? throw new InvalidOperationException($"Private field {name} is null."));
+}
+
+static T GetProperty<T>(object target, string name)
+{
+    PropertyInfo property = target.GetType().GetProperty(
+            name,
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+        ?? throw new InvalidOperationException($"Missing property {name}.");
+    return (T)(property.GetValue(target) ?? throw new InvalidOperationException($"Property {name} is null."));
+}
+
+static void SetHotkeyBox(TextBox textBox, Keys key)
+{
+    MethodInfo method = textBox.GetType().GetMethod(
+            "SetHotkey",
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+        ?? throw new InvalidOperationException("Missing hotkey setter.");
+    method.Invoke(textBox, [key]);
 }
 
 static void SetMainFormSettings(MainForm form, AppSettings settings)

@@ -16,7 +16,7 @@ internal sealed class TerrariaSavePreparation
 
     public Dictionary<string, DateTime> SnapshotSaveFiles(string directoryName, string pattern)
     {
-        string directory = Path.Combine(GetTerrariaSaveRoot(), directoryName);
+        string directory = Path.Combine(TerrariaSavePaths.SaveRoot(), directoryName);
         if (!Directory.Exists(directory))
         {
             return new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
@@ -27,13 +27,5 @@ internal sealed class TerrariaSavePreparation
                 path => Path.GetFileName(path),
                 File.GetLastWriteTimeUtc,
                 StringComparer.OrdinalIgnoreCase);
-    }
-
-    private static string GetTerrariaSaveRoot()
-    {
-        return Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
-            "My Games",
-            "Terraria");
     }
 }

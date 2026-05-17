@@ -6,12 +6,11 @@ internal sealed class TerrariaSaveFileCleaner
 {
     private const int MaxDeletedBackupFolders = 50;
     private const string FavoritesFileName = "favorites.json";
-    private const string DeletedSavesDirectoryName = "TerrariaSplitDeleted";
 
     public TerrariaSaveCleanupResult MoveNonFavoritesToBackup()
     {
-        string root = GetTerrariaSaveRoot();
-        string deletedRoot = Path.Combine(root, DeletedSavesDirectoryName);
+        string root = TerrariaSavePaths.SaveRoot();
+        string deletedRoot = TerrariaSavePaths.DeletedSavesRoot();
         string backupRoot = Path.Combine(
             deletedRoot,
             DateTime.Now.ToString("yyyyMMdd-HHmmss"));
@@ -33,7 +32,7 @@ internal sealed class TerrariaSaveFileCleaner
 
     public TerrariaSaveInventorySnapshot ReadInventorySnapshot()
     {
-        string root = GetTerrariaSaveRoot();
+        string root = TerrariaSavePaths.SaveRoot();
         FavoriteSaveFiles favorites = LoadFavorites(Path.Combine(root, FavoritesFileName));
         return new TerrariaSaveInventorySnapshot(
             CountFiles(Path.Combine(root, "Players"), "*.plr"),
@@ -185,12 +184,6 @@ internal sealed class TerrariaSaveFileCleaner
         return Directory.Exists(directory)
             ? Directory.EnumerateFiles(directory, pattern, SearchOption.TopDirectoryOnly).Count()
             : 0;
-    }
-
-    private static string GetTerrariaSaveRoot()
-    {
-        string documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-        return Path.Combine(documents, "My Games", "Terraria");
     }
 
     private static FavoriteSaveFiles LoadFavorites(string path)

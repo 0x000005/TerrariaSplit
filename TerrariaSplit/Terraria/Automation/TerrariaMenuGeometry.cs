@@ -115,9 +115,19 @@ internal readonly record struct TerrariaMenuGeometry(float Scale, float LogicalW
 
     public Point PlayerPlayButton(int favoritePlayers)
     {
+        return SelectListPlayButton(favoritePlayers);
+    }
+
+    public Point WorldPlayButton(int favoriteWorlds)
+    {
+        return SelectListPlayButton(favoriteWorlds);
+    }
+
+    private Point SelectListPlayButton(int favoriteItems)
+    {
         float outerWidth = GetSelectListOuterWidth();
         float left = LogicalWidth / 2f - outerWidth / 2f;
-        float itemTop = 232f + favoritePlayers * 101f;
+        float itemTop = 232f + favoriteItems * 101f;
         return ToClient(left + 33f, itemTop + 79f);
     }
 

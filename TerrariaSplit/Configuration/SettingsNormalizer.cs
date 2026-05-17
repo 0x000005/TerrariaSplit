@@ -21,8 +21,10 @@ internal static class SettingsNormalizer
         settings.Columns ??= new UiColumnLayoutSettings();
         settings.TextEffects ??= new UiTextEffectSettings();
         settings.AutoCreate ??= new AutoCreateWorldSettings();
+        settings.PracticeWorlds ??= new PracticeWorldSettings();
         settings.Advanced ??= new AdvancedSettings();
         NormalizeAutoCreate(settings.AutoCreate);
+        NormalizePracticeWorlds(settings.PracticeWorlds);
         settings.SplitCompletionAnimationDurationSeconds = Math.Clamp(settings.SplitCompletionAnimationDurationSeconds, 2f, 20f);
         settings.SplitCompletionOutlineThicknessPercent = Math.Clamp(settings.SplitCompletionOutlineThicknessPercent, 0, 100);
         settings.CurrentSplitHighlightScalePercent = Math.Clamp(settings.CurrentSplitHighlightScalePercent, 100, 140);
@@ -73,6 +75,30 @@ internal static class SettingsNormalizer
         autoCreate.WindowActivationDelayMilliseconds = Math.Clamp(autoCreate.WindowActivationDelayMilliseconds, 0, 5000);
         autoCreate.ClickFocusDelayMilliseconds = Math.Clamp(autoCreate.ClickFocusDelayMilliseconds, 0, 5000);
         autoCreate.InputPressDurationMilliseconds = Math.Clamp(autoCreate.InputPressDurationMilliseconds, 1, 5000);
+    }
+
+    private static void NormalizePracticeWorlds(PracticeWorldSettings practiceWorlds)
+    {
+        practiceWorlds.Slots ??= new List<PracticeWorldSlot>();
+        while (practiceWorlds.Slots.Count < PracticeWorldSettings.SlotCount)
+        {
+            practiceWorlds.Slots.Add(new PracticeWorldSlot());
+        }
+
+        if (practiceWorlds.Slots.Count > PracticeWorldSettings.SlotCount)
+        {
+            practiceWorlds.Slots.RemoveRange(
+                PracticeWorldSettings.SlotCount,
+                practiceWorlds.Slots.Count - PracticeWorldSettings.SlotCount);
+        }
+
+        for (int i = 0; i < practiceWorlds.Slots.Count; i++)
+        {
+            practiceWorlds.Slots[i] ??= new PracticeWorldSlot();
+            practiceWorlds.Slots[i].Name = practiceWorlds.Slots[i].Name?.Trim() ?? string.Empty;
+            practiceWorlds.Slots[i].PlayerFilePath = practiceWorlds.Slots[i].PlayerFilePath?.Trim() ?? string.Empty;
+            practiceWorlds.Slots[i].WorldFilePath = practiceWorlds.Slots[i].WorldFilePath?.Trim() ?? string.Empty;
+        }
     }
 
     private static void NormalizeColumnSettings(UiColumnLayoutSettings columns)

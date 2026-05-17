@@ -5,7 +5,8 @@ internal enum TimerHotkeyAction
     PauseResume,
     Reset,
     MouseClickThrough,
-    CreateWorld
+    CreateWorld,
+    PracticeWorld
 }
 
 internal readonly record struct TimerHotkeyRequest(TimerHotkeyAction Action, DateTime RequestedAtUtc);
@@ -36,6 +37,7 @@ internal sealed class TimerController
         bool pauseSoundRequested = false;
         bool toggleMouseClickThroughRequested = false;
         DateTime? createWorldRequestedAtUtc = null;
+        DateTime? practiceWorldRequestedAtUtc = null;
         bool runStarted = false;
         int? completedSplitIndex = null;
         bool runCompleted = false;
@@ -70,6 +72,10 @@ internal sealed class TimerController
             {
                 createWorldRequestedAtUtc = request.RequestedAtUtc;
             }
+            else if (action == TimerHotkeyAction.PracticeWorld)
+            {
+                practiceWorldRequestedAtUtc = request.RequestedAtUtc;
+            }
         }
 
         if (TryConsumePendingMenuHotkeyAction(snapshot, out MenuHotkeyActionKind pendingAction))
@@ -79,7 +85,8 @@ internal sealed class TimerController
                 pendingAction,
                 pauseSoundRequested,
                 toggleMouseClickThroughRequested,
-                createWorldRequestedAtUtc);
+                createWorldRequestedAtUtc,
+                practiceWorldRequestedAtUtc);
         }
 
         if (snapshot.EnteredWorld && runTimer.Phase == SplitTimerPhase.NotStarted)
@@ -108,6 +115,7 @@ internal sealed class TimerController
             pauseSoundRequested,
             toggleMouseClickThroughRequested,
             createWorldRequestedAtUtc,
+            practiceWorldRequestedAtUtc,
             RequestedMenuAction: null,
             runStarted,
             completedSplitIndex,
@@ -148,6 +156,7 @@ internal readonly record struct TimerControllerTickResult(
     bool PauseSoundRequested,
     bool ToggleMouseClickThroughRequested,
     DateTime? CreateWorldRequestedAtUtc,
+    DateTime? PracticeWorldRequestedAtUtc,
     MenuHotkeyActionKind? RequestedMenuAction,
     bool RunStarted,
     int? CompletedSplitIndex,
@@ -158,13 +167,15 @@ internal readonly record struct TimerControllerTickResult(
         MenuHotkeyActionKind action,
         bool pauseSoundRequested,
         bool toggleMouseClickThroughRequested,
-        DateTime? createWorldRequestedAtUtc = null)
+        DateTime? createWorldRequestedAtUtc = null,
+        DateTime? practiceWorldRequestedAtUtc = null)
     {
         return new TimerControllerTickResult(
             snapshot,
             pauseSoundRequested,
             toggleMouseClickThroughRequested,
             createWorldRequestedAtUtc,
+            practiceWorldRequestedAtUtc,
             action,
             RunStarted: false,
             CompletedSplitIndex: null,

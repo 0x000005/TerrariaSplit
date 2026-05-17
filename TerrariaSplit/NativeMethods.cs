@@ -76,6 +76,10 @@ internal static class NativeMethods
     [DllImport("user32.dll")]
     public static extern short GetAsyncKeyState(int virtualKey);
 
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool SetForegroundWindow(IntPtr hWnd);
+
     [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     public static extern int MessageBox(
         IntPtr hWnd,

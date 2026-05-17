@@ -13,23 +13,23 @@ internal sealed partial class SettingsForm : Form
         TableLayoutPanel uiScaleGrid = CreateGrid(
             ColumnStylePercent(100f),
             ColumnStyleAbsolute(280f));
-        AddSettingRow(uiScaleGrid, "Enable UI scale enhancement", enableTerrariaUiScalePatchBox);
+        AddSettingRow(uiScaleGrid, "Enabled", enableTerrariaUiScalePatchBox);
         AddSectionControl(uiScaleSection, uiScaleGrid);
         AddSectionControl(
             uiScaleSection,
             CreateWrappedFieldLabel(
-                "Raises Terraria's in-game UI scale slider limit from 200% to 300% by patching the running Terraria process memory.",
-                TextColor));
+                "Raises Terraria's in-game UI scale slider limit from 200% to 300%.",
+                MutedTextColor));
         AddSectionControl(
             uiScaleSection,
             CreateWrappedFieldLabel(
-                "Warning: restart Terraria after enabling if the options menu was already opened.",
+                "If Terraria's options menu was already opened before enabling, restart Terraria for the change to take effect.",
                 Color.FromArgb(255, 210, 120)));
         AddSectionControl(
             uiScaleSection,
             CreateWrappedFieldLabel(
-                "Modifying memory is risky; enable with caution.",
-                MutedTextColor));
+                "This changes the running Terraria process memory; enable with caution.",
+                Color.FromArgb(255, 210, 120)));
         AddSection(parent, uiScaleSection);
     }
 }

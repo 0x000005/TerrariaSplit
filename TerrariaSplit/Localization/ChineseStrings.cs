@@ -16,11 +16,11 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
         { "Colors", "颜色" },
         { "Sounds", "声音" },
         { "Advanced", "高级" },
+        { "Automation", "自动化" },
         { "Terraria UI scale enhancement", "Terraria UI 缩放增强" },
-        { "Enable UI scale enhancement", "启用 UI 缩放增强" },
-        { "Raises Terraria's in-game UI scale slider limit from 200% to 300% by patching the running Terraria process memory.", "通过修补正在运行的 Terraria 进程内存，将游戏内 UI 缩放滑条上限从 200% 提高到 300%。" },
-        { "Warning: restart Terraria after enabling if the options menu was already opened.", "警告：如果启用前已经打开过 Terraria 选项菜单，请重启 Terraria。" },
-        { "Modifying memory is risky; enable with caution.", "修改内存有风险，启用需谨慎。" },
+        { "Raises Terraria's in-game UI scale slider limit from 200% to 300%.", "将游戏内 UI 缩放上限从 200% 提高到 300%。" },
+        { "If Terraria's options menu was already opened before enabling, restart Terraria for the change to take effect.", "如果启用前已经打开过 Terraria 选项菜单，可能需要重启 Terraria 后生效。" },
+        { "This changes the running Terraria process memory; enable with caution.", "该功能会修改正在运行的 Terraria 进程内存，启用需谨慎。" },
         { "Hotkeys", "快捷键" },
         { "General Options", "常规选项" },
         { "Language", "语言" },
@@ -30,6 +30,7 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
         { "Mouse passthrough", "鼠标穿透" },
         { "Create world flow", "自动创建世界" },
         { "Create world (Disabled in world)", "创建世界（在世界内不生效）" },
+        { "Quick enter world (Disabled in world)", "快速进入世界（在世界内不生效）" },
         { "Hotkey warning", "快捷键警告" },
         { "Some hotkeys could not be registered:", "部分快捷键无法注册：" },
         { "{0}: {1} is duplicated; only the first action using this key is active.", "{0}：{1} 与其他快捷键重复；只有第一个使用该按键的动作会生效。" },
@@ -227,6 +228,23 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Soft step", "\u67D4\u7A81\u53D8" }
       , { "Auto Create", "\u81EA\u52A8\u521B\u5EFA" }
       , { "Create World", "\u521B\u56FE" }
+      , { "Enter World", "\u8FDB\u56FE" }
+      , { "Practice world selector", "\u7EC3\u4E60\u4E16\u754C\u9009\u62E9\u5668" }
+      , { "Practice world", "\u7EC3\u4E60\u4E16\u754C" }
+      , { "Key", "\u6309\u952E" }
+      , { "Name", "\u540D\u79F0" }
+      , { "Player file", "\u4EBA\u7269\u6587\u4EF6" }
+      , { "World file", "\u4E16\u754C\u6587\u4EF6" }
+      , { "Choose player file", "\u9009\u62E9\u4EBA\u7269\u6587\u4EF6" }
+      , { "Choose world file", "\u9009\u62E9\u4E16\u754C\u6587\u4EF6" }
+      , { "Not configured", "\u672A\u914D\u7F6E" }
+      , { "Automatically creates or enters a world by simulating mouse and keyboard input.", "\u901A\u8FC7\u6A21\u62DF\u9F20\u6807\u548C\u952E\u76D8\u64CD\u4F5C\u81EA\u52A8\u521B\u5EFA\u6216\u8FDB\u5165\u4E16\u754C\u3002" }
+      , { "Do not choose players or worlds in the default save location.", "\u8BF7\u4E0D\u8981\u9009\u62E9\u5728\u9ED8\u8BA4\u5B58\u6863\u4F4D\u7F6E\u7684\u4EBA\u7269\u6216\u4E16\u754C\u3002" }
+      , { "Do not choose favorite players or worlds.", "\u8BF7\u4E0D\u8981\u9009\u62E9\u6536\u85CF\u7684\u4EBA\u7269\u6216\u4E16\u754C\u3002" }
+      , { "Deletes all non-favorite players and worlds.", "\u4F1A\u5220\u9664\u6240\u6709\u975E\u6536\u85CF\u7684\u4EBA\u7269\u548C\u4E16\u754C\u3002" }
+      , { "The most recent 50 deletions are kept in the backup folder.", "\u6700\u8FD150\u6B21\u5220\u9664\u4F1A\u4FDD\u7559\u5728\u5907\u4EFD\u6587\u4EF6\u5939\u4E2D\u3002" }
+      , { "Open folder", "\u6253\u5F00\u6587\u4EF6\u5939" }
+      , { "Could not open backup folder.", "\u65E0\u6CD5\u6253\u5F00\u5907\u4EFD\u6587\u4EF6\u5939\u3002" }
       , { "Timing", "\u65F6\u95F4" }
       , { "Delay", "\u5EF6\u8FDF" }
       , { "Character", "\u4EBA\u7269" }

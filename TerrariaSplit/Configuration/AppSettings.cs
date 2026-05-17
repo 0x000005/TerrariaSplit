@@ -11,6 +11,7 @@ internal sealed class AppSettings
     public string ResetKey { get; set; } = Keys.F6.ToString();
     public string MouseClickThroughKey { get; set; } = Keys.F9.ToString();
     public string CreateWorldKey { get; set; } = Keys.F7.ToString();
+    public string PracticeWorldKey { get; set; } = Keys.F8.ToString();
     public bool ShowMouseClickThroughIndicator { get; set; }
     public string Language { get; set; } = "English";
     public bool AlwaysOnTop { get; set; }
@@ -53,6 +54,7 @@ internal sealed class AppSettings
     public UiColumnLayoutSettings Columns { get; set; } = new();
     public UiTextEffectSettings TextEffects { get; set; } = new();
     public AutoCreateWorldSettings AutoCreate { get; set; } = new();
+    public PracticeWorldSettings PracticeWorlds { get; set; } = new();
     public AdvancedSettings Advanced { get; set; } = new();
     public bool EnableDefeatedBossIconLighting { get; set; } = true;
     public int UndefeatedIconGrayscalePercent { get; set; } = 80;
@@ -71,6 +73,9 @@ internal sealed class AppSettings
 
     [JsonIgnore]
     public Keys CreateWorldKeys => ParseKey(CreateWorldKey, Keys.F7);
+
+    [JsonIgnore]
+    public Keys PracticeWorldKeys => ParseKey(PracticeWorldKey, Keys.F8);
 
     public bool TryGetReferenceSplit(BossSplitDefinition definition, out TimeSpan split)
     {
@@ -308,6 +313,33 @@ internal sealed class AutoCreateWorldSettings
     public int WindowActivationDelayMilliseconds { get; set; } = DefaultWindowActivationDelayMilliseconds;
     public int ClickFocusDelayMilliseconds { get; set; } = DefaultClickFocusDelayMilliseconds;
     public int InputPressDurationMilliseconds { get; set; } = DefaultInputPressDurationMilliseconds;
+}
+
+internal sealed class PracticeWorldSettings
+{
+    public const int SlotCount = 10;
+
+    public List<PracticeWorldSlot> Slots { get; set; } = CreateDefaultSlots();
+
+    public static List<PracticeWorldSlot> CreateDefaultSlots()
+    {
+        return Enumerable.Range(0, SlotCount)
+            .Select(_ => new PracticeWorldSlot())
+            .ToList();
+    }
+}
+
+internal sealed class PracticeWorldSlot
+{
+    public string Name { get; set; } = string.Empty;
+    public string PlayerFilePath { get; set; } = string.Empty;
+    public string WorldFilePath { get; set; } = string.Empty;
+
+    [JsonIgnore]
+    public bool IsConfigured =>
+        !string.IsNullOrWhiteSpace(Name) ||
+        !string.IsNullOrWhiteSpace(PlayerFilePath) ||
+        !string.IsNullOrWhiteSpace(WorldFilePath);
 }
 
 internal static class AutoCreatePlayerDifficulty

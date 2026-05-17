@@ -25,6 +25,7 @@ internal sealed class GlobalHotkeyManager : IDisposable
         RegisterAction(TimerHotkeyAction.Reset, settings.ResetKeys, registeredChords, warnings);
         RegisterAction(TimerHotkeyAction.MouseClickThrough, settings.MouseClickThroughKeys, registeredChords, warnings);
         RegisterAction(TimerHotkeyAction.CreateWorld, settings.CreateWorldKeys, registeredChords, warnings);
+        RegisterAction(TimerHotkeyAction.PracticeWorld, settings.PracticeWorldKeys, registeredChords, warnings);
         return warnings;
     }
 

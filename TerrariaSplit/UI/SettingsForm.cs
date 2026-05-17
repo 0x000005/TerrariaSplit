@@ -34,6 +34,7 @@ internal sealed partial class SettingsForm : Form
     private readonly HotkeyTextBox resetKeyBox = new();
     private readonly HotkeyTextBox mouseClickThroughKeyBox = new();
     private readonly HotkeyTextBox createWorldKeyBox = new();
+    private readonly HotkeyTextBox practiceWorldKeyBox = new();
     private readonly CheckBox showMouseClickThroughIndicatorBox = new();
     private readonly ComboBox languageBox = new();
     private readonly CheckBox alwaysOnTopBox = new();
@@ -49,6 +50,7 @@ internal sealed partial class SettingsForm : Form
     private readonly TextBox autoCreateWindowActivationDelayBox = new();
     private readonly TextBox autoCreateClickFocusDelayBox = new();
     private readonly TextBox autoCreateInputPressDurationBox = new();
+    private readonly List<PracticeSlotControls> practiceSlotControls = new();
     private readonly ComboBox referenceSetBox = new();
     private readonly TextBox newReferenceSetNameBox = new();
     private readonly CheckBox usePersonalBestAsReferenceTimeBox = new();
@@ -372,7 +374,7 @@ internal sealed partial class SettingsForm : Form
         AddSettingsPage("Data", new DataSettingsPage());
         AddSettingsPage("UI", new UiSettingsPage());
         AddSettingsPage("Effects", new AnimationSettingsPage());
-        AddSettingsPage("Create World", new AutoCreateSettingsPage());
+        AddSettingsPage("Automation", new AutoCreateSettingsPage());
         AddSettingsPage("Sounds", new SoundSettingsPage());
         AddSettingsPage("Colors", new ColorSettingsPage());
         AddSettingsPage("Advanced", new AdvancedSettingsPage());
@@ -1161,6 +1163,7 @@ internal sealed partial class SettingsForm : Form
         targetSettings.ResetKey = resetKeyBox.Hotkey.ToString();
         targetSettings.MouseClickThroughKey = mouseClickThroughKeyBox.Hotkey.ToString();
         targetSettings.CreateWorldKey = createWorldKeyBox.Hotkey.ToString();
+        targetSettings.PracticeWorldKey = practiceWorldKeyBox.Hotkey.ToString();
         targetSettings.ShowMouseClickThroughIndicator = showMouseClickThroughIndicatorBox.Checked;
         targetSettings.Columns.ScalePercent = ParseIntBox(globalScaleBox, 100, 25, 300);
         targetSettings.AlwaysOnTop = alwaysOnTopBox.Checked;
@@ -1204,6 +1207,20 @@ internal sealed partial class SettingsForm : Form
             AutoCreateWorldSettings.DefaultInputPressDurationMilliseconds,
             1,
             5000);
+    }
+
+    internal void ApplyPracticeWorldSettings(AppSettings targetSettings)
+    {
+        targetSettings.PracticeWorlds.Slots.Clear();
+        foreach (PracticeSlotControls controls in practiceSlotControls)
+        {
+            targetSettings.PracticeWorlds.Slots.Add(new PracticeWorldSlot
+            {
+                Name = controls.NameBox.Text.Trim(),
+                PlayerFilePath = controls.PlayerFilePathBox.Text.Trim(),
+                WorldFilePath = controls.WorldFilePathBox.Text.Trim()
+            });
+        }
     }
 
     internal void ApplyBossSettings(AppSettings targetSettings)
@@ -1445,6 +1462,11 @@ internal sealed partial class SettingsForm : Form
         ComboBox SegmentTime);
 
     private sealed record SegmentBestDeltaHighlightControls(ComboBox Style);
+
+    private sealed record PracticeSlotControls(
+        TextBox NameBox,
+        TextBox PlayerFilePathBox,
+        TextBox WorldFilePathBox);
 
     private sealed record OutlineStyleOption(string Id, string DisplayName)
     {

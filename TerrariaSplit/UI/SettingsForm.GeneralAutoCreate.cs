@@ -1,4 +1,5 @@
 ﻿using System.Drawing;
+using System.Diagnostics;
 using System.Drawing.Drawing2D;
 using System.Globalization;
 using System.Windows.Forms;
@@ -14,6 +15,7 @@ internal sealed partial class SettingsForm : Form
         ConfigureKeyBox(resetKeyBox, settings.ResetKeys);
         ConfigureKeyBox(mouseClickThroughKeyBox, settings.MouseClickThroughKeys);
         ConfigureKeyBox(createWorldKeyBox, settings.CreateWorldKeys);
+        ConfigureKeyBox(practiceWorldKeyBox, settings.PracticeWorldKeys);
         ConfigureCheckBox(showMouseClickThroughIndicatorBox, settings.ShowMouseClickThroughIndicator);
 
         UiTheme.StyleComboBox(languageBox);
@@ -44,6 +46,7 @@ internal sealed partial class SettingsForm : Form
         AddSettingRow(hotkeysGrid, "Reset (Disabled in world)", resetKeyBox);
         AddSettingRow(hotkeysGrid, "Mouse passthrough", mouseClickThroughKeyBox);
         AddSettingRow(hotkeysGrid, "Create world (Disabled in world)", createWorldKeyBox);
+        AddSettingRow(hotkeysGrid, "Quick enter world (Disabled in world)", practiceWorldKeyBox);
         AddSectionControl(hotkeysSection, hotkeysGrid);
         AddSection(parent, hotkeysSection);
 
@@ -84,26 +87,28 @@ internal sealed partial class SettingsForm : Form
         ConfigureNumberBox(autoCreateClickFocusDelayBox, settings.AutoCreate.ClickFocusDelayMilliseconds, 0, 5000);
         ConfigureNumberBox(autoCreateInputPressDurationBox, settings.AutoCreate.InputPressDurationMilliseconds, 1, 5000);
 
-        TableLayoutPanel characterSection = CreateSection("Character");
-        TableLayoutPanel characterGrid = CreateGrid(
+        AddAutoCreateNoticeSection(parent);
+
+        TableLayoutPanel createSection = CreateSection("Create World");
+        TableLayoutPanel createGrid = CreateGrid(
             ColumnStylePercent(100f),
             ColumnStyleAbsolute(360f));
-        AddSettingRow(characterGrid, "Player name", autoCreatePlayerNameBox);
-        AddSettingRow(characterGrid, "Player difficulty", autoCreatePlayerDifficultyBox);
-        AddSectionControl(characterSection, characterGrid);
-        AddSectionControl(characterSection, CreateFieldLabel("Player code"));
-        AddSectionControl(characterSection, autoCreatePlayerTemplateCodeBox);
-        AddSection(parent, characterSection);
+        AddSettingRow(createGrid, "Player name", autoCreatePlayerNameBox);
+        AddSettingRow(createGrid, "Player difficulty", autoCreatePlayerDifficultyBox);
+        AddSectionControl(createSection, createGrid);
+        AddSectionControl(createSection, CreateFieldLabel("Player code"));
+        AddSectionControl(createSection, autoCreatePlayerTemplateCodeBox);
 
-        TableLayoutPanel worldSection = CreateSection("World");
         TableLayoutPanel worldGrid = CreateGrid(
             ColumnStylePercent(100f),
             ColumnStyleAbsolute(360f));
         AddSettingRow(worldGrid, "World size", autoCreateWorldSizeBox);
         AddSettingRow(worldGrid, "World difficulty", autoCreateWorldDifficultyBox);
         AddSettingRow(worldGrid, "World evil", autoCreateWorldEvilBox);
-        AddSectionControl(worldSection, worldGrid);
-        AddSection(parent, worldSection);
+        AddSectionControl(createSection, worldGrid);
+        AddSection(parent, createSection);
+
+        AddPracticeWorldSection(parent);
 
         TableLayoutPanel timingSection = CreateSection("Delay");
         TableLayoutPanel timingGrid = CreateGrid(
@@ -116,5 +121,93 @@ internal sealed partial class SettingsForm : Form
         AddSettingRow(timingGrid, "Menu action delay ms", autoCreateMenuActionDelayBox);
         AddSectionControl(timingSection, timingGrid);
         AddSection(parent, timingSection);
+    }
+
+    private void AddAutoCreateNoticeSection(TableLayoutPanel parent)
+    {
+        var noticeSection = new TableLayoutPanel
+        {
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            BackColor = SectionColor,
+            ColumnCount = 1,
+            Dock = DockStyle.Top,
+            Margin = new Padding(0, 0, 0, 18),
+            Padding = new Padding(18, 14, 18, 14)
+        };
+        UiTheme.EnableDoubleBuffering(noticeSection);
+        noticeSection.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+
+        Color warningColor = Color.FromArgb(255, 210, 120);
+        AddSectionControl(
+            noticeSection,
+            CreateWrappedFieldLabel(
+                "Automatically creates or enters a world by simulating mouse and keyboard input.",
+                TextColor));
+        AddSectionControl(
+            noticeSection,
+            CreateWrappedFieldLabel(
+                "Deletes all non-favorite players and worlds.",
+                warningColor));
+        AddSectionControl(noticeSection, CreateAutoCreateBackupNoticeRow(warningColor));
+        AddSection(parent, noticeSection);
+    }
+
+    private Control CreateAutoCreateBackupNoticeRow(Color warningColor)
+    {
+        var row = new TableLayoutPanel
+        {
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            BackColor = SectionColor,
+            ColumnCount = 2,
+            Dock = DockStyle.Top,
+            Margin = new Padding(0, 8, 0, 8),
+            Padding = Padding.Empty
+        };
+        UiTheme.EnableDoubleBuffering(row);
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+
+        Label label = CreateWrappedFieldLabel(
+            "The most recent 50 deletions are kept in the backup folder.",
+            warningColor);
+        label.Dock = DockStyle.Fill;
+        label.Margin = new Padding(0, 0, 12, 0);
+        label.TextAlign = ContentAlignment.MiddleLeft;
+
+        Button openButton = CreateSmallButton("Open folder");
+        openButton.Width = 252;
+        openButton.MinimumSize = new Size(252, 36);
+        openButton.Margin = Padding.Empty;
+        openButton.Click += (_, _) => OpenAutoCreateBackupFolder();
+
+        row.Controls.Add(label, 0, 0);
+        row.Controls.Add(openButton, 1, 0);
+        return row;
+    }
+
+    private void OpenAutoCreateBackupFolder()
+    {
+        try
+        {
+            string backupRoot = TerrariaSavePaths.DeletedSavesRoot();
+            Directory.CreateDirectory(backupRoot);
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = backupRoot,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error(ex, "Failed to open TerrariaSplit deleted backup folder.");
+            MessageBox.Show(
+                this,
+                Localizer.Get("Could not open backup folder.", settings),
+                Localizer.Get("Create World", settings),
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+        }
     }
 }

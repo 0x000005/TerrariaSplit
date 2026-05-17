@@ -12,5 +12,6 @@ internal sealed class AutoCreateSettingsPage : SettingsPageBase
     public override void Apply(AppSettings settings)
     {
         Owner.ApplyAutoCreateSettings(settings);
+        Owner.ApplyPracticeWorldSettings(settings);
     }
 }
