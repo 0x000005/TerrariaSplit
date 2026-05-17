@@ -10,7 +10,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="Program.cs" />
+    <Compile Include="*.cs" />
     <ProjectReference Include="..\TerrariaSplit\TerrariaSplit.csproj" />
   </ItemGroup>
 

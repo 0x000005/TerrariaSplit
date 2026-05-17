@@ -2,8 +2,9 @@ using System.Drawing;
 using System.Reflection;
 using System.Windows.Forms;
 using TerrariaSplit;
+using TerrariaSplit.Tests;
 
-var tests = new (string Name, Action Test)[]
+var legacyTests = new (string Name, Action Test)[]
 {
     ("SignaturePattern matches wildcard bytes", TestSignaturePatternWildcard),
     ("SplitTimerFormatter formats minute and hour values", TestSplitTimerFormatter),
@@ -23,6 +24,8 @@ var tests = new (string Name, Action Test)[]
     ("Settings form applies dynamic delta units from UI page", TestSettingsFormAppliesDynamicDeltaUnitsFromUiPage),
     ("Settings form applies text effects from UI page", TestSettingsFormAppliesTextEffectsFromUiPage),
     ("Settings form applies practice world slots", TestSettingsFormAppliesPracticeWorldSlots),
+    ("Settings form applies enter world sound", TestSettingsFormAppliesEnterWorldSound),
+    ("Settings form applies resume sound", TestSettingsFormAppliesResumeSound),
     ("Settings form locks reference controls when PB reference is enabled", TestSettingsFormLocksReferenceControlsForPersonalBestReference),
     ("Settings form applies text outline and shadow colors", TestSettingsFormAppliesTextOutlineAndShadowColors),
     ("Main form preserves size when applying non-layout settings", TestMainFormPreservesSizeWhenApplyingNonLayoutSettings),
@@ -33,6 +36,12 @@ var tests = new (string Name, Action Test)[]
     ("Settings form keeps uncreated animation fields unchanged", TestSettingsFormKeepsUncreatedAnimationFieldsUnchanged),
     ("Terraria UI scale patch rewrites target IL constants", TestTerrariaUiScalePatchPlan)
 };
+var tests = legacyTests
+    .Concat(HotkeyTests.All())
+    .Concat(AutomationRunnerTests.All())
+    .Concat(MainShellRefactorTests.All())
+    .Concat(RenderingTests.All())
+    .ToArray();
 
 int failures = 0;
 foreach ((string name, Action test) in tests)
@@ -283,9 +292,10 @@ static void TestSettingsFormAppliesGlobalScaleFromGeneralPage()
     RunSta(() =>
     {
         using var form = new SettingsForm(new AppSettings());
-        GetPrivateField<TextBox>(form, "globalScaleBox").Text = "175";
+        GeneralSettingsPage page = form.PageHost.GetOrCreatePage<GeneralSettingsPage>(SettingsPageId.General);
+        page.GlobalScaleBox.Text = "175";
 
-        InvokePrivate(form, "ApplyToSettings");
+        form.ApplyForTests();
 
         AssertEqual(175, form.Result.Columns.ScalePercent);
     });
@@ -296,19 +306,7 @@ static void TestSettingsFormOrdersMovedPages()
     RunSta(() =>
     {
         using var form = new SettingsForm(new AppSettings());
-        var pages = (System.Collections.IEnumerable)GetPrivateField<object>(form, "pages");
-        var labels = new List<string>();
-
-        foreach (object page in pages)
-        {
-            PropertyInfo navProperty = page.GetType().GetProperty(
-                    "Nav",
-                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-                ?? throw new InvalidOperationException("Missing settings page nav property.");
-            var nav = (Button)(navProperty.GetValue(page)
-                ?? throw new InvalidOperationException("Settings page nav is null."));
-            labels.Add(nav.Text);
-        }
+        List<string> labels = form.PageHost.Pages.Select(page => page.Nav.Text).ToList();
 
         AssertEqual(
             "General|BOSS|Data|UI|Effects|Automation|Sounds|Colors|Advanced|Debug",
@@ -321,10 +319,10 @@ static void TestSettingsFormAppliesDynamicDeltaUnitsFromUiPage()
     RunSta(() =>
     {
         using var form = new SettingsForm(new AppSettings { EnableDynamicDeltaTimeUnits = true });
-        InvokePrivate(form, "EnsurePageCreated", 3);
-        GetPrivateField<CheckBox>(form, "enableDynamicDeltaTimeUnitsBox").Checked = false;
+        UiSettingsPage page = form.PageHost.GetOrCreatePage<UiSettingsPage>(SettingsPageId.Ui);
+        page.EnableDynamicDeltaTimeUnitsBox.Checked = false;
 
-        InvokePrivate(form, "ApplyToSettings");
+        form.ApplyForTests();
 
         AssertEqual(false, form.Result.EnableDynamicDeltaTimeUnits);
     });
@@ -335,17 +333,17 @@ static void TestSettingsFormAppliesTextEffectsFromUiPage()
     RunSta(() =>
     {
         using var form = new SettingsForm(new AppSettings());
-        InvokePrivate(form, "EnsurePageCreated", 3);
-        GetPrivateField<TextBox>(form, "timeShadowBox").Text = "25";
-        GetPrivateField<TextBox>(form, "timeOutlineThicknessBox").Text = "30";
-        GetPrivateField<TextBox>(form, "deltaShadowBox").Text = "35";
-        GetPrivateField<TextBox>(form, "deltaOutlineThicknessBox").Text = "40";
-        GetPrivateField<TextBox>(form, "timerShadowBox").Text = "25";
-        GetPrivateField<TextBox>(form, "timerOutlineThicknessBox").Text = "30";
-        GetPrivateField<TextBox>(form, "timerMillisecondsShadowBox").Text = "45";
-        GetPrivateField<TextBox>(form, "timerMillisecondsOutlineThicknessBox").Text = "50";
+        UiSettingsPage page = form.PageHost.GetOrCreatePage<UiSettingsPage>(SettingsPageId.Ui);
+        page.TimeShadowBox.Text = "25";
+        page.TimeOutlineThicknessBox.Text = "30";
+        page.DeltaShadowBox.Text = "35";
+        page.DeltaOutlineThicknessBox.Text = "40";
+        page.TimerShadowBox.Text = "25";
+        page.TimerOutlineThicknessBox.Text = "30";
+        page.TimerMillisecondsShadowBox.Text = "45";
+        page.TimerMillisecondsOutlineThicknessBox.Text = "50";
 
-        InvokePrivate(form, "ApplyToSettings");
+        form.ApplyForTests();
 
         AssertEqual(25, form.Result.TextEffects.TimeShadowPercent);
         AssertEqual(30, form.Result.TextEffects.TimeOutlineThicknessPercent);
@@ -363,25 +361,49 @@ static void TestSettingsFormAppliesPracticeWorldSlots()
     RunSta(() =>
     {
         using var form = new SettingsForm(new AppSettings());
-        InvokePrivate(form, "EnsurePageCreated", 5);
-        TextBox practiceKeyBox = GetPrivateField<TextBox>(form, "practiceWorldKeyBox");
-        SetHotkeyBox(practiceKeyBox, Keys.F10);
+        GeneralSettingsPage generalPage = form.PageHost.GetOrCreatePage<GeneralSettingsPage>(SettingsPageId.General);
+        SetHotkeyBox(generalPage.PracticeWorldKeyBox, Keys.F10);
+        AutomationSettingsPage automationPage = form.PageHost.GetOrCreatePage<AutomationSettingsPage>(SettingsPageId.Automation);
+        AutomationSettingsPage.PracticeSlotControls firstSlot = automationPage.PracticeSlots[0];
+        firstSlot.NameBox.Text = "Plantera";
+        firstSlot.PlayerFilePathBox.Text = "C:\\practice\\player.plr";
+        firstSlot.WorldFilePathBox.Text = "C:\\practice\\world.wld";
 
-        var controls = ((System.Collections.IEnumerable)GetPrivateField<object>(form, "practiceSlotControls"))
-            .Cast<object>()
-            .ToList();
-        object firstSlot = controls[0];
-        GetProperty<TextBox>(firstSlot, "NameBox").Text = "Plantera";
-        GetProperty<TextBox>(firstSlot, "PlayerFilePathBox").Text = "C:\\practice\\player.plr";
-        GetProperty<TextBox>(firstSlot, "WorldFilePathBox").Text = "C:\\practice\\world.wld";
-
-        InvokePrivate(form, "ApplyToSettings");
+        form.ApplyForTests();
 
         AssertEqual(Keys.F10.ToString(), form.Result.PracticeWorldKey);
         AssertEqual(PracticeWorldSettings.SlotCount, form.Result.PracticeWorlds.Slots.Count);
         AssertEqual("Plantera", form.Result.PracticeWorlds.Slots[0].Name);
         AssertEqual("C:\\practice\\player.plr", form.Result.PracticeWorlds.Slots[0].PlayerFilePath);
         AssertEqual("C:\\practice\\world.wld", form.Result.PracticeWorlds.Slots[0].WorldFilePath);
+    });
+}
+
+static void TestSettingsFormAppliesEnterWorldSound()
+{
+    RunSta(() =>
+    {
+        using var form = new SettingsForm(new AppSettings());
+        SoundSettingsPage page = form.PageHost.GetOrCreatePage<SoundSettingsPage>(SettingsPageId.Sounds);
+        page.SoundTextBoxes[nameof(UiSoundSettings.EnterWorld)].Text = "sounds\\enter-world.wav";
+
+        form.ApplyForTests();
+
+        AssertEqual("sounds\\enter-world.wav", form.Result.Sounds.EnterWorld);
+    });
+}
+
+static void TestSettingsFormAppliesResumeSound()
+{
+    RunSta(() =>
+    {
+        using var form = new SettingsForm(new AppSettings());
+        SoundSettingsPage page = form.PageHost.GetOrCreatePage<SoundSettingsPage>(SettingsPageId.Sounds);
+        page.SoundTextBoxes[nameof(UiSoundSettings.Resume)].Text = "sounds\\resume.wav";
+
+        form.ApplyForTests();
+
+        AssertEqual("sounds\\resume.wav", form.Result.Sounds.Resume);
     });
 }
 
@@ -397,15 +419,13 @@ static void TestSettingsFormLocksReferenceControlsForPersonalBestReference()
                 ["Skeletron"] = "00:30"
             }
         });
-        InvokePrivate(form, "EnsurePageCreated", 2);
+        DataSettingsPage page = form.PageHost.GetOrCreatePage<DataSettingsPage>(SettingsPageId.Data);
 
-        AssertEqual(true, GetPrivateField<CheckBox>(form, "usePersonalBestAsReferenceTimeBox").Checked);
-        AssertEqual(false, GetPrivateField<ComboBox>(form, "referenceSetBox").Enabled);
-        AssertEqual(false, GetPrivateField<TextBox>(form, "newReferenceSetNameBox").Enabled);
-
-        Dictionary<string, TextBox> splitTextBoxes = GetPrivateField<Dictionary<string, TextBox>>(form, "splitTextBoxes");
-        AssertEqual("00:30", splitTextBoxes["Skeletron"].Text);
-        AssertEqual(true, splitTextBoxes["Skeletron"].ReadOnly);
+        AssertEqual(true, page.UsePersonalBestAsReferenceTimeBox.Checked);
+        AssertEqual(false, page.ReferenceSetBox.Enabled);
+        AssertEqual(false, page.NewReferenceSetNameBox.Enabled);
+        AssertEqual("00:30", page.SplitTextBoxes["Skeletron"].Text);
+        AssertEqual(true, page.SplitTextBoxes["Skeletron"].ReadOnly);
     });
 }
 
@@ -414,8 +434,8 @@ static void TestSettingsFormAppliesTextOutlineAndShadowColors()
     RunSta(() =>
     {
         using var form = new SettingsForm(new AppSettings());
-        InvokePrivate(form, "EnsurePageCreated", 7);
-        Dictionary<string, TextBox> colorTextBoxes = GetPrivateField<Dictionary<string, TextBox>>(form, "colorTextBoxes");
+        ColorSettingsPage page = form.PageHost.GetOrCreatePage<ColorSettingsPage>(SettingsPageId.Colors);
+        IReadOnlyDictionary<string, TextBox> colorTextBoxes = page.ColorTextBoxes;
         colorTextBoxes[nameof(UiColorSettings.ReferenceTextOutline)].Text = "#112233";
         colorTextBoxes[nameof(UiColorSettings.ReferenceTextShadow)].Text = "#445566";
         colorTextBoxes[nameof(UiColorSettings.TimerPausedTextOutline)].Text = "#778899";
@@ -423,7 +443,7 @@ static void TestSettingsFormAppliesTextOutlineAndShadowColors()
         colorTextBoxes[nameof(UiColorSettings.SplitCompletionLabelText)].Text = "#DDEEFF";
         colorTextBoxes[nameof(UiColorSettings.SplitCompletionTimeText)].Text = "#FEDCBA";
 
-        InvokePrivate(form, "ApplyToSettings");
+        form.ApplyForTests();
 
         AssertEqual("#112233", form.Result.Colors.ReferenceTextOutline);
         AssertEqual("#445566", form.Result.Colors.ReferenceTextShadow);
@@ -511,10 +531,10 @@ static void TestSettingsFormAppliesCurrentDeltaGradientOption()
             EnableCurrentDeltaGradientColor = true,
             EnableTimerGradientColor = false
         });
-        InvokePrivate(form, "EnsurePageCreated", 4);
-        GetPrivateField<CheckBox>(form, "enableCurrentDeltaGradientColorBox").Checked = false;
+        AnimationSettingsPage page = form.PageHost.GetOrCreatePage<AnimationSettingsPage>(SettingsPageId.Effects);
+        page.EnableCurrentDeltaGradientColorBox.Checked = false;
 
-        InvokePrivate(form, "ApplyToSettings");
+        form.ApplyForTests();
 
         AssertEqual(false, form.Result.EnableDeltaGradientColor);
         AssertEqual(false, form.Result.EnableCurrentDeltaGradientColor);
@@ -534,9 +554,9 @@ static void TestSettingsFormKeepsUncreatedAnimationFieldsUnchanged()
             CurrentBossIconBrightnessBoostPercent = 64
         };
         using var form = new SettingsForm(settings);
-        InvokePrivate(form, "EnsurePageCreated", 3);
+        form.PageHost.GetOrCreatePage<UiSettingsPage>(SettingsPageId.Ui);
 
-        InvokePrivate(form, "ApplyToSettings");
+        form.ApplyForTests();
 
         AssertEqual(22, form.Result.UndefeatedIconGrayscalePercent);
         AssertEqual(73, form.Result.UndefeatedIconBrightnessPercent);
@@ -550,10 +570,10 @@ static void TestSettingsFormAppliesAdvancedUiScalePatchOption()
     RunSta(() =>
     {
         using var form = new SettingsForm(new AppSettings());
-        InvokePrivate(form, "EnsurePageCreated", 8);
-        GetPrivateField<CheckBox>(form, "enableTerrariaUiScalePatchBox").Checked = true;
+        AdvancedSettingsPage page = form.PageHost.GetOrCreatePage<AdvancedSettingsPage>(SettingsPageId.Advanced);
+        page.EnableTerrariaUiScalePatchBox.Checked = true;
 
-        InvokePrivate(form, "ApplyToSettings");
+        form.ApplyForTests();
 
         AssertEqual(true, form.Result.Advanced.EnableTerrariaUiScalePatch);
     });
@@ -669,22 +689,6 @@ static void RunSta(Action action)
     {
         throw failure;
     }
-}
-
-static T GetPrivateField<T>(object target, string name)
-{
-    FieldInfo field = target.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)
-        ?? throw new InvalidOperationException($"Missing private field {name}.");
-    return (T)(field.GetValue(target) ?? throw new InvalidOperationException($"Private field {name} is null."));
-}
-
-static T GetProperty<T>(object target, string name)
-{
-    PropertyInfo property = target.GetType().GetProperty(
-            name,
-            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-        ?? throw new InvalidOperationException($"Missing property {name}.");
-    return (T)(property.GetValue(target) ?? throw new InvalidOperationException($"Property {name} is null."));
 }
 
 static void SetHotkeyBox(TextBox textBox, Keys key)

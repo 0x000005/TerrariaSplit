@@ -4,7 +4,7 @@ using System.Windows.Forms;
 
 namespace TerrariaSplit;
 
-internal static class DebugSettingsPage
+internal sealed class DebugSettingsPage : SettingsPageBase
 {
     private const int RefreshIntervalMilliseconds = 500;
     private const int SequenceBoxHeight = 220;
@@ -12,8 +12,11 @@ internal static class DebugSettingsPage
     private static readonly Color QuickStatusProblemColor = Color.FromArgb(225, 92, 88);
     private static readonly Color QuickStatusMenuColor = Color.FromArgb(107, 157, 216);
 
-    public static Control Build(SettingsForm owner)
+    public override SettingsPageId Id => SettingsPageId.Debug;
+
+    protected override Control BuildPage(SettingsPageContext context)
     {
+        SettingsForm owner = context.Owner;
         Label lastUpdatedValue = CreateValueLabel();
         Label processDetectedValue = CreateValueLabel();
         Label windowDetectedValue = CreateValueLabel();
@@ -91,14 +94,14 @@ internal static class DebugSettingsPage
         TerrariaSaveInventorySnapshot latestInventory = default;
         RuntimePerformanceDiagnostics latestRuntime = RuntimePerformanceDiagnostics.Empty;
 
-        Control page = owner.BuildScrollPage(content =>
+        Control page = context.BuildScrollPage(content =>
         {
-            FlowLayoutPanel actionBar = CreateActionBar();
+            FlowLayoutPanel actionBar = CreateActionBar(owner);
             actionBar.Controls.Add(copyAllButton);
             AddSection(content, actionBar);
 
             TableLayoutPanel overviewSection = CreateSection(owner, "Quick Status");
-            TableLayoutPanel overviewGrid = CreateGrid();
+            TableLayoutPanel overviewGrid = CreateGrid(owner);
             AddValueRow(overviewGrid, owner, "Terraria process", processDetectedValue);
             AddValueRow(overviewGrid, owner, "Window", windowDetectedValue);
             AddValueRow(overviewGrid, owner, "Window status", windowStatusValue);
@@ -111,7 +114,7 @@ internal static class DebugSettingsPage
             AddSection(content, overviewSection);
 
             TableLayoutPanel performanceSection = CreateSection(owner, "Performance");
-            TableLayoutPanel performanceGrid = CreateGrid();
+            TableLayoutPanel performanceGrid = CreateGrid(owner);
             AddValueRow(performanceGrid, owner, "Control tick", controlTickValue);
             AddValueRow(performanceGrid, owner, "Watcher poll", watcherPollValue);
             AddValueRow(performanceGrid, owner, "Paint", paintValue);
@@ -119,7 +122,7 @@ internal static class DebugSettingsPage
             AddSection(content, performanceSection);
 
             TableLayoutPanel windowSection = CreateSection(owner, "Window & Coordinates");
-            TableLayoutPanel windowGrid = CreateGrid();
+            TableLayoutPanel windowGrid = CreateGrid(owner);
             AddValueRow(windowGrid, owner, "PID", processIdValue);
             AddValueRow(windowGrid, owner, "Start time", processStartTimeValue);
             AddValueRow(windowGrid, owner, "Process path", processPathValue);
@@ -140,7 +143,7 @@ internal static class DebugSettingsPage
             AddSection(content, windowSection);
 
             TableLayoutPanel automationSection = CreateSection(owner, "Auto Create Route");
-            TableLayoutPanel automationGrid = CreateGrid();
+            TableLayoutPanel automationGrid = CreateGrid(owner);
             AddValueRow(automationGrid, owner, "Player files", playerFilesValue);
             AddValueRow(automationGrid, owner, "World files", worldFilesValue);
             AddValueRow(automationGrid, owner, "Favorite players", favoritePlayersValue);
@@ -161,7 +164,7 @@ internal static class DebugSettingsPage
             AddSection(content, automationSection);
 
             TableLayoutPanel bossSection = CreateSection(owner, "Boss Progress");
-            TableLayoutPanel bossGrid = CreateGrid();
+            TableLayoutPanel bossGrid = CreateGrid(owner);
             AddValueRow(bossGrid, owner, "Skeletron", skeletronValue);
             AddValueRow(bossGrid, owner, "Wall of Flesh", wallOfFleshValue);
             AddValueRow(bossGrid, owner, "Destroyer", destroyerValue);
@@ -175,7 +178,7 @@ internal static class DebugSettingsPage
             AddSection(content, bossSection);
 
             TableLayoutPanel memorySection = CreateSection(owner, "Memory & Signatures");
-            TableLayoutPanel memoryGrid = CreateGrid();
+            TableLayoutPanel memoryGrid = CreateGrid(owner);
             AddValueRow(memoryGrid, owner, "Scan attempts", scanAttemptsValue);
             AddValueRow(memoryGrid, owner, "Last scan", lastScanValue);
             AddValueRow(memoryGrid, owner, "Scan page stats", scanPageStatsValue);
@@ -1023,66 +1026,17 @@ internal static class DebugSettingsPage
 
     private static TableLayoutPanel CreateSection(SettingsForm owner, string title)
     {
-        var section = new TableLayoutPanel
-        {
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            BackColor = UiTheme.Surface,
-            ColumnCount = 1,
-            Dock = DockStyle.Top,
-            Margin = new Padding(0, 0, 0, 18),
-            Padding = new Padding(22, 18, 22, 20)
-        };
-        UiTheme.EnableDoubleBuffering(section);
-        section.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-
-        var label = new Label
-        {
-            AutoSize = true,
-            Dock = DockStyle.Fill,
-            Font = UiTheme.FormFont(13f, FontStyle.Bold),
-            ForeColor = UiTheme.Text,
-            Margin = new Padding(0, 0, 0, 14),
-            Text = owner.Localize(title)
-        };
-
-        AddSectionControl(section, label);
-        return section;
+        return SettingsUiFactory.For(owner).CreateSection(title);
     }
 
-    private static FlowLayoutPanel CreateActionBar()
+    private static FlowLayoutPanel CreateActionBar(SettingsForm owner)
     {
-        var panel = new FlowLayoutPanel
-        {
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            BackColor = Color.Transparent,
-            Dock = DockStyle.Top,
-            FlowDirection = FlowDirection.LeftToRight,
-            Margin = new Padding(0, 0, 0, 18),
-            Padding = Padding.Empty,
-            WrapContents = false
-        };
-        UiTheme.EnableDoubleBuffering(panel);
-        return panel;
+        return SettingsUiFactory.For(owner).CreateActionBar();
     }
 
-    private static TableLayoutPanel CreateGrid()
+    private static TableLayoutPanel CreateGrid(SettingsForm owner)
     {
-        var grid = new TableLayoutPanel
-        {
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            BackColor = UiTheme.Surface,
-            ColumnCount = 2,
-            Dock = DockStyle.Top,
-            Margin = Padding.Empty,
-            Padding = Padding.Empty
-        };
-        UiTheme.EnableDoubleBuffering(grid);
-        grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 240f));
-        grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-        return grid;
+        return SettingsUiFactory.For(owner).CreateTwoColumnGrid(240f);
     }
 
     private static void AddValueRow(TableLayoutPanel grid, SettingsForm owner, string label, Label valueLabel)
@@ -1095,85 +1049,36 @@ internal static class DebugSettingsPage
 
     private static Label CreateRowLabel(SettingsForm owner, string text)
     {
-        return new Label
-        {
-            AutoSize = true,
-            Dock = DockStyle.Fill,
-            ForeColor = UiTheme.Text,
-            Margin = new Padding(0, 8, 14, 8),
-            Text = owner.Localize(text),
-            TextAlign = ContentAlignment.MiddleLeft
-        };
+        return SettingsUiFactory.For(owner).CreateRowLabel(text);
     }
 
     private static Label CreateValueLabel()
     {
-        return new Label
-        {
-            AutoEllipsis = true,
-            Dock = DockStyle.Fill,
-            ForeColor = UiTheme.Text,
-            Margin = new Padding(0, 8, 0, 8),
-            TextAlign = ContentAlignment.MiddleLeft
-        };
+        return new SettingsUiFactory(static key => key).CreateValueLabel();
     }
 
     private static Label CreateMutedLabel(SettingsForm owner, string text)
     {
-        return new Label
-        {
-            AutoSize = true,
-            Dock = DockStyle.Fill,
-            ForeColor = UiTheme.MutedText,
-            Margin = new Padding(0, 12, 0, 10),
-            Text = owner.Localize(text),
-            TextAlign = ContentAlignment.MiddleLeft
-        };
+        return SettingsUiFactory.For(owner).CreateMutedLabel(text);
     }
 
     private static TextBox CreateMultilineValueBox(int height)
     {
-        return new TextBox
-        {
-            BackColor = UiTheme.Field,
-            BorderStyle = BorderStyle.FixedSingle,
-            Dock = DockStyle.Top,
-            Font = UiTheme.FormFont(9.5f),
-            ForeColor = UiTheme.Text,
-            Height = height,
-            Margin = Padding.Empty,
-            Multiline = true,
-            ReadOnly = true,
-            ScrollBars = ScrollBars.Vertical,
-            ShortcutsEnabled = true,
-            TabStop = false,
-            WordWrap = false
-        };
+        return new SettingsUiFactory(static key => key).CreateMultilineValueBox(height);
     }
 
     private static Button CreateActionButton(SettingsForm owner, string text)
     {
-        var button = new Button
-        {
-            AutoSize = true,
-            Margin = Padding.Empty,
-            Text = owner.Localize(text)
-        };
-        UiTheme.StyleButton(button, accent: true, minimumWidth: 200);
-        return button;
+        return SettingsUiFactory.For(owner).CreateActionButton(text);
     }
 
     private static void AddSection(TableLayoutPanel parent, Control section)
     {
-        int row = parent.RowCount++;
-        parent.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        parent.Controls.Add(section, 0, row);
+        SettingsUiFactory.AddSection(parent, section);
     }
 
     private static void AddSectionControl(TableLayoutPanel section, Control control)
     {
-        int row = section.RowCount++;
-        section.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        section.Controls.Add(control, 0, row);
+        SettingsUiFactory.AddSectionControl(section, control);
     }
 }

@@ -3,7 +3,7 @@ using System.Diagnostics;
 
 namespace TerrariaSplit;
 
-internal sealed class TerrariaWorldWatcher : IDisposable
+internal sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
 {
     private readonly TerrariaMemoryProfile profile;
     private readonly TerrariaMemoryResolver resolver;

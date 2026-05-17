@@ -2,7 +2,9 @@ namespace TerrariaSplit;
 
 internal enum MenuHotkeyActionKind
 {
-    Reset
+    Reset,
+    CreateWorld,
+    PracticeWorld
 }
 
 internal sealed class PendingMenuHotkeyScheduler

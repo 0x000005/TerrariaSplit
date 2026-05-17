@@ -35,9 +35,8 @@ internal sealed class TimerController
         IReadOnlyCollection<TimerHotkeyRequest> hotkeyRequests)
     {
         bool pauseSoundRequested = false;
+        bool resumeSoundRequested = false;
         bool toggleMouseClickThroughRequested = false;
-        DateTime? createWorldRequestedAtUtc = null;
-        DateTime? practiceWorldRequestedAtUtc = null;
         bool runStarted = false;
         int? completedSplitIndex = null;
         bool runCompleted = false;
@@ -50,18 +49,10 @@ internal sealed class TimerController
                 SplitTimerPhase previousPhase = runTimer.Phase;
                 runTimer.TogglePause();
                 pauseSoundRequested = previousPhase == SplitTimerPhase.Running && runTimer.Phase == SplitTimerPhase.Paused;
+                resumeSoundRequested = previousPhase == SplitTimerPhase.Paused && runTimer.Phase == SplitTimerPhase.Running;
             }
             else if (action == TimerHotkeyAction.Reset)
             {
-                if (CanReset(snapshot))
-                {
-                    return TimerControllerTickResult.RequestMenuAction(
-                        snapshot,
-                        MenuHotkeyActionKind.Reset,
-                        pauseSoundRequested,
-                        toggleMouseClickThroughRequested);
-                }
-
                 QueuePendingMenuHotkeyAction(MenuHotkeyActionKind.Reset, request.RequestedAtUtc);
             }
             else if (action == TimerHotkeyAction.MouseClickThrough)
@@ -70,11 +61,11 @@ internal sealed class TimerController
             }
             else if (action == TimerHotkeyAction.CreateWorld)
             {
-                createWorldRequestedAtUtc = request.RequestedAtUtc;
+                QueuePendingMenuHotkeyAction(MenuHotkeyActionKind.CreateWorld, request.RequestedAtUtc);
             }
             else if (action == TimerHotkeyAction.PracticeWorld)
             {
-                practiceWorldRequestedAtUtc = request.RequestedAtUtc;
+                QueuePendingMenuHotkeyAction(MenuHotkeyActionKind.PracticeWorld, request.RequestedAtUtc);
             }
         }
 
@@ -84,9 +75,8 @@ internal sealed class TimerController
                 snapshot,
                 pendingAction,
                 pauseSoundRequested,
-                toggleMouseClickThroughRequested,
-                createWorldRequestedAtUtc,
-                practiceWorldRequestedAtUtc);
+                resumeSoundRequested,
+                toggleMouseClickThroughRequested);
         }
 
         if (snapshot.EnteredWorld && runTimer.Phase == SplitTimerPhase.NotStarted)
@@ -113,9 +103,8 @@ internal sealed class TimerController
         return new TimerControllerTickResult(
             snapshot,
             pauseSoundRequested,
+            resumeSoundRequested,
             toggleMouseClickThroughRequested,
-            createWorldRequestedAtUtc,
-            practiceWorldRequestedAtUtc,
             RequestedMenuAction: null,
             runStarted,
             completedSplitIndex,
@@ -140,23 +129,19 @@ internal sealed class TimerController
     {
         return kind switch
         {
-            MenuHotkeyActionKind.Reset => snapshot.IsGameMenu == true,
+            MenuHotkeyActionKind.Reset or
+                MenuHotkeyActionKind.CreateWorld or
+                MenuHotkeyActionKind.PracticeWorld => snapshot.IsGameMenu == true,
             _ => false
         };
-    }
-
-    private static bool CanReset(TerrariaWatchSnapshot snapshot)
-    {
-        return snapshot.IsGameMenu != false;
     }
 }
 
 internal readonly record struct TimerControllerTickResult(
     TerrariaWatchSnapshot Snapshot,
     bool PauseSoundRequested,
+    bool ResumeSoundRequested,
     bool ToggleMouseClickThroughRequested,
-    DateTime? CreateWorldRequestedAtUtc,
-    DateTime? PracticeWorldRequestedAtUtc,
     MenuHotkeyActionKind? RequestedMenuAction,
     bool RunStarted,
     int? CompletedSplitIndex,
@@ -166,16 +151,14 @@ internal readonly record struct TimerControllerTickResult(
         TerrariaWatchSnapshot snapshot,
         MenuHotkeyActionKind action,
         bool pauseSoundRequested,
-        bool toggleMouseClickThroughRequested,
-        DateTime? createWorldRequestedAtUtc = null,
-        DateTime? practiceWorldRequestedAtUtc = null)
+        bool resumeSoundRequested,
+        bool toggleMouseClickThroughRequested)
     {
         return new TimerControllerTickResult(
             snapshot,
             pauseSoundRequested,
+            resumeSoundRequested,
             toggleMouseClickThroughRequested,
-            createWorldRequestedAtUtc,
-            practiceWorldRequestedAtUtc,
             action,
             RunStarted: false,
             CompletedSplitIndex: null,

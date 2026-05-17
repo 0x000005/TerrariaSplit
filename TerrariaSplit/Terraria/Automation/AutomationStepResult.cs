@@ -13,7 +13,7 @@ internal readonly record struct AutomationStepResult(
     {
         List<string> parts = new()
         {
-            $"Create world automation step '{Step}' {(Success ? "succeeded" : "failed")}"
+            $"Terraria automation step '{Step}' {(Success ? "succeeded" : "failed")}"
         };
 
         if (ClientPoint is Point point)

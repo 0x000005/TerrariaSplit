@@ -4,12 +4,32 @@ namespace TerrariaSplit;
 
 internal sealed class SettingsPageContext
 {
-    public SettingsPageContext(SettingsForm owner)
+    private readonly Action<SettingsModelChange> notifyModelChanged;
+    private readonly Func<RuntimePerformanceDiagnostics> runtimeDiagnosticsProvider;
+
+    public SettingsPageContext(
+        SettingsForm owner,
+        AppSettings draft,
+        SettingsUiFactory factory,
+        SettingsDialogService dialogs,
+        Func<RuntimePerformanceDiagnostics> runtimeDiagnosticsProvider,
+        Action<SettingsModelChange> notifyModelChanged)
     {
         Owner = owner;
+        Draft = draft;
+        Factory = factory;
+        Dialogs = dialogs;
+        this.runtimeDiagnosticsProvider = runtimeDiagnosticsProvider;
+        this.notifyModelChanged = notifyModelChanged;
     }
 
     internal SettingsForm Owner { get; }
+
+    public AppSettings Draft { get; }
+
+    public SettingsUiFactory Factory { get; }
+
+    public SettingsDialogService Dialogs { get; }
 
     public string Localize(string key)
     {
@@ -18,6 +38,16 @@ internal sealed class SettingsPageContext
 
     public Control BuildScrollPage(Action<TableLayoutPanel> populate)
     {
-        return Owner.BuildScrollPage(populate);
+        return Factory.BuildScrollPage(populate);
+    }
+
+    public RuntimePerformanceDiagnostics GetRuntimeDiagnostics()
+    {
+        return runtimeDiagnosticsProvider();
+    }
+
+    public void NotifyModelChanged(SettingsModelChange change)
+    {
+        notifyModelChanged(change);
     }
 }

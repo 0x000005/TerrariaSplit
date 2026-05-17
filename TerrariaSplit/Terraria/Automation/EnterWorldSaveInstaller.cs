@@ -1,6 +1,6 @@
 namespace TerrariaSplit;
 
-internal static class PracticeWorldSaveInstaller
+internal static class EnterWorldSaveInstaller
 {
     public static bool TryValidate(PracticeWorldSlot slot, out string message)
     {

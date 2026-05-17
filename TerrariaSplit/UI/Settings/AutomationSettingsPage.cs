@@ -1,0 +1,346 @@
+using System.Drawing;
+using System.Globalization;
+using System.Windows.Forms;
+
+namespace TerrariaSplit;
+
+internal sealed class AutomationSettingsPage : SettingsPageBase
+{
+    private readonly TextBox autoCreatePlayerNameBox = new();
+    private readonly TextBox autoCreatePlayerTemplateCodeBox = new();
+    private readonly ComboBox autoCreatePlayerDifficultyBox = new();
+    private readonly ComboBox autoCreateWorldSizeBox = new();
+    private readonly ComboBox autoCreateWorldDifficultyBox = new();
+    private readonly ComboBox autoCreateWorldEvilBox = new();
+    private readonly TextBox autoCreateShortActionDelayBox = new();
+    private readonly TextBox autoCreateMenuActionDelayBox = new();
+    private readonly TextBox autoCreateWindowActivationDelayBox = new();
+    private readonly TextBox autoCreateClickFocusDelayBox = new();
+    private readonly TextBox autoCreateInputPressDurationBox = new();
+    private readonly List<PracticeSlotControls> practiceSlotControls = new();
+
+    public override SettingsPageId Id => SettingsPageId.Automation;
+
+    internal IReadOnlyList<PracticeSlotControls> PracticeSlots => practiceSlotControls;
+
+    protected override Control BuildPage(SettingsPageContext context)
+    {
+        return context.BuildScrollPage(BuildSections);
+    }
+
+    public override void Apply(AppSettings settings)
+    {
+        settings.AutoCreate.PlayerName = autoCreatePlayerNameBox.Text.Trim();
+        settings.AutoCreate.PlayerTemplateCode = autoCreatePlayerTemplateCodeBox.Text.Trim();
+        settings.AutoCreate.PlayerDifficulty = AutoCreatePlayerDifficulty.Normalize(
+            GetSelectedOption(autoCreatePlayerDifficultyBox, AutoCreatePlayerDifficulty.Softcore));
+        settings.AutoCreate.WorldSize = AutoCreateWorldSize.Normalize(
+            GetSelectedOption(autoCreateWorldSizeBox, AutoCreateWorldSize.Medium));
+        settings.AutoCreate.WorldDifficulty = AutoCreateWorldDifficulty.Normalize(
+            GetSelectedOption(autoCreateWorldDifficultyBox, AutoCreateWorldDifficulty.Classic));
+        settings.AutoCreate.WorldEvil = AutoCreateWorldEvil.Normalize(
+            GetSelectedOption(autoCreateWorldEvilBox, AutoCreateWorldEvil.Random));
+        settings.AutoCreate.ShortActionDelayMilliseconds = SettingsValueParser.ParseIntBox(
+            autoCreateShortActionDelayBox,
+            AutoCreateWorldSettings.DefaultShortActionDelayMilliseconds,
+            0,
+            5000);
+        settings.AutoCreate.MenuActionDelayMilliseconds = SettingsValueParser.ParseIntBox(
+            autoCreateMenuActionDelayBox,
+            AutoCreateWorldSettings.DefaultMenuActionDelayMilliseconds,
+            0,
+            5000);
+        settings.AutoCreate.WindowActivationDelayMilliseconds = SettingsValueParser.ParseIntBox(
+            autoCreateWindowActivationDelayBox,
+            AutoCreateWorldSettings.DefaultWindowActivationDelayMilliseconds,
+            0,
+            5000);
+        settings.AutoCreate.ClickFocusDelayMilliseconds = SettingsValueParser.ParseIntBox(
+            autoCreateClickFocusDelayBox,
+            AutoCreateWorldSettings.DefaultClickFocusDelayMilliseconds,
+            0,
+            5000);
+        settings.AutoCreate.InputPressDurationMilliseconds = SettingsValueParser.ParseIntBox(
+            autoCreateInputPressDurationBox,
+            AutoCreateWorldSettings.DefaultInputPressDurationMilliseconds,
+            1,
+            5000);
+
+        settings.PracticeWorlds.Slots.Clear();
+        foreach (PracticeSlotControls controls in practiceSlotControls)
+        {
+            settings.PracticeWorlds.Slots.Add(new PracticeWorldSlot
+            {
+                Name = controls.NameBox.Text.Trim(),
+                PlayerFilePath = controls.PlayerFilePathBox.Text.Trim(),
+                WorldFilePath = controls.WorldFilePathBox.Text.Trim()
+            });
+        }
+    }
+
+    private void BuildSections(TableLayoutPanel parent)
+    {
+        UiTheme.StyleTextBox(autoCreatePlayerNameBox);
+        autoCreatePlayerNameBox.Dock = DockStyle.Fill;
+        autoCreatePlayerNameBox.Text = Draft.AutoCreate.PlayerName;
+        autoCreatePlayerNameBox.PlaceholderText = Context.Localize("Empty = 1");
+
+        UiTheme.StyleTextBox(autoCreatePlayerTemplateCodeBox);
+        autoCreatePlayerTemplateCodeBox.Dock = DockStyle.Fill;
+        autoCreatePlayerTemplateCodeBox.Multiline = true;
+        autoCreatePlayerTemplateCodeBox.AcceptsReturn = true;
+        autoCreatePlayerTemplateCodeBox.ScrollBars = ScrollBars.Vertical;
+        autoCreatePlayerTemplateCodeBox.Height = autoCreatePlayerTemplateCodeBox.Font.Height * 10 + 14;
+        autoCreatePlayerTemplateCodeBox.Text = Draft.AutoCreate.PlayerTemplateCode;
+        autoCreatePlayerTemplateCodeBox.PlaceholderText = Context.Localize("Empty = default character");
+
+        ConfigureOptionBox(autoCreatePlayerDifficultyBox, AutoCreatePlayerDifficulty.All, Draft.AutoCreate.PlayerDifficulty);
+        ConfigureOptionBox(autoCreateWorldSizeBox, AutoCreateWorldSize.All, Draft.AutoCreate.WorldSize);
+        ConfigureOptionBox(autoCreateWorldDifficultyBox, AutoCreateWorldDifficulty.All, Draft.AutoCreate.WorldDifficulty);
+        ConfigureOptionBox(autoCreateWorldEvilBox, AutoCreateWorldEvil.All, Draft.AutoCreate.WorldEvil);
+        ConfigureNumberBox(autoCreateShortActionDelayBox, Draft.AutoCreate.ShortActionDelayMilliseconds, 0, 5000);
+        ConfigureNumberBox(autoCreateMenuActionDelayBox, Draft.AutoCreate.MenuActionDelayMilliseconds, 0, 5000);
+        ConfigureNumberBox(autoCreateWindowActivationDelayBox, Draft.AutoCreate.WindowActivationDelayMilliseconds, 0, 5000);
+        ConfigureNumberBox(autoCreateClickFocusDelayBox, Draft.AutoCreate.ClickFocusDelayMilliseconds, 0, 5000);
+        ConfigureNumberBox(autoCreateInputPressDurationBox, Draft.AutoCreate.InputPressDurationMilliseconds, 1, 5000);
+
+        AddNoticeSection(parent);
+        AddCreateWorldSection(parent);
+        AddEnterWorldSection(parent);
+        AddDelaySection(parent);
+    }
+
+    private void AddNoticeSection(TableLayoutPanel parent)
+    {
+        var noticeSection = new TableLayoutPanel
+        {
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            BackColor = UiTheme.Surface,
+            ColumnCount = 1,
+            Dock = DockStyle.Top,
+            Margin = new Padding(0, 0, 0, 18),
+            Padding = new Padding(18, 14, 18, 14)
+        };
+        UiTheme.EnableDoubleBuffering(noticeSection);
+        noticeSection.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+
+        Color warningColor = Color.FromArgb(255, 210, 120);
+        SettingsUiFactory.AddSectionControl(
+            noticeSection,
+            Factory.CreateWrappedFieldLabel(
+                "Automatically creates or enters a world by simulating mouse and keyboard input.",
+                UiTheme.Text));
+        SettingsUiFactory.AddSectionControl(
+            noticeSection,
+            Factory.CreateWrappedFieldLabel(
+                "Deletes all non-favorite players and worlds.",
+                warningColor));
+        SettingsUiFactory.AddSectionControl(noticeSection, CreateBackupNoticeRow(warningColor));
+        SettingsUiFactory.AddSection(parent, noticeSection);
+    }
+
+    private Control CreateBackupNoticeRow(Color warningColor)
+    {
+        var row = new TableLayoutPanel
+        {
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            BackColor = UiTheme.Surface,
+            ColumnCount = 2,
+            Dock = DockStyle.Top,
+            Margin = new Padding(0, 8, 0, 8),
+            Padding = Padding.Empty
+        };
+        UiTheme.EnableDoubleBuffering(row);
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+
+        Label label = Factory.CreateWrappedFieldLabel(
+            "The most recent 50 deletions are kept in the backup folder.",
+            warningColor);
+        label.Dock = DockStyle.Fill;
+        label.Margin = new Padding(0, 0, 12, 0);
+        label.TextAlign = ContentAlignment.MiddleLeft;
+
+        Button openButton = Factory.CreateSmallButton("Open folder");
+        openButton.Width = 252;
+        openButton.MinimumSize = new Size(252, 36);
+        openButton.Margin = Padding.Empty;
+        openButton.Click += (_, _) => Dialogs.OpenAutoCreateBackupFolder(Context.Localize);
+
+        row.Controls.Add(label, 0, 0);
+        row.Controls.Add(openButton, 1, 0);
+        return row;
+    }
+
+    private void AddCreateWorldSection(TableLayoutPanel parent)
+    {
+        TableLayoutPanel createSection = Factory.CreateSection("Create World");
+        TableLayoutPanel createGrid = Factory.CreateGrid(
+            SettingsUiFactory.ColumnStylePercent(100f),
+            SettingsUiFactory.ColumnStyleAbsolute(360f));
+        Factory.AddSettingRow(createGrid, "Player name", autoCreatePlayerNameBox);
+        Factory.AddSettingRow(createGrid, "Player difficulty", autoCreatePlayerDifficultyBox);
+        SettingsUiFactory.AddSectionControl(createSection, createGrid);
+        SettingsUiFactory.AddSectionControl(createSection, Factory.CreateFieldLabel("Player code"));
+        SettingsUiFactory.AddSectionControl(createSection, autoCreatePlayerTemplateCodeBox);
+
+        TableLayoutPanel worldGrid = Factory.CreateGrid(
+            SettingsUiFactory.ColumnStylePercent(100f),
+            SettingsUiFactory.ColumnStyleAbsolute(360f));
+        Factory.AddSettingRow(worldGrid, "World size", autoCreateWorldSizeBox);
+        Factory.AddSettingRow(worldGrid, "World difficulty", autoCreateWorldDifficultyBox);
+        Factory.AddSettingRow(worldGrid, "World evil", autoCreateWorldEvilBox);
+        SettingsUiFactory.AddSectionControl(createSection, worldGrid);
+        SettingsUiFactory.AddSection(parent, createSection);
+    }
+
+    private void AddEnterWorldSection(TableLayoutPanel parent)
+    {
+        practiceSlotControls.Clear();
+
+        TableLayoutPanel slotsSection = Factory.CreateSection("Enter World");
+        SettingsUiFactory.AddSectionControl(
+            slotsSection,
+            Factory.CreateWrappedFieldLabel(
+                "Do not choose players or worlds in the default save location.",
+                Color.FromArgb(255, 210, 120)));
+        SettingsUiFactory.AddSectionControl(
+            slotsSection,
+            Factory.CreateWrappedFieldLabel(
+                "Do not choose favorite players or worlds.",
+                Color.FromArgb(255, 210, 120)));
+
+        TableLayoutPanel slotsGrid = Factory.CreateGrid(
+            SettingsUiFactory.ColumnStyleAbsolute(48f),
+            SettingsUiFactory.ColumnStyleAbsolute(180f),
+            SettingsUiFactory.ColumnStylePercent(50f),
+            SettingsUiFactory.ColumnStyleAbsolute(152f),
+            SettingsUiFactory.ColumnStylePercent(50f),
+            SettingsUiFactory.ColumnStyleAbsolute(152f));
+        Factory.AddHeaderRow(slotsGrid, string.Empty, "Name", "Player file", string.Empty, "World file", string.Empty);
+
+        IReadOnlyList<PracticeWorldSlot> slots = Draft.PracticeWorlds.Slots;
+        for (int index = 0; index < PracticeWorldSettings.SlotCount; index++)
+        {
+            PracticeWorldSlot slot = index < slots.Count ? slots[index] : new PracticeWorldSlot();
+            AddPracticeWorldSlotRow(slotsGrid, index, slot);
+        }
+
+        SettingsUiFactory.AddSectionControl(slotsSection, slotsGrid);
+        SettingsUiFactory.AddSection(parent, slotsSection);
+    }
+
+    private void AddPracticeWorldSlotRow(TableLayoutPanel grid, int index, PracticeWorldSlot slot)
+    {
+        TextBox nameBox = Factory.CreateTextBox(slot.Name);
+        TextBox playerPathBox = Factory.CreateTextBox(slot.PlayerFilePath);
+        TextBox worldPathBox = Factory.CreateTextBox(slot.WorldFilePath);
+
+        Button playerBrowseButton = CreatePracticeBrowseButton(
+            "Choose player file",
+            "Terraria player|*.plr|All files|*.*",
+            playerPathBox);
+        Button worldBrowseButton = CreatePracticeBrowseButton(
+            "Choose world file",
+            "Terraria world|*.wld|All files|*.*",
+            worldPathBox);
+
+        int row = grid.RowCount++;
+        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 64f));
+        grid.Controls.Add(CreatePracticeSlotKeyLabel(index), 0, row);
+        grid.Controls.Add(nameBox, 1, row);
+        grid.Controls.Add(playerPathBox, 2, row);
+        grid.Controls.Add(playerBrowseButton, 3, row);
+        grid.Controls.Add(worldPathBox, 4, row);
+        grid.Controls.Add(worldBrowseButton, 5, row);
+
+        practiceSlotControls.Add(new PracticeSlotControls(nameBox, playerPathBox, worldPathBox));
+    }
+
+    private Button CreatePracticeBrowseButton(string title, string filter, TextBox target)
+    {
+        Button button = Factory.CreateSmallButton("Browse");
+        button.Click += (_, _) => Dialogs.PickFile(target, title, filter);
+        return button;
+    }
+
+    private Label CreatePracticeSlotKeyLabel(int index)
+    {
+        return new Label
+        {
+            Dock = DockStyle.Fill,
+            ForeColor = UiTheme.Text,
+            Font = UiTheme.FormFont(10f, FontStyle.Bold),
+            Margin = new Padding(0, 0, 10, 0),
+            Text = index == 9 ? "0" : (index + 1).ToString(CultureInfo.InvariantCulture),
+            TextAlign = ContentAlignment.MiddleCenter
+        };
+    }
+
+    private void AddDelaySection(TableLayoutPanel parent)
+    {
+        TableLayoutPanel timingSection = Factory.CreateSection("Delay");
+        TableLayoutPanel timingGrid = Factory.CreateGrid(
+            SettingsUiFactory.ColumnStylePercent(100f),
+            SettingsUiFactory.ColumnStyleAbsolute(180f));
+        Factory.AddSettingRow(timingGrid, "Mouse / key press ms", autoCreateInputPressDurationBox);
+        Factory.AddSettingRow(timingGrid, "Window activation wait ms", autoCreateWindowActivationDelayBox);
+        Factory.AddSettingRow(timingGrid, "Click focus wait ms", autoCreateClickFocusDelayBox);
+        Factory.AddSettingRow(timingGrid, "Short action delay ms", autoCreateShortActionDelayBox);
+        Factory.AddSettingRow(timingGrid, "Menu action delay ms", autoCreateMenuActionDelayBox);
+        SettingsUiFactory.AddSectionControl(timingSection, timingGrid);
+        SettingsUiFactory.AddSection(parent, timingSection);
+    }
+
+    private void ConfigureOptionBox(ComboBox comboBox, IEnumerable<string> options, string selected)
+    {
+        comboBox.Dock = DockStyle.Fill;
+        UiTheme.StyleComboBox(comboBox);
+        comboBox.Items.Clear();
+
+        foreach (string option in options)
+        {
+            comboBox.Items.Add(new LocalizedOption(option, Context.Localize(option)));
+        }
+
+        comboBox.SelectedItem = comboBox.Items
+            .Cast<LocalizedOption>()
+            .FirstOrDefault(option => string.Equals(option.Value, selected, StringComparison.OrdinalIgnoreCase));
+        if (comboBox.SelectedIndex < 0 && comboBox.Items.Count > 0)
+        {
+            comboBox.SelectedIndex = 0;
+        }
+    }
+
+    private static string GetSelectedOption(ComboBox comboBox, string fallback)
+    {
+        return comboBox.SelectedItem switch
+        {
+            LocalizedOption option => option.Value,
+            string value => value,
+            _ => fallback
+        };
+    }
+
+    private static void ConfigureNumberBox(TextBox textBox, int selected, int minimum, int maximum)
+    {
+        UiTheme.StyleTextBox(textBox);
+        textBox.Dock = DockStyle.Fill;
+        textBox.Text = Math.Clamp(selected, minimum, maximum).ToString(CultureInfo.InvariantCulture);
+    }
+
+    internal sealed record PracticeSlotControls(
+        TextBox NameBox,
+        TextBox PlayerFilePathBox,
+        TextBox WorldFilePathBox);
+
+    private sealed record LocalizedOption(string Value, string DisplayName)
+    {
+        public override string ToString()
+        {
+            return DisplayName;
+        }
+    }
+}
