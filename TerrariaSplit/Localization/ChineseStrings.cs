@@ -31,6 +31,7 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
         { "Create world flow", "自动创建世界" },
         { "Create world (Disabled in world)", "创建世界（在世界内不生效）" },
         { "Quick enter world (Disabled in world)", "快速进入世界（在世界内不生效）" },
+        { "Load world (Disabled in world)", "加载世界（在世界内不生效）" },
         { "Hotkey warning", "快捷键警告" },
         { "Some hotkeys could not be registered:", "部分快捷键无法注册：" },
         { "{0}: {1} is duplicated; only the first action using this key is active.", "{0}：{1} 与其他快捷键重复；只有第一个使用该按键的动作会生效。" },
@@ -238,9 +239,10 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Hard step", "\u786C\u7A81\u53D8" }
       , { "Soft step", "\u67D4\u7A81\u53D8" }
       , { "Auto Create", "\u81EA\u52A8\u521B\u5EFA" }
-      , { "Create World", "\u521B\u56FE" }
+      , { "Create World", "\u521B\u5EFA\u4E16\u754C" }
       , { "Enter World", "\u8FDB\u56FE" }
-      , { "Practice world selector", "\u7EC3\u4E60\u4E16\u754C\u9009\u62E9\u5668" }
+      , { "Load World", "\u52A0\u8F7D\u4E16\u754C" }
+      , { "World Selector", "\u4E16\u754C\u9009\u62E9" }
       , { "Practice world", "\u7EC3\u4E60\u4E16\u754C" }
       , { "Key", "\u6309\u952E" }
       , { "Name", "\u540D\u79F0" }
@@ -249,6 +251,10 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Choose player file", "\u9009\u62E9\u4EBA\u7269\u6587\u4EF6" }
       , { "Choose world file", "\u9009\u62E9\u4E16\u754C\u6587\u4EF6" }
       , { "Not configured", "\u672A\u914D\u7F6E" }
+      , { "Create World creates a world automatically. Load World copies the selected player and world saves, then opens Single Player.", "\u521B\u5EFA\u4E16\u754C\u4F1A\u81EA\u52A8\u521B\u5EFA\u4E16\u754C\uFF1B\u52A0\u8F7D\u4E16\u754C\u4F1A\u590D\u5236\u9009\u4E2D\u7684\u4EBA\u7269\u548C\u4E16\u754C\u5B58\u6863\uFF0C\u7136\u540E\u6253\u5F00\u5355\u4EBA\u6E38\u620F\u3002" }
+      , { "Create World creates a world automatically by simulating mouse and keyboard input.", "\u521B\u5EFA\u4E16\u754C\u4F1A\u901A\u8FC7\u6A21\u62DF\u9F20\u6807\u548C\u952E\u76D8\u64CD\u4F5C\u81EA\u52A8\u521B\u5EFA\u4E16\u754C\u3002" }
+      , { "Load World copies the selected player and/or world files to Terraria's save folder, then opens Single Player.", "\u52A0\u8F7D\u4E16\u754C\u4F1A\u590D\u5236\u9009\u4E2D\u7684\u4EBA\u7269\u6216\u4E16\u754C\u6587\u4EF6\u5230\u6CF0\u62C9\u745E\u4E9A\u5B58\u6863\u6587\u4EF6\u5939\uFF0C\u7136\u540E\u6253\u5F00\u5355\u4EBA\u6E38\u620F\u3002" }
+      , { "Create World deletes all non-favorite players and worlds.", "\u521B\u5EFA\u4E16\u754C\u4F1A\u5220\u9664\u6240\u6709\u975E\u6536\u85CF\u7684\u4EBA\u7269\u548C\u4E16\u754C\u3002" }
       , { "Automatically creates or enters a world by simulating mouse and keyboard input.", "\u901A\u8FC7\u6A21\u62DF\u9F20\u6807\u548C\u952E\u76D8\u64CD\u4F5C\u81EA\u52A8\u521B\u5EFA\u6216\u8FDB\u5165\u4E16\u754C\u3002" }
       , { "Do not choose players or worlds in the default save location.", "\u8BF7\u4E0D\u8981\u9009\u62E9\u5728\u9ED8\u8BA4\u5B58\u6863\u4F4D\u7F6E\u7684\u4EBA\u7269\u6216\u4E16\u754C\u3002" }
       , { "Do not choose favorite players or worlds.", "\u8BF7\u4E0D\u8981\u9009\u62E9\u6536\u85CF\u7684\u4EBA\u7269\u6216\u4E16\u754C\u3002" }

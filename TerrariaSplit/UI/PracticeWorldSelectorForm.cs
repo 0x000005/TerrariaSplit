@@ -13,7 +13,7 @@ internal sealed class PracticeWorldSelectorForm : Form
     public PracticeWorldSelectorForm(AppSettings settings)
     {
         this.settings = settings;
-        Text = Localizer.Get("Practice world selector", settings);
+        Text = Localizer.Get("World Selector", settings);
         FormBorderStyle = FormBorderStyle.None;
         StartPosition = FormStartPosition.Manual;
         ShowInTaskbar = false;
@@ -117,7 +117,7 @@ internal sealed class PracticeWorldSelectorForm : Form
             Font = UiTheme.FormFont(13f, FontStyle.Bold),
             ForeColor = UiTheme.Text,
             Margin = Padding.Empty,
-            Text = Localizer.Get("Practice world selector", settings),
+            Text = Localizer.Get("World Selector", settings),
             TextAlign = ContentAlignment.MiddleLeft
         };
         layout.Controls.Add(title, 0, 0);

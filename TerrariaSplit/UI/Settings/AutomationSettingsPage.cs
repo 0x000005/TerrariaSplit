@@ -120,40 +120,9 @@ internal sealed class AutomationSettingsPage : SettingsPageBase
         ConfigureNumberBox(autoCreateClickFocusDelayBox, Draft.AutoCreate.ClickFocusDelayMilliseconds, 0, 5000);
         ConfigureNumberBox(autoCreateInputPressDurationBox, Draft.AutoCreate.InputPressDurationMilliseconds, 1, 5000);
 
-        AddNoticeSection(parent);
         AddCreateWorldSection(parent);
         AddEnterWorldSection(parent);
         AddDelaySection(parent);
-    }
-
-    private void AddNoticeSection(TableLayoutPanel parent)
-    {
-        var noticeSection = new TableLayoutPanel
-        {
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            BackColor = UiTheme.Surface,
-            ColumnCount = 1,
-            Dock = DockStyle.Top,
-            Margin = new Padding(0, 0, 0, 18),
-            Padding = new Padding(18, 14, 18, 14)
-        };
-        UiTheme.EnableDoubleBuffering(noticeSection);
-        noticeSection.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-
-        Color warningColor = Color.FromArgb(255, 210, 120);
-        SettingsUiFactory.AddSectionControl(
-            noticeSection,
-            Factory.CreateWrappedFieldLabel(
-                "Automatically creates or enters a world by simulating mouse and keyboard input.",
-                UiTheme.Text));
-        SettingsUiFactory.AddSectionControl(
-            noticeSection,
-            Factory.CreateWrappedFieldLabel(
-                "Deletes all non-favorite players and worlds.",
-                warningColor));
-        SettingsUiFactory.AddSectionControl(noticeSection, CreateBackupNoticeRow(warningColor));
-        SettingsUiFactory.AddSection(parent, noticeSection);
     }
 
     private Control CreateBackupNoticeRow(Color warningColor)
@@ -192,7 +161,20 @@ internal sealed class AutomationSettingsPage : SettingsPageBase
 
     private void AddCreateWorldSection(TableLayoutPanel parent)
     {
+        Color warningColor = Color.FromArgb(255, 210, 120);
         TableLayoutPanel createSection = Factory.CreateSection("Create World");
+        SettingsUiFactory.AddSectionControl(
+            createSection,
+            Factory.CreateWrappedFieldLabel(
+                "Create World creates a world automatically by simulating mouse and keyboard input.",
+                UiTheme.Text));
+        SettingsUiFactory.AddSectionControl(
+            createSection,
+            Factory.CreateWrappedFieldLabel(
+                "Create World deletes all non-favorite players and worlds.",
+                warningColor));
+        SettingsUiFactory.AddSectionControl(createSection, CreateBackupNoticeRow(warningColor));
+
         TableLayoutPanel createGrid = Factory.CreateGrid(
             SettingsUiFactory.ColumnStylePercent(100f),
             SettingsUiFactory.ColumnStyleAbsolute(360f));
@@ -341,16 +323,16 @@ internal sealed class AutomationSettingsPage : SettingsPageBase
     {
         practiceSlotControls.Clear();
 
-        TableLayoutPanel slotsSection = Factory.CreateSection("Enter World");
+        TableLayoutPanel slotsSection = Factory.CreateSection("Load World");
+        SettingsUiFactory.AddSectionControl(
+            slotsSection,
+            Factory.CreateWrappedFieldLabel(
+                "Load World copies the selected player and/or world files to Terraria's save folder, then opens Single Player.",
+                UiTheme.Text));
         SettingsUiFactory.AddSectionControl(
             slotsSection,
             Factory.CreateWrappedFieldLabel(
                 "Do not choose players or worlds in the default save location.",
-                Color.FromArgb(255, 210, 120)));
-        SettingsUiFactory.AddSectionControl(
-            slotsSection,
-            Factory.CreateWrappedFieldLabel(
-                "Do not choose favorite players or worlds.",
                 Color.FromArgb(255, 210, 120)));
 
         TableLayoutPanel slotsGrid = Factory.CreateGrid(

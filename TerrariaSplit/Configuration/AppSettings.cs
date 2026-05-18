@@ -339,9 +339,7 @@ internal sealed class PracticeWorldSlot
 
     [JsonIgnore]
     public bool IsConfigured =>
-        !string.IsNullOrWhiteSpace(Name) ||
-        !string.IsNullOrWhiteSpace(PlayerFilePath) ||
-        !string.IsNullOrWhiteSpace(WorldFilePath);
+        !string.IsNullOrWhiteSpace(Name);
 }
 
 internal static class AutoCreatePlayerDifficulty

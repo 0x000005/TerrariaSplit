@@ -41,23 +41,6 @@ internal sealed class TerrariaSaveFileCleaner
             CountExistingFavoriteFiles(Path.Combine(root, "Worlds"), "*.wld", favorites.Worlds));
     }
 
-    public bool TryCountCompatibleFavoriteWorlds(string targetWorldPath, out int compatibleFavoriteWorlds)
-    {
-        compatibleFavoriteWorlds = 0;
-        if (!TerrariaWorldSaveMetadata.TryReadGameMode(targetWorldPath, out TerrariaWorldGameMode targetGameMode))
-        {
-            return false;
-        }
-
-        string root = TerrariaSavePaths.SaveRoot();
-        FavoriteSaveFiles favorites = LoadFavorites(Path.Combine(root, FavoritesFileName));
-        compatibleFavoriteWorlds = CountCompatibleFavoriteWorldFiles(
-            Path.Combine(root, "Worlds"),
-            favorites.Worlds,
-            targetGameMode);
-        return true;
-    }
-
     private static int MoveNonFavoritePlayers(string root, string backupRoot, HashSet<string> favorites)
     {
         string playersPath = Path.Combine(root, "Players");
@@ -194,35 +177,6 @@ internal sealed class TerrariaSaveFileCleaner
         return Directory.EnumerateFiles(directory, pattern, SearchOption.TopDirectoryOnly)
             .Select(Path.GetFileName)
             .Count(fileName => fileName is not null && favorites.Contains(fileName));
-    }
-
-    internal static int CountCompatibleFavoriteWorldFiles(
-        string directory,
-        HashSet<string> favorites,
-        TerrariaWorldGameMode targetGameMode)
-    {
-        if (!Directory.Exists(directory))
-        {
-            return 0;
-        }
-
-        int compatible = 0;
-        foreach (string worldFile in Directory.EnumerateFiles(directory, "*.wld", SearchOption.TopDirectoryOnly))
-        {
-            string fileName = Path.GetFileName(worldFile);
-            if (!favorites.Contains(fileName))
-            {
-                continue;
-            }
-
-            if (!TerrariaWorldSaveMetadata.TryReadGameMode(worldFile, out TerrariaWorldGameMode favoriteGameMode) ||
-                TerrariaWorldSaveMetadata.HasSameJourneyCompatibility(favoriteGameMode, targetGameMode))
-            {
-                compatible++;
-            }
-        }
-
-        return compatible;
     }
 
     private static int CountFiles(string directory, string pattern)

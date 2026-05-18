@@ -4,15 +4,16 @@ internal static class EnterWorldSaveInstaller
 {
     public static bool TryValidate(PracticeWorldSlot slot, out string message)
     {
-        if (!IsValidSaveFile(slot.PlayerFilePath, ".plr"))
+        if (string.IsNullOrWhiteSpace(slot.Name))
         {
-            message = $"Practice player file is missing or invalid: {slot.PlayerFilePath}";
+            message = "Load world slot name is missing.";
             return false;
         }
 
-        if (!IsValidSaveFile(slot.WorldFilePath, ".wld"))
+        if (!IsValidSaveFile(slot.PlayerFilePath, ".plr") &&
+            !IsValidSaveFile(slot.WorldFilePath, ".wld"))
         {
-            message = $"Practice world file is missing or invalid: {slot.WorldFilePath}";
+            message = $"Load world slot has no valid player or world file: {slot.Name}";
             return false;
         }
 
@@ -29,8 +30,24 @@ internal static class EnterWorldSaveInstaller
             Directory.CreateDirectory(playersPath);
             Directory.CreateDirectory(worldsPath);
 
-            CopyPlayer(slot.PlayerFilePath, playersPath);
-            CopyWorld(slot.WorldFilePath, worldsPath);
+            bool copiedAny = false;
+            if (IsValidSaveFile(slot.PlayerFilePath, ".plr"))
+            {
+                CopyPlayer(slot.PlayerFilePath, playersPath);
+                copiedAny = true;
+            }
+
+            if (IsValidSaveFile(slot.WorldFilePath, ".wld"))
+            {
+                CopyWorld(slot.WorldFilePath, worldsPath);
+                copiedAny = true;
+            }
+
+            if (!copiedAny)
+            {
+                message = $"Load world slot has no valid player or world file: {slot.Name}";
+                return false;
+            }
 
             message = string.Empty;
             return true;
@@ -65,7 +82,7 @@ internal static class EnterWorldSaveInstaller
         string targetDirectory = Path.Combine(
             playersPath,
             Path.GetFileNameWithoutExtension(targetPath));
-        CopyDirectory(sourceDirectory, GetAvailablePath(targetDirectory));
+        CopyDirectory(sourceDirectory, targetDirectory);
     }
 
     private static void CopyWorld(string sourcePath, string worldsPath)
@@ -75,13 +92,13 @@ internal static class EnterWorldSaveInstaller
 
     private static string CopySaveFile(string sourcePath, string targetDirectory)
     {
-        string targetPath = GetAvailablePath(Path.Combine(targetDirectory, Path.GetFileName(sourcePath)));
-        File.Copy(sourcePath, targetPath);
+        string targetPath = Path.Combine(targetDirectory, Path.GetFileName(sourcePath));
+        CopyFile(sourcePath, targetPath);
 
         string backupPath = sourcePath + ".bak";
         if (File.Exists(backupPath))
         {
-            File.Copy(backupPath, targetPath + ".bak");
+            CopyFile(backupPath, targetPath + ".bak");
         }
 
         return targetPath;
@@ -101,29 +118,25 @@ internal static class EnterWorldSaveInstaller
             string relativePath = Path.GetRelativePath(sourceDirectory, file);
             string targetPath = Path.Combine(targetDirectory, relativePath);
             Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
-            File.Copy(file, targetPath);
+            CopyFile(file, targetPath);
         }
     }
 
-    private static string GetAvailablePath(string path)
+    private static void CopyFile(string sourcePath, string targetPath)
     {
-        if (!File.Exists(path) && !Directory.Exists(path))
+        if (IsSamePath(sourcePath, targetPath))
         {
-            return path;
+            return;
         }
 
-        string directory = Path.GetDirectoryName(path)!;
-        string name = Path.GetFileNameWithoutExtension(path);
-        string extension = Path.GetExtension(path);
-        for (int i = 1; i < 1000; i++)
-        {
-            string candidate = Path.Combine(directory, $"{name}-{i}{extension}");
-            if (!File.Exists(candidate) && !Directory.Exists(candidate))
-            {
-                return candidate;
-            }
-        }
+        File.Copy(sourcePath, targetPath, overwrite: true);
+    }
 
-        return Path.Combine(directory, $"{name}-{Guid.NewGuid():N}{extension}");
+    private static bool IsSamePath(string left, string right)
+    {
+        return string.Equals(
+            Path.GetFullPath(left),
+            Path.GetFullPath(right),
+            StringComparison.OrdinalIgnoreCase);
     }
 }

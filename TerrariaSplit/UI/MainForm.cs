@@ -999,7 +999,7 @@ internal sealed partial class MainForm : Form
             TimerHotkeyAction.Reset => "Reset (Disabled in world)",
             TimerHotkeyAction.MouseClickThrough => "Mouse passthrough",
             TimerHotkeyAction.CreateWorld => "Create world (Disabled in world)",
-            TimerHotkeyAction.PracticeWorld => "Quick enter world (Disabled in world)",
+            TimerHotkeyAction.PracticeWorld => "Load world (Disabled in world)",
             _ => action.ToString()
         };
     }

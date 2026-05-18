@@ -42,7 +42,7 @@ var legacyTests = new (string Name, Action Test)[]
 var tests = legacyTests
     .Concat(HotkeyTests.All())
     .Concat(AutomationRunnerTests.All())
-    .Concat(WorldSaveMetadataTests.All())
+    .Concat(LoadWorldValidationTests.All())
     .Concat(MainShellRefactorTests.All())
     .Concat(RenderingTests.All())
     .ToArray();

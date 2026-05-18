@@ -76,7 +76,7 @@ internal sealed class GeneralSettingsPage : SettingsPageBase
         Factory.AddSettingRow(hotkeysGrid, "Reset (Disabled in world)", resetKeyBox);
         Factory.AddSettingRow(hotkeysGrid, "Mouse passthrough", mouseClickThroughKeyBox);
         Factory.AddSettingRow(hotkeysGrid, "Create world (Disabled in world)", createWorldKeyBox);
-        Factory.AddSettingRow(hotkeysGrid, "Quick enter world (Disabled in world)", practiceWorldKeyBox);
+        Factory.AddSettingRow(hotkeysGrid, "Load world (Disabled in world)", practiceWorldKeyBox);
         SettingsUiFactory.AddSectionControl(hotkeysSection, hotkeysGrid);
         SettingsUiFactory.AddSection(parent, hotkeysSection);
 
