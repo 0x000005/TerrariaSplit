@@ -1054,7 +1054,10 @@ internal sealed class DebugSettingsPage : SettingsPageBase
 
     private static TableLayoutPanel CreateGrid(SettingsForm owner)
     {
-        return SettingsUiFactory.For(owner).CreateTwoColumnGrid(240f);
+        SettingsUiFactory factory = SettingsUiFactory.For(owner);
+        return factory.CreateGrid(
+            SettingsUiFactory.ColumnStyleAbsolute(290f),
+            SettingsUiFactory.ColumnStylePercent(100f));
     }
 
     private static void AddValueRow(TableLayoutPanel grid, SettingsForm owner, string label, Label valueLabel)
