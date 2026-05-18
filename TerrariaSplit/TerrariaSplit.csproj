@@ -8,7 +8,7 @@
     <ApplicationHighDpiMode>SystemAware</ApplicationHighDpiMode>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <DefaultItemExcludes>$(DefaultItemExcludes);bin\**;obj\**;.build-check\**;.check\**;.verify\**</DefaultItemExcludes>
+    <DefaultItemExcludes>$(DefaultItemExcludes);bin\**;obj\**;.build-check\**;.check\**;.verify\**;.codex-build-check\**;.codex-memory-probe\**;.codex-verify\**;.codex_bin\**;.codex_obj\**</DefaultItemExcludes>
   </PropertyGroup>
 
   <ItemGroup>
