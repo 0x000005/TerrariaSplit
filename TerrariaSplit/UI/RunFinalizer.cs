@@ -142,10 +142,7 @@ internal sealed class RunFinalizer
         }
 
         BossSplitStatus? moonLordStatus = statuses.FirstOrDefault(status =>
-            status.Definition.BossIds.Any(bossId => string.Equals(
-                bossId,
-                BossSplitDefinitions.MoonLord,
-                StringComparison.OrdinalIgnoreCase)));
+            BossSplitDefinitions.IsMoonLordSplit(status.Definition));
         if (moonLordStatus?.Time is not TimeSpan moonLordTime)
         {
             return null;

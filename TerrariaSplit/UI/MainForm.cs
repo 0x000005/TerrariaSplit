@@ -71,7 +71,6 @@ internal sealed partial class MainForm : Form
             new TerrariaUiScalePatchApplierAdapter(),
             callback => BeginInvoke(callback));
         monitorCoordinator.WatcherPollCompleted += HandleWatcherPollCompleted;
-        worldAutomation.EnterWorldCompletedSuccessfully += HandleEnterWorldCompletedSuccessfully;
         overlayWindowController = new OverlayWindowController(
             this,
             graphics =>
@@ -428,6 +427,7 @@ internal sealed partial class MainForm : Form
 
             if (tickResult.RunStarted)
             {
+                soundPlayer.Play(settings.Sounds.EnterWorld);
                 runSession.MarkRunStarted();
                 invalidateAll = true;
             }
@@ -628,8 +628,7 @@ internal sealed partial class MainForm : Form
     private void ExecuteReset()
     {
         pendingMenuHotkeys.Clear();
-        soundPlayer.Play(settings.Sounds.Reset);
-        ResetRun(recordStats: true);
+        ResetRunWithSound(recordStats: true);
     }
 
     private void ExecuteMenuHotkeyAction(MenuHotkeyActionKind action)
@@ -643,7 +642,7 @@ internal sealed partial class MainForm : Form
                 StartCreateWorldAutomation();
                 break;
             case MenuHotkeyActionKind.PracticeWorld:
-                ResetRun(recordStats: true);
+                ResetRunWithSound(recordStats: true);
                 ShowPracticeWorldSelector();
                 break;
         }
@@ -857,7 +856,7 @@ internal sealed partial class MainForm : Form
     {
         pendingHotkeyRequests.Clear();
         pendingMenuHotkeys.Clear();
-        ResetRun(recordStats: true);
+        ResetRunWithSound(recordStats: true);
 
         try
         {
@@ -914,9 +913,10 @@ internal sealed partial class MainForm : Form
         }
     }
 
-    private void HandleEnterWorldCompletedSuccessfully()
+    private void ResetRunWithSound(bool recordStats = false)
     {
-        soundPlayer.Play(settings.Sounds.EnterWorld);
+        soundPlayer.Play(settings.Sounds.Reset);
+        ResetRun(recordStats);
     }
 
     private void RegisterConfiguredHotkeys()

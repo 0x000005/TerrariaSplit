@@ -96,6 +96,14 @@ internal static class BossSplitDefinitions
         return unit is not null;
     }
 
+    public static bool IsMoonLordSplit(BossSplitDefinition definition)
+    {
+        return definition.BossIds.Any(bossId => string.Equals(
+            bossId,
+            MoonLord,
+            StringComparison.OrdinalIgnoreCase));
+    }
+
     private static BossSplitDefinition BuildSplit(IReadOnlyList<BossUnitDefinition> units, AppSettings settings)
     {
         string id = GetSplitId(units);

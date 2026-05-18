@@ -70,6 +70,8 @@ internal static class SettingsNormalizer
         autoCreate.WorldSize = AutoCreateWorldSize.Normalize(autoCreate.WorldSize);
         autoCreate.WorldDifficulty = AutoCreateWorldDifficulty.Normalize(autoCreate.WorldDifficulty);
         autoCreate.WorldEvil = AutoCreateWorldEvil.Normalize(autoCreate.WorldEvil);
+        autoCreate.SpecialSeeds = string.Join("|", AutoCreateSpecialWorldSeed.ParseList(autoCreate.SpecialSeeds));
+        autoCreate.SecretSeeds = autoCreate.SecretSeeds?.Trim() ?? string.Empty;
         autoCreate.ShortActionDelayMilliseconds = Math.Clamp(autoCreate.ShortActionDelayMilliseconds, 0, 5000);
         autoCreate.MenuActionDelayMilliseconds = Math.Clamp(autoCreate.MenuActionDelayMilliseconds, 0, 5000);
         autoCreate.WindowActivationDelayMilliseconds = Math.Clamp(autoCreate.WindowActivationDelayMilliseconds, 0, 5000);

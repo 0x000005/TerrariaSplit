@@ -217,19 +217,17 @@ internal sealed partial class MainForm : Form
         }
 
         BossSplitDefinition definition = statuses[completedIndex].Definition;
-        bool totalBehindReference = settings.TryGetReferenceSplit(definition, out TimeSpan referenceSplit) &&
-            splitTime > referenceSplit;
-        bool segmentBehindPersonalBest = SplitRenderData.TryGetCompletedSegmentTime(statuses, completedIndex, out TimeSpan segmentTime) &&
+        bool cumulativeFasterThanReference = settings.TryGetReferenceSplit(definition, out TimeSpan referenceSplit) &&
+            splitTime < referenceSplit;
+        bool segmentFasterThanPersonalBest = SplitRenderData.TryGetCompletedSegmentTime(statuses, completedIndex, out TimeSpan segmentTime) &&
             SplitRenderData.TryGetPersonalBestSegment(settings, definition, out TimeSpan personalBestSegment) &&
-            segmentTime > personalBestSegment;
+            segmentTime < personalBestSegment;
 
-        string path = (totalBehindReference, segmentBehindPersonalBest) switch
-        {
-            (true, true) => settings.Sounds.SplitBehindReferenceBehindSegment,
-            (true, false) => settings.Sounds.SplitBehindReferenceAheadSegment,
-            (false, true) => settings.Sounds.SplitAheadReferenceBehindSegment,
-            _ => settings.Sounds.SplitAheadReferenceAheadSegment
-        };
+        string path = SplitSoundSelector.GetPath(
+            settings.Sounds,
+            definition,
+            cumulativeFasterThanReference,
+            segmentFasterThanPersonalBest);
         soundPlayer.Play(path);
     }
 }

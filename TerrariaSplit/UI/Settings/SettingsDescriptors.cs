@@ -58,7 +58,7 @@ internal static class SettingsDescriptors
             nameof(UiColorSettings.SplitCompletionLabelText),
             colors => colors.SplitCompletionLabelText,
             (colors, value) => colors.SplitCompletionLabelText = value),
-        new("Animation main time",
+        new("Animation cumulative time",
             nameof(UiColorSettings.SplitCompletionTimeText),
             colors => colors.SplitCompletionTimeText,
             (colors, value) => colors.SplitCompletionTimeText = value)
@@ -69,11 +69,15 @@ internal static class SettingsDescriptors
         new("Pause sound", nameof(UiSoundSettings.Pause), sounds => sounds.Pause, (sounds, value) => sounds.Pause = value),
         new("Resume sound", nameof(UiSoundSettings.Resume), sounds => sounds.Resume, (sounds, value) => sounds.Resume = value),
         new("Reset sound", nameof(UiSoundSettings.Reset), sounds => sounds.Reset, (sounds, value) => sounds.Reset = value),
-        new("Enter world sound", nameof(UiSoundSettings.EnterWorld), sounds => sounds.EnterWorld, (sounds, value) => sounds.EnterWorld = value),
-        new("Split: total slower, segment slower", nameof(UiSoundSettings.SplitBehindReferenceBehindSegment), sounds => sounds.SplitBehindReferenceBehindSegment, (sounds, value) => sounds.SplitBehindReferenceBehindSegment = value),
-        new("Split: total slower, segment not slower", nameof(UiSoundSettings.SplitBehindReferenceAheadSegment), sounds => sounds.SplitBehindReferenceAheadSegment, (sounds, value) => sounds.SplitBehindReferenceAheadSegment = value),
-        new("Split: total not slower, segment slower", nameof(UiSoundSettings.SplitAheadReferenceBehindSegment), sounds => sounds.SplitAheadReferenceBehindSegment, (sounds, value) => sounds.SplitAheadReferenceBehindSegment = value),
-        new("Split: total not slower, segment not slower", nameof(UiSoundSettings.SplitAheadReferenceAheadSegment), sounds => sounds.SplitAheadReferenceAheadSegment, (sounds, value) => sounds.SplitAheadReferenceAheadSegment = value)
+        new("Timer start sound", nameof(UiSoundSettings.EnterWorld), sounds => sounds.EnterWorld, (sounds, value) => sounds.EnterWorld = value),
+        new("Split: cumulative not faster, segment not faster", nameof(UiSoundSettings.SplitBehindReferenceBehindSegment), sounds => sounds.SplitBehindReferenceBehindSegment, (sounds, value) => sounds.SplitBehindReferenceBehindSegment = value),
+        new("Split: cumulative not faster, segment faster", nameof(UiSoundSettings.SplitBehindReferenceAheadSegment), sounds => sounds.SplitBehindReferenceAheadSegment, (sounds, value) => sounds.SplitBehindReferenceAheadSegment = value),
+        new("Split: cumulative faster, segment not faster", nameof(UiSoundSettings.SplitAheadReferenceBehindSegment), sounds => sounds.SplitAheadReferenceBehindSegment, (sounds, value) => sounds.SplitAheadReferenceBehindSegment = value),
+        new("Split: cumulative faster, segment faster", nameof(UiSoundSettings.SplitAheadReferenceAheadSegment), sounds => sounds.SplitAheadReferenceAheadSegment, (sounds, value) => sounds.SplitAheadReferenceAheadSegment = value),
+        new("Moon Lord: cumulative not faster, segment not faster", nameof(UiSoundSettings.MoonLordBehindReferenceBehindSegment), sounds => sounds.MoonLordBehindReferenceBehindSegment, (sounds, value) => sounds.MoonLordBehindReferenceBehindSegment = value),
+        new("Moon Lord: cumulative not faster, segment faster", nameof(UiSoundSettings.MoonLordBehindReferenceAheadSegment), sounds => sounds.MoonLordBehindReferenceAheadSegment, (sounds, value) => sounds.MoonLordBehindReferenceAheadSegment = value),
+        new("Moon Lord: cumulative faster, segment not faster", nameof(UiSoundSettings.MoonLordAheadReferenceBehindSegment), sounds => sounds.MoonLordAheadReferenceBehindSegment, (sounds, value) => sounds.MoonLordAheadReferenceBehindSegment = value),
+        new("Moon Lord: cumulative faster, segment faster", nameof(UiSoundSettings.MoonLordAheadReferenceAheadSegment), sounds => sounds.MoonLordAheadReferenceAheadSegment, (sounds, value) => sounds.MoonLordAheadReferenceAheadSegment = value)
     ];
 }
 

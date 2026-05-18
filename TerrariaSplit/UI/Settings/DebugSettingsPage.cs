@@ -580,6 +580,24 @@ internal sealed class DebugSettingsPage : SettingsPageBase
             owner.Localize(normalizedWorldEvil));
 
         AppendSequenceStep(lines, owner, ref step, "Advanced Seed", geometry.WorldAdvancedSeedButton());
+        foreach (string specialSeed in AutoCreateSpecialWorldSeed.ParseList(autoCreate.SpecialSeeds))
+        {
+            AppendSequenceStep(
+                lines,
+                owner,
+                ref step,
+                "Special seeds",
+                geometry.AdvancedSpecialSeedButton(specialSeed),
+                owner.Localize(specialSeed));
+        }
+
+        string secretSeeds = autoCreate.SecretSeeds?.Trim() ?? string.Empty;
+        if (!string.IsNullOrWhiteSpace(secretSeeds))
+        {
+            AppendSequenceStep(lines, owner, ref step, "Secret seeds", geometry.AdvancedSeedTextButton(), secretSeeds);
+            AppendSequenceStep(lines, owner, ref step, "Submit World Seed", geometry.VirtualKeyboardSubmitButton());
+        }
+
         AppendSequenceStep(lines, owner, ref step, "Randomize Visible Seed", geometry.AdvancedSeedRandomizeButton());
         AppendSequenceStep(lines, owner, ref step, "Create World", geometry.CreateWorldButton());
 
@@ -1042,7 +1060,7 @@ internal sealed class DebugSettingsPage : SettingsPageBase
     private static void AddValueRow(TableLayoutPanel grid, SettingsForm owner, string label, Label valueLabel)
     {
         int row = grid.RowCount++;
-        grid.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 56f));
         grid.Controls.Add(CreateRowLabel(owner, label), 0, row);
         grid.Controls.Add(valueLabel, 1, row);
     }

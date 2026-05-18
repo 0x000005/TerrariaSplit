@@ -62,7 +62,7 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
         { "Offset Y", "垂直偏移" },
         { "Part", "分段" },
         { "Section", "部分" },
-        { "Main time", "主时间" },
+        { "Main time", "累计时间" },
         { "Before decimal", "小数点前" },
         { "Milliseconds", "毫秒" },
         { "After decimal", "小数点后" },
@@ -140,7 +140,7 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
         { "Transparent", "透明" },
         { "Cumulative", "累计" },
         { "No response updates automatically in {0}s.", "{0}秒内无响应将自动更新。" },
-        { "Segment time", "本段用时" },
+        { "Segment time", "分段时间" },
         { "Split time", "累计时间" },
         { "Reference time column", "参考累计时间" },
         { "Selected run time column", "该局累计时间" },
@@ -162,23 +162,32 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
         { "Timer no record text", "计时未破纪录文字" },
         { "Timer paused text", "计时暂停文字" },
         { "Animation text", "动画文字" },
-        { "Animation main time", "动画主时间" },
+        { "Animation main time", "动画累计时间" },
+        { "Animation cumulative time", "动画累计时间" },
         { "Pause sound", "暂停声音" },
         { "Resume sound", "继续声音" },
         { "Reset sound", "重置声音" },
-        { "Enter world sound", "进入世界声音" },
-        { "Split: total behind, segment behind", "Split：总时间慢，分段慢" },
-        { "Split: total behind, segment not behind", "Split：总时间慢，分段不慢" },
-        { "Split: total not behind, segment behind", "Split：总时间不慢，分段慢" },
-        { "Split: total not behind, segment not behind", "Split：总时间不慢，分段不慢" },
-        { "Split reached: total slower than reference, segment slower than PB", "到达分段点：总时间慢于参考，分段慢于PB" },
-        { "Split reached: total slower than reference, segment not slower than PB", "到达分段点：总时间慢于参考，分段不慢于PB" },
-        { "Split reached: total not slower than reference, segment slower than PB", "到达分段点：总时间不慢于参考，分段慢于PB" },
-        { "Split reached: total not slower than reference, segment not slower than PB", "到达分段点：总时间不慢于参考，分段不慢于PB" },
-        { "Split: total slower, segment slower", "分段点：总慢于参考，分段慢于PB" },
-        { "Split: total slower, segment not slower", "分段点：总慢于参考，分段不慢于PB" },
-        { "Split: total not slower, segment slower", "分段点：总不慢于参考，分段慢于PB" },
-        { "Split: total not slower, segment not slower", "分段点：总不慢于参考，分段不慢于PB" },
+        { "Timer start sound", "计时开始声音" },
+        { "Split: total behind, segment behind", "Split：累计时间不快于参考，分段时间不快于 PB" },
+        { "Split: total behind, segment not behind", "Split：累计时间不快于参考，分段时间快于 PB" },
+        { "Split: total not behind, segment behind", "Split：累计时间快于参考，分段时间不快于 PB" },
+        { "Split: total not behind, segment not behind", "Split：累计时间快于参考，分段时间快于 PB" },
+        { "Split reached: total slower than reference, segment slower than PB", "到达分段点：累计时间不快于参考，分段时间不快于 PB" },
+        { "Split reached: total slower than reference, segment not slower than PB", "到达分段点：累计时间不快于参考，分段时间快于 PB" },
+        { "Split reached: total not slower than reference, segment slower than PB", "到达分段点：累计时间快于参考，分段时间不快于 PB" },
+        { "Split reached: total not slower than reference, segment not slower than PB", "到达分段点：累计时间快于参考，分段时间快于 PB" },
+        { "Split: total slower, segment slower", "分段点：累计时间不快于参考，分段时间不快于 PB" },
+        { "Split: total slower, segment not slower", "分段点：累计时间不快于参考，分段时间快于 PB" },
+        { "Split: total not slower, segment slower", "分段点：累计时间快于参考，分段时间不快于 PB" },
+        { "Split: total not slower, segment not slower", "分段点：累计时间快于参考，分段时间快于 PB" },
+        { "Split: cumulative not faster, segment not faster", "分段点：累计时间不快于参考，分段时间不快于 PB" },
+        { "Split: cumulative not faster, segment faster", "分段点：累计时间不快于参考，分段时间快于 PB" },
+        { "Split: cumulative faster, segment not faster", "分段点：累计时间快于参考，分段时间不快于 PB" },
+        { "Split: cumulative faster, segment faster", "分段点：累计时间快于参考，分段时间快于 PB" },
+        { "Moon Lord: cumulative not faster, segment not faster", "月亮领主：累计时间不快于参考，分段时间不快于 PB" },
+        { "Moon Lord: cumulative not faster, segment faster", "月亮领主：累计时间不快于参考，分段时间快于 PB" },
+        { "Moon Lord: cumulative faster, segment not faster", "月亮领主：累计时间快于参考，分段时间不快于 PB" },
+        { "Moon Lord: cumulative faster, segment faster", "月亮领主：累计时间快于参考，分段时间快于 PB" },
         { "Choose sound", "选择声音" },
         { "Clear", "清空" },
         { "BOSS Groups", "BOSS 分组" },
@@ -257,6 +266,10 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "World size", "\u4E16\u754C\u5927\u5C0F" }
       , { "World difficulty", "\u4E16\u754C\u96BE\u5EA6" }
       , { "World evil", "\u90AA\u6076\u7C7B\u578B" }
+      , { "World seed / secret seed", "\u4E16\u754C\u79CD\u5B50 / \u79D8\u5BC6\u79CD\u5B50" }
+      , { "Special seeds", "\u5F69\u86CB\u79CD\u5B50" }
+      , { "Secret seeds", "\u79D8\u5BC6\u79CD\u5B50" }
+      , { "Submit World Seed", "\u63D0\u4EA4\u4E16\u754C\u79CD\u5B50" }
       , { "Mouse / key press ms", "\u9F20\u6807 / \u6309\u952E\u6301\u7EED\u6BEB\u79D2" }
       , { "Window activation wait ms", "\u7A97\u53E3\u6FC0\u6D3B\u7B49\u5F85\u6BEB\u79D2" }
       , { "Click focus wait ms", "\u70B9\u51FB\u805A\u7126\u7B49\u5F85\u6BEB\u79D2" }
@@ -264,6 +277,9 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Menu action delay ms", "\u83DC\u5355\u64CD\u4F5C\u5EF6\u8FDF\u6BEB\u79D2" }
       , { "Empty = default character", "\u7559\u7A7A = \u9ED8\u8BA4\u4EBA\u7269" }
       , { "Empty = 1", "\u7559\u7A7A = 1" }
+      , { "Empty = random visible seed", "\u7559\u7A7A = \u968F\u673A\u53EF\u89C1\u79CD\u5B50" }
+      , { "Empty = none", "\u7559\u7A7A=\u65E0" }
+      , { "Empty = none; submitted exactly as typed", "\u7559\u7A7A = \u65E0\uFF1B\u81EA\u52A8\u5316\u4F1A\u6309\u8F93\u5165\u5185\u5BB9\u539F\u6837\u63D0\u4EA4" }
       , { "Softcore", "\u8F6F\u6838" }
       , { "Mediumcore", "\u4E2D\u6838" }
       , { "Hardcore", "\u786C\u6838" }
@@ -277,6 +293,15 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Random", "\u968F\u673A" }
       , { "Corruption", "\u8150\u5316" }
       , { "Crimson", "\u7329\u7EA2" }
+      , { "Not the Bees", "\u4E0D\u662F\u871C\u8702" }
+      , { "Drunk", "\u9189\u9152" }
+      , { "Celebration Mk 10", "\u5341\u5468\u5E74\u5E86\u5178" }
+      , { "The Constant", "\u6C38\u6052\u9886\u57DF" }
+      , { "For the Worthy", "For the Worthy" }
+      , { "No Traps", "\u65E0\u9677\u9631" }
+      , { "Remix", "Remix" }
+      , { "Zenith", "\u5929\u9876" }
+      , { "Skyblock", "\u7A7A\u5C9B" }
       , { "Debug", "\u8C03\u8BD5" }
       , { "Copy all information", "\u590D\u5236\u6240\u6709\u4FE1\u606F" }
       , { "Quick Status", "\u5FEB\u901F\u72B6\u6001" }

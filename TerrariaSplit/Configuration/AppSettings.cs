@@ -308,6 +308,8 @@ internal sealed class AutoCreateWorldSettings
     public string WorldSize { get; set; } = AutoCreateWorldSize.Medium;
     public string WorldDifficulty { get; set; } = AutoCreateWorldDifficulty.Classic;
     public string WorldEvil { get; set; } = AutoCreateWorldEvil.Random;
+    public string SpecialSeeds { get; set; } = string.Empty;
+    public string SecretSeeds { get; set; } = string.Empty;
     public int ShortActionDelayMilliseconds { get; set; } = DefaultShortActionDelayMilliseconds;
     public int MenuActionDelayMilliseconds { get; set; } = DefaultMenuActionDelayMilliseconds;
     public int WindowActivationDelayMilliseconds { get; set; } = DefaultWindowActivationDelayMilliseconds;
@@ -403,5 +405,178 @@ internal static class AutoCreateWorldEvil
     public static string Normalize(string? value)
     {
         return All.FirstOrDefault(option => string.Equals(option, value, StringComparison.OrdinalIgnoreCase)) ?? Random;
+    }
+}
+
+internal static class AutoCreateSpecialWorldSeed
+{
+    public const string NotTheBees = "Not the Bees";
+    public const string Drunk = "Drunk";
+    public const string Celebration = "Celebration Mk 10";
+    public const string TheConstant = "The Constant";
+    public const string ForTheWorthy = "For the Worthy";
+    public const string NoTraps = "No Traps";
+    public const string Remix = "Remix";
+    public const string Zenith = "Zenith";
+    public const string Skyblock = "Skyblock";
+
+    public static readonly string[] All =
+    {
+        NotTheBees,
+        Drunk,
+        Celebration,
+        TheConstant,
+        ForTheWorthy,
+        NoTraps,
+        Remix,
+        Zenith,
+        Skyblock
+    };
+
+    private static readonly HashSet<string> ZenithDependencies = new(StringComparer.OrdinalIgnoreCase)
+    {
+        NotTheBees,
+        Drunk,
+        Celebration,
+        TheConstant,
+        ForTheWorthy,
+        NoTraps,
+        Remix
+    };
+
+    private static readonly Dictionary<string, string> Aliases = new(StringComparer.OrdinalIgnoreCase)
+    {
+        { "not the bees", NotTheBees },
+        { "notthebees", NotTheBees },
+        { "drunk", Drunk },
+        { "drunk world", Drunk },
+        { "drunkworld", Drunk },
+        { "5162020", Drunk },
+        { "celebration", Celebration },
+        { "celebration mk 10", Celebration },
+        { "celebrationmk10", Celebration },
+        { "5162011", Celebration },
+        { "5162021", Celebration },
+        { "constant", TheConstant },
+        { "the constant", TheConstant },
+        { "theconstant", TheConstant },
+        { "eye 4 an eye", TheConstant },
+        { "eye4aneye", TheConstant },
+        { "eye for an eye", TheConstant },
+        { "eyeforaneye", TheConstant },
+        { "for the worthy", ForTheWorthy },
+        { "fortheworthy", ForTheWorthy },
+        { "no traps", NoTraps },
+        { "notraps", NoTraps },
+        { "remix", Remix },
+        { "don't dig up", Remix },
+        { "dont dig up", Remix },
+        { "dontdigup", Remix },
+        { "zenith", Zenith },
+        { "everything", Zenith },
+        { "get fixed boi", Zenith },
+        { "getfixedboi", Zenith },
+        { "skyblock", Skyblock }
+    };
+
+    public static bool TryNormalize(string? value, out string seed)
+    {
+        seed = string.Empty;
+        string normalized = NormalizeToken(value);
+        if (string.IsNullOrWhiteSpace(normalized) || string.Equals(normalized, "normal", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return Aliases.TryGetValue(normalized, out seed!);
+    }
+
+    public static IReadOnlyList<string> ParseList(string? value)
+    {
+        List<string> seeds = new();
+        foreach (string token in SplitSeedList(value))
+        {
+            if (TryNormalize(token, out string seed) && !seeds.Contains(seed, StringComparer.OrdinalIgnoreCase))
+            {
+                seeds.Add(seed);
+            }
+        }
+
+        if (seeds.Contains(Zenith, StringComparer.OrdinalIgnoreCase))
+        {
+            seeds.RemoveAll(seed =>
+                !string.Equals(seed, Zenith, StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(seed, Skyblock, StringComparison.OrdinalIgnoreCase));
+        }
+
+        return seeds;
+    }
+
+    public static int MenuIndex(string seed)
+    {
+        return Normalize(seed) switch
+        {
+            NotTheBees => 1,
+            Drunk => 2,
+            Celebration => 3,
+            TheConstant => 4,
+            ForTheWorthy => 5,
+            NoTraps => 6,
+            Remix => 7,
+            Zenith => 8,
+            Skyblock => 9,
+            _ => throw new ArgumentOutOfRangeException(nameof(seed), seed, "Unknown special world seed.")
+        };
+    }
+
+    public static bool IsZenithDependency(string seed)
+    {
+        return ZenithDependencies.Contains(seed);
+    }
+
+    private static string Normalize(string value)
+    {
+        return All.FirstOrDefault(option => string.Equals(option, value, StringComparison.OrdinalIgnoreCase)) ?? value;
+    }
+
+    private static string NormalizeToken(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        return new string(value.Trim().Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant();
+    }
+
+    private static IEnumerable<string> SplitSeedList(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            yield break;
+        }
+
+        char[] separators = ['|', ',', ';', '\r', '\n', '\t', '\uFF0C', '\uFF1B'];
+        foreach (string token in value.Split(separators, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            yield return token;
+        }
+    }
+}
+
+internal static class AutoCreateSeedList
+{
+    public static IReadOnlyList<string> Parse(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return [];
+        }
+
+        char[] separators = ['|', ',', ';', '\r', '\n', '\t', '\uFF0C', '\uFF1B'];
+        return value.Split(separators, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(seed => !string.IsNullOrWhiteSpace(seed))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 }

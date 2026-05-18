@@ -252,6 +252,8 @@
     "WorldSize": "Medium",
     "WorldDifficulty": "Classic",
     "WorldEvil": "Random",
+    "SpecialSeeds": "",
+    "SecretSeeds": "",
     "ShortActionDelayMilliseconds": 10,
     "MenuActionDelayMilliseconds": 90,
     "WindowActivationDelayMilliseconds": 10,

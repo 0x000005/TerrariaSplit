@@ -108,6 +108,19 @@ internal readonly record struct TerrariaMenuGeometry(float Scale, float LogicalW
         return ToClient(LogicalWidth / 2f - 220f, 230f);
     }
 
+    public Point AdvancedSeedTextButton()
+    {
+        return ToClient(LogicalWidth / 2f, 230f);
+    }
+
+    public Point AdvancedSpecialSeedButton(string specialSeed)
+    {
+        int index = AutoCreateSpecialWorldSeed.MenuIndex(specialSeed);
+        int column = index % 6;
+        int row = index / 6;
+        return ToClient(LogicalWidth / 2f - 186f + 78.4f * column, 287f + 67f * row);
+    }
+
     public Point WorldAdvancedApplyButton()
     {
         return ToClient(LogicalWidth / 2f, 534f);

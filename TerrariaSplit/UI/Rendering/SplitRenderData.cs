@@ -401,10 +401,7 @@ internal static class OverlayTextStyles
         BossSplitStatus? match = statuses.FirstOrDefault(status =>
             !status.IsSkipped &&
             status.Time is not null &&
-            status.Definition.BossIds.Any(bossId => string.Equals(
-                bossId,
-                BossSplitDefinitions.MoonLord,
-                StringComparison.OrdinalIgnoreCase)));
+            BossSplitDefinitions.IsMoonLordSplit(status.Definition));
         if (match?.Time is TimeSpan time)
         {
             moonLordStatus = match;

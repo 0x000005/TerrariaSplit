@@ -7,11 +7,8 @@ internal sealed class TerrariaWorldAutomation : IDisposable
     private readonly AutomationRunner<AppSettings> createWorldRunner;
     private readonly AutomationRunner<EnterWorldAutomationRequest> enterWorldRunner;
 
-    public event Action? EnterWorldCompletedSuccessfully;
-
     public TerrariaWorldAutomation()
     {
-        enterWorldWorkflow.CompletedSuccessfully += HandleEnterWorldCompletedSuccessfully;
         createWorldRunner = new AutomationRunner<AppSettings>(
             "Create world",
             createWorldWorkflow.RunAsync,
@@ -65,14 +62,8 @@ internal sealed class TerrariaWorldAutomation : IDisposable
 
     public void Dispose()
     {
-        enterWorldWorkflow.CompletedSuccessfully -= HandleEnterWorldCompletedSuccessfully;
         createWorldRunner.Dispose();
         enterWorldRunner.Dispose();
-    }
-
-    private void HandleEnterWorldCompletedSuccessfully()
-    {
-        EnterWorldCompletedSuccessfully?.Invoke();
     }
 
     private readonly record struct EnterWorldAutomationRequest(

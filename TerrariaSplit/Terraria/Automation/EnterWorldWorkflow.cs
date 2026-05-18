@@ -8,8 +8,6 @@ internal sealed class EnterWorldWorkflow : IDisposable
     private readonly TerrariaAutomationContext automation = new("Enter world");
     private TimeSpan menuActionDelay = TimeSpan.FromMilliseconds(AutoCreateWorldSettings.DefaultMenuActionDelayMilliseconds);
 
-    public event Action? CompletedSuccessfully;
-
     public async Task RunAsync(AppSettings settings, PracticeWorldSlot slot, CancellationToken cancellationToken = default)
     {
         automation.BeginRun();
@@ -44,11 +42,18 @@ internal sealed class EnterWorldWorkflow : IDisposable
             TerrariaMenuGeometry geometry = TerrariaMenuGeometry.From(clientSize);
 
             TerrariaSaveCleanupResult cleanup = default;
+            int favoriteWorldsBeforeTarget = 0;
             if (!await automation.RunStepAsync(
                     "save cleanup",
                     _ =>
                     {
                         cleanup = savePreparation.MoveNonFavoritesToBackup();
+                        favoriteWorldsBeforeTarget = cleanup.FavoriteWorlds;
+                        if (savePreparation.TryCountCompatibleFavoriteWorlds(slot.WorldFilePath, out int compatibleFavoriteWorlds))
+                        {
+                            favoriteWorldsBeforeTarget = compatibleFavoriteWorlds;
+                        }
+
                         return Task.FromResult(true);
                     },
                     cancellationToken))
@@ -83,12 +88,10 @@ internal sealed class EnterWorldWorkflow : IDisposable
                 return;
             }
 
-            if (!await automation.ClickAsync("first non-favorite world play button", geometry.WorldPlayButton(cleanup.FavoriteWorlds), menuActionDelay, cancellationToken))
+            if (!await automation.ClickAsync("first compatible non-favorite world play button", geometry.WorldPlayButton(favoriteWorldsBeforeTarget), menuActionDelay, cancellationToken))
             {
                 return;
             }
-
-            CompletedSuccessfully?.Invoke();
         }
         catch (OperationCanceledException)
         {

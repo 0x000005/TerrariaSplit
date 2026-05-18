@@ -6,22 +6,31 @@ namespace TerrariaSplit;
 
 internal sealed class AutomationSettingsPage : SettingsPageBase
 {
+    private static readonly Color SpecialSeedButtonHover = Color.FromArgb(40, 48, 53);
+    private static readonly Color SpecialSeedButtonSelectedHover = Color.FromArgb(58, 93, 88);
+    private static readonly Color SpecialSeedButtonDown = Color.FromArgb(34, 41, 46);
+    private static readonly Color SpecialSeedButtonSelectedDown = Color.FromArgb(46, 76, 71);
+
     private readonly TextBox autoCreatePlayerNameBox = new();
     private readonly TextBox autoCreatePlayerTemplateCodeBox = new();
     private readonly ComboBox autoCreatePlayerDifficultyBox = new();
     private readonly ComboBox autoCreateWorldSizeBox = new();
     private readonly ComboBox autoCreateWorldDifficultyBox = new();
     private readonly ComboBox autoCreateWorldEvilBox = new();
+    private readonly TextBox autoCreateSecretSeedsBox = new();
     private readonly TextBox autoCreateShortActionDelayBox = new();
     private readonly TextBox autoCreateMenuActionDelayBox = new();
     private readonly TextBox autoCreateWindowActivationDelayBox = new();
     private readonly TextBox autoCreateClickFocusDelayBox = new();
     private readonly TextBox autoCreateInputPressDurationBox = new();
+    private readonly Dictionary<string, CheckBox> autoCreateSpecialSeedBoxes = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<PracticeSlotControls> practiceSlotControls = new();
 
     public override SettingsPageId Id => SettingsPageId.Automation;
 
     internal IReadOnlyList<PracticeSlotControls> PracticeSlots => practiceSlotControls;
+    internal IReadOnlyDictionary<string, CheckBox> AutoCreateSpecialSeedBoxes => autoCreateSpecialSeedBoxes;
+    internal TextBox AutoCreateSecretSeedsBox => autoCreateSecretSeedsBox;
 
     protected override Control BuildPage(SettingsPageContext context)
     {
@@ -40,6 +49,12 @@ internal sealed class AutomationSettingsPage : SettingsPageBase
             GetSelectedOption(autoCreateWorldDifficultyBox, AutoCreateWorldDifficulty.Classic));
         settings.AutoCreate.WorldEvil = AutoCreateWorldEvil.Normalize(
             GetSelectedOption(autoCreateWorldEvilBox, AutoCreateWorldEvil.Random));
+        string selectedSpecialSeeds = string.Join(
+            "|",
+            AutoCreateSpecialWorldSeed.All.Where(seed =>
+                autoCreateSpecialSeedBoxes.TryGetValue(seed, out CheckBox? box) && box.Checked));
+        settings.AutoCreate.SpecialSeeds = string.Join("|", AutoCreateSpecialWorldSeed.ParseList(selectedSpecialSeeds));
+        settings.AutoCreate.SecretSeeds = autoCreateSecretSeedsBox.Text.Trim();
         settings.AutoCreate.ShortActionDelayMilliseconds = SettingsValueParser.ParseIntBox(
             autoCreateShortActionDelayBox,
             AutoCreateWorldSettings.DefaultShortActionDelayMilliseconds,
@@ -98,6 +113,7 @@ internal sealed class AutomationSettingsPage : SettingsPageBase
         ConfigureOptionBox(autoCreateWorldSizeBox, AutoCreateWorldSize.All, Draft.AutoCreate.WorldSize);
         ConfigureOptionBox(autoCreateWorldDifficultyBox, AutoCreateWorldDifficulty.All, Draft.AutoCreate.WorldDifficulty);
         ConfigureOptionBox(autoCreateWorldEvilBox, AutoCreateWorldEvil.All, Draft.AutoCreate.WorldEvil);
+        ConfigureSeedListBox(autoCreateSecretSeedsBox, Draft.AutoCreate.SecretSeeds);
         ConfigureNumberBox(autoCreateShortActionDelayBox, Draft.AutoCreate.ShortActionDelayMilliseconds, 0, 5000);
         ConfigureNumberBox(autoCreateMenuActionDelayBox, Draft.AutoCreate.MenuActionDelayMilliseconds, 0, 5000);
         ConfigureNumberBox(autoCreateWindowActivationDelayBox, Draft.AutoCreate.WindowActivationDelayMilliseconds, 0, 5000);
@@ -193,7 +209,132 @@ internal sealed class AutomationSettingsPage : SettingsPageBase
         Factory.AddSettingRow(worldGrid, "World difficulty", autoCreateWorldDifficultyBox);
         Factory.AddSettingRow(worldGrid, "World evil", autoCreateWorldEvilBox);
         SettingsUiFactory.AddSectionControl(createSection, worldGrid);
+
+        SettingsUiFactory.AddSectionControl(createSection, Factory.CreateFieldLabel("Special seeds"));
+        SettingsUiFactory.AddSectionControl(createSection, CreateSpecialSeedSelector());
+
+        TableLayoutPanel seedGrid = Factory.CreateGrid(
+            SettingsUiFactory.ColumnStylePercent(100f),
+            SettingsUiFactory.ColumnStyleAbsolute(360f));
+        Factory.AddSettingRow(seedGrid, "Secret seeds", autoCreateSecretSeedsBox);
+        SettingsUiFactory.AddSectionControl(createSection, seedGrid);
         SettingsUiFactory.AddSection(parent, createSection);
+    }
+
+    private TableLayoutPanel CreateSpecialSeedSelector()
+    {
+        var selectedSeeds = AutoCreateSpecialWorldSeed.ParseList(Draft.AutoCreate.SpecialSeeds)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        autoCreateSpecialSeedBoxes.Clear();
+
+        const int columnCount = 3;
+        var panel = new TableLayoutPanel
+        {
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            BackColor = UiTheme.Surface,
+            ColumnCount = columnCount,
+            Dock = DockStyle.Top,
+            Margin = new Padding(0, 0, 0, 8),
+            Padding = Padding.Empty
+        };
+        UiTheme.EnableDoubleBuffering(panel);
+        for (int i = 0; i < columnCount; i++)
+        {
+            panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f / columnCount));
+        }
+
+        for (int index = 0; index < AutoCreateSpecialWorldSeed.All.Length; index++)
+        {
+            string seed = AutoCreateSpecialWorldSeed.All[index];
+            CheckBox button = CreateSpecialSeedButton(seed, selectedSeeds.Contains(seed));
+            int column = index % columnCount;
+            int row = index / columnCount;
+            if (column == 0)
+            {
+                panel.RowCount++;
+                panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 54f));
+            }
+
+            button.Margin = new Padding(0, 0, column == columnCount - 1 ? 0 : 8, 10);
+            autoCreateSpecialSeedBoxes[seed] = button;
+            panel.Controls.Add(button, column, row);
+        }
+
+        UpdateSpecialSeedAvailability();
+        return panel;
+    }
+
+    private CheckBox CreateSpecialSeedButton(string seed, bool selected)
+    {
+        var button = new CheckBox
+        {
+            Appearance = Appearance.Button,
+            AutoEllipsis = true,
+            BackColor = selected ? UiTheme.Selection : UiTheme.SurfaceRaised,
+            Checked = selected,
+            Dock = DockStyle.Fill,
+            FlatStyle = FlatStyle.Flat,
+            Font = UiTheme.FormFont(9f),
+            ForeColor = UiTheme.Text,
+            Height = 44,
+            MinimumSize = new Size(0, 44),
+            Padding = new Padding(8, 0, 8, 2),
+            Text = Context.Localize(seed),
+            TextAlign = ContentAlignment.MiddleCenter,
+            UseVisualStyleBackColor = false
+        };
+        button.FlatAppearance.CheckedBackColor = UiTheme.Selection;
+        button.CheckedChanged += (_, _) =>
+        {
+            if (string.Equals(seed, AutoCreateSpecialWorldSeed.Zenith, StringComparison.OrdinalIgnoreCase))
+            {
+                UpdateSpecialSeedAvailability();
+            }
+            else
+            {
+                UpdateSpecialSeedButtonState(button);
+            }
+        };
+        button.EnabledChanged += (_, _) => UpdateSpecialSeedButtonState(button);
+        UpdateSpecialSeedButtonState(button);
+        return button;
+    }
+
+    private static void UpdateSpecialSeedButtonState(CheckBox button)
+    {
+        button.BackColor = button.Checked ? UiTheme.Selection : UiTheme.SurfaceRaised;
+        button.FlatAppearance.BorderColor = button.Checked ? UiTheme.Accent : UiTheme.Border;
+        button.FlatAppearance.CheckedBackColor = UiTheme.Selection;
+        button.FlatAppearance.MouseOverBackColor = button.Checked
+            ? SpecialSeedButtonSelectedHover
+            : SpecialSeedButtonHover;
+        button.FlatAppearance.MouseDownBackColor = button.Checked
+            ? SpecialSeedButtonSelectedDown
+            : SpecialSeedButtonDown;
+        button.ForeColor = button.Enabled ? UiTheme.Text : UiTheme.MutedText;
+        button.Invalidate();
+    }
+
+    private void UpdateSpecialSeedAvailability()
+    {
+        bool zenithSelected = autoCreateSpecialSeedBoxes.TryGetValue(AutoCreateSpecialWorldSeed.Zenith, out CheckBox? zenithBox) &&
+            zenithBox.Checked;
+
+        foreach ((string seed, CheckBox button) in autoCreateSpecialSeedBoxes)
+        {
+            if (AutoCreateSpecialWorldSeed.IsZenithDependency(seed))
+            {
+                if (zenithSelected)
+                {
+                    button.Checked = false;
+                }
+
+                button.Enabled = !zenithSelected;
+            }
+
+            UpdateSpecialSeedButtonState(button);
+        }
     }
 
     private void AddEnterWorldSection(TableLayoutPanel parent)
@@ -329,6 +470,14 @@ internal sealed class AutomationSettingsPage : SettingsPageBase
         UiTheme.StyleTextBox(textBox);
         textBox.Dock = DockStyle.Fill;
         textBox.Text = Math.Clamp(selected, minimum, maximum).ToString(CultureInfo.InvariantCulture);
+    }
+
+    private void ConfigureSeedListBox(TextBox textBox, string selected)
+    {
+        UiTheme.StyleTextBox(textBox);
+        textBox.Dock = DockStyle.Fill;
+        textBox.Text = selected;
+        textBox.PlaceholderText = Context.Localize("Empty = none");
     }
 
     internal sealed record PracticeSlotControls(

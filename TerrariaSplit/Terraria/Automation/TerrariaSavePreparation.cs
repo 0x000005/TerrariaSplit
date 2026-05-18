@@ -14,6 +14,11 @@ internal sealed class TerrariaSavePreparation
         return saveCleaner.ReadInventorySnapshot();
     }
 
+    public bool TryCountCompatibleFavoriteWorlds(string targetWorldPath, out int compatibleFavoriteWorlds)
+    {
+        return saveCleaner.TryCountCompatibleFavoriteWorlds(targetWorldPath, out compatibleFavoriteWorlds);
+    }
+
     public Dictionary<string, DateTime> SnapshotSaveFiles(string directoryName, string pattern)
     {
         string directory = Path.Combine(TerrariaSavePaths.SaveRoot(), directoryName);

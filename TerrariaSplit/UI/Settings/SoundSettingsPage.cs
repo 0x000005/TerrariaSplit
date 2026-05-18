@@ -26,7 +26,7 @@ internal sealed class SoundSettingsPage : SettingsPageBase
 
         TableLayoutPanel section = Factory.CreateSection("Sounds");
         TableLayoutPanel grid = Factory.CreateGrid(
-            SettingsUiFactory.ColumnStyleAbsolute(360f),
+            SettingsUiFactory.ColumnStyleAbsolute(420f),
             SettingsUiFactory.ColumnStylePercent(100f),
             SettingsUiFactory.ColumnStyleAbsolute(152f),
             SettingsUiFactory.ColumnStyleAbsolute(144f));

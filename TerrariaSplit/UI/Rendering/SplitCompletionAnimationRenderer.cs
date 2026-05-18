@@ -333,7 +333,7 @@ internal static class SplitCompletionAnimationRenderer
             graphics,
             context,
             splitRect,
-            Localizer.Get("Split time", context.Settings),
+            Localizer.Get("Cumulative time", context.Settings),
             splitValue,
             animation.ReferenceSplitComparison,
             animation.ShowSplitComparison,

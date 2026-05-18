@@ -10,6 +10,7 @@ internal static class RenderingTests
         yield return ("UiPalette maps configured text colors", UiPaletteMapsConfiguredTextColors);
         yield return ("TextEffectRenderer applies opacity without changing RGB", TextEffectRendererAppliesOpacity);
         yield return ("OverlayFontCache keeps main timer font independent from milliseconds visibility", OverlayFontCacheKeepsMainTimerFontIndependentFromMillisecondsVisibility);
+        yield return ("SplitSoundSelector routes equal times to not-faster sounds", SplitSoundSelectorRoutesEqualTimesToNotFasterSounds);
         yield return ("SplitListRenderer preserves current split depth curve", SplitListRendererPreservesCurrentSplitDepthCurve);
         yield return ("SplitCompletionAnimationRenderer preserves fade curve", SplitCompletionAnimationRendererPreservesFadeCurve);
         yield return ("SplitCompletionAnimationRenderer preserves delta slide curve", SplitCompletionAnimationRendererPreservesDeltaSlideCurve);
@@ -64,6 +65,52 @@ internal static class RenderingTests
 
         TestAssert.Equal(withMilliseconds, withoutMilliseconds);
         Nearly(57f, withMilliseconds);
+    }
+
+    private static void SplitSoundSelectorRoutesEqualTimesToNotFasterSounds()
+    {
+        var sounds = new UiSoundSettings
+        {
+            SplitBehindReferenceBehindSegment = "normal-notfaster-notfaster.wav",
+            SplitAheadReferenceAheadSegment = "normal-faster-faster.wav",
+            MoonLordBehindReferenceBehindSegment = "moonlord-notfaster-notfaster.wav"
+        };
+        var normalDefinition = new BossSplitDefinition(
+            BossSplitDefinitions.Skeletron,
+            "Skeletron",
+            Array.Empty<BossFlag>(),
+            Array.Empty<string>(),
+            Array.Empty<string>(),
+            [BossSplitDefinitions.Skeletron]);
+        var moonLordDefinition = new BossSplitDefinition(
+            BossSplitDefinitions.MoonLord,
+            "Moon Lord",
+            Array.Empty<BossFlag>(),
+            Array.Empty<string>(),
+            Array.Empty<string>(),
+            [BossSplitDefinitions.MoonLord]);
+
+        TestAssert.Equal(
+            "normal-notfaster-notfaster.wav",
+            SplitSoundSelector.GetPath(
+                sounds,
+                normalDefinition,
+                cumulativeFasterThanReference: false,
+                segmentFasterThanPersonalBest: false));
+        TestAssert.Equal(
+            "normal-faster-faster.wav",
+            SplitSoundSelector.GetPath(
+                sounds,
+                normalDefinition,
+                cumulativeFasterThanReference: true,
+                segmentFasterThanPersonalBest: true));
+        TestAssert.Equal(
+            "moonlord-notfaster-notfaster.wav",
+            SplitSoundSelector.GetPath(
+                sounds,
+                moonLordDefinition,
+                cumulativeFasterThanReference: false,
+                segmentFasterThanPersonalBest: false));
     }
 
     private static void SplitListRendererPreservesCurrentSplitDepthCurve()

@@ -6,6 +6,8 @@ namespace TerrariaSplit;
 
 internal sealed class SettingsUiFactory
 {
+    [ThreadStatic]
+    private static ToolTip? overflowToolTip;
     private readonly Func<string, string> localize;
 
     public SettingsUiFactory(Func<string, string> localize)
@@ -99,41 +101,50 @@ internal sealed class SettingsUiFactory
 
     public Label CreateRowLabel(string text)
     {
-        return new Label
+        Label label = new()
         {
-            AutoSize = true,
+            AutoEllipsis = true,
+            AutoSize = false,
             Dock = DockStyle.Fill,
             ForeColor = UiTheme.Text,
             Margin = new Padding(0, 8, 14, 8),
             Text = localize(text),
             TextAlign = ContentAlignment.MiddleLeft
         };
+        AttachOverflowToolTip(label);
+        return label;
     }
 
     public Label CreateHeaderLabel(string text, ContentAlignment align = ContentAlignment.MiddleLeft)
     {
-        return new Label
+        Label label = new()
         {
             Dock = DockStyle.Fill,
             AutoEllipsis = true,
+            AutoSize = false,
             ForeColor = UiTheme.MutedText,
             Font = UiTheme.FormFont(9.5f, FontStyle.Bold),
             Margin = align == ContentAlignment.MiddleLeft ? new Padding(0, 0, 12, 0) : Padding.Empty,
             Text = localize(text),
             TextAlign = align
         };
+        AttachOverflowToolTip(label);
+        return label;
     }
 
     public Label CreateValueLabel()
     {
-        return new Label
+        Label label = new()
         {
             AutoEllipsis = true,
+            AutoSize = false,
             Dock = DockStyle.Fill,
             ForeColor = UiTheme.Text,
             Margin = new Padding(0, 8, 0, 8),
             TextAlign = ContentAlignment.MiddleLeft
         };
+        AttachOverflowToolTip(label);
+        return label;
     }
 
     public Label CreateMutedLabel(string text)
@@ -500,5 +511,58 @@ internal sealed class SettingsUiFactory
             _ => Math.Max(0, (panel.ClientSize.Width - control.Width) / 2)
         };
         control.Top = Math.Max(0, (panel.ClientSize.Height - control.Height) / 2);
+    }
+
+    private static ToolTip CreateOverflowToolTip()
+    {
+        return new ToolTip
+        {
+            AutoPopDelay = 12000,
+            InitialDelay = 300,
+            ReshowDelay = 100,
+            ShowAlways = true
+        };
+    }
+
+    private static void AttachOverflowToolTip(Control control)
+    {
+        control.MouseHover += (_, _) => UpdateOverflowToolTip(control);
+        control.MouseLeave += (_, _) => GetOverflowToolTip().Hide(control);
+        control.SizeChanged += (_, _) => UpdateOverflowToolTip(control);
+        control.TextChanged += (_, _) => UpdateOverflowToolTip(control);
+    }
+
+    private static void UpdateOverflowToolTip(Control control)
+    {
+        string tooltipText = IsTextClipped(control) ? control.Text : string.Empty;
+        ToolTip toolTip = GetOverflowToolTip();
+        toolTip.SetToolTip(control, tooltipText);
+        if (string.IsNullOrEmpty(tooltipText))
+        {
+            toolTip.Hide(control);
+        }
+    }
+
+    private static bool IsTextClipped(Control control)
+    {
+        if (string.IsNullOrWhiteSpace(control.Text) ||
+            control.ClientSize.Width <= 0 ||
+            control.ClientSize.Height <= 0)
+        {
+            return false;
+        }
+
+        Size textSize = TextRenderer.MeasureText(
+            control.Text,
+            control.Font,
+            new Size(int.MaxValue, int.MaxValue),
+            TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine);
+        return textSize.Width > control.ClientSize.Width;
+    }
+
+    private static ToolTip GetOverflowToolTip()
+    {
+        overflowToolTip ??= CreateOverflowToolTip();
+        return overflowToolTip;
     }
 }

@@ -5,7 +5,7 @@ namespace TerrariaSplit;
 
 internal sealed class CreateWorldWorkflow : IDisposable
 {
-    private static readonly TimeSpan PlayerCreateTimeout = TimeSpan.FromSeconds(0.5);
+    private static readonly TimeSpan PlayerCreateTimeout = TimeSpan.FromSeconds(1.0);
     private static readonly TimeSpan SavePollInterval = TimeSpan.FromMilliseconds(50);
 
     private readonly TerrariaSavePreparation savePreparation = new();
@@ -112,7 +112,7 @@ internal sealed class CreateWorldWorkflow : IDisposable
                 return;
             }
 
-            if (!await RandomizeVisibleSeedAsync(geometry, cancellationToken))
+            if (!await ApplyWorldSeedOptionsAsync(autoCreate, geometry, cancellationToken))
             {
                 return;
             }
@@ -182,11 +182,22 @@ internal sealed class CreateWorldWorkflow : IDisposable
             await automation.ClickAsync($"world evil {settings.WorldEvil}", geometry.WorldEvilButton(settings.WorldEvil), shortActionDelay, cancellationToken);
     }
 
-    private async Task<bool> RandomizeVisibleSeedAsync(
+    private async Task<bool> ApplyWorldSeedOptionsAsync(
+        AutoCreateWorldSettings settings,
         TerrariaMenuGeometry geometry,
         CancellationToken cancellationToken)
     {
         if (!await automation.ClickAsync("advanced seed menu", geometry.WorldAdvancedSeedButton(), menuActionDelay, cancellationToken))
+        {
+            return false;
+        }
+
+        if (!await ApplySpecialSeedsAsync(settings.SpecialSeeds, geometry, cancellationToken))
+        {
+            return false;
+        }
+
+        if (!await ApplySecretSeedsAsync(settings.SecretSeeds, geometry, cancellationToken))
         {
             return false;
         }
@@ -197,6 +208,76 @@ internal sealed class CreateWorldWorkflow : IDisposable
         }
 
         return await automation.ClickAsync("apply visible seed", geometry.WorldAdvancedApplyButton(), menuActionDelay, cancellationToken);
+    }
+
+    private async Task<bool> ApplySpecialSeedsAsync(
+        string? specialSeeds,
+        TerrariaMenuGeometry geometry,
+        CancellationToken cancellationToken)
+    {
+        foreach (string rawSeed in AutoCreateSeedList.Parse(specialSeeds))
+        {
+            if (!AutoCreateSpecialWorldSeed.TryNormalize(rawSeed, out string specialSeed))
+            {
+                AppLogger.Info($"Create world automation found an unknown special seed: {rawSeed}");
+                return false;
+            }
+        }
+
+        foreach (string specialSeed in AutoCreateSpecialWorldSeed.ParseList(specialSeeds))
+        {
+            if (!await automation.ClickAsync($"special seed {specialSeed}", geometry.AdvancedSpecialSeedButton(specialSeed), shortActionDelay, cancellationToken))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private async Task<bool> ApplySecretSeedsAsync(
+        string? secretSeeds,
+        TerrariaMenuGeometry geometry,
+        CancellationToken cancellationToken)
+    {
+        string seedText = secretSeeds?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(seedText))
+        {
+            return true;
+        }
+
+        return await EnterWorldSeedAsync(seedText, geometry, cancellationToken);
+    }
+
+    private async Task<bool> EnterWorldSeedAsync(
+        string worldSeed,
+        TerrariaMenuGeometry geometry,
+        CancellationToken cancellationToken)
+    {
+        if (!TrySetClipboardTextWithBackup(worldSeed, out string? previousText, out bool hadPreviousText))
+        {
+            return false;
+        }
+
+        try
+        {
+            if (!await automation.ClickAsync("world seed field", geometry.AdvancedSeedTextButton(), menuActionDelay, cancellationToken))
+            {
+                return false;
+            }
+
+            automation.ThrowIfCancellationRequested(cancellationToken);
+            automation.Window.PressModifiedKey(Keys.ControlKey, Keys.A);
+            await automation.DelayAsync(shortActionDelay, cancellationToken);
+            automation.ThrowIfCancellationRequested(cancellationToken);
+            automation.Window.PressModifiedKey(Keys.ControlKey, Keys.V);
+            await automation.DelayAsync(shortActionDelay, cancellationToken);
+            return await automation.ClickAsync("submit world seed", geometry.VirtualKeyboardSubmitButton(), menuActionDelay, cancellationToken);
+        }
+        finally
+        {
+            RestoreClipboardText(previousText, hadPreviousText);
+        }
     }
 
     private async Task<bool> ClickPlayerAsync(
@@ -265,7 +346,7 @@ internal sealed class CreateWorldWorkflow : IDisposable
         }
         catch (Exception ex)
         {
-            AppLogger.Error(ex, "Create world automation failed to set player template clipboard text.");
+            AppLogger.Error(ex, "Create world automation failed to set clipboard text.");
             return false;
         }
     }

@@ -24,8 +24,11 @@ var legacyTests = new (string Name, Action Test)[]
     ("Settings form applies dynamic delta units from UI page", TestSettingsFormAppliesDynamicDeltaUnitsFromUiPage),
     ("Settings form applies text effects from UI page", TestSettingsFormAppliesTextEffectsFromUiPage),
     ("Settings form applies practice world slots", TestSettingsFormAppliesPracticeWorldSlots),
-    ("Settings form applies enter world sound", TestSettingsFormAppliesEnterWorldSound),
+    ("Settings form collapses zenith special seed dependencies", TestSettingsFormCollapsesZenithSpecialSeedDependencies),
+    ("Settings form saves The Constant special seed", TestSettingsFormSavesTheConstantSpecialSeed),
+    ("Settings form applies timer start sound", TestSettingsFormAppliesTimerStartSound),
     ("Settings form applies resume sound", TestSettingsFormAppliesResumeSound),
+    ("Settings form applies Moon Lord split sound", TestSettingsFormAppliesMoonLordSplitSound),
     ("Settings form locks reference controls when PB reference is enabled", TestSettingsFormLocksReferenceControlsForPersonalBestReference),
     ("Settings form applies text outline and shadow colors", TestSettingsFormAppliesTextOutlineAndShadowColors),
     ("Main form preserves size when applying non-layout settings", TestMainFormPreservesSizeWhenApplyingNonLayoutSettings),
@@ -39,6 +42,7 @@ var legacyTests = new (string Name, Action Test)[]
 var tests = legacyTests
     .Concat(HotkeyTests.All())
     .Concat(AutomationRunnerTests.All())
+    .Concat(WorldSaveMetadataTests.All())
     .Concat(MainShellRefactorTests.All())
     .Concat(RenderingTests.All())
     .ToArray();
@@ -123,12 +127,16 @@ static void TestTerrariaMenuGeometry()
     TerrariaMenuGeometry geometry = TerrariaMenuGeometry.From(new Size(900, 900));
     AssertEqual(new Point(450, 245), geometry.MainMenuSinglePlayer());
     AssertEqual(new Point(580, 534), geometry.CreatePlayerButton());
+    AssertEqual(new Point(450, 230), geometry.AdvancedSeedTextButton());
+    AssertEqual(new Point(342, 287), geometry.AdvancedSpecialSeedButton(AutoCreateSpecialWorldSeed.NotTheBees));
 }
 
 static void TestLocalizer()
 {
     AssertEqual("Crimson", Localizer.Get("Crimson", new AppSettings { Language = "English" }));
     AssertEqual("\u7329\u7EA2", Localizer.Get("Crimson", new AppSettings { Language = "\u4E2D\u6587" }));
+    AssertEqual("\u5206\u6BB5\u65F6\u95F4", Localizer.Get("Segment time", new AppSettings { Language = "\u4E2D\u6587" }));
+    AssertEqual("\u7D2F\u8BA1\u65F6\u95F4", Localizer.Get("Cumulative time", new AppSettings { Language = "\u4E2D\u6587" }));
 }
 
 static void TestSettingsNormalize()
@@ -141,7 +149,9 @@ static void TestSettingsNormalize()
             MenuActionDelayMilliseconds = 6000,
             WindowActivationDelayMilliseconds = 6000,
             ClickFocusDelayMilliseconds = -10,
-            InputPressDurationMilliseconds = 0
+            InputPressDurationMilliseconds = 0,
+            SpecialSeeds = "  for the worthy | get fixed boi | skyblock  ",
+            SecretSeeds = "  mole people | waterpark  "
         }
     };
 
@@ -151,6 +161,8 @@ static void TestSettingsNormalize()
     AssertEqual(5000, settings.AutoCreate.WindowActivationDelayMilliseconds);
     AssertEqual(0, settings.AutoCreate.ClickFocusDelayMilliseconds);
     AssertEqual(1, settings.AutoCreate.InputPressDurationMilliseconds);
+    AssertEqual("Zenith|Skyblock", settings.AutoCreate.SpecialSeeds);
+    AssertEqual("mole people | waterpark", settings.AutoCreate.SecretSeeds);
 
     settings.Advanced = null!;
     SettingsNormalizer.Normalize(settings);
@@ -364,6 +376,8 @@ static void TestSettingsFormAppliesPracticeWorldSlots()
         GeneralSettingsPage generalPage = form.PageHost.GetOrCreatePage<GeneralSettingsPage>(SettingsPageId.General);
         SetHotkeyBox(generalPage.PracticeWorldKeyBox, Keys.F10);
         AutomationSettingsPage automationPage = form.PageHost.GetOrCreatePage<AutomationSettingsPage>(SettingsPageId.Automation);
+        automationPage.AutoCreateSpecialSeedBoxes[AutoCreateSpecialWorldSeed.ForTheWorthy].Checked = true;
+        automationPage.AutoCreateSecretSeedsBox.Text = "mole people";
         AutomationSettingsPage.PracticeSlotControls firstSlot = automationPage.PracticeSlots[0];
         firstSlot.NameBox.Text = "Plantera";
         firstSlot.PlayerFilePathBox.Text = "C:\\practice\\player.plr";
@@ -372,6 +386,8 @@ static void TestSettingsFormAppliesPracticeWorldSlots()
         form.ApplyForTests();
 
         AssertEqual(Keys.F10.ToString(), form.Result.PracticeWorldKey);
+        AssertEqual(AutoCreateSpecialWorldSeed.ForTheWorthy, form.Result.AutoCreate.SpecialSeeds);
+        AssertEqual("mole people", form.Result.AutoCreate.SecretSeeds);
         AssertEqual(PracticeWorldSettings.SlotCount, form.Result.PracticeWorlds.Slots.Count);
         AssertEqual("Plantera", form.Result.PracticeWorlds.Slots[0].Name);
         AssertEqual("C:\\practice\\player.plr", form.Result.PracticeWorlds.Slots[0].PlayerFilePath);
@@ -379,17 +395,52 @@ static void TestSettingsFormAppliesPracticeWorldSlots()
     });
 }
 
-static void TestSettingsFormAppliesEnterWorldSound()
+static void TestSettingsFormCollapsesZenithSpecialSeedDependencies()
+{
+    RunSta(() =>
+    {
+        using var form = new SettingsForm(new AppSettings());
+        AutomationSettingsPage page = form.PageHost.GetOrCreatePage<AutomationSettingsPage>(SettingsPageId.Automation);
+        page.AutoCreateSpecialSeedBoxes[AutoCreateSpecialWorldSeed.ForTheWorthy].Checked = true;
+        page.AutoCreateSpecialSeedBoxes[AutoCreateSpecialWorldSeed.Remix].Checked = true;
+        page.AutoCreateSpecialSeedBoxes[AutoCreateSpecialWorldSeed.Zenith].Checked = true;
+        page.AutoCreateSpecialSeedBoxes[AutoCreateSpecialWorldSeed.Skyblock].Checked = true;
+
+        AssertEqual(false, page.AutoCreateSpecialSeedBoxes[AutoCreateSpecialWorldSeed.ForTheWorthy].Checked);
+        AssertEqual(false, page.AutoCreateSpecialSeedBoxes[AutoCreateSpecialWorldSeed.ForTheWorthy].Enabled);
+
+        form.ApplyForTests();
+
+        AssertEqual("Zenith|Skyblock", form.Result.AutoCreate.SpecialSeeds);
+    });
+}
+
+static void TestSettingsFormSavesTheConstantSpecialSeed()
+{
+    RunSta(() =>
+    {
+        using var form = new SettingsForm(new AppSettings());
+        AutomationSettingsPage page = form.PageHost.GetOrCreatePage<AutomationSettingsPage>(SettingsPageId.Automation);
+        page.AutoCreateSpecialSeedBoxes[AutoCreateSpecialWorldSeed.Drunk].Checked = true;
+        page.AutoCreateSpecialSeedBoxes[AutoCreateSpecialWorldSeed.TheConstant].Checked = true;
+
+        form.ApplyForTests();
+
+        AssertEqual("Drunk|The Constant", form.Result.AutoCreate.SpecialSeeds);
+    });
+}
+
+static void TestSettingsFormAppliesTimerStartSound()
 {
     RunSta(() =>
     {
         using var form = new SettingsForm(new AppSettings());
         SoundSettingsPage page = form.PageHost.GetOrCreatePage<SoundSettingsPage>(SettingsPageId.Sounds);
-        page.SoundTextBoxes[nameof(UiSoundSettings.EnterWorld)].Text = "sounds\\enter-world.wav";
+        page.SoundTextBoxes[nameof(UiSoundSettings.EnterWorld)].Text = "sounds\\timer-start.wav";
 
         form.ApplyForTests();
 
-        AssertEqual("sounds\\enter-world.wav", form.Result.Sounds.EnterWorld);
+        AssertEqual("sounds\\timer-start.wav", form.Result.Sounds.EnterWorld);
     });
 }
 
@@ -404,6 +455,20 @@ static void TestSettingsFormAppliesResumeSound()
         form.ApplyForTests();
 
         AssertEqual("sounds\\resume.wav", form.Result.Sounds.Resume);
+    });
+}
+
+static void TestSettingsFormAppliesMoonLordSplitSound()
+{
+    RunSta(() =>
+    {
+        using var form = new SettingsForm(new AppSettings());
+        SoundSettingsPage page = form.PageHost.GetOrCreatePage<SoundSettingsPage>(SettingsPageId.Sounds);
+        page.SoundTextBoxes[nameof(UiSoundSettings.MoonLordAheadReferenceAheadSegment)].Text = "sounds\\moonlord-best.wav";
+
+        form.ApplyForTests();
+
+        AssertEqual("sounds\\moonlord-best.wav", form.Result.Sounds.MoonLordAheadReferenceAheadSegment);
     });
 }
 

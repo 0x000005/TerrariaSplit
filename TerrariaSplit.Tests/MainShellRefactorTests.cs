@@ -15,6 +15,7 @@ internal static class MainShellRefactorTests
         yield return ("OverlayWindowController queues render once while pending", OverlayWindowControllerQueuesRenderOnceWhilePending);
         yield return ("OverlayWindowController click-through style preserves unrelated bits", OverlayWindowControllerPreservesUnrelatedStyleBits);
         yield return ("SettingsUiFactory keeps two-column editor column fixed width", SettingsUiFactoryKeepsTwoColumnEditorColumnFixedWidth);
+        yield return ("SettingsUiFactory row labels ellipsize clipped text", SettingsUiFactoryRowLabelsEllipsizeClippedText);
     }
 
     private static void TerrariaMonitorCoordinatorPreservesWatcherIntervalPolicy()
@@ -173,6 +174,18 @@ internal static class MainShellRefactorTests
             TestAssert.Equal(100f, grid.ColumnStyles[0].Width);
             TestAssert.Equal(SizeType.Absolute, grid.ColumnStyles[1].SizeType);
             TestAssert.Equal(280f, grid.ColumnStyles[1].Width);
+        });
+    }
+
+    private static void SettingsUiFactoryRowLabelsEllipsizeClippedText()
+    {
+        RunSta(() =>
+        {
+            var factory = new SettingsUiFactory(static key => key);
+            using Label label = factory.CreateRowLabel("Moon Lord: cumulative not faster, segment not faster");
+
+            TestAssert.Equal(true, label.AutoEllipsis);
+            TestAssert.Equal(false, label.AutoSize);
         });
     }
 
