@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 namespace TerrariaSplit;
 
 internal enum TimerHotkeyAction
@@ -32,6 +34,14 @@ internal sealed class TimerController
 
     public TimerControllerTickResult Tick(
         TerrariaWatchSnapshot snapshot,
+        IReadOnlyCollection<TimerHotkeyRequest> hotkeyRequests)
+    {
+        return Tick(snapshot, Stopwatch.GetTimestamp(), hotkeyRequests);
+    }
+
+    public TimerControllerTickResult Tick(
+        TerrariaWatchSnapshot snapshot,
+        long observedTimestamp,
         IReadOnlyCollection<TimerHotkeyRequest> hotkeyRequests)
     {
         bool pauseSoundRequested = false;
@@ -82,20 +92,20 @@ internal sealed class TimerController
         if (snapshot.EnteredWorld && runTimer.Phase == SplitTimerPhase.NotStarted)
         {
             runStarted = true;
-            runTimer.Start();
+            runTimer.StartAt(observedTimestamp);
             splitTracker.OnRunStarted(snapshot);
         }
 
         if (runTimer.Phase == SplitTimerPhase.Running)
         {
-            BossSplitRecord? split = splitTracker.Update(snapshot, runTimer.Elapsed);
+            BossSplitRecord? split = splitTracker.Update(snapshot, runTimer.ElapsedAt(observedTimestamp));
             if (split is not null)
             {
                 completedSplitIndex = splitTracker.CurrentIndex - 1;
                 if (splitTracker.CurrentIndex >= splitTracker.Statuses.Count)
                 {
                     runCompleted = true;
-                    runTimer.Stop();
+                    runTimer.StopAt(observedTimestamp);
                 }
             }
         }

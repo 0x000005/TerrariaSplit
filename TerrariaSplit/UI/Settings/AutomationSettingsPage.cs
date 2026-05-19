@@ -216,17 +216,10 @@ internal sealed class AutomationSettingsPage : SettingsPageBase
         Factory.AddSettingRow(seedGrid, "Secret seeds", autoCreateSecretSeedsBox);
         SettingsUiFactory.AddSectionControl(createSection, seedGrid);
 
-        SettingsUiFactory.AddSectionControl(createSection, Factory.CreateFieldLabel("Enable auto star catch (Zenith worlds only)"));
-        SettingsUiFactory.AddSectionControl(
-            createSection,
-            Factory.CreateWrappedFieldLabel(
-                "Default: disabled, stop after Pots, catch speed 5.",
-                UiTheme.Text));
-
         TableLayoutPanel zenithStarCatchGrid = Factory.CreateGrid(
             SettingsUiFactory.ColumnStylePercent(100f),
             SettingsUiFactory.ColumnStyleAbsolute(360f));
-        Factory.AddSettingRow(zenithStarCatchGrid, "Enabled", autoCreateZenithStarCatchBox);
+        Factory.AddSettingRow(zenithStarCatchGrid, "Enable auto star catch (Zenith worlds only)", autoCreateZenithStarCatchBox);
         SettingsUiFactory.AddSectionControl(createSection, zenithStarCatchGrid);
         SettingsUiFactory.AddSectionControl(createSection, Factory.CreateFieldLabel("Stop after stage"));
         SettingsUiFactory.AddSectionControl(createSection, CreateZenithStarCatchStageSelector());

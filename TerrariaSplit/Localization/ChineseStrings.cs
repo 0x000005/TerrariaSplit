@@ -276,7 +276,6 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Special seeds", "\u5F69\u86CB\u79CD\u5B50" }
       , { "Secret seeds", "\u79D8\u5BC6\u79CD\u5B50" }
       , { "Enable auto star catch (Zenith worlds only)", "\u542F\u7528\u81EA\u52A8\u63A5\u661F\u661F\uFF08\u4EC5\u5929\u9876\u4E16\u754C\u6709\u6548\uFF09" }
-      , { "Default: disabled, stop after Pots, catch speed 5.", "\u9ED8\u8BA4\u914D\u7F6E\u662F\u4E0D\u542F\u7528\uFF0C\u5728\u7F50\u5B50\u540E\u505C\u6B62\uFF0C\u63A5\u661F\u901F\u5EA65\u3002" }
       , { "Stop after stage", "\u5728\u4EE5\u4E0B\u9636\u6BB5\u540E\u505C\u6B62" }
       , { "Catch speed", "\u63A5\u661F\u901F\u5EA6" }
       , { "Submit World Seed", "\u63D0\u4EA4\u4E16\u754C\u79CD\u5B50" }
@@ -349,9 +348,9 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Memory ready", "\u5185\u5B58\u5C31\u7EEA" }
       , { "Boss flags ready", "BOSS \u6807\u8BB0\u5C31\u7EEA" }
       , { "Game state", "\u6E38\u620F\u72B6\u6001" }
-      , { "Control tick", "\u63A7\u5236\u5237\u65B0" }
-      , { "Watcher poll", "\u76D1\u6D4B\u8F6E\u8BE2" }
-      , { "Paint", "\u7ED8\u5236" }
+      , { "Timer sampling", "\u8BA1\u65F6\u91C7\u6837\u9891\u7387" }
+      , { "UI control", "UI \u63A7\u5236\u9891\u7387" }
+      , { "UI paint", "UI \u7ED8\u5236\u9891\u7387" }
       , { "configured {0}, actual {1}", "\u914D\u7F6E {0}\uFF0C\u5B9E\u9645 {1}" }
       , { "Waiting for samples", "\u7B49\u5F85\u91C7\u6837" }
       , { "Process architecture", "\u8FDB\u7A0B\u67B6\u6784" }

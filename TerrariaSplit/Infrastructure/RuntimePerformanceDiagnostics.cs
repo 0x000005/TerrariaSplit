@@ -83,8 +83,13 @@ internal sealed class RuntimePerformanceTracker
 
     public void RecordWatcherPoll(TimeSpan elapsed)
     {
+        RecordWatcherPoll(elapsed, Stopwatch.GetTimestamp());
+    }
+
+    public void RecordWatcherPoll(TimeSpan elapsed, long completedTimestamp)
+    {
         watcherPolls.Record(elapsed);
-        RecordInterval(watcherPollIntervals, ref lastWatcherPollTimestamp);
+        RecordInterval(watcherPollIntervals, ref lastWatcherPollTimestamp, completedTimestamp);
         lastWatcherPollUtc = DateTime.UtcNow;
     }
 
@@ -124,7 +129,11 @@ internal sealed class RuntimePerformanceTracker
 
     private static void RecordInterval(RollingPerformanceCounter counter, ref long? lastTimestamp)
     {
-        long now = Stopwatch.GetTimestamp();
+        RecordInterval(counter, ref lastTimestamp, Stopwatch.GetTimestamp());
+    }
+
+    private static void RecordInterval(RollingPerformanceCounter counter, ref long? lastTimestamp, long now)
+    {
         if (lastTimestamp.HasValue)
         {
             counter.Record(Stopwatch.GetElapsedTime(lastTimestamp.Value, now));

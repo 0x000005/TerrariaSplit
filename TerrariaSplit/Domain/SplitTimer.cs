@@ -18,15 +18,39 @@ internal sealed class SplitTimer
 
     public TimeSpan Elapsed => Phase switch
     {
-        SplitTimerPhase.Running => elapsedBeforePause + ElapsedSince(runningSinceTimestamp),
+        SplitTimerPhase.Running => elapsedBeforePause + ElapsedSince(runningSinceTimestamp, Stopwatch.GetTimestamp()),
         SplitTimerPhase.Paused => elapsedBeforePause,
         _ => elapsedBeforePause
     };
 
+    public TimeSpan ElapsedAt(long timestamp) => Phase switch
+    {
+        SplitTimerPhase.Running => elapsedBeforePause + ElapsedSince(runningSinceTimestamp, timestamp),
+        SplitTimerPhase.Paused => elapsedBeforePause,
+        _ => elapsedBeforePause
+    };
+
+    public SplitTimerState CaptureState()
+    {
+        return new SplitTimerState(Phase, elapsedBeforePause, runningSinceTimestamp);
+    }
+
+    public void ApplyState(SplitTimerState state)
+    {
+        Phase = state.Phase;
+        elapsedBeforePause = state.ElapsedBeforePause < TimeSpan.Zero ? TimeSpan.Zero : state.ElapsedBeforePause;
+        runningSinceTimestamp = state.RunningSinceTimestamp;
+    }
+
     public void Start()
     {
+        StartAt(Stopwatch.GetTimestamp());
+    }
+
+    public void StartAt(long timestamp)
+    {
         elapsedBeforePause = TimeSpan.Zero;
-        runningSinceTimestamp = Stopwatch.GetTimestamp();
+        runningSinceTimestamp = timestamp;
         Phase = SplitTimerPhase.Running;
     }
 
@@ -45,9 +69,14 @@ internal sealed class SplitTimer
 
     public void Stop()
     {
+        StopAt(Stopwatch.GetTimestamp());
+    }
+
+    public void StopAt(long timestamp)
+    {
         if (Phase == SplitTimerPhase.Running)
         {
-            elapsedBeforePause += ElapsedSince(runningSinceTimestamp);
+            elapsedBeforePause += ElapsedSince(runningSinceTimestamp, timestamp);
         }
 
         runningSinceTimestamp = 0;
@@ -56,6 +85,11 @@ internal sealed class SplitTimer
 
     public void TogglePause()
     {
+        TogglePauseAt(Stopwatch.GetTimestamp());
+    }
+
+    public void TogglePauseAt(long timestamp)
+    {
         if (Phase == SplitTimerPhase.NotStarted)
         {
             return;
@@ -63,18 +97,23 @@ internal sealed class SplitTimer
 
         if (Phase == SplitTimerPhase.Running)
         {
-            elapsedBeforePause += ElapsedSince(runningSinceTimestamp);
+            elapsedBeforePause += ElapsedSince(runningSinceTimestamp, timestamp);
             Phase = SplitTimerPhase.Paused;
             return;
         }
 
-        runningSinceTimestamp = Stopwatch.GetTimestamp();
+        runningSinceTimestamp = timestamp;
         Phase = SplitTimerPhase.Running;
     }
 
-    private static TimeSpan ElapsedSince(long timestamp)
+    private static TimeSpan ElapsedSince(long startTimestamp, long endTimestamp)
     {
-        long elapsedTicks = Stopwatch.GetTimestamp() - timestamp;
+        long elapsedTicks = Math.Max(0, endTimestamp - startTimestamp);
         return TimeSpan.FromSeconds(elapsedTicks / (double)Stopwatch.Frequency);
     }
 }
+
+internal readonly record struct SplitTimerState(
+    SplitTimerPhase Phase,
+    TimeSpan ElapsedBeforePause,
+    long RunningSinceTimestamp);

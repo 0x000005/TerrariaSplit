@@ -30,6 +30,17 @@ internal sealed class BossSplitStatus
         IsSkipped = false;
     }
 
+    public BossSplitStatusState CaptureState()
+    {
+        return new BossSplitStatusState(Time, IsSkipped);
+    }
+
+    public void ApplyState(BossSplitStatusState state)
+    {
+        Time = state.Time;
+        IsSkipped = state.Time.HasValue ? false : state.IsSkipped;
+    }
+
     public BossSplitRecord? TryComplete(TerrariaBossStates states, TimeSpan elapsed)
     {
         if (IsSkipped || IsCompleted || !Definition.IsComplete(states))
@@ -41,3 +52,5 @@ internal sealed class BossSplitStatus
         return new BossSplitRecord(Definition.Name, elapsed);
     }
 }
+
+internal readonly record struct BossSplitStatusState(TimeSpan? Time, bool IsSkipped);

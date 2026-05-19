@@ -143,6 +143,31 @@ internal sealed class BossSplitTracker
         return adjustedTime;
     }
 
+    public BossSplitTrackerState CaptureState()
+    {
+        return new BossSplitTrackerState(
+            statuses.Select(status => status.CaptureState()).ToArray(),
+            currentIndex);
+    }
+
+    public void ApplyState(BossSplitTrackerState state)
+    {
+        if (state.Statuses.Length != statuses.Count)
+        {
+            ResetStatuses();
+            MarkAllInitialStatesResolved();
+            return;
+        }
+
+        for (int i = 0; i < statuses.Count; i++)
+        {
+            statuses[i].ApplyState(state.Statuses[i]);
+        }
+
+        currentIndex = Math.Clamp(state.CurrentIndex, 0, statuses.Count);
+        MarkAllInitialStatesResolved();
+    }
+
     public void ClampCompletedTimes(TimeSpan maximumTime)
     {
         foreach (BossSplitStatus status in statuses)
@@ -156,3 +181,7 @@ internal sealed class BossSplitTracker
         currentIndex = FindNextActiveIndex();
     }
 }
+
+internal readonly record struct BossSplitTrackerState(
+    BossSplitStatusState[] Statuses,
+    int CurrentIndex);

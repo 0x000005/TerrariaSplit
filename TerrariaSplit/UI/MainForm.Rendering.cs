@@ -69,6 +69,7 @@ internal sealed partial class MainForm : Form
 
             runTimer.SetPracticeElapsed(editedTime);
             splitTracker.ClampCompletedTimes(editedTime);
+            SyncBackgroundRuntimeState();
             Invalidate();
             return;
         }
@@ -108,6 +109,7 @@ internal sealed partial class MainForm : Form
 
         splitTracker.SetPracticeTime(rowIndex, parsedTime);
         TrackSegmentBestDeltaHighlight(rowIndex);
+        SyncBackgroundRuntimeState();
         Invalidate();
     }
 

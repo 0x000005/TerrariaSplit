@@ -7,7 +7,6 @@ namespace TerrariaSplit;
 internal sealed partial class MainForm : Form
 {
     private static readonly TimeSpan SplitCompletionFadeDuration = TimeSpan.FromSeconds(0.45);
-    private static readonly TimeSpan ResetMenuGraceDuration = TimeSpan.FromSeconds(0.5);
     private static readonly TimeSpan SplitCompletionDeltaIntroGap = TimeSpan.FromSeconds(0.06);
     private static readonly TimeSpan ControlTickInterval = TimeSpan.FromMilliseconds(5);
     private static readonly TimeSpan TimerRenderInterval = TimeSpan.FromMilliseconds(10);
@@ -46,8 +45,7 @@ internal sealed partial class MainForm : Form
     private Rectangle cachedLayoutBounds;
     private int cachedLayoutStatusCount = -1;
     private int cachedLayoutScalePercent;
-    private readonly PendingMenuHotkeyScheduler pendingMenuHotkeys = new();
-    private readonly TimerController timerController;
+    private long minimumAcceptedRuntimeCommandSequence;
 
     private AppSettings settings = AppSettingsStore.Load();
     private UiPalette palette;
@@ -61,11 +59,6 @@ internal sealed partial class MainForm : Form
     public MainForm()
     {
         palette = UiPalette.From(settings.Colors);
-        timerController = new TimerController(
-            runTimer,
-            splitTracker,
-            pendingMenuHotkeys,
-            ResetMenuGraceDuration);
         monitorCoordinator = new TerrariaMonitorCoordinator(
             new TerrariaWorldWatcher(),
             new TerrariaUiScalePatchApplierAdapter(),
@@ -79,7 +72,9 @@ internal sealed partial class MainForm : Form
                 return true;
             },
             elapsed => performance.RecordPaint(elapsed));
-        runSession.SetDefinitions(BossSplitDefinitions.Build(settings));
+        IReadOnlyList<BossSplitDefinition> initialDefinitions = BossSplitDefinitions.Build(settings);
+        runSession.SetDefinitions(initialDefinitions);
+        minimumAcceptedRuntimeCommandSequence = monitorCoordinator.SetRuntimeDefinitions(initialDefinitions);
         Text = "TerrariaSplit";
         TopMost = settings.AlwaysOnTop;
         FormBorderStyle = FormBorderStyle.None;
@@ -392,80 +387,50 @@ internal sealed partial class MainForm : Form
         long startTimestamp = Stopwatch.GetTimestamp();
         try
         {
-            monitorCoordinator.Tick(runTimer.Phase, settings.Advanced?.EnableTerrariaUiScalePatch == true);
-            bool consumedEnteredWorld = snapshot.EnteredWorld;
             TimerHotkeyRequest[] hotkeyRequests = DrainPendingHotkeyRequests();
             hotkeyRequests = CancelRequestedAutomations(hotkeyRequests);
-            TimerControllerTickResult tickResult = timerController.Tick(snapshot, hotkeyRequests);
-            if (consumedEnteredWorld)
-            {
-                snapshot = snapshot with { EnteredWorld = false };
-            }
-
-            bool invalidateAll = false;
-
-            if (tickResult.PauseSoundRequested)
-            {
-                soundPlayer.Play(settings.Sounds.Pause);
-            }
-
-            if (tickResult.ResumeSoundRequested)
-            {
-                soundPlayer.Play(settings.Sounds.Resume);
-            }
-
-            if (tickResult.ToggleMouseClickThroughRequested)
-            {
-                SetMouseClickThrough(!mouseClickThrough);
-                InvalidateRuntimeRenderRegion();
-            }
-
-            if (tickResult.RequestedMenuAction is MenuHotkeyActionKind menuAction)
-            {
-                ExecuteMenuHotkeyAction(menuAction);
-                return;
-            }
-
-            if (tickResult.RunStarted)
-            {
-                soundPlayer.Play(settings.Sounds.EnterWorld);
-                runSession.MarkRunStarted();
-                invalidateAll = true;
-            }
-
-            if (tickResult.CompletedSplitIndex is int completedIndex)
-            {
-                TrackSegmentBestDeltaHighlight(completedIndex);
-                PlaySplitSound(completedIndex);
-
-                if (settings.ShowSplitCompletionAnimation)
-                {
-                    StartSplitCompletionAnimation(completedIndex);
-                }
-                else
-                {
-                    splitCompletionAnimation = null;
-                }
-
-                if (tickResult.RunCompleted)
-                {
-                    RecordRunStatsOnce();
-                }
-
-                invalidateAll = true;
-            }
-
-            UpdateWindowTitle();
-            if (invalidateAll)
-            {
-                Invalidate();
-            }
+            hotkeyRequests = ProcessLocalHotkeyRequests(hotkeyRequests);
+            monitorCoordinator.Tick(
+                runTimer.Phase,
+                settings.Advanced?.EnableTerrariaUiScalePatch == true,
+                hotkeyRequests);
+            ProcessUiTick();
         }
         finally
         {
             UpdateRenderTimerState();
             performance.RecordControlTick(Stopwatch.GetElapsedTime(startTimestamp));
         }
+    }
+
+    private void ProcessUiTick()
+    {
+        monitorCoordinator.UpdateRunPhase(runTimer.Phase);
+        UpdateWindowTitle();
+    }
+
+    private TimerHotkeyRequest[] ProcessLocalHotkeyRequests(IReadOnlyCollection<TimerHotkeyRequest> hotkeyRequests)
+    {
+        if (hotkeyRequests.Count == 0)
+        {
+            return [];
+        }
+
+        var forwardedRequests = new List<TimerHotkeyRequest>(hotkeyRequests.Count);
+        foreach (TimerHotkeyRequest request in hotkeyRequests)
+        {
+            if (request.Action == TimerHotkeyAction.MouseClickThrough)
+            {
+                SetMouseClickThrough(!mouseClickThrough);
+                InvalidateRuntimeRenderRegion();
+            }
+            else
+            {
+                forwardedRequests.Add(request);
+            }
+        }
+
+        return forwardedRequests.ToArray();
     }
 
     private void RenderTick()
@@ -503,16 +468,82 @@ internal sealed partial class MainForm : Form
 
     private void HandleWatcherPollCompleted(WatcherPollNotification notification)
     {
-        performance.RecordWatcherPoll(notification.Elapsed);
+        performance.RecordWatcherPoll(notification.Elapsed, notification.CompletedTimestamp);
         performance.WatcherPollInterval = notification.NextPollInterval;
         performance.ProcessLookupInterval = notification.ProcessLookupInterval;
 
         snapshot = notification.Snapshot;
-        UpdateWindowTitle();
-        if (!notification.Snapshot.Equals(notification.PreviousSnapshot))
+        bool invalidateAll = false;
+        if (notification.RuntimeCommandSequence >= minimumAcceptedRuntimeCommandSequence)
+        {
+            runTimer.ApplyState(notification.RuntimeState.TimerState);
+            splitTracker.ApplyState(notification.RuntimeState.SplitTrackerState);
+            invalidateAll = ApplyRuntimeTickResult(notification.RuntimeTickResult);
+            minimumAcceptedRuntimeCommandSequence = Math.Max(
+                minimumAcceptedRuntimeCommandSequence,
+                notification.RuntimeCommandSequence);
+        }
+
+        ProcessUiTick();
+        UpdateRenderTimerState();
+        if (invalidateAll || !notification.Snapshot.Equals(notification.PreviousSnapshot))
         {
             Invalidate();
         }
+    }
+
+    private bool ApplyRuntimeTickResult(TimerControllerTickResult tickResult)
+    {
+        bool invalidateAll = false;
+
+        if (tickResult.PauseSoundRequested)
+        {
+            soundPlayer.Play(settings.Sounds.Pause);
+            invalidateAll = true;
+        }
+
+        if (tickResult.ResumeSoundRequested)
+        {
+            soundPlayer.Play(settings.Sounds.Resume);
+            invalidateAll = true;
+        }
+
+        if (tickResult.RequestedMenuAction is MenuHotkeyActionKind menuAction)
+        {
+            ExecuteMenuHotkeyAction(menuAction);
+            return true;
+        }
+
+        if (tickResult.RunStarted)
+        {
+            soundPlayer.Play(settings.Sounds.EnterWorld);
+            runSession.MarkRunStarted();
+            invalidateAll = true;
+        }
+
+        if (tickResult.CompletedSplitIndex is int completedIndex)
+        {
+            TrackSegmentBestDeltaHighlight(completedIndex);
+            PlaySplitSound(completedIndex);
+
+            if (settings.ShowSplitCompletionAnimation)
+            {
+                StartSplitCompletionAnimation(completedIndex);
+            }
+            else
+            {
+                splitCompletionAnimation = null;
+            }
+
+            if (tickResult.RunCompleted)
+            {
+                RecordRunStatsOnce();
+            }
+
+            invalidateAll = true;
+        }
+
+        return invalidateAll;
     }
 
     private void InvalidateRuntimeRenderRegion()
@@ -628,7 +659,6 @@ internal sealed partial class MainForm : Form
 
     private void ExecuteReset()
     {
-        pendingMenuHotkeys.Clear();
         ResetRunWithSound(recordStats: true);
     }
 
@@ -692,7 +722,9 @@ internal sealed partial class MainForm : Form
         settingsFormOpen = true;
         hotkeyManager.Dispose();
         pendingHotkeyRequests.Clear();
-        pendingMenuHotkeys.Clear();
+        minimumAcceptedRuntimeCommandSequence = Math.Max(
+            minimumAcceptedRuntimeCommandSequence,
+            monitorCoordinator.ClearPendingHotkeys());
         try
         {
             using var form = new SettingsForm(settings, GetRuntimeDiagnostics);
@@ -741,7 +773,11 @@ internal sealed partial class MainForm : Form
     private void ApplyLoadedSettings(AppSettings? previousSettings = null)
     {
         palette = UiPalette.From(settings.Colors);
-        runSession.SetDefinitions(BossSplitDefinitions.Build(settings));
+        IReadOnlyList<BossSplitDefinition> definitions = BossSplitDefinitions.Build(settings);
+        runSession.SetDefinitions(definitions);
+        minimumAcceptedRuntimeCommandSequence = Math.Max(
+            minimumAcceptedRuntimeCommandSequence,
+            monitorCoordinator.SetRuntimeDefinitions(definitions));
         ResetRun();
         monitorCoordinator.ResetUiScalePatchState();
         TopMost = settings.AlwaysOnTop;
@@ -835,8 +871,10 @@ internal sealed partial class MainForm : Form
     {
         runSession.Reset(settings, recordStats, ShowPersonalBestUpdateConfirmation);
         splitCompletionAnimation = null;
-        pendingMenuHotkeys.Clear();
         segmentBestDeltaHighlights.Clear();
+        minimumAcceptedRuntimeCommandSequence = Math.Max(
+            minimumAcceptedRuntimeCommandSequence,
+            monitorCoordinator.ResetRuntimeState());
         UpdateRenderTimerState();
         Invalidate();
     }
@@ -844,6 +882,15 @@ internal sealed partial class MainForm : Form
     private void RecordRunStatsOnce()
     {
         runSession.RecordRunStatsOnce();
+    }
+
+    private void SyncBackgroundRuntimeState()
+    {
+        minimumAcceptedRuntimeCommandSequence = Math.Max(
+            minimumAcceptedRuntimeCommandSequence,
+            monitorCoordinator.ReplaceRuntimeState(
+                runTimer.CaptureState(),
+                splitTracker.CaptureState()));
     }
 
     private void SetMouseClickThrough(bool enabled)
@@ -856,7 +903,6 @@ internal sealed partial class MainForm : Form
     private async void StartCreateWorldAutomation()
     {
         pendingHotkeyRequests.Clear();
-        pendingMenuHotkeys.Clear();
         ResetRunWithSound(recordStats: true);
 
         try
@@ -902,7 +948,9 @@ internal sealed partial class MainForm : Form
         }
 
         pendingHotkeyRequests.Clear();
-        pendingMenuHotkeys.Clear();
+        minimumAcceptedRuntimeCommandSequence = Math.Max(
+            minimumAcceptedRuntimeCommandSequence,
+            monitorCoordinator.ClearPendingHotkeys());
 
         try
         {

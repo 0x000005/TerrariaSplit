@@ -122,9 +122,9 @@ internal sealed class DebugSettingsPage : SettingsPageBase
 
             TableLayoutPanel performanceSection = CreateSection(owner, "Performance");
             TableLayoutPanel performanceGrid = CreateGrid(owner);
-            AddValueRow(performanceGrid, owner, "Control tick", controlTickValue);
-            AddValueRow(performanceGrid, owner, "Watcher poll", watcherPollValue);
-            AddValueRow(performanceGrid, owner, "Paint", paintValue);
+            AddValueRow(performanceGrid, owner, "Timer sampling", watcherPollValue);
+            AddValueRow(performanceGrid, owner, "UI control", controlTickValue);
+            AddValueRow(performanceGrid, owner, "UI paint", paintValue);
             AddSectionControl(performanceSection, performanceGrid);
             AddSection(content, performanceSection);
 
@@ -418,17 +418,17 @@ internal sealed class DebugSettingsPage : SettingsPageBase
             owner,
             "Performance",
             [
-                ("Control tick", FormatRefreshRateSummary(
-                    runtime.ControlTickIntervalMilliseconds,
-                    runtime.ActualControlTickIntervalMilliseconds,
-                    runtime.ControlTickCount,
-                    owner)),
-                ("Watcher poll", FormatRefreshRateSummary(
+                ("Timer sampling", FormatRefreshRateSummary(
                     runtime.WatcherPollIntervalMilliseconds,
                     runtime.ActualWatcherPollIntervalMilliseconds,
                     runtime.WatcherPollCount,
                     owner)),
-                ("Paint", FormatRefreshRateSummary(
+                ("UI control", FormatRefreshRateSummary(
+                    runtime.ControlTickIntervalMilliseconds,
+                    runtime.ActualControlTickIntervalMilliseconds,
+                    runtime.ControlTickCount,
+                    owner)),
+                ("UI paint", FormatRefreshRateSummary(
                     runtime.TimerRenderIntervalMilliseconds,
                     runtime.ActualPaintIntervalMilliseconds,
                     runtime.PaintCount,

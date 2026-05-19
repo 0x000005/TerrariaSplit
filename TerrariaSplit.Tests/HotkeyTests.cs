@@ -1,4 +1,5 @@
 using TerrariaSplit;
+using System.Diagnostics;
 
 namespace TerrariaSplit.Tests;
 
@@ -7,6 +8,7 @@ internal static class HotkeyTests
     public static IEnumerable<(string Name, Action Test)> All()
     {
         yield return ("TimerController consumes menu hotkeys only on menu", TimerControllerConsumesMenuHotkeysOnlyOnMenu);
+        yield return ("TimerController records automatic events at observed timestamps", TimerControllerRecordsAutomaticEventsAtObservedTimestamps);
         yield return ("BossSplitTracker skips initially defeated bosses after delayed state resolution", BossSplitTrackerSkipsInitiallyDefeatedBossesAfterDelayedStateResolution);
         yield return ("BossSplitTracker completes bosses after initial incomplete state", BossSplitTrackerCompletesBossesAfterInitialIncompleteState);
     }
@@ -96,6 +98,48 @@ internal static class HotkeyTests
             []);
         TestAssert.Equal(0, completedResult.CompletedSplitIndex);
         TestAssert.Equal(false, tracker.Statuses[0].IsSkipped);
+    }
+
+    private static void TimerControllerRecordsAutomaticEventsAtObservedTimestamps()
+    {
+        BossSplitTracker tracker = CreateSingleBossTracker();
+        var timer = new SplitTimer();
+        var controller = new TimerController(
+            timer,
+            tracker,
+            new PendingMenuHotkeyScheduler(),
+            TimeSpan.FromSeconds(1));
+
+        long startTimestamp = 1_000_000;
+        long initialIncompleteTimestamp = startTimestamp + Stopwatch.Frequency / 10;
+        long completionTimestamp = startTimestamp + Stopwatch.Frequency / 4;
+
+        TimerControllerTickResult startResult = controller.Tick(
+            TestSnapshots.Terraria(
+                isGameMenu: false,
+                bossStates: TerrariaBossStates.Unknown,
+                enteredWorld: true),
+            startTimestamp,
+            []);
+        TestAssert.Equal(true, startResult.RunStarted);
+
+        _ = controller.Tick(
+            TestSnapshots.Terraria(
+                isGameMenu: false,
+                bossStates: CreateSkeletronState(false)),
+            initialIncompleteTimestamp,
+            []);
+
+        TimerControllerTickResult completionResult = controller.Tick(
+            TestSnapshots.Terraria(
+                isGameMenu: false,
+                bossStates: CreateSkeletronState(true)),
+            completionTimestamp,
+            []);
+
+        TestAssert.Equal(0, completionResult.CompletedSplitIndex);
+        TimeSpan expected = TimeSpan.FromSeconds((completionTimestamp - startTimestamp) / (double)Stopwatch.Frequency);
+        TestAssert.Equal(expected, tracker.Statuses[0].Time);
     }
 
     private static BossSplitTracker CreateSingleBossTracker()
