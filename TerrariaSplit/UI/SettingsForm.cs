@@ -9,6 +9,7 @@ internal sealed partial class SettingsForm : Form
 
     private readonly AppSettings settings;
     private readonly Func<RuntimePerformanceDiagnostics>? runtimeDiagnosticsProvider;
+    private readonly Func<RuntimeDebugSnapshot>? runtimeDebugSnapshotProvider;
     private readonly SettingsUiFactory uiFactory;
     private readonly SettingsDialogService dialogService;
     private SettingsPageHost? pageHost;
@@ -18,10 +19,12 @@ internal sealed partial class SettingsForm : Form
 
     public SettingsForm(
         AppSettings currentSettings,
-        Func<RuntimePerformanceDiagnostics>? runtimeDiagnosticsProvider = null)
+        Func<RuntimePerformanceDiagnostics>? runtimeDiagnosticsProvider = null,
+        Func<RuntimeDebugSnapshot>? runtimeDebugSnapshotProvider = null)
     {
         settings = AppSettingsStore.Clone(currentSettings);
         this.runtimeDiagnosticsProvider = runtimeDiagnosticsProvider;
+        this.runtimeDebugSnapshotProvider = runtimeDebugSnapshotProvider;
         uiFactory = new SettingsUiFactory(Localize);
         dialogService = new SettingsDialogService(this, Localize);
 
@@ -47,6 +50,11 @@ internal sealed partial class SettingsForm : Form
     internal RuntimePerformanceDiagnostics GetRuntimeDiagnostics()
     {
         return runtimeDiagnosticsProvider?.Invoke() ?? RuntimePerformanceDiagnostics.Empty;
+    }
+
+    internal RuntimeDebugSnapshot GetRuntimeDebugSnapshot()
+    {
+        return runtimeDebugSnapshotProvider?.Invoke() ?? RuntimeDebugSnapshot.Empty;
     }
 
     internal string Localize(string key)
@@ -241,6 +249,7 @@ internal sealed partial class SettingsForm : Form
             uiFactory,
             dialogService,
             GetRuntimeDiagnostics,
+            GetRuntimeDebugSnapshot,
             pagePanel);
         pageHost.Register("General", new GeneralSettingsPage());
         pageHost.Register("BOSS", new BossSettingsPage());

@@ -54,7 +54,7 @@ internal static class SettingsProfileStore
         try
         {
             Directory.CreateDirectory(settingsDirectory);
-            File.WriteAllText(activeSettingsPath, settingsFileName);
+            JsonFileStore.WriteText(activeSettingsPath, settingsFileName, "active settings profile");
         }
         catch (Exception ex)
         {

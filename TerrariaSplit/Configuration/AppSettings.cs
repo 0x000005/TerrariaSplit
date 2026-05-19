@@ -292,6 +292,15 @@ internal sealed class AppSettings
 internal sealed class AdvancedSettings
 {
     public bool EnableTerrariaUiScalePatch { get; set; }
+    public const int DefaultReadyWatcherPollHz = 400;
+    public const int DefaultReadyUiControlHz = 150;
+    public const int DefaultRunningStatusPaintHz = 150;
+    public const int DefaultTimerOverlayRefreshHz = 150;
+    public int ReadyWatcherPollHz { get; set; } = DefaultReadyWatcherPollHz;
+    public int ReadyUiControlHz { get; set; } = DefaultReadyUiControlHz;
+    public int RunningStatusPaintHz { get; set; } = DefaultRunningStatusPaintHz;
+    public string TimerOverlayRefreshMode { get; set; } = TimerOverlayRefreshModes.Auto;
+    public int TimerOverlayRefreshHz { get; set; } = DefaultTimerOverlayRefreshHz;
 }
 
 internal sealed class AutoCreateWorldSettings

@@ -1,5 +1,7 @@
 using System.Drawing;
 using System.Globalization;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace TerrariaSplit;
@@ -7,6 +9,7 @@ namespace TerrariaSplit;
 internal sealed class DebugSettingsPage : SettingsPageBase
 {
     private const int RefreshIntervalMilliseconds = 500;
+    private const int HeavyRefreshIntervalMilliseconds = 2000;
     private const int SequenceBoxHeight = 220;
     private static readonly Color QuickStatusNormalColor = UiTheme.Accent;
     private static readonly Color QuickStatusProblemColor = Color.FromArgb(225, 92, 88);
@@ -28,7 +31,9 @@ internal sealed class DebugSettingsPage : SettingsPageBase
 
         Label controlTickValue = CreateValueLabel();
         Label watcherPollValue = CreateValueLabel();
-        Label paintValue = CreateValueLabel();
+        Label statusPaintValue = CreateValueLabel();
+        Label timerPaintValue = CreateValueLabel();
+        Label displayRefreshValue = CreateValueLabel();
 
         Label processIdValue = CreateValueLabel();
         Label processStartTimeValue = CreateValueLabel();
@@ -93,13 +98,13 @@ internal sealed class DebugSettingsPage : SettingsPageBase
 
         Button copyAllButton = CreateActionButton(owner, "Copy all information");
 
-        var watcher = new TerrariaWorldWatcher();
         var savePreparation = new TerrariaSavePreparation();
         TerrariaWindowSnapshot latestWindow = default;
         TerrariaWatchSnapshot latestSnapshot = default;
-        TerrariaWatcherDiagnostics latestDiagnostics = default;
+        TerrariaWatcherDiagnostics latestDiagnostics = TerrariaWatcherDiagnosticsDefaults.Empty;
         TerrariaSaveInventorySnapshot latestInventory = default;
-        RuntimePerformanceDiagnostics latestRuntime = RuntimePerformanceDiagnostics.Empty;
+        DateTime nextHeavyRefreshUtc = DateTime.MinValue;
+        int heavyRefreshQueued = 0;
 
         Control page = context.BuildScrollPage(content =>
         {
@@ -124,7 +129,9 @@ internal sealed class DebugSettingsPage : SettingsPageBase
             TableLayoutPanel performanceGrid = CreateGrid(owner);
             AddValueRow(performanceGrid, owner, "Timer sampling", watcherPollValue);
             AddValueRow(performanceGrid, owner, "UI control", controlTickValue);
-            AddValueRow(performanceGrid, owner, "UI paint", paintValue);
+            AddValueRow(performanceGrid, owner, "Status paint", statusPaintValue);
+            AddValueRow(performanceGrid, owner, "Timer paint", timerPaintValue);
+            AddValueRow(performanceGrid, owner, "Display refresh", displayRefreshValue);
             AddSectionControl(performanceSection, performanceGrid);
             AddSection(content, performanceSection);
 
@@ -213,154 +220,223 @@ internal sealed class DebugSettingsPage : SettingsPageBase
 
         copyAllButton.Click += (_, _) => CopyAllInformation();
 
-        void Refresh()
+        void Refresh(bool forceHeavyRefresh = false)
         {
-            TerrariaWindowSnapshot window = TerrariaWindowProbe.Read();
-            TerrariaWatchSnapshot snapshot = watcher.Poll();
-            TerrariaWatcherDiagnostics diagnostics = watcher.GetDiagnostics();
-            TerrariaSaveInventorySnapshot inventory = savePreparation.ReadInventorySnapshot();
-            RuntimePerformanceDiagnostics runtime = owner.GetRuntimeDiagnostics();
+            if (!page.Visible)
+            {
+                return;
+            }
+
+            RequestHeavyRefresh(forceHeavyRefresh);
+            RuntimeDebugSnapshot debugSnapshot = owner.GetRuntimeDebugSnapshot();
+            TerrariaWindowSnapshot window = latestWindow;
+            TerrariaWatchSnapshot snapshot = debugSnapshot.WatchSnapshot;
+            TerrariaWatcherDiagnostics diagnostics = debugSnapshot.WatcherDiagnostics;
+            TerrariaSaveInventorySnapshot inventory = latestInventory;
+            RuntimePerformanceDiagnostics runtime = debugSnapshot.Performance;
             AutoCreateWorldSettings autoCreate = owner.Result.AutoCreate;
             latestWindow = window;
             latestSnapshot = snapshot;
             latestDiagnostics = diagnostics;
             latestInventory = inventory;
-            latestRuntime = runtime;
 
-            bool bossFlagsReady = HasAnyBossState(snapshot.BossStates);
-
-            SetValue(
-                lastUpdatedValue,
-                DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff", CultureInfo.InvariantCulture),
-                UiTheme.MutedText);
-            SetQuickBool(processDetectedValue, owner, window.HasProcess);
-            SetQuickBool(windowDetectedValue, owner, window.HasWindow);
-            SetQuickBool(watcherAttachedValue, owner, snapshot.IsAttached);
-            SetQuickBool(memoryReadyValue, owner, snapshot.IsReady);
-            SetQuickBool(bossFlagsReadyValue, owner, bossFlagsReady);
-            SetQuickGameState(gameStateValue, owner, snapshot.IsGameMenu);
-            SetQuickStatus(windowStatusValue, window.Status, owner);
-
-            SetValue(
-                controlTickValue,
-                FormatRefreshRateSummary(
-                    runtime.ControlTickIntervalMilliseconds,
-                    runtime.ActualControlTickIntervalMilliseconds,
-                    runtime.ControlTickCount,
-                    owner));
-            SetValue(
-                watcherPollValue,
-                FormatRefreshRateSummary(
-                    runtime.WatcherPollIntervalMilliseconds,
-                    runtime.ActualWatcherPollIntervalMilliseconds,
-                    runtime.WatcherPollCount,
-                    owner));
-            SetValue(
-                paintValue,
-                FormatRefreshRateSummary(
-                    runtime.TimerRenderIntervalMilliseconds,
-                    runtime.ActualPaintIntervalMilliseconds,
-                    runtime.PaintCount,
-                    owner));
-            SetValue(processIdValue, FormatProcessId(window.ProcessId, owner));
-            SetValue(processStartTimeValue, FormatDateTime(window.ProcessStartTime, owner));
-            SetValue(processPathValue, FormatText(diagnostics.ProcessPath, owner));
-            SetValue(processArchitectureValue, FormatText(diagnostics.ProcessArchitecture, owner));
-            SetValue(processVersionValue, FormatText(diagnostics.ProcessVersion, owner));
-            SetValue(windowHandleValue, window.HasWindow ? $"0x{window.WindowHandle.ToInt64():X}" : owner.Localize("Unknown"));
-            SetValue(windowTitleValue, string.IsNullOrWhiteSpace(window.WindowTitle) ? owner.Localize("Unknown") : window.WindowTitle);
-            SetOptionalBool(respondingValue, owner, window.HasProcess ? window.IsResponding : null);
-            SetOptionalBool(visibleValue, owner, window.HasWindow ? window.IsVisible : null);
-            SetOptionalBool(minimizedValue, owner, window.HasWindow ? window.IsMinimized : null);
-            SetOptionalBool(maximizedValue, owner, window.HasWindow ? window.IsMaximized : null);
-            SetOptionalBool(foregroundValue, owner, window.HasWindow ? window.IsForeground : null);
-            SetValue(windowBoundsValue, FormatBounds(window.WindowBounds, owner));
-            SetValue(clientSizeValue, FormatSize(window.ClientSize, owner));
-
-            if (TryCreateGeometry(window.ClientSize, out TerrariaMenuGeometry geometry))
+            page.SuspendLayout();
+            try
             {
-                SetValue(menuScaleValue, FormatScale(geometry.Scale));
-                SetValue(logicalMenuSizeValue, FormatLogicalSize(geometry));
-                SetSequenceText(autoCreateSequenceValue, BuildAutoCreateSequenceText(autoCreate, geometry, inventory.FavoritePlayers, owner));
+                bool bossFlagsReady = HasAnyBossState(snapshot.BossStates);
+
+                SetValue(
+                    lastUpdatedValue,
+                    DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff", CultureInfo.InvariantCulture),
+                    UiTheme.MutedText);
+                SetQuickBool(processDetectedValue, owner, window.HasProcess);
+                SetQuickBool(windowDetectedValue, owner, window.HasWindow);
+                SetQuickBool(watcherAttachedValue, owner, snapshot.IsAttached);
+                SetQuickBool(memoryReadyValue, owner, snapshot.IsReady);
+                SetQuickBool(bossFlagsReadyValue, owner, bossFlagsReady);
+                SetQuickGameState(gameStateValue, owner, snapshot.IsGameMenu);
+                SetQuickStatus(windowStatusValue, window.Status, owner);
+
+                SetValue(
+                    controlTickValue,
+                    FormatControlTickSummary(debugSnapshot, owner));
+                SetValue(
+                    watcherPollValue,
+                    FormatWatcherPollSummary(debugSnapshot, owner));
+                SetValue(
+                    statusPaintValue,
+                    FormatStatusPaintSummary(debugSnapshot, owner));
+                SetValue(
+                    timerPaintValue,
+                    FormatTimerPaintSummary(debugSnapshot, owner));
+                SetValue(displayRefreshValue, FormatDisplayRefresh(runtime.DisplayRefreshHz, owner));
+                SetValue(processIdValue, FormatProcessId(window.ProcessId, owner));
+                SetValue(processStartTimeValue, FormatDateTime(window.ProcessStartTime, owner));
+                SetValue(processPathValue, FormatText(diagnostics.ProcessPath, owner));
+                SetValue(processArchitectureValue, FormatText(diagnostics.ProcessArchitecture, owner));
+                SetValue(processVersionValue, FormatText(diagnostics.ProcessVersion, owner));
+                SetValue(windowHandleValue, window.HasWindow ? $"0x{window.WindowHandle.ToInt64():X}" : owner.Localize("Unknown"));
+                SetValue(windowTitleValue, string.IsNullOrWhiteSpace(window.WindowTitle) ? owner.Localize("Unknown") : window.WindowTitle);
+                SetOptionalBool(respondingValue, owner, window.HasProcess ? window.IsResponding : null);
+                SetOptionalBool(visibleValue, owner, window.HasWindow ? window.IsVisible : null);
+                SetOptionalBool(minimizedValue, owner, window.HasWindow ? window.IsMinimized : null);
+                SetOptionalBool(maximizedValue, owner, window.HasWindow ? window.IsMaximized : null);
+                SetOptionalBool(foregroundValue, owner, window.HasWindow ? window.IsForeground : null);
+                SetValue(windowBoundsValue, FormatBounds(window.WindowBounds, owner));
+                SetValue(clientSizeValue, FormatSize(window.ClientSize, owner));
+
+                if (TryCreateGeometry(window.ClientSize, out TerrariaMenuGeometry geometry))
+                {
+                    SetValue(menuScaleValue, FormatScale(geometry.Scale));
+                    SetValue(logicalMenuSizeValue, FormatLogicalSize(geometry));
+                    SetSequenceText(autoCreateSequenceValue, BuildAutoCreateSequenceText(autoCreate, geometry, inventory.FavoritePlayers, owner));
+                }
+                else
+                {
+                    SetValue(menuScaleValue, owner.Localize("Unknown"));
+                    SetValue(logicalMenuSizeValue, owner.Localize("Unknown"));
+                    SetSequenceText(autoCreateSequenceValue, owner.Localize("Unavailable because client size is unknown."));
+                }
+
+                SetValue(playerFilesValue, inventory.PlayerFiles.ToString(CultureInfo.InvariantCulture));
+                SetValue(worldFilesValue, inventory.WorldFiles.ToString(CultureInfo.InvariantCulture));
+                SetValue(favoritePlayersValue, inventory.FavoritePlayers.ToString(CultureInfo.InvariantCulture));
+                SetValue(favoriteWorldsValue, inventory.FavoriteWorlds.ToString(CultureInfo.InvariantCulture));
+                SetValue(playerNameValue, FormatPlayerName(autoCreate.PlayerName));
+                SetValue(playerDifficultyValue, owner.Localize(AutoCreatePlayerDifficulty.Normalize(autoCreate.PlayerDifficulty)));
+                SetValue(worldSizeValue, owner.Localize(AutoCreateWorldSize.Normalize(autoCreate.WorldSize)));
+                SetValue(worldDifficultyValue, owner.Localize(AutoCreateWorldDifficulty.Normalize(autoCreate.WorldDifficulty)));
+                SetValue(worldEvilValue, owner.Localize(AutoCreateWorldEvil.Normalize(autoCreate.WorldEvil)));
+                SetValue(shortActionDelayValue, autoCreate.ShortActionDelayMilliseconds.ToString(CultureInfo.InvariantCulture));
+                SetValue(menuActionDelayValue, autoCreate.MenuActionDelayMilliseconds.ToString(CultureInfo.InvariantCulture));
+                SetValue(windowActivationDelayValue, autoCreate.WindowActivationDelayMilliseconds.ToString(CultureInfo.InvariantCulture));
+                SetValue(clickFocusDelayValue, autoCreate.ClickFocusDelayMilliseconds.ToString(CultureInfo.InvariantCulture));
+                SetValue(inputPressDurationValue, autoCreate.InputPressDurationMilliseconds.ToString(CultureInfo.InvariantCulture));
+
+                SetBossState(skeletronValue, snapshot.BossStates.Skeletron, owner);
+                SetBossState(wallOfFleshValue, snapshot.BossStates.WallOfFlesh, owner);
+                SetBossState(destroyerValue, snapshot.BossStates.Destroyer, owner);
+                SetBossState(twinsValue, snapshot.BossStates.Twins, owner);
+                SetBossState(skeletronPrimeValue, snapshot.BossStates.SkeletronPrime, owner);
+                SetBossState(planteraValue, snapshot.BossStates.Plantera, owner);
+                SetBossState(golemValue, snapshot.BossStates.Golem, owner);
+                SetBossState(lunaticCultistValue, snapshot.BossStates.LunaticCultist, owner);
+                SetBossState(moonLordValue, snapshot.BossStates.MoonLord, owner);
+
+                SetValue(
+                    currentPassValue,
+                    FormatWorldGenerationText(
+                        snapshot.WorldGeneration.CurrentPassName,
+                        diagnostics.CurrentControllerAddress,
+                        owner));
+                SetValue(
+                    progressMessageValue,
+                    FormatWorldGenerationText(
+                        snapshot.WorldGeneration.ProgressMessage,
+                        diagnostics.CurrentGenerationProgressAddress,
+                        owner));
+                SetValue(
+                    currentProgressValue,
+                    FormatWorldGenerationPercent(
+                        snapshot.WorldGeneration.CurrentProgress,
+                        diagnostics.CurrentGenerationProgressAddress,
+                        owner));
+                SetValue(
+                    totalProgressValue,
+                    FormatWorldGenerationPercent(
+                        snapshot.WorldGeneration.TotalProgress,
+                        diagnostics.CurrentGenerationProgressAddress,
+                        owner));
+
+                SetValue(scanAttemptsValue, diagnostics.SignatureScanAttempts.ToString(CultureInfo.InvariantCulture));
+                SetValue(lastScanValue, FormatTimestamp(diagnostics.LastSignatureScanUtc, owner));
+                SetValue(scanPageStatsValue, FormatScanStats(diagnostics.LastSignatureScan, owner));
+                SetValue(scanFailuresValue, FormatScanFailures(diagnostics.LastSignatureScan, owner));
+                SetValue(mainModuleBaseValue, FormatAddress(diagnostics.MainModuleBaseAddress, owner));
+                SetValue(mainModuleSizeValue, FormatByteCount(diagnostics.MainModuleSize, owner));
+                SetValue(updateTimeAddressValue, FormatAddress(diagnostics.UpdateTimeAddress, owner));
+                SetValue(bossFlagsAddressValue, FormatAddress(diagnostics.BossFlagsBaseAddress, owner));
+                SetValue(hardmodeAddressValue, FormatAddress(diagnostics.HardmodeAddress, owner));
+                SetValue(generationProgressAddressValue, FormatAddress(diagnostics.CurrentGenerationProgressAddress, owner));
+                SetValue(generationControllerAddressValue, FormatAddress(diagnostics.CurrentControllerAddress, owner));
+                SetValue(failureStageValue, LocalizeStage(diagnostics.Stage, owner));
             }
-            else
+            finally
             {
-                SetValue(menuScaleValue, owner.Localize("Unknown"));
-                SetValue(logicalMenuSizeValue, owner.Localize("Unknown"));
-                SetSequenceText(autoCreateSequenceValue, owner.Localize("Unavailable because client size is unknown."));
+                page.ResumeLayout(false);
+            }
+        }
+
+        void RequestHeavyRefresh(bool force = false)
+        {
+            DateTime nowUtc = DateTime.UtcNow;
+            if (!force && nowUtc < nextHeavyRefreshUtc)
+            {
+                return;
             }
 
-            SetValue(playerFilesValue, inventory.PlayerFiles.ToString(CultureInfo.InvariantCulture));
-            SetValue(worldFilesValue, inventory.WorldFiles.ToString(CultureInfo.InvariantCulture));
-            SetValue(favoritePlayersValue, inventory.FavoritePlayers.ToString(CultureInfo.InvariantCulture));
-            SetValue(favoriteWorldsValue, inventory.FavoriteWorlds.ToString(CultureInfo.InvariantCulture));
-            SetValue(playerNameValue, FormatPlayerName(autoCreate.PlayerName));
-            SetValue(playerDifficultyValue, owner.Localize(AutoCreatePlayerDifficulty.Normalize(autoCreate.PlayerDifficulty)));
-            SetValue(worldSizeValue, owner.Localize(AutoCreateWorldSize.Normalize(autoCreate.WorldSize)));
-            SetValue(worldDifficultyValue, owner.Localize(AutoCreateWorldDifficulty.Normalize(autoCreate.WorldDifficulty)));
-            SetValue(worldEvilValue, owner.Localize(AutoCreateWorldEvil.Normalize(autoCreate.WorldEvil)));
-            SetValue(shortActionDelayValue, autoCreate.ShortActionDelayMilliseconds.ToString(CultureInfo.InvariantCulture));
-            SetValue(menuActionDelayValue, autoCreate.MenuActionDelayMilliseconds.ToString(CultureInfo.InvariantCulture));
-            SetValue(windowActivationDelayValue, autoCreate.WindowActivationDelayMilliseconds.ToString(CultureInfo.InvariantCulture));
-            SetValue(clickFocusDelayValue, autoCreate.ClickFocusDelayMilliseconds.ToString(CultureInfo.InvariantCulture));
-            SetValue(inputPressDurationValue, autoCreate.InputPressDurationMilliseconds.ToString(CultureInfo.InvariantCulture));
+            if (Interlocked.CompareExchange(ref heavyRefreshQueued, 1, 0) != 0)
+            {
+                return;
+            }
 
-            SetBossState(skeletronValue, snapshot.BossStates.Skeletron, owner);
-            SetBossState(wallOfFleshValue, snapshot.BossStates.WallOfFlesh, owner);
-            SetBossState(destroyerValue, snapshot.BossStates.Destroyer, owner);
-            SetBossState(twinsValue, snapshot.BossStates.Twins, owner);
-            SetBossState(skeletronPrimeValue, snapshot.BossStates.SkeletronPrime, owner);
-            SetBossState(planteraValue, snapshot.BossStates.Plantera, owner);
-            SetBossState(golemValue, snapshot.BossStates.Golem, owner);
-            SetBossState(lunaticCultistValue, snapshot.BossStates.LunaticCultist, owner);
-            SetBossState(moonLordValue, snapshot.BossStates.MoonLord, owner);
+            nextHeavyRefreshUtc = nowUtc.AddMilliseconds(HeavyRefreshIntervalMilliseconds);
+            _ = Task.Run(() => (
+                    Window: TerrariaWindowProbe.Read(),
+                    Inventory: savePreparation.ReadInventorySnapshot()))
+                .ContinueWith(
+                    task =>
+                    {
+                        Interlocked.Exchange(ref heavyRefreshQueued, 0);
+                        if (page.IsDisposed)
+                        {
+                            return;
+                        }
 
-            SetValue(
-                currentPassValue,
-                FormatWorldGenerationText(
-                    snapshot.WorldGeneration.CurrentPassName,
-                    diagnostics.CurrentControllerAddress,
-                    owner));
-            SetValue(
-                progressMessageValue,
-                FormatWorldGenerationText(
-                    snapshot.WorldGeneration.ProgressMessage,
-                    diagnostics.CurrentGenerationProgressAddress,
-                    owner));
-            SetValue(
-                currentProgressValue,
-                FormatWorldGenerationPercent(
-                    snapshot.WorldGeneration.CurrentProgress,
-                    diagnostics.CurrentGenerationProgressAddress,
-                    owner));
-            SetValue(
-                totalProgressValue,
-                FormatWorldGenerationPercent(
-                    snapshot.WorldGeneration.TotalProgress,
-                    diagnostics.CurrentGenerationProgressAddress,
-                    owner));
+                        void ApplyHeavySnapshot()
+                        {
+                            if (task.IsCompletedSuccessfully)
+                            {
+                                latestWindow = task.Result.Window;
+                                latestInventory = task.Result.Inventory;
+                                Refresh();
+                                return;
+                            }
 
-            SetValue(scanAttemptsValue, diagnostics.SignatureScanAttempts.ToString(CultureInfo.InvariantCulture));
-            SetValue(lastScanValue, FormatTimestamp(diagnostics.LastSignatureScanUtc, owner));
-            SetValue(scanPageStatsValue, FormatScanStats(diagnostics.LastSignatureScan, owner));
-            SetValue(scanFailuresValue, FormatScanFailures(diagnostics.LastSignatureScan, owner));
-            SetValue(mainModuleBaseValue, FormatAddress(diagnostics.MainModuleBaseAddress, owner));
-            SetValue(mainModuleSizeValue, FormatByteCount(diagnostics.MainModuleSize, owner));
-            SetValue(updateTimeAddressValue, FormatAddress(diagnostics.UpdateTimeAddress, owner));
-            SetValue(bossFlagsAddressValue, FormatAddress(diagnostics.BossFlagsBaseAddress, owner));
-            SetValue(hardmodeAddressValue, FormatAddress(diagnostics.HardmodeAddress, owner));
-            SetValue(generationProgressAddressValue, FormatAddress(diagnostics.CurrentGenerationProgressAddress, owner));
-            SetValue(generationControllerAddressValue, FormatAddress(diagnostics.CurrentControllerAddress, owner));
-            SetValue(failureStageValue, LocalizeStage(diagnostics.Stage, owner));
+                            if (task.Exception is not null)
+                            {
+                                AppLogger.Error(task.Exception, "Failed to refresh debug page heavy snapshot.");
+                            }
+                        }
+
+                        try
+                        {
+                            if (owner.IsHandleCreated)
+                            {
+                                owner.BeginInvoke((Action)ApplyHeavySnapshot);
+                            }
+                        }
+                        catch (ObjectDisposedException)
+                        {
+                        }
+                        catch (InvalidOperationException)
+                        {
+                        }
+                    },
+                    TaskScheduler.Default);
         }
 
         void CopyAllInformation()
         {
-            Refresh();
+            RuntimeDebugSnapshot debugSnapshot = owner.GetRuntimeDebugSnapshot();
+            latestSnapshot = debugSnapshot.WatchSnapshot;
+            latestDiagnostics = debugSnapshot.WatcherDiagnostics;
+            latestWindow = TerrariaWindowProbe.Read();
+            latestInventory = savePreparation.ReadInventorySnapshot();
 
             try
             {
-                Clipboard.SetText(BuildDiagnosticReport(latestWindow, latestSnapshot, latestDiagnostics, latestInventory, latestRuntime, owner.Result.AutoCreate, owner));
+                Clipboard.SetText(BuildDiagnosticReport(latestWindow, debugSnapshot, latestDiagnostics, latestInventory, owner.Result.AutoCreate, owner));
             }
             catch (Exception ex)
             {
@@ -374,28 +450,44 @@ internal sealed class DebugSettingsPage : SettingsPageBase
         };
         refreshTimer.Tick += (_, _) => Refresh();
 
+        page.VisibleChanged += (_, _) =>
+        {
+            if (page.Visible)
+            {
+                Refresh();
+                refreshTimer.Start();
+            }
+            else
+            {
+                refreshTimer.Stop();
+            }
+        };
+
         page.Disposed += (_, _) =>
         {
             refreshTimer.Stop();
             refreshTimer.Dispose();
-            watcher.Dispose();
         };
 
         Refresh();
-        refreshTimer.Start();
+        if (page.Visible)
+        {
+            refreshTimer.Start();
+        }
         return page;
     }
 
     private static string BuildDiagnosticReport(
         TerrariaWindowSnapshot window,
-        TerrariaWatchSnapshot snapshot,
+        RuntimeDebugSnapshot debugSnapshot,
         TerrariaWatcherDiagnostics diagnostics,
         TerrariaSaveInventorySnapshot inventory,
-        RuntimePerformanceDiagnostics runtime,
         AutoCreateWorldSettings autoCreate,
         SettingsForm owner)
     {
         var lines = new List<string>();
+        TerrariaWatchSnapshot snapshot = debugSnapshot.WatchSnapshot;
+        RuntimePerformanceDiagnostics runtime = debugSnapshot.Performance;
         bool bossFlagsReady = HasAnyBossState(snapshot.BossStates);
 
         AppendReportSection(
@@ -418,21 +510,11 @@ internal sealed class DebugSettingsPage : SettingsPageBase
             owner,
             "Performance",
             [
-                ("Timer sampling", FormatRefreshRateSummary(
-                    runtime.WatcherPollIntervalMilliseconds,
-                    runtime.ActualWatcherPollIntervalMilliseconds,
-                    runtime.WatcherPollCount,
-                    owner)),
-                ("UI control", FormatRefreshRateSummary(
-                    runtime.ControlTickIntervalMilliseconds,
-                    runtime.ActualControlTickIntervalMilliseconds,
-                    runtime.ControlTickCount,
-                    owner)),
-                ("UI paint", FormatRefreshRateSummary(
-                    runtime.TimerRenderIntervalMilliseconds,
-                    runtime.ActualPaintIntervalMilliseconds,
-                    runtime.PaintCount,
-                    owner))
+                ("Timer sampling", FormatWatcherPollSummary(debugSnapshot, owner)),
+                ("UI control", FormatControlTickSummary(debugSnapshot, owner)),
+                ("Status paint", FormatStatusPaintSummary(debugSnapshot, owner)),
+                ("Timer paint", FormatTimerPaintSummary(debugSnapshot, owner)),
+                ("Display refresh", FormatDisplayRefresh(runtime.DisplayRefreshHz, owner))
             ]);
 
         string menuScale = owner.Localize("Unknown");
@@ -790,14 +872,148 @@ internal sealed class DebugSettingsPage : SettingsPageBase
     private static string FormatRefreshRateSummary(
         double configuredIntervalMilliseconds,
         double actualIntervalMilliseconds,
+        double maxIntervalMilliseconds,
         int sampleCount,
         SettingsForm owner)
     {
         string configured = FormatFrequency(configuredIntervalMilliseconds, owner);
-        string actual = sampleCount >= 2 && actualIntervalMilliseconds > 0
+        bool hasSamples = sampleCount >= 2 && actualIntervalMilliseconds > 0;
+        string actual = hasSamples
             ? FormatFrequency(actualIntervalMilliseconds, owner)
             : owner.Localize("Waiting for samples");
-        return string.Format(CultureInfo.InvariantCulture, owner.Localize("configured {0}, actual {1}"), configured, actual);
+        string average = hasSamples
+            ? FormatMilliseconds(actualIntervalMilliseconds)
+            : owner.Localize("Waiting for samples");
+        string maximum = hasSamples && maxIntervalMilliseconds > 0
+            ? FormatMilliseconds(maxIntervalMilliseconds)
+            : owner.Localize("Waiting for samples");
+        return string.Format(
+            CultureInfo.InvariantCulture,
+            owner.Localize("configured {0}, actual {1}, avg {2}, max {3}"),
+            configured,
+            actual,
+            average,
+            maximum);
+    }
+
+    private static string FormatConfiguredWaitingSummary(
+        double configuredIntervalMilliseconds,
+        string waitingText,
+        SettingsForm owner)
+    {
+        return string.Format(
+            CultureInfo.InvariantCulture,
+            owner.Localize("configured {0}, waiting {1}"),
+            FormatFrequency(configuredIntervalMilliseconds, owner),
+            owner.Localize(waitingText));
+    }
+
+    private static string FormatConfiguredHzWaitingSummary(
+        int configuredHz,
+        string waitingText,
+        SettingsForm owner)
+    {
+        return FormatConfiguredWaitingSummary(
+            RefreshRateSettings.ToInterval(configuredHz).TotalMilliseconds,
+            waitingText,
+            owner);
+    }
+
+    private static string FormatWatcherPollSummary(RuntimeDebugSnapshot debugSnapshot, SettingsForm owner)
+    {
+        if (!debugSnapshot.WatchSnapshot.IsAttached || !debugSnapshot.WatchSnapshot.IsReady)
+        {
+            return FormatConfiguredHzWaitingSummary(
+                RefreshRateSettings.NormalizeReadyWatcherPollHz(
+                    owner.Result.Advanced?.ReadyWatcherPollHz ?? AdvancedSettings.DefaultReadyWatcherPollHz),
+                "Waiting for attached memory",
+                owner);
+        }
+
+        return FormatRefreshRateSummary(
+            debugSnapshot.Performance.WatcherPollIntervalMilliseconds,
+            debugSnapshot.Performance.ActualWatcherPollIntervalMilliseconds,
+            debugSnapshot.Performance.MaxWatcherPollIntervalMilliseconds,
+            debugSnapshot.Performance.WatcherPollCount,
+            owner);
+    }
+
+    private static string FormatControlTickSummary(RuntimeDebugSnapshot debugSnapshot, SettingsForm owner)
+    {
+        if (!debugSnapshot.WatchSnapshot.IsAttached || !debugSnapshot.WatchSnapshot.IsReady)
+        {
+            return FormatConfiguredHzWaitingSummary(
+                RefreshRateSettings.NormalizeReadyUiControlHz(
+                    owner.Result.Advanced?.ReadyUiControlHz ?? AdvancedSettings.DefaultReadyUiControlHz),
+                "Waiting for attached memory",
+                owner);
+        }
+
+        return FormatRefreshRateSummary(
+            debugSnapshot.Performance.ControlTickIntervalMilliseconds,
+            debugSnapshot.Performance.ActualControlTickIntervalMilliseconds,
+            debugSnapshot.Performance.MaxControlTickIntervalMilliseconds,
+            debugSnapshot.Performance.ControlTickCount,
+            owner);
+    }
+
+    private static string FormatStatusPaintSummary(RuntimeDebugSnapshot debugSnapshot, SettingsForm owner)
+    {
+        if (!debugSnapshot.WatchSnapshot.IsAttached || !debugSnapshot.WatchSnapshot.IsReady)
+        {
+            return FormatConfiguredWaitingSummary(
+                debugSnapshot.Performance.StatusPaintIntervalMilliseconds,
+                "Waiting for attached memory",
+                owner);
+        }
+
+        if (debugSnapshot.TimerPhase != SplitTimerPhase.Running)
+        {
+            return FormatConfiguredWaitingSummary(
+                debugSnapshot.Performance.StatusPaintIntervalMilliseconds,
+                "Waiting for timer start",
+                owner);
+        }
+
+        return FormatRefreshRateSummary(
+            debugSnapshot.Performance.StatusPaintIntervalMilliseconds,
+            debugSnapshot.Performance.ActualStatusPaintIntervalMilliseconds,
+            debugSnapshot.Performance.MaxStatusPaintIntervalMilliseconds,
+            debugSnapshot.Performance.StatusPaintCount,
+            owner);
+    }
+
+    private static string FormatTimerPaintSummary(RuntimeDebugSnapshot debugSnapshot, SettingsForm owner)
+    {
+        if (!debugSnapshot.WatchSnapshot.IsAttached || !debugSnapshot.WatchSnapshot.IsReady)
+        {
+            return FormatConfiguredWaitingSummary(
+                debugSnapshot.Performance.TimerOverlayPaintIntervalMilliseconds,
+                "Waiting for attached memory",
+                owner);
+        }
+
+        if (debugSnapshot.TimerPhase != SplitTimerPhase.Running)
+        {
+            return FormatConfiguredWaitingSummary(
+                debugSnapshot.Performance.TimerOverlayPaintIntervalMilliseconds,
+                "Waiting for timer start",
+                owner);
+        }
+
+        return FormatRefreshRateSummary(
+            debugSnapshot.Performance.TimerOverlayPaintIntervalMilliseconds,
+            debugSnapshot.Performance.ActualTimerOverlayPaintIntervalMilliseconds,
+            debugSnapshot.Performance.MaxTimerOverlayPaintIntervalMilliseconds,
+            debugSnapshot.Performance.TimerOverlayPaintCount,
+            owner);
+    }
+
+    private static string FormatDisplayRefresh(int refreshHz, SettingsForm owner)
+    {
+        return refreshHz > 0
+            ? refreshHz.ToString(CultureInfo.InvariantCulture) + " Hz"
+            : owner.Localize("Unknown");
     }
 
     private static string FormatMilliseconds(double milliseconds)
@@ -1104,8 +1320,15 @@ internal sealed class DebugSettingsPage : SettingsPageBase
 
     private static void SetValue(Label label, string text, Color color)
     {
-        label.Text = text;
-        label.ForeColor = color;
+        if (!string.Equals(label.Text, text, StringComparison.Ordinal))
+        {
+            label.Text = text;
+        }
+
+        if (label.ForeColor != color)
+        {
+            label.ForeColor = color;
+        }
     }
 
     private static bool IsNormalStatus(string status)
@@ -1145,7 +1368,10 @@ internal sealed class DebugSettingsPage : SettingsPageBase
 
     private static void SetSequenceText(TextBox textBox, string text)
     {
-        textBox.Text = text;
+        if (!string.Equals(textBox.Text, text, StringComparison.Ordinal))
+        {
+            textBox.Text = text;
+        }
     }
 
     private static TableLayoutPanel CreateSection(SettingsForm owner, string title)

@@ -9,6 +9,8 @@ internal static class RenderingTests
     {
         yield return ("UiPalette maps configured text colors", UiPaletteMapsConfiguredTextColors);
         yield return ("TextEffectRenderer applies opacity without changing RGB", TextEffectRendererAppliesOpacity);
+        yield return ("TextEffectRenderer draws direct styled string", TextEffectRendererDrawsDirectStyledString);
+        yield return ("TextEffectRenderer draws direct shadow-only text", TextEffectRendererDrawsDirectShadowOnlyText);
         yield return ("OverlayFontCache keeps main timer font independent from milliseconds visibility", OverlayFontCacheKeepsMainTimerFontIndependentFromMillisecondsVisibility);
         yield return ("SplitSoundSelector routes equal times to not-faster sounds", SplitSoundSelectorRoutesEqualTimesToNotFasterSounds);
         yield return ("SplitSoundSelector treats missing comparison data as faster", SplitSoundSelectorTreatsMissingComparisonDataAsFaster);
@@ -44,6 +46,48 @@ internal static class RenderingTests
         TestAssert.Equal(10, color.R);
         TestAssert.Equal(20, color.G);
         TestAssert.Equal(30, color.B);
+    }
+
+    private static void TextEffectRendererDrawsDirectStyledString()
+    {
+        using var bitmap = new Bitmap(180, 80);
+        using Graphics graphics = Graphics.FromImage(bitmap);
+        graphics.Clear(Color.Transparent);
+        using var font = new Font(UiTheme.FontFamilyName, 32f, FontStyle.Bold, GraphicsUnit.Pixel);
+        using var format = new StringFormat(StringFormat.GenericTypographic);
+
+        TextEffectRenderer.DrawStyledString(
+            graphics,
+            "12.34",
+            font,
+            new TextRenderStyle(Color.White, Color.Black, Color.Black, 50, 50),
+            4f,
+            8f,
+            format,
+            1f,
+            supersampleEffects: false);
+
+        TestAssert.Equal(true, HasVisiblePixel(bitmap));
+    }
+
+    private static void TextEffectRendererDrawsDirectShadowOnlyText()
+    {
+        using var bitmap = new Bitmap(180, 80);
+        using Graphics graphics = Graphics.FromImage(bitmap);
+        graphics.Clear(Color.Transparent);
+        using var font = new Font(UiTheme.FontFamilyName, 30f, FontStyle.Regular, GraphicsUnit.Pixel);
+
+        TextEffectRenderer.DrawStyledText(
+            graphics,
+            "Delta",
+            font,
+            new TextRenderStyle(Color.White, Color.Black, Color.Black, 70, 0),
+            new Rectangle(0, 0, bitmap.Width, bitmap.Height),
+            ContentAlignment.MiddleCenter,
+            1f,
+            supersampleEffects: false);
+
+        TestAssert.Equal(true, HasVisiblePixel(bitmap));
     }
 
     private static void OverlayFontCacheKeepsMainTimerFontIndependentFromMillisecondsVisibility()
@@ -212,12 +256,17 @@ internal static class RenderingTests
         {
             TextEffects = new UiTextEffectSettings
             {
+                IconOpacityPercent = 15,
+                TimeOpacityPercent = 16,
                 TimeShadowPercent = 11,
                 TimeOutlineThicknessPercent = 12,
+                DeltaOpacityPercent = 26,
                 DeltaShadowPercent = 21,
                 DeltaOutlineThicknessPercent = 22,
+                TimerOpacityPercent = 36,
                 TimerShadowPercent = 31,
                 TimerOutlineThicknessPercent = 32,
+                TimerMillisecondsOpacityPercent = 46,
                 TimerMillisecondsShadowPercent = 41,
                 TimerMillisecondsOutlineThicknessPercent = 42
             }
@@ -243,6 +292,11 @@ internal static class RenderingTests
             palette,
             milliseconds: true);
 
+        Nearly(0.15f, OverlayTextStyles.GetIconOpacity(settings));
+        Nearly(0.16f, OverlayTextStyles.GetTimeTextOpacity(settings));
+        Nearly(0.26f, OverlayTextStyles.GetDeltaTextOpacity(settings));
+        Nearly(0.36f, OverlayTextStyles.GetTimerTextOpacity(settings, milliseconds: false));
+        Nearly(0.46f, OverlayTextStyles.GetTimerTextOpacity(settings, milliseconds: true));
         TestAssert.Equal(11, split.ShadowPercent);
         TestAssert.Equal(12, split.OutlineThicknessPercent);
         TestAssert.Equal(21, delta.ShadowPercent);
@@ -259,5 +313,21 @@ internal static class RenderingTests
         {
             throw new InvalidOperationException($"Expected approximately '{expected}', got '{actual}'.");
         }
+    }
+
+    private static bool HasVisiblePixel(Bitmap bitmap)
+    {
+        for (int y = 0; y < bitmap.Height; y++)
+        {
+            for (int x = 0; x < bitmap.Width; x++)
+            {
+                if (bitmap.GetPixel(x, y).A > 0)
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 }

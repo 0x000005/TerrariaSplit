@@ -4,7 +4,7 @@ namespace TerrariaSplit;
 
 internal static class OverlayRenderer
 {
-    public static OverlayRenderResult Render(
+    public static OverlayRenderResult RenderStatus(
         Graphics graphics,
         OverlayRenderContext context,
         OverlayRenderResources resources)
@@ -33,8 +33,14 @@ internal static class OverlayRenderer
                 animationOpacity);
         }
 
-        TimerRenderer.Render(graphics, context, resources);
-
         return new OverlayRenderResult(animationActive);
+    }
+
+    public static void RenderTimer(
+        Graphics graphics,
+        OverlayRenderContext context,
+        OverlayRenderResources resources)
+    {
+        TimerRenderer.Render(graphics, context, resources);
     }
 }

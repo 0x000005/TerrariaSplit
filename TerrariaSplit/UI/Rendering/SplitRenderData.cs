@@ -160,6 +160,28 @@ internal static class SplitRenderData
 
 internal static class OverlayTextStyles
 {
+    public static float GetIconOpacity(AppSettings settings)
+    {
+        return GetOpacity(settings.TextEffects.IconOpacityPercent);
+    }
+
+    public static float GetTimeTextOpacity(AppSettings settings)
+    {
+        return GetOpacity(settings.TextEffects.TimeOpacityPercent);
+    }
+
+    public static float GetDeltaTextOpacity(AppSettings settings)
+    {
+        return GetOpacity(settings.TextEffects.DeltaOpacityPercent);
+    }
+
+    public static float GetTimerTextOpacity(AppSettings settings, bool milliseconds)
+    {
+        return GetOpacity(milliseconds
+            ? settings.TextEffects.TimerMillisecondsOpacityPercent
+            : settings.TextEffects.TimerOpacityPercent);
+    }
+
     public static TextRenderStyle GetReferenceTextStyle(
         AppSettings settings,
         UiPalette palette,
@@ -391,6 +413,11 @@ internal static class OverlayTextStyles
             milliseconds
                 ? settings.TextEffects.TimerMillisecondsOutlineThicknessPercent
                 : settings.TextEffects.TimerOutlineThicknessPercent);
+    }
+
+    private static float GetOpacity(int opacityPercent)
+    {
+        return Math.Clamp(opacityPercent, 0, 100) / 100f;
     }
 
     private static bool TryGetCompletedMoonLordStatus(

@@ -5,7 +5,7 @@ namespace TerrariaSplit;
 
 internal sealed partial class MainForm : Form
 {
-    private void DrawOverlay(Graphics graphics)
+    private void DrawStatusOverlay(Graphics graphics)
     {
         if (!TryGetLayout(out SplitLayout layout))
         {
@@ -25,7 +25,7 @@ internal sealed partial class MainForm : Form
             splitCompletionAnimation,
             segmentBestDeltaHighlights,
             DateTime.UtcNow);
-        OverlayRenderResult result = OverlayRenderer.Render(graphics, context, renderResources);
+        OverlayRenderResult result = OverlayRenderer.RenderStatus(graphics, context, renderResources);
         if (splitCompletionAnimation is not null && !result.SplitCompletionAnimationActive)
         {
             splitCompletionAnimation = null;
@@ -42,13 +42,18 @@ internal sealed partial class MainForm : Form
             return false;
         }
 
+        OverlayCompositeLayout? compositeLayout = overlayWindowsInitialized
+            ? overlayBoundsController.CurrentLayout
+            : null;
+        Point compositePoint = compositeLayout?.MapStatusPointToComposite(point) ?? point;
+
         for (int i = 0; i < statuses.Count; i++)
         {
             Rectangle currentRowRect = layout.GetRowRect(i);
-            if (currentRowRect.Contains(point))
+            if (currentRowRect.Contains(compositePoint))
             {
                 rowIndex = i;
-                rowRect = currentRowRect;
+                rowRect = compositeLayout?.ToStatusLocal(currentRowRect) ?? currentRowRect;
                 return true;
             }
         }
@@ -58,22 +63,6 @@ internal sealed partial class MainForm : Form
 
     private void TryOpenPracticeEdit(Point point)
     {
-        if (TryGetTimerRect(out Rectangle timerRect) && timerRect.Contains(point))
-        {
-            string currentText = TimeText.FormatRecord(runTimer.Elapsed);
-            if (!PromptForTime(Localizer.Get("Edit total time", settings), currentText, allowEmpty: false, out string? editedText) ||
-                !TimeText.TryParse(editedText, out TimeSpan editedTime))
-            {
-                return;
-            }
-
-            runTimer.SetPracticeElapsed(editedTime);
-            splitTracker.ClampCompletedTimes(editedTime);
-            SyncBackgroundRuntimeState();
-            Invalidate();
-            return;
-        }
-
         if (!TryGetSplitRowAt(point, out int rowIndex, out Rectangle rowRect))
         {
             return;
@@ -110,56 +99,54 @@ internal sealed partial class MainForm : Form
         splitTracker.SetPracticeTime(rowIndex, parsedTime);
         TrackSegmentBestDeltaHighlight(rowIndex);
         SyncBackgroundRuntimeState();
+        PublishTimerOverlaySnapshot();
+        Invalidate();
+    }
+
+    private void EditPracticeTotalTime()
+    {
+        string currentText = TimeText.FormatRecord(runTimer.Elapsed);
+        if (!PromptForTime(Localizer.Get("Edit total time", settings), currentText, allowEmpty: false, out string? editedText) ||
+            !TimeText.TryParse(editedText, out TimeSpan editedTime))
+        {
+            return;
+        }
+
+        runTimer.SetPracticeElapsed(editedTime);
+        splitTracker.ClampCompletedTimes(editedTime);
+        SyncBackgroundRuntimeState();
+        PublishTimerOverlaySnapshot();
         Invalidate();
     }
 
     private bool PromptForTime(string title, string value, bool allowEmpty, out string editedText)
     {
-        return TimeEditDialog.TryShow(this, settings, title, value, allowEmpty, out editedText);
-    }
-
-    private bool TryGetTimerRect(out Rectangle timerRect)
-    {
-        timerRect = Rectangle.Empty;
-        if (!TryGetLayout(out SplitLayout layout))
-        {
-            return false;
-        }
-
-        timerRect = layout.TimerRect;
-        return true;
+        string localEditedText = value;
+        bool accepted = RunWithSuspendedRuntimeOverlayPaint(() =>
+            RunWithReleasedTimerOverlayTopMost(() =>
+                TimeEditDialog.TryShow(this, settings, title, value, allowEmpty, out localEditedText)));
+        editedText = localEditedText;
+        return accepted;
     }
 
     private bool TryGetLayout(out SplitLayout layout)
     {
-        Rectangle bounds = ClientRectangle;
-        int statusCount = splitTracker.Statuses.Count;
-        int scalePercent = settings.Columns.ScalePercent;
-        if (hasCachedLayout &&
-            cachedLayoutBounds == bounds &&
-            cachedLayoutStatusCount == statusCount &&
-            cachedLayoutScalePercent == scalePercent)
+        if (overlayWindowsInitialized)
         {
-            layout = cachedLayout;
+            layout = overlayBoundsController.CurrentLayout.Layout;
             return true;
         }
 
         if (!SplitLayoutCalculator.TryCreate(
-                bounds,
-                statusCount,
+                ClientRectangle,
+                splitTracker.Statuses.Count,
                 RowGap,
                 value => OverlayRenderContext.ScaleInt(settings, value),
                 out layout))
         {
-            hasCachedLayout = false;
             return false;
         }
 
-        cachedLayout = layout;
-        cachedLayoutBounds = bounds;
-        cachedLayoutStatusCount = statusCount;
-        cachedLayoutScalePercent = scalePercent;
-        hasCachedLayout = true;
         return true;
     }
 

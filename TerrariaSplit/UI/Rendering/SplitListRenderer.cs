@@ -169,7 +169,7 @@ internal static class SplitListRenderer
                 resources,
                 iconRect,
                 status,
-                opacity,
+                opacity * OverlayTextStyles.GetIconOpacity(context.Settings),
                 wheelScale,
                 context.Settings.EnableDefeatedBossIconLighting &&
                     rowIndex == GetCurrentSplitHighlightIndex(context));
@@ -199,7 +199,8 @@ internal static class SplitListRenderer
                 timeStyle,
                 timeRect,
                 ContentAlignment.MiddleRight,
-                opacity);
+                opacity * OverlayTextStyles.GetTimeTextOpacity(context.Settings),
+                supersampleEffects: false);
         }
 
         if (columns.Delta is Rectangle deltaRect)
@@ -229,7 +230,8 @@ internal static class SplitListRenderer
                 deltaStyle with { Fill = deltaColor },
                 deltaRect,
                 ContentAlignment.MiddleLeft,
-                opacity);
+                opacity * OverlayTextStyles.GetDeltaTextOpacity(context.Settings),
+                supersampleEffects: false);
         }
     }
 

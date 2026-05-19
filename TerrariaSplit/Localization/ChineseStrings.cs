@@ -17,7 +17,22 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
         { "Sounds", "声音" },
         { "Advanced", "高级" },
         { "Automation", "自动化" },
+        { "Auto", "自动" },
+        { "Fixed", "固定" },
         { "Terraria UI scale enhancement", "Terraria UI 缩放增强" },
+        { "Ready refresh", "Ready 刷新" },
+        { "Running overlay refresh", "跑表中窗口刷新" },
+        { "Timer sampling Hz", "计时采样 Hz" },
+        { "UI control Hz", "UI 控制 Hz" },
+        { "Status paint Hz", "状态窗绘制 Hz" },
+        { "Timer paint mode", "计时器绘制模式" },
+        { "Timer paint Hz", "计时器绘制 Hz" },
+        { "Used after Terraria is attached and memory is ready.", "在 Terraria 已附加且内存就绪后使用。" },
+        { "These values are used while the timer is running in a world. Auto timer paint follows the current display refresh rate.", "这些值会在世界内且计时器正在运行时使用。自动计时器绘制会跟随当前显示器刷新率。" },
+        { "Timer overlay refresh", "计时器窗口刷新" },
+        { "Refresh mode", "刷新模式" },
+        { "Refresh rate Hz", "刷新频率 Hz" },
+        { "Auto follows the current display refresh rate. Fixed uses the entered Hz value.", "自动会跟随当前显示器刷新率；固定会使用输入的 Hz 值。" },
         { "Raises Terraria's in-game UI scale slider limit from 200% to 300%.", "将游戏内 UI 缩放上限从 200% 提高到 300%。" },
         { "If Terraria's options menu was already opened before enabling, restart Terraria for the change to take effect.", "如果启用前已经打开过 Terraria 选项菜单，可能需要重启 Terraria 后生效。" },
         { "This changes the running Terraria process memory; enable with caution.", "该功能会修改正在运行的 Terraria 进程内存，启用需谨慎。" },
@@ -56,6 +71,7 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
         { "Outline", "描边" },
         { "Shadow", "阴影" },
         { "Split", "分段" },
+        { "Opacity %", "不透明度 %" },
         { "Shadow %", "阴影 %" },
         { "Outline thickness %", "描边厚度 %" },
         { "Main timer", "主计时器" },
@@ -139,7 +155,7 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
         { "Capture Background", "捕获背景" },
         { "Background", "背景" },
         { "Transparent", "透明" },
-        { "Cumulative", "累计" },
+        { "Cumulative", "累积" },
         { "No response updates automatically in {0}s.", "{0}秒内无响应将自动更新。" },
         { "Segment time", "分段时间" },
         { "Split time", "累计时间" },
@@ -196,7 +212,7 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
         { "BOSS", "BOSS" },
         { "BOSS Group", "BOSS 分组" },
         { "Enabled", "启用" },
-        { "Segment", "分组" },
+        { "Segment", "分段" },
         { "Group", "分组" },
         { "Settings...", "设置..." },
         { "Switch config", "切换配置" },
@@ -350,9 +366,17 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Game state", "\u6E38\u620F\u72B6\u6001" }
       , { "Timer sampling", "\u8BA1\u65F6\u91C7\u6837\u9891\u7387" }
       , { "UI control", "UI \u63A7\u5236\u9891\u7387" }
+      , { "Status paint", "\u72B6\u6001\u7A97\u7ED8\u5236\u9891\u7387" }
+      , { "Timer paint", "\u8BA1\u65F6\u5668\u7ED8\u5236\u9891\u7387" }
+      , { "Display refresh", "\u663E\u793A\u5668\u5237\u65B0\u7387" }
       , { "UI paint", "UI \u7ED8\u5236\u9891\u7387" }
       , { "configured {0}, actual {1}", "\u914D\u7F6E {0}\uFF0C\u5B9E\u9645 {1}" }
+      , { "configured {0}, actual {1}, avg {2}, max {3}", "\u914D\u7F6E {0}\uFF0C\u5B9E\u9645 {1}\uFF0C\u5E73\u5747 {2}\uFF0C\u6700\u5927 {3}" }
+      , { "configured {0}, waiting {1}", "\u914D\u7F6E {0}\uFF0C{1}" }
+      , { "configured {0}, actual {1}, avg {2}, max {3}, jitter {4}", "\u914D\u7F6E {0}\uFF0C\u5B9E\u9645 {1}\uFF0C\u5E73\u5747 {2}\uFF0C\u6700\u5927 {3}\uFF0C\u6296\u52A8 {4}" }
       , { "Waiting for samples", "\u7B49\u5F85\u91C7\u6837" }
+      , { "Waiting for attached memory", "\u7B49\u5F85\u9644\u52A0\u5185\u5B58" }
+      , { "Waiting for timer start", "\u7B49\u5F85\u8BA1\u65F6\u5F00\u59CB" }
       , { "Process architecture", "\u8FDB\u7A0B\u67B6\u6784" }
       , { "Process path", "\u8FDB\u7A0B\u8DEF\u5F84" }
       , { "Process version", "\u8FDB\u7A0B\u7248\u672C" }

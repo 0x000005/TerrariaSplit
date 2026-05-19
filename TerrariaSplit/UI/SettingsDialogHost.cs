@@ -1,0 +1,204 @@
+using System.Drawing;
+using System.Windows.Forms;
+
+namespace TerrariaSplit;
+
+internal sealed class SettingsDialogHost : IDisposable
+{
+    private readonly AppSettings initialSettings;
+    private readonly Func<RuntimePerformanceDiagnostics> runtimeDiagnosticsProvider;
+    private readonly Func<RuntimeDebugSnapshot> runtimeDebugSnapshotProvider;
+    private readonly Action<Action> dispatchToOwner;
+    private readonly Action<AppSettings> appliedCallback;
+    private readonly Action<SettingsDialogResult> closedCallback;
+    private readonly bool topMost;
+    private readonly Rectangle ownerBounds;
+    private readonly object sync = new();
+    private Thread? thread;
+    private SettingsForm? form;
+    private bool started;
+    private bool disposed;
+
+    public SettingsDialogHost(
+        AppSettings initialSettings,
+        Func<RuntimePerformanceDiagnostics> runtimeDiagnosticsProvider,
+        Func<RuntimeDebugSnapshot> runtimeDebugSnapshotProvider,
+        Action<Action> dispatchToOwner,
+        Action<AppSettings> appliedCallback,
+        Action<SettingsDialogResult> closedCallback,
+        bool topMost,
+        Rectangle ownerBounds)
+    {
+        this.initialSettings = AppSettingsStore.Clone(initialSettings);
+        this.runtimeDiagnosticsProvider = runtimeDiagnosticsProvider;
+        this.runtimeDebugSnapshotProvider = runtimeDebugSnapshotProvider;
+        this.dispatchToOwner = dispatchToOwner;
+        this.appliedCallback = appliedCallback;
+        this.closedCallback = closedCallback;
+        this.topMost = topMost;
+        this.ownerBounds = ownerBounds;
+    }
+
+    public void Show()
+    {
+        lock (sync)
+        {
+            if (started || disposed)
+            {
+                return;
+            }
+
+            started = true;
+            thread = new Thread(ThreadEntry)
+            {
+                IsBackground = true,
+                Name = "TerrariaSplit Settings UI"
+            };
+            thread.SetApartmentState(ApartmentState.STA);
+            thread.Start();
+        }
+    }
+
+    public void TryActivate()
+    {
+        SettingsForm? currentForm;
+        lock (sync)
+        {
+            currentForm = form;
+        }
+
+        if (currentForm is null || currentForm.IsDisposed || !currentForm.IsHandleCreated)
+        {
+            return;
+        }
+
+        try
+        {
+            currentForm.BeginInvoke(new Action(() =>
+            {
+                if (currentForm.IsDisposed)
+                {
+                    return;
+                }
+
+                if (currentForm.WindowState == FormWindowState.Minimized)
+                {
+                    currentForm.WindowState = FormWindowState.Normal;
+                }
+
+                currentForm.Activate();
+                currentForm.BringToFront();
+            }));
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+        catch (InvalidOperationException)
+        {
+        }
+    }
+
+    public void Dispose()
+    {
+        Thread? currentThread;
+        SettingsForm? currentForm;
+        lock (sync)
+        {
+            if (disposed)
+            {
+                return;
+            }
+
+            disposed = true;
+            currentThread = thread;
+            currentForm = form;
+        }
+
+        if (currentForm is not null && !currentForm.IsDisposed && currentForm.IsHandleCreated)
+        {
+            try
+            {
+                currentForm.BeginInvoke(new Action(currentForm.Close));
+            }
+            catch (ObjectDisposedException)
+            {
+            }
+            catch (InvalidOperationException)
+            {
+            }
+        }
+
+        if (currentThread is not null &&
+            currentThread.IsAlive &&
+            currentThread.ManagedThreadId != Environment.CurrentManagedThreadId)
+        {
+            currentThread.Join(1000);
+        }
+    }
+
+    private void ThreadEntry()
+    {
+        SettingsDialogResult result;
+        using var dialog = new SettingsForm(
+            initialSettings,
+            runtimeDiagnosticsProvider,
+            runtimeDebugSnapshotProvider);
+        lock (sync)
+        {
+            if (disposed)
+            {
+                return;
+            }
+
+            form = dialog;
+        }
+
+        dialog.TopMost = topMost;
+        dialog.StartPosition = FormStartPosition.Manual;
+        dialog.Location = ResolveStartLocation(dialog.Size);
+        dialog.Applied += (_, _) =>
+        {
+            AppSettings applied = AppSettingsStore.Clone(dialog.Result);
+            DispatchToOwner(() => appliedCallback(applied));
+        };
+
+        DialogResult dialogResult = dialog.ShowDialog();
+        result = new SettingsDialogResult(dialogResult, AppSettingsStore.Clone(dialog.Result));
+
+        lock (sync)
+        {
+            form = null;
+            thread = null;
+        }
+
+        DispatchToOwner(() => closedCallback(result));
+    }
+
+    private Point ResolveStartLocation(Size dialogSize)
+    {
+        Rectangle targetArea = ownerBounds.Width > 0 && ownerBounds.Height > 0
+            ? ownerBounds
+            : Screen.PrimaryScreen?.WorkingArea ?? new Rectangle(0, 0, 1920, 1080);
+        int x = targetArea.Left + Math.Max(0, (targetArea.Width - dialogSize.Width) / 2);
+        int y = targetArea.Top + Math.Max(0, (targetArea.Height - dialogSize.Height) / 2);
+        return new Point(x, y);
+    }
+
+    private void DispatchToOwner(Action action)
+    {
+        try
+        {
+            dispatchToOwner(action);
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+        catch (InvalidOperationException)
+        {
+        }
+    }
+}
+
+internal readonly record struct SettingsDialogResult(
+    DialogResult DialogResult,
+    AppSettings Result);

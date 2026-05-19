@@ -318,6 +318,11 @@ internal static class MainShellRefactorTests
             return snapshot;
         }
 
+        public TerrariaWatcherDiagnostics GetDiagnostics()
+        {
+            return TerrariaWatcherDiagnosticsDefaults.Empty;
+        }
+
         public int PollCount => Volatile.Read(ref pollCount);
 
         public void Dispose()
@@ -345,6 +350,11 @@ internal static class MainShellRefactorTests
             gate.Wait();
             Interlocked.Increment(ref completedCount);
             return snapshot;
+        }
+
+        public TerrariaWatcherDiagnostics GetDiagnostics()
+        {
+            return TerrariaWatcherDiagnosticsDefaults.Empty;
         }
 
         public void Release()
@@ -380,6 +390,11 @@ internal static class MainShellRefactorTests
             }
 
             return snapshots[^1];
+        }
+
+        public TerrariaWatcherDiagnostics GetDiagnostics()
+        {
+            return TerrariaWatcherDiagnosticsDefaults.Empty;
         }
 
         public void Dispose()

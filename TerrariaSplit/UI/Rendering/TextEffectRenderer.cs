@@ -42,7 +42,8 @@ internal static class TextEffectRenderer
         TextRenderStyle style,
         Rectangle bounds,
         ContentAlignment alignment,
-        float opacity)
+        float opacity,
+        bool supersampleEffects = true)
     {
         if (string.IsNullOrEmpty(text) || opacity <= 0.01f)
         {
@@ -65,12 +66,24 @@ internal static class TextEffectRenderer
 
         if (HasTextEffects(style))
         {
+            if (!supersampleEffects && style.OutlineThicknessPercent <= 0)
+            {
+                DrawShadowedStringDirect(graphics, text, font, style, bounds, format, opacity);
+                return;
+            }
+
             using GraphicsPath path = CreateTextPath(
                 graphics,
                 text,
                 font,
                 new RectangleF(bounds.X, bounds.Y, bounds.Width, bounds.Height),
                 format);
+            if (!supersampleEffects)
+            {
+                DrawStyledPathDirect(graphics, path, font, style, opacity);
+                return;
+            }
+
             DrawSupersampledTextLayer(
                 graphics,
                 path,
@@ -97,7 +110,8 @@ internal static class TextEffectRenderer
         float x,
         float y,
         StringFormat format,
-        float opacity)
+        float opacity,
+        bool supersampleEffects = true)
     {
         if (string.IsNullOrEmpty(text) || opacity <= 0.01f)
         {
@@ -106,7 +120,19 @@ internal static class TextEffectRenderer
 
         if (HasTextEffects(style))
         {
+            if (!supersampleEffects && style.OutlineThicknessPercent <= 0)
+            {
+                DrawShadowedStringDirect(graphics, text, font, style, x, y, format, opacity);
+                return;
+            }
+
             using GraphicsPath path = CreateTextPath(graphics, text, font, x, y, format);
+            if (!supersampleEffects)
+            {
+                DrawStyledPathDirect(graphics, path, font, style, opacity);
+                return;
+            }
+
             DrawSupersampledTextLayer(
                 graphics,
                 path,
@@ -423,26 +449,76 @@ internal static class TextEffectRenderer
 
         if (style.OutlineThicknessPercent > 0)
         {
-            using GraphicsPath outlinePath = CreateWidenedOutlinePath(
-                path,
-                GetTextOutlineRadius(graphics, font, style.OutlineThicknessPercent));
-            using var outlineBrush = new SolidBrush(WithOpacity(style.Outline, opacity));
-            graphics.FillPath(outlineBrush, outlinePath);
+            float radius = GetTextOutlineRadius(graphics, font, style.OutlineThicknessPercent);
+            using var outlinePen = new Pen(WithOpacity(style.Outline, opacity), Math.Max(0.2f, radius * 2f))
+            {
+                LineJoin = LineJoin.Round,
+                StartCap = LineCap.Round,
+                EndCap = LineCap.Round
+            };
+            graphics.DrawPath(outlinePen, path);
         }
     }
 
-    private static GraphicsPath CreateWidenedOutlinePath(GraphicsPath path, float radius)
+    private static void DrawStyledPathDirect(
+        Graphics graphics,
+        GraphicsPath path,
+        Font font,
+        TextRenderStyle style,
+        float opacity)
     {
-        GraphicsPath outlinePath = (GraphicsPath)path.Clone();
-        using var outlinePen = new Pen(Color.Black, Math.Max(0.2f, radius * 2f))
+        if (path.PointCount == 0)
         {
-            LineJoin = LineJoin.Round,
-            StartCap = LineCap.Round,
-            EndCap = LineCap.Round
-        };
-        outlinePath.Widen(outlinePen);
+            return;
+        }
 
-        return outlinePath;
+        DrawTextEffects(graphics, path, font, style, opacity);
+        using var fillBrush = new SolidBrush(WithOpacity(style.Fill, opacity));
+        graphics.FillPath(fillBrush, path);
+    }
+
+    private static void DrawShadowedStringDirect(
+        Graphics graphics,
+        string text,
+        Font font,
+        TextRenderStyle style,
+        Rectangle bounds,
+        StringFormat format,
+        float opacity)
+    {
+        float shadowOpacity = GetTextShadowOpacity(style.ShadowPercent);
+        if (shadowOpacity > 0f)
+        {
+            int offset = (int)Math.Round(GetTextShadowOffset(graphics, font));
+            Rectangle shadowBounds = new(bounds.X + offset, bounds.Y + offset, bounds.Width, bounds.Height);
+            using var shadowBrush = new SolidBrush(WithOpacity(style.Shadow, opacity * shadowOpacity));
+            graphics.DrawString(text, font, shadowBrush, shadowBounds, format);
+        }
+
+        using var fillBrush = new SolidBrush(WithOpacity(style.Fill, opacity));
+        graphics.DrawString(text, font, fillBrush, bounds, format);
+    }
+
+    private static void DrawShadowedStringDirect(
+        Graphics graphics,
+        string text,
+        Font font,
+        TextRenderStyle style,
+        float x,
+        float y,
+        StringFormat format,
+        float opacity)
+    {
+        float shadowOpacity = GetTextShadowOpacity(style.ShadowPercent);
+        if (shadowOpacity > 0f)
+        {
+            float offset = GetTextShadowOffset(graphics, font);
+            using var shadowBrush = new SolidBrush(WithOpacity(style.Shadow, opacity * shadowOpacity));
+            graphics.DrawString(text, font, shadowBrush, x + offset, y + offset, format);
+        }
+
+        using var fillBrush = new SolidBrush(WithOpacity(style.Fill, opacity));
+        graphics.DrawString(text, font, fillBrush, x, y, format);
     }
 
     private static float GetTextShadowOpacity(int shadowPercent)
@@ -463,7 +539,7 @@ internal static class TextEffectRenderer
 
     private static float GetTextOutlineRadius(Graphics graphics, Font font, int thicknessPercent)
     {
-        float amount = Math.Clamp(thicknessPercent, 0, 100) / 100f;
+        float amount = Math.Clamp(thicknessPercent, 0, 200) / 200f;
         float radius = GetFontPixelsPerEm(graphics, font) * 0.075f * amount + 0.15f;
         return Math.Clamp(radius, 0.2f, 3.5f);
     }

@@ -6,6 +6,7 @@ internal sealed class SettingsPageContext
 {
     private readonly Action<SettingsModelChange> notifyModelChanged;
     private readonly Func<RuntimePerformanceDiagnostics> runtimeDiagnosticsProvider;
+    private readonly Func<RuntimeDebugSnapshot> runtimeDebugSnapshotProvider;
 
     public SettingsPageContext(
         SettingsForm owner,
@@ -13,6 +14,7 @@ internal sealed class SettingsPageContext
         SettingsUiFactory factory,
         SettingsDialogService dialogs,
         Func<RuntimePerformanceDiagnostics> runtimeDiagnosticsProvider,
+        Func<RuntimeDebugSnapshot> runtimeDebugSnapshotProvider,
         Action<SettingsModelChange> notifyModelChanged)
     {
         Owner = owner;
@@ -20,6 +22,7 @@ internal sealed class SettingsPageContext
         Factory = factory;
         Dialogs = dialogs;
         this.runtimeDiagnosticsProvider = runtimeDiagnosticsProvider;
+        this.runtimeDebugSnapshotProvider = runtimeDebugSnapshotProvider;
         this.notifyModelChanged = notifyModelChanged;
     }
 
@@ -44,6 +47,11 @@ internal sealed class SettingsPageContext
     public RuntimePerformanceDiagnostics GetRuntimeDiagnostics()
     {
         return runtimeDiagnosticsProvider();
+    }
+
+    public RuntimeDebugSnapshot GetRuntimeDebugSnapshot()
+    {
+        return runtimeDebugSnapshotProvider();
     }
 
     public void NotifyModelChanged(SettingsModelChange change)

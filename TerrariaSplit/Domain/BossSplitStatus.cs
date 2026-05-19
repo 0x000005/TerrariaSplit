@@ -35,6 +35,13 @@ internal sealed class BossSplitStatus
         return new BossSplitStatusState(Time, IsSkipped);
     }
 
+    public BossSplitStatus CreateRenderCopy()
+    {
+        var copy = new BossSplitStatus(Definition);
+        copy.ApplyState(CaptureState());
+        return copy;
+    }
+
     public void ApplyState(BossSplitStatusState state)
     {
         Time = state.Time;

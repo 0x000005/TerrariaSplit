@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Drawing;
 using System.Reflection;
 using System.Windows.Forms;
@@ -9,11 +10,14 @@ var legacyTests = new (string Name, Action Test)[]
     ("SignaturePattern matches wildcard bytes", TestSignaturePatternWildcard),
     ("SplitTimerFormatter formats minute and hour values", TestSplitTimerFormatter),
     ("Rolling performance counter keeps a bounded window", TestRollingPerformanceCounter),
+    ("Runtime performance tracker separates paint ticks from completed paints", TestRuntimePerformancePaintDiagnostics),
     ("SplitTimer clamps practice time at zero", TestSplitTimerPracticeClamp),
     ("BossRouteGroups groups enabled entries by segment", TestBossRouteGroups),
     ("TerrariaMenuGeometry maps 900p menu coordinates", TestTerrariaMenuGeometry),
     ("Localizer returns English fallback and Chinese Crimson", TestLocalizer),
+    ("JsonFileStore writes settings atomically", TestJsonFileStoreWritesAtomically),
     ("SettingsNormalizer clamps auto-create timings", TestSettingsNormalize),
+    ("SettingsNormalizer normalizes timer overlay refresh settings", TestSettingsNormalizeTimerOverlayRefresh),
     ("SettingsNormalizer normalizes practice world slots", TestSettingsNormalizePracticeWorlds),
     ("SettingsNormalizer clamps text effects", TestSettingsNormalizeTextEffects),
     ("Hotkey validator rejects reserved keys", TestHotkeyValidatorRejectsReservedKeys),
@@ -34,19 +38,24 @@ var legacyTests = new (string Name, Action Test)[]
     ("Settings form locks reference controls when PB reference is enabled", TestSettingsFormLocksReferenceControlsForPersonalBestReference),
     ("Settings form applies text outline and shadow colors", TestSettingsFormAppliesTextOutlineAndShadowColors),
     ("Main form preserves size when applying non-layout settings", TestMainFormPreservesSizeWhenApplyingNonLayoutSettings),
+    ("Main form settings apply finalizes current run before reloading definitions", TestMainFormSettingsApplyFinalizesCurrentRunBeforeReload),
+    ("Main form initializes overlay layout with current split count", TestMainFormInitializesOverlayLayoutWithCurrentSplitCount),
     ("Main form scales size when global scale changes", TestMainFormScalesSizeWhenGlobalScaleChanges),
     ("Main form adjusts width when split columns change", TestMainFormAdjustsWidthWhenSplitColumnsChange),
     ("Settings form applies current delta gradient option", TestSettingsFormAppliesCurrentDeltaGradientOption),
     ("Settings form applies advanced UI scale patch option", TestSettingsFormAppliesAdvancedUiScalePatchOption),
+    ("Settings form applies timer overlay refresh settings", TestSettingsFormAppliesTimerOverlayRefreshSettings),
     ("Settings form keeps uncreated animation fields unchanged", TestSettingsFormKeepsUncreatedAnimationFieldsUnchanged),
     ("Terraria UI scale patch rewrites target IL constants", TestTerrariaUiScalePatchPlan),
     ("Zenith star catch stop stages follow world generation order", TestZenithStarCatchStageStopRules),
-    ("Zenith star catch speed uses logarithmic stepped range", TestZenithStarCatchSpeedRange)
+    ("Zenith star catch speed uses logarithmic stepped range", TestZenithStarCatchSpeedRange),
+    ("Overlay composite layout derives status and timer windows from shared bounds", TestOverlayCompositeLayoutCalculator)
 };
 var tests = legacyTests
     .Concat(HotkeyTests.All())
     .Concat(AutomationRunnerTests.All())
     .Concat(LoadWorldValidationTests.All())
+    .Concat(HighPrecisionSchedulerTests.All())
     .Concat(MainShellRefactorTests.All())
     .Concat(RenderingTests.All())
     .Concat(WorldGenerationMemoryTests.All())
@@ -101,6 +110,49 @@ static void TestRollingPerformanceCounter()
     AssertEqual(8d, counter.MaxMilliseconds);
 }
 
+static void TestRuntimePerformancePaintDiagnostics()
+{
+    var tracker = new RuntimePerformanceTracker();
+    long baseTimestamp = Stopwatch.GetTimestamp();
+    long tenMilliseconds = (long)Math.Round(Stopwatch.Frequency * 0.01d);
+
+    tracker.RecordStatusPaintTick(new HighPrecisionSchedulerTick(
+        baseTimestamp,
+        baseTimestamp + 1,
+        TimeSpan.FromMilliseconds(10),
+        TimeSpan.FromMilliseconds(0.25)));
+    tracker.RecordStatusPaintTick(new HighPrecisionSchedulerTick(
+        baseTimestamp + tenMilliseconds,
+        baseTimestamp + tenMilliseconds + 2,
+        TimeSpan.FromMilliseconds(10),
+        TimeSpan.FromMilliseconds(0.5)));
+    tracker.RecordStatusPaintDispatchSkipped();
+
+    tracker.RecordTimerOverlayPaintTick(new HighPrecisionSchedulerTick(
+        baseTimestamp,
+        baseTimestamp + 1,
+        TimeSpan.FromMilliseconds(10),
+        TimeSpan.FromMilliseconds(0.75)));
+    tracker.RecordTimerOverlayPaintTick(new HighPrecisionSchedulerTick(
+        baseTimestamp + tenMilliseconds,
+        baseTimestamp + tenMilliseconds + 2,
+        TimeSpan.FromMilliseconds(10),
+        TimeSpan.FromMilliseconds(1)));
+    tracker.RecordTimerOverlayPaintDispatchSkipped();
+    tracker.RecordTimerOverlayPaintInputSkipped();
+
+    RuntimePerformanceDiagnostics snapshot = tracker.Snapshot();
+    AssertEqual(2, snapshot.StatusPaintTickCount);
+    AssertEqual(2, snapshot.TimerOverlayPaintTickCount);
+    AssertEqual(1, snapshot.StatusPaintDispatchSkipCount);
+    AssertEqual(1, snapshot.TimerOverlayPaintDispatchSkipCount);
+    AssertEqual(1, snapshot.TimerOverlayPaintInputSkipCount);
+    Nearly(10d, snapshot.ActualStatusPaintTickIntervalMilliseconds, 0.1d);
+    Nearly(10d, snapshot.ActualTimerOverlayPaintTickIntervalMilliseconds, 0.1d);
+    Nearly(0.375d, snapshot.AverageStatusPaintTickDelayMilliseconds, 0.001d);
+    Nearly(0.875d, snapshot.AverageTimerOverlayPaintTickDelayMilliseconds, 0.001d);
+}
+
 static void TestSplitTimerPracticeClamp()
 {
     var timer = new SplitTimer();
@@ -140,8 +192,40 @@ static void TestLocalizer()
 {
     AssertEqual("Crimson", Localizer.Get("Crimson", new AppSettings { Language = "English" }));
     AssertEqual("\u7329\u7EA2", Localizer.Get("Crimson", new AppSettings { Language = "\u4E2D\u6587" }));
+    AssertEqual("\u7D2F\u79EF", Localizer.Get("Cumulative", new AppSettings { Language = "\u4E2D\u6587" }));
+    AssertEqual("\u5206\u6BB5", Localizer.Get("Segment", new AppSettings { Language = "\u4E2D\u6587" }));
+    AssertEqual("\u4E0D\u900F\u660E\u5EA6 %", Localizer.Get("Opacity %", new AppSettings { Language = "\u4E2D\u6587" }));
+    AssertEqual("\u7B49\u5F85\u9644\u52A0\u5185\u5B58", Localizer.Get("Waiting for attached memory", new AppSettings { Language = "\u4E2D\u6587" }));
+    AssertEqual("\u7B49\u5F85\u8BA1\u65F6\u5F00\u59CB", Localizer.Get("Waiting for timer start", new AppSettings { Language = "\u4E2D\u6587" }));
     AssertEqual("\u5206\u6BB5\u65F6\u95F4", Localizer.Get("Segment time", new AppSettings { Language = "\u4E2D\u6587" }));
     AssertEqual("\u7D2F\u8BA1\u65F6\u95F4", Localizer.Get("Cumulative time", new AppSettings { Language = "\u4E2D\u6587" }));
+}
+
+static void TestJsonFileStoreWritesAtomically()
+{
+    string directory = Path.Combine(Directory.GetCurrentDirectory(), ".codex-json-store-tests", Guid.NewGuid().ToString("N"));
+    string settingsPath = Path.Combine(directory, "settings.json");
+    string activeProfilePath = Path.Combine(directory, "active-settings.txt");
+
+    try
+    {
+        var settings = new AppSettings { Language = "\u4E2D\u6587" };
+        AssertEqual(true, JsonFileStore.Write(settingsPath, settings, "test settings"));
+
+        AppSettings? loaded = JsonFileStore.Read<AppSettings>(settingsPath, "test settings");
+        AssertEqual("\u4E2D\u6587", loaded?.Language);
+
+        AssertEqual(true, JsonFileStore.WriteText(activeProfilePath, "profile.json", "test active settings profile"));
+        AssertEqual("profile.json", File.ReadAllText(activeProfilePath));
+        AssertEqual(0, Directory.EnumerateFiles(directory, "*.tmp").Count());
+    }
+    finally
+    {
+        if (Directory.Exists(directory))
+        {
+            Directory.Delete(directory, true);
+        }
+    }
 }
 
 static void TestSettingsNormalize()
@@ -178,6 +262,40 @@ static void TestSettingsNormalize()
     settings.Advanced = null!;
     SettingsNormalizer.Normalize(settings);
     AssertEqual(false, settings.Advanced.EnableTerrariaUiScalePatch);
+}
+
+static void TestSettingsNormalizeTimerOverlayRefresh()
+{
+    var settings = new AppSettings
+    {
+        Advanced = new AdvancedSettings
+        {
+            ReadyWatcherPollHz = 999,
+            ReadyUiControlHz = 1,
+            RunningStatusPaintHz = 999,
+            TimerOverlayRefreshMode = "weird",
+            TimerOverlayRefreshHz = 999
+        }
+    };
+
+    SettingsNormalizer.Normalize(settings);
+    AssertEqual(800, settings.Advanced.ReadyWatcherPollHz);
+    AssertEqual(50, settings.Advanced.ReadyUiControlHz);
+    AssertEqual(200, settings.Advanced.RunningStatusPaintHz);
+    AssertEqual(TimerOverlayRefreshModes.Auto, settings.Advanced.TimerOverlayRefreshMode);
+    AssertEqual(200, settings.Advanced.TimerOverlayRefreshHz);
+
+    settings.Advanced.ReadyWatcherPollHz = 1;
+    settings.Advanced.ReadyUiControlHz = 999;
+    settings.Advanced.RunningStatusPaintHz = 1;
+    settings.Advanced.TimerOverlayRefreshMode = TimerOverlayRefreshModes.Fixed;
+    settings.Advanced.TimerOverlayRefreshHz = 1;
+    SettingsNormalizer.Normalize(settings);
+    AssertEqual(100, settings.Advanced.ReadyWatcherPollHz);
+    AssertEqual(200, settings.Advanced.ReadyUiControlHz);
+    AssertEqual(50, settings.Advanced.RunningStatusPaintHz);
+    AssertEqual(TimerOverlayRefreshModes.Fixed, settings.Advanced.TimerOverlayRefreshMode);
+    AssertEqual(50, settings.Advanced.TimerOverlayRefreshHz);
 }
 
 static void TestSettingsNormalizePracticeWorlds()
@@ -218,29 +336,40 @@ static void TestSettingsNormalizeTextEffects()
     {
         TextEffects = new UiTextEffectSettings
         {
+            IconOpacityPercent = -1,
+            TimeOpacityPercent = 101,
             TimeShadowPercent = -1,
             TimeOutlineThicknessPercent = 101,
+            DeltaOpacityPercent = 900,
             DeltaShadowPercent = -99,
             DeltaOutlineThicknessPercent = 900,
+            TimerOpacityPercent = -1,
             TimerShadowPercent = -1,
             TimerOutlineThicknessPercent = 101,
+            TimerMillisecondsOpacityPercent = 142,
             TimerMillisecondsShadowPercent = 42,
             TimerMillisecondsOutlineThicknessPercent = 77
         }
     };
 
     SettingsNormalizer.Normalize(settings);
+    AssertEqual(0, settings.TextEffects.IconOpacityPercent);
+    AssertEqual(100, settings.TextEffects.TimeOpacityPercent);
     AssertEqual(0, settings.TextEffects.TimeShadowPercent);
-    AssertEqual(100, settings.TextEffects.TimeOutlineThicknessPercent);
+    AssertEqual(101, settings.TextEffects.TimeOutlineThicknessPercent);
+    AssertEqual(100, settings.TextEffects.DeltaOpacityPercent);
     AssertEqual(0, settings.TextEffects.DeltaShadowPercent);
-    AssertEqual(100, settings.TextEffects.DeltaOutlineThicknessPercent);
+    AssertEqual(200, settings.TextEffects.DeltaOutlineThicknessPercent);
+    AssertEqual(0, settings.TextEffects.TimerOpacityPercent);
     AssertEqual(0, settings.TextEffects.TimerShadowPercent);
-    AssertEqual(100, settings.TextEffects.TimerOutlineThicknessPercent);
+    AssertEqual(101, settings.TextEffects.TimerOutlineThicknessPercent);
+    AssertEqual(100, settings.TextEffects.TimerMillisecondsOpacityPercent);
     AssertEqual(42, settings.TextEffects.TimerMillisecondsShadowPercent);
     AssertEqual(77, settings.TextEffects.TimerMillisecondsOutlineThicknessPercent);
 
     settings.TextEffects = null!;
     SettingsNormalizer.Normalize(settings);
+    AssertEqual(100, settings.TextEffects.TimeOpacityPercent);
     AssertEqual(0, settings.TextEffects.TimerShadowPercent);
 }
 
@@ -357,23 +486,33 @@ static void TestSettingsFormAppliesTextEffectsFromUiPage()
     {
         using var form = new SettingsForm(new AppSettings());
         UiSettingsPage page = form.PageHost.GetOrCreatePage<UiSettingsPage>(SettingsPageId.Ui);
+        page.IconOpacityBox.Text = "55";
+        page.TimeOpacityBox.Text = "65";
         page.TimeShadowBox.Text = "25";
         page.TimeOutlineThicknessBox.Text = "30";
+        page.DeltaOpacityBox.Text = "75";
         page.DeltaShadowBox.Text = "35";
         page.DeltaOutlineThicknessBox.Text = "40";
+        page.TimerOpacityBox.Text = "85";
         page.TimerShadowBox.Text = "25";
         page.TimerOutlineThicknessBox.Text = "30";
+        page.TimerMillisecondsOpacityBox.Text = "95";
         page.TimerMillisecondsShadowBox.Text = "45";
         page.TimerMillisecondsOutlineThicknessBox.Text = "50";
 
         form.ApplyForTests();
 
+        AssertEqual(55, form.Result.TextEffects.IconOpacityPercent);
+        AssertEqual(65, form.Result.TextEffects.TimeOpacityPercent);
         AssertEqual(25, form.Result.TextEffects.TimeShadowPercent);
         AssertEqual(30, form.Result.TextEffects.TimeOutlineThicknessPercent);
+        AssertEqual(75, form.Result.TextEffects.DeltaOpacityPercent);
         AssertEqual(35, form.Result.TextEffects.DeltaShadowPercent);
         AssertEqual(40, form.Result.TextEffects.DeltaOutlineThicknessPercent);
+        AssertEqual(85, form.Result.TextEffects.TimerOpacityPercent);
         AssertEqual(25, form.Result.TextEffects.TimerShadowPercent);
         AssertEqual(30, form.Result.TextEffects.TimerOutlineThicknessPercent);
+        AssertEqual(95, form.Result.TextEffects.TimerMillisecondsOpacityPercent);
         AssertEqual(45, form.Result.TextEffects.TimerMillisecondsShadowPercent);
         AssertEqual(50, form.Result.TextEffects.TimerMillisecondsOutlineThicknessPercent);
     });
@@ -537,6 +676,55 @@ static void TestZenithStarCatchSpeedRange()
     AssertEqual("23.0", AutoCreateZenithStarCatchSpeed.FormatMultiplier(800));
 }
 
+static void TestOverlayCompositeLayoutCalculator()
+{
+    var settings = new AppSettings();
+    settings.Columns.TimerOffsetY = -180;
+    Rectangle compositeBounds = new(100, 200, 900, 700);
+
+    AssertEqual(true, OverlayCompositeLayoutCalculator.TryCreate(
+        compositeBounds,
+        settings,
+        statusCount: 9,
+        baseRowGap: 9,
+        out OverlayCompositeLayout layout));
+    AssertEqual(compositeBounds, layout.CompositeBounds);
+    AssertEqual(compositeBounds.Width, layout.StatusLocalBounds.Width);
+    AssertEqual(compositeBounds.Width, layout.TimerLocalBounds.Width);
+    AssertEqual(0, layout.StatusLocalBounds.X);
+    AssertEqual(0, layout.TimerLocalBounds.X);
+    AssertEqual(0, layout.StatusLocalBounds.Y);
+    AssertEqual(true, layout.StatusLocalBounds.Height < compositeBounds.Height);
+    AssertEqual(true, layout.StatusLocalBounds.Contains(layout.Layout.GetRowRect(8)));
+    AssertEqual(true, layout.TimerLocalBounds.Height < compositeBounds.Height);
+    AssertEqual(true, layout.TimerLocalBounds.Contains(layout.Layout.TimerRect));
+    AssertEqual(true, layout.TimerLocalBounds.Contains(TimerRenderer.GetTimerTextBounds(settings, layout.Layout.TimerRect)));
+    AssertEqual(compositeBounds.Left, layout.StatusScreenBounds.Left);
+    AssertEqual(compositeBounds.Left, layout.TimerScreenBounds.Left);
+    AssertEqual(compositeBounds.Top, layout.StatusScreenBounds.Top);
+    AssertEqual(compositeBounds.Top + layout.TimerLocalBounds.Top, layout.TimerScreenBounds.Top);
+    AssertEqual(layout.TimerLocalBounds.Top, layout.MapTimerPointToComposite(Point.Empty).Y);
+
+    var controller = new OverlayBoundsController(baseRowGap: 9, settings, statusCount: 9);
+    controller.Initialize(compositeBounds);
+    Rectangle originalTimerScreenBounds = controller.CurrentLayout.TimerScreenBounds;
+    controller.HandleTimerResize(new Rectangle(
+        originalTimerScreenBounds.Left,
+        originalTimerScreenBounds.Top,
+        originalTimerScreenBounds.Width,
+        originalTimerScreenBounds.Height + 50));
+    AssertEqual(compositeBounds.Height + 50, controller.CompositeBounds.Height);
+
+    Rectangle resizedComposite = controller.CompositeBounds;
+    Rectangle originalStatusScreenBounds = controller.CurrentLayout.StatusScreenBounds;
+    controller.HandleStatusResize(new Rectangle(
+        originalStatusScreenBounds.Left,
+        originalStatusScreenBounds.Top,
+        originalStatusScreenBounds.Width + 40,
+        originalStatusScreenBounds.Height));
+    AssertEqual(resizedComposite.Width + 40, controller.CompositeBounds.Width);
+}
+
 static void TestSettingsFormAppliesResumeSound()
 {
     RunSta(() =>
@@ -629,6 +817,70 @@ static void TestMainFormPreservesSizeWhenApplyingNonLayoutSettings()
         InvokePrivate(form, "ApplyLoadedSettings", previousSettings);
 
         AssertEqual(new Size(1000, 900), form.Size);
+    });
+}
+
+static void TestMainFormSettingsApplyFinalizesCurrentRunBeforeReload()
+{
+    RunSta(() =>
+    {
+        using var form = new MainForm();
+        _ = form.Handle;
+
+        AppSettings previousSettings = GetPrivateField<AppSettings>(form, "settings");
+        var nextSettings = AppSettingsStore.Clone(previousSettings);
+        nextSettings.AutoUpdatePersonalBestData = false;
+        nextSettings.AskBeforeUpdatingPersonalBestData = false;
+        nextSettings.AlwaysOnTop = !nextSettings.AlwaysOnTop;
+
+        RunSessionController runSession = GetPrivateField<RunSessionController>(form, "runSession");
+        BossSplitStatus skeletronStatus = runSession.SplitTracker.Statuses.First(status =>
+            status.Definition.BossIds.Any(bossId => string.Equals(
+                bossId,
+                BossSplitDefinitions.Skeletron,
+                StringComparison.OrdinalIgnoreCase)));
+        TimeSpan expectedTime = TimeSpan.FromSeconds(30);
+        skeletronStatus.SetTime(expectedTime);
+
+        string lastRunDirectory = SplitTimeSetStore.LastRunDirectory;
+        DirectorySnapshot lastRunSnapshot = SnapshotDirectory(lastRunDirectory);
+        try
+        {
+            DeleteDirectoryIfExists(lastRunDirectory);
+
+            InvokePrivate(form, "ApplySettings", nextSettings);
+
+            Dictionary<string, string> lastRun = SplitTimeSetStore.LoadLatestLastRun();
+            AssertEqual(TimeText.FormatRecord(expectedTime), lastRun[BossSplitDefinitions.Skeletron]);
+        }
+        finally
+        {
+            RestoreDirectory(lastRunDirectory, lastRunSnapshot);
+        }
+    });
+}
+
+static void TestMainFormInitializesOverlayLayoutWithCurrentSplitCount()
+{
+    RunSta(() =>
+    {
+        using var form = new MainForm();
+        _ = form.Handle;
+
+        OverlayBoundsController boundsController = GetPrivateField<OverlayBoundsController>(form, "overlayBoundsController");
+        RunSessionController runSession = GetPrivateField<RunSessionController>(form, "runSession");
+        BossSplitTracker splitTracker = runSession.SplitTracker;
+        Rectangle compositeBounds = boundsController.CompositeBounds;
+        AppSettings settings = GetPrivateField<AppSettings>(form, "settings");
+
+        AssertEqual(true, SplitLayoutCalculator.TryCreate(
+            new Rectangle(0, 0, compositeBounds.Width, compositeBounds.Height),
+            splitTracker.Statuses.Count,
+            9,
+            value => OverlayRenderContext.ScaleInt(settings, value),
+            out SplitLayout expectedLayout));
+        AssertEqual(expectedLayout.FirstRowRect, boundsController.CurrentLayout.Layout.FirstRowRect);
+        AssertEqual(expectedLayout.TimerRect, boundsController.CurrentLayout.Layout.TimerRect);
     });
 }
 
@@ -734,6 +986,31 @@ static void TestSettingsFormAppliesAdvancedUiScalePatchOption()
         form.ApplyForTests();
 
         AssertEqual(true, form.Result.Advanced.EnableTerrariaUiScalePatch);
+    });
+}
+
+static void TestSettingsFormAppliesTimerOverlayRefreshSettings()
+{
+    RunSta(() =>
+    {
+        using var form = new SettingsForm(new AppSettings());
+        AdvancedSettingsPage page = form.PageHost.GetOrCreatePage<AdvancedSettingsPage>(SettingsPageId.Advanced);
+
+        page.ReadyWatcherPollHzBox.SelectedIndex = 2;
+        page.ReadyUiControlHzBox.SelectedIndex = 3;
+        page.RunningStatusPaintHzBox.SelectedIndex = 0;
+        AssertEqual(false, page.TimerOverlayRefreshHzBox.Enabled);
+        page.TimerOverlayRefreshModeBox.SelectedIndex = 1;
+        AssertEqual(true, page.TimerOverlayRefreshHzBox.Enabled);
+        page.TimerOverlayRefreshHzBox.SelectedIndex = 1;
+
+        form.ApplyForTests();
+
+        AssertEqual(400, form.Result.Advanced.ReadyWatcherPollHz);
+        AssertEqual(200, form.Result.Advanced.ReadyUiControlHz);
+        AssertEqual(50, form.Result.Advanced.RunningStatusPaintHz);
+        AssertEqual(TimerOverlayRefreshModes.Fixed, form.Result.Advanced.TimerOverlayRefreshMode);
+        AssertEqual(100, form.Result.Advanced.TimerOverlayRefreshHz);
     });
 }
 
@@ -865,6 +1142,31 @@ static void SetMainFormSettings(MainForm form, AppSettings settings)
     field.SetValue(form, AppSettingsStore.Clone(settings));
 }
 
+static T GetPrivateField<T>(object target, params string[] fieldNames)
+{
+    object? current = target;
+    Type? currentType = target.GetType();
+    foreach (string fieldName in fieldNames)
+    {
+        if (current is null || currentType is null)
+        {
+            throw new InvalidOperationException($"Field path {string.Join('.', fieldNames)} resolved to null before {fieldName}.");
+        }
+
+        FieldInfo field = currentType.GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)
+            ?? throw new InvalidOperationException($"Missing field {fieldName} on {currentType.Name}.");
+        current = field.GetValue(current);
+        currentType = current?.GetType();
+    }
+
+    if (current is not T value)
+    {
+        throw new InvalidOperationException($"Field path {string.Join('.', fieldNames)} was not a {typeof(T).Name}.");
+    }
+
+    return value;
+}
+
 static object? InvokePrivate(object target, string name, params object?[] args)
 {
     MethodInfo method = target.GetType().GetMethod(name, BindingFlags.Instance | BindingFlags.NonPublic)
@@ -887,3 +1189,59 @@ static void AssertEqual<T>(T expected, T actual)
         throw new InvalidOperationException($"Expected {expected}, got {actual}.");
     }
 }
+
+static DirectorySnapshot SnapshotDirectory(string path)
+{
+    if (!Directory.Exists(path))
+    {
+        return new DirectorySnapshot(false, new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase));
+    }
+
+    return new DirectorySnapshot(
+        true,
+        Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories)
+            .ToDictionary(
+                filePath => Path.GetRelativePath(path, filePath),
+                File.ReadAllBytes,
+                StringComparer.OrdinalIgnoreCase));
+}
+
+static void RestoreDirectory(string path, DirectorySnapshot snapshot)
+{
+    DeleteDirectoryIfExists(path);
+    if (!snapshot.Exists && snapshot.Files.Count == 0)
+    {
+        return;
+    }
+
+    Directory.CreateDirectory(path);
+    foreach ((string relativePath, byte[] content) in snapshot.Files)
+    {
+        string filePath = Path.Combine(path, relativePath);
+        string? directory = Path.GetDirectoryName(filePath);
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        File.WriteAllBytes(filePath, content);
+    }
+}
+
+static void DeleteDirectoryIfExists(string path)
+{
+    if (Directory.Exists(path))
+    {
+        Directory.Delete(path, true);
+    }
+}
+
+static void Nearly(double expected, double actual, double tolerance)
+{
+    if (Math.Abs(expected - actual) > tolerance)
+    {
+        throw new InvalidOperationException($"Expected {expected}, got {actual}.");
+    }
+}
+
+readonly record struct DirectorySnapshot(bool Exists, Dictionary<string, byte[]> Files);

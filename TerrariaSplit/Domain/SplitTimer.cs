@@ -35,6 +35,16 @@ internal sealed class SplitTimer
         return new SplitTimerState(Phase, elapsedBeforePause, runningSinceTimestamp);
     }
 
+    public static TimeSpan ElapsedAt(SplitTimerState state, long timestamp)
+    {
+        return state.Phase switch
+        {
+            SplitTimerPhase.Running => state.ElapsedBeforePause + ElapsedSince(state.RunningSinceTimestamp, timestamp),
+            SplitTimerPhase.Paused => state.ElapsedBeforePause,
+            _ => state.ElapsedBeforePause
+        };
+    }
+
     public void ApplyState(SplitTimerState state)
     {
         Phase = state.Phase;

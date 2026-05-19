@@ -1,5 +1,6 @@
 ﻿using System.Drawing;
 using System.Diagnostics;
+using System.Threading;
 using System.Windows.Forms;
 
 namespace TerrariaSplit;
@@ -8,8 +9,7 @@ internal sealed partial class MainForm : Form
 {
     private static readonly TimeSpan SplitCompletionFadeDuration = TimeSpan.FromSeconds(0.45);
     private static readonly TimeSpan SplitCompletionDeltaIntroGap = TimeSpan.FromSeconds(0.06);
-    private static readonly TimeSpan ControlTickInterval = TimeSpan.FromMilliseconds(5);
-    private static readonly TimeSpan TimerRenderInterval = TimeSpan.FromMilliseconds(10);
+    private static readonly TimeSpan DefaultControlTickInterval = TimeSpan.FromMilliseconds(5);
     private const int ResizeBorder = 8;
     private const int RowGap = 9;
     private const int WsExTransparent = 0x20;
@@ -19,8 +19,8 @@ internal sealed partial class MainForm : Form
     private readonly TerrariaWorldAutomation worldAutomation = new();
     private readonly MainFormContextMenuBuilder contextMenuBuilder = new();
     private readonly SoundPlayerService soundPlayer = new();
-    private readonly System.Windows.Forms.Timer controlTimer = new();
-    private readonly System.Windows.Forms.Timer renderTimer = new();
+    private readonly HighPrecisionScheduler controlScheduler;
+    private readonly HighPrecisionScheduler statusPaintScheduler;
     private readonly GlobalHotkeyManager hotkeyManager = new();
     private readonly Queue<TimerHotkeyRequest> pendingHotkeyRequests = new();
     private readonly OverlayRenderResources renderResources = new();
@@ -29,26 +29,36 @@ internal sealed partial class MainForm : Form
     private readonly RuntimePerformanceTracker performance = new();
     private readonly TerrariaMonitorCoordinator monitorCoordinator;
     private readonly OverlayWindowController overlayWindowController;
+    private readonly OverlayBoundsController overlayBoundsController;
+    private readonly TimerOverlayWindowHost timerOverlayHost;
+    private readonly object runtimeDebugSnapshotLock = new();
     private bool mouseClickThrough;
     private bool dragging;
     private Point dragStartCursor;
-    private Point dragStartLocation;
     private SplitCompletionAnimation? splitCompletionAnimation;
     private bool closeFinalizationPending;
     private bool closeFinalizationComplete;
     private bool settingsFormOpen;
+    private int runtimeOverlayPaintSuspensionCount;
     private string? lastHotkeyWarningText;
     private bool closing;
+    private bool runtimeResourcesDisposed;
     private string currentWindowText = string.Empty;
-    private bool hasCachedLayout;
-    private SplitLayout cachedLayout;
-    private Rectangle cachedLayoutBounds;
-    private int cachedLayoutStatusCount = -1;
-    private int cachedLayoutScalePercent;
     private long minimumAcceptedRuntimeCommandSequence;
+    private bool overlayWindowsInitialized;
+    private bool suppressStatusBoundsFeedback;
+    private bool timerOverlayTopMostReleasedForContextMenu;
+    private TimeSpan controlTickInterval = DefaultControlTickInterval;
+    private TimeSpan statusPaintInterval = RefreshRateSettings.ToInterval(AdvancedSettings.DefaultRunningStatusPaintHz);
+    private SettingsDialogHost? settingsDialogHost;
+    private long timerOverlaySettingsRevision;
+    private int controlTickDispatchPending;
+    private int statusPaintDispatchPending;
 
     private AppSettings settings = AppSettingsStore.Load();
+    private AppSettings timerOverlaySettingsSnapshot = new();
     private UiPalette palette;
+    private TerrariaWatcherDiagnostics watcherDiagnostics = TerrariaWatcherDiagnosticsDefaults.Empty;
     private TerrariaWatchSnapshot snapshot =
         new(false, null, false, null, TerrariaBossStates.Unknown, TerrariaWorldGenerationState.Unknown, false, "waiting for Terraria.exe");
 
@@ -58,6 +68,7 @@ internal sealed partial class MainForm : Form
 
     public MainForm()
     {
+        RefreshTimerOverlaySettingsSnapshot();
         palette = UiPalette.From(settings.Colors);
         monitorCoordinator = new TerrariaMonitorCoordinator(
             new TerrariaWorldWatcher(),
@@ -68,12 +79,24 @@ internal sealed partial class MainForm : Form
             this,
             graphics =>
             {
-                DrawOverlay(graphics);
+                DrawStatusOverlay(graphics);
                 return true;
             },
-            elapsed => performance.RecordPaint(elapsed));
+            elapsed => performance.RecordStatusPaint(elapsed));
+        overlayBoundsController = new OverlayBoundsController(RowGap, settings, runSession.SplitTracker.Statuses.Count);
+        overlayBoundsController.LayoutChanged += ApplyOverlayLayout;
+        timerOverlayHost = new TimerOverlayWindowHost(
+            callback => BeginInvoke(callback),
+            elapsed => performance.RecordTimerOverlayPaint(elapsed),
+            tick => performance.RecordTimerOverlayPaintTick(tick),
+            performance.RecordTimerOverlayPaintDispatchSkipped,
+            performance.RecordTimerOverlayPaintInputSkipped);
+        timerOverlayHost.DragDeltaRequested += delta => overlayBoundsController.MoveBy(delta);
+        timerOverlayHost.UserResizeBoundsChanged += bounds => overlayBoundsController.HandleTimerResize(bounds);
+        timerOverlayHost.RightClickRequested += HandleTimerOverlayRightClickRequested;
         IReadOnlyList<BossSplitDefinition> initialDefinitions = BossSplitDefinitions.Build(settings);
         runSession.SetDefinitions(initialDefinitions);
+        overlayBoundsController.UpdateContext(settings, runSession.SplitTracker.Statuses.Count);
         minimumAcceptedRuntimeCommandSequence = monitorCoordinator.SetRuntimeDefinitions(initialDefinitions);
         Text = "TerrariaSplit";
         TopMost = settings.AlwaysOnTop;
@@ -94,19 +117,34 @@ internal sealed partial class MainForm : Form
                 e.Cancel = true;
             }
         };
+        contextMenu.Closed += (_, _) =>
+        {
+            if (!timerOverlayTopMostReleasedForContextMenu)
+            {
+                return;
+            }
+
+            timerOverlayTopMostReleasedForContextMenu = false;
+            if (overlayWindowsInitialized && TopMost)
+            {
+                timerOverlayHost.ApplyTopMost(true);
+            }
+        };
         ContextMenuStrip = contextMenu;
 
-        controlTimer.Interval = (int)ControlTickInterval.TotalMilliseconds;
-        controlTimer.Tick += (_, _) => ControlTick();
-        controlTimer.Start();
+        controlScheduler = new HighPrecisionScheduler("TerrariaSplit UI control", _ => QueueControlTick());
+        statusPaintScheduler = new HighPrecisionScheduler("TerrariaSplit status paint", QueueStatusPaintTick);
 
-        renderTimer.Interval = (int)TimerRenderInterval.TotalMilliseconds;
-        renderTimer.Tick += (_, _) => RenderTick();
+        controlTickInterval = ResolveControlTickInterval();
+        controlScheduler.Start(controlTickInterval);
 
-        performance.ControlTickInterval = ControlTickInterval;
-        performance.TimerRenderInterval = TimerRenderInterval;
+        statusPaintInterval = ResolveRunningStatusPaintInterval();
+
+        performance.ControlTickInterval = controlTickInterval;
+        performance.StatusPaintInterval = statusPaintInterval;
         performance.WatcherPollInterval = monitorCoordinator.WatcherPollInterval;
         performance.ProcessLookupInterval = monitorCoordinator.ProcessLookupInterval;
+        monitorCoordinator.UpdateReadyWatcherPollInterval(ResolveReadyWatcherPollInterval());
     }
 
     protected override CreateParams CreateParams
@@ -128,6 +166,7 @@ internal sealed partial class MainForm : Form
     {
         base.OnHandleCreated(e);
         overlayWindowController.ApplyWindowStyle(mouseClickThrough);
+        InitializeOverlayWindows();
         if (!settingsFormOpen)
         {
             RegisterConfiguredHotkeys();
@@ -153,12 +192,14 @@ internal sealed partial class MainForm : Form
     {
         base.OnResize(e);
         overlayWindowController.QueueRender();
+        NotifyStatusBoundsChanged();
     }
 
     protected override void OnMove(EventArgs e)
     {
         base.OnMove(e);
         overlayWindowController.QueueRender();
+        NotifyStatusBoundsChanged();
     }
 
     private void UpdateContextMenu()
@@ -175,16 +216,39 @@ internal sealed partial class MainForm : Form
     protected override void OnFormClosed(FormClosedEventArgs e)
     {
         closing = true;
-        controlTimer.Stop();
-        renderTimer.Stop();
-        controlTimer.Dispose();
-        renderTimer.Dispose();
+        DisposeRuntimeResources();
+        base.OnFormClosed(e);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            closing = true;
+            DisposeRuntimeResources();
+        }
+
+        base.Dispose(disposing);
+    }
+
+    private void DisposeRuntimeResources()
+    {
+        if (runtimeResourcesDisposed)
+        {
+            return;
+        }
+
+        runtimeResourcesDisposed = true;
+        controlScheduler.Dispose();
+        statusPaintScheduler.Dispose();
         hotkeyManager.Dispose();
         monitorCoordinator.Dispose();
         worldAutomation.Dispose();
+        settingsDialogHost?.Dispose();
+        settingsDialogHost = null;
+        timerOverlayHost.Dispose();
         overlayWindowController.Dispose();
         renderResources.Dispose();
-        base.OnFormClosed(e);
     }
 
     protected override void OnHandleDestroyed(EventArgs e)
@@ -227,11 +291,15 @@ internal sealed partial class MainForm : Form
     protected override void OnMouseDown(MouseEventArgs e)
     {
         base.OnMouseDown(e);
-        if (e.Button == MouseButtons.Left)
+        if (e.Button == MouseButtons.Left &&
+            !OverlayResizeHitTest.IsResizeZone(
+                e.Location,
+                ClientSize,
+                ResizeBorder,
+                OverlayResizeEdges.Left | OverlayResizeEdges.Top | OverlayResizeEdges.Right | OverlayResizeEdges.Bottom))
         {
             dragging = true;
             dragStartCursor = Cursor.Position;
-            dragStartLocation = Location;
         }
     }
 
@@ -243,8 +311,15 @@ internal sealed partial class MainForm : Form
             return;
         }
 
-        Point delta = new(Cursor.Position.X - dragStartCursor.X, Cursor.Position.Y - dragStartCursor.Y);
-        Location = new Point(dragStartLocation.X + delta.X, dragStartLocation.Y + delta.Y);
+        Point currentCursor = Cursor.Position;
+        Point delta = new(currentCursor.X - dragStartCursor.X, currentCursor.Y - dragStartCursor.Y);
+        if (delta.X == 0 && delta.Y == 0)
+        {
+            return;
+        }
+
+        dragStartCursor = currentCursor;
+        overlayBoundsController.MoveBy(delta);
     }
 
     protected override void OnMouseUp(MouseEventArgs e)
@@ -263,11 +338,6 @@ internal sealed partial class MainForm : Form
 
     private bool IsEditablePracticePoint(Point point)
     {
-        if (TryGetTimerRect(out Rectangle timerRect) && timerRect.Contains(point))
-        {
-            return true;
-        }
-
         if (!TryGetSplitRowAt(point, out int rowIndex, out Rectangle rowRect))
         {
             return false;
@@ -297,14 +367,6 @@ internal sealed partial class MainForm : Form
         const int wmNcHitTest = 0x84;
         const int htTransparent = -1;
         const int htClient = 1;
-        const int htLeft = 10;
-        const int htRight = 11;
-        const int htTop = 12;
-        const int htTopLeft = 13;
-        const int htTopRight = 14;
-        const int htBottom = 15;
-        const int htBottomLeft = 16;
-        const int htBottomRight = 17;
 
         if (hotkeyManager.TryGetAction(m, out TimerHotkeyAction action))
         {
@@ -342,43 +404,14 @@ internal sealed partial class MainForm : Form
         int x = unchecked((short)(lParam & 0xFFFF));
         int y = unchecked((short)((lParam >> 16) & 0xFFFF));
         Point point = PointToClient(new Point(x, y));
-
-        bool left = point.X <= ResizeBorder;
-        bool right = point.X >= ClientSize.Width - ResizeBorder;
-        bool top = point.Y <= ResizeBorder;
-        bool bottom = point.Y >= ClientSize.Height - ResizeBorder;
-
-        if (left && top)
+        IntPtr? hit = OverlayResizeHitTest.Resolve(
+            point,
+            ClientSize,
+            ResizeBorder,
+            OverlayResizeEdges.Left | OverlayResizeEdges.Top | OverlayResizeEdges.Right | OverlayResizeEdges.Bottom);
+        if (hit.HasValue)
         {
-            m.Result = (IntPtr)htTopLeft;
-        }
-        else if (right && top)
-        {
-            m.Result = (IntPtr)htTopRight;
-        }
-        else if (left && bottom)
-        {
-            m.Result = (IntPtr)htBottomLeft;
-        }
-        else if (right && bottom)
-        {
-            m.Result = (IntPtr)htBottomRight;
-        }
-        else if (left)
-        {
-            m.Result = (IntPtr)htLeft;
-        }
-        else if (right)
-        {
-            m.Result = (IntPtr)htRight;
-        }
-        else if (top)
-        {
-            m.Result = (IntPtr)htTop;
-        }
-        else if (bottom)
-        {
-            m.Result = (IntPtr)htBottom;
+            m.Result = hit.Value;
         }
     }
 
@@ -398,9 +431,83 @@ internal sealed partial class MainForm : Form
         }
         finally
         {
-            UpdateRenderTimerState();
+            UpdateStatusPaintSchedulerState();
             performance.RecordControlTick(Stopwatch.GetElapsedTime(startTimestamp));
         }
+    }
+
+    private void QueueControlTick()
+    {
+        if (!CanDispatchToUiThread())
+        {
+            return;
+        }
+
+        if (Interlocked.Exchange(ref controlTickDispatchPending, 1) == 1)
+        {
+            return;
+        }
+
+        try
+        {
+            BeginInvoke(new Action(() =>
+            {
+                Interlocked.Exchange(ref controlTickDispatchPending, 0);
+                if (CanDispatchToUiThread())
+                {
+                    ControlTick();
+                }
+            }));
+        }
+        catch (ObjectDisposedException)
+        {
+            Interlocked.Exchange(ref controlTickDispatchPending, 0);
+        }
+        catch (InvalidOperationException)
+        {
+            Interlocked.Exchange(ref controlTickDispatchPending, 0);
+        }
+    }
+
+    private void QueueStatusPaintTick(HighPrecisionSchedulerTick tick)
+    {
+        performance.RecordStatusPaintTick(tick);
+
+        if (!CanDispatchToUiThread())
+        {
+            return;
+        }
+
+        if (Interlocked.Exchange(ref statusPaintDispatchPending, 1) == 1)
+        {
+            performance.RecordStatusPaintDispatchSkipped();
+            return;
+        }
+
+        try
+        {
+            BeginInvoke(new Action(() =>
+            {
+                Interlocked.Exchange(ref statusPaintDispatchPending, 0);
+                if (CanDispatchToUiThread())
+                {
+                    RenderStatusOverlayTick();
+                }
+            }));
+        }
+        catch (ObjectDisposedException)
+        {
+            Interlocked.Exchange(ref statusPaintDispatchPending, 0);
+        }
+        catch (InvalidOperationException)
+        {
+            Interlocked.Exchange(ref statusPaintDispatchPending, 0);
+        }
+    }
+
+    private bool CanDispatchToUiThread()
+    {
+        return !closing && IsHandleCreated && !IsDisposed && !Disposing;
     }
 
     private void ProcessUiTick()
@@ -433,36 +540,35 @@ internal sealed partial class MainForm : Form
         return forwardedRequests.ToArray();
     }
 
-    private void RenderTick()
+    private void RenderStatusOverlayTick()
     {
         if (splitCompletionAnimation is not null)
         {
-            Invalidate();
+            overlayWindowController.RenderImmediately();
             return;
         }
 
         if (runTimer.Phase == SplitTimerPhase.Running)
         {
-            // Tight dirty rectangles can leave stale glyph pixels in capture clients when
-            // the transparent overlay is repainted continuously.
-            Invalidate();
+            overlayWindowController.RenderImmediately();
             return;
         }
 
-        UpdateRenderTimerState();
+        UpdateStatusPaintSchedulerState();
     }
 
-    private void UpdateRenderTimerState()
+    private void UpdateStatusPaintSchedulerState()
     {
         bool shouldRun = !closing &&
+            runtimeOverlayPaintSuspensionCount <= 0 &&
             (runTimer.Phase == SplitTimerPhase.Running || splitCompletionAnimation is not null);
-        if (shouldRun && !renderTimer.Enabled)
+        if (shouldRun && !statusPaintScheduler.IsRunning)
         {
-            renderTimer.Start();
+            statusPaintScheduler.Start(statusPaintInterval);
         }
-        else if (!shouldRun && renderTimer.Enabled)
+        else if (!shouldRun && statusPaintScheduler.IsRunning)
         {
-            renderTimer.Stop();
+            statusPaintScheduler.Stop();
         }
     }
 
@@ -472,7 +578,12 @@ internal sealed partial class MainForm : Form
         performance.WatcherPollInterval = notification.NextPollInterval;
         performance.ProcessLookupInterval = notification.ProcessLookupInterval;
 
-        snapshot = notification.Snapshot;
+        lock (runtimeDebugSnapshotLock)
+        {
+            snapshot = notification.Snapshot;
+            watcherDiagnostics = notification.Diagnostics;
+        }
+        UpdateConfiguredRefreshIntervals();
         bool invalidateAll = false;
         if (notification.RuntimeCommandSequence >= minimumAcceptedRuntimeCommandSequence)
         {
@@ -485,7 +596,8 @@ internal sealed partial class MainForm : Form
         }
 
         ProcessUiTick();
-        UpdateRenderTimerState();
+        UpdateStatusPaintSchedulerState();
+        PublishTimerOverlaySnapshot();
         if (invalidateAll || !notification.Snapshot.Equals(notification.PreviousSnapshot))
         {
             Invalidate();
@@ -548,27 +660,19 @@ internal sealed partial class MainForm : Form
 
     private void InvalidateRuntimeRenderRegion()
     {
-        bool invalidated = false;
-        if (TryGetTimerRect(out Rectangle timerRect))
-        {
-            Invalidate(Rectangle.Inflate(timerRect, ScaleInt(6), ScaleInt(6)));
-            invalidated = true;
-        }
-
         if (settings.ShowEarlyDeltaTime &&
             splitTracker.CurrentIndex >= 0 &&
             splitTracker.CurrentIndex < splitTracker.Statuses.Count &&
             TryGetLayout(out SplitLayout layout))
         {
-            Rectangle rowRect = layout.GetRowRect(splitTracker.CurrentIndex);
+            Rectangle rowRect = overlayWindowsInitialized
+                ? overlayBoundsController.CurrentLayout.ToStatusLocal(layout.GetRowRect(splitTracker.CurrentIndex))
+                : layout.GetRowRect(splitTracker.CurrentIndex);
             Invalidate(Rectangle.Inflate(rowRect, ScaleInt(6), ScaleInt(6)));
-            invalidated = true;
+            return;
         }
 
-        if (!invalidated)
-        {
-            Invalidate();
-        }
+        Invalidate();
     }
 
     private void UpdateWindowTitle()
@@ -586,6 +690,14 @@ internal sealed partial class MainForm : Form
     internal RuntimePerformanceDiagnostics GetRuntimeDiagnostics()
     {
         return performance.Snapshot();
+    }
+
+    internal RuntimeDebugSnapshot GetRuntimeDebugSnapshot()
+    {
+        lock (runtimeDebugSnapshotLock)
+        {
+            return new RuntimeDebugSnapshot(snapshot, watcherDiagnostics, performance.Snapshot(), runTimer.Phase);
+        }
     }
 
     private TimerHotkeyRequest[] DrainPendingHotkeyRequests()
@@ -635,21 +747,24 @@ internal sealed partial class MainForm : Form
             SetMouseClickThrough(false);
         }
 
-        controlTimer.Stop();
-        renderTimer.Stop();
+        controlScheduler.Stop();
+        statusPaintScheduler.Stop();
         try
         {
-            using var form = new PersonalBestUpdatePromptForm(
-                promptText,
-                timeoutSeconds: 10,
-                settings);
-            form.TopMost = true;
-            return form.ShowDialog(this) != DialogResult.No;
+            return RunWithReleasedTimerOverlayTopMost(() =>
+            {
+                using var form = new PersonalBestUpdatePromptForm(
+                    promptText,
+                    timeoutSeconds: 10,
+                    settings);
+                form.TopMost = true;
+                return form.ShowDialog(this) != DialogResult.No;
+            });
         }
         finally
         {
-            controlTimer.Start();
-            UpdateRenderTimerState();
+            controlScheduler.Start(controlTickInterval);
+            UpdateStatusPaintSchedulerState();
             if (wasClickThrough)
             {
                 SetMouseClickThrough(true);
@@ -719,38 +834,54 @@ internal sealed partial class MainForm : Form
 
     private void OpenSettings()
     {
+        if (settingsFormOpen)
+        {
+            settingsDialogHost?.TryActivate();
+            return;
+        }
+
         settingsFormOpen = true;
         hotkeyManager.Dispose();
         pendingHotkeyRequests.Clear();
         minimumAcceptedRuntimeCommandSequence = Math.Max(
             minimumAcceptedRuntimeCommandSequence,
             monitorCoordinator.ClearPendingHotkeys());
-        try
-        {
-            using var form = new SettingsForm(settings, GetRuntimeDiagnostics);
-            form.TopMost = TopMost;
-            form.Applied += (_, _) => ApplySettings(form.Result);
-            if (form.ShowDialog(this) != DialogResult.OK)
+        settingsDialogHost = new SettingsDialogHost(
+            settings,
+            GetRuntimeDiagnostics,
+            GetRuntimeDebugSnapshot,
+            callback => BeginInvoke(callback),
+            ApplySettings,
+            result =>
             {
-                return;
-            }
+                if (result.DialogResult == DialogResult.OK)
+                {
+                    ApplySettings(result.Result);
+                }
 
-            ApplySettings(form.Result);
-        }
-        finally
+                settingsDialogHost?.Dispose();
+                settingsDialogHost = null;
+                settingsFormOpen = false;
+                if (IsHandleCreated)
+                {
+                    RegisterConfiguredHotkeys();
+                }
+            },
+            TopMost,
+            Bounds);
+        RunWithReleasedTimerOverlayTopMost(() =>
         {
-            settingsFormOpen = false;
-            if (IsHandleCreated)
-            {
-                RegisterConfiguredHotkeys();
-            }
-        }
+            settingsDialogHost.Show();
+            return true;
+        });
     }
 
     private void ApplySettings(AppSettings appliedSettings)
     {
         AppSettings previousSettings = AppSettingsStore.Clone(settings);
-        settings = AppSettingsStore.Clone(appliedSettings);
+        AppSettings nextSettings = AppSettingsStore.Clone(appliedSettings);
+        FinalizeCurrentRunForSettingsChange(nextSettings);
+        settings = nextSettings;
         AppSettingsStore.Save(settings);
         ApplyLoadedSettings(previousSettings);
     }
@@ -766,21 +897,36 @@ internal sealed partial class MainForm : Form
         }
 
         AppSettings previousSettings = AppSettingsStore.Clone(settings);
-        settings = AppSettingsStore.Load(path);
+        AppSettings nextSettings = AppSettingsStore.Load(path);
+        FinalizeCurrentRunForSettingsChange(nextSettings);
+        settings = nextSettings;
         ApplyLoadedSettings(previousSettings);
+    }
+
+    private void FinalizeCurrentRunForSettingsChange(AppSettings nextSettings)
+    {
+        runSession.Reset(nextSettings, recordStats: true, ShowPersonalBestUpdateConfirmation);
+        splitCompletionAnimation = null;
+        segmentBestDeltaHighlights.Clear();
+        minimumAcceptedRuntimeCommandSequence = Math.Max(
+            minimumAcceptedRuntimeCommandSequence,
+            monitorCoordinator.ResetRuntimeState());
     }
 
     private void ApplyLoadedSettings(AppSettings? previousSettings = null)
     {
         palette = UiPalette.From(settings.Colors);
+        RefreshTimerOverlaySettingsSnapshot();
         IReadOnlyList<BossSplitDefinition> definitions = BossSplitDefinitions.Build(settings);
         runSession.SetDefinitions(definitions);
+        overlayBoundsController.UpdateContext(settings, runSession.SplitTracker.Statuses.Count);
         minimumAcceptedRuntimeCommandSequence = Math.Max(
             minimumAcceptedRuntimeCommandSequence,
             monitorCoordinator.SetRuntimeDefinitions(definitions));
         ResetRun();
         monitorCoordinator.ResetUiScalePatchState();
         TopMost = settings.AlwaysOnTop;
+        timerOverlayHost.ApplyTopMost(TopMost);
         if (IsHandleCreated && !settingsFormOpen)
         {
             RegisterConfiguredHotkeys();
@@ -790,28 +936,45 @@ internal sealed partial class MainForm : Form
         ApplyLayoutBounds(useDefaultSize: false, previousSettings);
         UpdateContextMenu();
         ClearIconCache();
+        UpdateConfiguredRefreshIntervals();
+        UpdateTimerOverlayRefreshInterval();
+        PublishTimerOverlaySnapshot(true);
         Invalidate();
     }
 
     private void ApplyLayoutBounds(bool useDefaultSize, AppSettings? previousSettings = null)
     {
         Size minimumSize = SplitLayoutCalculator.GetMinimumWindowSize(settings);
+        Rectangle targetCompositeBounds;
         if (useDefaultSize)
         {
-            MinimumSize = minimumSize;
-            Size = new Size(
+            targetCompositeBounds = new Rectangle(
+                Left,
+                Top,
                 Math.Max(minimumSize.Width, SplitLayoutCalculator.GetDefaultWindowWidth(settings)),
                 Math.Max(minimumSize.Height, SplitLayoutCalculator.GetDefaultWindowHeight(settings)));
+        }
+        else
+        {
+            Size targetSize = GetRuntimeLayoutSize(previousSettings);
+            int width = Math.Max(targetSize.Width, minimumSize.Width);
+            int height = Math.Max(targetSize.Height, minimumSize.Height);
+            Rectangle referenceBounds = overlayWindowsInitialized
+                ? overlayBoundsController.CompositeBounds
+                : Bounds;
+            targetCompositeBounds = new Rectangle(referenceBounds.Left, referenceBounds.Top, width, height);
+        }
+
+        MinimumSize = minimumSize;
+        if (overlayWindowsInitialized)
+        {
+            overlayBoundsController.ApplyCompositeBounds(targetCompositeBounds);
             return;
         }
 
-        Size targetSize = GetRuntimeLayoutSize(previousSettings);
-        MinimumSize = minimumSize;
-        int width = Math.Max(targetSize.Width, minimumSize.Width);
-        int height = Math.Max(targetSize.Height, minimumSize.Height);
-        if (width != Width || height != Height)
+        if (targetCompositeBounds.Width != Width || targetCompositeBounds.Height != Height)
         {
-            Size = new Size(width, height);
+            Size = targetCompositeBounds.Size;
         }
     }
 
@@ -819,14 +982,15 @@ internal sealed partial class MainForm : Form
     {
         if (previousSettings is null)
         {
-            return Size;
+            return overlayWindowsInitialized ? overlayBoundsController.CompositeBounds.Size : Size;
         }
 
         int oldScale = Math.Clamp(previousSettings.Columns.ScalePercent, 25, 300);
         int newScale = Math.Clamp(settings.Columns.ScalePercent, 25, 300);
         float ratio = newScale / (float)oldScale;
-        int width = Width;
-        int height = Height;
+        Size currentSize = overlayWindowsInitialized ? overlayBoundsController.CompositeBounds.Size : Size;
+        int width = currentSize.Width;
+        int height = currentSize.Height;
         if (oldScale != newScale)
         {
             width = ScaleRuntimeDimension(width, ratio);
@@ -852,14 +1016,204 @@ internal sealed partial class MainForm : Form
         BackColor = Color.Black;
         TransparencyKey = Color.Empty;
         overlayWindowController.ApplyWindowStyle(mouseClickThrough);
+        timerOverlayHost.ApplyMouseClickThrough(mouseClickThrough);
         overlayWindowController.QueueRender();
+    }
+
+    private void InitializeOverlayWindows()
+    {
+        if (overlayWindowsInitialized)
+        {
+            return;
+        }
+
+        timerOverlayHost.Start();
+        overlayWindowsInitialized = true;
+        overlayBoundsController.Initialize(Bounds);
+        timerOverlayHost.ApplyTopMost(TopMost);
+        timerOverlayHost.ApplyMouseClickThrough(mouseClickThrough);
+        UpdateTimerOverlayRefreshInterval();
+        PublishTimerOverlaySnapshot(true);
+    }
+
+    private void ApplyOverlayLayout(OverlayCompositeLayout layout)
+    {
+        suppressStatusBoundsFeedback = true;
+        try
+        {
+            if (Bounds != layout.StatusScreenBounds)
+            {
+                Bounds = layout.StatusScreenBounds;
+            }
+        }
+        finally
+        {
+            suppressStatusBoundsFeedback = false;
+        }
+
+        timerOverlayHost.ApplyOverlayLayout(layout);
+        timerOverlayHost.ApplyTopMost(TopMost);
+        timerOverlayHost.ApplyMouseClickThrough(mouseClickThrough);
+        UpdateTimerOverlayRefreshInterval();
+        overlayWindowController.QueueRender();
+    }
+
+    private void NotifyStatusBoundsChanged()
+    {
+        if (!overlayWindowsInitialized || suppressStatusBoundsFeedback || dragging)
+        {
+            return;
+        }
+
+        overlayBoundsController.HandleStatusResize(Bounds);
+    }
+
+    private void PublishTimerOverlaySnapshot(bool force = false)
+    {
+        if (!overlayWindowsInitialized)
+        {
+            return;
+        }
+
+        // One-way boundary: the main UI publishes state changes, while the timer
+        // overlay thread owns high-frequency elapsed-time painting.
+        timerOverlayHost.ApplyRenderState(
+            BuildTimerOverlaySnapshot(),
+            BuildTimerOverlaySnapshotKey(),
+            force);
+    }
+
+    private void UpdateConfiguredRefreshIntervals()
+    {
+        TimeSpan nextControlInterval = ResolveControlTickInterval();
+        if (controlTickInterval != nextControlInterval)
+        {
+            controlTickInterval = nextControlInterval;
+            controlScheduler.UpdateInterval(controlTickInterval);
+        }
+
+        performance.ControlTickInterval = controlTickInterval;
+
+        TimeSpan nextStatusPaintInterval = ResolveRunningStatusPaintInterval();
+        if (statusPaintInterval != nextStatusPaintInterval)
+        {
+            statusPaintInterval = nextStatusPaintInterval;
+            statusPaintScheduler.UpdateInterval(statusPaintInterval);
+        }
+
+        performance.StatusPaintInterval = statusPaintInterval;
+        monitorCoordinator.UpdateReadyWatcherPollInterval(ResolveReadyWatcherPollInterval());
+    }
+
+    private TimeSpan ResolveReadyWatcherPollInterval()
+    {
+        int hz = RefreshRateSettings.NormalizeReadyWatcherPollHz(
+            settings.Advanced?.ReadyWatcherPollHz ?? AdvancedSettings.DefaultReadyWatcherPollHz);
+        return RefreshRateSettings.ToInterval(hz);
+    }
+
+    private TimeSpan ResolveControlTickInterval()
+    {
+        if (!snapshot.IsReady)
+        {
+            return DefaultControlTickInterval;
+        }
+
+        int hz = RefreshRateSettings.NormalizeReadyUiControlHz(
+            settings.Advanced?.ReadyUiControlHz ?? AdvancedSettings.DefaultReadyUiControlHz);
+        return RefreshRateSettings.ToInterval(hz);
+    }
+
+    private TimeSpan ResolveRunningStatusPaintInterval()
+    {
+        int hz = RefreshRateSettings.NormalizeRunningStatusPaintHz(
+            settings.Advanced?.RunningStatusPaintHz ?? AdvancedSettings.DefaultRunningStatusPaintHz);
+        return RefreshRateSettings.ToInterval(hz);
+    }
+
+    private TimerOverlayRenderState BuildTimerOverlaySnapshot()
+    {
+        BossSplitStatus[] statusCopies = splitTracker.Statuses
+            .Select(status => status.CreateRenderCopy())
+            .ToArray();
+        return new TimerOverlayRenderState(
+            timerOverlaySettingsSnapshot,
+            palette,
+            statusCopies,
+            splitTracker.CurrentIndex,
+            runTimer.CaptureState(),
+            mouseClickThrough);
+    }
+
+    private TimerOverlayStateKey BuildTimerOverlaySnapshotKey()
+    {
+        SplitTimerState timerState = runTimer.CaptureState();
+        var hash = new HashCode();
+        foreach (BossSplitStatus status in splitTracker.Statuses)
+        {
+            hash.Add(status.Time);
+            hash.Add(status.IsSkipped);
+        }
+
+        return new TimerOverlayStateKey(
+            timerState,
+            splitTracker.CurrentIndex,
+            mouseClickThrough,
+            hash.ToHashCode(),
+            timerOverlaySettingsRevision);
+    }
+
+    private void UpdateTimerOverlayRefreshInterval()
+    {
+        if (!overlayWindowsInitialized)
+        {
+            return;
+        }
+
+        int displayRefreshHz = DisplayRefreshRateResolver.ResolveForBounds(overlayBoundsController.CompositeBounds);
+        TimeSpan interval = TimerOverlayRefreshModes.ResolveInterval(settings.Advanced, displayRefreshHz);
+        performance.DisplayRefreshHz = displayRefreshHz;
+        performance.TimerOverlayPaintInterval = interval;
+        timerOverlayHost.ApplyRefreshInterval(interval);
+    }
+
+    private void HandleTimerOverlayRightClickRequested(TimerOverlayRightClickRequest request)
+    {
+        if (settings.PracticeMode &&
+            overlayWindowsInitialized &&
+            TryGetLayout(out SplitLayout layout))
+        {
+            Point compositePoint = overlayBoundsController.CurrentLayout.MapTimerPointToComposite(request.LocalPoint);
+            if (layout.TimerRect.Contains(compositePoint))
+            {
+                EditPracticeTotalTime();
+                return;
+            }
+        }
+
+        ShowContextMenuAtScreen(request.ScreenPoint);
+    }
+
+    private void ShowContextMenuAtScreen(Point screenPoint)
+    {
+        if (overlayWindowsInitialized && TopMost)
+        {
+            timerOverlayTopMostReleasedForContextMenu = true;
+            timerOverlayHost.ApplyTopMost(false);
+        }
+
+        contextMenu.Show(screenPoint);
     }
 
     private void OpenStatistics()
     {
-        using var form = new StatisticsForm(settings);
-        form.TopMost = TopMost;
-        form.ShowDialog(this);
+        RunWithReleasedTimerOverlayTopMost(() =>
+        {
+            using var form = new StatisticsForm(settings);
+            form.TopMost = TopMost;
+            form.ShowDialog(this);
+            return 0;
+        });
     }
 
     private void FinalizeRunBeforeExit()
@@ -870,12 +1224,14 @@ internal sealed partial class MainForm : Form
     private void ResetRun(bool recordStats = false)
     {
         runSession.Reset(settings, recordStats, ShowPersonalBestUpdateConfirmation);
+        RefreshTimerOverlaySettingsSnapshot();
         splitCompletionAnimation = null;
         segmentBestDeltaHighlights.Clear();
         minimumAcceptedRuntimeCommandSequence = Math.Max(
             minimumAcceptedRuntimeCommandSequence,
             monitorCoordinator.ResetRuntimeState());
-        UpdateRenderTimerState();
+        UpdateStatusPaintSchedulerState();
+        PublishTimerOverlaySnapshot();
         Invalidate();
     }
 
@@ -891,12 +1247,15 @@ internal sealed partial class MainForm : Form
             monitorCoordinator.ReplaceRuntimeState(
                 runTimer.CaptureState(),
                 splitTracker.CaptureState()));
+        PublishTimerOverlaySnapshot();
     }
 
     private void SetMouseClickThrough(bool enabled)
     {
         mouseClickThrough = enabled;
         overlayWindowController.ApplyWindowStyle(mouseClickThrough);
+        timerOverlayHost.ApplyMouseClickThrough(mouseClickThrough);
+        PublishTimerOverlaySnapshot();
         UpdateWindowTitle();
     }
 
@@ -917,26 +1276,31 @@ internal sealed partial class MainForm : Form
 
     private void ShowPracticeWorldSelector()
     {
-        using var form = new PracticeWorldSelectorForm(settings);
-        var window = new TerrariaWindowController();
-        if (window.TryGetClientScreenBounds(out Rectangle terrariaBounds))
+        RunWithReleasedTimerOverlayTopMost(() =>
         {
-            form.Location = new Point(
-                terrariaBounds.Left + Math.Max(0, (terrariaBounds.Width - form.Width) / 2),
-                terrariaBounds.Top + Math.Max(0, (terrariaBounds.Height - form.Height) / 2));
-        }
-        else
-        {
-            Rectangle workingArea = Screen.FromControl(this).WorkingArea;
-            form.Location = new Point(
-                workingArea.Left + Math.Max(0, (workingArea.Width - form.Width) / 2),
-                workingArea.Top + Math.Max(0, (workingArea.Height - form.Height) / 2));
-        }
+            using var form = new PracticeWorldSelectorForm(settings);
+            var window = new TerrariaWindowController();
+            if (window.TryGetClientScreenBounds(out Rectangle terrariaBounds))
+            {
+                form.Location = new Point(
+                    terrariaBounds.Left + Math.Max(0, (terrariaBounds.Width - form.Width) / 2),
+                    terrariaBounds.Top + Math.Max(0, (terrariaBounds.Height - form.Height) / 2));
+            }
+            else
+            {
+                Rectangle workingArea = Screen.FromControl(this).WorkingArea;
+                form.Location = new Point(
+                    workingArea.Left + Math.Max(0, (workingArea.Width - form.Width) / 2),
+                    workingArea.Top + Math.Max(0, (workingArea.Height - form.Height) / 2));
+            }
 
-        if (form.ShowDialog(this) == DialogResult.OK && form.SelectedSlot is PracticeWorldSlot selectedSlot)
-        {
-            StartPracticeWorldAutomation(selectedSlot);
-        }
+            if (form.ShowDialog(this) == DialogResult.OK && form.SelectedSlot is PracticeWorldSlot selectedSlot)
+            {
+                StartPracticeWorldAutomation(selectedSlot);
+            }
+
+            return 0;
+        });
     }
 
     private async void StartPracticeWorldAutomation(PracticeWorldSlot selectedSlot)
@@ -1057,6 +1421,60 @@ internal sealed partial class MainForm : Form
     private void ClearIconCache()
     {
         renderResources.BossIcons.Clear();
+    }
+
+    private void RefreshTimerOverlaySettingsSnapshot()
+    {
+        timerOverlaySettingsRevision++;
+        timerOverlaySettingsSnapshot = AppSettingsStore.Clone(settings);
+    }
+
+    private T RunWithReleasedTimerOverlayTopMost<T>(Func<T> action)
+    {
+        bool shouldRestore = overlayWindowsInitialized && TopMost;
+        if (shouldRestore)
+        {
+            timerOverlayHost.ApplyTopMost(false);
+        }
+
+        try
+        {
+            return action();
+        }
+        finally
+        {
+            if (shouldRestore)
+            {
+                timerOverlayHost.ApplyTopMost(true);
+            }
+        }
+    }
+
+    private T RunWithSuspendedRuntimeOverlayPaint<T>(Func<T> action)
+    {
+        runtimeOverlayPaintSuspensionCount++;
+        UpdateStatusPaintSchedulerState();
+        if (overlayWindowsInitialized)
+        {
+            timerOverlayHost.ApplyPaintSuspended(true);
+        }
+
+        try
+        {
+            return action();
+        }
+        finally
+        {
+            runtimeOverlayPaintSuspensionCount = Math.Max(0, runtimeOverlayPaintSuspensionCount - 1);
+            if (overlayWindowsInitialized && runtimeOverlayPaintSuspensionCount == 0)
+            {
+                timerOverlayHost.ApplyPaintSuspended(false);
+                timerOverlayHost.RequestRender();
+            }
+
+            UpdateStatusPaintSchedulerState();
+            overlayWindowController.QueueRender();
+        }
     }
 }
 

@@ -19,6 +19,7 @@ internal sealed class OverlayWindowController : IDisposable
     private readonly Action<TimeSpan> recordPaint;
     private readonly Action<Action> dispatch;
     private readonly Func<Bitmap, bool> updateLayeredBitmap;
+    private readonly LayeredWindowRenderTarget? renderTarget;
     private bool renderPending;
     private bool renderInProgress;
     private bool disposed;
@@ -34,7 +35,15 @@ internal sealed class OverlayWindowController : IDisposable
         this.draw = draw;
         this.recordPaint = recordPaint;
         this.dispatch = dispatch ?? (callback => owner.BeginInvoke(callback));
-        this.updateLayeredBitmap = updateLayeredBitmap ?? (bitmap => LayeredWindowUpdater.Update(owner, bitmap));
+        if (updateLayeredBitmap is null)
+        {
+            renderTarget = new LayeredWindowRenderTarget();
+            this.updateLayeredBitmap = bitmap => LayeredWindowUpdater.Update(owner, bitmap);
+        }
+        else
+        {
+            this.updateLayeredBitmap = updateLayeredBitmap;
+        }
     }
 
     public void QueueRender()
@@ -59,60 +68,7 @@ internal sealed class OverlayWindowController : IDisposable
         }
     }
 
-    public bool RenderNow(Func<Graphics, bool>? drawOverride = null)
-    {
-        if (!owner.IsHandleCreated || owner.ClientSize.Width <= 0 || owner.ClientSize.Height <= 0)
-        {
-            return false;
-        }
-
-        using var bitmap = new Bitmap(owner.ClientSize.Width, owner.ClientSize.Height, PixelFormat.Format32bppPArgb);
-        using (Graphics graphics = Graphics.FromImage(bitmap))
-        {
-            ConfigureGraphics(graphics);
-            graphics.Clear(Color.Transparent);
-            if (!(drawOverride ?? draw)(graphics))
-            {
-                return false;
-            }
-        }
-
-        return updateLayeredBitmap(bitmap);
-    }
-
-    public void ApplyWindowStyle(bool mouseClickThrough)
-    {
-        if (!owner.IsHandleCreated)
-        {
-            return;
-        }
-
-        IntPtr handle = owner.Handle;
-        int style = GetWindowLong(handle, GwlExStyle);
-        SetWindowLong(handle, GwlExStyle, ComposeExtendedStyle(style, mouseClickThrough));
-    }
-
-    public void Dispose()
-    {
-        disposed = true;
-    }
-
-    internal static int ComposeExtendedStyle(int existingStyle, bool mouseClickThrough)
-    {
-        int style = existingStyle | WsExLayered;
-        if (mouseClickThrough)
-        {
-            style |= WsExTransparent;
-        }
-        else
-        {
-            style &= ~WsExTransparent;
-        }
-
-        return style;
-    }
-
-    private void RenderQueued()
+    public void RenderImmediately()
     {
         if (!owner.IsHandleCreated || owner.IsDisposed || owner.Disposing || disposed)
         {
@@ -144,6 +100,70 @@ internal sealed class OverlayWindowController : IDisposable
             renderInProgress = false;
             recordPaint(Stopwatch.GetElapsedTime(startTimestamp));
         }
+    }
+
+    public bool RenderNow(Func<Graphics, bool>? drawOverride = null)
+    {
+        if (!owner.IsHandleCreated || owner.ClientSize.Width <= 0 || owner.ClientSize.Height <= 0)
+        {
+            return false;
+        }
+
+        if (drawOverride is null && renderTarget is not null)
+        {
+            return renderTarget.Render(owner, draw, ConfigureGraphics);
+        }
+
+        using var bitmap = new Bitmap(owner.ClientSize.Width, owner.ClientSize.Height, PixelFormat.Format32bppPArgb);
+        using (Graphics graphics = Graphics.FromImage(bitmap))
+        {
+            ConfigureGraphics(graphics);
+            graphics.Clear(Color.Transparent);
+            if (!(drawOverride ?? draw)(graphics))
+            {
+                return false;
+            }
+        }
+
+        return updateLayeredBitmap(bitmap);
+    }
+
+    public void ApplyWindowStyle(bool mouseClickThrough)
+    {
+        if (!owner.IsHandleCreated)
+        {
+            return;
+        }
+
+        IntPtr handle = owner.Handle;
+        int style = GetWindowLong(handle, GwlExStyle);
+        SetWindowLong(handle, GwlExStyle, ComposeExtendedStyle(style, mouseClickThrough));
+    }
+
+    public void Dispose()
+    {
+        disposed = true;
+        renderTarget?.Dispose();
+    }
+
+    internal static int ComposeExtendedStyle(int existingStyle, bool mouseClickThrough)
+    {
+        int style = existingStyle | WsExLayered;
+        if (mouseClickThrough)
+        {
+            style |= WsExTransparent;
+        }
+        else
+        {
+            style &= ~WsExTransparent;
+        }
+
+        return style;
+    }
+
+    private void RenderQueued()
+    {
+        RenderImmediately();
     }
 
     private static void ConfigureGraphics(Graphics graphics)

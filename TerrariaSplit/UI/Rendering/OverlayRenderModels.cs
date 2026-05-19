@@ -83,9 +83,9 @@ internal readonly record struct SplitCompletionDeltaMotion(float OffsetX, float 
 
 internal readonly record struct FontMetrics(float Ascent, float Descent);
 
-internal readonly record struct TimerTextLayout(float Right, float Top, float Height)
+internal readonly record struct TimerTextLayout(float Right, float Top, float Height, float Opacity)
 {
-    public static TimerTextLayout Empty => new(0f, 0f, 0f);
+    public static TimerTextLayout Empty => new(0f, 0f, 0f, 0f);
 }
 
 internal readonly record struct ColumnWidth(SplitColumn Column, int Width);

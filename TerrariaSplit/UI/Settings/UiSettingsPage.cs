@@ -11,12 +11,17 @@ internal sealed class UiSettingsPage : SettingsPageBase
     private readonly Dictionary<string, FontControls> fontControls = new();
     private readonly TextBox timerOffsetXBox = new();
     private readonly TextBox timerOffsetYBox = new();
+    private readonly TextBox iconOpacityBox = new();
+    private readonly TextBox timeOpacityBox = new();
     private readonly TextBox timeShadowBox = new();
     private readonly TextBox timeOutlineThicknessBox = new();
+    private readonly TextBox deltaOpacityBox = new();
     private readonly TextBox deltaShadowBox = new();
     private readonly TextBox deltaOutlineThicknessBox = new();
+    private readonly TextBox timerOpacityBox = new();
     private readonly TextBox timerShadowBox = new();
     private readonly TextBox timerOutlineThicknessBox = new();
+    private readonly TextBox timerMillisecondsOpacityBox = new();
     private readonly TextBox timerMillisecondsShadowBox = new();
     private readonly TextBox timerMillisecondsOutlineThicknessBox = new();
 
@@ -24,17 +29,27 @@ internal sealed class UiSettingsPage : SettingsPageBase
 
     internal CheckBox EnableDynamicDeltaTimeUnitsBox => enableDynamicDeltaTimeUnitsBox;
 
+    internal TextBox IconOpacityBox => iconOpacityBox;
+
+    internal TextBox TimeOpacityBox => timeOpacityBox;
+
     internal TextBox TimeShadowBox => timeShadowBox;
 
     internal TextBox TimeOutlineThicknessBox => timeOutlineThicknessBox;
+
+    internal TextBox DeltaOpacityBox => deltaOpacityBox;
 
     internal TextBox DeltaShadowBox => deltaShadowBox;
 
     internal TextBox DeltaOutlineThicknessBox => deltaOutlineThicknessBox;
 
+    internal TextBox TimerOpacityBox => timerOpacityBox;
+
     internal TextBox TimerShadowBox => timerShadowBox;
 
     internal TextBox TimerOutlineThicknessBox => timerOutlineThicknessBox;
+
+    internal TextBox TimerMillisecondsOpacityBox => timerMillisecondsOpacityBox;
 
     internal TextBox TimerMillisecondsShadowBox => timerMillisecondsShadowBox;
 
@@ -61,14 +76,19 @@ internal sealed class UiSettingsPage : SettingsPageBase
         settings.Columns.TimerOffsetX = SettingsValueParser.ParseIntBox(timerOffsetXBox, 0, -2000, 2000);
         settings.Columns.TimerOffsetY = SettingsValueParser.ParseIntBox(timerOffsetYBox, 0, -2000, 2000);
         settings.TextEffects ??= new UiTextEffectSettings();
+        settings.TextEffects.IconOpacityPercent = SettingsValueParser.ParseIntBox(iconOpacityBox, 100, 0, 100);
+        settings.TextEffects.TimeOpacityPercent = SettingsValueParser.ParseIntBox(timeOpacityBox, 100, 0, 100);
         settings.TextEffects.TimeShadowPercent = SettingsValueParser.ParseIntBox(timeShadowBox, 0, 0, 100);
-        settings.TextEffects.TimeOutlineThicknessPercent = SettingsValueParser.ParseIntBox(timeOutlineThicknessBox, 0, 0, 100);
+        settings.TextEffects.TimeOutlineThicknessPercent = SettingsValueParser.ParseIntBox(timeOutlineThicknessBox, 0, 0, 200);
+        settings.TextEffects.DeltaOpacityPercent = SettingsValueParser.ParseIntBox(deltaOpacityBox, 100, 0, 100);
         settings.TextEffects.DeltaShadowPercent = SettingsValueParser.ParseIntBox(deltaShadowBox, 0, 0, 100);
-        settings.TextEffects.DeltaOutlineThicknessPercent = SettingsValueParser.ParseIntBox(deltaOutlineThicknessBox, 0, 0, 100);
+        settings.TextEffects.DeltaOutlineThicknessPercent = SettingsValueParser.ParseIntBox(deltaOutlineThicknessBox, 0, 0, 200);
+        settings.TextEffects.TimerOpacityPercent = SettingsValueParser.ParseIntBox(timerOpacityBox, 100, 0, 100);
         settings.TextEffects.TimerShadowPercent = SettingsValueParser.ParseIntBox(timerShadowBox, 0, 0, 100);
-        settings.TextEffects.TimerOutlineThicknessPercent = SettingsValueParser.ParseIntBox(timerOutlineThicknessBox, 0, 0, 100);
+        settings.TextEffects.TimerOutlineThicknessPercent = SettingsValueParser.ParseIntBox(timerOutlineThicknessBox, 0, 0, 200);
+        settings.TextEffects.TimerMillisecondsOpacityPercent = SettingsValueParser.ParseIntBox(timerMillisecondsOpacityBox, 100, 0, 100);
         settings.TextEffects.TimerMillisecondsShadowPercent = SettingsValueParser.ParseIntBox(timerMillisecondsShadowBox, 0, 0, 100);
-        settings.TextEffects.TimerMillisecondsOutlineThicknessPercent = SettingsValueParser.ParseIntBox(timerMillisecondsOutlineThicknessBox, 0, 0, 100);
+        settings.TextEffects.TimerMillisecondsOutlineThicknessPercent = SettingsValueParser.ParseIntBox(timerMillisecondsOutlineThicknessBox, 0, 0, 200);
     }
 
     private void AddColumnSettingsSection(TableLayoutPanel parent)
@@ -83,15 +103,25 @@ internal sealed class UiSettingsPage : SettingsPageBase
             SettingsUiFactory.ColumnStyleAbsolute(132f),
             SettingsUiFactory.ColumnStyleAbsolute(92f),
             SettingsUiFactory.ColumnStyleAbsolute(152f),
+            SettingsUiFactory.ColumnStyleAbsolute(152f),
             SettingsUiFactory.ColumnStyleAbsolute(172f));
 
-        Factory.AddHeaderRow(grid, ContentAlignment.MiddleLeft, "Column", "Show", "Width", "Font", "Bold", "Shadow %", "Outline %");
-        AddColumnSettingsRow(grid, "Icon", "Icon", Draft.Columns.Icon, showBold: false);
+        Factory.AddHeaderRow(grid, ContentAlignment.MiddleLeft, "Column", "Show", "Width", "Font", "Bold", "Opacity %", "Shadow %", "Outline %");
+        AddColumnSettingsRow(
+            grid,
+            "Icon",
+            "Icon",
+            Draft.Columns.Icon,
+            opacityBox: iconOpacityBox,
+            opacityPercent: Draft.TextEffects.IconOpacityPercent,
+            showBold: false);
         AddColumnSettingsRow(
             grid,
             "Time",
             "Time",
             Draft.Columns.Time,
+            timeOpacityBox,
+            Draft.TextEffects.TimeOpacityPercent,
             timeShadowBox,
             Draft.TextEffects.TimeShadowPercent,
             timeOutlineThicknessBox,
@@ -101,6 +131,8 @@ internal sealed class UiSettingsPage : SettingsPageBase
             "Delta",
             "Delta",
             Draft.Columns.Delta,
+            deltaOpacityBox,
+            Draft.TextEffects.DeltaOpacityPercent,
             deltaShadowBox,
             Draft.TextEffects.DeltaShadowPercent,
             deltaOutlineThicknessBox,
@@ -119,6 +151,8 @@ internal sealed class UiSettingsPage : SettingsPageBase
         string label,
         string key,
         UiColumnSettings value,
+        TextBox? opacityBox = null,
+        int opacityPercent = 100,
         TextBox? shadowBox = null,
         int shadowPercent = 0,
         TextBox? outlineThicknessBox = null,
@@ -128,8 +162,9 @@ internal sealed class UiSettingsPage : SettingsPageBase
         var showBox = CreateCenteredCheckBox(value.Show);
         TextBox widthBox = Factory.CreateNumberBox(value.Width, 1, 1000);
         TextBox fontBox = Factory.CreateDecimalBox(value.FontSize, 6, 96);
-        Control shadowControl = CreateEffectCell(shadowBox, shadowPercent);
-        Control outlineThicknessControl = CreateEffectCell(outlineThicknessBox, outlineThicknessPercent);
+        Control opacityControl = CreateEffectCell(opacityBox, opacityPercent, 100);
+        Control shadowControl = CreateEffectCell(shadowBox, shadowPercent, 100);
+        Control outlineThicknessControl = CreateEffectCell(outlineThicknessBox, outlineThicknessPercent, 200);
 
         CheckBox? boldBox = null;
         Control boldControl = CreateEmptySettingsCell();
@@ -147,8 +182,9 @@ internal sealed class UiSettingsPage : SettingsPageBase
         grid.Controls.Add(Factory.CreateCenteredCell(widthBox, 86), 2, row);
         grid.Controls.Add(Factory.CreateCenteredCell(fontBox, 92), 3, row);
         grid.Controls.Add(boldControl, 4, row);
-        grid.Controls.Add(shadowControl, 5, row);
-        grid.Controls.Add(outlineThicknessControl, 6, row);
+        grid.Controls.Add(opacityControl, 5, row);
+        grid.Controls.Add(shadowControl, 6, row);
+        grid.Controls.Add(outlineThicknessControl, 7, row);
     }
 
     private void AddTimerSettingsSection(TableLayoutPanel parent)
@@ -160,14 +196,17 @@ internal sealed class UiSettingsPage : SettingsPageBase
             SettingsUiFactory.ColumnStyleAbsolute(132f),
             SettingsUiFactory.ColumnStyleAbsolute(92f),
             SettingsUiFactory.ColumnStyleAbsolute(152f),
+            SettingsUiFactory.ColumnStyleAbsolute(152f),
             SettingsUiFactory.ColumnStyleAbsolute(172f));
 
-        Factory.AddHeaderRow(grid, ContentAlignment.MiddleLeft, "Section", "Show", "Font", "Bold", "Shadow %", "Outline %");
+        Factory.AddHeaderRow(grid, ContentAlignment.MiddleLeft, "Section", "Show", "Font", "Bold", "Opacity %", "Shadow %", "Outline %");
         AddFontSettingsRow(
             grid,
             "Before decimal",
             "Timer",
             Draft.Columns.Timer,
+            timerOpacityBox,
+            Draft.TextEffects.TimerOpacityPercent,
             timerShadowBox,
             Draft.TextEffects.TimerShadowPercent,
             timerOutlineThicknessBox,
@@ -177,6 +216,8 @@ internal sealed class UiSettingsPage : SettingsPageBase
             "After decimal",
             "TimerMilliseconds",
             Draft.Columns.TimerMilliseconds,
+            timerMillisecondsOpacityBox,
+            Draft.TextEffects.TimerMillisecondsOpacityPercent,
             timerMillisecondsShadowBox,
             Draft.TextEffects.TimerMillisecondsShadowPercent,
             timerMillisecondsOutlineThicknessBox,
@@ -198,6 +239,8 @@ internal sealed class UiSettingsPage : SettingsPageBase
         string label,
         string key,
         UiColumnSettings value,
+        TextBox opacityBox,
+        int opacityPercent,
         TextBox shadowBox,
         int shadowPercent,
         TextBox outlineThicknessBox,
@@ -205,8 +248,9 @@ internal sealed class UiSettingsPage : SettingsPageBase
     {
         var showBox = CreateCenteredCheckBox(value.Show);
         TextBox fontBox = Factory.CreateDecimalBox(value.FontSize, 6, 96);
-        Control shadowControl = CreateEffectCell(shadowBox, shadowPercent);
-        Control outlineThicknessControl = CreateEffectCell(outlineThicknessBox, outlineThicknessPercent);
+        Control opacityControl = CreateEffectCell(opacityBox, opacityPercent, 100);
+        Control shadowControl = CreateEffectCell(shadowBox, shadowPercent, 100);
+        Control outlineThicknessControl = CreateEffectCell(outlineThicknessBox, outlineThicknessPercent, 200);
         var boldBox = CreateCenteredCheckBox(value.Bold);
 
         fontControls[key] = new FontControls(showBox, fontBox, boldBox);
@@ -215,18 +259,19 @@ internal sealed class UiSettingsPage : SettingsPageBase
         grid.Controls.Add(Factory.CreateCenteredCell(showBox, 28), 1, row);
         grid.Controls.Add(Factory.CreateCenteredCell(fontBox, 92), 2, row);
         grid.Controls.Add(Factory.CreateCenteredCell(boldBox, 28), 3, row);
-        grid.Controls.Add(shadowControl, 4, row);
-        grid.Controls.Add(outlineThicknessControl, 5, row);
+        grid.Controls.Add(opacityControl, 4, row);
+        grid.Controls.Add(shadowControl, 5, row);
+        grid.Controls.Add(outlineThicknessControl, 6, row);
     }
 
-    private Control CreateEffectCell(TextBox? textBox, int value)
+    private Control CreateEffectCell(TextBox? textBox, int value, int maximum)
     {
         if (textBox is null)
         {
             return CreateEmptySettingsCell();
         }
 
-        ConfigureNumberBox(textBox, value, 0, 100);
+        ConfigureNumberBox(textBox, value, 0, maximum);
         return Factory.CreateCenteredCell(textBox, 112);
     }
 

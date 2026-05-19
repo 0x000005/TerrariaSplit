@@ -30,6 +30,7 @@ internal sealed class TerrariaMonitorCoordinator : IDisposable
     private DateTime nextUiScalePatchAttemptUtc = DateTime.MinValue;
     private bool uiScalePatchInFlight;
     private int currentRunPhaseValue;
+    private long readyWatcherPollIntervalTicks = WatcherRunningPollInterval.Ticks;
     private int watcherDispatchPending;
     private bool disposed;
     private CancellationTokenSource? watcherLoopCancellation;
@@ -70,6 +71,9 @@ internal sealed class TerrariaMonitorCoordinator : IDisposable
 
     public TerrariaWatchSnapshot CurrentSnapshot { get; private set; }
 
+    public TerrariaWatcherDiagnostics CurrentDiagnostics { get; private set; } =
+        TerrariaWatcherDiagnosticsDefaults.Empty;
+
     public TimeSpan WatcherPollInterval { get; private set; }
 
     public TimeSpan ProcessLookupInterval { get; private set; }
@@ -106,6 +110,20 @@ internal sealed class TerrariaMonitorCoordinator : IDisposable
     public void UpdateRunPhase(SplitTimerPhase runPhase)
     {
         Volatile.Write(ref currentRunPhaseValue, (int)runPhase);
+    }
+
+    public void UpdateReadyWatcherPollInterval(TimeSpan interval)
+    {
+        TimeSpan normalized = interval <= TimeSpan.Zero ? WatcherRunningPollInterval : interval;
+        long newTicks = normalized.Ticks;
+        long previousTicks = Volatile.Read(ref readyWatcherPollIntervalTicks);
+        if (previousTicks == newTicks)
+        {
+            return;
+        }
+
+        Volatile.Write(ref readyWatcherPollIntervalTicks, newTicks);
+        watcherLoopSignal.Set();
     }
 
     public void ResetUiScalePatchState()
@@ -180,6 +198,14 @@ internal sealed class TerrariaMonitorCoordinator : IDisposable
 
     internal static TimeSpan GetNextWatcherPollInterval(TerrariaWatchSnapshot snapshot, SplitTimerPhase runPhase)
     {
+        return GetNextWatcherPollInterval(snapshot, runPhase, WatcherIdlePollInterval);
+    }
+
+    internal static TimeSpan GetNextWatcherPollInterval(
+        TerrariaWatchSnapshot snapshot,
+        SplitTimerPhase runPhase,
+        TimeSpan readyPollInterval)
+    {
         if (!snapshot.IsAttached)
         {
             return WatcherProcessLookupInterval;
@@ -190,9 +216,7 @@ internal sealed class TerrariaMonitorCoordinator : IDisposable
             return WatcherScanPollInterval;
         }
 
-        return runPhase == SplitTimerPhase.Running
-            ? WatcherRunningPollInterval
-            : WatcherIdlePollInterval;
+        return readyPollInterval <= TimeSpan.Zero ? WatcherIdlePollInterval : readyPollInterval;
     }
 
     private void StartWatcherLoopIfNeeded()
@@ -242,12 +266,14 @@ internal sealed class TerrariaMonitorCoordinator : IDisposable
         try
         {
             TerrariaWatchSnapshot snapshot = watcher.Poll();
+            TerrariaWatcherDiagnostics diagnostics = watcher.GetDiagnostics();
             long completedTimestamp = Stopwatch.GetTimestamp();
             TimerControllerTickResult runtimeTickResult = runtimeProcessor.Tick(snapshot, completedTimestamp, hotkeyRequests);
             ProcessedRunState runtimeState = runtimeProcessor.CaptureState();
-            TimeSpan nextPollInterval = GetNextWatcherPollInterval(snapshot, GetCurrentRunPhase());
+            TimeSpan nextPollInterval = GetNextWatcherPollInterval(snapshot, GetCurrentRunPhase(), GetReadyWatcherPollInterval());
             return new WatcherPollCompletion(
                 snapshot,
+                diagnostics,
                 runtimeState,
                 runtimeTickResult,
                 runtimeCommandSequence,
@@ -271,9 +297,10 @@ internal sealed class TerrariaMonitorCoordinator : IDisposable
                 $"watcher poll failed: {ex.Message}");
             TimerControllerTickResult runtimeTickResult = runtimeProcessor.Tick(snapshot, completedTimestamp, hotkeyRequests);
             ProcessedRunState runtimeState = runtimeProcessor.CaptureState();
-            TimeSpan nextPollInterval = GetNextWatcherPollInterval(snapshot, GetCurrentRunPhase());
+            TimeSpan nextPollInterval = GetNextWatcherPollInterval(snapshot, GetCurrentRunPhase(), GetReadyWatcherPollInterval());
             return new WatcherPollCompletion(
                 snapshot,
+                watcher.GetDiagnostics(),
                 runtimeState,
                 runtimeTickResult,
                 runtimeCommandSequence,
@@ -288,6 +315,12 @@ internal sealed class TerrariaMonitorCoordinator : IDisposable
     private SplitTimerPhase GetCurrentRunPhase()
     {
         return (SplitTimerPhase)Volatile.Read(ref currentRunPhaseValue);
+    }
+
+    private TimeSpan GetReadyWatcherPollInterval()
+    {
+        long ticks = Volatile.Read(ref readyWatcherPollIntervalTicks);
+        return ticks > 0 ? new TimeSpan(ticks) : WatcherIdlePollInterval;
     }
 
     private long QueueRuntimeCommand(Action<WatcherRuntimeProcessor> apply)
@@ -385,11 +418,13 @@ internal sealed class TerrariaMonitorCoordinator : IDisposable
 
         TerrariaWatchSnapshot previousSnapshot = CurrentSnapshot;
         CurrentSnapshot = completion.Snapshot;
+        CurrentDiagnostics = completion.Diagnostics;
         WatcherPollInterval = completion.NextPollInterval;
         ProcessLookupInterval = completion.ProcessLookupInterval;
         WatcherPollCompleted?.Invoke(new WatcherPollNotification(
             completion.Snapshot,
             previousSnapshot,
+            completion.Diagnostics,
             completion.RuntimeState,
             completion.RuntimeTickResult,
             completion.RuntimeCommandSequence,
@@ -562,6 +597,7 @@ internal sealed class TerrariaMonitorCoordinator : IDisposable
 internal readonly record struct WatcherPollNotification(
     TerrariaWatchSnapshot Snapshot,
     TerrariaWatchSnapshot PreviousSnapshot,
+    TerrariaWatcherDiagnostics Diagnostics,
     ProcessedRunState RuntimeState,
     TimerControllerTickResult RuntimeTickResult,
     long RuntimeCommandSequence,
@@ -573,6 +609,7 @@ internal readonly record struct WatcherPollNotification(
 
 internal readonly record struct WatcherPollCompletion(
     TerrariaWatchSnapshot Snapshot,
+    TerrariaWatcherDiagnostics Diagnostics,
     ProcessedRunState RuntimeState,
     TimerControllerTickResult RuntimeTickResult,
     long RuntimeCommandSequence,

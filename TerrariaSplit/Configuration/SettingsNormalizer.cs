@@ -25,6 +25,7 @@ internal static class SettingsNormalizer
         settings.Advanced ??= new AdvancedSettings();
         NormalizeAutoCreate(settings.AutoCreate);
         NormalizePracticeWorlds(settings.PracticeWorlds);
+        NormalizeAdvanced(settings.Advanced);
         settings.SplitCompletionAnimationDurationSeconds = Math.Clamp(settings.SplitCompletionAnimationDurationSeconds, 2f, 20f);
         settings.SplitCompletionOutlineThicknessPercent = Math.Clamp(settings.SplitCompletionOutlineThicknessPercent, 0, 100);
         settings.CurrentSplitHighlightScalePercent = Math.Clamp(settings.CurrentSplitHighlightScalePercent, 100, 140);
@@ -105,6 +106,15 @@ internal static class SettingsNormalizer
         }
     }
 
+    private static void NormalizeAdvanced(AdvancedSettings advanced)
+    {
+        advanced.ReadyWatcherPollHz = RefreshRateSettings.NormalizeReadyWatcherPollHz(advanced.ReadyWatcherPollHz);
+        advanced.ReadyUiControlHz = RefreshRateSettings.NormalizeReadyUiControlHz(advanced.ReadyUiControlHz);
+        advanced.RunningStatusPaintHz = RefreshRateSettings.NormalizeRunningStatusPaintHz(advanced.RunningStatusPaintHz);
+        advanced.TimerOverlayRefreshMode = TimerOverlayRefreshModes.Normalize(advanced.TimerOverlayRefreshMode);
+        advanced.TimerOverlayRefreshHz = RefreshRateSettings.NormalizeTimerOverlayRefreshHz(advanced.TimerOverlayRefreshHz);
+    }
+
     private static void NormalizeColumnSettings(UiColumnLayoutSettings columns)
     {
         var defaults = new UiColumnLayoutSettings();
@@ -137,19 +147,29 @@ internal static class SettingsNormalizer
 
     private static void NormalizeTextEffects(UiTextEffectSettings effects)
     {
+        effects.IconOpacityPercent = ClampPercent(effects.IconOpacityPercent);
+        effects.TimeOpacityPercent = ClampPercent(effects.TimeOpacityPercent);
         effects.TimeShadowPercent = ClampPercent(effects.TimeShadowPercent);
-        effects.TimeOutlineThicknessPercent = ClampPercent(effects.TimeOutlineThicknessPercent);
+        effects.TimeOutlineThicknessPercent = ClampOutlinePercent(effects.TimeOutlineThicknessPercent);
+        effects.DeltaOpacityPercent = ClampPercent(effects.DeltaOpacityPercent);
         effects.DeltaShadowPercent = ClampPercent(effects.DeltaShadowPercent);
-        effects.DeltaOutlineThicknessPercent = ClampPercent(effects.DeltaOutlineThicknessPercent);
+        effects.DeltaOutlineThicknessPercent = ClampOutlinePercent(effects.DeltaOutlineThicknessPercent);
+        effects.TimerOpacityPercent = ClampPercent(effects.TimerOpacityPercent);
         effects.TimerShadowPercent = ClampPercent(effects.TimerShadowPercent);
-        effects.TimerOutlineThicknessPercent = ClampPercent(effects.TimerOutlineThicknessPercent);
+        effects.TimerOutlineThicknessPercent = ClampOutlinePercent(effects.TimerOutlineThicknessPercent);
+        effects.TimerMillisecondsOpacityPercent = ClampPercent(effects.TimerMillisecondsOpacityPercent);
         effects.TimerMillisecondsShadowPercent = ClampPercent(effects.TimerMillisecondsShadowPercent);
-        effects.TimerMillisecondsOutlineThicknessPercent = ClampPercent(effects.TimerMillisecondsOutlineThicknessPercent);
+        effects.TimerMillisecondsOutlineThicknessPercent = ClampOutlinePercent(effects.TimerMillisecondsOutlineThicknessPercent);
     }
 
     private static int ClampPercent(int value)
     {
         return Math.Clamp(value, 0, 100);
+    }
+
+    private static int ClampOutlinePercent(int value)
+    {
+        return Math.Clamp(value, 0, 200);
     }
 
     private static void NormalizeReferenceSets(AppSettings settings)
