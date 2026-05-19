@@ -26,6 +26,8 @@ var legacyTests = new (string Name, Action Test)[]
     ("Settings form applies practice world slots", TestSettingsFormAppliesPracticeWorldSlots),
     ("Settings form collapses zenith special seed dependencies", TestSettingsFormCollapsesZenithSpecialSeedDependencies),
     ("Settings form saves The Constant special seed", TestSettingsFormSavesTheConstantSpecialSeed),
+    ("Settings form applies Zenith star catch options", TestSettingsFormAppliesZenithStarCatchOptions),
+    ("Settings form gates Zenith star catch behind Zenith seed", TestSettingsFormGatesZenithStarCatchBehindZenithSeed),
     ("Settings form applies timer start sound", TestSettingsFormAppliesTimerStartSound),
     ("Settings form applies resume sound", TestSettingsFormAppliesResumeSound),
     ("Settings form applies Moon Lord split sound", TestSettingsFormAppliesMoonLordSplitSound),
@@ -37,7 +39,9 @@ var legacyTests = new (string Name, Action Test)[]
     ("Settings form applies current delta gradient option", TestSettingsFormAppliesCurrentDeltaGradientOption),
     ("Settings form applies advanced UI scale patch option", TestSettingsFormAppliesAdvancedUiScalePatchOption),
     ("Settings form keeps uncreated animation fields unchanged", TestSettingsFormKeepsUncreatedAnimationFieldsUnchanged),
-    ("Terraria UI scale patch rewrites target IL constants", TestTerrariaUiScalePatchPlan)
+    ("Terraria UI scale patch rewrites target IL constants", TestTerrariaUiScalePatchPlan),
+    ("Zenith star catch stop stages follow world generation order", TestZenithStarCatchStageStopRules),
+    ("Zenith star catch speed uses logarithmic stepped range", TestZenithStarCatchSpeedRange)
 };
 var tests = legacyTests
     .Concat(HotkeyTests.All())
@@ -45,6 +49,7 @@ var tests = legacyTests
     .Concat(LoadWorldValidationTests.All())
     .Concat(MainShellRefactorTests.All())
     .Concat(RenderingTests.All())
+    .Concat(WorldGenerationMemoryTests.All())
     .ToArray();
 
 int failures = 0;
@@ -151,7 +156,10 @@ static void TestSettingsNormalize()
             ClickFocusDelayMilliseconds = -10,
             InputPressDurationMilliseconds = 0,
             SpecialSeeds = "  for the worthy | get fixed boi | skyblock  ",
-            SecretSeeds = "  mole people | waterpark  "
+            SecretSeeds = "  mole people | waterpark  ",
+            EnableZenithStarCatch = true,
+            ZenithStarCatchStopStage = "not a real stage",
+            ZenithStarCatchSpeedSliderValue = 9999
         }
     };
 
@@ -163,6 +171,9 @@ static void TestSettingsNormalize()
     AssertEqual(1, settings.AutoCreate.InputPressDurationMilliseconds);
     AssertEqual("Zenith|Skyblock", settings.AutoCreate.SpecialSeeds);
     AssertEqual("mole people | waterpark", settings.AutoCreate.SecretSeeds);
+    AssertEqual(true, settings.AutoCreate.EnableZenithStarCatch);
+    AssertEqual(AutoCreateZenithStarCatchStage.Pots, settings.AutoCreate.ZenithStarCatchStopStage);
+    AssertEqual(AutoCreateZenithStarCatchSpeed.MaximumSliderValue, settings.AutoCreate.ZenithStarCatchSpeedSliderValue);
 
     settings.Advanced = null!;
     SettingsNormalizer.Normalize(settings);
@@ -430,6 +441,56 @@ static void TestSettingsFormSavesTheConstantSpecialSeed()
     });
 }
 
+static void TestSettingsFormAppliesZenithStarCatchOptions()
+{
+    RunSta(() =>
+    {
+        using var form = new SettingsForm(new AppSettings());
+        AutomationSettingsPage page = form.PageHost.GetOrCreatePage<AutomationSettingsPage>(SettingsPageId.Automation);
+        page.AutoCreateSpecialSeedBoxes[AutoCreateSpecialWorldSeed.Zenith].Checked = true;
+        page.AutoCreateZenithStarCatchBox.Checked = true;
+        page.AutoCreateZenithStarCatchStageBoxes[AutoCreateZenithStarCatchStage.GemCaves].Checked = false;
+        page.AutoCreateZenithStarCatchSpeedBar.Value = 500;
+
+        AssertEqual(true, page.AutoCreateZenithStarCatchStageBoxes[AutoCreateZenithStarCatchStage.LifeCrystals].Checked);
+        AssertEqual(true, page.AutoCreateZenithStarCatchStageBoxes[AutoCreateZenithStarCatchStage.Statues].Checked);
+        AssertEqual(true, page.AutoCreateZenithStarCatchStageBoxes[AutoCreateZenithStarCatchStage.BuriedChests].Checked);
+        AssertEqual(true, page.AutoCreateZenithStarCatchStageBoxes[AutoCreateZenithStarCatchStage.GemCaves].Checked);
+        AssertEqual(false, page.AutoCreateZenithStarCatchStageBoxes[AutoCreateZenithStarCatchStage.Pots].Checked);
+        AssertEqual(false, page.AutoCreateZenithStarCatchStageBoxes[AutoCreateZenithStarCatchStage.Traps].Checked);
+
+        form.ApplyForTests();
+
+        AssertEqual(true, form.Result.AutoCreate.EnableZenithStarCatch);
+        AssertEqual(AutoCreateZenithStarCatchStage.GemCaves, form.Result.AutoCreate.ZenithStarCatchStopStage);
+        AssertEqual(500, form.Result.AutoCreate.ZenithStarCatchSpeedSliderValue);
+    });
+}
+
+static void TestSettingsFormGatesZenithStarCatchBehindZenithSeed()
+{
+    RunSta(() =>
+    {
+        using var form = new SettingsForm(new AppSettings
+        {
+            AutoCreate = new AutoCreateWorldSettings
+            {
+                EnableZenithStarCatch = true,
+                ZenithStarCatchStopStage = AutoCreateZenithStarCatchStage.Pots
+            }
+        });
+        AutomationSettingsPage page = form.PageHost.GetOrCreatePage<AutomationSettingsPage>(SettingsPageId.Automation);
+
+        AssertEqual(false, page.AutoCreateZenithStarCatchBox.Enabled);
+        AssertEqual(false, page.AutoCreateZenithStarCatchStageBoxes[AutoCreateZenithStarCatchStage.LifeCrystals].Enabled);
+
+        page.AutoCreateSpecialSeedBoxes[AutoCreateSpecialWorldSeed.Zenith].Checked = true;
+
+        AssertEqual(true, page.AutoCreateZenithStarCatchBox.Enabled);
+        AssertEqual(true, page.AutoCreateZenithStarCatchStageBoxes[AutoCreateZenithStarCatchStage.LifeCrystals].Enabled);
+    });
+}
+
 static void TestSettingsFormAppliesTimerStartSound()
 {
     RunSta(() =>
@@ -442,6 +503,38 @@ static void TestSettingsFormAppliesTimerStartSound()
 
         AssertEqual("sounds\\timer-start.wav", form.Result.Sounds.EnterWorld);
     });
+}
+
+static void TestZenithStarCatchStageStopRules()
+{
+    AssertEqual(false, AutoCreateZenithStarCatchStage.ShouldStopAtPass(
+        AutoCreateZenithStarCatchStage.GemCaves,
+        AutoCreateZenithStarCatchStage.GemCaves));
+    AssertEqual(true, AutoCreateZenithStarCatchStage.ShouldStopAtPass(
+        AutoCreateZenithStarCatchStage.GemCaves,
+        "Moss"));
+    AssertEqual(false, AutoCreateZenithStarCatchStage.ShouldStopAtPass(
+        AutoCreateZenithStarCatchStage.Pots,
+        "Quick Cleanup"));
+    AssertEqual(true, AutoCreateZenithStarCatchStage.ShouldStopAtPass(
+        AutoCreateZenithStarCatchStage.Pots,
+        "Hellforge"));
+    AssertEqual(true, AutoCreateZenithStarCatchStage.ShouldStopAtPass(
+        AutoCreateZenithStarCatchStage.Traps,
+        "Piles"));
+}
+
+static void TestZenithStarCatchSpeedRange()
+{
+    AssertEqual("1.0", AutoCreateZenithStarCatchSpeed.FormatMultiplier(AutoCreateZenithStarCatchSpeed.MinimumSliderValue));
+    AssertEqual("50.0", AutoCreateZenithStarCatchSpeed.FormatMultiplier(AutoCreateZenithStarCatchSpeed.MaximumSliderValue));
+    AssertEqual("5.0", AutoCreateZenithStarCatchSpeed.FormatMultiplier(AutoCreateZenithStarCatchSpeed.DefaultSliderValue));
+    AssertEqual("1.5", AutoCreateZenithStarCatchSpeed.FormatMultiplier(100));
+    AssertEqual("2.2", AutoCreateZenithStarCatchSpeed.FormatMultiplier(200));
+    AssertEqual("3.2", AutoCreateZenithStarCatchSpeed.FormatMultiplier(300));
+    AssertEqual("7.0", AutoCreateZenithStarCatchSpeed.FormatMultiplier(500));
+    AssertEqual("12.5", AutoCreateZenithStarCatchSpeed.FormatMultiplier(650));
+    AssertEqual("23.0", AutoCreateZenithStarCatchSpeed.FormatMultiplier(800));
 }
 
 static void TestSettingsFormAppliesResumeSound()

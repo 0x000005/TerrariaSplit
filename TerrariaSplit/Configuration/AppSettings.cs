@@ -310,6 +310,9 @@ internal sealed class AutoCreateWorldSettings
     public string WorldEvil { get; set; } = AutoCreateWorldEvil.Random;
     public string SpecialSeeds { get; set; } = string.Empty;
     public string SecretSeeds { get; set; } = string.Empty;
+    public bool EnableZenithStarCatch { get; set; }
+    public string ZenithStarCatchStopStage { get; set; } = AutoCreateZenithStarCatchStage.Default;
+    public int ZenithStarCatchSpeedSliderValue { get; set; } = AutoCreateZenithStarCatchSpeed.DefaultSliderValue;
     public int ShortActionDelayMilliseconds { get; set; } = DefaultShortActionDelayMilliseconds;
     public int MenuActionDelayMilliseconds { get; set; } = DefaultMenuActionDelayMilliseconds;
     public int WindowActivationDelayMilliseconds { get; set; } = DefaultWindowActivationDelayMilliseconds;

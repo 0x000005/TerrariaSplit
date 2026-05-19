@@ -10,8 +10,14 @@ internal sealed class CreateWorldWorkflow : IDisposable
 
     private readonly TerrariaSavePreparation savePreparation = new();
     private readonly TerrariaAutomationContext automation = new("Create world");
+    private readonly ZenithStarCatchAutomation zenithStarCatchAutomation;
     private TimeSpan shortActionDelay = TimeSpan.FromMilliseconds(AutoCreateWorldSettings.DefaultShortActionDelayMilliseconds);
     private TimeSpan menuActionDelay = TimeSpan.FromMilliseconds(AutoCreateWorldSettings.DefaultMenuActionDelayMilliseconds);
+
+    public CreateWorldWorkflow()
+    {
+        zenithStarCatchAutomation = new ZenithStarCatchAutomation(automation);
+    }
 
     public Task RunAsync(CancellationToken cancellationToken = default)
     {
@@ -121,6 +127,8 @@ internal sealed class CreateWorldWorkflow : IDisposable
             {
                 return;
             }
+
+            await zenithStarCatchAutomation.RunAsync(autoCreate, cancellationToken);
         }
         catch (OperationCanceledException)
         {

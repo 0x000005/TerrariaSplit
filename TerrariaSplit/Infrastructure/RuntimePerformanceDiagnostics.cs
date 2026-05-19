@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 namespace TerrariaSplit;
 
 internal readonly record struct RuntimePerformanceDiagnostics(
@@ -16,9 +18,13 @@ internal readonly record struct RuntimePerformanceDiagnostics(
     double AveragePaintMilliseconds,
     double MaxPaintMilliseconds,
     DateTime? LastPaintUtc,
+    double ControlTickIntervalMilliseconds,
     double TimerRenderIntervalMilliseconds,
     double WatcherPollIntervalMilliseconds,
-    double ProcessLookupIntervalMilliseconds)
+    double ProcessLookupIntervalMilliseconds,
+    double ActualControlTickIntervalMilliseconds,
+    double ActualWatcherPollIntervalMilliseconds,
+    double ActualPaintIntervalMilliseconds)
 {
     public static RuntimePerformanceDiagnostics Empty => new(
         ControlTickCount: 0,
@@ -36,9 +42,13 @@ internal readonly record struct RuntimePerformanceDiagnostics(
         AveragePaintMilliseconds: 0,
         MaxPaintMilliseconds: 0,
         LastPaintUtc: null,
+        ControlTickIntervalMilliseconds: 0,
         TimerRenderIntervalMilliseconds: 0,
         WatcherPollIntervalMilliseconds: 0,
-        ProcessLookupIntervalMilliseconds: 0);
+        ProcessLookupIntervalMilliseconds: 0,
+        ActualControlTickIntervalMilliseconds: 0,
+        ActualWatcherPollIntervalMilliseconds: 0,
+        ActualPaintIntervalMilliseconds: 0);
 }
 
 internal sealed class RuntimePerformanceTracker
@@ -46,9 +56,17 @@ internal sealed class RuntimePerformanceTracker
     private readonly RollingPerformanceCounter controlTicks = new();
     private readonly RollingPerformanceCounter watcherPolls = new();
     private readonly RollingPerformanceCounter paints = new();
+    private readonly RollingPerformanceCounter controlTickIntervals = new();
+    private readonly RollingPerformanceCounter watcherPollIntervals = new();
+    private readonly RollingPerformanceCounter paintIntervals = new();
     private DateTime? lastControlTickUtc;
     private DateTime? lastWatcherPollUtc;
     private DateTime? lastPaintUtc;
+    private long? lastControlTickTimestamp;
+    private long? lastWatcherPollTimestamp;
+    private long? lastPaintTimestamp;
+
+    public TimeSpan ControlTickInterval { get; set; }
 
     public TimeSpan TimerRenderInterval { get; set; }
 
@@ -59,18 +77,21 @@ internal sealed class RuntimePerformanceTracker
     public void RecordControlTick(TimeSpan elapsed)
     {
         controlTicks.Record(elapsed);
+        RecordInterval(controlTickIntervals, ref lastControlTickTimestamp);
         lastControlTickUtc = DateTime.UtcNow;
     }
 
     public void RecordWatcherPoll(TimeSpan elapsed)
     {
         watcherPolls.Record(elapsed);
+        RecordInterval(watcherPollIntervals, ref lastWatcherPollTimestamp);
         lastWatcherPollUtc = DateTime.UtcNow;
     }
 
     public void RecordPaint(TimeSpan elapsed)
     {
         paints.Record(elapsed);
+        RecordInterval(paintIntervals, ref lastPaintTimestamp);
         lastPaintUtc = DateTime.UtcNow;
     }
 
@@ -92,9 +113,24 @@ internal sealed class RuntimePerformanceTracker
             paints.AverageMilliseconds,
             paints.MaxMilliseconds,
             lastPaintUtc,
+            ControlTickInterval.TotalMilliseconds,
             TimerRenderInterval.TotalMilliseconds,
             WatcherPollInterval.TotalMilliseconds,
-            ProcessLookupInterval.TotalMilliseconds);
+            ProcessLookupInterval.TotalMilliseconds,
+            controlTickIntervals.AverageMilliseconds,
+            watcherPollIntervals.AverageMilliseconds,
+            paintIntervals.AverageMilliseconds);
+    }
+
+    private static void RecordInterval(RollingPerformanceCounter counter, ref long? lastTimestamp)
+    {
+        long now = Stopwatch.GetTimestamp();
+        if (lastTimestamp.HasValue)
+        {
+            counter.Record(Stopwatch.GetElapsedTime(lastTimestamp.Value, now));
+        }
+
+        lastTimestamp = now;
     }
 }
 

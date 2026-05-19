@@ -1,13 +1,26 @@
+using System.Globalization;
+
 namespace TerrariaSplit;
 
 internal sealed class TerrariaMemoryResolver
 {
+    private const int X86GenerationProgressMessageFieldOffset = 0x24;
+    private const int X86GenerationProgressValueFieldOffset = 0x4;
+    private const int X86GenerationProgressTotalWeightedProgressFieldOffset = 0xC;
+    private const int X86GenerationProgressTotalWeightFieldOffset = 0x14;
+    private const int X86GenerationProgressCurrentPassWeightFieldOffset = 0x1C;
+    private const int X86ControllerGeneratorFieldOffset = 16;
+    private const int X86WorldGeneratorCurrentPassFieldOffset = 0x18;
+    private const int X86GenPassNameFieldOffset = 0xC;
+
     private readonly TerrariaMemoryProfile profile;
     private IntPtr updateTimeAddress;
     private IntPtr gameMenuAddress;
     private IntPtr gameMenuSecondaryAddress;
     private IntPtr bossFlagsBaseAddress;
     private IntPtr hardmodeAddress;
+    private IntPtr currentGenerationProgressAddress;
+    private IntPtr currentControllerAddress;
     private bool usingGameMenuFallback;
     private bool usingBossProgressionFallback;
 
@@ -28,12 +41,18 @@ internal sealed class TerrariaMemoryResolver
         gameMenuSecondaryAddress,
         bossFlagsBaseAddress,
         hardmodeAddress,
+        currentGenerationProgressAddress,
+        currentControllerAddress,
         usingGameMenuFallback,
         usingBossProgressionFallback);
 
     public bool HasGameMenuAddress => gameMenuAddress != IntPtr.Zero;
 
     public bool HasResolvedBossAddresses => bossFlagsBaseAddress != IntPtr.Zero && hardmodeAddress != IntPtr.Zero;
+
+    public bool HasResolvedWorldGenerationAddresses =>
+        currentGenerationProgressAddress != IntPtr.Zero &&
+        currentControllerAddress != IntPtr.Zero;
 
     public void Reset()
     {
@@ -42,6 +61,8 @@ internal sealed class TerrariaMemoryResolver
         gameMenuSecondaryAddress = IntPtr.Zero;
         bossFlagsBaseAddress = IntPtr.Zero;
         hardmodeAddress = IntPtr.Zero;
+        currentGenerationProgressAddress = IntPtr.Zero;
+        currentControllerAddress = IntPtr.Zero;
         usingGameMenuFallback = false;
         usingBossProgressionFallback = false;
         SignatureScanAttempts = 0;
@@ -56,6 +77,8 @@ internal sealed class TerrariaMemoryResolver
         gameMenuSecondaryAddress = IntPtr.Zero;
         bossFlagsBaseAddress = IntPtr.Zero;
         hardmodeAddress = IntPtr.Zero;
+        currentGenerationProgressAddress = IntPtr.Zero;
+        currentControllerAddress = IntPtr.Zero;
         usingGameMenuFallback = false;
         usingBossProgressionFallback = false;
     }
@@ -78,6 +101,7 @@ internal sealed class TerrariaMemoryResolver
             {
                 usingGameMenuFallback = false;
                 TryResolveBossAddressesWithFallbacks(memory, resolvedUpdateTimeAddress);
+                TryResolveWorldGenerationAddresses(memory);
                 return new TerrariaMemoryResolveResult(
                     BuildResolutionStage(),
                     BuildResolutionStatusDetail(),
@@ -110,6 +134,7 @@ internal sealed class TerrariaMemoryResolver
             updateTimeAddress = fallbackAnchorAddress;
             usingGameMenuFallback = true;
             TryResolveBossAddressesWithFallbacks(memory, null);
+            TryResolveWorldGenerationAddresses(memory);
             return new TerrariaMemoryResolveResult(
                 BuildResolutionStage(),
                 BuildResolutionStatusDetail(),
@@ -189,9 +214,44 @@ internal sealed class TerrariaMemoryResolver
             ReadBossFlag(bossFlags, minimumBossFlagOffset, profile.MoonLordDefeatedFlagOffset));
     }
 
+    public TerrariaWorldGenerationState ReadWorldGenerationState(IProcessMemoryReader memory)
+    {
+        if (memory.Is64Bit)
+        {
+            return new TerrariaWorldGenerationState(
+                null,
+                null,
+                null,
+                null);
+        }
+
+        string? currentPassName = null;
+        string? progressMessage = null;
+        double? currentProgress = null;
+        double? totalProgress = null;
+
+        if (TryReadObjectSlot(memory, ref currentGenerationProgressAddress, out IntPtr progressObjectAddress) &&
+            progressObjectAddress != IntPtr.Zero)
+        {
+            TryReadGenerationProgress(memory, progressObjectAddress, out progressMessage, out currentProgress, out totalProgress);
+        }
+
+        if (TryReadObjectSlot(memory, ref currentControllerAddress, out IntPtr controllerObjectAddress) &&
+            controllerObjectAddress != IntPtr.Zero)
+        {
+            currentPassName = ReadCurrentPassName(memory, controllerObjectAddress);
+        }
+
+        return new TerrariaWorldGenerationState(
+            currentPassName,
+            progressMessage,
+            currentProgress,
+            totalProgress);
+    }
+
     public string BuildResolutionStage()
     {
-        if (HasResolvedBossAddresses)
+        if (HasResolvedBossAddresses && HasResolvedWorldGenerationAddresses)
         {
             if (usingGameMenuFallback && usingBossProgressionFallback)
             {
@@ -211,19 +271,69 @@ internal sealed class TerrariaMemoryResolver
             return "ready";
         }
 
+        if (HasResolvedBossAddresses)
+        {
+            return usingGameMenuFallback
+                ? "world generation pointers pending via fallback"
+                : "world generation pointers pending";
+        }
+
         return usingGameMenuFallback ? "timer ready via fallback" : "boss pointers pending";
     }
 
     public string BuildResolutionStatusDetail()
     {
-        if (HasResolvedBossAddresses)
+        if (HasResolvedBossAddresses && HasResolvedWorldGenerationAddresses)
         {
             return BuildResolutionStage();
+        }
+
+        if (HasResolvedBossAddresses)
+        {
+            return usingGameMenuFallback
+                ? "timer and boss pointers ready via fallback; world generation scan pending"
+                : "timer and boss pointers ready; world generation scan pending";
         }
 
         return usingGameMenuFallback
             ? "timer ready via fallback; boss scan pending"
             : "boss scan pending";
+    }
+
+    private void TryResolveWorldGenerationAddresses(IProcessMemoryReader memory)
+    {
+        if (currentControllerAddress == IntPtr.Zero)
+        {
+            TryResolveInlineAddress(memory, profile.CurrentControllerSignature, profile.CurrentControllerInlineAddressOffset, static (reader, address) =>
+                reader.TryReadPointerValue(address, out _), out currentControllerAddress);
+        }
+
+        if (currentGenerationProgressAddress == IntPtr.Zero)
+        {
+            TryResolveInlineAddress(memory, profile.CurrentGenerationProgressSignature, profile.CurrentGenerationProgressInlineAddressOffset, static (reader, address) =>
+                reader.TryReadPointerValue(address, out _), out currentGenerationProgressAddress);
+        }
+
+        int slotSize = memory.Is64Bit ? 8 : 4;
+        if (currentControllerAddress == IntPtr.Zero &&
+            currentGenerationProgressAddress != IntPtr.Zero)
+        {
+            IntPtr adjacentControllerAddress = IntPtr.Add(currentGenerationProgressAddress, slotSize);
+            if (memory.TryReadPointerValue(adjacentControllerAddress, out _))
+            {
+                currentControllerAddress = adjacentControllerAddress;
+            }
+        }
+
+        if (currentGenerationProgressAddress == IntPtr.Zero &&
+            currentControllerAddress != IntPtr.Zero)
+        {
+            IntPtr adjacentProgressAddress = IntPtr.Add(currentControllerAddress, -slotSize);
+            if (memory.TryReadPointerValue(adjacentProgressAddress, out _))
+            {
+                currentGenerationProgressAddress = adjacentProgressAddress;
+            }
+        }
     }
 
     private bool TryResolveBossAddresses(IProcessMemoryReader memory, IntPtr resolvedUpdateTimeAddress)
@@ -432,5 +542,150 @@ internal sealed class TerrariaMemoryResolver
 
         hardmodeAddress = IntPtr.Zero;
         return null;
+    }
+
+    private static bool TryReadObjectSlot(IProcessMemoryReader memory, ref IntPtr slotAddress, out IntPtr objectAddress)
+    {
+        objectAddress = IntPtr.Zero;
+        if (slotAddress == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        if (memory.TryReadPointerValue(slotAddress, out objectAddress))
+        {
+            return true;
+        }
+
+        slotAddress = IntPtr.Zero;
+        return false;
+    }
+
+    private static bool TryReadGenerationProgress(
+        IProcessMemoryReader memory,
+        IntPtr progressObjectAddress,
+        out string? progressMessage,
+        out double? currentProgress,
+        out double? totalProgress)
+    {
+        progressMessage = null;
+        currentProgress = null;
+        totalProgress = null;
+
+        IntPtr messageFieldAddress = IntPtr.Add(progressObjectAddress, X86GenerationProgressMessageFieldOffset);
+        if (memory.TryReadPointerValue(messageFieldAddress, out IntPtr messageObjectAddress) &&
+            messageObjectAddress != IntPtr.Zero &&
+            ManagedObjectMemoryReader.TryReadManagedString(memory, messageObjectAddress, out string? messageTemplate) &&
+            !string.IsNullOrWhiteSpace(messageTemplate))
+        {
+            progressMessage = messageTemplate;
+        }
+
+        if (memory.TryReadDouble(IntPtr.Add(progressObjectAddress, X86GenerationProgressValueFieldOffset), out double value))
+        {
+            currentProgress = value;
+        }
+
+        if (memory.TryReadDouble(IntPtr.Add(progressObjectAddress, X86GenerationProgressTotalWeightedProgressFieldOffset), out double totalWeightedProgress) &&
+            memory.TryReadDouble(IntPtr.Add(progressObjectAddress, X86GenerationProgressTotalWeightFieldOffset), out double totalWeight) &&
+            memory.TryReadDouble(IntPtr.Add(progressObjectAddress, X86GenerationProgressCurrentPassWeightFieldOffset), out double currentPassWeight) &&
+            currentProgress.HasValue &&
+            totalWeight != 0d)
+        {
+            totalProgress = (currentProgress.Value * currentPassWeight + totalWeightedProgress) / totalWeight;
+        }
+
+        if (!string.IsNullOrWhiteSpace(progressMessage) && currentProgress.HasValue)
+        {
+            try
+            {
+                progressMessage = string.Format(CultureInfo.InvariantCulture, progressMessage, currentProgress.Value);
+            }
+            catch (FormatException)
+            {
+                // Leave the raw template when Terraria uses an unexpected format string.
+            }
+        }
+
+        if (currentProgress.HasValue &&
+            (!double.IsFinite(currentProgress.Value) || currentProgress.Value < -0.001d || currentProgress.Value > 1.001d))
+        {
+            currentProgress = null;
+        }
+
+        if (totalProgress.HasValue &&
+            (!double.IsFinite(totalProgress.Value) || totalProgress.Value < -0.001d || totalProgress.Value > 1.001d))
+        {
+            totalProgress = null;
+        }
+
+        if (string.IsNullOrWhiteSpace(progressMessage))
+        {
+            currentProgress = null;
+            totalProgress = null;
+            return false;
+        }
+
+        return true;
+    }
+
+    private static string? ReadCurrentPassName(IProcessMemoryReader memory, IntPtr controllerObjectAddress)
+    {
+        if (!memory.TryReadPointerValue(IntPtr.Add(controllerObjectAddress, X86ControllerGeneratorFieldOffset), out IntPtr worldGeneratorObjectAddress) ||
+            worldGeneratorObjectAddress == IntPtr.Zero)
+        {
+            return null;
+        }
+
+        if (!memory.TryReadPointerValue(IntPtr.Add(worldGeneratorObjectAddress, X86WorldGeneratorCurrentPassFieldOffset), out IntPtr currentPassObjectAddress) ||
+            currentPassObjectAddress == IntPtr.Zero)
+        {
+            return null;
+        }
+
+        if (!memory.TryReadPointerValue(IntPtr.Add(currentPassObjectAddress, X86GenPassNameFieldOffset), out IntPtr nameObjectAddress) ||
+            nameObjectAddress == IntPtr.Zero)
+        {
+            return null;
+        }
+
+        return ManagedObjectMemoryReader.TryReadManagedString(memory, nameObjectAddress, out string? currentPassName)
+            ? currentPassName
+            : null;
+    }
+
+    private bool TryResolveInlineAddress(
+        IProcessMemoryReader memory,
+        SignaturePattern signature,
+        int inlineAddressOffset,
+        Func<IProcessMemoryReader, IntPtr, bool> validateAddress,
+        out IntPtr resolvedAddress)
+    {
+        resolvedAddress = IntPtr.Zero;
+
+        IntPtr anchorAddress = SignatureScanner.Scan(
+            memory,
+            signature,
+            profile.SignatureScanScopeLabel,
+            out SignatureScanDiagnostics scanDiagnostics);
+        LastSignatureScan = scanDiagnostics;
+        if (anchorAddress == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        IntPtr inlineAddressLocation = IntPtr.Add(anchorAddress, inlineAddressOffset);
+        if (!memory.TryReadPointer(inlineAddressLocation, out IntPtr candidateAddress))
+        {
+            return false;
+        }
+
+        if (!validateAddress(memory, candidateAddress))
+        {
+            return false;
+        }
+
+        resolvedAddress = candidateAddress;
+        return true;
     }
 }

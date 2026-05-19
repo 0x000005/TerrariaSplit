@@ -9,7 +9,7 @@ internal sealed partial class MainForm : Form
     private static readonly TimeSpan SplitCompletionFadeDuration = TimeSpan.FromSeconds(0.45);
     private static readonly TimeSpan ResetMenuGraceDuration = TimeSpan.FromSeconds(0.5);
     private static readonly TimeSpan SplitCompletionDeltaIntroGap = TimeSpan.FromSeconds(0.06);
-    private static readonly TimeSpan ControlTickInterval = TimeSpan.FromMilliseconds(50);
+    private static readonly TimeSpan ControlTickInterval = TimeSpan.FromMilliseconds(5);
     private static readonly TimeSpan TimerRenderInterval = TimeSpan.FromMilliseconds(10);
     private const int ResizeBorder = 8;
     private const int RowGap = 9;
@@ -52,7 +52,7 @@ internal sealed partial class MainForm : Form
     private AppSettings settings = AppSettingsStore.Load();
     private UiPalette palette;
     private TerrariaWatchSnapshot snapshot =
-        new(false, null, false, null, TerrariaBossStates.Unknown, false, "waiting for Terraria.exe");
+        new(false, null, false, null, TerrariaBossStates.Unknown, TerrariaWorldGenerationState.Unknown, false, "waiting for Terraria.exe");
 
     private SplitTimer runTimer => runSession.Timer;
 
@@ -108,6 +108,7 @@ internal sealed partial class MainForm : Form
         renderTimer.Interval = (int)TimerRenderInterval.TotalMilliseconds;
         renderTimer.Tick += (_, _) => RenderTick();
 
+        performance.ControlTickInterval = ControlTickInterval;
         performance.TimerRenderInterval = TimerRenderInterval;
         performance.WatcherPollInterval = monitorCoordinator.WatcherPollInterval;
         performance.ProcessLookupInterval = monitorCoordinator.ProcessLookupInterval;
@@ -915,6 +916,7 @@ internal sealed partial class MainForm : Form
 
     private void ResetRunWithSound(bool recordStats = false)
     {
+        soundPlayer.StopAll();
         soundPlayer.Play(settings.Sounds.Reset);
         ResetRun(recordStats);
     }

@@ -18,18 +18,26 @@ internal sealed class AutomationSettingsPage : SettingsPageBase
     private readonly ComboBox autoCreateWorldDifficultyBox = new();
     private readonly ComboBox autoCreateWorldEvilBox = new();
     private readonly TextBox autoCreateSecretSeedsBox = new();
+    private readonly CheckBox autoCreateZenithStarCatchBox = new();
+    private readonly ThemedSlider autoCreateZenithStarCatchSpeedBar = new();
+    private readonly Label autoCreateZenithStarCatchSpeedValueLabel = new();
     private readonly TextBox autoCreateShortActionDelayBox = new();
     private readonly TextBox autoCreateMenuActionDelayBox = new();
     private readonly TextBox autoCreateWindowActivationDelayBox = new();
     private readonly TextBox autoCreateClickFocusDelayBox = new();
     private readonly TextBox autoCreateInputPressDurationBox = new();
     private readonly Dictionary<string, CheckBox> autoCreateSpecialSeedBoxes = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, CheckBox> autoCreateZenithStarCatchStageBoxes = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<PracticeSlotControls> practiceSlotControls = new();
+    private bool updatingZenithStarCatchStageSelection;
 
     public override SettingsPageId Id => SettingsPageId.Automation;
 
     internal IReadOnlyList<PracticeSlotControls> PracticeSlots => practiceSlotControls;
     internal IReadOnlyDictionary<string, CheckBox> AutoCreateSpecialSeedBoxes => autoCreateSpecialSeedBoxes;
+    internal CheckBox AutoCreateZenithStarCatchBox => autoCreateZenithStarCatchBox;
+    internal IReadOnlyDictionary<string, CheckBox> AutoCreateZenithStarCatchStageBoxes => autoCreateZenithStarCatchStageBoxes;
+    internal ThemedSlider AutoCreateZenithStarCatchSpeedBar => autoCreateZenithStarCatchSpeedBar;
     internal TextBox AutoCreateSecretSeedsBox => autoCreateSecretSeedsBox;
 
     protected override Control BuildPage(SettingsPageContext context)
@@ -55,6 +63,9 @@ internal sealed class AutomationSettingsPage : SettingsPageBase
                 autoCreateSpecialSeedBoxes.TryGetValue(seed, out CheckBox? box) && box.Checked));
         settings.AutoCreate.SpecialSeeds = string.Join("|", AutoCreateSpecialWorldSeed.ParseList(selectedSpecialSeeds));
         settings.AutoCreate.SecretSeeds = autoCreateSecretSeedsBox.Text.Trim();
+        settings.AutoCreate.EnableZenithStarCatch = autoCreateZenithStarCatchBox.Checked;
+        settings.AutoCreate.ZenithStarCatchStopStage = GetSelectedZenithStarCatchStopStage();
+        settings.AutoCreate.ZenithStarCatchSpeedSliderValue = AutoCreateZenithStarCatchSpeed.NormalizeSliderValue(autoCreateZenithStarCatchSpeedBar.Value);
         settings.AutoCreate.ShortActionDelayMilliseconds = SettingsValueParser.ParseIntBox(
             autoCreateShortActionDelayBox,
             AutoCreateWorldSettings.DefaultShortActionDelayMilliseconds,
@@ -114,6 +125,10 @@ internal sealed class AutomationSettingsPage : SettingsPageBase
         ConfigureOptionBox(autoCreateWorldDifficultyBox, AutoCreateWorldDifficulty.All, Draft.AutoCreate.WorldDifficulty);
         ConfigureOptionBox(autoCreateWorldEvilBox, AutoCreateWorldEvil.All, Draft.AutoCreate.WorldEvil);
         ConfigureSeedListBox(autoCreateSecretSeedsBox, Draft.AutoCreate.SecretSeeds);
+        ConfigureCheckBox(autoCreateZenithStarCatchBox, Draft.AutoCreate.EnableZenithStarCatch);
+        autoCreateZenithStarCatchBox.CheckedChanged += (_, _) => UpdateZenithStarCatchAvailability();
+        ConfigureZenithStarCatchSpeedBar(autoCreateZenithStarCatchSpeedBar, Draft.AutoCreate.ZenithStarCatchSpeedSliderValue);
+        autoCreateZenithStarCatchSpeedBar.ValueChanged += (_, _) => UpdateZenithStarCatchSpeedLabel();
         ConfigureNumberBox(autoCreateShortActionDelayBox, Draft.AutoCreate.ShortActionDelayMilliseconds, 0, 5000);
         ConfigureNumberBox(autoCreateMenuActionDelayBox, Draft.AutoCreate.MenuActionDelayMilliseconds, 0, 5000);
         ConfigureNumberBox(autoCreateWindowActivationDelayBox, Draft.AutoCreate.WindowActivationDelayMilliseconds, 0, 5000);
@@ -200,6 +215,26 @@ internal sealed class AutomationSettingsPage : SettingsPageBase
             SettingsUiFactory.ColumnStyleAbsolute(360f));
         Factory.AddSettingRow(seedGrid, "Secret seeds", autoCreateSecretSeedsBox);
         SettingsUiFactory.AddSectionControl(createSection, seedGrid);
+
+        SettingsUiFactory.AddSectionControl(createSection, Factory.CreateFieldLabel("Enable auto star catch (Zenith worlds only)"));
+        SettingsUiFactory.AddSectionControl(
+            createSection,
+            Factory.CreateWrappedFieldLabel(
+                "Default: disabled, stop after Pots, catch speed 5.",
+                UiTheme.Text));
+
+        TableLayoutPanel zenithStarCatchGrid = Factory.CreateGrid(
+            SettingsUiFactory.ColumnStylePercent(100f),
+            SettingsUiFactory.ColumnStyleAbsolute(360f));
+        Factory.AddSettingRow(zenithStarCatchGrid, "Enabled", autoCreateZenithStarCatchBox);
+        SettingsUiFactory.AddSectionControl(createSection, zenithStarCatchGrid);
+        SettingsUiFactory.AddSectionControl(createSection, Factory.CreateFieldLabel("Stop after stage"));
+        SettingsUiFactory.AddSectionControl(createSection, CreateZenithStarCatchStageSelector());
+        TableLayoutPanel zenithStarCatchSpeedGrid = Factory.CreateGrid(
+            SettingsUiFactory.ColumnStylePercent(100f),
+            SettingsUiFactory.ColumnStyleAbsolute(360f));
+        Factory.AddSettingRow(zenithStarCatchSpeedGrid, "Catch speed", CreateZenithStarCatchSpeedControl());
+        SettingsUiFactory.AddSectionControl(createSection, zenithStarCatchSpeedGrid);
         SettingsUiFactory.AddSection(parent, createSection);
     }
 
@@ -247,6 +282,52 @@ internal sealed class AutomationSettingsPage : SettingsPageBase
         return panel;
     }
 
+    private TableLayoutPanel CreateZenithStarCatchStageSelector()
+    {
+        autoCreateZenithStarCatchStageBoxes.Clear();
+
+        const int columnCount = 3;
+        var panel = new TableLayoutPanel
+        {
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            BackColor = UiTheme.Surface,
+            ColumnCount = columnCount,
+            Dock = DockStyle.Top,
+            Margin = new Padding(0, 0, 0, 8),
+            Padding = Padding.Empty
+        };
+        UiTheme.EnableDoubleBuffering(panel);
+        for (int i = 0; i < columnCount; i++)
+        {
+            panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f / columnCount));
+        }
+
+        string selectedStopStage = AutoCreateZenithStarCatchStage.Normalize(Draft.AutoCreate.ZenithStarCatchStopStage);
+        for (int index = 0; index < AutoCreateZenithStarCatchStage.All.Length; index++)
+        {
+            string stage = AutoCreateZenithStarCatchStage.All[index];
+            CheckBox button = CreateZenithStarCatchStageButton(
+                stage,
+                AutoCreateZenithStarCatchStage.Includes(selectedStopStage, stage));
+            int column = index % columnCount;
+            int row = index / columnCount;
+            if (column == 0)
+            {
+                panel.RowCount++;
+                panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 54f));
+            }
+
+            button.Margin = new Padding(0, 0, column == columnCount - 1 ? 0 : 8, 10);
+            autoCreateZenithStarCatchStageBoxes[stage] = button;
+            panel.Controls.Add(button, column, row);
+        }
+
+        ApplyZenithStarCatchStageSelection(selectedStopStage);
+        UpdateZenithStarCatchAvailability();
+        return panel;
+    }
+
     private CheckBox CreateSpecialSeedButton(string seed, bool selected)
     {
         var button = new CheckBox
@@ -283,6 +364,60 @@ internal sealed class AutomationSettingsPage : SettingsPageBase
         return button;
     }
 
+    private CheckBox CreateZenithStarCatchStageButton(string stage, bool selected)
+    {
+        var button = new CheckBox
+        {
+            Appearance = Appearance.Button,
+            AutoEllipsis = true,
+            BackColor = selected ? UiTheme.Selection : UiTheme.SurfaceRaised,
+            Checked = selected,
+            Dock = DockStyle.Fill,
+            FlatStyle = FlatStyle.Flat,
+            Font = UiTheme.FormFont(9f),
+            ForeColor = UiTheme.Text,
+            Height = 44,
+            MinimumSize = new Size(0, 44),
+            Padding = new Padding(8, 0, 8, 2),
+            Text = Context.Localize(stage),
+            TextAlign = ContentAlignment.MiddleCenter,
+            UseVisualStyleBackColor = false
+        };
+        button.FlatAppearance.CheckedBackColor = UiTheme.Selection;
+        button.CheckedChanged += (_, _) => SelectZenithStarCatchStage(stage);
+        button.EnabledChanged += (_, _) => UpdateSpecialSeedButtonState(button);
+        UpdateSpecialSeedButtonState(button);
+        return button;
+    }
+
+    private Control CreateZenithStarCatchSpeedControl()
+    {
+        autoCreateZenithStarCatchSpeedValueLabel.AutoEllipsis = false;
+        autoCreateZenithStarCatchSpeedValueLabel.Dock = DockStyle.Fill;
+        autoCreateZenithStarCatchSpeedValueLabel.ForeColor = UiTheme.Text;
+        autoCreateZenithStarCatchSpeedValueLabel.Font = UiTheme.FormFont(9.5f, FontStyle.Bold);
+        autoCreateZenithStarCatchSpeedValueLabel.Margin = new Padding(10, 8, 0, 8);
+        autoCreateZenithStarCatchSpeedValueLabel.TextAlign = ContentAlignment.MiddleRight;
+        UpdateZenithStarCatchSpeedLabel();
+
+        var panel = new TableLayoutPanel
+        {
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            BackColor = UiTheme.Surface,
+            ColumnCount = 2,
+            Dock = DockStyle.Fill,
+            Margin = Padding.Empty,
+            Padding = Padding.Empty
+        };
+        UiTheme.EnableDoubleBuffering(panel);
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 82f));
+        panel.Controls.Add(autoCreateZenithStarCatchSpeedBar, 0, 0);
+        panel.Controls.Add(autoCreateZenithStarCatchSpeedValueLabel, 1, 0);
+        return panel;
+    }
+
     private static void UpdateSpecialSeedButtonState(CheckBox button)
     {
         button.BackColor = button.Checked ? UiTheme.Selection : UiTheme.SurfaceRaised;
@@ -317,6 +452,69 @@ internal sealed class AutomationSettingsPage : SettingsPageBase
 
             UpdateSpecialSeedButtonState(button);
         }
+
+        UpdateZenithStarCatchAvailability();
+    }
+
+    private void SelectZenithStarCatchStage(string selectedStopStage)
+    {
+        if (updatingZenithStarCatchStageSelection)
+        {
+            return;
+        }
+
+        ApplyZenithStarCatchStageSelection(selectedStopStage);
+    }
+
+    private void ApplyZenithStarCatchStageSelection(string selectedStopStage)
+    {
+        updatingZenithStarCatchStageSelection = true;
+        try
+        {
+            foreach ((string stage, CheckBox button) in autoCreateZenithStarCatchStageBoxes)
+            {
+                button.Checked = AutoCreateZenithStarCatchStage.Includes(selectedStopStage, stage);
+                UpdateSpecialSeedButtonState(button);
+            }
+        }
+        finally
+        {
+            updatingZenithStarCatchStageSelection = false;
+        }
+    }
+
+    private string GetSelectedZenithStarCatchStopStage()
+    {
+        for (int index = AutoCreateZenithStarCatchStage.All.Length - 1; index >= 0; index--)
+        {
+            string stage = AutoCreateZenithStarCatchStage.All[index];
+            if (autoCreateZenithStarCatchStageBoxes.TryGetValue(stage, out CheckBox? button) && button.Checked)
+            {
+                return stage;
+            }
+        }
+
+        return AutoCreateZenithStarCatchStage.Default;
+    }
+
+    private void UpdateZenithStarCatchAvailability()
+    {
+        bool zenithSelected = autoCreateSpecialSeedBoxes.TryGetValue(AutoCreateSpecialWorldSeed.Zenith, out CheckBox? zenithBox) &&
+            zenithBox.Checked;
+
+        autoCreateZenithStarCatchBox.Enabled = zenithSelected;
+        bool starCatchControlsEnabled = zenithSelected && autoCreateZenithStarCatchBox.Checked;
+        foreach (CheckBox button in autoCreateZenithStarCatchStageBoxes.Values)
+        {
+            button.Enabled = starCatchControlsEnabled;
+            UpdateSpecialSeedButtonState(button);
+        }
+
+        autoCreateZenithStarCatchSpeedBar.Enabled = starCatchControlsEnabled;
+        autoCreateZenithStarCatchSpeedValueLabel.Enabled = starCatchControlsEnabled;
+        autoCreateZenithStarCatchSpeedValueLabel.ForeColor = autoCreateZenithStarCatchSpeedValueLabel.Enabled
+            ? UiTheme.Text
+            : UiTheme.MutedText;
     }
 
     private void AddEnterWorldSection(TableLayoutPanel parent)
@@ -445,6 +643,29 @@ internal sealed class AutomationSettingsPage : SettingsPageBase
             string value => value,
             _ => fallback
         };
+    }
+
+    private static void ConfigureCheckBox(CheckBox checkBox, bool selected)
+    {
+        checkBox.Checked = selected;
+        checkBox.Dock = DockStyle.Fill;
+        UiTheme.StyleCheckBox(checkBox);
+    }
+
+    private static void ConfigureZenithStarCatchSpeedBar(ThemedSlider bar, int selected)
+    {
+        bar.BackColor = UiTheme.Surface;
+        bar.Dock = DockStyle.Fill;
+        bar.Height = 36;
+        bar.Margin = new Padding(0, 2, 0, 2);
+        bar.Minimum = AutoCreateZenithStarCatchSpeed.MinimumSliderValue;
+        bar.Maximum = AutoCreateZenithStarCatchSpeed.MaximumSliderValue;
+        bar.Value = AutoCreateZenithStarCatchSpeed.NormalizeSliderValue(selected);
+    }
+
+    private void UpdateZenithStarCatchSpeedLabel()
+    {
+        autoCreateZenithStarCatchSpeedValueLabel.Text = AutoCreateZenithStarCatchSpeed.FormatMultiplier(autoCreateZenithStarCatchSpeedBar.Value);
     }
 
     private static void ConfigureNumberBox(TextBox textBox, int selected, int minimum, int maximum)

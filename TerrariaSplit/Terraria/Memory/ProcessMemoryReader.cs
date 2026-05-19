@@ -44,6 +44,18 @@ internal sealed class ProcessMemoryReader : IProcessMemoryReader
         return true;
     }
 
+    public bool TryReadDouble(IntPtr address, out double value)
+    {
+        value = 0d;
+        if (!TryReadBytes(address, 8, out byte[]? bytes))
+        {
+            return false;
+        }
+
+        value = BitConverter.ToDouble(bytes, 0);
+        return true;
+    }
+
     public bool TryReadPointer(IntPtr address, out IntPtr value)
     {
         value = IntPtr.Zero;
@@ -58,6 +70,22 @@ internal sealed class ProcessMemoryReader : IProcessMemoryReader
             ? new IntPtr(BitConverter.ToInt64(bytes, 0))
             : new IntPtr(BitConverter.ToUInt32(bytes, 0));
         return value != IntPtr.Zero;
+    }
+
+    public bool TryReadPointerValue(IntPtr address, out IntPtr value)
+    {
+        value = IntPtr.Zero;
+
+        int size = Is64Bit ? 8 : 4;
+        if (!TryReadBytes(address, size, out byte[]? bytes))
+        {
+            return false;
+        }
+
+        value = Is64Bit
+            ? new IntPtr(BitConverter.ToInt64(bytes, 0))
+            : new IntPtr(BitConverter.ToUInt32(bytes, 0));
+        return true;
     }
 
     public bool TryReadBytes(IntPtr address, int count, [NotNullWhen(true)] out byte[]? bytes)

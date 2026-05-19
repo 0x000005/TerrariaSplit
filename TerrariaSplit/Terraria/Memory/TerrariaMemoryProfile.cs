@@ -10,10 +10,14 @@ internal sealed class TerrariaMemoryProfile
         string updateTimeSignature,
         string gameMenuFallbackSignature,
         string bossProgressionFallbackSignature,
+        string currentControllerSignature,
+        string currentGenerationProgressSignature,
         int gameMenuPointerOffset,
         int gameMenuFallbackGameMenuInlineAddressOffset,
         int bossProgressionFallbackSkeletronInlineAddressOffset,
         int bossProgressionFallbackHardmodeInlineAddressOffset,
+        int currentControllerInlineAddressOffset,
+        int currentGenerationProgressInlineAddressOffset,
         int bossFlagsPointerOffset,
         int hardmodePointerOffset,
         int skeletronDefeatedFlagOffset,
@@ -32,10 +36,14 @@ internal sealed class TerrariaMemoryProfile
         UpdateTimeSignature = SignaturePattern.Parse(updateTimeSignature);
         GameMenuFallbackSignature = SignaturePattern.Parse(gameMenuFallbackSignature);
         BossProgressionFallbackSignature = SignaturePattern.Parse(bossProgressionFallbackSignature);
+        CurrentControllerSignature = SignaturePattern.Parse(currentControllerSignature);
+        CurrentGenerationProgressSignature = SignaturePattern.Parse(currentGenerationProgressSignature);
         GameMenuPointerOffset = gameMenuPointerOffset;
         GameMenuFallbackGameMenuInlineAddressOffset = gameMenuFallbackGameMenuInlineAddressOffset;
         BossProgressionFallbackSkeletronInlineAddressOffset = bossProgressionFallbackSkeletronInlineAddressOffset;
         BossProgressionFallbackHardmodeInlineAddressOffset = bossProgressionFallbackHardmodeInlineAddressOffset;
+        CurrentControllerInlineAddressOffset = currentControllerInlineAddressOffset;
+        CurrentGenerationProgressInlineAddressOffset = currentGenerationProgressInlineAddressOffset;
         BossFlagsPointerOffset = bossFlagsPointerOffset;
         HardmodePointerOffset = hardmodePointerOffset;
         SkeletronDefeatedFlagOffset = skeletronDefeatedFlagOffset;
@@ -62,6 +70,10 @@ internal sealed class TerrariaMemoryProfile
 
     public SignaturePattern BossProgressionFallbackSignature { get; }
 
+    public SignaturePattern CurrentControllerSignature { get; }
+
+    public SignaturePattern CurrentGenerationProgressSignature { get; }
+
     public int GameMenuPointerOffset { get; }
 
     public int GameMenuFallbackGameMenuInlineAddressOffset { get; }
@@ -69,6 +81,10 @@ internal sealed class TerrariaMemoryProfile
     public int BossProgressionFallbackSkeletronInlineAddressOffset { get; }
 
     public int BossProgressionFallbackHardmodeInlineAddressOffset { get; }
+
+    public int CurrentControllerInlineAddressOffset { get; }
+
+    public int CurrentGenerationProgressInlineAddressOffset { get; }
 
     public int BossFlagsPointerOffset { get; }
 

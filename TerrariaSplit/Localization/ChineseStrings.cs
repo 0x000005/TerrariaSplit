@@ -275,6 +275,10 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "World seed / secret seed", "\u4E16\u754C\u79CD\u5B50 / \u79D8\u5BC6\u79CD\u5B50" }
       , { "Special seeds", "\u5F69\u86CB\u79CD\u5B50" }
       , { "Secret seeds", "\u79D8\u5BC6\u79CD\u5B50" }
+      , { "Enable auto star catch (Zenith worlds only)", "\u542F\u7528\u81EA\u52A8\u63A5\u661F\u661F\uFF08\u4EC5\u5929\u9876\u4E16\u754C\u6709\u6548\uFF09" }
+      , { "Default: disabled, stop after Pots, catch speed 5.", "\u9ED8\u8BA4\u914D\u7F6E\u662F\u4E0D\u542F\u7528\uFF0C\u5728\u7F50\u5B50\u540E\u505C\u6B62\uFF0C\u63A5\u661F\u901F\u5EA65\u3002" }
+      , { "Stop after stage", "\u5728\u4EE5\u4E0B\u9636\u6BB5\u540E\u505C\u6B62" }
+      , { "Catch speed", "\u63A5\u661F\u901F\u5EA6" }
       , { "Submit World Seed", "\u63D0\u4EA4\u4E16\u754C\u79CD\u5B50" }
       , { "Mouse / key press ms", "\u9F20\u6807 / \u6309\u952E\u6301\u7EED\u6BEB\u79D2" }
       , { "Window activation wait ms", "\u7A97\u53E3\u6FC0\u6D3B\u7B49\u5F85\u6BEB\u79D2" }
@@ -308,13 +312,22 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Remix", "Remix" }
       , { "Zenith", "\u5929\u9876" }
       , { "Skyblock", "\u7A7A\u5C9B" }
+      , { "Life Crystals", "\u751F\u547D\u6C34\u6676" }
+      , { "Statues", "\u96D5\u50CF" }
+      , { "Buried Chests", "\u57CB\u85CF\u7BB1" }
+      , { "Gem Caves", "\u5B9D\u77F3\u6D1E" }
+      , { "Pots", "\u7F50\u5B50" }
+      , { "Traps", "\u9677\u9631" }
       , { "Debug", "\u8C03\u8BD5" }
       , { "Copy all information", "\u590D\u5236\u6240\u6709\u4FE1\u606F" }
       , { "Quick Status", "\u5FEB\u901F\u72B6\u6001" }
       , { "Window & Coordinates", "\u7A97\u53E3\u4E0E\u5750\u6807" }
       , { "Auto Create Route", "\u81EA\u52A8\u521B\u56FE\u8DEF\u7EBF" }
       , { "Boss Progress", "BOSS \u8FDB\u5EA6" }
+      , { "World Generation", "\u521B\u4E16\u754C\u72B6\u6001" }
       , { "Memory & Signatures", "\u5185\u5B58\u4E0E\u7B7E\u540D" }
+      , { "Catch stars", "\u63A5\u661F\u661F" }
+      , { "Catch stars through", "\u63A5\u661F\u661F\u76F4\u5230" }
       , { "Performance", "\u6027\u80FD" }
       , { "Window Detection", "\u7A97\u53E3\u68C0\u6D4B" }
       , { "Watcher State", "\u76D1\u6D4B\u72B6\u6001" }
@@ -339,6 +352,8 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Control tick", "\u63A7\u5236\u5237\u65B0" }
       , { "Watcher poll", "\u76D1\u6D4B\u8F6E\u8BE2" }
       , { "Paint", "\u7ED8\u5236" }
+      , { "configured {0}, actual {1}", "\u914D\u7F6E {0}\uFF0C\u5B9E\u9645 {1}" }
+      , { "Waiting for samples", "\u7B49\u5F85\u91C7\u6837" }
       , { "Process architecture", "\u8FDB\u7A0B\u67B6\u6784" }
       , { "Process path", "\u8FDB\u7A0B\u8DEF\u5F84" }
       , { "Process version", "\u8FDB\u7A0B\u7248\u672C" }
@@ -351,7 +366,17 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "UpdateTime address", "UpdateTime \u5730\u5740" }
       , { "Boss flags address", "Boss \u6807\u8BB0\u5730\u5740" }
       , { "Hardmode address", "Hardmode \u5730\u5740" }
+      , { "Current pass", "\u5F53\u524D\u9636\u6BB5" }
+      , { "Progress message", "\u8FDB\u5EA6\u6587\u6848" }
+      , { "Current progress", "\u5F53\u524D\u8FDB\u5EA6" }
+      , { "Total progress", "\u603B\u8FDB\u5EA6" }
+      , { "Generation progress address", "\u521B\u4E16\u754C\u8FDB\u5EA6\u5730\u5740" }
+      , { "Generation controller address", "\u521B\u4E16\u754C\u63A7\u5236\u5668\u5730\u5740" }
       , { "Failure stage", "\u5931\u8D25\u9636\u6BB5" }
+      , { "world generation pointers pending", "\u521B\u4E16\u754C\u6307\u9488\u7B49\u5F85\u4E2D" }
+      , { "world generation pointers pending via fallback", "\u901A\u8FC7\u56DE\u9000\u65B9\u5F0F\u7B49\u5F85\u521B\u4E16\u754C\u6307\u9488" }
+      , { "timer and boss pointers ready; world generation scan pending", "\u8BA1\u65F6\u5668\u4E0E BOSS \u6307\u9488\u5C31\u7EEA\uFF1B\u521B\u4E16\u754C\u626B\u63CF\u7B49\u5F85\u4E2D" }
+      , { "timer and boss pointers ready via fallback; world generation scan pending", "\u901A\u8FC7\u56DE\u9000\u65B9\u5F0F\u5C31\u7EEA\u8BA1\u65F6\u5668\u4E0E BOSS \u6307\u9488\uFF1B\u521B\u4E16\u754C\u626B\u63CF\u7B49\u5F85\u4E2D" }
       , { "Status", "\u72B6\u6001" }
       , { "Window status", "\u7A97\u53E3\u72B6\u6001" }
       , { "Menu scale", "\u83DC\u5355\u7F29\u653E" }
@@ -375,6 +400,7 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Yes", "\u662F" }
       , { "No", "\u5426" }
       , { "Unknown", "\u672A\u77E5" }
+      , { "World generation idle", "\u5F53\u524D\u672A\u5728\u521B\u4E16\u754C" }
       , { "Ready", "\u5C31\u7EEA" }
       , { "Pending", "\u7B49\u5F85\u4E2D" }
       , { "Missing", "\u672A\u5339\u914D" }

@@ -23,18 +23,18 @@ internal static class MainShellRefactorTests
         TestAssert.Equal(
             TimeSpan.FromSeconds(1),
             TerrariaMonitorCoordinator.GetNextWatcherPollInterval(
-                new TerrariaWatchSnapshot(false, null, false, null, TerrariaBossStates.Unknown, false, "waiting"),
+                new TerrariaWatchSnapshot(false, null, false, null, TerrariaBossStates.Unknown, TerrariaWorldGenerationState.Unknown, false, "waiting"),
                 SplitTimerPhase.NotStarted));
         TestAssert.Equal(
             TimeSpan.FromMilliseconds(250),
             TerrariaMonitorCoordinator.GetNextWatcherPollInterval(
-                new TerrariaWatchSnapshot(true, 123, false, true, TerrariaBossStates.Unknown, false, "not ready"),
+                new TerrariaWatchSnapshot(true, 123, false, true, TerrariaBossStates.Unknown, TerrariaWorldGenerationState.Unknown, false, "not ready"),
                 SplitTimerPhase.NotStarted));
         TestAssert.Equal(
-            TimeSpan.FromMilliseconds(50),
+            TimeSpan.FromMilliseconds(5),
             TerrariaMonitorCoordinator.GetNextWatcherPollInterval(TestSnapshots.Terraria(isGameMenu: false), SplitTimerPhase.Running));
         TestAssert.Equal(
-            TimeSpan.FromMilliseconds(100),
+            TimeSpan.FromMilliseconds(5),
             TerrariaMonitorCoordinator.GetNextWatcherPollInterval(TestSnapshots.Terraria(isGameMenu: true), SplitTimerPhase.Paused));
     }
 
@@ -67,6 +67,7 @@ internal static class MainShellRefactorTests
             false,
             null,
             TerrariaBossStates.Unknown,
+            TerrariaWorldGenerationState.Unknown,
             false,
             "waiting"));
         var patch = new FakePatchApplier(TerrariaUiScalePatchResult.Applied(321, "patched"));
@@ -99,6 +100,7 @@ internal static class MainShellRefactorTests
             false,
             null,
             TerrariaBossStates.Unknown,
+            TerrariaWorldGenerationState.Unknown,
             false,
             "waiting"));
         var patch = new FakePatchApplier(TerrariaUiScalePatchResult.Applied(111, "patched"));

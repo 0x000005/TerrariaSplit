@@ -5,6 +5,26 @@ internal static class SplitSoundSelector
     public static string GetPath(
         UiSoundSettings sounds,
         BossSplitDefinition definition,
+        TimeSpan splitTime,
+        TimeSpan? referenceSplit,
+        TimeSpan? segmentTime,
+        TimeSpan? personalBestSegment)
+    {
+        bool cumulativeFasterThanReference = referenceSplit is not TimeSpan reference ||
+            splitTime < reference;
+        bool segmentFasterThanPersonalBest = personalBestSegment is not TimeSpan personalBest ||
+            segmentTime is TimeSpan segment && segment < personalBest;
+
+        return GetPath(
+            sounds,
+            definition,
+            cumulativeFasterThanReference,
+            segmentFasterThanPersonalBest);
+    }
+
+    public static string GetPath(
+        UiSoundSettings sounds,
+        BossSplitDefinition definition,
         bool cumulativeFasterThanReference,
         bool segmentFasterThanPersonalBest)
     {

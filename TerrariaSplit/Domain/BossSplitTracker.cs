@@ -3,6 +3,7 @@ namespace TerrariaSplit;
 internal sealed class BossSplitTracker
 {
     private readonly List<BossSplitStatus> statuses = new();
+    private bool[] initialStateResolved = Array.Empty<bool>();
 
     private int currentIndex;
 
@@ -14,29 +15,22 @@ internal sealed class BossSplitTracker
     {
         statuses.Clear();
         statuses.AddRange(definitions.Select(definition => new BossSplitStatus(definition)));
+        initialStateResolved = new bool[statuses.Count];
+        MarkAllInitialStatesResolved();
         currentIndex = 0;
     }
 
     public void Reset()
     {
-        foreach (BossSplitStatus status in statuses)
-        {
-            status.Reset();
-        }
-
-        currentIndex = 0;
+        ResetStatuses();
+        MarkAllInitialStatesResolved();
     }
 
     public void OnRunStarted(TerrariaWatchSnapshot snapshot)
     {
-        Reset();
-
-        while (currentIndex < statuses.Count && statuses[currentIndex].Definition.IsComplete(snapshot.BossStates))
-        {
-            statuses[currentIndex].Skip();
-            currentIndex++;
-        }
-
+        ResetStatuses();
+        MarkAllInitialStatesPending();
+        ResolveInitialStates(snapshot.BossStates);
     }
 
     public BossSplitRecord? Update(TerrariaWatchSnapshot snapshot, TimeSpan elapsed)
@@ -46,14 +40,79 @@ internal sealed class BossSplitTracker
             return null;
         }
 
+        ResolveInitialStates(snapshot.BossStates);
+        if (currentIndex >= statuses.Count || !initialStateResolved[currentIndex])
+        {
+            return null;
+        }
+
         BossSplitStatus current = statuses[currentIndex];
         BossSplitRecord? split = current.TryComplete(snapshot.BossStates, elapsed);
         if (split is not null)
         {
-            currentIndex++;
+            currentIndex = FindNextActiveIndex();
         }
 
         return split;
+    }
+
+    private void ResetStatuses()
+    {
+        foreach (BossSplitStatus status in statuses)
+        {
+            status.Reset();
+        }
+
+        currentIndex = 0;
+    }
+
+    private void ResolveInitialStates(TerrariaBossStates states)
+    {
+        for (int i = 0; i < statuses.Count; i++)
+        {
+            if (initialStateResolved[i])
+            {
+                continue;
+            }
+
+            BossSplitStatus status = statuses[i];
+            if (status.IsSkipped || status.IsCompleted)
+            {
+                initialStateResolved[i] = true;
+            }
+            else if (status.Definition.IsComplete(states))
+            {
+                status.Skip();
+                initialStateResolved[i] = true;
+            }
+            else if (status.Definition.IsKnownIncomplete(states))
+            {
+                initialStateResolved[i] = true;
+            }
+        }
+
+        currentIndex = FindNextActiveIndex();
+    }
+
+    private void MarkAllInitialStatesResolved()
+    {
+        Array.Fill(initialStateResolved, true);
+    }
+
+    private void MarkAllInitialStatesPending()
+    {
+        if (initialStateResolved.Length != statuses.Count)
+        {
+            initialStateResolved = new bool[statuses.Count];
+        }
+
+        Array.Fill(initialStateResolved, false);
+    }
+
+    private int FindNextActiveIndex()
+    {
+        int index = statuses.FindIndex(status => !status.IsSkipped && !status.IsCompleted);
+        return index >= 0 ? index : statuses.Count;
     }
 
     public TimeSpan? SetPracticeTime(int index, TimeSpan? time)
@@ -79,11 +138,7 @@ internal sealed class BossSplitTracker
         }
 
         statuses[index].SetTime(adjustedTime);
-        currentIndex = statuses.FindIndex(status => !status.IsSkipped && !status.IsCompleted);
-        if (currentIndex < 0)
-        {
-            currentIndex = statuses.Count;
-        }
+        currentIndex = FindNextActiveIndex();
 
         return adjustedTime;
     }
@@ -98,10 +153,6 @@ internal sealed class BossSplitTracker
             }
         }
 
-        currentIndex = statuses.FindIndex(status => !status.IsSkipped && !status.IsCompleted);
-        if (currentIndex < 0)
-        {
-            currentIndex = statuses.Count;
-        }
+        currentIndex = FindNextActiveIndex();
     }
 }

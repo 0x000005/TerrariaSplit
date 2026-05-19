@@ -60,6 +60,7 @@ internal sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
                 false,
                 null,
                 TerrariaBossStates.Unknown,
+                TerrariaWorldGenerationState.Unknown,
                 false,
                 status);
         }
@@ -73,11 +74,13 @@ internal sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
                 false,
                 previousGameMenu,
                 TerrariaBossStates.Unknown,
+                TerrariaWorldGenerationState.Unknown,
                 false,
                 status);
         }
 
-        if (!resolver.HasResolvedBossAddresses && DateTime.UtcNow >= nextScanUtc)
+        if ((!resolver.HasResolvedBossAddresses || !resolver.HasResolvedWorldGenerationAddresses) &&
+            DateTime.UtcNow >= nextScanUtc)
         {
             TryResolveMemoryAddresses();
         }
@@ -96,11 +99,13 @@ internal sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
                 false,
                 null,
                 TerrariaBossStates.Unknown,
+                TerrariaWorldGenerationState.Unknown,
                 false,
                 status);
         }
 
         TerrariaBossStates bossStates = resolver.ReadBossStates(memory);
+        TerrariaWorldGenerationState worldGeneration = resolver.ReadWorldGenerationState(memory);
 
         bool enteredWorld = !awaitingInitialMenuObservation
             && previousGameMenu == true
@@ -120,6 +125,7 @@ internal sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
             true,
             isGameMenu,
             bossStates,
+            worldGeneration,
             enteredWorld,
             status);
     }
@@ -150,6 +156,8 @@ internal sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
             resolution.GameMenuSecondaryAddress,
             resolution.BossFlagsBaseAddress,
             resolution.HardmodeAddress,
+            resolution.CurrentGenerationProgressAddress,
+            resolution.CurrentControllerAddress,
             BuildCompatibilityHint(resolution));
     }
 
@@ -399,6 +407,11 @@ internal sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
         if (!resolution.HasResolvedBossAddresses)
         {
             return "gameMenu resolved, but boss and hardmode pointers are still pending or unreadable.";
+        }
+
+        if (!resolution.HasResolvedWorldGenerationAddresses)
+        {
+            return "Watcher resolved timer and boss pointers, but world generation pointers are still pending or unreadable.";
         }
 
         return "Watcher resolved all current pointers.";

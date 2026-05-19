@@ -5,8 +5,8 @@ namespace TerrariaSplit;
 
 internal sealed class TerrariaMonitorCoordinator : IDisposable
 {
-    private static readonly TimeSpan WatcherRunningPollInterval = TimeSpan.FromMilliseconds(50);
-    private static readonly TimeSpan WatcherIdlePollInterval = TimeSpan.FromMilliseconds(100);
+    private static readonly TimeSpan WatcherRunningPollInterval = TimeSpan.FromMilliseconds(5);
+    private static readonly TimeSpan WatcherIdlePollInterval = TimeSpan.FromMilliseconds(5);
     private static readonly TimeSpan WatcherScanPollInterval = TimeSpan.FromMilliseconds(250);
     private static readonly TimeSpan WatcherProcessLookupInterval = TimeSpan.FromSeconds(1);
     private static readonly TimeSpan UiScalePatchRetryInterval = TimeSpan.FromSeconds(2);
@@ -49,6 +49,7 @@ internal sealed class TerrariaMonitorCoordinator : IDisposable
             false,
             null,
             TerrariaBossStates.Unknown,
+            TerrariaWorldGenerationState.Unknown,
             false,
             "waiting for Terraria.exe");
         WatcherPollInterval = WatcherProcessLookupInterval;
@@ -137,6 +138,7 @@ internal sealed class TerrariaMonitorCoordinator : IDisposable
                         false,
                         null,
                         TerrariaBossStates.Unknown,
+                        TerrariaWorldGenerationState.Unknown,
                         false,
                         $"watcher poll failed: {ex.Message}"),
                     Stopwatch.GetElapsedTime(startTimestamp),

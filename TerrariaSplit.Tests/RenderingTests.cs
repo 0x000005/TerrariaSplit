@@ -11,6 +11,7 @@ internal static class RenderingTests
         yield return ("TextEffectRenderer applies opacity without changing RGB", TextEffectRendererAppliesOpacity);
         yield return ("OverlayFontCache keeps main timer font independent from milliseconds visibility", OverlayFontCacheKeepsMainTimerFontIndependentFromMillisecondsVisibility);
         yield return ("SplitSoundSelector routes equal times to not-faster sounds", SplitSoundSelectorRoutesEqualTimesToNotFasterSounds);
+        yield return ("SplitSoundSelector treats missing comparison data as faster", SplitSoundSelectorTreatsMissingComparisonDataAsFaster);
         yield return ("SplitListRenderer preserves current split depth curve", SplitListRendererPreservesCurrentSplitDepthCurve);
         yield return ("SplitCompletionAnimationRenderer preserves fade curve", SplitCompletionAnimationRendererPreservesFadeCurve);
         yield return ("SplitCompletionAnimationRenderer preserves delta slide curve", SplitCompletionAnimationRendererPreservesDeltaSlideCurve);
@@ -111,6 +112,41 @@ internal static class RenderingTests
                 moonLordDefinition,
                 cumulativeFasterThanReference: false,
                 segmentFasterThanPersonalBest: false));
+    }
+
+    private static void SplitSoundSelectorTreatsMissingComparisonDataAsFaster()
+    {
+        var sounds = new UiSoundSettings
+        {
+            SplitBehindReferenceBehindSegment = "normal-notfaster-notfaster.wav",
+            SplitAheadReferenceAheadSegment = "normal-faster-faster.wav"
+        };
+        var definition = new BossSplitDefinition(
+            BossSplitDefinitions.Skeletron,
+            "Skeletron",
+            Array.Empty<BossFlag>(),
+            Array.Empty<string>(),
+            Array.Empty<string>(),
+            [BossSplitDefinitions.Skeletron]);
+
+        TestAssert.Equal(
+            "normal-faster-faster.wav",
+            SplitSoundSelector.GetPath(
+                sounds,
+                definition,
+                splitTime: TimeSpan.FromMinutes(3),
+                referenceSplit: null,
+                segmentTime: null,
+                personalBestSegment: null));
+        TestAssert.Equal(
+            "normal-notfaster-notfaster.wav",
+            SplitSoundSelector.GetPath(
+                sounds,
+                definition,
+                splitTime: TimeSpan.FromMinutes(3),
+                referenceSplit: TimeSpan.FromMinutes(3),
+                segmentTime: TimeSpan.FromMinutes(3),
+                personalBestSegment: TimeSpan.FromMinutes(3)));
     }
 
     private static void SplitListRendererPreservesCurrentSplitDepthCurve()

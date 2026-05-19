@@ -128,6 +128,11 @@ internal sealed class TerrariaWindowController
             (int)Math.Round(clientSize.Height * Math.Clamp(y, 0f, 1f)));
     }
 
+    public bool TryMoveScreenCursor(int x, int y)
+    {
+        return SetCursorPos(x, y);
+    }
+
     public void PressKey(Keys key)
     {
         byte virtualKey = (byte)key;

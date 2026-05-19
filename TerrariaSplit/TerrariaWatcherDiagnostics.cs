@@ -18,4 +18,6 @@ internal readonly record struct TerrariaWatcherDiagnostics(
     IntPtr GameMenuSecondaryAddress,
     IntPtr BossFlagsBaseAddress,
     IntPtr HardmodeAddress,
+    IntPtr CurrentGenerationProgressAddress,
+    IntPtr CurrentControllerAddress,
     string CompatibilityHint);

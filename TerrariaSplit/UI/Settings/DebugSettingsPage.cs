@@ -73,6 +73,11 @@ internal sealed class DebugSettingsPage : SettingsPageBase
         Label lunaticCultistValue = CreateValueLabel();
         Label moonLordValue = CreateValueLabel();
 
+        Label currentPassValue = CreateValueLabel();
+        Label progressMessageValue = CreateValueLabel();
+        Label currentProgressValue = CreateValueLabel();
+        Label totalProgressValue = CreateValueLabel();
+
         Label scanAttemptsValue = CreateValueLabel();
         Label lastScanValue = CreateValueLabel();
         Label scanPageStatsValue = CreateValueLabel();
@@ -82,6 +87,8 @@ internal sealed class DebugSettingsPage : SettingsPageBase
         Label updateTimeAddressValue = CreateValueLabel();
         Label bossFlagsAddressValue = CreateValueLabel();
         Label hardmodeAddressValue = CreateValueLabel();
+        Label generationProgressAddressValue = CreateValueLabel();
+        Label generationControllerAddressValue = CreateValueLabel();
         Label failureStageValue = CreateValueLabel();
 
         Button copyAllButton = CreateActionButton(owner, "Copy all information");
@@ -177,6 +184,15 @@ internal sealed class DebugSettingsPage : SettingsPageBase
             AddSectionControl(bossSection, bossGrid);
             AddSection(content, bossSection);
 
+            TableLayoutPanel worldGenerationSection = CreateSection(owner, "World Generation");
+            TableLayoutPanel worldGenerationGrid = CreateGrid(owner);
+            AddValueRow(worldGenerationGrid, owner, "Current pass", currentPassValue);
+            AddValueRow(worldGenerationGrid, owner, "Progress message", progressMessageValue);
+            AddValueRow(worldGenerationGrid, owner, "Current progress", currentProgressValue);
+            AddValueRow(worldGenerationGrid, owner, "Total progress", totalProgressValue);
+            AddSectionControl(worldGenerationSection, worldGenerationGrid);
+            AddSection(content, worldGenerationSection);
+
             TableLayoutPanel memorySection = CreateSection(owner, "Memory & Signatures");
             TableLayoutPanel memoryGrid = CreateGrid(owner);
             AddValueRow(memoryGrid, owner, "Scan attempts", scanAttemptsValue);
@@ -188,6 +204,8 @@ internal sealed class DebugSettingsPage : SettingsPageBase
             AddValueRow(memoryGrid, owner, "UpdateTime address", updateTimeAddressValue);
             AddValueRow(memoryGrid, owner, "Boss flags address", bossFlagsAddressValue);
             AddValueRow(memoryGrid, owner, "Hardmode address", hardmodeAddressValue);
+            AddValueRow(memoryGrid, owner, "Generation progress address", generationProgressAddressValue);
+            AddValueRow(memoryGrid, owner, "Generation controller address", generationControllerAddressValue);
             AddValueRow(memoryGrid, owner, "Failure stage", failureStageValue);
             AddSectionControl(memorySection, memoryGrid);
             AddSection(content, memorySection);
@@ -225,27 +243,24 @@ internal sealed class DebugSettingsPage : SettingsPageBase
 
             SetValue(
                 controlTickValue,
-                FormatTimingSummary(
+                FormatRefreshRateSummary(
+                    runtime.ControlTickIntervalMilliseconds,
+                    runtime.ActualControlTickIntervalMilliseconds,
                     runtime.ControlTickCount,
-                    runtime.LastControlTickMilliseconds,
-                    runtime.AverageControlTickMilliseconds,
-                    runtime.MaxControlTickMilliseconds,
                     owner));
             SetValue(
                 watcherPollValue,
-                FormatTimingSummary(
+                FormatRefreshRateSummary(
+                    runtime.WatcherPollIntervalMilliseconds,
+                    runtime.ActualWatcherPollIntervalMilliseconds,
                     runtime.WatcherPollCount,
-                    runtime.LastWatcherPollMilliseconds,
-                    runtime.AverageWatcherPollMilliseconds,
-                    runtime.MaxWatcherPollMilliseconds,
                     owner));
             SetValue(
                 paintValue,
-                FormatTimingSummary(
+                FormatRefreshRateSummary(
+                    runtime.TimerRenderIntervalMilliseconds,
+                    runtime.ActualPaintIntervalMilliseconds,
                     runtime.PaintCount,
-                    runtime.LastPaintMilliseconds,
-                    runtime.AveragePaintMilliseconds,
-                    runtime.MaxPaintMilliseconds,
                     owner));
             SetValue(processIdValue, FormatProcessId(window.ProcessId, owner));
             SetValue(processStartTimeValue, FormatDateTime(window.ProcessStartTime, owner));
@@ -300,6 +315,31 @@ internal sealed class DebugSettingsPage : SettingsPageBase
             SetBossState(lunaticCultistValue, snapshot.BossStates.LunaticCultist, owner);
             SetBossState(moonLordValue, snapshot.BossStates.MoonLord, owner);
 
+            SetValue(
+                currentPassValue,
+                FormatWorldGenerationText(
+                    snapshot.WorldGeneration.CurrentPassName,
+                    diagnostics.CurrentControllerAddress,
+                    owner));
+            SetValue(
+                progressMessageValue,
+                FormatWorldGenerationText(
+                    snapshot.WorldGeneration.ProgressMessage,
+                    diagnostics.CurrentGenerationProgressAddress,
+                    owner));
+            SetValue(
+                currentProgressValue,
+                FormatWorldGenerationPercent(
+                    snapshot.WorldGeneration.CurrentProgress,
+                    diagnostics.CurrentGenerationProgressAddress,
+                    owner));
+            SetValue(
+                totalProgressValue,
+                FormatWorldGenerationPercent(
+                    snapshot.WorldGeneration.TotalProgress,
+                    diagnostics.CurrentGenerationProgressAddress,
+                    owner));
+
             SetValue(scanAttemptsValue, diagnostics.SignatureScanAttempts.ToString(CultureInfo.InvariantCulture));
             SetValue(lastScanValue, FormatTimestamp(diagnostics.LastSignatureScanUtc, owner));
             SetValue(scanPageStatsValue, FormatScanStats(diagnostics.LastSignatureScan, owner));
@@ -309,6 +349,8 @@ internal sealed class DebugSettingsPage : SettingsPageBase
             SetValue(updateTimeAddressValue, FormatAddress(diagnostics.UpdateTimeAddress, owner));
             SetValue(bossFlagsAddressValue, FormatAddress(diagnostics.BossFlagsBaseAddress, owner));
             SetValue(hardmodeAddressValue, FormatAddress(diagnostics.HardmodeAddress, owner));
+            SetValue(generationProgressAddressValue, FormatAddress(diagnostics.CurrentGenerationProgressAddress, owner));
+            SetValue(generationControllerAddressValue, FormatAddress(diagnostics.CurrentControllerAddress, owner));
             SetValue(failureStageValue, LocalizeStage(diagnostics.Stage, owner));
         }
 
@@ -376,23 +418,20 @@ internal sealed class DebugSettingsPage : SettingsPageBase
             owner,
             "Performance",
             [
-                ("Control tick", FormatTimingSummary(
+                ("Control tick", FormatRefreshRateSummary(
+                    runtime.ControlTickIntervalMilliseconds,
+                    runtime.ActualControlTickIntervalMilliseconds,
                     runtime.ControlTickCount,
-                    runtime.LastControlTickMilliseconds,
-                    runtime.AverageControlTickMilliseconds,
-                    runtime.MaxControlTickMilliseconds,
                     owner)),
-                ("Watcher poll", FormatTimingSummary(
+                ("Watcher poll", FormatRefreshRateSummary(
+                    runtime.WatcherPollIntervalMilliseconds,
+                    runtime.ActualWatcherPollIntervalMilliseconds,
                     runtime.WatcherPollCount,
-                    runtime.LastWatcherPollMilliseconds,
-                    runtime.AverageWatcherPollMilliseconds,
-                    runtime.MaxWatcherPollMilliseconds,
                     owner)),
-                ("Paint", FormatTimingSummary(
+                ("Paint", FormatRefreshRateSummary(
+                    runtime.TimerRenderIntervalMilliseconds,
+                    runtime.ActualPaintIntervalMilliseconds,
                     runtime.PaintCount,
-                    runtime.LastPaintMilliseconds,
-                    runtime.AveragePaintMilliseconds,
-                    runtime.MaxPaintMilliseconds,
                     owner))
             ]);
 
@@ -443,6 +482,9 @@ internal sealed class DebugSettingsPage : SettingsPageBase
                 ("World size", owner.Localize(AutoCreateWorldSize.Normalize(autoCreate.WorldSize))),
                 ("World difficulty", owner.Localize(AutoCreateWorldDifficulty.Normalize(autoCreate.WorldDifficulty))),
                 ("World evil", owner.Localize(AutoCreateWorldEvil.Normalize(autoCreate.WorldEvil))),
+                ("Catch stars", FormatBool(autoCreate.EnableZenithStarCatch, owner)),
+                ("Catch stars through", owner.Localize(AutoCreateZenithStarCatchStage.Normalize(autoCreate.ZenithStarCatchStopStage))),
+                ("Catch speed", AutoCreateZenithStarCatchSpeed.FormatMultiplier(autoCreate.ZenithStarCatchSpeedSliderValue)),
                 ("Short action delay ms", autoCreate.ShortActionDelayMilliseconds.ToString(CultureInfo.InvariantCulture)),
                 ("Menu action delay ms", autoCreate.MenuActionDelayMilliseconds.ToString(CultureInfo.InvariantCulture)),
                 ("Window activation wait ms", autoCreate.WindowActivationDelayMilliseconds.ToString(CultureInfo.InvariantCulture)),
@@ -471,6 +513,17 @@ internal sealed class DebugSettingsPage : SettingsPageBase
         AppendReportSection(
             lines,
             owner,
+            "World Generation",
+            [
+                ("Current pass", FormatWorldGenerationText(snapshot.WorldGeneration.CurrentPassName, diagnostics.CurrentControllerAddress, owner)),
+                ("Progress message", FormatWorldGenerationText(snapshot.WorldGeneration.ProgressMessage, diagnostics.CurrentGenerationProgressAddress, owner)),
+                ("Current progress", FormatWorldGenerationPercent(snapshot.WorldGeneration.CurrentProgress, diagnostics.CurrentGenerationProgressAddress, owner)),
+                ("Total progress", FormatWorldGenerationPercent(snapshot.WorldGeneration.TotalProgress, diagnostics.CurrentGenerationProgressAddress, owner))
+            ]);
+
+        AppendReportSection(
+            lines,
+            owner,
             "Memory & Signatures",
             [
                 ("Scan attempts", diagnostics.SignatureScanAttempts.ToString(CultureInfo.InvariantCulture)),
@@ -482,6 +535,8 @@ internal sealed class DebugSettingsPage : SettingsPageBase
                 ("UpdateTime address", FormatAddress(diagnostics.UpdateTimeAddress, owner)),
                 ("Boss flags address", FormatAddress(diagnostics.BossFlagsBaseAddress, owner)),
                 ("Hardmode address", FormatAddress(diagnostics.HardmodeAddress, owner)),
+                ("Generation progress address", FormatAddress(diagnostics.CurrentGenerationProgressAddress, owner)),
+                ("Generation controller address", FormatAddress(diagnostics.CurrentControllerAddress, owner)),
                 ("Failure stage", LocalizeStage(diagnostics.Stage, owner))
             ]);
 
@@ -600,6 +655,18 @@ internal sealed class DebugSettingsPage : SettingsPageBase
 
         AppendSequenceStep(lines, owner, ref step, "Randomize Visible Seed", geometry.AdvancedSeedRandomizeButton());
         AppendSequenceStep(lines, owner, ref step, "Create World", geometry.CreateWorldButton());
+
+        if (AutoCreateSpecialWorldSeed.ParseList(autoCreate.SpecialSeeds)
+                .Contains(AutoCreateSpecialWorldSeed.Zenith, StringComparer.OrdinalIgnoreCase) &&
+            autoCreate.EnableZenithStarCatch)
+        {
+            lines.Add(
+                $"{step++}. {owner.Localize("Catch stars through")}: " +
+                owner.Localize(AutoCreateZenithStarCatchStage.Normalize(autoCreate.ZenithStarCatchStopStage)));
+            lines.Add(
+                $"{step++}. {owner.Localize("Catch speed")}: " +
+                AutoCreateZenithStarCatchSpeed.FormatMultiplier(autoCreate.ZenithStarCatchSpeedSliderValue));
+        }
 
         return string.Join(Environment.NewLine, lines);
     }
@@ -720,25 +787,33 @@ internal sealed class DebugSettingsPage : SettingsPageBase
             : owner.Localize("Unknown");
     }
 
-    private static string FormatTimingSummary(
-        int count,
-        double lastMilliseconds,
-        double averageMilliseconds,
-        double maxMilliseconds,
+    private static string FormatRefreshRateSummary(
+        double configuredIntervalMilliseconds,
+        double actualIntervalMilliseconds,
+        int sampleCount,
         SettingsForm owner)
     {
-        return string.Format(
-            CultureInfo.InvariantCulture,
-            owner.Localize("count {0}, last {1}, avg {2}, max {3}"),
-            count,
-            FormatMilliseconds(lastMilliseconds),
-            FormatMilliseconds(averageMilliseconds),
-            FormatMilliseconds(maxMilliseconds));
+        string configured = FormatFrequency(configuredIntervalMilliseconds, owner);
+        string actual = sampleCount >= 2 && actualIntervalMilliseconds > 0
+            ? FormatFrequency(actualIntervalMilliseconds, owner)
+            : owner.Localize("Waiting for samples");
+        return string.Format(CultureInfo.InvariantCulture, owner.Localize("configured {0}, actual {1}"), configured, actual);
     }
 
     private static string FormatMilliseconds(double milliseconds)
     {
         return milliseconds.ToString("0.###", CultureInfo.InvariantCulture) + " ms";
+    }
+
+    private static string FormatFrequency(double intervalMilliseconds, SettingsForm owner)
+    {
+        if (intervalMilliseconds <= 0)
+        {
+            return owner.Localize("Unknown");
+        }
+
+        double hertz = 1000d / intervalMilliseconds;
+        return hertz.ToString("0.0", CultureInfo.InvariantCulture) + " Hz";
     }
 
     private static string FormatBytes(long bytes)
@@ -811,6 +886,37 @@ internal sealed class DebugSettingsPage : SettingsPageBase
     private static string FormatOptionalBool(bool? value, SettingsForm owner)
     {
         return value.HasValue ? FormatBool(value.Value, owner) : owner.Localize("Unknown");
+    }
+
+    private static string FormatPercent(double? value, SettingsForm owner)
+    {
+        return value.HasValue
+            ? value.Value.ToString("P1", CultureInfo.InvariantCulture)
+            : owner.Localize("Unknown");
+    }
+
+    private static string FormatWorldGenerationText(string? value, IntPtr slotAddress, SettingsForm owner)
+    {
+        if (!string.IsNullOrWhiteSpace(value))
+        {
+            return value;
+        }
+
+        return slotAddress != IntPtr.Zero
+            ? owner.Localize("World generation idle")
+            : owner.Localize("Unknown");
+    }
+
+    private static string FormatWorldGenerationPercent(double? value, IntPtr slotAddress, SettingsForm owner)
+    {
+        if (value.HasValue)
+        {
+            return value.Value.ToString("P1", CultureInfo.InvariantCulture);
+        }
+
+        return slotAddress != IntPtr.Zero
+            ? owner.Localize("World generation idle")
+            : owner.Localize("Unknown");
     }
 
     private static string LocalizeStage(string stage, SettingsForm owner)

@@ -6,5 +6,6 @@ internal readonly record struct TerrariaWatchSnapshot(
     bool IsReady,
     bool? IsGameMenu,
     TerrariaBossStates BossStates,
+    TerrariaWorldGenerationState WorldGeneration,
     bool EnteredWorld,
     string Status);

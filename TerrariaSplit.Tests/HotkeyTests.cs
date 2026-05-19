@@ -7,6 +7,8 @@ internal static class HotkeyTests
     public static IEnumerable<(string Name, Action Test)> All()
     {
         yield return ("TimerController consumes menu hotkeys only on menu", TimerControllerConsumesMenuHotkeysOnlyOnMenu);
+        yield return ("BossSplitTracker skips initially defeated bosses after delayed state resolution", BossSplitTrackerSkipsInitiallyDefeatedBossesAfterDelayedStateResolution);
+        yield return ("BossSplitTracker completes bosses after initial incomplete state", BossSplitTrackerCompletesBossesAfterInitialIncompleteState);
     }
 
     private static void TimerControllerConsumesMenuHotkeysOnlyOnMenu()
@@ -35,5 +37,93 @@ internal static class HotkeyTests
             TestSnapshots.Terraria(isGameMenu: true),
             [new TimerHotkeyRequest(TimerHotkeyAction.PracticeWorld, DateTime.UtcNow)]);
         TestAssert.Equal(MenuHotkeyActionKind.PracticeWorld, enterWorldResult.RequestedMenuAction);
+    }
+
+    private static void BossSplitTrackerSkipsInitiallyDefeatedBossesAfterDelayedStateResolution()
+    {
+        BossSplitTracker tracker = CreateSingleBossTracker();
+        var controller = new TimerController(
+            new SplitTimer(),
+            tracker,
+            new PendingMenuHotkeyScheduler(),
+            TimeSpan.FromSeconds(1));
+
+        TimerControllerTickResult startResult = controller.Tick(
+            TestSnapshots.Terraria(
+                isGameMenu: false,
+                bossStates: TerrariaBossStates.Unknown,
+                enteredWorld: true),
+            []);
+        TestAssert.Equal(true, startResult.RunStarted);
+        TestAssert.Equal(null, startResult.CompletedSplitIndex);
+
+        TimerControllerTickResult resolvedResult = controller.Tick(
+            TestSnapshots.Terraria(
+                isGameMenu: false,
+                bossStates: CreateSkeletronState(true)),
+            []);
+        TestAssert.Equal(null, resolvedResult.CompletedSplitIndex);
+        TestAssert.Equal(true, tracker.Statuses[0].IsSkipped);
+        TestAssert.Equal(1, tracker.CurrentIndex);
+    }
+
+    private static void BossSplitTrackerCompletesBossesAfterInitialIncompleteState()
+    {
+        BossSplitTracker tracker = CreateSingleBossTracker();
+        var controller = new TimerController(
+            new SplitTimer(),
+            tracker,
+            new PendingMenuHotkeyScheduler(),
+            TimeSpan.FromSeconds(1));
+
+        _ = controller.Tick(
+            TestSnapshots.Terraria(
+                isGameMenu: false,
+                bossStates: TerrariaBossStates.Unknown,
+                enteredWorld: true),
+            []);
+        TimerControllerTickResult initialStateResult = controller.Tick(
+            TestSnapshots.Terraria(
+                isGameMenu: false,
+                bossStates: CreateSkeletronState(false)),
+            []);
+        TestAssert.Equal(null, initialStateResult.CompletedSplitIndex);
+
+        TimerControllerTickResult completedResult = controller.Tick(
+            TestSnapshots.Terraria(
+                isGameMenu: false,
+                bossStates: CreateSkeletronState(true)),
+            []);
+        TestAssert.Equal(0, completedResult.CompletedSplitIndex);
+        TestAssert.Equal(false, tracker.Statuses[0].IsSkipped);
+    }
+
+    private static BossSplitTracker CreateSingleBossTracker()
+    {
+        var tracker = new BossSplitTracker();
+        tracker.SetDefinitions([
+            new BossSplitDefinition(
+                BossSplitDefinitions.Skeletron,
+                "Skeletron",
+                [BossFlag.Skeletron],
+                Array.Empty<string>(),
+                Array.Empty<string>(),
+                [BossSplitDefinitions.Skeletron])
+        ]);
+        return tracker;
+    }
+
+    private static TerrariaBossStates CreateSkeletronState(bool defeated)
+    {
+        return new TerrariaBossStates(
+            defeated,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
     }
 }
