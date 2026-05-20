@@ -17,6 +17,7 @@ internal static class MainShellRefactorTests
         yield return ("TerrariaMonitorCoordinator reset clears applied patch state", TerrariaMonitorCoordinatorResetClearsAppliedPatchState);
         yield return ("OverlayWindowController queues render once while pending", OverlayWindowControllerQueuesRenderOnceWhilePending);
         yield return ("OverlayWindowController click-through style preserves unrelated bits", OverlayWindowControllerPreservesUnrelatedStyleBits);
+        yield return ("OverlayWindowController strips non-client border style", OverlayWindowControllerStripsNonClientBorderStyle);
         yield return ("SettingsUiFactory keeps two-column editor column fixed width", SettingsUiFactoryKeepsTwoColumnEditorColumnFixedWidth);
         yield return ("SettingsUiFactory row labels ellipsize clipped text", SettingsUiFactoryRowLabelsEllipsizeClippedText);
     }
@@ -249,6 +250,16 @@ internal static class MainShellRefactorTests
         TestAssert.Equal(true, (normal & sentinel) == sentinel);
         TestAssert.Equal(true, (clickThrough & 0x20) == 0x20);
         TestAssert.Equal(false, (normal & 0x20) == 0x20);
+    }
+
+    private static void OverlayWindowControllerStripsNonClientBorderStyle()
+    {
+        const int sentinel = 0x1000;
+        const int nonClient = 0x00C00000 | 0x00800000 | 0x00400000 | 0x00040000;
+        int style = OverlayWindowController.ComposeBorderlessStyle(sentinel | nonClient);
+
+        TestAssert.Equal(true, (style & sentinel) == sentinel);
+        TestAssert.Equal(0, style & nonClient);
     }
 
     private static void SettingsUiFactoryKeepsTwoColumnEditorColumnFixedWidth()

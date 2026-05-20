@@ -14,6 +14,7 @@ internal sealed class TimerOverlayWindowHost : IDisposable
     private readonly ManualResetEventSlim ready = new(false);
     private Thread? thread;
     private TimerOverlayForm? form;
+    private IntPtr formHandle;
     private OverlayCompositeLayout? latestLayout;
     private TimerOverlayRenderState? latestRenderState;
     private TimerOverlayStateKey? latestRenderStateKey;
@@ -42,6 +43,17 @@ internal sealed class TimerOverlayWindowHost : IDisposable
     public event Action<Rectangle>? UserResizeBoundsChanged;
 
     public event Action<TimerOverlayRightClickRequest>? RightClickRequested;
+
+    public IntPtr WindowHandle
+    {
+        get
+        {
+            lock (sync)
+            {
+                return formHandle;
+            }
+        }
+    }
 
     public void Start()
     {
@@ -179,6 +191,20 @@ internal sealed class TimerOverlayWindowHost : IDisposable
         overlayForm.DragDeltaRequested += delta => DispatchToMain(() => DragDeltaRequested?.Invoke(delta));
         overlayForm.UserResizeBoundsChanged += bounds => DispatchToMain(() => UserResizeBoundsChanged?.Invoke(bounds));
         overlayForm.RightClickRequested += request => DispatchToMain(() => RightClickRequested?.Invoke(request));
+        overlayForm.HandleCreated += (_, _) =>
+        {
+            lock (sync)
+            {
+                formHandle = overlayForm.Handle;
+            }
+        };
+        overlayForm.HandleDestroyed += (_, _) =>
+        {
+            lock (sync)
+            {
+                formHandle = IntPtr.Zero;
+            }
+        };
 
         lock (sync)
         {
@@ -192,6 +218,7 @@ internal sealed class TimerOverlayWindowHost : IDisposable
         lock (sync)
         {
             form = null;
+            formHandle = IntPtr.Zero;
         }
     }
 

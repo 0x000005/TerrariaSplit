@@ -5,7 +5,7 @@ namespace TerrariaSplit;
 internal sealed class EnterWorldWorkflow : IDisposable
 {
     private readonly TerrariaAutomationContext automation = new("Enter world");
-    private TimeSpan menuActionDelay = TimeSpan.FromMilliseconds(AutoCreateWorldSettings.DefaultMenuActionDelayMilliseconds);
+    private TimeSpan menuActionDelay = TimeSpan.FromMilliseconds(AppSettingsDefaults.AutoCreate.MenuActionDelayMilliseconds);
 
     public async Task RunAsync(AppSettings settings, PracticeWorldSlot slot, CancellationToken cancellationToken = default)
     {

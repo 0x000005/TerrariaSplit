@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Drawing;
-using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows.Forms;
 
@@ -14,11 +13,6 @@ internal sealed class TimerOverlayForm : Form
     private const int ResizeBorder = 8;
     private const int WsExTransparent = 0x20;
     private const int WsExLayered = 0x80000;
-    private const int PmNoRemove = 0;
-    private const int WmMouseFirst = 0x0200;
-    private const int WmMouseLast = 0x020E;
-    private const int WmNcMouseFirst = 0x00A0;
-    private const int WmNcMouseLast = 0x00AD;
     private readonly OverlayWindowController overlayWindowController;
     private readonly OverlayRenderResources renderResources = new();
     private readonly HighPrecisionScheduler paintScheduler;
@@ -51,6 +45,7 @@ internal sealed class TimerOverlayForm : Form
         FormBorderStyle = FormBorderStyle.None;
         ShowInTaskbar = false;
         StartPosition = FormStartPosition.Manual;
+        AutoScaleMode = AutoScaleMode.None;
         DoubleBuffered = true;
         ResizeRedraw = true;
         BackColor = Color.Black;
@@ -70,6 +65,7 @@ internal sealed class TimerOverlayForm : Form
         get
         {
             CreateParams parameters = base.CreateParams;
+            parameters.Style = OverlayWindowController.ComposeBorderlessStyle(parameters.Style);
             parameters.ExStyle |= WsExLayered;
             if (mouseClickThrough)
             {
@@ -78,6 +74,13 @@ internal sealed class TimerOverlayForm : Form
 
             return parameters;
         }
+    }
+
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        overlayWindowController.ApplyWindowStyle(mouseClickThrough);
+        WindowTopMostSync.Apply(TopMost, Handle);
     }
 
     protected override void OnShown(EventArgs e)
@@ -258,6 +261,10 @@ internal sealed class TimerOverlayForm : Form
     public void ApplyTopMost(bool topMost)
     {
         TopMost = topMost;
+        if (IsHandleCreated)
+        {
+            WindowTopMostSync.Apply(topMost, Handle);
+        }
     }
 
     public void ApplyMouseClickThrough(bool enabled)
@@ -340,7 +347,7 @@ internal sealed class TimerOverlayForm : Form
                         return;
                     }
 
-                    if (!HasPendingMouseMessage())
+                    if (!UiInputMessageProbe.HasPendingInputMessage())
                     {
                         overlayWindowController.RenderImmediately();
                     }
@@ -365,35 +372,9 @@ internal sealed class TimerOverlayForm : Form
         }
     }
 
-    private static bool HasPendingMouseMessage()
-    {
-        return PeekMessage(out _, IntPtr.Zero, WmMouseFirst, WmMouseLast, PmNoRemove) ||
-            PeekMessage(out _, IntPtr.Zero, WmNcMouseFirst, WmNcMouseLast, PmNoRemove);
-    }
-
     private bool CanDispatchToUiThread()
     {
         return IsHandleCreated && !IsDisposed && !Disposing;
-    }
-
-    [DllImport("user32.dll", SetLastError = false)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool PeekMessage(
-        out NativeMessage message,
-        IntPtr hWnd,
-        uint messageFilterMin,
-        uint messageFilterMax,
-        uint flags);
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct NativeMessage
-    {
-        public IntPtr HWnd;
-        public uint Message;
-        public UIntPtr WParam;
-        public IntPtr LParam;
-        public uint Time;
-        public Point Point;
     }
 
     private static bool ShouldRenderImmediately(

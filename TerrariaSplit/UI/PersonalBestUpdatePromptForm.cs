@@ -28,6 +28,7 @@ internal sealed class PersonalBestUpdatePromptForm : Form
         var layout = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
+            BackColor = BackColor,
             Padding = new Padding(22, 18, 22, 20),
             ColumnCount = 1,
             RowCount = 4
@@ -41,6 +42,7 @@ internal sealed class PersonalBestUpdatePromptForm : Form
         {
             AutoSize = true,
             Dock = DockStyle.Fill,
+            BackColor = BackColor,
             Font = UiTheme.FormFont(12.5f, FontStyle.Bold),
             ForeColor = UiTheme.Text,
             Text = Localizer.Get("Update personal data?", settings)
@@ -49,6 +51,7 @@ internal sealed class PersonalBestUpdatePromptForm : Form
         var detailLabel = new Label
         {
             Dock = DockStyle.Fill,
+            BackColor = BackColor,
             ForeColor = UiTheme.Text,
             Font = UiTheme.FormFont(10f),
             Text = updateText,
@@ -58,12 +61,14 @@ internal sealed class PersonalBestUpdatePromptForm : Form
 
         countdownLabel.AutoSize = true;
         countdownLabel.Dock = DockStyle.Fill;
+        countdownLabel.BackColor = BackColor;
         countdownLabel.ForeColor = UiTheme.MutedText;
 
         var buttonPanel = new FlowLayoutPanel
         {
             AutoSize = true,
             Dock = DockStyle.Right,
+            BackColor = BackColor,
             FlowDirection = FlowDirection.LeftToRight,
             WrapContents = false
         };

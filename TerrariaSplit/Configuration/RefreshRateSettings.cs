@@ -2,36 +2,36 @@ namespace TerrariaSplit;
 
 internal static class RefreshRateSettings
 {
-    public static readonly int[] ReadyWatcherPollHzOptions = [100, 200, 400, 800];
-    public static readonly int[] StandardRefreshHzOptions = [50, 100, 150, 200];
+    public static readonly int[] ReadyWatcherPollHzOptions = [120, 240, 480, 960];
+    public static readonly int[] StandardRefreshHzOptions = [60, 90, 120, 180, 240];
 
-    public const int MinReadyWatcherPollHz = 100;
-    public const int MaxReadyWatcherPollHz = 800;
-    public const int MinReadyUiControlHz = 50;
-    public const int MaxReadyUiControlHz = 200;
-    public const int MinRunningStatusPaintHz = 50;
-    public const int MaxRunningStatusPaintHz = 200;
-    public const int MinTimerOverlayRefreshHz = 50;
-    public const int MaxTimerOverlayRefreshHz = 200;
+    public const int MinReadyWatcherPollHz = 120;
+    public const int MaxReadyWatcherPollHz = 960;
+    public const int MinReadyUiControlHz = 60;
+    public const int MaxReadyUiControlHz = 240;
+    public const int MinRunningStatusPaintHz = 60;
+    public const int MaxRunningStatusPaintHz = 240;
+    public const int MinTimerOverlayRefreshHz = 60;
+    public const int MaxTimerOverlayRefreshHz = 240;
 
     public static int NormalizeReadyWatcherPollHz(int value)
     {
-        return NormalizeOption(value, ReadyWatcherPollHzOptions, AdvancedSettings.DefaultReadyWatcherPollHz);
+        return NormalizeOption(value, ReadyWatcherPollHzOptions);
     }
 
     public static int NormalizeReadyUiControlHz(int value)
     {
-        return NormalizeOption(value, StandardRefreshHzOptions, AdvancedSettings.DefaultReadyUiControlHz);
+        return NormalizeOption(value, StandardRefreshHzOptions);
     }
 
     public static int NormalizeRunningStatusPaintHz(int value)
     {
-        return NormalizeOption(value, StandardRefreshHzOptions, AdvancedSettings.DefaultRunningStatusPaintHz);
+        return NormalizeOption(value, StandardRefreshHzOptions);
     }
 
     public static int NormalizeTimerOverlayRefreshHz(int value)
     {
-        return NormalizeOption(value, StandardRefreshHzOptions, AdvancedSettings.DefaultTimerOverlayRefreshHz);
+        return NormalizeOption(value, StandardRefreshHzOptions);
     }
 
     public static TimeSpan ToInterval(int hz)
@@ -39,11 +39,11 @@ internal static class RefreshRateSettings
         return TimeSpan.FromMilliseconds(1000d / Math.Max(1, hz));
     }
 
-    private static int NormalizeOption(int value, IReadOnlyList<int> options, int fallback)
+    private static int NormalizeOption(int value, IReadOnlyList<int> options)
     {
         if (options.Count == 0)
         {
-            return fallback;
+            return Math.Max(1, value);
         }
 
         int normalized = options[0];

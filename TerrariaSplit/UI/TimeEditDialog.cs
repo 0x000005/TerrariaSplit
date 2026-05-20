@@ -20,10 +20,7 @@ internal static class TimeEditDialog
         };
         UiTheme.ConfigureForm(form, new Size(500, 178));
 
-        if (owner is Form ownerForm)
-        {
-            form.TopMost = ownerForm.TopMost;
-        }
+        form.TopMost = settings.AlwaysOnTop;
 
         var root = new TableLayoutPanel
         {
@@ -52,7 +49,6 @@ internal static class TimeEditDialog
             DialogResult = DialogResult.OK
         };
         UiTheme.StyleButton(okButton, accent: true);
-        ApplyDialogButtonPaint(okButton, accent: true);
 
         var cancelButton = new Button
         {
@@ -60,7 +56,6 @@ internal static class TimeEditDialog
             DialogResult = DialogResult.Cancel
         };
         UiTheme.StyleButton(cancelButton);
-        ApplyDialogButtonPaint(cancelButton, accent: false);
 
         var buttons = new FlowLayoutPanel
         {
@@ -88,60 +83,5 @@ internal static class TimeEditDialog
 
         editedText = textBox.Text.Trim();
         return allowEmpty || editedText.Length > 0;
-    }
-
-    private static void ApplyDialogButtonPaint(Button button, bool accent)
-    {
-        bool hover = false;
-        bool pressed = false;
-        Color normal = accent ? UiTheme.Accent : UiTheme.SurfaceRaised;
-        Color hoverColor = accent ? UiTheme.AccentHover : Color.FromArgb(47, 58, 64);
-        Color downColor = accent ? UiTheme.AccentDown : Color.FromArgb(41, 50, 56);
-        Color border = accent ? UiTheme.Accent : UiTheme.Border;
-
-        button.FlatAppearance.BorderSize = 0;
-        button.MouseEnter += (_, _) =>
-        {
-            hover = true;
-            button.Invalidate();
-        };
-        button.MouseLeave += (_, _) =>
-        {
-            hover = false;
-            pressed = false;
-            button.Invalidate();
-        };
-        button.MouseDown += (_, e) =>
-        {
-            if (e.Button == MouseButtons.Left)
-            {
-                pressed = true;
-                button.Invalidate();
-            }
-        };
-        button.MouseUp += (_, _) =>
-        {
-            pressed = false;
-            button.Invalidate();
-        };
-        button.Paint += (_, e) =>
-        {
-            Color fill = pressed ? downColor : hover ? hoverColor : normal;
-            using var fillBrush = new SolidBrush(fill);
-            e.Graphics.FillRectangle(fillBrush, button.ClientRectangle);
-            using var borderPen = new Pen(border);
-            e.Graphics.DrawRectangle(borderPen, 0, 0, Math.Max(0, button.ClientSize.Width - 1), Math.Max(0, button.ClientSize.Height - 1));
-
-            TextRenderer.DrawText(
-                e.Graphics,
-                button.Text,
-                button.Font,
-                button.ClientRectangle,
-                button.ForeColor,
-                TextFormatFlags.HorizontalCenter |
-                TextFormatFlags.VerticalCenter |
-                TextFormatFlags.EndEllipsis |
-                TextFormatFlags.SingleLine);
-        };
     }
 }

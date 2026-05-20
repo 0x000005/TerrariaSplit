@@ -48,8 +48,7 @@ internal readonly record struct RuntimePerformanceDiagnostics(
     double MaxControlTickIntervalMilliseconds,
     double MaxWatcherPollIntervalMilliseconds,
     double MaxStatusPaintIntervalMilliseconds,
-    double MaxTimerOverlayPaintIntervalMilliseconds,
-    int DisplayRefreshHz)
+    double MaxTimerOverlayPaintIntervalMilliseconds)
 {
     public static RuntimePerformanceDiagnostics Empty => new(
         ControlTickCount: 0,
@@ -97,8 +96,7 @@ internal readonly record struct RuntimePerformanceDiagnostics(
         MaxControlTickIntervalMilliseconds: 0,
         MaxWatcherPollIntervalMilliseconds: 0,
         MaxStatusPaintIntervalMilliseconds: 0,
-        MaxTimerOverlayPaintIntervalMilliseconds: 0,
-        DisplayRefreshHz: 0);
+        MaxTimerOverlayPaintIntervalMilliseconds: 0);
 }
 
 internal sealed class RuntimePerformanceTracker
@@ -139,8 +137,6 @@ internal sealed class RuntimePerformanceTracker
     public TimeSpan WatcherPollInterval { get; set; }
 
     public TimeSpan ProcessLookupInterval { get; set; }
-
-    public int DisplayRefreshHz { get; set; }
 
     public void RecordControlTick(TimeSpan elapsed)
     {
@@ -279,8 +275,7 @@ internal sealed class RuntimePerformanceTracker
                 controlTickIntervals.MaxMilliseconds,
                 watcherPollIntervals.MaxMilliseconds,
                 statusPaintIntervals.MaxMilliseconds,
-                timerOverlayPaintIntervals.MaxMilliseconds,
-                DisplayRefreshHz);
+                timerOverlayPaintIntervals.MaxMilliseconds);
         }
     }
 

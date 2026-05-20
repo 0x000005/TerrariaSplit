@@ -33,7 +33,6 @@ internal sealed class DebugSettingsPage : SettingsPageBase
         Label watcherPollValue = CreateValueLabel();
         Label statusPaintValue = CreateValueLabel();
         Label timerPaintValue = CreateValueLabel();
-        Label displayRefreshValue = CreateValueLabel();
 
         Label processIdValue = CreateValueLabel();
         Label processStartTimeValue = CreateValueLabel();
@@ -127,11 +126,10 @@ internal sealed class DebugSettingsPage : SettingsPageBase
 
             TableLayoutPanel performanceSection = CreateSection(owner, "Performance");
             TableLayoutPanel performanceGrid = CreateGrid(owner);
-            AddValueRow(performanceGrid, owner, "Timer sampling", watcherPollValue);
-            AddValueRow(performanceGrid, owner, "UI control", controlTickValue);
-            AddValueRow(performanceGrid, owner, "Status paint", statusPaintValue);
-            AddValueRow(performanceGrid, owner, "Timer paint", timerPaintValue);
-            AddValueRow(performanceGrid, owner, "Display refresh", displayRefreshValue);
+            AddValueRow(performanceGrid, owner, "Sampling frequency", watcherPollValue);
+            AddValueRow(performanceGrid, owner, "Control frequency", controlTickValue);
+            AddValueRow(performanceGrid, owner, "Split timer refresh rate", statusPaintValue);
+            AddValueRow(performanceGrid, owner, "Main timer refresh rate", timerPaintValue);
             AddSectionControl(performanceSection, performanceGrid);
             AddSection(content, performanceSection);
 
@@ -233,7 +231,6 @@ internal sealed class DebugSettingsPage : SettingsPageBase
             TerrariaWatchSnapshot snapshot = debugSnapshot.WatchSnapshot;
             TerrariaWatcherDiagnostics diagnostics = debugSnapshot.WatcherDiagnostics;
             TerrariaSaveInventorySnapshot inventory = latestInventory;
-            RuntimePerformanceDiagnostics runtime = debugSnapshot.Performance;
             AutoCreateWorldSettings autoCreate = owner.Result.AutoCreate;
             latestWindow = window;
             latestSnapshot = snapshot;
@@ -269,7 +266,6 @@ internal sealed class DebugSettingsPage : SettingsPageBase
                 SetValue(
                     timerPaintValue,
                     FormatTimerPaintSummary(debugSnapshot, owner));
-                SetValue(displayRefreshValue, FormatDisplayRefresh(runtime.DisplayRefreshHz, owner));
                 SetValue(processIdValue, FormatProcessId(window.ProcessId, owner));
                 SetValue(processStartTimeValue, FormatDateTime(window.ProcessStartTime, owner));
                 SetValue(processPathValue, FormatText(diagnostics.ProcessPath, owner));
@@ -487,7 +483,6 @@ internal sealed class DebugSettingsPage : SettingsPageBase
     {
         var lines = new List<string>();
         TerrariaWatchSnapshot snapshot = debugSnapshot.WatchSnapshot;
-        RuntimePerformanceDiagnostics runtime = debugSnapshot.Performance;
         bool bossFlagsReady = HasAnyBossState(snapshot.BossStates);
 
         AppendReportSection(
@@ -510,11 +505,10 @@ internal sealed class DebugSettingsPage : SettingsPageBase
             owner,
             "Performance",
             [
-                ("Timer sampling", FormatWatcherPollSummary(debugSnapshot, owner)),
-                ("UI control", FormatControlTickSummary(debugSnapshot, owner)),
-                ("Status paint", FormatStatusPaintSummary(debugSnapshot, owner)),
-                ("Timer paint", FormatTimerPaintSummary(debugSnapshot, owner)),
-                ("Display refresh", FormatDisplayRefresh(runtime.DisplayRefreshHz, owner))
+                ("Sampling frequency", FormatWatcherPollSummary(debugSnapshot, owner)),
+                ("Control frequency", FormatControlTickSummary(debugSnapshot, owner)),
+                ("Split timer refresh rate", FormatStatusPaintSummary(debugSnapshot, owner)),
+                ("Main timer refresh rate", FormatTimerPaintSummary(debugSnapshot, owner))
             ]);
 
         string menuScale = owner.Localize("Unknown");
@@ -567,6 +561,7 @@ internal sealed class DebugSettingsPage : SettingsPageBase
                 ("Catch stars", FormatBool(autoCreate.EnableZenithStarCatch, owner)),
                 ("Catch stars through", owner.Localize(AutoCreateZenithStarCatchStage.Normalize(autoCreate.ZenithStarCatchStopStage))),
                 ("Catch speed", AutoCreateZenithStarCatchSpeed.FormatMultiplier(autoCreate.ZenithStarCatchSpeedSliderValue)),
+                ("Filter pyramid", FormatBool(autoCreate.EnablePyramidFilter, owner)),
                 ("Short action delay ms", autoCreate.ShortActionDelayMilliseconds.ToString(CultureInfo.InvariantCulture)),
                 ("Menu action delay ms", autoCreate.MenuActionDelayMilliseconds.ToString(CultureInfo.InvariantCulture)),
                 ("Window activation wait ms", autoCreate.WindowActivationDelayMilliseconds.ToString(CultureInfo.InvariantCulture)),
@@ -750,6 +745,11 @@ internal sealed class DebugSettingsPage : SettingsPageBase
                 AutoCreateZenithStarCatchSpeed.FormatMultiplier(autoCreate.ZenithStarCatchSpeedSliderValue));
         }
 
+        if (autoCreate.EnablePyramidFilter)
+        {
+            lines.Add($"{step++}. {owner.Localize("Filter pyramid")}");
+        }
+
         return string.Join(Environment.NewLine, lines);
     }
 
@@ -925,7 +925,7 @@ internal sealed class DebugSettingsPage : SettingsPageBase
         {
             return FormatConfiguredHzWaitingSummary(
                 RefreshRateSettings.NormalizeReadyWatcherPollHz(
-                    owner.Result.Advanced?.ReadyWatcherPollHz ?? AdvancedSettings.DefaultReadyWatcherPollHz),
+                    owner.Result.Advanced?.ReadyWatcherPollHz ?? AppSettingsDefaults.Advanced.ReadyWatcherPollHz),
                 "Waiting for attached memory",
                 owner);
         }
@@ -944,7 +944,7 @@ internal sealed class DebugSettingsPage : SettingsPageBase
         {
             return FormatConfiguredHzWaitingSummary(
                 RefreshRateSettings.NormalizeReadyUiControlHz(
-                    owner.Result.Advanced?.ReadyUiControlHz ?? AdvancedSettings.DefaultReadyUiControlHz),
+                    owner.Result.Advanced?.ReadyUiControlHz ?? AppSettingsDefaults.Advanced.ReadyUiControlHz),
                 "Waiting for attached memory",
                 owner);
         }
@@ -1007,13 +1007,6 @@ internal sealed class DebugSettingsPage : SettingsPageBase
             debugSnapshot.Performance.MaxTimerOverlayPaintIntervalMilliseconds,
             debugSnapshot.Performance.TimerOverlayPaintCount,
             owner);
-    }
-
-    private static string FormatDisplayRefresh(int refreshHz, SettingsForm owner)
-    {
-        return refreshHz > 0
-            ? refreshHz.ToString(CultureInfo.InvariantCulture) + " Hz"
-            : owner.Localize("Unknown");
     }
 
     private static string FormatMilliseconds(double milliseconds)

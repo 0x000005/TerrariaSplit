@@ -1,0 +1,27 @@
+namespace TerrariaSplit;
+
+internal static class WindowTopMostSync
+{
+    private static readonly IntPtr HwndTopMost = new(-1);
+    private static readonly IntPtr HwndNoTopMost = new(-2);
+    private const uint SwpNoSize = 0x0001;
+    private const uint SwpNoMove = 0x0002;
+    private const uint SwpNoActivate = 0x0010;
+    private const uint SwpNoOwnerZOrder = 0x0200;
+
+    private const uint Flags = SwpNoSize | SwpNoMove | SwpNoActivate | SwpNoOwnerZOrder;
+
+    public static void Apply(bool topMost, params IntPtr[] handles)
+    {
+        IntPtr insertAfter = topMost ? HwndTopMost : HwndNoTopMost;
+        foreach (IntPtr handle in handles)
+        {
+            if (handle == IntPtr.Zero)
+            {
+                continue;
+            }
+
+            NativeMethods.SetWindowPos(handle, insertAfter, 0, 0, 0, 0, Flags);
+        }
+    }
+}

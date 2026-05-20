@@ -11,6 +11,16 @@ namespace TerrariaSplit;
 internal sealed class OverlayWindowController : IDisposable
 {
     private const int GwlExStyle = -20;
+    private const int GwlStyle = -16;
+    private const uint SwpNoSize = 0x0001;
+    private const uint SwpNoMove = 0x0002;
+    private const uint SwpNoZOrder = 0x0004;
+    private const uint SwpNoActivate = 0x0010;
+    private const uint SwpFrameChanged = 0x0020;
+    private const int WsBorder = 0x00800000;
+    private const int WsCaption = 0x00C00000;
+    private const int WsDlgFrame = 0x00400000;
+    private const int WsThickFrame = 0x00040000;
     private const int WsExTransparent = 0x20;
     private const int WsExLayered = 0x80000;
 
@@ -136,6 +146,21 @@ internal sealed class OverlayWindowController : IDisposable
         }
 
         IntPtr handle = owner.Handle;
+        int windowStyle = GetWindowLong(handle, GwlStyle);
+        int borderlessStyle = ComposeBorderlessStyle(windowStyle);
+        if (borderlessStyle != windowStyle)
+        {
+            SetWindowLong(handle, GwlStyle, borderlessStyle);
+            SetWindowPos(
+                handle,
+                IntPtr.Zero,
+                0,
+                0,
+                0,
+                0,
+                SwpNoMove | SwpNoSize | SwpNoZOrder | SwpNoActivate | SwpFrameChanged);
+        }
+
         int style = GetWindowLong(handle, GwlExStyle);
         SetWindowLong(handle, GwlExStyle, ComposeExtendedStyle(style, mouseClickThrough));
     }
@@ -161,6 +186,11 @@ internal sealed class OverlayWindowController : IDisposable
         return style;
     }
 
+    internal static int ComposeBorderlessStyle(int existingStyle)
+    {
+        return existingStyle & ~(WsCaption | WsBorder | WsDlgFrame | WsThickFrame);
+    }
+
     private void RenderQueued()
     {
         RenderImmediately();
@@ -181,4 +211,15 @@ internal sealed class OverlayWindowController : IDisposable
 
     [DllImport("user32.dll")]
     private static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetWindowPos(
+        IntPtr hWnd,
+        IntPtr hWndInsertAfter,
+        int x,
+        int y,
+        int cx,
+        int cy,
+        uint flags);
 }

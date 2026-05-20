@@ -7,7 +7,9 @@ internal sealed partial class MainForm : Form
 {
     private void DrawStatusOverlay(Graphics graphics)
     {
-        if (!TryGetLayout(out SplitLayout layout))
+        if (!overlayWindowsInitialized ||
+            overlayWindowInitializationInProgress ||
+            !TryGetLayout(out SplitLayout layout))
         {
             return;
         }
@@ -123,7 +125,7 @@ internal sealed partial class MainForm : Form
     {
         string localEditedText = value;
         bool accepted = RunWithSuspendedRuntimeOverlayPaint(() =>
-            RunWithReleasedTimerOverlayTopMost(() =>
+            RunWithReleasedOverlayTopMost(() =>
                 TimeEditDialog.TryShow(this, settings, title, value, allowEmpty, out localEditedText)));
         editedText = localEditedText;
         return accepted;

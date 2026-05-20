@@ -11,17 +11,19 @@ internal sealed class CreateWorldWorkflow : IDisposable
     private readonly TerrariaSavePreparation savePreparation = new();
     private readonly TerrariaAutomationContext automation = new("Create world");
     private readonly ZenithStarCatchAutomation zenithStarCatchAutomation;
-    private TimeSpan shortActionDelay = TimeSpan.FromMilliseconds(AutoCreateWorldSettings.DefaultShortActionDelayMilliseconds);
-    private TimeSpan menuActionDelay = TimeSpan.FromMilliseconds(AutoCreateWorldSettings.DefaultMenuActionDelayMilliseconds);
+    private readonly PyramidFilterAutomation pyramidFilterAutomation;
+    private TimeSpan shortActionDelay = TimeSpan.FromMilliseconds(AppSettingsDefaults.AutoCreate.ShortActionDelayMilliseconds);
+    private TimeSpan menuActionDelay = TimeSpan.FromMilliseconds(AppSettingsDefaults.AutoCreate.MenuActionDelayMilliseconds);
 
     public CreateWorldWorkflow()
     {
         zenithStarCatchAutomation = new ZenithStarCatchAutomation(automation);
+        pyramidFilterAutomation = new PyramidFilterAutomation(automation);
     }
 
     public Task RunAsync(CancellationToken cancellationToken = default)
     {
-        return RunAsync(new AppSettings(), cancellationToken);
+        return RunAsync(AppSettingsDefaults.Create(), cancellationToken);
     }
 
     public async Task RunAsync(AppSettings settings, CancellationToken cancellationToken = default)
@@ -31,104 +33,90 @@ internal sealed class CreateWorldWorkflow : IDisposable
         {
             AutoCreateWorldSettings autoCreate = settings.AutoCreate;
             ApplyTiming(autoCreate);
-            Size clientSize = Size.Empty;
-            if (!await automation.RunStepAsync(
-                    "activate Terraria window",
-                    _ =>
-                    {
-                        if (!automation.TryActivate(out Size activatedSize))
+            while (true)
+            {
+                Size clientSize = Size.Empty;
+                if (!await automation.RunStepAsync(
+                        "activate Terraria window",
+                        _ =>
                         {
-                            AppLogger.Info("Create world automation could not activate Terraria window.");
-                            return Task.FromResult(false);
-                        }
+                            if (!automation.TryActivate(out Size activatedSize))
+                            {
+                                AppLogger.Info("Create world automation could not activate Terraria window.");
+                                return Task.FromResult(false);
+                            }
 
-                        clientSize = activatedSize;
-                        return Task.FromResult(true);
-                    },
-                    cancellationToken))
-            {
-                return;
+                            clientSize = activatedSize;
+                            return Task.FromResult(true);
+                        },
+                        cancellationToken))
+                {
+                    return;
+                }
+
+                TerrariaMenuGeometry geometry = TerrariaMenuGeometry.From(clientSize);
+
+                TerrariaSaveCleanupResult cleanup = default;
+                if (!await automation.RunStepAsync(
+                        "save cleanup",
+                        _ =>
+                        {
+                            cleanup = savePreparation.MoveNonFavoritesToBackup();
+                            return Task.FromResult(true);
+                        },
+                        cancellationToken))
+                {
+                    return;
+                }
+
+                if (!await automation.ClickAsync("Single Player", geometry.MainMenuSinglePlayer(), menuActionDelay, cancellationToken))
+                {
+                    return;
+                }
+
+                Dictionary<string, DateTime> playersBefore = savePreparation.SnapshotSaveFiles("Players", "*.plr");
+                if (!await automation.ClickAsync("new player", geometry.SelectMenuNewButton(), menuActionDelay, cancellationToken))
+                {
+                    return;
+                }
+
+                if (!await ApplyPlayerTemplateAsync(autoCreate, geometry, cancellationToken))
+                {
+                    return;
+                }
+
+                if (!await ApplyPlayerDifficultyAsync(autoCreate.PlayerDifficulty, geometry, cancellationToken))
+                {
+                    return;
+                }
+
+                if (!await automation.ClickAsync("create player", geometry.CreatePlayerButton(), menuActionDelay, cancellationToken))
+                {
+                    return;
+                }
+
+                if (!await ConfirmPlayerNameAsync(autoCreate.PlayerName, geometry, cancellationToken))
+                {
+                    return;
+                }
+
+                if (!await WaitForNewOrChangedSaveFileAsync("player file", playersBefore, "Players", "*.plr", PlayerCreateTimeout, cancellationToken))
+                {
+                    return;
+                }
+
+                if (!await ClickPlayerAsync(geometry, cleanup.FavoritePlayers, cancellationToken))
+                {
+                    return;
+                }
+
+                await automation.DelayAsync(menuActionDelay, cancellationToken);
+
+                if (!await RunWorldCreationLoopAsync(autoCreate, geometry, cancellationToken))
+                {
+                    return;
+                }
             }
-
-            TerrariaMenuGeometry geometry = TerrariaMenuGeometry.From(clientSize);
-
-            TerrariaSaveCleanupResult cleanup = default;
-            if (!await automation.RunStepAsync(
-                    "save cleanup",
-                    _ =>
-                    {
-                        cleanup = savePreparation.MoveNonFavoritesToBackup();
-                        return Task.FromResult(true);
-                    },
-                    cancellationToken))
-            {
-                return;
-            }
-
-            if (!await automation.ClickAsync("Single Player", geometry.MainMenuSinglePlayer(), menuActionDelay, cancellationToken))
-            {
-                return;
-            }
-
-            Dictionary<string, DateTime> playersBefore = savePreparation.SnapshotSaveFiles("Players", "*.plr");
-            if (!await automation.ClickAsync("new player", geometry.SelectMenuNewButton(), menuActionDelay, cancellationToken))
-            {
-                return;
-            }
-
-            if (!await ApplyPlayerTemplateAsync(autoCreate, geometry, cancellationToken))
-            {
-                return;
-            }
-
-            if (!await ApplyPlayerDifficultyAsync(autoCreate.PlayerDifficulty, geometry, cancellationToken))
-            {
-                return;
-            }
-
-            if (!await automation.ClickAsync("create player", geometry.CreatePlayerButton(), menuActionDelay, cancellationToken))
-            {
-                return;
-            }
-
-            if (!await ConfirmPlayerNameAsync(autoCreate.PlayerName, geometry, cancellationToken))
-            {
-                return;
-            }
-
-            if (!await WaitForNewOrChangedSaveFileAsync("player file", playersBefore, "Players", "*.plr", PlayerCreateTimeout, cancellationToken))
-            {
-                return;
-            }
-
-            if (!await ClickPlayerAsync(geometry, cleanup.FavoritePlayers, cancellationToken))
-            {
-                return;
-            }
-
-            await automation.DelayAsync(menuActionDelay, cancellationToken);
-
-            if (!await automation.ClickAsync("new world", geometry.SelectMenuNewButton(), menuActionDelay, cancellationToken))
-            {
-                return;
-            }
-
-            if (!await ApplyWorldOptionsAsync(autoCreate, geometry, cancellationToken))
-            {
-                return;
-            }
-
-            if (!await ApplyWorldSeedOptionsAsync(autoCreate, geometry, cancellationToken))
-            {
-                return;
-            }
-
-            if (!await automation.ClickAsync("create world", geometry.CreateWorldButton(), shortActionDelay, cancellationToken))
-            {
-                return;
-            }
-
-            await zenithStarCatchAutomation.RunAsync(autoCreate, cancellationToken);
         }
         catch (OperationCanceledException)
         {
@@ -137,6 +125,52 @@ internal sealed class CreateWorldWorkflow : IDisposable
         {
             AppLogger.Error(ex, "Create world automation failed.");
         }
+    }
+
+    private async Task<bool> RunWorldCreationLoopAsync(
+        AutoCreateWorldSettings settings,
+        TerrariaMenuGeometry geometry,
+        CancellationToken cancellationToken)
+    {
+        automation.ThrowIfCancellationRequested(cancellationToken);
+        Dictionary<string, DateTime> worldsBefore = savePreparation.SnapshotSaveFiles("Worlds", "*.wld");
+        if (!await CreateOneWorldAsync(settings, geometry, cancellationToken))
+        {
+            return false;
+        }
+
+        await zenithStarCatchAutomation.RunAsync(settings, cancellationToken);
+        PyramidFilterOutcome outcome = await pyramidFilterAutomation.RunAsync(settings, worldsBefore, cancellationToken);
+        AppLogger.Info($"Create world automation pyramid filter outcome: {outcome}.");
+        if (outcome != PyramidFilterOutcome.Rejected)
+        {
+            return false;
+        }
+
+        return await ReturnToMainMenuByBackTwiceAsync(geometry, cancellationToken);
+    }
+
+    private async Task<bool> CreateOneWorldAsync(
+        AutoCreateWorldSettings settings,
+        TerrariaMenuGeometry geometry,
+        CancellationToken cancellationToken)
+    {
+        if (!await automation.ClickAsync("new world", geometry.SelectMenuNewButton(), menuActionDelay, cancellationToken))
+        {
+            return false;
+        }
+
+        if (!await ApplyWorldOptionsAsync(settings, geometry, cancellationToken))
+        {
+            return false;
+        }
+
+        if (!await ApplyWorldSeedOptionsAsync(settings, geometry, cancellationToken))
+        {
+            return false;
+        }
+
+        return await automation.ClickAsync("create world", geometry.CreateWorldButton(), shortActionDelay, cancellationToken);
     }
 
     private async Task<bool> ApplyPlayerTemplateAsync(
@@ -295,6 +329,37 @@ internal sealed class CreateWorldWorkflow : IDisposable
     {
         Point point = geometry.PlayerPlayButton(favoritePlayers);
         return await automation.ClickOnceAsync("first non-favorite player play button", point, menuActionDelay, cancellationToken);
+    }
+
+    private async Task<bool> ReturnToMainMenuByBackTwiceAsync(
+        TerrariaMenuGeometry geometry,
+        CancellationToken cancellationToken)
+    {
+        if (!automation.Window.TryActivate(out _))
+        {
+            AppLogger.Info("Create world automation could not reactivate Terraria before clicking back out of a rejected world.");
+            return false;
+        }
+
+        if (!await automation.ClickOnceAsync(
+                "back from world select after rejected world",
+                geometry.SelectMenuBackButton(),
+                menuActionDelay,
+                cancellationToken))
+        {
+            return false;
+        }
+
+        if (!await automation.ClickOnceAsync(
+                "back from character select after rejected world",
+                geometry.SelectMenuBackButton(),
+                menuActionDelay,
+                cancellationToken))
+        {
+            return false;
+        }
+
+        return true;
     }
 
     private void ApplyTiming(AutoCreateWorldSettings settings)

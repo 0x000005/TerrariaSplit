@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace TerrariaSplit;
 
@@ -12,6 +13,30 @@ internal static class SettingsSerializer
     public static void WriteSettings(string path, AppSettings settings)
     {
         JsonFileStore.Write(path, settings, "settings");
+    }
+
+    public static AppSettings? ReadSettingsWithDefaults(string path, string defaultsPath, string description)
+    {
+        try
+        {
+            JsonObject? merged = ReadJsonObject(defaultsPath);
+            if (merged is null)
+            {
+                return ReadSettings(path, description);
+            }
+
+            if (File.Exists(path) && ReadJsonObject(path) is JsonObject overrides)
+            {
+                MergeJsonObject(merged, overrides);
+            }
+
+            return merged.Deserialize<AppSettings>(JsonFileStore.JsonOptions);
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error(ex, $"Failed to read {description} with defaults: {path}");
+            return default;
+        }
     }
 
     public static AppSettings Clone(AppSettings settings)
@@ -42,6 +67,31 @@ internal static class SettingsSerializer
         {
             AppLogger.Error(ex, $"Ignored invalid settings file: {path}");
             return false;
+        }
+    }
+
+    private static JsonObject? ReadJsonObject(string path)
+    {
+        if (!File.Exists(path))
+        {
+            return null;
+        }
+
+        return JsonNode.Parse(File.ReadAllText(path)) as JsonObject;
+    }
+
+    private static void MergeJsonObject(JsonObject target, JsonObject overrides)
+    {
+        foreach ((string key, JsonNode? overrideValue) in overrides.ToList())
+        {
+            if (overrideValue is JsonObject overrideObject &&
+                target[key] is JsonObject targetObject)
+            {
+                MergeJsonObject(targetObject, overrideObject);
+                continue;
+            }
+
+            target[key] = overrideValue?.DeepClone();
         }
     }
 }

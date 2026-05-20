@@ -194,11 +194,17 @@
   },
   "Sounds": {
     "Pause": "",
+    "Resume": "",
     "Reset": "",
+    "EnterWorld": "",
     "SplitBehindReferenceBehindSegment": "",
     "SplitBehindReferenceAheadSegment": "",
     "SplitAheadReferenceBehindSegment": "",
-    "SplitAheadReferenceAheadSegment": ""
+    "SplitAheadReferenceAheadSegment": "",
+    "MoonLordBehindReferenceBehindSegment": "",
+    "MoonLordBehindReferenceAheadSegment": "",
+    "MoonLordAheadReferenceBehindSegment": "",
+    "MoonLordAheadReferenceAheadSegment": ""
   },
   "Columns": {
     "ScalePercent": 100,
@@ -236,12 +242,17 @@
     "TimerOffsetY": 0
   },
   "TextEffects": {
+    "IconOpacityPercent": 100,
+    "TimeOpacityPercent": 100,
     "TimeShadowPercent": 0,
     "TimeOutlineThicknessPercent": 0,
+    "DeltaOpacityPercent": 100,
     "DeltaShadowPercent": 0,
     "DeltaOutlineThicknessPercent": 0,
+    "TimerOpacityPercent": 100,
     "TimerShadowPercent": 0,
     "TimerOutlineThicknessPercent": 0,
+    "TimerMillisecondsOpacityPercent": 100,
     "TimerMillisecondsShadowPercent": 0,
     "TimerMillisecondsOutlineThicknessPercent": 0
   },
@@ -254,6 +265,10 @@
     "WorldEvil": "Random",
     "SpecialSeeds": "",
     "SecretSeeds": "",
+    "EnableZenithStarCatch": false,
+    "ZenithStarCatchStopStage": "Pots",
+    "ZenithStarCatchSpeedSliderValue": 411,
+    "EnablePyramidFilter": false,
     "ShortActionDelayMilliseconds": 10,
     "MenuActionDelayMilliseconds": 90,
     "WindowActivationDelayMilliseconds": 10,
@@ -313,6 +328,13 @@
         "WorldFilePath": ""
       }
     ]
+  },
+  "Advanced": {
+    "EnableTerrariaUiScalePatch": false,
+    "ReadyWatcherPollHz": 240,
+    "ReadyUiControlHz": 120,
+    "RunningStatusPaintHz": 120,
+    "TimerOverlayRefreshHz": 120
   },
   "EnableDefeatedBossIconLighting": true,
   "UndefeatedIconGrayscalePercent": 80,

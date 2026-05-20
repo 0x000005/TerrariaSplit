@@ -33,7 +33,7 @@ internal sealed partial class SettingsForm : Form
         FormBorderStyle = FormBorderStyle.None;
         MinimizeBox = false;
         MaximizeBox = false;
-        ClientSize = new Size(1240, 1040);
+        ClientSize = new Size(1500, 1000);
         Padding = new Padding(1);
         UiTheme.ConfigureForm(this, new Size(1040, 740));
 

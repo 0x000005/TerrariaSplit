@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.Drawing;
 using System.Reflection;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Windows.Forms;
 using TerrariaSplit;
 using TerrariaSplit.Tests;
@@ -16,6 +18,7 @@ var legacyTests = new (string Name, Action Test)[]
     ("TerrariaMenuGeometry maps 900p menu coordinates", TestTerrariaMenuGeometry),
     ("Localizer returns English fallback and Chinese Crimson", TestLocalizer),
     ("JsonFileStore writes settings atomically", TestJsonFileStoreWritesAtomically),
+    ("Default settings template covers serializable settings", TestDefaultSettingsTemplateCoversSerializableSettings),
     ("SettingsNormalizer clamps auto-create timings", TestSettingsNormalize),
     ("SettingsNormalizer normalizes timer overlay refresh settings", TestSettingsNormalizeTimerOverlayRefresh),
     ("SettingsNormalizer normalizes practice world slots", TestSettingsNormalizePracticeWorlds),
@@ -40,6 +43,7 @@ var legacyTests = new (string Name, Action Test)[]
     ("Main form preserves size when applying non-layout settings", TestMainFormPreservesSizeWhenApplyingNonLayoutSettings),
     ("Main form settings apply finalizes current run before reloading definitions", TestMainFormSettingsApplyFinalizesCurrentRunBeforeReload),
     ("Main form initializes overlay layout with current split count", TestMainFormInitializesOverlayLayoutWithCurrentSplitCount),
+    ("Main form overlay client size matches status layout", TestMainFormOverlayClientSizeMatchesStatusLayout),
     ("Main form scales size when global scale changes", TestMainFormScalesSizeWhenGlobalScaleChanges),
     ("Main form adjusts width when split columns change", TestMainFormAdjustsWidthWhenSplitColumnsChange),
     ("Settings form applies current delta gradient option", TestSettingsFormAppliesCurrentDeltaGradientOption),
@@ -49,6 +53,7 @@ var legacyTests = new (string Name, Action Test)[]
     ("Terraria UI scale patch rewrites target IL constants", TestTerrariaUiScalePatchPlan),
     ("Zenith star catch stop stages follow world generation order", TestZenithStarCatchStageStopRules),
     ("Zenith star catch speed uses logarithmic stepped range", TestZenithStarCatchSpeedRange),
+    ("Pyramid filter scans world file evidence in speedrun corridor", TestPyramidFilterWorldFileScanner),
     ("Overlay composite layout derives status and timer windows from shared bounds", TestOverlayCompositeLayoutCalculator)
 };
 var tests = legacyTests
@@ -183,6 +188,7 @@ static void TestTerrariaMenuGeometry()
 {
     TerrariaMenuGeometry geometry = TerrariaMenuGeometry.From(new Size(900, 900));
     AssertEqual(new Point(450, 245), geometry.MainMenuSinglePlayer());
+    AssertEqual(new Point(282, 830), geometry.SelectMenuBackButton());
     AssertEqual(new Point(580, 534), geometry.CreatePlayerButton());
     AssertEqual(new Point(450, 230), geometry.AdvancedSeedTextButton());
     AssertEqual(new Point(342, 287), geometry.AdvancedSpecialSeedButton(AutoCreateSpecialWorldSeed.NotTheBees));
@@ -195,6 +201,7 @@ static void TestLocalizer()
     AssertEqual("\u7D2F\u79EF", Localizer.Get("Cumulative", new AppSettings { Language = "\u4E2D\u6587" }));
     AssertEqual("\u5206\u6BB5", Localizer.Get("Segment", new AppSettings { Language = "\u4E2D\u6587" }));
     AssertEqual("\u4E0D\u900F\u660E\u5EA6 %", Localizer.Get("Opacity %", new AppSettings { Language = "\u4E2D\u6587" }));
+    AssertEqual("\u81EA\u52A8\u7B5B\u9009\u91D1\u5B57\u5854", Localizer.Get("Auto filter pyramid", new AppSettings { Language = "\u4E2D\u6587" }));
     AssertEqual("\u7B49\u5F85\u9644\u52A0\u5185\u5B58", Localizer.Get("Waiting for attached memory", new AppSettings { Language = "\u4E2D\u6587" }));
     AssertEqual("\u7B49\u5F85\u8BA1\u65F6\u5F00\u59CB", Localizer.Get("Waiting for timer start", new AppSettings { Language = "\u4E2D\u6587" }));
     AssertEqual("\u5206\u6BB5\u65F6\u95F4", Localizer.Get("Segment time", new AppSettings { Language = "\u4E2D\u6587" }));
@@ -228,6 +235,14 @@ static void TestJsonFileStoreWritesAtomically()
     }
 }
 
+static void TestDefaultSettingsTemplateCoversSerializableSettings()
+{
+    string path = FindDefaultSettingsTemplate();
+    using JsonDocument document = JsonDocument.Parse(File.ReadAllText(path));
+
+    AssertJsonCoversType(typeof(AppSettings), document.RootElement, "settings");
+}
+
 static void TestSettingsNormalize()
 {
     var settings = new AppSettings
@@ -243,7 +258,8 @@ static void TestSettingsNormalize()
             SecretSeeds = "  mole people | waterpark  ",
             EnableZenithStarCatch = true,
             ZenithStarCatchStopStage = "not a real stage",
-            ZenithStarCatchSpeedSliderValue = 9999
+            ZenithStarCatchSpeedSliderValue = 9999,
+            EnablePyramidFilter = true
         }
     };
 
@@ -258,6 +274,7 @@ static void TestSettingsNormalize()
     AssertEqual(true, settings.AutoCreate.EnableZenithStarCatch);
     AssertEqual(AutoCreateZenithStarCatchStage.Pots, settings.AutoCreate.ZenithStarCatchStopStage);
     AssertEqual(AutoCreateZenithStarCatchSpeed.MaximumSliderValue, settings.AutoCreate.ZenithStarCatchSpeedSliderValue);
+    AssertEqual(true, settings.AutoCreate.EnablePyramidFilter);
 
     settings.Advanced = null!;
     SettingsNormalizer.Normalize(settings);
@@ -273,29 +290,25 @@ static void TestSettingsNormalizeTimerOverlayRefresh()
             ReadyWatcherPollHz = 999,
             ReadyUiControlHz = 1,
             RunningStatusPaintHz = 999,
-            TimerOverlayRefreshMode = "weird",
             TimerOverlayRefreshHz = 999
         }
     };
 
     SettingsNormalizer.Normalize(settings);
-    AssertEqual(800, settings.Advanced.ReadyWatcherPollHz);
-    AssertEqual(50, settings.Advanced.ReadyUiControlHz);
-    AssertEqual(200, settings.Advanced.RunningStatusPaintHz);
-    AssertEqual(TimerOverlayRefreshModes.Auto, settings.Advanced.TimerOverlayRefreshMode);
-    AssertEqual(200, settings.Advanced.TimerOverlayRefreshHz);
+    AssertEqual(960, settings.Advanced.ReadyWatcherPollHz);
+    AssertEqual(60, settings.Advanced.ReadyUiControlHz);
+    AssertEqual(240, settings.Advanced.RunningStatusPaintHz);
+    AssertEqual(240, settings.Advanced.TimerOverlayRefreshHz);
 
     settings.Advanced.ReadyWatcherPollHz = 1;
     settings.Advanced.ReadyUiControlHz = 999;
     settings.Advanced.RunningStatusPaintHz = 1;
-    settings.Advanced.TimerOverlayRefreshMode = TimerOverlayRefreshModes.Fixed;
     settings.Advanced.TimerOverlayRefreshHz = 1;
     SettingsNormalizer.Normalize(settings);
-    AssertEqual(100, settings.Advanced.ReadyWatcherPollHz);
-    AssertEqual(200, settings.Advanced.ReadyUiControlHz);
-    AssertEqual(50, settings.Advanced.RunningStatusPaintHz);
-    AssertEqual(TimerOverlayRefreshModes.Fixed, settings.Advanced.TimerOverlayRefreshMode);
-    AssertEqual(50, settings.Advanced.TimerOverlayRefreshHz);
+    AssertEqual(120, settings.Advanced.ReadyWatcherPollHz);
+    AssertEqual(240, settings.Advanced.ReadyUiControlHz);
+    AssertEqual(60, settings.Advanced.RunningStatusPaintHz);
+    AssertEqual(60, settings.Advanced.TimerOverlayRefreshHz);
 }
 
 static void TestSettingsNormalizePracticeWorlds()
@@ -590,6 +603,7 @@ static void TestSettingsFormAppliesZenithStarCatchOptions()
         page.AutoCreateZenithStarCatchBox.Checked = true;
         page.AutoCreateZenithStarCatchStageBoxes[AutoCreateZenithStarCatchStage.GemCaves].Checked = false;
         page.AutoCreateZenithStarCatchSpeedBar.Value = 500;
+        page.AutoCreatePyramidFilterBox.Checked = true;
 
         AssertEqual(true, page.AutoCreateZenithStarCatchStageBoxes[AutoCreateZenithStarCatchStage.LifeCrystals].Checked);
         AssertEqual(true, page.AutoCreateZenithStarCatchStageBoxes[AutoCreateZenithStarCatchStage.Statues].Checked);
@@ -603,6 +617,7 @@ static void TestSettingsFormAppliesZenithStarCatchOptions()
         AssertEqual(true, form.Result.AutoCreate.EnableZenithStarCatch);
         AssertEqual(AutoCreateZenithStarCatchStage.GemCaves, form.Result.AutoCreate.ZenithStarCatchStopStage);
         AssertEqual(500, form.Result.AutoCreate.ZenithStarCatchSpeedSliderValue);
+        AssertEqual(true, form.Result.AutoCreate.EnablePyramidFilter);
     });
 }
 
@@ -676,6 +691,91 @@ static void TestZenithStarCatchSpeedRange()
     AssertEqual("23.0", AutoCreateZenithStarCatchSpeed.FormatMultiplier(800));
 }
 
+static void TestPyramidFilterWorldFileScanner()
+{
+    string directory = Path.Combine(Directory.GetCurrentDirectory(), ".codex-pyramid-scanner-tests", Guid.NewGuid().ToString("N"));
+    Directory.CreateDirectory(directory);
+    try
+    {
+        var scanner = new TerrariaWorldFilePyramidScanner();
+        TerrariaWorldDimensions dimensions = TerrariaWorldDimensions.FromWorldSize(AutoCreateWorldSize.Small);
+        Rectangle corridor = TerrariaWorldFilePyramidScanner.BuildSpeedrunCorridorBounds(dimensions);
+        AssertEqual(new Rectangle(1260, 180, 1681, 241), corridor);
+        int evidenceX = corridor.Left + corridor.Width / 2;
+        int evidenceY = corridor.Top + 32;
+
+        string emptyWorld = Path.Combine(directory, "empty.wld");
+        WriteSyntheticWorldFile(emptyWorld, dimensions, null);
+        AssertEqual(true, scanner.TryScanSpeedrunCorridor(
+            emptyWorld,
+            AutoCreateWorldSize.Small,
+            1,
+            1,
+            out PyramidEvidenceScanResult emptyEvidence,
+            out _,
+            out _));
+        AssertEqual(false, emptyEvidence.MeetsThreshold(1, 1));
+
+        string wallWorld = Path.Combine(directory, "wall.wld");
+        WriteSyntheticWorldFile(wallWorld, dimensions, new SyntheticTileEvidence(evidenceX, evidenceY, false, 0, 34));
+        AssertEqual(true, scanner.TryScanSpeedrunCorridor(
+            wallWorld,
+            AutoCreateWorldSize.Small,
+            1,
+            1,
+            out PyramidEvidenceScanResult wallEvidence,
+            out _,
+            out _));
+        AssertEqual(true, wallEvidence.MeetsThreshold(1, 1));
+        AssertEqual(true, wallEvidence.Wall34Count >= 1);
+
+        string fourthHeaderWallWorld = Path.Combine(directory, "wall-fourth-header.wld");
+        WriteSyntheticWorldFile(
+            fourthHeaderWallWorld,
+            dimensions,
+            new SyntheticTileEvidence(evidenceX, evidenceY, false, 0, 34, 0x10));
+        AssertEqual(true, scanner.TryScanSpeedrunCorridor(
+            fourthHeaderWallWorld,
+            AutoCreateWorldSize.Small,
+            1,
+            1,
+            out PyramidEvidenceScanResult fourthHeaderWallEvidence,
+            out _,
+            out _));
+        AssertEqual(true, fourthHeaderWallEvidence.MeetsThreshold(1, 1));
+        AssertEqual(true, fourthHeaderWallEvidence.Wall34Count >= 1);
+
+        string tileWorld = Path.Combine(directory, "tile.wld");
+        WriteSyntheticWorldFile(tileWorld, dimensions, new SyntheticTileEvidence(evidenceX, evidenceY, true, 151, 0));
+        AssertEqual(true, scanner.TryScanSpeedrunCorridor(
+            tileWorld,
+            AutoCreateWorldSize.Small,
+            1,
+            1,
+            out PyramidEvidenceScanResult tileEvidence,
+            out _,
+            out _));
+        AssertEqual(true, tileEvidence.MeetsThreshold(1, 1));
+        AssertEqual(true, tileEvidence.ActiveTile151Count >= 1);
+
+        string outsideWorld = Path.Combine(directory, "outside.wld");
+        WriteSyntheticWorldFile(outsideWorld, dimensions, new SyntheticTileEvidence(1, evidenceY, false, 0, 34));
+        AssertEqual(true, scanner.TryScanSpeedrunCorridor(
+            outsideWorld,
+            AutoCreateWorldSize.Small,
+            1,
+            1,
+            out PyramidEvidenceScanResult outsideEvidence,
+            out _,
+            out _));
+        AssertEqual(false, outsideEvidence.MeetsThreshold(1, 1));
+    }
+    finally
+    {
+        DeleteDirectoryIfExists(directory);
+    }
+}
+
 static void TestOverlayCompositeLayoutCalculator()
 {
     var settings = new AppSettings();
@@ -723,6 +823,134 @@ static void TestOverlayCompositeLayoutCalculator()
         originalStatusScreenBounds.Width + 40,
         originalStatusScreenBounds.Height));
     AssertEqual(resizedComposite.Width + 40, controller.CompositeBounds.Width);
+}
+
+static void WriteSyntheticWorldFile(
+    string path,
+    TerrariaWorldDimensions dimensions,
+    SyntheticTileEvidence? evidence)
+{
+    using FileStream stream = File.Create(path);
+    using BinaryWriter writer = new(stream);
+    writer.Write(279);
+    writer.Write(0x026369676F6C6572UL);
+    writer.Write((uint)0);
+    writer.Write((ulong)0);
+    writer.Write((short)2);
+    long sectionPointersOffset = stream.Position;
+    writer.Write(0);
+    writer.Write(0);
+    writer.Write((short)256);
+    for (int i = 0; i < 32; i++)
+    {
+        writer.Write((byte)0);
+    }
+
+    int tileSectionOffset = (int)stream.Position;
+    stream.Position = sectionPointersOffset;
+    writer.Write(tileSectionOffset);
+    writer.Write(tileSectionOffset);
+    stream.Position = tileSectionOffset;
+
+    for (int x = 0; x < dimensions.Width; x++)
+    {
+        if (evidence is SyntheticTileEvidence tile && tile.X == x && tile.Y >= 0 && tile.Y < dimensions.Height)
+        {
+            if (tile.Y > 0)
+            {
+                WriteSyntheticTile(writer, false, 0, 0, tile.Y);
+            }
+
+            WriteSyntheticTile(writer, tile.Active, tile.Type, tile.Wall, 1, tile.QuaternaryFlags);
+            int trailing = dimensions.Height - tile.Y - 1;
+            if (trailing > 0)
+            {
+                WriteSyntheticTile(writer, false, 0, 0, trailing);
+            }
+        }
+        else
+        {
+            WriteSyntheticTile(writer, false, 0, 0, dimensions.Height);
+        }
+    }
+}
+
+static void WriteSyntheticTile(
+    BinaryWriter writer,
+    bool active,
+    ushort type,
+    ushort wall,
+    int runLength,
+    byte quaternaryFlags = 0)
+{
+    byte flags = 0;
+    byte secondaryFlags = 0;
+    byte tertiaryFlags = 0;
+    if (active)
+    {
+        flags |= 0x02;
+    }
+
+    if (wall > 0)
+    {
+        flags |= 0x04;
+    }
+
+    if (active && type > byte.MaxValue)
+    {
+        flags |= 0x20;
+    }
+
+    int run = Math.Max(0, runLength - 1);
+    if (run > 0)
+    {
+        flags |= run <= byte.MaxValue ? (byte)0x40 : (byte)0x80;
+    }
+
+    if (quaternaryFlags != 0)
+    {
+        tertiaryFlags |= 0x01;
+        secondaryFlags |= 0x01;
+    }
+
+    if (secondaryFlags != 0)
+    {
+        flags |= 0x01;
+    }
+
+    writer.Write(flags);
+    if (secondaryFlags != 0)
+    {
+        writer.Write(secondaryFlags);
+        writer.Write(tertiaryFlags);
+        writer.Write(quaternaryFlags);
+    }
+
+    if (active)
+    {
+        writer.Write((byte)(type & 0xFF));
+        if (type > byte.MaxValue)
+        {
+            writer.Write((byte)(type >> 8));
+        }
+    }
+
+    if (wall > 0)
+    {
+        writer.Write((byte)(wall & 0xFF));
+    }
+
+    if (run > 0)
+    {
+        if (run <= byte.MaxValue)
+        {
+            writer.Write((byte)run);
+        }
+        else
+        {
+            writer.Write((short)run);
+        }
+    }
 }
 
 static void TestSettingsFormAppliesResumeSound()
@@ -805,10 +1033,11 @@ static void TestMainFormPreservesSizeWhenApplyingNonLayoutSettings()
     RunSta(() =>
     {
         using var form = new MainForm();
-        var previousSettings = new AppSettings();
-        SetMainFormSettings(form, previousSettings);
-        InvokePrivate(form, "ApplyLoadedSettings", (object?)null);
-        form.Size = new Size(1000, 900);
+        _ = form.Handle;
+        OverlayBoundsController boundsController = GetPrivateField<OverlayBoundsController>(form, "overlayBoundsController");
+        AppSettings previousSettings = GetPrivateField<AppSettings>(form, "settings");
+        Rectangle initialCompositeBounds = new(120, 160, 1000, 900);
+        boundsController.ApplyCompositeBounds(initialCompositeBounds);
 
         var settings = AppSettingsStore.Clone(previousSettings);
         settings.Colors.TimerText = "#123456";
@@ -816,7 +1045,7 @@ static void TestMainFormPreservesSizeWhenApplyingNonLayoutSettings()
 
         InvokePrivate(form, "ApplyLoadedSettings", previousSettings);
 
-        AssertEqual(new Size(1000, 900), form.Size);
+        AssertEqual(initialCompositeBounds.Size, boundsController.CompositeBounds.Size);
     });
 }
 
@@ -884,17 +1113,33 @@ static void TestMainFormInitializesOverlayLayoutWithCurrentSplitCount()
     });
 }
 
+static void TestMainFormOverlayClientSizeMatchesStatusLayout()
+{
+    RunSta(() =>
+    {
+        using var form = new MainForm();
+        _ = form.Handle;
+
+        OverlayBoundsController boundsController = GetPrivateField<OverlayBoundsController>(form, "overlayBoundsController");
+
+        AssertEqual(form.Size, form.ClientSize);
+        AssertEqual(boundsController.CurrentLayout.StatusScreenBounds.Size, form.ClientSize);
+    });
+}
+
 static void TestMainFormScalesSizeWhenGlobalScaleChanges()
 {
     RunSta(() =>
     {
         using var form = new MainForm();
+        _ = form.Handle;
+        OverlayBoundsController boundsController = GetPrivateField<OverlayBoundsController>(form, "overlayBoundsController");
         var previousSettings = new AppSettings();
         previousSettings.Columns.ScalePercent = 100;
         SetMainFormSettings(form, previousSettings);
         InvokePrivate(form, "ApplyLoadedSettings", (object?)null);
-        form.Size = new Size(600, 500);
-        Size previousSize = form.Size;
+        boundsController.ApplyCompositeBounds(new Rectangle(80, 90, 600, 500));
+        Size previousSize = boundsController.CompositeBounds.Size;
 
         var settings = AppSettingsStore.Clone(previousSettings);
         settings.Columns.ScalePercent = 150;
@@ -906,7 +1151,7 @@ static void TestMainFormScalesSizeWhenGlobalScaleChanges()
             new Size(
                 (int)Math.Round(previousSize.Width * 1.5f, MidpointRounding.AwayFromZero),
                 (int)Math.Round(previousSize.Height * 1.5f, MidpointRounding.AwayFromZero)),
-            form.Size);
+            boundsController.CompositeBounds.Size);
     });
 }
 
@@ -915,19 +1160,21 @@ static void TestMainFormAdjustsWidthWhenSplitColumnsChange()
     RunSta(() =>
     {
         using var form = new MainForm();
+        _ = form.Handle;
+        OverlayBoundsController boundsController = GetPrivateField<OverlayBoundsController>(form, "overlayBoundsController");
         var previousSettings = new AppSettings();
         previousSettings.Columns.ScalePercent = 100;
         SetMainFormSettings(form, previousSettings);
         InvokePrivate(form, "ApplyLoadedSettings", (object?)null);
 
-        form.Size = new Size(600, 500);
+        boundsController.ApplyCompositeBounds(new Rectangle(80, 90, 600, 500));
         var settings = AppSettingsStore.Clone(previousSettings);
         settings.Columns.Time.Width += 100;
         SetMainFormSettings(form, settings);
 
         InvokePrivate(form, "ApplyLoadedSettings", previousSettings);
 
-        AssertEqual(new Size(700, 500), form.Size);
+        AssertEqual(new Size(700, 500), boundsController.CompositeBounds.Size);
     });
 }
 
@@ -999,18 +1246,15 @@ static void TestSettingsFormAppliesTimerOverlayRefreshSettings()
         page.ReadyWatcherPollHzBox.SelectedIndex = 2;
         page.ReadyUiControlHzBox.SelectedIndex = 3;
         page.RunningStatusPaintHzBox.SelectedIndex = 0;
-        AssertEqual(false, page.TimerOverlayRefreshHzBox.Enabled);
-        page.TimerOverlayRefreshModeBox.SelectedIndex = 1;
         AssertEqual(true, page.TimerOverlayRefreshHzBox.Enabled);
         page.TimerOverlayRefreshHzBox.SelectedIndex = 1;
 
         form.ApplyForTests();
 
-        AssertEqual(400, form.Result.Advanced.ReadyWatcherPollHz);
-        AssertEqual(200, form.Result.Advanced.ReadyUiControlHz);
-        AssertEqual(50, form.Result.Advanced.RunningStatusPaintHz);
-        AssertEqual(TimerOverlayRefreshModes.Fixed, form.Result.Advanced.TimerOverlayRefreshMode);
-        AssertEqual(100, form.Result.Advanced.TimerOverlayRefreshHz);
+        AssertEqual(480, form.Result.Advanced.ReadyWatcherPollHz);
+        AssertEqual(180, form.Result.Advanced.ReadyUiControlHz);
+        AssertEqual(60, form.Result.Advanced.RunningStatusPaintHz);
+        AssertEqual(90, form.Result.Advanced.TimerOverlayRefreshHz);
     });
 }
 
@@ -1182,6 +1426,90 @@ static object? InvokePrivate(object target, string name, params object?[] args)
     }
 }
 
+static string FindDefaultSettingsTemplate()
+{
+    string outputTemplatePath = AppSettingsDefaults.TemplatePath;
+    if (File.Exists(outputTemplatePath))
+    {
+        return outputTemplatePath;
+    }
+
+    string directory = Directory.GetCurrentDirectory();
+    while (!string.IsNullOrWhiteSpace(directory))
+    {
+        string sourceTemplatePath = Path.Combine(directory, "TerrariaSplit", "settings", "settings.json");
+        if (File.Exists(sourceTemplatePath))
+        {
+            return sourceTemplatePath;
+        }
+
+        string? parent = Directory.GetParent(directory)?.FullName;
+        if (string.Equals(parent, directory, StringComparison.OrdinalIgnoreCase))
+        {
+            break;
+        }
+
+        directory = parent ?? string.Empty;
+    }
+
+    throw new FileNotFoundException("Default settings template was not found.", outputTemplatePath);
+}
+
+static void AssertJsonCoversType(Type type, JsonElement element, string path)
+{
+    if (element.ValueKind != JsonValueKind.Object)
+    {
+        throw new InvalidOperationException($"{path} must be a JSON object.");
+    }
+
+    foreach (PropertyInfo property in type.GetProperties(BindingFlags.Instance | BindingFlags.Public))
+    {
+        if (!property.CanWrite || property.GetCustomAttribute<JsonIgnoreAttribute>() is not null)
+        {
+            continue;
+        }
+
+        if (!element.TryGetProperty(property.Name, out JsonElement child))
+        {
+            throw new InvalidOperationException($"{path}.{property.Name} is missing from the default settings template.");
+        }
+
+        Type? nestedType = GetTemplateNestedType(property.PropertyType);
+        if (nestedType is not null)
+        {
+            AssertJsonCoversType(nestedType, child, $"{path}.{property.Name}");
+            continue;
+        }
+
+        if (property.PropertyType == typeof(List<PracticeWorldSlot>))
+        {
+            if (child.ValueKind != JsonValueKind.Array || child.GetArrayLength() == 0)
+            {
+                throw new InvalidOperationException($"{path}.{property.Name} must contain default practice world slots.");
+            }
+
+            AssertJsonCoversType(typeof(PracticeWorldSlot), child[0], $"{path}.{property.Name}[0]");
+        }
+    }
+}
+
+static Type? GetTemplateNestedType(Type type)
+{
+    if (type == typeof(UiColorSettings) ||
+        type == typeof(UiSoundSettings) ||
+        type == typeof(UiColumnLayoutSettings) ||
+        type == typeof(UiColumnSettings) ||
+        type == typeof(UiTextEffectSettings) ||
+        type == typeof(AutoCreateWorldSettings) ||
+        type == typeof(PracticeWorldSettings) ||
+        type == typeof(AdvancedSettings))
+    {
+        return type;
+    }
+
+    return null;
+}
+
 static void AssertEqual<T>(T expected, T actual)
 {
     if (!EqualityComparer<T>.Default.Equals(expected, actual))
@@ -1243,5 +1571,7 @@ static void Nearly(double expected, double actual, double tolerance)
         throw new InvalidOperationException($"Expected {expected}, got {actual}.");
     }
 }
+
+readonly record struct SyntheticTileEvidence(int X, int Y, bool Active, ushort Type, ushort Wall, byte QuaternaryFlags = 0);
 
 readonly record struct DirectorySnapshot(bool Exists, Dictionary<string, byte[]> Files);

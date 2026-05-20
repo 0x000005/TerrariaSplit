@@ -20,19 +20,10 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
         { "Auto", "自动" },
         { "Fixed", "固定" },
         { "Terraria UI scale enhancement", "Terraria UI 缩放增强" },
-        { "Ready refresh", "Ready 刷新" },
-        { "Running overlay refresh", "跑表中窗口刷新" },
-        { "Timer sampling Hz", "计时采样 Hz" },
-        { "UI control Hz", "UI 控制 Hz" },
-        { "Status paint Hz", "状态窗绘制 Hz" },
-        { "Timer paint mode", "计时器绘制模式" },
-        { "Timer paint Hz", "计时器绘制 Hz" },
-        { "Used after Terraria is attached and memory is ready.", "在 Terraria 已附加且内存就绪后使用。" },
-        { "These values are used while the timer is running in a world. Auto timer paint follows the current display refresh rate.", "这些值会在世界内且计时器正在运行时使用。自动计时器绘制会跟随当前显示器刷新率。" },
-        { "Timer overlay refresh", "计时器窗口刷新" },
-        { "Refresh mode", "刷新模式" },
-        { "Refresh rate Hz", "刷新频率 Hz" },
-        { "Auto follows the current display refresh rate. Fixed uses the entered Hz value.", "自动会跟随当前显示器刷新率；固定会使用输入的 Hz 值。" },
+        { "Sampling frequency", "采样频率" },
+        { "Control frequency", "控制频率" },
+        { "Split timer refresh rate", "分段计时器刷新率" },
+        { "Main timer refresh rate", "主计时器刷新率" },
         { "Raises Terraria's in-game UI scale slider limit from 200% to 300%.", "将游戏内 UI 缩放上限从 200% 提高到 300%。" },
         { "If Terraria's options menu was already opened before enabling, restart Terraria for the change to take effect.", "如果启用前已经打开过 Terraria 选项菜单，可能需要重启 Terraria 后生效。" },
         { "This changes the running Terraria process memory; enable with caution.", "该功能会修改正在运行的 Terraria 进程内存，启用需谨慎。" },
@@ -294,6 +285,8 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Enable auto star catch (Zenith worlds only)", "\u542F\u7528\u81EA\u52A8\u63A5\u661F\u661F\uFF08\u4EC5\u5929\u9876\u4E16\u754C\u6709\u6548\uFF09" }
       , { "Stop after stage", "\u5728\u4EE5\u4E0B\u9636\u6BB5\u540E\u505C\u6B62" }
       , { "Catch speed", "\u63A5\u661F\u901F\u5EA6" }
+      , { "Auto filter pyramid", "\u81EA\u52A8\u7B5B\u9009\u91D1\u5B57\u5854" }
+      , { "Filter pyramid", "\u7B5B\u9009\u91D1\u5B57\u5854" }
       , { "Submit World Seed", "\u63D0\u4EA4\u4E16\u754C\u79CD\u5B50" }
       , { "Mouse / key press ms", "\u9F20\u6807 / \u6309\u952E\u6301\u7EED\u6BEB\u79D2" }
       , { "Window activation wait ms", "\u7A97\u53E3\u6FC0\u6D3B\u7B49\u5F85\u6BEB\u79D2" }
@@ -364,11 +357,6 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Memory ready", "\u5185\u5B58\u5C31\u7EEA" }
       , { "Boss flags ready", "BOSS \u6807\u8BB0\u5C31\u7EEA" }
       , { "Game state", "\u6E38\u620F\u72B6\u6001" }
-      , { "Timer sampling", "\u8BA1\u65F6\u91C7\u6837\u9891\u7387" }
-      , { "UI control", "UI \u63A7\u5236\u9891\u7387" }
-      , { "Status paint", "\u72B6\u6001\u7A97\u7ED8\u5236\u9891\u7387" }
-      , { "Timer paint", "\u8BA1\u65F6\u5668\u7ED8\u5236\u9891\u7387" }
-      , { "Display refresh", "\u663E\u793A\u5668\u5237\u65B0\u7387" }
       , { "UI paint", "UI \u7ED8\u5236\u9891\u7387" }
       , { "configured {0}, actual {1}", "\u914D\u7F6E {0}\uFF0C\u5B9E\u9645 {1}" }
       , { "configured {0}, actual {1}, avg {2}, max {3}", "\u914D\u7F6E {0}\uFF0C\u5B9E\u9645 {1}\uFF0C\u5E73\u5747 {2}\uFF0C\u6700\u5927 {3}" }

@@ -8,7 +8,7 @@ internal static class AppSettingsStore
 
     public static string SettingsDirectory => Path.Combine(AppContext.BaseDirectory, "settings");
 
-    private static string DefaultSettingsTemplatePath => Path.Combine(AppContext.BaseDirectory, "Assets", "DefaultSettings", DefaultSettingsFileName);
+    private static string DefaultSettingsTemplatePath => AppSettingsDefaults.TemplatePath;
 
     private static string ActiveSettingsPath => Path.Combine(SettingsDirectory, ActiveSettingsFileName);
 
@@ -34,7 +34,10 @@ internal static class AppSettingsStore
         AppSettings settings;
         bool shouldSave = false;
         activeSettingsPath = NormalizeSettingsPath(path);
-        settings = SettingsSerializer.ReadSettings(SettingsPath, "settings") ?? LoadDefaultSettingsTemplate();
+        settings = SettingsSerializer.ReadSettingsWithDefaults(
+            SettingsPath,
+            DefaultSettingsTemplatePath,
+            "settings") ?? LoadDefaultSettingsTemplate();
         shouldSave = !File.Exists(SettingsPath);
 
         Normalize(settings);
@@ -104,8 +107,7 @@ internal static class AppSettingsStore
 
     private static AppSettings LoadDefaultSettingsTemplate()
     {
-        return SettingsSerializer.ReadSettings(DefaultSettingsTemplatePath, "default settings template")
-            ?? throw new InvalidOperationException($"Default settings template is missing or invalid: {DefaultSettingsTemplatePath}");
+        return AppSettingsDefaults.Create();
     }
 
     private static string GetFallbackSettingsPath()

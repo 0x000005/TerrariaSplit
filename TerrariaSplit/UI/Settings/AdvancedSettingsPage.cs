@@ -9,7 +9,6 @@ internal sealed class AdvancedSettingsPage : SettingsPageBase
     private readonly ComboBox readyWatcherPollHzBox = new();
     private readonly ComboBox readyUiControlHzBox = new();
     private readonly ComboBox runningStatusPaintHzBox = new();
-    private readonly ComboBox timerOverlayRefreshModeBox = new();
     private readonly ComboBox timerOverlayRefreshHzBox = new();
 
     public override SettingsPageId Id => SettingsPageId.Advanced;
@@ -18,7 +17,6 @@ internal sealed class AdvancedSettingsPage : SettingsPageBase
     internal ComboBox ReadyWatcherPollHzBox => readyWatcherPollHzBox;
     internal ComboBox ReadyUiControlHzBox => readyUiControlHzBox;
     internal ComboBox RunningStatusPaintHzBox => runningStatusPaintHzBox;
-    internal ComboBox TimerOverlayRefreshModeBox => timerOverlayRefreshModeBox;
     internal ComboBox TimerOverlayRefreshHzBox => timerOverlayRefreshHzBox;
 
     protected override Control BuildPage(SettingsPageContext context)
@@ -32,17 +30,16 @@ internal sealed class AdvancedSettingsPage : SettingsPageBase
         settings.Advanced.EnableTerrariaUiScalePatch = enableTerrariaUiScalePatchBox.Checked;
         settings.Advanced.ReadyWatcherPollHz = GetSelectedFrequency(
             readyWatcherPollHzBox,
-            AdvancedSettings.DefaultReadyWatcherPollHz);
+            AppSettingsDefaults.Advanced.ReadyWatcherPollHz);
         settings.Advanced.ReadyUiControlHz = GetSelectedFrequency(
             readyUiControlHzBox,
-            AdvancedSettings.DefaultReadyUiControlHz);
+            AppSettingsDefaults.Advanced.ReadyUiControlHz);
         settings.Advanced.RunningStatusPaintHz = GetSelectedFrequency(
             runningStatusPaintHzBox,
-            AdvancedSettings.DefaultRunningStatusPaintHz);
-        settings.Advanced.TimerOverlayRefreshMode = GetSelectedRefreshMode();
+            AppSettingsDefaults.Advanced.RunningStatusPaintHz);
         settings.Advanced.TimerOverlayRefreshHz = GetSelectedFrequency(
             timerOverlayRefreshHzBox,
-            AdvancedSettings.DefaultTimerOverlayRefreshHz);
+            AppSettingsDefaults.Advanced.TimerOverlayRefreshHz);
     }
 
     private void BuildSections(TableLayoutPanel parent)
@@ -52,25 +49,22 @@ internal sealed class AdvancedSettingsPage : SettingsPageBase
             readyWatcherPollHzBox,
             RefreshRateSettings.ReadyWatcherPollHzOptions,
             RefreshRateSettings.NormalizeReadyWatcherPollHz(
-                Draft.Advanced?.ReadyWatcherPollHz ?? AdvancedSettings.DefaultReadyWatcherPollHz));
+                Draft.Advanced?.ReadyWatcherPollHz ?? AppSettingsDefaults.Advanced.ReadyWatcherPollHz));
         ConfigureFrequencyBox(
             readyUiControlHzBox,
             RefreshRateSettings.StandardRefreshHzOptions,
             RefreshRateSettings.NormalizeReadyUiControlHz(
-                Draft.Advanced?.ReadyUiControlHz ?? AdvancedSettings.DefaultReadyUiControlHz));
+                Draft.Advanced?.ReadyUiControlHz ?? AppSettingsDefaults.Advanced.ReadyUiControlHz));
         ConfigureFrequencyBox(
             runningStatusPaintHzBox,
             RefreshRateSettings.StandardRefreshHzOptions,
             RefreshRateSettings.NormalizeRunningStatusPaintHz(
-                Draft.Advanced?.RunningStatusPaintHz ?? AdvancedSettings.DefaultRunningStatusPaintHz));
-        ConfigureRefreshModeBox(timerOverlayRefreshModeBox, Draft.Advanced?.TimerOverlayRefreshMode);
+                Draft.Advanced?.RunningStatusPaintHz ?? AppSettingsDefaults.Advanced.RunningStatusPaintHz));
         ConfigureFrequencyBox(
             timerOverlayRefreshHzBox,
             RefreshRateSettings.StandardRefreshHzOptions,
             RefreshRateSettings.NormalizeTimerOverlayRefreshHz(
-                Draft.Advanced?.TimerOverlayRefreshHz ?? AdvancedSettings.DefaultTimerOverlayRefreshHz));
-        timerOverlayRefreshModeBox.SelectedIndexChanged += (_, _) => UpdateRefreshRateAvailability();
-        UpdateRefreshRateAvailability();
+                Draft.Advanced?.TimerOverlayRefreshHz ?? AppSettingsDefaults.Advanced.TimerOverlayRefreshHz));
 
         TableLayoutPanel uiScaleSection = Factory.CreateSection("Terraria UI scale enhancement");
         TableLayoutPanel uiScaleGrid = Factory.CreateTwoColumnGrid(280f);
@@ -93,37 +87,14 @@ internal sealed class AdvancedSettingsPage : SettingsPageBase
                 Color.FromArgb(255, 210, 120)));
         SettingsUiFactory.AddSection(parent, uiScaleSection);
 
-        TableLayoutPanel readyRefreshSection = Factory.CreateSection("Ready refresh");
-        TableLayoutPanel readyRefreshGrid = Factory.CreateTwoColumnGrid(280f);
-        Factory.AddSettingRow(readyRefreshGrid, "Timer sampling Hz", readyWatcherPollHzBox);
-        Factory.AddSettingRow(readyRefreshGrid, "UI control Hz", readyUiControlHzBox);
-        SettingsUiFactory.AddSectionControl(readyRefreshSection, readyRefreshGrid);
-        SettingsUiFactory.AddSectionControl(
-            readyRefreshSection,
-            Factory.CreateWrappedFieldLabel(
-                "Used after Terraria is attached and memory is ready.",
-                UiTheme.MutedText));
-        SettingsUiFactory.AddSection(parent, readyRefreshSection);
-
-        TableLayoutPanel runningRefreshSection = Factory.CreateSection("Running overlay refresh");
-        TableLayoutPanel runningRefreshGrid = Factory.CreateTwoColumnGrid(280f);
-        Factory.AddSettingRow(runningRefreshGrid, "Status paint Hz", runningStatusPaintHzBox);
-        Factory.AddSettingRow(runningRefreshGrid, "Timer paint mode", timerOverlayRefreshModeBox);
-        Factory.AddSettingRow(runningRefreshGrid, "Timer paint Hz", timerOverlayRefreshHzBox);
-        SettingsUiFactory.AddSectionControl(runningRefreshSection, runningRefreshGrid);
-        SettingsUiFactory.AddSectionControl(
-            runningRefreshSection,
-            Factory.CreateWrappedFieldLabel(
-                "These values are used while the timer is running in a world. Auto timer paint follows the current display refresh rate.",
-                UiTheme.MutedText));
-        SettingsUiFactory.AddSection(parent, runningRefreshSection);
-    }
-
-    private void UpdateRefreshRateAvailability()
-    {
-        bool fixedMode = string.Equals(GetSelectedRefreshMode(), TimerOverlayRefreshModes.Fixed, StringComparison.OrdinalIgnoreCase);
-        timerOverlayRefreshHzBox.Enabled = fixedMode;
-        timerOverlayRefreshHzBox.ForeColor = fixedMode ? UiTheme.Text : UiTheme.MutedText;
+        TableLayoutPanel performanceSection = Factory.CreateSection("Performance");
+        TableLayoutPanel performanceGrid = Factory.CreateTwoColumnGrid(280f);
+        Factory.AddSettingRow(performanceGrid, "Sampling frequency", readyWatcherPollHzBox);
+        Factory.AddSettingRow(performanceGrid, "Control frequency", readyUiControlHzBox);
+        Factory.AddSettingRow(performanceGrid, "Split timer refresh rate", runningStatusPaintHzBox);
+        Factory.AddSettingRow(performanceGrid, "Main timer refresh rate", timerOverlayRefreshHzBox);
+        SettingsUiFactory.AddSectionControl(performanceSection, performanceGrid);
+        SettingsUiFactory.AddSection(parent, performanceSection);
     }
 
     private static void ConfigureCheckBox(CheckBox checkBox, bool selected)
@@ -131,36 +102,6 @@ internal sealed class AdvancedSettingsPage : SettingsPageBase
         checkBox.Checked = selected;
         checkBox.Dock = DockStyle.Fill;
         UiTheme.StyleCheckBox(checkBox);
-    }
-
-    private void ConfigureRefreshModeBox(ComboBox comboBox, string? selected)
-    {
-        comboBox.Items.Clear();
-        foreach (string option in TimerOverlayRefreshModes.All)
-        {
-            comboBox.Items.Add(new LocalizedOption(option, Context.Localize(option)));
-        }
-
-        comboBox.SelectedItem = comboBox.Items
-            .Cast<LocalizedOption>()
-            .FirstOrDefault(option => string.Equals(option.Value, selected, StringComparison.OrdinalIgnoreCase));
-        if (comboBox.SelectedIndex < 0 && comboBox.Items.Count > 0)
-        {
-            comboBox.SelectedIndex = 0;
-        }
-        comboBox.Dock = DockStyle.Fill;
-        comboBox.DropDownStyle = ComboBoxStyle.DropDownList;
-        UiTheme.StyleComboBox(comboBox);
-    }
-
-    private string GetSelectedRefreshMode()
-    {
-        return timerOverlayRefreshModeBox.SelectedItem switch
-        {
-            LocalizedOption option => TimerOverlayRefreshModes.Normalize(option.Value),
-            string value => TimerOverlayRefreshModes.Normalize(value),
-            _ => TimerOverlayRefreshModes.Auto
-        };
     }
 
     private static void ConfigureFrequencyBox(ComboBox comboBox, IReadOnlyList<int> options, int selected)
@@ -187,14 +128,6 @@ internal sealed class AdvancedSettingsPage : SettingsPageBase
     private static int GetSelectedFrequency(ComboBox comboBox, int fallback)
     {
         return comboBox.SelectedItem is FrequencyOption option ? option.Hz : fallback;
-    }
-
-    private sealed record LocalizedOption(string Value, string DisplayName)
-    {
-        public override string ToString()
-        {
-            return DisplayName;
-        }
     }
 
     private sealed record FrequencyOption(int Hz)

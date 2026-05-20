@@ -9,6 +9,11 @@ internal sealed class TerrariaSavePreparation
         return saveCleaner.MoveNonFavoritesToBackup();
     }
 
+    public TerrariaWorldCleanupResult MoveNonFavoriteWorldsToBackup()
+    {
+        return saveCleaner.MoveNonFavoriteWorldsToBackup();
+    }
+
     public TerrariaSaveInventorySnapshot ReadInventorySnapshot()
     {
         return saveCleaner.ReadInventorySnapshot();

@@ -48,12 +48,14 @@ internal static class UiTheme
         button.Padding = new Padding(14, 0, 14, 4);
         button.UseVisualStyleBackColor = false;
 
+        button.FlatAppearance.BorderSize = 0;
         button.FlatAppearance.BorderColor = accent ? Accent : Border;
         button.FlatAppearance.MouseDownBackColor = accent ? AccentDown : Color.FromArgb(41, 50, 56);
         button.FlatAppearance.MouseOverBackColor = accent ? AccentHover : Color.FromArgb(47, 58, 64);
 
         Size textSize = TextRenderer.MeasureText(button.Text, button.Font);
         button.Width = Math.Max(minimumWidth, textSize.Width + 42);
+        ApplyStyledButtonPaint(button);
     }
 
     public static void StyleTextBox(TextBox textBox)
@@ -189,6 +191,77 @@ internal static class UiTheme
             Rectangle.Inflate(e.Bounds, -4, 0),
             Text,
             TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.EndEllipsis);
+    }
+
+    private static void ApplyStyledButtonPaint(Button button)
+    {
+        bool hover = false;
+        bool pressed = false;
+        button.MouseEnter += (_, _) =>
+        {
+            hover = true;
+            button.Invalidate();
+        };
+        button.MouseLeave += (_, _) =>
+        {
+            hover = false;
+            pressed = false;
+            button.Invalidate();
+        };
+        button.MouseDown += (_, e) =>
+        {
+            if (e.Button == MouseButtons.Left)
+            {
+                pressed = true;
+                button.Invalidate();
+            }
+        };
+        button.MouseUp += (_, _) =>
+        {
+            pressed = false;
+            button.Invalidate();
+        };
+        button.EnabledChanged += (_, _) => button.Invalidate();
+        button.Paint += (_, e) =>
+        {
+            Color fill = button.Enabled
+                ? pressed
+                    ? button.FlatAppearance.MouseDownBackColor
+                    : hover
+                        ? button.FlatAppearance.MouseOverBackColor
+                        : button.BackColor
+                : SurfaceRaised;
+            using (var fillBrush = new SolidBrush(fill))
+            {
+                e.Graphics.FillRectangle(fillBrush, button.ClientRectangle);
+            }
+
+            using (var borderPen = new Pen(button.Enabled ? button.FlatAppearance.BorderColor : Border))
+            {
+                e.Graphics.DrawRectangle(
+                    borderPen,
+                    0,
+                    0,
+                    Math.Max(0, button.ClientSize.Width - 1),
+                    Math.Max(0, button.ClientSize.Height - 1));
+            }
+
+            if (string.IsNullOrEmpty(button.Text))
+            {
+                return;
+            }
+
+            TextRenderer.DrawText(
+                e.Graphics,
+                button.Text,
+                button.Font,
+                button.ClientRectangle,
+                button.Enabled ? button.ForeColor : MutedText,
+                TextFormatFlags.HorizontalCenter |
+                TextFormatFlags.VerticalCenter |
+                TextFormatFlags.EndEllipsis |
+                TextFormatFlags.SingleLine);
+        };
     }
 
     public static void EnableDoubleBuffering(Control control)

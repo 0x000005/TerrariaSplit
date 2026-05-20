@@ -21,6 +21,7 @@ internal sealed class AutomationSettingsPage : SettingsPageBase
     private readonly CheckBox autoCreateZenithStarCatchBox = new();
     private readonly ThemedSlider autoCreateZenithStarCatchSpeedBar = new();
     private readonly Label autoCreateZenithStarCatchSpeedValueLabel = new();
+    private readonly CheckBox autoCreatePyramidFilterBox = new();
     private readonly TextBox autoCreateShortActionDelayBox = new();
     private readonly TextBox autoCreateMenuActionDelayBox = new();
     private readonly TextBox autoCreateWindowActivationDelayBox = new();
@@ -38,6 +39,7 @@ internal sealed class AutomationSettingsPage : SettingsPageBase
     internal CheckBox AutoCreateZenithStarCatchBox => autoCreateZenithStarCatchBox;
     internal IReadOnlyDictionary<string, CheckBox> AutoCreateZenithStarCatchStageBoxes => autoCreateZenithStarCatchStageBoxes;
     internal ThemedSlider AutoCreateZenithStarCatchSpeedBar => autoCreateZenithStarCatchSpeedBar;
+    internal CheckBox AutoCreatePyramidFilterBox => autoCreatePyramidFilterBox;
     internal TextBox AutoCreateSecretSeedsBox => autoCreateSecretSeedsBox;
 
     protected override Control BuildPage(SettingsPageContext context)
@@ -66,29 +68,30 @@ internal sealed class AutomationSettingsPage : SettingsPageBase
         settings.AutoCreate.EnableZenithStarCatch = autoCreateZenithStarCatchBox.Checked;
         settings.AutoCreate.ZenithStarCatchStopStage = GetSelectedZenithStarCatchStopStage();
         settings.AutoCreate.ZenithStarCatchSpeedSliderValue = AutoCreateZenithStarCatchSpeed.NormalizeSliderValue(autoCreateZenithStarCatchSpeedBar.Value);
+        settings.AutoCreate.EnablePyramidFilter = autoCreatePyramidFilterBox.Checked;
         settings.AutoCreate.ShortActionDelayMilliseconds = SettingsValueParser.ParseIntBox(
             autoCreateShortActionDelayBox,
-            AutoCreateWorldSettings.DefaultShortActionDelayMilliseconds,
+            AppSettingsDefaults.AutoCreate.ShortActionDelayMilliseconds,
             0,
             5000);
         settings.AutoCreate.MenuActionDelayMilliseconds = SettingsValueParser.ParseIntBox(
             autoCreateMenuActionDelayBox,
-            AutoCreateWorldSettings.DefaultMenuActionDelayMilliseconds,
+            AppSettingsDefaults.AutoCreate.MenuActionDelayMilliseconds,
             0,
             5000);
         settings.AutoCreate.WindowActivationDelayMilliseconds = SettingsValueParser.ParseIntBox(
             autoCreateWindowActivationDelayBox,
-            AutoCreateWorldSettings.DefaultWindowActivationDelayMilliseconds,
+            AppSettingsDefaults.AutoCreate.WindowActivationDelayMilliseconds,
             0,
             5000);
         settings.AutoCreate.ClickFocusDelayMilliseconds = SettingsValueParser.ParseIntBox(
             autoCreateClickFocusDelayBox,
-            AutoCreateWorldSettings.DefaultClickFocusDelayMilliseconds,
+            AppSettingsDefaults.AutoCreate.ClickFocusDelayMilliseconds,
             0,
             5000);
         settings.AutoCreate.InputPressDurationMilliseconds = SettingsValueParser.ParseIntBox(
             autoCreateInputPressDurationBox,
-            AutoCreateWorldSettings.DefaultInputPressDurationMilliseconds,
+            AppSettingsDefaults.AutoCreate.InputPressDurationMilliseconds,
             1,
             5000);
 
@@ -129,6 +132,7 @@ internal sealed class AutomationSettingsPage : SettingsPageBase
         autoCreateZenithStarCatchBox.CheckedChanged += (_, _) => UpdateZenithStarCatchAvailability();
         ConfigureZenithStarCatchSpeedBar(autoCreateZenithStarCatchSpeedBar, Draft.AutoCreate.ZenithStarCatchSpeedSliderValue);
         autoCreateZenithStarCatchSpeedBar.ValueChanged += (_, _) => UpdateZenithStarCatchSpeedLabel();
+        ConfigureCheckBox(autoCreatePyramidFilterBox, Draft.AutoCreate.EnablePyramidFilter);
         ConfigureNumberBox(autoCreateShortActionDelayBox, Draft.AutoCreate.ShortActionDelayMilliseconds, 0, 5000);
         ConfigureNumberBox(autoCreateMenuActionDelayBox, Draft.AutoCreate.MenuActionDelayMilliseconds, 0, 5000);
         ConfigureNumberBox(autoCreateWindowActivationDelayBox, Draft.AutoCreate.WindowActivationDelayMilliseconds, 0, 5000);
@@ -228,6 +232,11 @@ internal sealed class AutomationSettingsPage : SettingsPageBase
             SettingsUiFactory.ColumnStyleAbsolute(360f));
         Factory.AddSettingRow(zenithStarCatchSpeedGrid, "Catch speed", CreateZenithStarCatchSpeedControl());
         SettingsUiFactory.AddSectionControl(createSection, zenithStarCatchSpeedGrid);
+        TableLayoutPanel pyramidFilterGrid = Factory.CreateGrid(
+            SettingsUiFactory.ColumnStylePercent(100f),
+            SettingsUiFactory.ColumnStyleAbsolute(360f));
+        Factory.AddSettingRow(pyramidFilterGrid, "Auto filter pyramid", autoCreatePyramidFilterBox);
+        SettingsUiFactory.AddSectionControl(createSection, pyramidFilterGrid);
         SettingsUiFactory.AddSection(parent, createSection);
     }
 

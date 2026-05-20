@@ -30,6 +30,25 @@ internal sealed class TerrariaSaveFileCleaner
             movedWorlds);
     }
 
+    public TerrariaWorldCleanupResult MoveNonFavoriteWorldsToBackup()
+    {
+        string root = TerrariaSavePaths.SaveRoot();
+        string deletedRoot = TerrariaSavePaths.DeletedSavesRoot();
+        string backupRoot = Path.Combine(
+            deletedRoot,
+            DateTime.Now.ToString("yyyyMMdd-HHmmss"));
+
+        FavoriteSaveFiles favorites = LoadFavorites(Path.Combine(root, FavoritesFileName));
+        int favoriteWorlds = CountExistingFavoriteFiles(Path.Combine(root, "Worlds"), "*.wld", favorites.Worlds);
+        int movedWorlds = MoveNonFavoriteWorlds(root, backupRoot, favorites.Worlds);
+        PruneDeletedBackupFolders(deletedRoot);
+        return new TerrariaWorldCleanupResult(
+            root,
+            backupRoot,
+            favoriteWorlds,
+            movedWorlds);
+    }
+
     public TerrariaSaveInventorySnapshot ReadInventorySnapshot()
     {
         string root = TerrariaSavePaths.SaveRoot();
@@ -85,8 +104,11 @@ internal sealed class TerrariaSaveFileCleaner
                 continue;
             }
 
+            string stem = Path.GetFileNameWithoutExtension(worldFile);
             MoveFileIfExists(worldFile, Path.Combine(backupRoot, "Worlds", fileName));
             MoveFileIfExists(worldFile + ".bak", Path.Combine(backupRoot, "Worlds", fileName + ".bak"));
+            MoveFileIfExists(Path.Combine(worldsPath, stem + ".twld"), Path.Combine(backupRoot, "Worlds", stem + ".twld"));
+            MoveFileIfExists(Path.Combine(worldsPath, stem + ".twld.bak"), Path.Combine(backupRoot, "Worlds", stem + ".twld.bak"));
             moved++;
         }
 
@@ -236,6 +258,12 @@ internal readonly record struct TerrariaSaveCleanupResult(
     int FavoritePlayers,
     int FavoriteWorlds,
     int MovedPlayers,
+    int MovedWorlds);
+
+internal readonly record struct TerrariaWorldCleanupResult(
+    string SaveRoot,
+    string BackupRoot,
+    int FavoriteWorlds,
     int MovedWorlds);
 
 internal readonly record struct TerrariaSaveInventorySnapshot(

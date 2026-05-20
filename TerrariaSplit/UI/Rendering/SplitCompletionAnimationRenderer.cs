@@ -9,6 +9,12 @@ internal static class SplitCompletionAnimationRenderer
     private static readonly TimeSpan SplitCompletionDeltaIntroGap = TimeSpan.FromSeconds(0.06);
     private const float SplitCompletionLabelFontRatio = 0.58f;
     private const float SplitCompletionDeltaFontRatio = 0.85f;
+    private const float SplitCompletionIconTopRatio = 0.10f;
+    private const float SplitCompletionTextLeftPaddingRatio = 0.02f;
+    private const float SplitCompletionTextRightPaddingRatio = 0.005f;
+    private const float SplitCompletionIconTextGapRatio = 0.012f;
+    private const float SplitCompletionDeltaGapRatio = 0.42f;
+    private const float SplitCompletionRowGapRatio = 0.24f;
     private const float SplitCompletionDeltaOutroLeadRatio = 0.55f;
     private const float SplitCompletionDeltaIntroDurationRatio = 0.85f;
     private const float SplitCompletionDeltaSlideDistanceRatio = 0.75f;
@@ -220,14 +226,14 @@ internal static class SplitCompletionAnimationRenderer
 
     private static Rectangle GetIconRect(OverlayRenderContext context, Rectangle listBounds, float centerX)
     {
-        int maxIconSize = Math.Max(1, Math.Min((int)(listBounds.Width * 0.475f), (int)(listBounds.Height * 0.425f)));
+        int maxIconSize = Math.Max(1, Math.Min((int)(listBounds.Width * 0.475f), (int)(listBounds.Height * 0.40f)));
         int minIconSize = Math.Min(context.ScaleInt(90), maxIconSize);
         int iconSize = Math.Clamp(context.ScaleInt(188), minIconSize, maxIconSize);
         int iconX = (int)Math.Round(centerX - iconSize / 2f, MidpointRounding.AwayFromZero);
         iconX = Math.Clamp(iconX, listBounds.Left, listBounds.Right - iconSize);
         return new Rectangle(
             iconX,
-            listBounds.Top + Math.Max(0, (int)(listBounds.Height * 0.12f)),
+            listBounds.Top + Math.Max(0, (int)Math.Round(listBounds.Height * SplitCompletionIconTopRatio)),
             iconSize,
             iconSize);
     }
@@ -261,17 +267,17 @@ internal static class SplitCompletionAnimationRenderer
         float opacity)
     {
         Rectangle iconRect = GetIconRect(context, listBounds, centerX);
-        int sidePadding = Math.Max(context.ScaleInt(8), (int)Math.Round(listBounds.Width * 0.03f));
-        int top = iconRect.Bottom + Math.Max(context.ScaleInt(6), (int)Math.Round(listBounds.Height * 0.02f));
-        int bottom = listBounds.Bottom - context.ScaleInt(2);
-        float leftLimit = listBounds.Left + sidePadding;
-        float rightLimit = listBounds.Right - sidePadding;
+        int leftPadding = Math.Max(context.ScaleInt(6), (int)Math.Round(listBounds.Width * SplitCompletionTextLeftPaddingRatio));
+        int rightPadding = Math.Max(context.ScaleInt(1), (int)Math.Round(listBounds.Width * SplitCompletionTextRightPaddingRatio));
+        int top = iconRect.Bottom + Math.Max(context.ScaleInt(4), (int)Math.Round(listBounds.Height * SplitCompletionIconTextGapRatio));
+        int bottom = listBounds.Bottom - context.ScaleInt(1);
+        float leftLimit = listBounds.Left + leftPadding;
+        float rightLimit = listBounds.Right - rightPadding;
         float textCenterX = Math.Clamp(centerX, leftLimit, rightLimit);
-        float halfWidth = Math.Max(0f, Math.Min(textCenterX - leftLimit, rightLimit - textCenterX));
         var textBounds = Rectangle.FromLTRB(
-            (int)Math.Floor(textCenterX - halfWidth),
+            (int)Math.Floor(leftLimit),
             Math.Min(top, bottom),
-            (int)Math.Ceiling(textCenterX + halfWidth),
+            (int)Math.Ceiling(rightLimit),
             bottom);
         if (textBounds.Width <= 0 || textBounds.Height <= 0)
         {
@@ -284,7 +290,8 @@ internal static class SplitCompletionAnimationRenderer
         string splitDelta = GetDeltaText(context.Settings, animation.ReferenceSplitComparison, animation.ShowSplitComparison);
         float valueSize = GetValueFontSize(
             graphics,
-            textBounds.Width,
+            textCenterX - leftLimit,
+            rightLimit - textCenterX,
             textBounds.Height,
             segmentValue,
             segmentDelta,
@@ -304,8 +311,8 @@ internal static class SplitCompletionAnimationRenderer
         int rowHeight = labelHeight + valueHeight + context.ScaleInt(2);
         float reservedGap = string.IsNullOrEmpty(segmentDelta) && string.IsNullOrEmpty(splitDelta)
             ? 0f
-            : Math.Max(6f, valueFont.Size * 0.55f);
-        int gap = Math.Max(3, (int)Math.Round(valueFont.Size * 0.32f));
+            : Math.Max(4f, valueFont.Size * SplitCompletionDeltaGapRatio);
+        int gap = Math.Max(2, (int)Math.Round(valueFont.Size * SplitCompletionRowGapRatio));
         int totalHeight = rowHeight * 2 + gap;
         int startY = textBounds.Top + Math.Max(0, (textBounds.Height - totalHeight) / 2);
 
@@ -316,6 +323,7 @@ internal static class SplitCompletionAnimationRenderer
             graphics,
             context,
             segmentRect,
+            textCenterX,
             Localizer.Get("Segment time", context.Settings),
             segmentValue,
             animation.PersonalBestSegmentComparison,
@@ -333,6 +341,7 @@ internal static class SplitCompletionAnimationRenderer
             graphics,
             context,
             splitRect,
+            textCenterX,
             Localizer.Get("Cumulative time", context.Settings),
             splitValue,
             animation.ReferenceSplitComparison,
@@ -378,7 +387,8 @@ internal static class SplitCompletionAnimationRenderer
 
     private static float GetValueFontSize(
         Graphics graphics,
-        int availableWidth,
+        float availableLeftWidth,
+        float availableRightWidth,
         int availableHeight,
         string firstValue,
         string firstDelta,
@@ -386,7 +396,7 @@ internal static class SplitCompletionAnimationRenderer
         string secondDelta,
         float scale)
     {
-        if (availableWidth <= 0 || availableHeight <= 0)
+        if (availableLeftWidth <= 0f || availableRightWidth <= 0f || availableHeight <= 0)
         {
             return 24f;
         }
@@ -398,7 +408,8 @@ internal static class SplitCompletionAnimationRenderer
             float mid = (low + high) / 2f;
             if (DoesTextFit(
                 graphics,
-                availableWidth,
+                availableLeftWidth,
+                availableRightWidth,
                 availableHeight,
                 mid,
                 firstValue,
@@ -419,7 +430,8 @@ internal static class SplitCompletionAnimationRenderer
 
     private static bool DoesTextFit(
         Graphics graphics,
-        int availableWidth,
+        float availableLeftWidth,
+        float availableRightWidth,
         int availableHeight,
         float valueSize,
         string firstValue,
@@ -441,16 +453,19 @@ internal static class SplitCompletionAnimationRenderer
         float secondDeltaWidth = MeasureDeltaTextWidth(graphics, deltaFont, secondDelta, format);
         float slidePadding = GetDeltaSlideDistance(deltaFont.Size);
         float deltaGap = firstDeltaWidth > 0f || secondDeltaWidth > 0f
-            ? Math.Max(6f, valueFont.Size * 0.55f)
+            ? Math.Max(4f, valueFont.Size * SplitCompletionDeltaGapRatio)
             : 0f;
-        float requiredHalfWidth = Math.Max(
+        float requiredLeftWidth = Math.Max(firstValueWidth / 2f, secondValueWidth / 2f);
+        float requiredRightWidth = Math.Max(
             firstValueWidth / 2f + (firstDeltaWidth > 0f ? deltaGap + firstDeltaWidth + slidePadding : 0f),
             secondValueWidth / 2f + (secondDeltaWidth > 0f ? deltaGap + secondDeltaWidth + slidePadding : 0f));
         float labelHeight = labelFont.GetHeight(graphics);
         float valueHeight = valueFont.GetHeight(graphics) + 2f;
         float rowHeight = labelHeight + valueHeight + 2f;
-        float totalHeight = rowHeight * 2f + Math.Max(3f, valueFont.Size * 0.32f);
-        return requiredHalfWidth <= availableWidth / 2f && totalHeight <= availableHeight;
+        float totalHeight = rowHeight * 2f + Math.Max(2f, valueFont.Size * SplitCompletionRowGapRatio);
+        return requiredLeftWidth <= availableLeftWidth &&
+            requiredRightWidth <= availableRightWidth &&
+            totalHeight <= availableHeight;
     }
 
     private static float MeasureDeltaTextWidth(
@@ -468,6 +483,7 @@ internal static class SplitCompletionAnimationRenderer
         Graphics graphics,
         OverlayRenderContext context,
         Rectangle bounds,
+        float centerX,
         string label,
         string value,
         SplitComparison comparison,
@@ -499,7 +515,12 @@ internal static class SplitCompletionAnimationRenderer
         };
 
         int labelHeight = Math.Max(1, (int)Math.Ceiling(labelFont.GetHeight(graphics)));
-        var labelRect = new Rectangle(bounds.Left, bounds.Top, bounds.Width, labelHeight);
+        float labelHalfWidth = Math.Max(0f, Math.Min(centerX - bounds.Left, bounds.Right - centerX));
+        var labelRect = Rectangle.FromLTRB(
+            (int)Math.Floor(centerX - labelHalfWidth),
+            bounds.Top,
+            (int)Math.Ceiling(centerX + labelHalfWidth),
+            bounds.Top + labelHeight);
         using var labelBrush = new SolidBrush(TextEffectRenderer.WithOpacity(context.Palette.SplitCompletionLabelText, opacity * 0.86f));
         TextEffectRenderer.DrawText(
             graphics,
@@ -511,7 +532,7 @@ internal static class SplitCompletionAnimationRenderer
 
         SizeF valueSize = graphics.MeasureString(value, valueFont, bounds.Size, format);
         float gap = string.IsNullOrEmpty(deltaText) ? 0f : reservedGap;
-        float startX = bounds.Left + Math.Max(0f, (bounds.Width - valueSize.Width) / 2f);
+        float startX = centerX - valueSize.Width / 2f;
         FontMetrics valueMetrics = OverlayTextMetrics.GetFontMetrics(graphics, valueFont);
         float valueTextHeight = valueMetrics.Ascent + valueMetrics.Descent;
         float valueBaselineY = bounds.Top + labelHeight + Math.Max(0f, (bounds.Height - labelHeight - valueTextHeight) / 2f) + valueMetrics.Ascent;

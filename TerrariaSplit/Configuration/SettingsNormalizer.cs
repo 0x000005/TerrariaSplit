@@ -4,6 +4,7 @@ internal static class SettingsNormalizer
 {
     public static void Normalize(AppSettings settings)
     {
+        AppSettings defaults = AppSettingsDefaults.Create();
         settings.Route ??= new List<BossRouteEntry>();
         settings.BossIconPaths ??= new Dictionary<string, string>();
         settings.ReferenceSplitSets ??= new List<ReferenceSplitSet>();
@@ -16,13 +17,13 @@ internal static class SettingsNormalizer
         settings.SplitCompletionOutlineSplitStyles ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         settings.SplitCompletionOutlineSegmentStyles ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         settings.SegmentBestDeltaHighlightStyles ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        settings.Colors ??= new UiColorSettings();
-        settings.Sounds ??= new UiSoundSettings();
-        settings.Columns ??= new UiColumnLayoutSettings();
-        settings.TextEffects ??= new UiTextEffectSettings();
-        settings.AutoCreate ??= new AutoCreateWorldSettings();
+        settings.Colors ??= defaults.Colors;
+        settings.Sounds ??= defaults.Sounds;
+        settings.Columns ??= defaults.Columns;
+        settings.TextEffects ??= defaults.TextEffects;
+        settings.AutoCreate ??= defaults.AutoCreate;
         settings.PracticeWorlds ??= new PracticeWorldSettings();
-        settings.Advanced ??= new AdvancedSettings();
+        settings.Advanced ??= defaults.Advanced;
         NormalizeAutoCreate(settings.AutoCreate);
         NormalizePracticeWorlds(settings.PracticeWorlds);
         NormalizeAdvanced(settings.Advanced);
@@ -36,7 +37,7 @@ internal static class SettingsNormalizer
         settings.CurrentBossIconGrayscaleWeakenPercent = Math.Clamp(settings.CurrentBossIconGrayscaleWeakenPercent, 0, 100);
         settings.CurrentBossIconBrightnessBoostPercent = Math.Clamp(settings.CurrentBossIconBrightnessBoostPercent, 0, 100);
         NormalizeRoute(settings);
-        NormalizeColumnSettings(settings.Columns);
+        NormalizeColumnSettings(settings.Columns, defaults.Columns);
         NormalizeTextEffects(settings.TextEffects);
         RemoveUnknownBossUnitKeys(settings);
 
@@ -111,13 +112,11 @@ internal static class SettingsNormalizer
         advanced.ReadyWatcherPollHz = RefreshRateSettings.NormalizeReadyWatcherPollHz(advanced.ReadyWatcherPollHz);
         advanced.ReadyUiControlHz = RefreshRateSettings.NormalizeReadyUiControlHz(advanced.ReadyUiControlHz);
         advanced.RunningStatusPaintHz = RefreshRateSettings.NormalizeRunningStatusPaintHz(advanced.RunningStatusPaintHz);
-        advanced.TimerOverlayRefreshMode = TimerOverlayRefreshModes.Normalize(advanced.TimerOverlayRefreshMode);
         advanced.TimerOverlayRefreshHz = RefreshRateSettings.NormalizeTimerOverlayRefreshHz(advanced.TimerOverlayRefreshHz);
     }
 
-    private static void NormalizeColumnSettings(UiColumnLayoutSettings columns)
+    private static void NormalizeColumnSettings(UiColumnLayoutSettings columns, UiColumnLayoutSettings defaults)
     {
-        var defaults = new UiColumnLayoutSettings();
         columns.Icon ??= defaults.Icon;
         columns.Time ??= defaults.Time;
         columns.Delta ??= defaults.Delta;

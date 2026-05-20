@@ -292,25 +292,14 @@ internal sealed class AppSettings
 internal sealed class AdvancedSettings
 {
     public bool EnableTerrariaUiScalePatch { get; set; }
-    public const int DefaultReadyWatcherPollHz = 400;
-    public const int DefaultReadyUiControlHz = 150;
-    public const int DefaultRunningStatusPaintHz = 150;
-    public const int DefaultTimerOverlayRefreshHz = 150;
-    public int ReadyWatcherPollHz { get; set; } = DefaultReadyWatcherPollHz;
-    public int ReadyUiControlHz { get; set; } = DefaultReadyUiControlHz;
-    public int RunningStatusPaintHz { get; set; } = DefaultRunningStatusPaintHz;
-    public string TimerOverlayRefreshMode { get; set; } = TimerOverlayRefreshModes.Auto;
-    public int TimerOverlayRefreshHz { get; set; } = DefaultTimerOverlayRefreshHz;
+    public int ReadyWatcherPollHz { get; set; }
+    public int ReadyUiControlHz { get; set; }
+    public int RunningStatusPaintHz { get; set; }
+    public int TimerOverlayRefreshHz { get; set; }
 }
 
 internal sealed class AutoCreateWorldSettings
 {
-    public const int DefaultShortActionDelayMilliseconds = 70;
-    public const int DefaultMenuActionDelayMilliseconds = 160;
-    public const int DefaultWindowActivationDelayMilliseconds = 100;
-    public const int DefaultClickFocusDelayMilliseconds = 60;
-    public const int DefaultInputPressDurationMilliseconds = 150;
-
     public string PlayerName { get; set; } = string.Empty;
     public string PlayerTemplateCode { get; set; } = string.Empty;
     public string PlayerDifficulty { get; set; } = AutoCreatePlayerDifficulty.Softcore;
@@ -322,11 +311,12 @@ internal sealed class AutoCreateWorldSettings
     public bool EnableZenithStarCatch { get; set; }
     public string ZenithStarCatchStopStage { get; set; } = AutoCreateZenithStarCatchStage.Default;
     public int ZenithStarCatchSpeedSliderValue { get; set; } = AutoCreateZenithStarCatchSpeed.DefaultSliderValue;
-    public int ShortActionDelayMilliseconds { get; set; } = DefaultShortActionDelayMilliseconds;
-    public int MenuActionDelayMilliseconds { get; set; } = DefaultMenuActionDelayMilliseconds;
-    public int WindowActivationDelayMilliseconds { get; set; } = DefaultWindowActivationDelayMilliseconds;
-    public int ClickFocusDelayMilliseconds { get; set; } = DefaultClickFocusDelayMilliseconds;
-    public int InputPressDurationMilliseconds { get; set; } = DefaultInputPressDurationMilliseconds;
+    public bool EnablePyramidFilter { get; set; }
+    public int ShortActionDelayMilliseconds { get; set; }
+    public int MenuActionDelayMilliseconds { get; set; }
+    public int WindowActivationDelayMilliseconds { get; set; }
+    public int ClickFocusDelayMilliseconds { get; set; }
+    public int InputPressDurationMilliseconds { get; set; }
 }
 
 internal sealed class PracticeWorldSettings

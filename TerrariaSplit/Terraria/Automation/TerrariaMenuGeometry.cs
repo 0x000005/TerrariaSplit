@@ -22,6 +22,12 @@ internal readonly record struct TerrariaMenuGeometry(float Scale, float LogicalW
         return ToClient(LogicalWidth / 2f + outerWidth / 4f + 5f, LogicalHeight - 70f);
     }
 
+    public Point SelectMenuBackButton()
+    {
+        float outerWidth = GetSelectListOuterWidth();
+        return ToClient(LogicalWidth / 2f - outerWidth / 4f - 5f, LogicalHeight - 70f);
+    }
+
     public Point CreatePlayerButton()
     {
         return ToClient(LogicalWidth / 2f + 130f, 534f);
