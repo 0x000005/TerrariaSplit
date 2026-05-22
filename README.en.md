@@ -13,8 +13,6 @@ TerrariaSplit is a highly customizable BOSS-only timer for 1.4.5 with polished s
 
 TerrariaSplit aims to feel ready the moment it opens. Startup is fast, the main overlay stays lightweight, and most common settings can be changed through a visual configuration window instead of repeatedly editing JSON by hand.
 
-It also includes dedicated Create World and Load World workflows, so repeated Terraria setup takes fewer menu steps.
-
 ### 🧩 Freedom
 
 You can shape the timer around your own route and overlay style:
@@ -29,7 +27,7 @@ You can shape the timer around your own route and overlay style:
 
 TerrariaSplit automatically records run data and can optionally update personal best data. The statistics view makes it easy to compare your current or historical results against personal bests and reference times, helping you identify which BOSS or segment needs work.
 
-Practice runs that do not start from Skeletron are ignored automatically, so mid-run practice does not accidentally pollute personal best data.
+Practice runs that do not start from the first BOSS are ignored automatically, so mid-run practice does not accidentally pollute personal best data.
 
 To reduce Terraria-specific setup grind, the timer also includes:
 
