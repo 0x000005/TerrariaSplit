@@ -47,22 +47,22 @@ TerrariaSplit 不只是显示时间，也重视跑步过程中的视觉反馈。
 
 ### 主界面
 <p align="center">
-  <img src="image-5.png" alt="Main window" width="720">
+  <img src="docs/images/image-5.png" alt="Main window" width="720">
 </p>
 
 <p align="center">
-  <img src="image-4.png" alt="Main window" width="720">
+  <img src="docs/images/image-4.png" alt="Main window" width="720">
 </p>
 
 ### BOSS 击败动画与高亮字体
 
 <p align="center">
-  <img src="image-3.png" alt="Split completion animation" width="720">
+  <img src="docs/images/image-3.png" alt="Split completion animation" width="720">
 </p>
 
 ### 当前阶段突出显示
 <p align="center">
-  <img src="image-6.png" alt="Split completion animation" width="720">
+  <img src="docs/images/image-6.png" alt="Split completion animation" width="720">
 </p>
 
 

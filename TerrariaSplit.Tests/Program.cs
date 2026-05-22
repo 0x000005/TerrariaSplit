@@ -210,7 +210,7 @@ static void TestLocalizer()
 
 static void TestJsonFileStoreWritesAtomically()
 {
-    string directory = Path.Combine(Directory.GetCurrentDirectory(), ".codex-json-store-tests", Guid.NewGuid().ToString("N"));
+    string directory = GetPublishOutputDirectory("test-output", "json-store-tests");
     string settingsPath = Path.Combine(directory, "settings.json");
     string activeProfilePath = Path.Combine(directory, "active-settings.txt");
 
@@ -693,7 +693,7 @@ static void TestZenithStarCatchSpeedRange()
 
 static void TestPyramidFilterWorldFileScanner()
 {
-    string directory = Path.Combine(Directory.GetCurrentDirectory(), ".codex-pyramid-scanner-tests", Guid.NewGuid().ToString("N"));
+    string directory = GetPublishOutputDirectory("test-output", "pyramid-scanner-tests");
     Directory.CreateDirectory(directory);
     try
     {
@@ -1424,6 +1424,14 @@ static object? InvokePrivate(object target, string name, params object?[] args)
     {
         throw ex.InnerException;
     }
+}
+
+static string GetPublishOutputDirectory(params string[] segments)
+{
+    string path = Path.Combine(
+        [Directory.GetCurrentDirectory(), "publish", .. segments, Guid.NewGuid().ToString("N")]);
+    Directory.CreateDirectory(path);
+    return path;
 }
 
 static string FindDefaultSettingsTemplate()

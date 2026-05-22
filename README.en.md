@@ -43,23 +43,23 @@ TerrariaSplit focuses on visual feedback as much as raw timing:
 ### Main Window
 
 <p align="center">
-  <img src="image-5.png" alt="Main window" width="720">
+  <img src="docs/images/image-5.png" alt="Main window" width="720">
 </p>
 
 <p align="center">
-  <img src="image-4.png" alt="Main window" width="720">
+  <img src="docs/images/image-4.png" alt="Main window" width="720">
 </p>
 
 ### BOSS Defeat Animation and Highlighted Text
 
 <p align="center">
-  <img src="image-3.png" alt="Split completion animation" width="720">
+  <img src="docs/images/image-3.png" alt="Split completion animation" width="720">
 </p>
 
 ### Current Stage Highlight
 
 <p align="center">
-  <img src="image-6.png" alt="Current stage highlight" width="720">
+  <img src="docs/images/image-6.png" alt="Current stage highlight" width="720">
 </p>
 
 ## Default Hotkeys
