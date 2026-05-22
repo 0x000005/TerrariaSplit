@@ -33,7 +33,7 @@ To reduce Terraria-specific setup grind, the timer also includes:
 
 - A one-key Create World workflow for faster resets and boss practice.
 - Practice save slots for quickly switching between different training setups.
-- Zenith auto star catch and pyramid filtering to reduce world-generation grind.
+- pyramid filtering and Zenith auto star catch to reduce world-generation grind.
 
 ### ✨ Visual Polish
 
@@ -91,23 +91,6 @@ TerrariaSplit also includes options for modern display setups:
 
 TerrariaSplit stores configuration under the application directory:
 
-```text
-TerrariaSplit.exe
-settings/
-  settings.json
-  other-profile.json
-  active-profile.txt
-reference-times/
-  WR.json
-last-times/
-  2026-05-02-...json
-```
-
-- `settings/*.json`: main configuration profiles.
-- `settings/active-profile.txt`: the currently selected profile name.
-- `reference-times/*.json`: reference time sets.
-- `last-times/*.json`: automatically recorded run history.
-
 On first launch, if no valid configuration exists under `settings/`, TerrariaSplit generates one from the bundled default template.
 
 ## Notes
@@ -116,32 +99,19 @@ On first launch, if no valid configuration exists under `settings/`, TerrariaSpl
 - Sound effects currently use `.wav` files.
 - Configuration files are plain JSON. Manual editing is supported, but keeping a backup is recommended.
 - If OBS Window Capture shows a black background, set the capture-visible key color in `Settings > Colors > UI Colors > Capture background`, for example `#FF00FF` or `#00FF00`, then key that color out in OBS. The app window itself stays transparent.
+## Notes
+
+- This project was primarily built with AI assistance.
 
 ## Acknowledgements
 
-- Thanks to [LiveSplit](https://github.com/LiveSplit/LiveSplit) for long-standing inspiration around speedrun timer interactions, layouts, and split presentation.
-- The BOSS lighting design and icon presentation were referenced from [kengho/terraria-boss-checklist](https://github.com/kengho/terraria-boss-checklist); TerrariaSplit reimplements the progress feedback in its own timer UI.
-- This project was built primarily with AI assistance, including requirement organization, implementation, UI copy, and documentation. Final design decisions, testing, and release responsibility remain with the maintainer.
+- Thanks to [LiveSplit](https://github.com/LiveSplit/LiveSplit) for inspiring the speedrun timer layout and split display style.
+- The BOSS highlight design and icon presentation were inspired by [kengho/terraria-boss-checklist](https://github.com/kengho/terraria-boss-checklist).
 
-## Privacy and Local Data
+## OBS Capture Black Background
 
-TerrariaSplit does not include online sync, account login, or remote telemetry. It reads local Terraria process state and stores configuration, reference times, and run history locally next to the application.
-
-Main local data paths:
-
-- `settings/`: configuration files.
-- `reference-times/`: reference times.
-- `last-times/`: run history.
-- `terrariasplit.log`: runtime error log.
-
-Before publishing the repository or release archives, check these files for personal paths, sound file paths, or run history you do not want to share.
-
-## Copyright and Asset Risks
-
-The project code is released under the MIT License. The project name, game name, BOSS names, and any icon assets may be related to Terraria and its rights holders. This is not an official Re-Logic or Terraria project.
-
-If you distribute a build containing assets from other projects or original/modified Terraria icons, preserve the corresponding license and copyright notices and verify the source and license of those assets. A safer approach is to use self-made, licensed, or user-provided local icons.
+If OBS window capture shows a black background, try using the Windows 10 capture method instead of the traditional method.
 
 ## License
 
-This project is licensed under the MIT License. See [LICENSE](LICENSE).
+This project is licensed under the MIT License.

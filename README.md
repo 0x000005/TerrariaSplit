@@ -36,7 +36,7 @@ TerrariaSplit 会自动记录每一局的数据，并且可以选择自动更新
 
 - 一键自动创建世界，加快重开与练习节奏。
 - 提供练习存档槽位，方便在不同训练场景之间快速切换。
-- Zenith 世界支持自动接星，建图时还可自动筛掉不含目标金字塔的地图，减少重复刷图成本。
+- 建图时可自动筛掉不含目标金字塔的地图，Zenith 世界还支持自动接星，减少重复刷图成本。
 
 ### ✨ 美观性
 
@@ -95,23 +95,6 @@ TerrariaSplit 也考虑了不同显示设备上的可用性：
 
 TerrariaSplit 使用程序目录下的 `settings/` 文件夹保存配置。
 
-```text
-TerrariaSplit.exe
-settings/
-  settings.json
-  other-profile.json
-  active-profile.txt
-reference-times/
-  WR.json
-last-times/
-  2026-05-02-...json
-```
-
-- `settings/*.json`：主配置文件，可放多个。
-- `settings/active-profile.txt`：记录当前使用的配置文件名。
-- `reference-times/*.json`：参考时间组。
-- `last-times/*.json`：自动记录的上一局和历史局数据。
-
 首次运行时，如果 `settings/` 下没有有效配置，程序会从内置模板生成默认配置。
 
 
@@ -128,7 +111,7 @@ last-times/
 
 ## OBS 捕获黑底
 
-如果 OBS 窗口捕获出现黑色背景，可以在 `设置 > 颜色 > 界面颜色 > 捕获背景` 里设置录屏软件能看到的透明色键，例如 `#FF00FF` 或 `#00FF00`，再在 OBS 中抠除该颜色。程序窗口本身仍然保持透明。
+如果 OBS 窗口捕获出现黑色背景，可以采取Windows10捕获方式而不是传统方式。
 
 ## License
 
