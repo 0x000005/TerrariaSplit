@@ -23,6 +23,7 @@ internal sealed class OverlayWindowController : IDisposable
     private const int WsThickFrame = 0x00040000;
     private const int WsExTransparent = 0x20;
     private const int WsExLayered = 0x80000;
+    private const int WsExNoActivate = 0x08000000;
 
     private readonly Form owner;
     private readonly Func<Graphics, bool> draw;
@@ -138,7 +139,7 @@ internal sealed class OverlayWindowController : IDisposable
         return updateLayeredBitmap(bitmap);
     }
 
-    public void ApplyWindowStyle(bool mouseClickThrough)
+    public void ApplyWindowStyle(bool mouseClickThrough, bool noActivate = false)
     {
         if (!owner.IsHandleCreated)
         {
@@ -162,7 +163,19 @@ internal sealed class OverlayWindowController : IDisposable
         }
 
         int style = GetWindowLong(handle, GwlExStyle);
-        SetWindowLong(handle, GwlExStyle, ComposeExtendedStyle(style, mouseClickThrough));
+        int extendedStyle = ComposeExtendedStyle(style, mouseClickThrough, noActivate);
+        if (extendedStyle != style)
+        {
+            SetWindowLong(handle, GwlExStyle, extendedStyle);
+            SetWindowPos(
+                handle,
+                IntPtr.Zero,
+                0,
+                0,
+                0,
+                0,
+                SwpNoMove | SwpNoSize | SwpNoZOrder | SwpNoActivate | SwpFrameChanged);
+        }
     }
 
     public void Dispose()
@@ -171,7 +184,7 @@ internal sealed class OverlayWindowController : IDisposable
         renderTarget?.Dispose();
     }
 
-    internal static int ComposeExtendedStyle(int existingStyle, bool mouseClickThrough)
+    internal static int ComposeExtendedStyle(int existingStyle, bool mouseClickThrough, bool noActivate = false)
     {
         int style = existingStyle | WsExLayered;
         if (mouseClickThrough)
@@ -181,6 +194,15 @@ internal sealed class OverlayWindowController : IDisposable
         else
         {
             style &= ~WsExTransparent;
+        }
+
+        if (noActivate)
+        {
+            style |= WsExNoActivate;
+        }
+        else
+        {
+            style &= ~WsExNoActivate;
         }
 
         return style;

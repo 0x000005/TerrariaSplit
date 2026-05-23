@@ -9,6 +9,9 @@ internal sealed class GlobalHotkeyManager : IDisposable
     public const int HotkeyMessage = 0x0312;
 
     private const int IdBase = 0x54530000;
+    private const uint ModAlt = 0x0001;
+    private const uint ModControl = 0x0002;
+    private const uint ModShift = 0x0004;
     private const uint ModNoRepeat = 0x4000;
 
     private readonly Dictionary<int, TimerHotkeyAction> actionsById = new();
@@ -70,7 +73,7 @@ internal sealed class GlobalHotkeyManager : IDisposable
         }
 
         int id = IdBase + (int)action;
-        if (NativeMethods.RegisterHotKey(handle, id, ModNoRepeat, chord.VirtualKey))
+        if (NativeMethods.RegisterHotKey(handle, id, ModNoRepeat | chord.Modifiers, chord.VirtualKey))
         {
             actionsById[id] = action;
             return;
@@ -113,11 +116,27 @@ internal sealed class GlobalHotkeyManager : IDisposable
 
         Keys keyCode = normalizedKeys & Keys.KeyCode;
         uint virtualKey = (uint)keyCode;
-        chord = new HotkeyChord(virtualKey);
+        uint modifiers = 0;
+        if ((normalizedKeys & Keys.Alt) == Keys.Alt)
+        {
+            modifiers |= ModAlt;
+        }
+
+        if ((normalizedKeys & Keys.Control) == Keys.Control)
+        {
+            modifiers |= ModControl;
+        }
+
+        if ((normalizedKeys & Keys.Shift) == Keys.Shift)
+        {
+            modifiers |= ModShift;
+        }
+
+        chord = new HotkeyChord(modifiers, virtualKey);
         return true;
     }
 
-    private readonly record struct HotkeyChord(uint VirtualKey);
+    private readonly record struct HotkeyChord(uint Modifiers, uint VirtualKey);
 }
 
 internal enum HotkeyRegistrationWarningKind

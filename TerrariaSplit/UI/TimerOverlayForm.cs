@@ -10,17 +10,21 @@ internal sealed class TimerOverlayForm : Form
     private static readonly TimeSpan DefaultRefreshInterval = TimeSpan.FromMilliseconds(16);
     private static readonly TerrariaWatchSnapshot UnknownSnapshot =
         new(false, null, false, null, TerrariaBossStates.Unknown, TerrariaWorldGenerationState.Unknown, false, string.Empty);
+    private const string MainTimerWindowTitle = "TerrariaSplit - Main Timer";
     private const int ResizeBorder = 8;
     private const int WsExTransparent = 0x20;
     private const int WsExLayered = 0x80000;
+    private const int WsExNoActivate = 0x08000000;
     private readonly OverlayWindowController overlayWindowController;
     private readonly OverlayRenderResources renderResources = new();
     private readonly HighPrecisionScheduler paintScheduler;
     private readonly Action<HighPrecisionSchedulerTick> recordPaintTick;
     private readonly Action recordPaintDispatchSkipped;
     private readonly Action recordPaintInputSkipped;
+    private readonly Func<bool> isInteractionBlocked;
     private TimeSpan paintInterval = DefaultRefreshInterval;
     private bool mouseClickThrough;
+    private bool interactionBlocked;
     private bool dragging;
     private Point dragStartCursor;
     private bool suppressBoundsNotification;
@@ -33,15 +37,18 @@ internal sealed class TimerOverlayForm : Form
         Action<TimeSpan> recordPaint,
         Action<HighPrecisionSchedulerTick> recordPaintTick,
         Action recordPaintDispatchSkipped,
-        Action recordPaintInputSkipped)
+        Action recordPaintInputSkipped,
+        Func<bool> isInteractionBlocked)
     {
         this.recordPaintTick = recordPaintTick;
         this.recordPaintDispatchSkipped = recordPaintDispatchSkipped;
         this.recordPaintInputSkipped = recordPaintInputSkipped;
+        this.isInteractionBlocked = isInteractionBlocked;
         overlayWindowController = new OverlayWindowController(
             this,
             DrawOverlay,
             recordPaint);
+        Text = MainTimerWindowTitle;
         FormBorderStyle = FormBorderStyle.None;
         ShowInTaskbar = false;
         StartPosition = FormStartPosition.Manual;
@@ -60,6 +67,8 @@ internal sealed class TimerOverlayForm : Form
 
     public event Action<TimerOverlayRightClickRequest>? RightClickRequested;
 
+    public event Action? ModalActivationRequested;
+
     protected override CreateParams CreateParams
     {
         get
@@ -67,6 +76,11 @@ internal sealed class TimerOverlayForm : Form
             CreateParams parameters = base.CreateParams;
             parameters.Style = OverlayWindowController.ComposeBorderlessStyle(parameters.Style);
             parameters.ExStyle |= WsExLayered;
+            if (IsInteractionBlocked())
+            {
+                parameters.ExStyle |= WsExNoActivate;
+            }
+
             if (mouseClickThrough)
             {
                 parameters.ExStyle |= WsExTransparent;
@@ -79,8 +93,7 @@ internal sealed class TimerOverlayForm : Form
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
-        overlayWindowController.ApplyWindowStyle(mouseClickThrough);
-        WindowTopMostSync.Apply(TopMost, Handle);
+        overlayWindowController.ApplyWindowStyle(mouseClickThrough, IsInteractionBlocked());
     }
 
     protected override void OnShown(EventArgs e)
@@ -101,6 +114,12 @@ internal sealed class TimerOverlayForm : Form
     protected override void OnMouseDown(MouseEventArgs e)
     {
         base.OnMouseDown(e);
+        if (IsInteractionBlocked())
+        {
+            RequestModalActivation();
+            return;
+        }
+
         if (e.Button != MouseButtons.Left ||
             !IsTimerInteractionPoint(e.Location) ||
             OverlayResizeHitTest.IsResizeZone(e.Location, ClientSize, ResizeBorder, OverlayResizeEdges.Left | OverlayResizeEdges.Right | OverlayResizeEdges.Bottom))
@@ -115,6 +134,11 @@ internal sealed class TimerOverlayForm : Form
     protected override void OnMouseMove(MouseEventArgs e)
     {
         base.OnMouseMove(e);
+        if (IsInteractionBlocked())
+        {
+            return;
+        }
+
         if (!dragging)
         {
             return;
@@ -134,6 +158,13 @@ internal sealed class TimerOverlayForm : Form
     protected override void OnMouseUp(MouseEventArgs e)
     {
         base.OnMouseUp(e);
+        if (IsInteractionBlocked())
+        {
+            dragging = false;
+            RequestModalActivation();
+            return;
+        }
+
         if (e.Button == MouseButtons.Left)
         {
             dragging = false;
@@ -161,9 +192,18 @@ internal sealed class TimerOverlayForm : Form
 
     protected override void WndProc(ref Message m)
     {
+        const int wmMouseActivate = 0x21;
         const int wmNcHitTest = 0x84;
+        const int maNoActivateAndEat = 4;
         const int htTransparent = -1;
         const int htClient = 1;
+
+        if (IsInteractionBlocked() && m.Msg == wmMouseActivate)
+        {
+            RequestModalActivation();
+            m.Result = (IntPtr)maNoActivateAndEat;
+            return;
+        }
 
         base.WndProc(ref m);
 
@@ -224,7 +264,7 @@ internal sealed class TimerOverlayForm : Form
         bool previousMouseClickThrough = mouseClickThrough;
         currentState = renderState;
         mouseClickThrough = renderState.MouseClickThrough;
-        overlayWindowController.ApplyWindowStyle(mouseClickThrough);
+        overlayWindowController.ApplyWindowStyle(mouseClickThrough, IsInteractionBlocked());
         UpdateTimerOverlayPaintSchedulerState();
         if (forceRender || ShouldRenderImmediately(previousState, renderState, previousMouseClickThrough))
         {
@@ -258,19 +298,32 @@ internal sealed class TimerOverlayForm : Form
         }
     }
 
-    public void ApplyTopMost(bool topMost)
+    public void ApplyInteractionBlocked(bool blocked)
     {
-        TopMost = topMost;
-        if (IsHandleCreated)
+        if (interactionBlocked == blocked)
         {
-            WindowTopMostSync.Apply(topMost, Handle);
+            return;
         }
+
+        interactionBlocked = blocked;
+        dragging = false;
+        overlayWindowController.ApplyWindowStyle(mouseClickThrough, IsInteractionBlocked());
+    }
+
+    private bool IsInteractionBlocked()
+    {
+        return interactionBlocked || isInteractionBlocked?.Invoke() == true;
+    }
+
+    private void RequestModalActivation()
+    {
+        ModalActivationRequested?.Invoke();
     }
 
     public void ApplyMouseClickThrough(bool enabled)
     {
         mouseClickThrough = enabled;
-        overlayWindowController.ApplyWindowStyle(mouseClickThrough);
+        overlayWindowController.ApplyWindowStyle(mouseClickThrough, IsInteractionBlocked());
         overlayWindowController.QueueRender();
     }
 

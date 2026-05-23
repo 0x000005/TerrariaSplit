@@ -14,6 +14,7 @@ internal sealed partial class MainForm : Form
     private const int RowGap = 9;
     private const int WsExTransparent = 0x20;
     private const int WsExLayered = 0x80000;
+    private const string SegmentTimerWindowTitle = "TerrariaSplit - Segment Timer";
 
     private readonly RunSessionController runSession = new();
     private readonly TerrariaWorldAutomation worldAutomation = new();
@@ -31,6 +32,8 @@ internal sealed partial class MainForm : Form
     private readonly OverlayWindowController overlayWindowController;
     private readonly OverlayBoundsController overlayBoundsController;
     private readonly TimerOverlayWindowHost timerOverlayHost;
+    private readonly ProgramModalWindowCoordinator modalWindows;
+    private readonly MainWindowModalInputRouter mainWindowModalInputRouter;
     private readonly object runtimeDebugSnapshotLock = new();
     private bool mouseClickThrough;
     private bool dragging;
@@ -46,11 +49,11 @@ internal sealed partial class MainForm : Form
     private bool runtimeResourcesDisposed;
     private string currentWindowText = string.Empty;
     private long minimumAcceptedRuntimeCommandSequence;
+    private IDisposable? settingsModalWindowRegistration;
     private bool overlayWindowsInitialized;
     private bool overlayWindowInitializationInProgress;
     private bool statusBoundsFeedbackEnabled;
     private bool suppressStatusBoundsFeedback;
-    private bool overlayTopMostReleasedForContextMenu;
     private Rectangle? pendingInitialCompositeBounds;
     private TimeSpan controlTickInterval = DefaultControlTickInterval;
     private TimeSpan statusPaintInterval = RefreshRateSettings.ToInterval(AppSettingsDefaults.Advanced.RunningStatusPaintHz);
@@ -96,15 +99,25 @@ internal sealed partial class MainForm : Form
             tick => performance.RecordTimerOverlayPaintTick(tick),
             performance.RecordTimerOverlayPaintDispatchSkipped,
             performance.RecordTimerOverlayPaintInputSkipped);
+        modalWindows = new ProgramModalWindowCoordinator(
+            this,
+            timerOverlayHost.ApplyInteractionBlocked,
+            () => timerOverlayHost.WindowHandle);
+        mainWindowModalInputRouter = new MainWindowModalInputRouter(
+            modalWindows,
+            contextMenu,
+            () => dragging = false);
         timerOverlayHost.DragDeltaRequested += delta => overlayBoundsController.MoveBy(delta);
         timerOverlayHost.UserResizeBoundsChanged += bounds => overlayBoundsController.HandleTimerResize(bounds);
         timerOverlayHost.RightClickRequested += HandleTimerOverlayRightClickRequested;
+        timerOverlayHost.Activated += QueueMainWindowForegroundGroupSync;
+        timerOverlayHost.ModalActivationRequested += () => modalWindows.ActivateCurrentModal();
         IReadOnlyList<BossSplitDefinition> initialDefinitions = BossSplitDefinitions.Build(settings);
         runSession.SetDefinitions(initialDefinitions);
         overlayBoundsController.UpdateContext(settings, runSession.SplitTracker.Statuses.Count);
         minimumAcceptedRuntimeCommandSequence = monitorCoordinator.SetRuntimeDefinitions(initialDefinitions);
-        Text = "TerrariaSplit";
-        TopMost = settings.AlwaysOnTop;
+        Text = SegmentTimerWindowTitle;
+        modalWindows.SetAlwaysOnTop(settings.AlwaysOnTop);
         FormBorderStyle = FormBorderStyle.None;
         ShowInTaskbar = true;
         StartPosition = FormStartPosition.CenterScreen;
@@ -118,22 +131,16 @@ internal sealed partial class MainForm : Form
         UpdateContextMenu();
         contextMenu.Opening += (_, e) =>
         {
-            if (settings.PracticeMode && IsEditablePracticePoint(PointToClient(Cursor.Position)))
+            if (mainWindowModalInputRouter.TryRedirectFromMainInput())
             {
                 e.Cancel = true;
-            }
-        };
-        contextMenu.Closed += (_, _) =>
-        {
-            if (!overlayTopMostReleasedForContextMenu)
-            {
                 return;
             }
 
-            overlayTopMostReleasedForContextMenu = false;
-            if (settings.AlwaysOnTop)
+            if (settings.PracticeMode && IsEditablePracticePoint(PointToClient(Cursor.Position)))
             {
-                ApplyOverlayTopMost(true);
+                e.Cancel = true;
+                return;
             }
         };
         ContextMenuStrip = contextMenu;
@@ -174,6 +181,7 @@ internal sealed partial class MainForm : Form
         base.OnHandleCreated(e);
         overlayWindowController.ApplyWindowStyle(mouseClickThrough);
         InitializeOverlayWindows();
+        modalWindows.ApplyWindowState();
         if (!settingsFormOpen)
         {
             RegisterConfiguredHotkeys();
@@ -187,6 +195,40 @@ internal sealed partial class MainForm : Form
     {
         base.OnShown(e);
         QueueStatusOverlayRender();
+    }
+
+    protected override void OnActivated(EventArgs e)
+    {
+        base.OnActivated(e);
+        if (IsHandleCreated)
+        {
+            QueueMainWindowForegroundGroupSync(Handle);
+        }
+    }
+
+    private void QueueMainWindowForegroundGroupSync(IntPtr activatedHandle)
+    {
+        if (activatedHandle == IntPtr.Zero || !CanDispatchToUiThread())
+        {
+            return;
+        }
+
+        try
+        {
+            BeginInvoke(new Action(() =>
+            {
+                if (CanDispatchToUiThread())
+                {
+                    modalWindows.SyncMainWindowGroup(activatedHandle);
+                }
+            }));
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+        catch (InvalidOperationException)
+        {
+        }
     }
 
     protected override void OnInvalidated(InvalidateEventArgs e)
@@ -253,6 +295,8 @@ internal sealed partial class MainForm : Form
         worldAutomation.Dispose();
         settingsDialogHost?.Dispose();
         settingsDialogHost = null;
+        settingsModalWindowRegistration?.Dispose();
+        settingsModalWindowRegistration = null;
         timerOverlayHost.Dispose();
         overlayWindowController.Dispose();
         renderResources.Dispose();
@@ -297,7 +341,17 @@ internal sealed partial class MainForm : Form
 
     protected override void OnMouseDown(MouseEventArgs e)
     {
+        if (mainWindowModalInputRouter.TryRedirectFromMainInput())
+        {
+            return;
+        }
+
         base.OnMouseDown(e);
+        if (IsHandleCreated)
+        {
+            modalWindows.SyncMainWindowGroup(Handle);
+        }
+
         if (e.Button == MouseButtons.Left &&
             !OverlayResizeHitTest.IsResizeZone(
                 e.Location,
@@ -312,6 +366,12 @@ internal sealed partial class MainForm : Form
 
     protected override void OnMouseMove(MouseEventArgs e)
     {
+        if (mainWindowModalInputRouter.HasModalWindow)
+        {
+            dragging = false;
+            return;
+        }
+
         base.OnMouseMove(e);
         if (!dragging)
         {
@@ -331,6 +391,12 @@ internal sealed partial class MainForm : Form
 
     protected override void OnMouseUp(MouseEventArgs e)
     {
+        if (mainWindowModalInputRouter.TryRedirectFromMainInput())
+        {
+            dragging = false;
+            return;
+        }
+
         base.OnMouseUp(e);
         if (e.Button == MouseButtons.Left)
         {
@@ -374,6 +440,11 @@ internal sealed partial class MainForm : Form
         const int wmNcHitTest = 0x84;
         const int htTransparent = -1;
         const int htClient = 1;
+
+        if (mainWindowModalInputRouter.TryHandleWindowMessage(ref m))
+        {
+            return;
+        }
 
         if (hotkeyManager.TryGetAction(m, out TimerHotkeyAction action))
         {
@@ -749,7 +820,7 @@ internal sealed partial class MainForm : Form
 
     private void UpdateWindowTitle()
     {
-        string title = $"TerrariaSplit - {FormatTimerPhase()} - {FormatWorldState()}";
+        string title = SegmentTimerWindowTitle;
         if (string.Equals(title, currentWindowText, StringComparison.Ordinal))
         {
             return;
@@ -822,15 +893,13 @@ internal sealed partial class MainForm : Form
         try
         {
             return RunWithSuspendedRuntimeOverlayPaint(() =>
-                RunWithReleasedOverlayTopMost(() =>
             {
                 using var form = new PersonalBestUpdatePromptForm(
                     promptText,
                     timeoutSeconds: 10,
                     settings);
-                form.TopMost = true;
-                return form.ShowDialog(this) != DialogResult.No;
-            }));
+                return modalWindows.ShowDialog(form) != DialogResult.No;
+            });
         }
         finally
         {
@@ -905,11 +974,12 @@ internal sealed partial class MainForm : Form
     {
         if (settingsFormOpen)
         {
-            settingsDialogHost?.TryActivate();
+            modalWindows.ActivateCurrentModal();
             return;
         }
 
         settingsFormOpen = true;
+        settingsModalWindowRegistration?.Dispose();
         hotkeyManager.Dispose();
         pendingHotkeyRequests.Clear();
         minimumAcceptedRuntimeCommandSequence = Math.Max(
@@ -928,7 +998,8 @@ internal sealed partial class MainForm : Form
                     ApplySettings(result.Result);
                 }
 
-                settingsDialogHost?.Dispose();
+                settingsModalWindowRegistration?.Dispose();
+                settingsModalWindowRegistration = null;
                 settingsDialogHost = null;
                 settingsFormOpen = false;
                 if (IsHandleCreated)
@@ -936,13 +1007,14 @@ internal sealed partial class MainForm : Form
                     RegisterConfiguredHotkeys();
                 }
             },
-            TopMost,
+            () =>
+            {
+                modalWindows.ApplyWindowState();
+            },
             Bounds);
-        RunWithReleasedOverlayTopMost(() =>
-        {
-            settingsDialogHost.Show();
-            return true;
-        });
+        settingsModalWindowRegistration = modalWindows.RegisterModalWindow(
+            () => settingsDialogHost?.WindowHandle ?? IntPtr.Zero);
+        settingsDialogHost.Show();
     }
 
     private void ApplySettings(AppSettings appliedSettings)
@@ -997,7 +1069,7 @@ internal sealed partial class MainForm : Form
             monitorCoordinator.SetRuntimeDefinitions(definitions));
         ResetRun();
         monitorCoordinator.ResetUiScalePatchState();
-        ApplyOverlayTopMost(settings.AlwaysOnTop);
+        UpdateEffectiveOverlayTopMost();
         if (IsHandleCreated && !settingsFormOpen)
         {
             RegisterConfiguredHotkeys();
@@ -1156,7 +1228,7 @@ internal sealed partial class MainForm : Form
             pendingInitialCompositeBounds = null;
             overlayBoundsController.Initialize(initialCompositeBounds);
             timerOverlayHost.Start();
-            ApplyOverlayTopMost(TopMost);
+            UpdateEffectiveOverlayTopMost();
             timerOverlayHost.ApplyMouseClickThrough(mouseClickThrough);
             UpdateTimerOverlayRefreshInterval();
             PublishTimerOverlaySnapshot(true);
@@ -1186,7 +1258,7 @@ internal sealed partial class MainForm : Form
         }
 
         timerOverlayHost.ApplyOverlayLayout(layout);
-        ApplyOverlayTopMost(TopMost);
+        UpdateEffectiveOverlayTopMost();
         timerOverlayHost.ApplyMouseClickThrough(mouseClickThrough);
         UpdateTimerOverlayRefreshInterval();
         QueueStatusOverlayRender();
@@ -1353,25 +1425,13 @@ internal sealed partial class MainForm : Form
 
     private void ShowContextMenuAtScreen(Point screenPoint)
     {
-        if (overlayWindowsInitialized && TopMost)
-        {
-            overlayTopMostReleasedForContextMenu = true;
-            ApplyOverlayTopMost(false);
-        }
-
         contextMenu.Show(screenPoint);
     }
 
     private void OpenStatistics()
     {
-        bool dialogTopMost = TopMost;
-        RunWithReleasedOverlayTopMost(() =>
-        {
-            using var form = new StatisticsForm(settings);
-            form.TopMost = dialogTopMost;
-            form.ShowDialog(this);
-            return 0;
-        });
+        using var form = new StatisticsForm(settings);
+        modalWindows.ShowDialog(form);
     }
 
     private void FinalizeRunBeforeExit()
@@ -1413,6 +1473,7 @@ internal sealed partial class MainForm : Form
         mouseClickThrough = enabled;
         overlayWindowController.ApplyWindowStyle(mouseClickThrough);
         timerOverlayHost.ApplyMouseClickThrough(mouseClickThrough);
+        modalWindows.ApplyWindowState();
         PublishTimerOverlaySnapshot();
         UpdateWindowTitle();
     }
@@ -1434,31 +1495,27 @@ internal sealed partial class MainForm : Form
 
     private void ShowPracticeWorldSelector()
     {
-        RunWithReleasedOverlayTopMost(() =>
+        using var form = new PracticeWorldSelectorForm(settings);
+        var window = new TerrariaWindowController();
+        if (window.TryGetClientScreenBounds(out Rectangle terrariaBounds))
         {
-            using var form = new PracticeWorldSelectorForm(settings);
-            var window = new TerrariaWindowController();
-            if (window.TryGetClientScreenBounds(out Rectangle terrariaBounds))
-            {
-                form.Location = new Point(
-                    terrariaBounds.Left + Math.Max(0, (terrariaBounds.Width - form.Width) / 2),
-                    terrariaBounds.Top + Math.Max(0, (terrariaBounds.Height - form.Height) / 2));
-            }
-            else
-            {
-                Rectangle workingArea = Screen.FromControl(this).WorkingArea;
-                form.Location = new Point(
-                    workingArea.Left + Math.Max(0, (workingArea.Width - form.Width) / 2),
-                    workingArea.Top + Math.Max(0, (workingArea.Height - form.Height) / 2));
-            }
+            form.Location = new Point(
+                terrariaBounds.Left + Math.Max(0, (terrariaBounds.Width - form.Width) / 2),
+                terrariaBounds.Top + Math.Max(0, (terrariaBounds.Height - form.Height) / 2));
+        }
+        else
+        {
+            Rectangle workingArea = Screen.FromControl(this).WorkingArea;
+            form.Location = new Point(
+                workingArea.Left + Math.Max(0, (workingArea.Width - form.Width) / 2),
+                workingArea.Top + Math.Max(0, (workingArea.Height - form.Height) / 2));
+        }
 
-            if (form.ShowDialog(this) == DialogResult.OK && form.SelectedSlot is PracticeWorldSlot selectedSlot)
-            {
-                StartPracticeWorldAutomation(selectedSlot);
-            }
-
-            return 0;
-        });
+        if (modalWindows.ShowDialog(form, ModalWindowOptions.ForceTopMostForeground) == DialogResult.OK &&
+            form.SelectedSlot is PracticeWorldSlot selectedSlot)
+        {
+            StartPracticeWorldAutomation(selectedSlot);
+        }
     }
 
     private async void StartPracticeWorldAutomation(PracticeWorldSlot selectedSlot)
@@ -1515,30 +1572,15 @@ internal sealed partial class MainForm : Form
         string message = Localizer.Get("Some hotkeys could not be registered:", settings) +
             Environment.NewLine +
             warningText;
-        ShowTopMostHotkeyWarning(message);
+        ShowHotkeyWarning(message);
     }
 
-    private void ShowTopMostHotkeyWarning(string message)
+    private void ShowHotkeyWarning(string message)
     {
-        const uint mbOk = 0x00000000;
-        const uint mbIconWarning = 0x00000030;
-        const uint mbSetForeground = 0x00010000;
-        const uint mbTopMost = 0x00040000;
-
-        int result = NativeMethods.MessageBox(
-            IsHandleCreated ? Handle : IntPtr.Zero,
-            message,
+        using var dialog = new HotkeyWarningDialog(
             Localizer.Get("Hotkey warning", settings),
-            mbOk | mbIconWarning | mbSetForeground | mbTopMost);
-        if (result == 0)
-        {
-            MessageBox.Show(
-                this,
-                message,
-                Localizer.Get("Hotkey warning", settings),
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Warning);
-        }
+            message);
+        modalWindows.ShowDialog(dialog);
     }
 
     private string FormatHotkeyRegistrationWarning(HotkeyRegistrationWarning warning)
@@ -1549,15 +1591,15 @@ internal sealed partial class MainForm : Form
             HotkeyRegistrationWarningKind.Duplicate => string.Format(
                 Localizer.Get("{0}: {1} is duplicated; only the first action using this key is active.", settings),
                 actionName,
-                warning.Keys),
+                HotkeyKeyValidator.Format(warning.Keys)),
             HotkeyRegistrationWarningKind.Invalid => string.Format(
                 Localizer.Get("{0}: {1} is not allowed as a hotkey.", settings),
                 actionName,
-                warning.Keys),
+                HotkeyKeyValidator.Format(warning.Keys)),
             HotkeyRegistrationWarningKind.SystemRegistrationFailed => string.Format(
                 Localizer.Get("{0}: {1} registration failed. It may be used by another program. ({2})", settings),
                 actionName,
-                warning.Keys,
+                HotkeyKeyValidator.Format(warning.Keys),
                 warning.Detail),
             _ => $"{actionName}: {warning.Keys}"
         };
@@ -1587,35 +1629,9 @@ internal sealed partial class MainForm : Form
         timerOverlaySettingsSnapshot = AppSettingsStore.Clone(settings);
     }
 
-    private void ApplyOverlayTopMost(bool topMost)
+    private void UpdateEffectiveOverlayTopMost()
     {
-        TopMost = topMost;
-        timerOverlayHost.ApplyTopMost(topMost);
-        if (IsHandleCreated)
-        {
-            WindowTopMostSync.Apply(topMost, Handle, timerOverlayHost.WindowHandle);
-        }
-    }
-
-    private T RunWithReleasedOverlayTopMost<T>(Func<T> action)
-    {
-        bool shouldRestore = overlayWindowsInitialized && TopMost;
-        if (shouldRestore)
-        {
-            ApplyOverlayTopMost(false);
-        }
-
-        try
-        {
-            return action();
-        }
-        finally
-        {
-            if (shouldRestore)
-            {
-                ApplyOverlayTopMost(true);
-            }
-        }
+        modalWindows.SetAlwaysOnTop(settings.AlwaysOnTop);
     }
 
     private T RunWithSuspendedRuntimeOverlayPaint<T>(Func<T> action)

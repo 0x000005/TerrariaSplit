@@ -24,13 +24,16 @@ var legacyTests = new (string Name, Action Test)[]
     ("SettingsNormalizer normalizes practice world slots", TestSettingsNormalizePracticeWorlds),
     ("SettingsNormalizer clamps text effects", TestSettingsNormalizeTextEffects),
     ("Hotkey validator rejects reserved keys", TestHotkeyValidatorRejectsReservedKeys),
+    ("Hotkey validator accepts modifier chords", TestHotkeyValidatorAcceptsModifierChords),
     ("AppSettings falls back from invalid hotkeys", TestAppSettingsInvalidHotkeyFallback),
+    ("AppSettings parses modifier hotkeys", TestAppSettingsParsesModifierHotkeys),
     ("AppSettings uses PB as reference time", TestAppSettingsUsesPersonalBestAsReferenceTime),
     ("Settings form orders moved pages", TestSettingsFormOrdersMovedPages),
     ("Settings form applies global scale from General page", TestSettingsFormAppliesGlobalScaleFromGeneralPage),
     ("Settings form applies dynamic delta units from UI page", TestSettingsFormAppliesDynamicDeltaUnitsFromUiPage),
     ("Settings form applies text effects from UI page", TestSettingsFormAppliesTextEffectsFromUiPage),
     ("Settings form applies practice world slots", TestSettingsFormAppliesPracticeWorldSlots),
+    ("Settings hotkey box captures modifier chords", TestSettingsHotkeyBoxCapturesModifierChords),
     ("Settings form collapses zenith special seed dependencies", TestSettingsFormCollapsesZenithSpecialSeedDependencies),
     ("Settings form saves The Constant special seed", TestSettingsFormSavesTheConstantSpecialSeed),
     ("Settings form applies Zenith star catch options", TestSettingsFormAppliesZenithStarCatchOptions),
@@ -395,7 +398,16 @@ static void TestHotkeyValidatorRejectsReservedKeys()
     AssertEqual(false, HotkeyKeyValidator.IsAllowed(Keys.CapsLock));
     AssertEqual(true, HotkeyKeyValidator.IsAllowed(Keys.A));
     AssertEqual(true, HotkeyKeyValidator.IsAllowed(Keys.F6));
-    AssertEqual(false, HotkeyKeyValidator.IsAllowed(Keys.Control | Keys.F6));
+    AssertEqual(false, HotkeyKeyValidator.IsAllowed(Keys.Control | Keys.ControlKey));
+}
+
+static void TestHotkeyValidatorAcceptsModifierChords()
+{
+    AssertEqual(true, HotkeyKeyValidator.IsAllowed(Keys.Control | Keys.F6));
+    AssertEqual(true, HotkeyKeyValidator.IsAllowed(Keys.Alt | Keys.Shift | Keys.A));
+    AssertEqual(true, HotkeyKeyValidator.TryNormalize(Keys.Control | Keys.Alt | Keys.F10, out Keys normalized));
+    AssertEqual(Keys.Control | Keys.Alt | Keys.F10, normalized);
+    AssertEqual("Ctrl + Alt + F10", HotkeyKeyValidator.Format(normalized));
 }
 
 static void TestAppSettingsInvalidHotkeyFallback()
@@ -414,6 +426,24 @@ static void TestAppSettingsInvalidHotkeyFallback()
     AssertEqual(Keys.F9, settings.MouseClickThroughKeys);
     AssertEqual(Keys.F7, settings.CreateWorldKeys);
     AssertEqual(Keys.F8, settings.PracticeWorldKeys);
+}
+
+static void TestAppSettingsParsesModifierHotkeys()
+{
+    var settings = new AppSettings
+    {
+        PauseResumeKey = (Keys.Control | Keys.F12).ToString(),
+        ResetKey = (Keys.Alt | Keys.F6).ToString(),
+        MouseClickThroughKey = (Keys.Shift | Keys.F9).ToString(),
+        CreateWorldKey = (Keys.Control | Keys.Alt | Keys.F7).ToString(),
+        PracticeWorldKey = (Keys.Control | Keys.Shift | Keys.F8).ToString()
+    };
+
+    AssertEqual(Keys.Control | Keys.F12, settings.PauseResumeKeys);
+    AssertEqual(Keys.Alt | Keys.F6, settings.ResetKeys);
+    AssertEqual(Keys.Shift | Keys.F9, settings.MouseClickThroughKeys);
+    AssertEqual(Keys.Control | Keys.Alt | Keys.F7, settings.CreateWorldKeys);
+    AssertEqual(Keys.Control | Keys.Shift | Keys.F8, settings.PracticeWorldKeys);
 }
 
 static void TestAppSettingsUsesPersonalBestAsReferenceTime()
@@ -555,6 +585,21 @@ static void TestSettingsFormAppliesPracticeWorldSlots()
         AssertEqual("Plantera", form.Result.PracticeWorlds.Slots[0].Name);
         AssertEqual("C:\\practice\\player.plr", form.Result.PracticeWorlds.Slots[0].PlayerFilePath);
         AssertEqual("C:\\practice\\world.wld", form.Result.PracticeWorlds.Slots[0].WorldFilePath);
+    });
+}
+
+static void TestSettingsHotkeyBoxCapturesModifierChords()
+{
+    RunSta(() =>
+    {
+        using var textBox = new SettingsHotkeyTextBox();
+        PressHotkeyBoxKey(textBox, Keys.Control | Keys.F10);
+        AssertEqual(Keys.Control | Keys.F10, textBox.Hotkey);
+        AssertEqual("Ctrl + F10", textBox.Text);
+
+        PressHotkeyBoxKey(textBox, Keys.Alt | Keys.Shift | Keys.A);
+        AssertEqual(Keys.Alt | Keys.Shift | Keys.A, textBox.Hotkey);
+        AssertEqual("Alt + Shift + A", textBox.Text);
     });
 }
 
@@ -1377,6 +1422,16 @@ static void SetHotkeyBox(TextBox textBox, Keys key)
             BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
         ?? throw new InvalidOperationException("Missing hotkey setter.");
     method.Invoke(textBox, [key]);
+}
+
+static void PressHotkeyBoxKey(SettingsHotkeyTextBox textBox, Keys keyData)
+{
+    MethodInfo method = typeof(SettingsHotkeyTextBox).GetMethod(
+            "OnKeyDown",
+            BindingFlags.Instance | BindingFlags.NonPublic)
+        ?? throw new InvalidOperationException("Missing hotkey keydown handler.");
+    var args = new KeyEventArgs(keyData);
+    method.Invoke(textBox, [args]);
 }
 
 static void SetMainFormSettings(MainForm form, AppSettings settings)

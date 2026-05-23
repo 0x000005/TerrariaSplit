@@ -18,6 +18,15 @@ internal static class MainShellRefactorTests
         yield return ("OverlayWindowController queues render once while pending", OverlayWindowControllerQueuesRenderOnceWhilePending);
         yield return ("OverlayWindowController click-through style preserves unrelated bits", OverlayWindowControllerPreservesUnrelatedStyleBits);
         yield return ("OverlayWindowController strips non-client border style", OverlayWindowControllerStripsNonClientBorderStyle);
+        yield return ("WindowLayerController applies always-on-top setting without blocking input", WindowLayerControllerAppliesAlwaysOnTopSettingWithoutBlockingInput);
+        yield return ("WindowLayerController blocks main windows while modal is registered", WindowLayerControllerBlocksMainWindowsWhileModalIsRegistered);
+        yield return ("WindowLayerController ignores modal activation when no modal is registered", WindowLayerControllerIgnoresModalActivationWhenNoModalIsRegistered);
+        yield return ("ProgramModalWindowCoordinator registers modal forms through one gateway", ProgramModalWindowCoordinatorRegistersModalFormsThroughOneGateway);
+        yield return ("ProgramModalWindowCoordinator enables only the current nested modal", ProgramModalWindowCoordinatorEnablesOnlyCurrentNestedModal);
+        yield return ("MainWindowModalInputRouter redirects blocked main window activation", MainWindowModalInputRouterRedirectsBlockedMainWindowActivation);
+        yield return ("PracticeWorldSelectorForm uses save selector text", PracticeWorldSelectorFormUsesSaveSelectorText);
+        yield return ("PracticeWorldSelectorForm scales layout with display context", PracticeWorldSelectorFormScalesLayoutWithDisplayContext);
+        yield return ("HotkeyWarningDialog uses plain dialog content", HotkeyWarningDialogUsesPlainDialogContent);
         yield return ("SettingsUiFactory keeps two-column editor column fixed width", SettingsUiFactoryKeepsTwoColumnEditorColumnFixedWidth);
         yield return ("SettingsUiFactory row labels ellipsize clipped text", SettingsUiFactoryRowLabelsEllipsizeClippedText);
     }
@@ -262,6 +271,215 @@ internal static class MainShellRefactorTests
         TestAssert.Equal(0, style & nonClient);
     }
 
+    private static void WindowLayerControllerAppliesAlwaysOnTopSettingWithoutBlockingInput()
+    {
+        RunSta(() =>
+        {
+            bool? timerBlocked = null;
+            using var form = new Form();
+            _ = form.Handle;
+            var controller = new WindowLayerController(
+                form,
+                value => timerBlocked = value,
+                () => IntPtr.Zero);
+
+            controller.SetAlwaysOnTop(true);
+            TestAssert.Equal(true, controller.AlwaysOnTop);
+            TestAssert.Equal(true, NativeMethods.IsWindowEnabled(form.Handle));
+            TestAssert.Equal(null, timerBlocked);
+
+            controller.SetAlwaysOnTop(false);
+            TestAssert.Equal(false, controller.AlwaysOnTop);
+            TestAssert.Equal(true, NativeMethods.IsWindowEnabled(form.Handle));
+            TestAssert.Equal(null, timerBlocked);
+        });
+    }
+
+    private static void WindowLayerControllerBlocksMainWindowsWhileModalIsRegistered()
+    {
+        RunSta(() =>
+        {
+            bool? timerBlocked = null;
+            using var form = new Form();
+            using var modal = new Form();
+            _ = form.Handle;
+            _ = modal.Handle;
+            var controller = new WindowLayerController(
+                form,
+                value => timerBlocked = value,
+                () => IntPtr.Zero);
+
+            using (controller.RegisterModalWindow(() => modal.Handle))
+            {
+                TestAssert.Equal(false, NativeMethods.IsWindowEnabled(form.Handle));
+                TestAssert.Equal(true, timerBlocked);
+                TestAssert.Equal(true, controller.HasModalWindow);
+                TestAssert.Equal(true, controller.RedirectMainWindowInputToModal());
+            }
+
+            TestAssert.Equal(true, NativeMethods.IsWindowEnabled(form.Handle));
+            TestAssert.Equal(false, timerBlocked);
+            TestAssert.Equal(false, controller.HasModalWindow);
+        });
+    }
+
+    private static void WindowLayerControllerIgnoresModalActivationWhenNoModalIsRegistered()
+    {
+        RunSta(() =>
+        {
+            bool? timerBlocked = null;
+            using var form = new Form();
+            _ = form.Handle;
+            var controller = new WindowLayerController(
+                form,
+                value => timerBlocked = value,
+                () => IntPtr.Zero);
+
+            TestAssert.Equal(false, controller.HasModalWindow);
+            TestAssert.Equal(false, controller.RedirectMainWindowInputToModal());
+            TestAssert.Equal(null, timerBlocked);
+            TestAssert.Equal(true, NativeMethods.IsWindowEnabled(form.Handle));
+        });
+    }
+
+    private static void ProgramModalWindowCoordinatorRegistersModalFormsThroughOneGateway()
+    {
+        RunSta(() =>
+        {
+            bool? timerBlocked = null;
+            using var mainForm = new Form();
+            using var modalForm = new Form();
+            _ = mainForm.Handle;
+            var coordinator = new ProgramModalWindowCoordinator(
+                mainForm,
+                value => timerBlocked = value,
+                () => IntPtr.Zero);
+
+            using (coordinator.RegisterModalForm(modalForm))
+            {
+                TestAssert.Equal(true, coordinator.HasModalWindow);
+                TestAssert.Equal(false, NativeMethods.IsWindowEnabled(mainForm.Handle));
+                TestAssert.Equal(true, timerBlocked);
+            }
+
+            TestAssert.Equal(false, coordinator.HasModalWindow);
+            TestAssert.Equal(true, NativeMethods.IsWindowEnabled(mainForm.Handle));
+            TestAssert.Equal(false, timerBlocked);
+        });
+    }
+
+    private static void ProgramModalWindowCoordinatorEnablesOnlyCurrentNestedModal()
+    {
+        RunSta(() =>
+        {
+            using var mainForm = new Form();
+            using var firstModal = new Form();
+            using var secondModal = new Form();
+            _ = mainForm.Handle;
+            var coordinator = new ProgramModalWindowCoordinator(
+                mainForm,
+                _ => { },
+                () => IntPtr.Zero);
+
+            using (coordinator.RegisterModalForm(firstModal))
+            {
+                TestAssert.Equal(true, NativeMethods.IsWindowEnabled(firstModal.Handle));
+
+                using (coordinator.RegisterModalForm(secondModal))
+                {
+                    TestAssert.Equal(false, NativeMethods.IsWindowEnabled(firstModal.Handle));
+                    TestAssert.Equal(true, NativeMethods.IsWindowEnabled(secondModal.Handle));
+                }
+
+                TestAssert.Equal(true, NativeMethods.IsWindowEnabled(firstModal.Handle));
+            }
+        });
+    }
+
+    private static void MainWindowModalInputRouterRedirectsBlockedMainWindowActivation()
+    {
+        RunSta(() =>
+        {
+            bool stoppedMainInteraction = false;
+            using var mainForm = new Form();
+            using var modalForm = new Form();
+            using var contextMenu = new ContextMenuStrip();
+            _ = mainForm.Handle;
+            var coordinator = new ProgramModalWindowCoordinator(
+                mainForm,
+                _ => { },
+                () => IntPtr.Zero);
+            var router = new MainWindowModalInputRouter(
+                coordinator,
+                contextMenu,
+                () => stoppedMainInteraction = true);
+
+            using (coordinator.RegisterModalForm(modalForm))
+            {
+                Message message = Message.Create(
+                    mainForm.Handle,
+                    MainWindowModalInputRouter.WmMouseActivate,
+                    IntPtr.Zero,
+                    IntPtr.Zero);
+
+                TestAssert.Equal(true, router.TryHandleWindowMessage(ref message));
+                TestAssert.Equal(true, stoppedMainInteraction);
+                TestAssert.Equal((IntPtr)MainWindowModalInputRouter.MaNoActivateAndEat, message.Result);
+            }
+        });
+    }
+
+    private static void PracticeWorldSelectorFormUsesSaveSelectorText()
+    {
+        RunSta(() =>
+        {
+            using var englishForm = new PracticeWorldSelectorForm(new AppSettings { Language = LanguageNames.English });
+            TestAssert.Equal("Save Selector", englishForm.Text);
+            TestAssert.Equal(
+                true,
+                EnumerateControls(englishForm).OfType<Label>().Any(label => label.Text == "Press ESC to exit"));
+
+            using var chineseForm = new PracticeWorldSelectorForm(new AppSettings { Language = "\u4E2D\u6587" });
+            TestAssert.Equal("\u5B58\u6863\u9009\u62E9", chineseForm.Text);
+            TestAssert.Equal(
+                true,
+                EnumerateControls(chineseForm).OfType<Label>().Any(label => label.Text == "\u6309ESC\u9000\u51FA"));
+        });
+    }
+
+    private static void PracticeWorldSelectorFormScalesLayoutWithDisplayContext()
+    {
+        PracticeWorldSelectorLayoutMetrics baseline = PracticeWorldSelectorForm.CalculateLayoutMetrics(
+            new Rectangle(0, 0, 1920, 1080),
+            1f);
+        PracticeWorldSelectorLayoutMetrics highDpi = PracticeWorldSelectorForm.CalculateLayoutMetrics(
+            new Rectangle(0, 0, 2560, 1440),
+            1.5f);
+        PracticeWorldSelectorLayoutMetrics smallScreen = PracticeWorldSelectorForm.CalculateLayoutMetrics(
+            new Rectangle(0, 0, 800, 600),
+            1f);
+
+        TestAssert.Equal(true, highDpi.ClientSize.Width > baseline.ClientSize.Width);
+        TestAssert.Equal(true, highDpi.SlotHeight > baseline.SlotHeight);
+        TestAssert.Equal(true, highDpi.TitleFontSize > baseline.TitleFontSize);
+        TestAssert.Equal(true, smallScreen.ClientSize.Height <= 600);
+        TestAssert.Equal(true, smallScreen.ClientSize.Width <= 800);
+    }
+
+    private static void HotkeyWarningDialogUsesPlainDialogContent()
+    {
+        RunSta(() =>
+        {
+            using var dialog = new HotkeyWarningDialog("Hotkey warning", "Ctrl + F10 registration failed.");
+            Control[] controls = EnumerateControls(dialog).ToArray();
+
+            TestAssert.Equal(false, controls.OfType<TextBox>().Any());
+            TestAssert.Equal(
+                true,
+                controls.OfType<Label>().Any(label => label.Text.Contains("Ctrl + F10", StringComparison.Ordinal)));
+        });
+    }
+
     private static void SettingsUiFactoryKeepsTwoColumnEditorColumnFixedWidth()
     {
         RunSta(() =>
@@ -310,6 +528,18 @@ internal static class MainShellRefactorTests
         if (failure is not null)
         {
             throw failure;
+        }
+    }
+
+    private static IEnumerable<Control> EnumerateControls(Control root)
+    {
+        foreach (Control child in root.Controls)
+        {
+            yield return child;
+            foreach (Control descendant in EnumerateControls(child))
+            {
+                yield return descendant;
+            }
         }
     }
 

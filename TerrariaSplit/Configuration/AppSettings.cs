@@ -153,9 +153,9 @@ internal sealed class AppSettings
     private static Keys ParseKey(string? value, Keys fallback)
     {
         if (Enum.TryParse(value, ignoreCase: true, out Keys key) &&
-            HotkeyKeyValidator.IsAllowed(key))
+            HotkeyKeyValidator.TryNormalize(key, out Keys normalizedKey))
         {
-            return key;
+            return normalizedKey;
         }
 
         return fallback;

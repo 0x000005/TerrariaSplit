@@ -39,12 +39,7 @@ internal static class HotkeyKeyValidator
 
     public static bool TryNormalize(Keys keys, out Keys normalized)
     {
-        if ((keys & Keys.Modifiers) != Keys.None)
-        {
-            normalized = Keys.None;
-            return false;
-        }
-
+        Keys modifiers = NormalizeModifiers(keys & Keys.Modifiers);
         Keys keyCode = keys & Keys.KeyCode;
         if (keyCode == Keys.None || BlockedKeyCodes.Contains(keyCode) || (uint)keyCode > byte.MaxValue)
         {
@@ -52,7 +47,55 @@ internal static class HotkeyKeyValidator
             return false;
         }
 
-        normalized = keyCode;
+        normalized = modifiers | keyCode;
         return true;
+    }
+
+    public static string Format(Keys keys)
+    {
+        if (!TryNormalize(keys, out Keys normalized))
+        {
+            return keys.ToString();
+        }
+
+        var parts = new List<string>(4);
+        if ((normalized & Keys.Control) == Keys.Control)
+        {
+            parts.Add("Ctrl");
+        }
+
+        if ((normalized & Keys.Alt) == Keys.Alt)
+        {
+            parts.Add("Alt");
+        }
+
+        if ((normalized & Keys.Shift) == Keys.Shift)
+        {
+            parts.Add("Shift");
+        }
+
+        parts.Add((normalized & Keys.KeyCode).ToString());
+        return string.Join(" + ", parts);
+    }
+
+    private static Keys NormalizeModifiers(Keys modifiers)
+    {
+        Keys normalized = Keys.None;
+        if ((modifiers & Keys.Control) == Keys.Control)
+        {
+            normalized |= Keys.Control;
+        }
+
+        if ((modifiers & Keys.Alt) == Keys.Alt)
+        {
+            normalized |= Keys.Alt;
+        }
+
+        if ((modifiers & Keys.Shift) == Keys.Shift)
+        {
+            normalized |= Keys.Shift;
+        }
+
+        return normalized;
     }
 }

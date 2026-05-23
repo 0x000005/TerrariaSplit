@@ -250,6 +250,8 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Enter World", "\u8FDB\u56FE" }
       , { "Load World", "\u52A0\u8F7D\u4E16\u754C" }
       , { "World Selector", "\u4E16\u754C\u9009\u62E9" }
+      , { "Save Selector", "\u5B58\u6863\u9009\u62E9" }
+      , { "Press ESC to exit", "\u6309ESC\u9000\u51FA" }
       , { "Practice world", "\u7EC3\u4E60\u4E16\u754C" }
       , { "Key", "\u6309\u952E" }
       , { "Name", "\u540D\u79F0" }

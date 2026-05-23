@@ -4,6 +4,8 @@ namespace TerrariaSplit;
 
 internal static class NativeMethods
 {
+    public const int SwRestore = 9;
+
     [DllImport("kernel32.dll", SetLastError = true)]
     public static extern IntPtr OpenProcess(
         ProcessAccessRights desiredAccess,
@@ -80,6 +82,20 @@ internal static class NativeMethods
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool SetForegroundWindow(IntPtr hWnd);
 
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool EnableWindow(
+        IntPtr hWnd,
+        [MarshalAs(UnmanagedType.Bool)] bool enable);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool IsWindowEnabled(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool SetWindowPos(
@@ -91,12 +107,21 @@ internal static class NativeMethods
         int cy,
         uint flags);
 
-    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-    public static extern int MessageBox(
-        IntPtr hWnd,
-        string text,
-        string caption,
-        uint type);
+    public static IntPtr SetWindowOwner(IntPtr windowHandle, IntPtr ownerHandle)
+    {
+        return IntPtr.Size == 8
+            ? SetWindowLongPtr64(windowHandle, GwlHwndParent, ownerHandle)
+            : new IntPtr(SetWindowLong32(windowHandle, GwlHwndParent, ownerHandle.ToInt32()));
+    }
+
+    private const int GwlHwndParent = -8;
+
+    [DllImport("user32.dll", EntryPoint = "SetWindowLong", SetLastError = true)]
+    private static extern int SetWindowLong32(IntPtr hWnd, int nIndex, int dwNewLong);
+
+    [DllImport("user32.dll", EntryPoint = "SetWindowLongPtr", SetLastError = true)]
+    private static extern IntPtr SetWindowLongPtr64(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
+
 }
 
 [Flags]

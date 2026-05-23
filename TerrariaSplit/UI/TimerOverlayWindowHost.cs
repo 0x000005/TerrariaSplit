@@ -19,8 +19,8 @@ internal sealed class TimerOverlayWindowHost : IDisposable
     private TimerOverlayRenderState? latestRenderState;
     private TimerOverlayStateKey? latestRenderStateKey;
     private TimeSpan latestRefreshInterval = TimeSpan.FromMilliseconds(16);
-    private bool latestTopMost = true;
     private bool latestMouseClickThrough;
+    private bool latestInteractionBlocked;
     private bool latestPaintSuspended;
     private bool disposed;
 
@@ -43,6 +43,10 @@ internal sealed class TimerOverlayWindowHost : IDisposable
     public event Action<Rectangle>? UserResizeBoundsChanged;
 
     public event Action<TimerOverlayRightClickRequest>? RightClickRequested;
+
+    public event Action<IntPtr>? Activated;
+
+    public event Action? ModalActivationRequested;
 
     public IntPtr WindowHandle
     {
@@ -118,14 +122,14 @@ internal sealed class TimerOverlayWindowHost : IDisposable
         InvokeForm(formValue => formValue.ApplyPaintSuspended(suspended));
     }
 
-    public void ApplyTopMost(bool topMost)
+    public void ApplyInteractionBlocked(bool blocked)
     {
         lock (sync)
         {
-            latestTopMost = topMost;
+            latestInteractionBlocked = blocked;
         }
 
-        InvokeForm(formValue => formValue.ApplyTopMost(topMost));
+        InvokeForm(formValue => formValue.ApplyInteractionBlocked(blocked));
     }
 
     public void ApplyMouseClickThrough(bool enabled)
@@ -187,10 +191,25 @@ internal sealed class TimerOverlayWindowHost : IDisposable
             recordPaint,
             recordPaintTick,
             recordPaintDispatchSkipped,
-            recordPaintInputSkipped);
+            recordPaintInputSkipped,
+            IsInteractionBlocked);
         overlayForm.DragDeltaRequested += delta => DispatchToMain(() => DragDeltaRequested?.Invoke(delta));
         overlayForm.UserResizeBoundsChanged += bounds => DispatchToMain(() => UserResizeBoundsChanged?.Invoke(bounds));
         overlayForm.RightClickRequested += request => DispatchToMain(() => RightClickRequested?.Invoke(request));
+        overlayForm.ModalActivationRequested += () => DispatchToMain(() => ModalActivationRequested?.Invoke());
+        overlayForm.Activated += (_, _) =>
+        {
+            IntPtr activatedHandle;
+            lock (sync)
+            {
+                activatedHandle = formHandle;
+            }
+
+            if (activatedHandle != IntPtr.Zero)
+            {
+                DispatchToMain(() => Activated?.Invoke(activatedHandle));
+            }
+        };
         overlayForm.HandleCreated += (_, _) =>
         {
             lock (sync)
@@ -227,20 +246,20 @@ internal sealed class TimerOverlayWindowHost : IDisposable
         OverlayCompositeLayout? layout;
         TimerOverlayRenderState? renderState;
         TimeSpan refreshInterval;
-        bool topMost;
         bool mouseClickThrough;
+        bool interactionBlocked;
         bool paintSuspended;
         lock (sync)
         {
             layout = latestLayout;
             renderState = latestRenderState;
             refreshInterval = latestRefreshInterval;
-            topMost = latestTopMost;
             mouseClickThrough = latestMouseClickThrough;
+            interactionBlocked = latestInteractionBlocked;
             paintSuspended = latestPaintSuspended;
         }
 
-        overlayForm.ApplyTopMost(topMost);
+        overlayForm.ApplyInteractionBlocked(interactionBlocked);
         overlayForm.ApplyMouseClickThrough(mouseClickThrough);
         overlayForm.ApplyRefreshInterval(refreshInterval);
         overlayForm.ApplyPaintSuspended(paintSuspended);
@@ -291,6 +310,14 @@ internal sealed class TimerOverlayWindowHost : IDisposable
         }
         catch (InvalidOperationException)
         {
+        }
+    }
+
+    private bool IsInteractionBlocked()
+    {
+        lock (sync)
+        {
+            return latestInteractionBlocked;
         }
     }
 }

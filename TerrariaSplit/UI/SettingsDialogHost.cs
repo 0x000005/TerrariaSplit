@@ -11,11 +11,12 @@ internal sealed class SettingsDialogHost : IDisposable
     private readonly Action<Action> dispatchToOwner;
     private readonly Action<AppSettings> appliedCallback;
     private readonly Action<SettingsDialogResult> closedCallback;
-    private readonly bool topMost;
+    private readonly Action windowHandleChangedCallback;
     private readonly Rectangle ownerBounds;
     private readonly object sync = new();
     private Thread? thread;
     private SettingsForm? form;
+    private IntPtr formHandle;
     private bool started;
     private bool disposed;
 
@@ -26,7 +27,7 @@ internal sealed class SettingsDialogHost : IDisposable
         Action<Action> dispatchToOwner,
         Action<AppSettings> appliedCallback,
         Action<SettingsDialogResult> closedCallback,
-        bool topMost,
+        Action windowHandleChangedCallback,
         Rectangle ownerBounds)
     {
         this.initialSettings = AppSettingsStore.Clone(initialSettings);
@@ -35,8 +36,19 @@ internal sealed class SettingsDialogHost : IDisposable
         this.dispatchToOwner = dispatchToOwner;
         this.appliedCallback = appliedCallback;
         this.closedCallback = closedCallback;
-        this.topMost = topMost;
+        this.windowHandleChangedCallback = windowHandleChangedCallback;
         this.ownerBounds = ownerBounds;
+    }
+
+    public IntPtr WindowHandle
+    {
+        get
+        {
+            lock (sync)
+            {
+                return formHandle;
+            }
+        }
     }
 
     public void Show()
@@ -59,45 +71,6 @@ internal sealed class SettingsDialogHost : IDisposable
         }
     }
 
-    public void TryActivate()
-    {
-        SettingsForm? currentForm;
-        lock (sync)
-        {
-            currentForm = form;
-        }
-
-        if (currentForm is null || currentForm.IsDisposed || !currentForm.IsHandleCreated)
-        {
-            return;
-        }
-
-        try
-        {
-            currentForm.BeginInvoke(new Action(() =>
-            {
-                if (currentForm.IsDisposed)
-                {
-                    return;
-                }
-
-                if (currentForm.WindowState == FormWindowState.Minimized)
-                {
-                    currentForm.WindowState = FormWindowState.Normal;
-                }
-
-                currentForm.Activate();
-                currentForm.BringToFront();
-            }));
-        }
-        catch (ObjectDisposedException)
-        {
-        }
-        catch (InvalidOperationException)
-        {
-        }
-    }
-
     public void Dispose()
     {
         Thread? currentThread;
@@ -112,6 +85,7 @@ internal sealed class SettingsDialogHost : IDisposable
             disposed = true;
             currentThread = thread;
             currentForm = form;
+            formHandle = IntPtr.Zero;
         }
 
         if (currentForm is not null && !currentForm.IsDisposed && currentForm.IsHandleCreated)
@@ -143,6 +117,22 @@ internal sealed class SettingsDialogHost : IDisposable
             initialSettings,
             runtimeDiagnosticsProvider,
             runtimeDebugSnapshotProvider);
+        dialog.HandleCreated += (_, _) =>
+        {
+            lock (sync)
+            {
+                formHandle = dialog.Handle;
+            }
+
+            DispatchToOwner(windowHandleChangedCallback);
+        };
+        dialog.HandleDestroyed += (_, _) =>
+        {
+            lock (sync)
+            {
+                formHandle = IntPtr.Zero;
+            }
+        };
         lock (sync)
         {
             if (disposed)
@@ -153,7 +143,6 @@ internal sealed class SettingsDialogHost : IDisposable
             form = dialog;
         }
 
-        dialog.TopMost = topMost;
         dialog.StartPosition = FormStartPosition.Manual;
         dialog.Location = ResolveStartLocation(dialog.Size);
         dialog.Applied += (_, _) =>
@@ -162,12 +151,23 @@ internal sealed class SettingsDialogHost : IDisposable
             DispatchToOwner(() => appliedCallback(applied));
         };
 
-        DialogResult dialogResult = dialog.ShowDialog();
-        result = new SettingsDialogResult(dialogResult, AppSettingsStore.Clone(dialog.Result));
+        DialogResult dialogResult = DialogResult.Cancel;
+        AppSettings resultSettings = AppSettingsStore.Clone(dialog.Result);
+        dialog.FormClosed += (_, _) =>
+        {
+            dialogResult = dialog.DialogResult == DialogResult.None
+                ? DialogResult.Cancel
+                : dialog.DialogResult;
+            resultSettings = AppSettingsStore.Clone(dialog.Result);
+        };
+
+        Application.Run(dialog);
+        result = new SettingsDialogResult(dialogResult, resultSettings);
 
         lock (sync)
         {
             form = null;
+            formHandle = IntPtr.Zero;
             thread = null;
         }
 

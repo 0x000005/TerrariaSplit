@@ -7,25 +7,67 @@ namespace TerrariaSplit;
 internal sealed class PracticeWorldSelectorForm : Form
 {
     private readonly AppSettings settings;
+    private readonly PracticeWorldSelectorLayoutMetrics layoutMetrics;
 
     public PracticeWorldSlot? SelectedSlot { get; private set; }
 
     public PracticeWorldSelectorForm(AppSettings settings)
     {
         this.settings = settings;
-        Text = Localizer.Get("World Selector", settings);
+        layoutMetrics = CalculateLayoutMetrics(
+            Screen.FromPoint(Cursor.Position).WorkingArea,
+            GetSystemDpiScale());
+        Text = Localizer.Get("Save Selector", settings);
+        AutoScaleMode = AutoScaleMode.None;
         FormBorderStyle = FormBorderStyle.None;
         StartPosition = FormStartPosition.Manual;
         ShowInTaskbar = false;
-        TopMost = true;
         KeyPreview = true;
         Opacity = 0.92d;
         BackColor = UiTheme.Surface;
         ForeColor = UiTheme.Text;
-        ClientSize = new Size(520, 548);
-        Padding = new Padding(20);
+        ClientSize = layoutMetrics.ClientSize;
+        Padding = new Padding(layoutMetrics.Padding);
         UiTheme.EnableDoubleBuffering(this);
         BuildLayout();
+    }
+
+    internal static PracticeWorldSelectorLayoutMetrics CalculateLayoutMetrics(Rectangle workingArea, float dpiScale)
+    {
+        float normalizedDpiScale = Math.Clamp(dpiScale, 0.75f, 3f);
+        float resolutionScale = MathF.Sqrt(
+            Math.Max(1f, workingArea.Width) *
+            Math.Max(1f, workingArea.Height) /
+            (1920f * 1080f));
+        resolutionScale = Math.Clamp(resolutionScale, 0.9f, 1.18f);
+
+        float dimensionScale = Math.Clamp(normalizedDpiScale * resolutionScale, 0.82f, 2.1f);
+        float availableWidthScale = Math.Max(0.75f, (workingArea.Width - 96f * normalizedDpiScale) / 540f);
+        float availableHeightScale = Math.Max(0.75f, (workingArea.Height - 96f * normalizedDpiScale) / 600f);
+        dimensionScale = Math.Min(dimensionScale, Math.Min(availableWidthScale, availableHeightScale));
+
+        float fontScale = Math.Clamp(resolutionScale, 0.96f, 1.16f);
+        int ScaleInt(int value) => Math.Max(1, (int)Math.Round(value * dimensionScale, MidpointRounding.AwayFromZero));
+
+        int padding = ScaleInt(20);
+        int titleHeight = ScaleInt(50);
+        int slotHeight = ScaleInt(44);
+        int footerHeight = ScaleInt(36);
+        int spacerHeight = ScaleInt(44);
+        int width = ScaleInt(540);
+        int height = padding * 2 + titleHeight + PracticeWorldSettings.SlotCount * slotHeight + footerHeight + spacerHeight;
+
+        return new PracticeWorldSelectorLayoutMetrics(
+            new Size(width, height),
+            padding,
+            titleHeight,
+            slotHeight,
+            footerHeight,
+            ScaleInt(58),
+            14f * fontScale,
+            12f * fontScale,
+            11.3f * fontScale,
+            9.5f * fontScale);
     }
 
     protected override bool ShowWithoutActivation => false;
@@ -90,10 +132,6 @@ internal sealed class PracticeWorldSelectorForm : Form
             return;
         }
 
-        TopMost = true;
-        BringToFront();
-        NativeMethods.SetForegroundWindow(Handle);
-        Activate();
         Focus();
     }
 
@@ -104,31 +142,41 @@ internal sealed class PracticeWorldSelectorForm : Form
             Dock = DockStyle.Fill,
             BackColor = UiTheme.Surface,
             ColumnCount = 1,
-            RowCount = PracticeWorldSettings.SlotCount + 2,
+            RowCount = PracticeWorldSettings.SlotCount + 3,
             Margin = Padding.Empty,
             Padding = Padding.Empty
         };
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 48f));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, layoutMetrics.TitleHeight));
 
         var title = new Label
         {
             Dock = DockStyle.Fill,
-            Font = UiTheme.FormFont(13f, FontStyle.Bold),
+            Font = UiTheme.FormFont(layoutMetrics.TitleFontSize, FontStyle.Bold),
             ForeColor = UiTheme.Text,
             Margin = Padding.Empty,
-            Text = Localizer.Get("World Selector", settings),
+            Text = Localizer.Get("Save Selector", settings),
             TextAlign = ContentAlignment.MiddleLeft
         };
         layout.Controls.Add(title, 0, 0);
 
         for (int index = 0; index < PracticeWorldSettings.SlotCount; index++)
         {
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42f));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, layoutMetrics.SlotHeight));
             layout.Controls.Add(CreateSlotRow(index), 0, index + 1);
         }
 
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, layoutMetrics.FooterHeight));
+        layout.Controls.Add(new Label
+        {
+            Dock = DockStyle.Fill,
+            Font = UiTheme.FormFont(layoutMetrics.FooterFontSize, FontStyle.Regular),
+            ForeColor = UiTheme.MutedText,
+            Margin = Padding.Empty,
+            Text = Localizer.Get("Press ESC to exit", settings),
+            TextAlign = ContentAlignment.BottomRight
+        }, 0, PracticeWorldSettings.SlotCount + 2);
         Controls.Add(layout);
     }
 
@@ -147,13 +195,13 @@ internal sealed class PracticeWorldSelectorForm : Form
             Margin = Padding.Empty,
             Padding = Padding.Empty
         };
-        row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 54f));
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, layoutMetrics.KeyColumnWidth));
         row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
 
         row.Controls.Add(new Label
         {
             Dock = DockStyle.Fill,
-            Font = UiTheme.FormFont(11f, FontStyle.Bold),
+            Font = UiTheme.FormFont(layoutMetrics.KeyFontSize, FontStyle.Bold),
             ForeColor = configured ? UiTheme.Text : UiTheme.MutedText,
             Text = SlotKeyText(index),
             TextAlign = ContentAlignment.MiddleCenter
@@ -162,7 +210,7 @@ internal sealed class PracticeWorldSelectorForm : Form
         row.Controls.Add(new Label
         {
             Dock = DockStyle.Fill,
-            Font = UiTheme.FormFont(10.5f, FontStyle.Regular),
+            Font = UiTheme.FormFont(layoutMetrics.NameFontSize, FontStyle.Regular),
             ForeColor = configured ? UiTheme.Text : UiTheme.MutedText,
             Text = GetSlotDisplayName(slot, index),
             TextAlign = ContentAlignment.MiddleLeft,
@@ -218,4 +266,29 @@ internal sealed class PracticeWorldSelectorForm : Form
     {
         return index == 9 ? "0" : (index + 1).ToString(CultureInfo.InvariantCulture);
     }
+
+    private static float GetSystemDpiScale()
+    {
+        try
+        {
+            using Graphics graphics = Graphics.FromHwnd(IntPtr.Zero);
+            return graphics.DpiX / 96f;
+        }
+        catch (Exception)
+        {
+            return 1f;
+        }
+    }
 }
+
+internal readonly record struct PracticeWorldSelectorLayoutMetrics(
+    Size ClientSize,
+    int Padding,
+    int TitleHeight,
+    int SlotHeight,
+    int FooterHeight,
+    int KeyColumnWidth,
+    float TitleFontSize,
+    float KeyFontSize,
+    float NameFontSize,
+    float FooterFontSize);

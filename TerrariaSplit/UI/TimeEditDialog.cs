@@ -5,7 +5,14 @@ namespace TerrariaSplit;
 
 internal static class TimeEditDialog
 {
-    public static bool TryShow(IWin32Window owner, AppSettings settings, string title, string value, bool allowEmpty, out string editedText)
+    public static bool TryShow(
+        IWin32Window owner,
+        AppSettings settings,
+        string title,
+        string value,
+        bool allowEmpty,
+        Func<Form, IDisposable> registerModalWindow,
+        out string editedText)
     {
         editedText = value;
         using var inputFont = UiTheme.FormFont(14f);
@@ -20,7 +27,7 @@ internal static class TimeEditDialog
         };
         UiTheme.ConfigureForm(form, new Size(500, 178));
 
-        form.TopMost = settings.AlwaysOnTop;
+        using IDisposable modalWindow = registerModalWindow(form);
 
         var root = new TableLayoutPanel
         {
@@ -76,7 +83,7 @@ internal static class TimeEditDialog
         form.AcceptButton = okButton;
         form.CancelButton = cancelButton;
 
-        if (form.ShowDialog(owner) != DialogResult.OK)
+        if (form.ShowDialog() != DialogResult.OK)
         {
             return false;
         }

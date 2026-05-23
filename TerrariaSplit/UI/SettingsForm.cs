@@ -282,14 +282,22 @@ internal sealed partial class SettingsForm : Form
         UiTheme.EnableDoubleBuffering(footer);
 
         Button okButton = uiFactory.CreateButton("OK", accent: true, minimumWidth: 150);
-        okButton.DialogResult = DialogResult.OK;
-        okButton.Click += (_, _) => ApplyToSettings();
+        okButton.Click += (_, _) =>
+        {
+            ApplyToSettings();
+            DialogResult = DialogResult.OK;
+            Close();
+        };
 
         Button applyButton = uiFactory.CreateButton("Apply", accent: false, minimumWidth: 150);
         applyButton.Click += (_, _) => ApplyAndNotify();
 
         Button cancelButton = uiFactory.CreateButton("Cancel", accent: false, minimumWidth: 150);
-        cancelButton.DialogResult = DialogResult.Cancel;
+        cancelButton.Click += (_, _) =>
+        {
+            DialogResult = DialogResult.Cancel;
+            Close();
+        };
 
         footer.Controls.Add(okButton);
         footer.Controls.Add(applyButton);

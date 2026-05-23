@@ -125,8 +125,14 @@ internal sealed partial class MainForm : Form
     {
         string localEditedText = value;
         bool accepted = RunWithSuspendedRuntimeOverlayPaint(() =>
-            RunWithReleasedOverlayTopMost(() =>
-                TimeEditDialog.TryShow(this, settings, title, value, allowEmpty, out localEditedText)));
+            TimeEditDialog.TryShow(
+                this,
+                settings,
+                title,
+                value,
+                allowEmpty,
+                form => modalWindows.RegisterModalForm(form),
+                out localEditedText));
         editedText = localEditedText;
         return accepted;
     }

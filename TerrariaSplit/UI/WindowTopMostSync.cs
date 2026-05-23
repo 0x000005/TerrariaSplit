@@ -24,4 +24,22 @@ internal static class WindowTopMostSync
             NativeMethods.SetWindowPos(handle, insertAfter, 0, 0, 0, 0, Flags);
         }
     }
+
+    public static void PlaceBehind(IntPtr insertAfter, params IntPtr[] handles)
+    {
+        if (insertAfter == IntPtr.Zero)
+        {
+            return;
+        }
+
+        foreach (IntPtr handle in handles)
+        {
+            if (handle == IntPtr.Zero || handle == insertAfter)
+            {
+                continue;
+            }
+
+            NativeMethods.SetWindowPos(handle, insertAfter, 0, 0, 0, 0, Flags);
+        }
+    }
 }

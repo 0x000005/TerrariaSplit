@@ -8,26 +8,37 @@ internal sealed class SettingsHotkeyTextBox : TextBox
 
     public void SetHotkey(Keys hotkey)
     {
-        Hotkey = HotkeyKeyValidator.IsAllowed(hotkey) ? hotkey : Keys.F12;
-        Text = Hotkey.ToString();
+        Hotkey = HotkeyKeyValidator.TryNormalize(hotkey, out Keys normalizedHotkey)
+            ? normalizedHotkey
+            : Keys.F12;
+        Text = HotkeyKeyValidator.Format(Hotkey);
     }
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
-
-        Keys key = e.KeyCode;
-        if (!HotkeyKeyValidator.IsAllowed(key))
-        {
-            e.SuppressKeyPress = true;
-            return;
-        }
-
-        if (key != Keys.None)
-        {
-            SetHotkey(key);
-        }
-
+        TryCaptureHotkey(e.KeyData);
         e.SuppressKeyPress = true;
+    }
+
+    protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+    {
+        if (TryCaptureHotkey(keyData))
+        {
+            return true;
+        }
+
+        return base.ProcessCmdKey(ref msg, keyData);
+    }
+
+    private bool TryCaptureHotkey(Keys keyData)
+    {
+        if (!HotkeyKeyValidator.IsAllowed(keyData))
+        {
+            return false;
+        }
+
+        SetHotkey(keyData);
+        return true;
     }
 }
