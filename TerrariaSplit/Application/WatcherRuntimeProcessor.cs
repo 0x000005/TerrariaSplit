@@ -4,7 +4,7 @@ internal sealed class WatcherRuntimeProcessor
 {
     private readonly SplitTimer timer = new();
     private readonly BossSplitTracker splitTracker = new();
-    private readonly PendingMenuHotkeyScheduler pendingMenuHotkeys = new();
+    private readonly PendingMenuActionScheduler pendingMenuActions = new();
     private readonly TimerController timerController;
 
     public WatcherRuntimeProcessor(TimeSpan pendingMenuGraceDuration)
@@ -12,7 +12,7 @@ internal sealed class WatcherRuntimeProcessor
         timerController = new TimerController(
             timer,
             splitTracker,
-            pendingMenuHotkeys,
+            pendingMenuActions,
             pendingMenuGraceDuration);
     }
 
@@ -20,41 +20,86 @@ internal sealed class WatcherRuntimeProcessor
     {
         splitTracker.SetDefinitions(definitions);
         timer.Reset();
-        pendingMenuHotkeys.Clear();
+        pendingMenuActions.Clear();
     }
 
     public void Reset()
     {
         timer.Reset();
         splitTracker.Reset();
-        pendingMenuHotkeys.Clear();
+        pendingMenuActions.Clear();
     }
 
-    public void ClearPendingHotkeys()
+    public void ClearPendingMenuActions()
     {
-        pendingMenuHotkeys.Clear();
+        pendingMenuActions.Clear();
     }
 
-    public void ReplaceState(SplitTimerState timerState, BossSplitTrackerState trackerState)
+    public IReadOnlyList<RunEvent> ApplyCommand(RuntimeCommand command, long observedTimestamp)
     {
-        timer.ApplyState(timerState);
-        splitTracker.ApplyState(trackerState);
+        switch (command.Kind)
+        {
+            case RuntimeCommandKind.SetDefinitions:
+                SetDefinitions(command.Definitions);
+                return [];
+            case RuntimeCommandKind.Reset:
+                Reset();
+                return [];
+            case RuntimeCommandKind.TogglePause:
+                return ApplyTogglePauseCommand(observedTimestamp);
+            case RuntimeCommandKind.QueueMenuAction:
+                timerController.QueuePendingMenuAction(command.MenuAction, command.RequestedAtUtc);
+                return [];
+            case RuntimeCommandKind.SetPracticeSplitTime:
+                splitTracker.SetPracticeTime(command.SplitIndex, command.Time);
+                return [new RunEvent(RunEventKind.PracticeSplitTimeEdited, command.SplitIndex)];
+            case RuntimeCommandKind.SetPracticeTotalTime:
+                if (command.Time is TimeSpan time)
+                {
+                    timer.SetPracticeElapsed(time);
+                    splitTracker.ClampCompletedTimes(time);
+                    return [new RunEvent(RunEventKind.PracticeTotalTimeEdited)];
+                }
+
+                return [];
+            case RuntimeCommandKind.ClearPendingMenuActions:
+                ClearPendingMenuActions();
+                return [];
+            default:
+                return [];
+        }
     }
 
-    public TimerControllerTickResult Tick(
+    public RuntimeProcessorTickResult Tick(
         TerrariaWatchSnapshot snapshot,
         long observedTimestamp,
-        IReadOnlyCollection<TimerHotkeyRequest> hotkeyRequests)
+        IReadOnlyList<RunEvent> commandEvents)
     {
-        return timerController.Tick(snapshot, observedTimestamp, hotkeyRequests);
+        IReadOnlyList<RunEvent> tickEvents = timerController.Tick(snapshot, observedTimestamp);
+        List<RunEvent> events = new(commandEvents.Count + tickEvents.Count);
+        events.AddRange(commandEvents);
+        events.AddRange(tickEvents);
+        return new RuntimeProcessorTickResult(CaptureSnapshot(observedTimestamp), events);
     }
 
-    public ProcessedRunState CaptureState()
+    public RuntimeRunSnapshot CaptureSnapshot(long observedTimestamp)
     {
-        return new ProcessedRunState(timer.CaptureState(), splitTracker.CaptureState());
+        return RuntimeRunSnapshot.FromState(timer.CaptureState(), splitTracker, observedTimestamp);
     }
+
+    private IReadOnlyList<RunEvent> ApplyTogglePauseCommand(long observedTimestamp)
+    {
+        SplitTimerPhase previousPhase = timer.Phase;
+        timer.TogglePauseAt(observedTimestamp);
+        if (previousPhase == timer.Phase)
+        {
+            return [];
+        }
+
+        return [new RunEvent(
+            RunEventKind.PauseChanged,
+            PreviousPhase: previousPhase,
+            CurrentPhase: timer.Phase)];
+    }
+
 }
-
-internal readonly record struct ProcessedRunState(
-    SplitTimerState TimerState,
-    BossSplitTrackerState SplitTrackerState);

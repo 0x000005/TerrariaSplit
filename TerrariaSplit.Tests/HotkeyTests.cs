@@ -7,38 +7,131 @@ internal static class HotkeyTests
 {
     public static IEnumerable<(string Name, Action Test)> All()
     {
-        yield return ("TimerController consumes menu hotkeys only on menu", TimerControllerConsumesMenuHotkeysOnlyOnMenu);
+        yield return ("Hotkey command mapper routes hotkeys into app commands", HotkeyCommandMapperRoutesHotkeysIntoAppCommands);
+        yield return ("ApplicationController maps input commands to effects", ApplicationControllerMapsInputCommandsToEffects);
+        yield return ("TimerController consumes queued menu actions only on menu", TimerControllerConsumesQueuedMenuActionsOnlyOnMenu);
         yield return ("TimerController records automatic events at observed timestamps", TimerControllerRecordsAutomaticEventsAtObservedTimestamps);
         yield return ("BossSplitTracker skips initially defeated bosses after delayed state resolution", BossSplitTrackerSkipsInitiallyDefeatedBossesAfterDelayedStateResolution);
         yield return ("BossSplitTracker completes bosses after initial incomplete state", BossSplitTrackerCompletesBossesAfterInitialIncompleteState);
     }
 
-    private static void TimerControllerConsumesMenuHotkeysOnlyOnMenu()
+    private static void HotkeyCommandMapperRoutesHotkeysIntoAppCommands()
+    {
+        DateTime requestedAtUtc = DateTime.UtcNow;
+
+        TestAssert.Equal(true, HotkeyCommandMapper.TryMap(
+            HotkeyAction.PauseResume,
+            requestedAtUtc,
+            createWorldRunning: false,
+            enterWorldRunning: false,
+            out AppCommand pauseCommand));
+        TestAssert.Equal(AppCommandKind.TogglePause, pauseCommand.Kind);
+
+        TestAssert.Equal(true, HotkeyCommandMapper.TryMap(
+            HotkeyAction.MouseClickThrough,
+            requestedAtUtc,
+            createWorldRunning: false,
+            enterWorldRunning: false,
+            out AppCommand clickThroughCommand));
+        TestAssert.Equal(AppCommandKind.ToggleMouseClickThrough, clickThroughCommand.Kind);
+
+        TestAssert.Equal(true, HotkeyCommandMapper.TryMap(
+            HotkeyAction.Reset,
+            requestedAtUtc,
+            createWorldRunning: false,
+            enterWorldRunning: false,
+            out AppCommand resetCommand));
+        TestAssert.Equal(AppCommandKind.QueueMenuAction, resetCommand.Kind);
+        TestAssert.Equal(MenuActionKind.Reset, resetCommand.MenuAction);
+
+        TestAssert.Equal(true, HotkeyCommandMapper.TryMap(
+            HotkeyAction.CreateWorld,
+            requestedAtUtc,
+            createWorldRunning: false,
+            enterWorldRunning: false,
+            out AppCommand createWorldCommand));
+        TestAssert.Equal(AppCommandKind.QueueMenuAction, createWorldCommand.Kind);
+        TestAssert.Equal(MenuActionKind.CreateWorld, createWorldCommand.MenuAction);
+
+        TestAssert.Equal(true, HotkeyCommandMapper.TryMap(
+            HotkeyAction.PracticeWorld,
+            requestedAtUtc,
+            createWorldRunning: false,
+            enterWorldRunning: false,
+            out AppCommand practiceWorldCommand));
+        TestAssert.Equal(AppCommandKind.QueueMenuAction, practiceWorldCommand.Kind);
+        TestAssert.Equal(MenuActionKind.PracticeWorld, practiceWorldCommand.MenuAction);
+
+        TestAssert.Equal(true, HotkeyCommandMapper.TryMap(
+            HotkeyAction.CreateWorld,
+            requestedAtUtc,
+            createWorldRunning: true,
+            enterWorldRunning: false,
+            out AppCommand cancelCreateCommand));
+        TestAssert.Equal(AppCommandKind.CancelCreateWorld, cancelCreateCommand.Kind);
+
+        TestAssert.Equal(false, HotkeyCommandMapper.TryMap(
+            HotkeyAction.Reset,
+            requestedAtUtc,
+            createWorldRunning: true,
+            enterWorldRunning: false,
+            out _));
+
+        TestAssert.Equal(true, HotkeyCommandMapper.TryMap(
+            HotkeyAction.PracticeWorld,
+            requestedAtUtc,
+            createWorldRunning: false,
+            enterWorldRunning: true,
+            out AppCommand cancelEnterCommand));
+        TestAssert.Equal(AppCommandKind.CancelEnterWorld, cancelEnterCommand.Kind);
+    }
+
+    private static void ApplicationControllerMapsInputCommandsToEffects()
+    {
+        DateTime requestedAtUtc = DateTime.UtcNow;
+        var controller = new ApplicationController(new AppSettings(), _ => true);
+
+        ApplicationUpdate resetUpdate = controller.HandleCommand(
+            AppCommand.QueueMenuAction(MenuActionKind.Reset, requestedAtUtc));
+        ApplicationEffect resetEffect = resetUpdate.Effects.Single();
+        TestAssert.Equal(ApplicationEffectKind.SubmitRuntimeCommand, resetEffect.Kind);
+        TestAssert.Equal(RuntimeCommandKind.QueueMenuAction, resetEffect.RuntimeCommand?.Kind);
+        TestAssert.Equal(MenuActionKind.Reset, resetEffect.RuntimeCommand?.MenuAction);
+
+        ApplicationUpdate clickThroughUpdate = controller.HandleCommand(AppCommand.ToggleMouseClickThrough());
+        TestAssert.Equal(ApplicationEffectKind.ToggleMouseClickThrough, clickThroughUpdate.Effects.Single().Kind);
+
+        ApplicationUpdate cancelCreateUpdate = controller.HandleCommand(AppCommand.CancelCreateWorld());
+        TestAssert.Equal(ApplicationEffectKind.CancelCreateWorldAutomation, cancelCreateUpdate.Effects.Single().Kind);
+
+        ApplicationUpdate cancelEnterUpdate = controller.HandleCommand(AppCommand.CancelEnterWorld());
+        TestAssert.Equal(ApplicationEffectKind.CancelEnterWorldAutomation, cancelEnterUpdate.Effects.Single().Kind);
+    }
+
+    private static void TimerControllerConsumesQueuedMenuActionsOnlyOnMenu()
     {
         var controller = new TimerController(
             new SplitTimer(),
             new BossSplitTracker(),
-            new PendingMenuHotkeyScheduler(),
+            new PendingMenuActionScheduler(),
             TimeSpan.FromSeconds(1));
         DateTime requestedAtUtc = DateTime.UtcNow;
 
-        TimerControllerTickResult inWorldResult = controller.Tick(
-            TestSnapshots.Terraria(isGameMenu: false),
-            [new TimerHotkeyRequest(TimerHotkeyAction.CreateWorld, requestedAtUtc)]);
-        TestAssert.Equal(null, inWorldResult.RequestedMenuAction);
+        controller.QueuePendingMenuAction(MenuActionKind.CreateWorld, requestedAtUtc);
 
-        TimerControllerTickResult menuResult = controller.Tick(TestSnapshots.Terraria(isGameMenu: true), []);
-        TestAssert.Equal(MenuHotkeyActionKind.CreateWorld, menuResult.RequestedMenuAction);
+        IReadOnlyList<RunEvent> inWorldEvents = controller.Tick(TestSnapshots.Terraria(isGameMenu: false));
+        TestAssert.Equal(null, GetMenuAction(inWorldEvents));
 
-        TimerControllerTickResult resetResult = controller.Tick(
-            TestSnapshots.Terraria(isGameMenu: true),
-            [new TimerHotkeyRequest(TimerHotkeyAction.Reset, DateTime.UtcNow)]);
-        TestAssert.Equal(MenuHotkeyActionKind.Reset, resetResult.RequestedMenuAction);
+        IReadOnlyList<RunEvent> menuEvents = controller.Tick(TestSnapshots.Terraria(isGameMenu: true));
+        TestAssert.Equal(MenuActionKind.CreateWorld, GetMenuAction(menuEvents));
 
-        TimerControllerTickResult enterWorldResult = controller.Tick(
-            TestSnapshots.Terraria(isGameMenu: true),
-            [new TimerHotkeyRequest(TimerHotkeyAction.PracticeWorld, DateTime.UtcNow)]);
-        TestAssert.Equal(MenuHotkeyActionKind.PracticeWorld, enterWorldResult.RequestedMenuAction);
+        controller.QueuePendingMenuAction(MenuActionKind.Reset, DateTime.UtcNow);
+        IReadOnlyList<RunEvent> resetEvents = controller.Tick(TestSnapshots.Terraria(isGameMenu: true));
+        TestAssert.Equal(MenuActionKind.Reset, GetMenuAction(resetEvents));
+
+        controller.QueuePendingMenuAction(MenuActionKind.PracticeWorld, DateTime.UtcNow);
+        IReadOnlyList<RunEvent> enterWorldEvents = controller.Tick(TestSnapshots.Terraria(isGameMenu: true));
+        TestAssert.Equal(MenuActionKind.PracticeWorld, GetMenuAction(enterWorldEvents));
     }
 
     private static void BossSplitTrackerSkipsInitiallyDefeatedBossesAfterDelayedStateResolution()
@@ -47,24 +140,22 @@ internal static class HotkeyTests
         var controller = new TimerController(
             new SplitTimer(),
             tracker,
-            new PendingMenuHotkeyScheduler(),
+            new PendingMenuActionScheduler(),
             TimeSpan.FromSeconds(1));
 
-        TimerControllerTickResult startResult = controller.Tick(
+        IReadOnlyList<RunEvent> startEvents = controller.Tick(
             TestSnapshots.Terraria(
                 isGameMenu: false,
                 bossStates: TerrariaBossStates.Unknown,
-                enteredWorld: true),
-            []);
-        TestAssert.Equal(true, startResult.RunStarted);
-        TestAssert.Equal(null, startResult.CompletedSplitIndex);
+                enteredWorld: true));
+        TestAssert.Equal(true, HasEvent(startEvents, RunEventKind.RunStarted));
+        TestAssert.Equal(null, GetCompletedSplitIndex(startEvents));
 
-        TimerControllerTickResult resolvedResult = controller.Tick(
+        IReadOnlyList<RunEvent> resolvedEvents = controller.Tick(
             TestSnapshots.Terraria(
                 isGameMenu: false,
-                bossStates: CreateSkeletronState(true)),
-            []);
-        TestAssert.Equal(null, resolvedResult.CompletedSplitIndex);
+                bossStates: CreateSkeletronState(true)));
+        TestAssert.Equal(null, GetCompletedSplitIndex(resolvedEvents));
         TestAssert.Equal(true, tracker.Statuses[0].IsSkipped);
         TestAssert.Equal(1, tracker.CurrentIndex);
     }
@@ -75,28 +166,25 @@ internal static class HotkeyTests
         var controller = new TimerController(
             new SplitTimer(),
             tracker,
-            new PendingMenuHotkeyScheduler(),
+            new PendingMenuActionScheduler(),
             TimeSpan.FromSeconds(1));
 
         _ = controller.Tick(
             TestSnapshots.Terraria(
                 isGameMenu: false,
                 bossStates: TerrariaBossStates.Unknown,
-                enteredWorld: true),
-            []);
-        TimerControllerTickResult initialStateResult = controller.Tick(
+                enteredWorld: true));
+        IReadOnlyList<RunEvent> initialStateEvents = controller.Tick(
             TestSnapshots.Terraria(
                 isGameMenu: false,
-                bossStates: CreateSkeletronState(false)),
-            []);
-        TestAssert.Equal(null, initialStateResult.CompletedSplitIndex);
+                bossStates: CreateSkeletronState(false)));
+        TestAssert.Equal(null, GetCompletedSplitIndex(initialStateEvents));
 
-        TimerControllerTickResult completedResult = controller.Tick(
+        IReadOnlyList<RunEvent> completedEvents = controller.Tick(
             TestSnapshots.Terraria(
                 isGameMenu: false,
-                bossStates: CreateSkeletronState(true)),
-            []);
-        TestAssert.Equal(0, completedResult.CompletedSplitIndex);
+                bossStates: CreateSkeletronState(true)));
+        TestAssert.Equal(0, GetCompletedSplitIndex(completedEvents));
         TestAssert.Equal(false, tracker.Statuses[0].IsSkipped);
     }
 
@@ -107,39 +195,67 @@ internal static class HotkeyTests
         var controller = new TimerController(
             timer,
             tracker,
-            new PendingMenuHotkeyScheduler(),
+            new PendingMenuActionScheduler(),
             TimeSpan.FromSeconds(1));
 
         long startTimestamp = 1_000_000;
         long initialIncompleteTimestamp = startTimestamp + Stopwatch.Frequency / 10;
         long completionTimestamp = startTimestamp + Stopwatch.Frequency / 4;
 
-        TimerControllerTickResult startResult = controller.Tick(
+        IReadOnlyList<RunEvent> startEvents = controller.Tick(
             TestSnapshots.Terraria(
                 isGameMenu: false,
                 bossStates: TerrariaBossStates.Unknown,
                 enteredWorld: true),
-            startTimestamp,
-            []);
-        TestAssert.Equal(true, startResult.RunStarted);
+            startTimestamp);
+        TestAssert.Equal(true, HasEvent(startEvents, RunEventKind.RunStarted));
 
         _ = controller.Tick(
             TestSnapshots.Terraria(
                 isGameMenu: false,
                 bossStates: CreateSkeletronState(false)),
-            initialIncompleteTimestamp,
-            []);
+            initialIncompleteTimestamp);
 
-        TimerControllerTickResult completionResult = controller.Tick(
+        IReadOnlyList<RunEvent> completionEvents = controller.Tick(
             TestSnapshots.Terraria(
                 isGameMenu: false,
                 bossStates: CreateSkeletronState(true)),
-            completionTimestamp,
-            []);
+            completionTimestamp);
 
-        TestAssert.Equal(0, completionResult.CompletedSplitIndex);
+        TestAssert.Equal(0, GetCompletedSplitIndex(completionEvents));
         TimeSpan expected = TimeSpan.FromSeconds((completionTimestamp - startTimestamp) / (double)Stopwatch.Frequency);
         TestAssert.Equal(expected, tracker.Statuses[0].Time);
+    }
+
+    private static bool HasEvent(IReadOnlyList<RunEvent> events, RunEventKind kind)
+    {
+        return events.Any(runEvent => runEvent.Kind == kind);
+    }
+
+    private static MenuActionKind? GetMenuAction(IReadOnlyList<RunEvent> events)
+    {
+        foreach (RunEvent runEvent in events)
+        {
+            if (runEvent.Kind == RunEventKind.MenuActionRequested)
+            {
+                return runEvent.MenuAction;
+            }
+        }
+
+        return null;
+    }
+
+    private static int? GetCompletedSplitIndex(IReadOnlyList<RunEvent> events)
+    {
+        foreach (RunEvent runEvent in events)
+        {
+            if (runEvent.Kind == RunEventKind.SplitCompleted)
+            {
+                return runEvent.SplitIndex;
+            }
+        }
+
+        return null;
     }
 
     private static BossSplitTracker CreateSingleBossTracker()

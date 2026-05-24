@@ -10,7 +10,7 @@ internal static class RunStatsStore
         };
     }
 
-    public static void RecordRun(IReadOnlyList<BossSplitStatus> statuses)
+    public static void RecordRun(IReadOnlyList<SplitStatusSnapshot> statuses)
     {
         if (!HasCompletedSkeletron(statuses))
         {
@@ -19,9 +19,9 @@ internal static class RunStatsStore
 
         RunStats stats = Load();
         stats.LastRunSplits.Clear();
-        BossSplitStatus? lastCompleted = null;
+        SplitStatusSnapshot? lastCompleted = null;
 
-        foreach (BossSplitStatus status in statuses)
+        foreach (SplitStatusSnapshot status in statuses)
         {
             if (status.Time is not TimeSpan splitTime)
             {
@@ -38,7 +38,7 @@ internal static class RunStatsStore
         SplitTimeSetStore.SaveLastRun(stats.LastRunSplits, lastCompleted?.Definition.DisplayName, lastCompleted?.Time);
     }
 
-    private static bool HasCompletedSkeletron(IReadOnlyList<BossSplitStatus> statuses)
+    private static bool HasCompletedSkeletron(IReadOnlyList<SplitStatusSnapshot> statuses)
     {
         return statuses.Any(status =>
             status.Time is not null &&

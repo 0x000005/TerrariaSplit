@@ -24,7 +24,6 @@ internal sealed class TerrariaMonitorCoordinator : IDisposable
     private readonly Action<string> logInfo;
     private readonly Action<Exception, string> logError;
     private readonly ConcurrentQueue<WatcherPollCompletion> pendingWatcherCompletions = new();
-    private readonly ConcurrentQueue<TimerHotkeyRequest> pendingHotkeyRequests = new();
     private readonly ConcurrentQueue<RuntimeProcessorCommand> pendingRuntimeCommands = new();
     private readonly object lifecycleLock = new();
     private readonly AutoResetEvent watcherLoopSignal = new(false);
@@ -89,22 +88,11 @@ internal sealed class TerrariaMonitorCoordinator : IDisposable
 
     public void Tick(
         SplitTimerPhase runPhase,
-        bool patchEnabled,
-        IReadOnlyCollection<TimerHotkeyRequest>? hotkeyRequests = null)
+        bool patchEnabled)
     {
         if (disposed)
         {
             return;
-        }
-
-        if (hotkeyRequests is { Count: > 0 })
-        {
-            foreach (TimerHotkeyRequest request in hotkeyRequests)
-            {
-                pendingHotkeyRequests.Enqueue(request);
-            }
-
-            watcherLoopSignal.Set();
         }
 
         UpdateRunPhase(runPhase);
@@ -156,26 +144,22 @@ internal sealed class TerrariaMonitorCoordinator : IDisposable
 
     public long SetRuntimeDefinitions(IReadOnlyList<BossSplitDefinition> definitions)
     {
-        ClearPendingHotkeyQueue();
-        BossSplitDefinition[] definitionsCopy = definitions.ToArray();
-        return QueueRuntimeCommand(processor => processor.SetDefinitions(definitionsCopy));
+        return SubmitRuntimeCommand(RuntimeCommand.SetDefinitions(definitions));
     }
 
     public long ResetRuntimeState()
     {
-        ClearPendingHotkeyQueue();
-        return QueueRuntimeCommand(static processor => processor.Reset());
+        return SubmitRuntimeCommand(RuntimeCommand.Reset());
     }
 
-    public long ReplaceRuntimeState(SplitTimerState timerState, BossSplitTrackerState trackerState)
+    public long ClearPendingMenuActions()
     {
-        return QueueRuntimeCommand(processor => processor.ReplaceState(timerState, trackerState));
+        return SubmitRuntimeCommand(RuntimeCommand.ClearPendingMenuActions());
     }
 
-    public long ClearPendingHotkeys()
+    public long SubmitRuntimeCommand(RuntimeCommand command)
     {
-        ClearPendingHotkeyQueue();
-        return QueueRuntimeCommand(static processor => processor.ClearPendingHotkeys());
+        return QueueRuntimeCommand(command);
     }
 
     public void Dispose()
@@ -277,9 +261,10 @@ internal sealed class TerrariaMonitorCoordinator : IDisposable
                 continue;
             }
 
-            long runtimeCommandSequence = DrainRuntimeCommands();
-            TimerHotkeyRequest[] hotkeyRequests = DrainHotkeyRequests();
-            WatcherPollCompletion completion = PollWatcher(runtimeCommandSequence, hotkeyRequests);
+            RuntimeCommandDrainResult commandResult = DrainRuntimeCommands();
+            WatcherPollCompletion completion = PollWatcher(
+                commandResult.LatestAppliedSequence,
+                commandResult.Events);
             QueueWatcherCompletion(completion);
 
             int signaled = WaitHandle.WaitAny(
@@ -294,7 +279,7 @@ internal sealed class TerrariaMonitorCoordinator : IDisposable
 
     private WatcherPollCompletion PollWatcher(
         long runtimeCommandSequence,
-        IReadOnlyCollection<TimerHotkeyRequest> hotkeyRequests)
+        IReadOnlyList<RunEvent> commandEvents)
     {
         long startTimestamp = Stopwatch.GetTimestamp();
         try
@@ -302,14 +287,16 @@ internal sealed class TerrariaMonitorCoordinator : IDisposable
             TerrariaWatchSnapshot snapshot = watcher.Poll();
             TerrariaWatcherDiagnostics diagnostics = watcher.GetDiagnostics();
             long completedTimestamp = Stopwatch.GetTimestamp();
-            TimerControllerTickResult runtimeTickResult = runtimeProcessor.Tick(snapshot, completedTimestamp, hotkeyRequests);
-            ProcessedRunState runtimeState = runtimeProcessor.CaptureState();
+            RuntimeProcessorTickResult runtimeTickResult = runtimeProcessor.Tick(
+                snapshot,
+                completedTimestamp,
+                commandEvents);
             TimeSpan nextPollInterval = GetNextWatcherPollInterval(snapshot, GetCurrentRunPhase(), GetReadyWatcherPollInterval());
             return new WatcherPollCompletion(
                 snapshot,
                 diagnostics,
-                runtimeState,
-                runtimeTickResult,
+                runtimeTickResult.Snapshot,
+                runtimeTickResult.Events,
                 runtimeCommandSequence,
                 Stopwatch.GetElapsedTime(startTimestamp, completedTimestamp),
                 completedTimestamp,
@@ -329,14 +316,16 @@ internal sealed class TerrariaMonitorCoordinator : IDisposable
                 TerrariaWorldGenerationState.Unknown,
                 false,
                 $"watcher poll failed: {ex.Message}");
-            TimerControllerTickResult runtimeTickResult = runtimeProcessor.Tick(snapshot, completedTimestamp, hotkeyRequests);
-            ProcessedRunState runtimeState = runtimeProcessor.CaptureState();
+            RuntimeProcessorTickResult runtimeTickResult = runtimeProcessor.Tick(
+                snapshot,
+                completedTimestamp,
+                commandEvents);
             TimeSpan nextPollInterval = GetNextWatcherPollInterval(snapshot, GetCurrentRunPhase(), GetReadyWatcherPollInterval());
             return new WatcherPollCompletion(
                 snapshot,
                 watcher.GetDiagnostics(),
-                runtimeState,
-                runtimeTickResult,
+                runtimeTickResult.Snapshot,
+                runtimeTickResult.Events,
                 runtimeCommandSequence,
                 Stopwatch.GetElapsedTime(startTimestamp, completedTimestamp),
                 completedTimestamp,
@@ -357,49 +346,35 @@ internal sealed class TerrariaMonitorCoordinator : IDisposable
         return ticks > 0 ? new TimeSpan(ticks) : WatcherIdlePollInterval;
     }
 
-    private long QueueRuntimeCommand(Action<WatcherRuntimeProcessor> apply)
+    private long QueueRuntimeCommand(RuntimeCommand command)
     {
         long sequence = Interlocked.Increment(ref issuedRuntimeCommandSequence);
-        pendingRuntimeCommands.Enqueue(new RuntimeProcessorCommand(sequence, apply));
+        pendingRuntimeCommands.Enqueue(new RuntimeProcessorCommand(sequence, command));
         watcherLoopSignal.Set();
         StartWatcherLoopIfNeeded();
         return sequence;
     }
 
-    private long DrainRuntimeCommands()
+    private RuntimeCommandDrainResult DrainRuntimeCommands()
     {
         long latestAppliedSequence = Volatile.Read(ref appliedRuntimeCommandSequence);
+        List<RunEvent>? events = null;
         while (pendingRuntimeCommands.TryDequeue(out RuntimeProcessorCommand command))
         {
-            command.Apply(runtimeProcessor);
+            IReadOnlyList<RunEvent> commandEvents = runtimeProcessor.ApplyCommand(
+                command.Command,
+                Stopwatch.GetTimestamp());
+            if (commandEvents.Count > 0)
+            {
+                events ??= new List<RunEvent>();
+                events.AddRange(commandEvents);
+            }
+
             latestAppliedSequence = command.Sequence;
         }
 
         Volatile.Write(ref appliedRuntimeCommandSequence, latestAppliedSequence);
-        return latestAppliedSequence;
-    }
-
-    private TimerHotkeyRequest[] DrainHotkeyRequests()
-    {
-        if (pendingHotkeyRequests.IsEmpty)
-        {
-            return [];
-        }
-
-        var requests = new List<TimerHotkeyRequest>();
-        while (pendingHotkeyRequests.TryDequeue(out TimerHotkeyRequest request))
-        {
-            requests.Add(request);
-        }
-
-        return requests.ToArray();
-    }
-
-    private void ClearPendingHotkeyQueue()
-    {
-        while (pendingHotkeyRequests.TryDequeue(out _))
-        {
-        }
+        return new RuntimeCommandDrainResult(latestAppliedSequence, events ?? []);
     }
 
     private void QueueWatcherCompletion(WatcherPollCompletion completion)
@@ -472,8 +447,8 @@ internal sealed class TerrariaMonitorCoordinator : IDisposable
             completion.Snapshot,
             previousSnapshot,
             completion.Diagnostics,
-            completion.RuntimeState,
-            completion.RuntimeTickResult,
+            completion.RuntimeSnapshot,
+            completion.RunEvents,
             completion.RuntimeCommandSequence,
             completion.Elapsed,
             completion.CompletedTimestamp,
@@ -650,8 +625,8 @@ internal readonly record struct WatcherPollNotification(
     TerrariaWatchSnapshot Snapshot,
     TerrariaWatchSnapshot PreviousSnapshot,
     TerrariaWatcherDiagnostics Diagnostics,
-    ProcessedRunState RuntimeState,
-    TimerControllerTickResult RuntimeTickResult,
+    RuntimeRunSnapshot RuntimeSnapshot,
+    IReadOnlyList<RunEvent> RunEvents,
     long RuntimeCommandSequence,
     TimeSpan Elapsed,
     long CompletedTimestamp,
@@ -662,8 +637,8 @@ internal readonly record struct WatcherPollNotification(
 internal readonly record struct WatcherPollCompletion(
     TerrariaWatchSnapshot Snapshot,
     TerrariaWatcherDiagnostics Diagnostics,
-    ProcessedRunState RuntimeState,
-    TimerControllerTickResult RuntimeTickResult,
+    RuntimeRunSnapshot RuntimeSnapshot,
+    IReadOnlyList<RunEvent> RunEvents,
     long RuntimeCommandSequence,
     TimeSpan Elapsed,
     long CompletedTimestamp,
@@ -673,4 +648,4 @@ internal readonly record struct WatcherPollCompletion(
 
 internal readonly record struct RuntimeProcessorCommand(
     long Sequence,
-    Action<WatcherRuntimeProcessor> Apply);
+    RuntimeCommand Command);

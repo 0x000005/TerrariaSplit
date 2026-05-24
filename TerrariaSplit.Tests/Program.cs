@@ -28,6 +28,7 @@ var legacyTests = new (string Name, Action Test)[]
     ("AppSettings falls back from invalid hotkeys", TestAppSettingsInvalidHotkeyFallback),
     ("AppSettings parses modifier hotkeys", TestAppSettingsParsesModifierHotkeys),
     ("AppSettings uses PB as reference time", TestAppSettingsUsesPersonalBestAsReferenceTime),
+    ("Input model no longer exposes runtime hotkey requests", TestInputModelStaticRegression),
     ("Settings form orders moved pages", TestSettingsFormOrdersMovedPages),
     ("Settings form applies global scale from General page", TestSettingsFormAppliesGlobalScaleFromGeneralPage),
     ("Settings form applies dynamic delta units from UI page", TestSettingsFormAppliesDynamicDeltaUnitsFromUiPage),
@@ -480,6 +481,28 @@ static void TestAppSettingsUsesPersonalBestAsReferenceTime()
 
     settings.SetReferenceText("Skeletron", "05:00");
     AssertEqual("00:30", settings.GetReferenceText("Skeletron"));
+}
+
+static void TestInputModelStaticRegression()
+{
+    string sourceRoot = FindSourceRoot();
+    string appSourceRoot = Path.Combine(sourceRoot, "TerrariaSplit");
+    foreach (string sourcePath in Directory.EnumerateFiles(appSourceRoot, "*.cs", SearchOption.AllDirectories))
+    {
+        string relativePath = Path.GetRelativePath(appSourceRoot, sourcePath);
+        if (relativePath.StartsWith("bin" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
+            relativePath.StartsWith("obj" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+        {
+            continue;
+        }
+
+        string source = File.ReadAllText(sourcePath);
+        AssertEqual(false, source.Contains("Timer" + "HotkeyRequest", StringComparison.Ordinal));
+    }
+
+    string timerControllerPath = Path.Combine(appSourceRoot, "Application", "TimerController.cs");
+    string timerControllerSource = File.ReadAllText(timerControllerPath);
+    AssertEqual(false, timerControllerSource.Contains("HotkeyAction.", StringComparison.Ordinal));
 }
 
 static void TestSettingsFormAppliesGlobalScaleFromGeneralPage()
@@ -1080,7 +1103,7 @@ static void TestMainFormPreservesSizeWhenApplyingNonLayoutSettings()
         using var form = new MainForm();
         _ = form.Handle;
         OverlayBoundsController boundsController = GetPrivateField<OverlayBoundsController>(form, "overlayBoundsController");
-        AppSettings previousSettings = GetPrivateField<AppSettings>(form, "settings");
+        AppSettings previousSettings = GetMainFormSettings(form);
         Rectangle initialCompositeBounds = new(120, 160, 1000, 900);
         boundsController.ApplyCompositeBounds(initialCompositeBounds);
 
@@ -1088,7 +1111,7 @@ static void TestMainFormPreservesSizeWhenApplyingNonLayoutSettings()
         settings.Colors.TimerText = "#123456";
         SetMainFormSettings(form, settings);
 
-        InvokePrivate(form, "ApplyLoadedSettings", previousSettings);
+        InvokePrivate(form, "ApplyLoadedSettings", previousSettings, -1);
 
         AssertEqual(initialCompositeBounds.Size, boundsController.CompositeBounds.Size);
     });
@@ -1101,20 +1124,41 @@ static void TestMainFormSettingsApplyFinalizesCurrentRunBeforeReload()
         using var form = new MainForm();
         _ = form.Handle;
 
-        AppSettings previousSettings = GetPrivateField<AppSettings>(form, "settings");
+        AppSettings previousSettings = GetMainFormSettings(form);
         var nextSettings = AppSettingsStore.Clone(previousSettings);
         nextSettings.AutoUpdatePersonalBestData = false;
         nextSettings.AskBeforeUpdatingPersonalBestData = false;
         nextSettings.AlwaysOnTop = !nextSettings.AlwaysOnTop;
 
-        RunSessionController runSession = GetPrivateField<RunSessionController>(form, "runSession");
-        BossSplitStatus skeletronStatus = runSession.SplitTracker.Statuses.First(status =>
+        ApplicationController applicationController = GetPrivateField<ApplicationController>(form, "applicationController");
+        var tracker = new BossSplitTracker();
+        tracker.SetDefinitions(applicationController.Definitions);
+        BossSplitStatus skeletronStatus = tracker.Statuses.First(status =>
             status.Definition.BossIds.Any(bossId => string.Equals(
                 bossId,
                 BossSplitDefinitions.Skeletron,
                 StringComparison.OrdinalIgnoreCase)));
         TimeSpan expectedTime = TimeSpan.FromSeconds(30);
         skeletronStatus.SetTime(expectedTime);
+        RuntimeRunSnapshot runtimeSnapshot = RuntimeRunSnapshot.FromState(
+            new SplitTimerState(SplitTimerPhase.Paused, expectedTime, 0),
+            tracker,
+            Stopwatch.GetTimestamp());
+        InvokePrivate(
+            form,
+            "HandleWatcherPollCompleted",
+            new WatcherPollNotification(
+                TestSnapshots.Terraria(isGameMenu: true),
+                TestSnapshots.Terraria(isGameMenu: true),
+                TerrariaWatcherDiagnosticsDefaults.Empty,
+                runtimeSnapshot,
+                [],
+                applicationController.MinimumAcceptedRuntimeCommandSequence,
+                TimeSpan.Zero,
+                Stopwatch.GetTimestamp(),
+                TimeSpan.FromMilliseconds(5),
+                TimeSpan.Zero,
+                null));
 
         string lastRunDirectory = SplitTimeSetStore.LastRunDirectory;
         DirectorySnapshot lastRunSnapshot = SnapshotDirectory(lastRunDirectory);
@@ -1142,14 +1186,13 @@ static void TestMainFormInitializesOverlayLayoutWithCurrentSplitCount()
         _ = form.Handle;
 
         OverlayBoundsController boundsController = GetPrivateField<OverlayBoundsController>(form, "overlayBoundsController");
-        RunSessionController runSession = GetPrivateField<RunSessionController>(form, "runSession");
-        BossSplitTracker splitTracker = runSession.SplitTracker;
+        ApplicationController applicationController = GetPrivateField<ApplicationController>(form, "applicationController");
         Rectangle compositeBounds = boundsController.CompositeBounds;
-        AppSettings settings = GetPrivateField<AppSettings>(form, "settings");
+        AppSettings settings = GetMainFormSettings(form);
 
         AssertEqual(true, SplitLayoutCalculator.TryCreate(
             new Rectangle(0, 0, compositeBounds.Width, compositeBounds.Height),
-            splitTracker.Statuses.Count,
+            applicationController.ViewState.DisplayStatuses.Count,
             9,
             value => OverlayRenderContext.ScaleInt(settings, value),
             out SplitLayout expectedLayout));
@@ -1182,7 +1225,7 @@ static void TestMainFormScalesSizeWhenGlobalScaleChanges()
         var previousSettings = new AppSettings();
         previousSettings.Columns.ScalePercent = 100;
         SetMainFormSettings(form, previousSettings);
-        InvokePrivate(form, "ApplyLoadedSettings", (object?)null);
+        InvokePrivate(form, "ApplyLoadedSettings", (object?)null, -1);
         boundsController.ApplyCompositeBounds(new Rectangle(80, 90, 600, 500));
         Size previousSize = boundsController.CompositeBounds.Size;
 
@@ -1190,7 +1233,7 @@ static void TestMainFormScalesSizeWhenGlobalScaleChanges()
         settings.Columns.ScalePercent = 150;
         SetMainFormSettings(form, settings);
 
-        InvokePrivate(form, "ApplyLoadedSettings", previousSettings);
+        InvokePrivate(form, "ApplyLoadedSettings", previousSettings, -1);
 
         AssertEqual(
             new Size(
@@ -1210,14 +1253,14 @@ static void TestMainFormAdjustsWidthWhenSplitColumnsChange()
         var previousSettings = new AppSettings();
         previousSettings.Columns.ScalePercent = 100;
         SetMainFormSettings(form, previousSettings);
-        InvokePrivate(form, "ApplyLoadedSettings", (object?)null);
+        InvokePrivate(form, "ApplyLoadedSettings", (object?)null, -1);
 
         boundsController.ApplyCompositeBounds(new Rectangle(80, 90, 600, 500));
         var settings = AppSettingsStore.Clone(previousSettings);
         settings.Columns.Time.Width += 100;
         SetMainFormSettings(form, settings);
 
-        InvokePrivate(form, "ApplyLoadedSettings", previousSettings);
+        InvokePrivate(form, "ApplyLoadedSettings", previousSettings, -1);
 
         AssertEqual(new Size(700, 500), boundsController.CompositeBounds.Size);
     });
@@ -1436,9 +1479,25 @@ static void PressHotkeyBoxKey(SettingsHotkeyTextBox textBox, Keys keyData)
 
 static void SetMainFormSettings(MainForm form, AppSettings settings)
 {
-    FieldInfo field = typeof(MainForm).GetField("settings", BindingFlags.Instance | BindingFlags.NonPublic)
-        ?? throw new InvalidOperationException("Missing MainForm settings field.");
-    field.SetValue(form, AppSettingsStore.Clone(settings));
+    ApplicationController controller = GetPrivateField<ApplicationController>(form, "applicationController");
+    AppSettings clonedSettings = AppSettingsStore.Clone(settings);
+    IReadOnlyList<BossSplitDefinition> definitions = BossSplitDefinitions.Build(clonedSettings);
+    SetPrivateField(controller, "<Settings>k__BackingField", clonedSettings);
+    SetPrivateField(controller, "<Definitions>k__BackingField", definitions);
+    SetPrivateField(controller, "<ViewState>k__BackingField", ApplicationViewState.FromDefinitions(clonedSettings, definitions));
+}
+
+static AppSettings GetMainFormSettings(MainForm form)
+{
+    ApplicationController controller = GetPrivateField<ApplicationController>(form, "applicationController");
+    return AppSettingsStore.Clone(controller.Settings);
+}
+
+static void SetPrivateField(object target, string fieldName, object? value)
+{
+    FieldInfo field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic)
+        ?? throw new InvalidOperationException($"Missing field {fieldName} on {target.GetType().Name}.");
+    field.SetValue(target, value);
 }
 
 static T GetPrivateField<T>(object target, params string[] fieldNames)
@@ -1487,6 +1546,28 @@ static string GetPublishOutputDirectory(params string[] segments)
         [Directory.GetCurrentDirectory(), "publish", .. segments, Guid.NewGuid().ToString("N")]);
     Directory.CreateDirectory(path);
     return path;
+}
+
+static string FindSourceRoot()
+{
+    string directory = Directory.GetCurrentDirectory();
+    while (!string.IsNullOrWhiteSpace(directory))
+    {
+        if (File.Exists(Path.Combine(directory, "TerrariaSplit.slnx")))
+        {
+            return directory;
+        }
+
+        string? parent = Directory.GetParent(directory)?.FullName;
+        if (string.Equals(parent, directory, StringComparison.OrdinalIgnoreCase))
+        {
+            break;
+        }
+
+        directory = parent ?? string.Empty;
+    }
+
+    throw new DirectoryNotFoundException("TerrariaSplit source root was not found.");
 }
 
 static string FindDefaultSettingsTemplate()

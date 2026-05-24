@@ -15,7 +15,7 @@ internal static class SplitRenderData
         AppSettings settings,
         SplitTimerPhase timerPhase,
         TimeSpan timerElapsed,
-        BossSplitStatus status,
+        SplitStatusSnapshot status,
         bool isCurrent)
     {
         if (!settings.TryGetReferenceSplit(status.Definition, out TimeSpan referenceTime))
@@ -97,7 +97,7 @@ internal static class SplitRenderData
     }
 
     public static bool TryGetCompletedSegmentTime(
-        IReadOnlyList<BossSplitStatus> statuses,
+        IReadOnlyList<SplitStatusSnapshot> statuses,
         int completedIndex,
         out TimeSpan segmentTime)
     {
@@ -231,7 +231,7 @@ internal static class OverlayTextStyles
 
     public static TextRenderStyle GetTimerTextStyle(
         AppSettings settings,
-        IReadOnlyList<BossSplitStatus> statuses,
+        IReadOnlyList<SplitStatusSnapshot> statuses,
         int currentSplitIndex,
         SplitTimerPhase timerPhase,
         TimeSpan timerElapsed,
@@ -243,7 +243,7 @@ internal static class OverlayTextStyles
             return CreateTimerTextStyle(settings, palette.TimerText, palette.TimerTextOutline, palette.TimerTextShadow, milliseconds);
         }
 
-        if (TryGetCompletedMoonLordStatus(statuses, out BossSplitStatus moonLordStatus, out TimeSpan moonLordTime) &&
+        if (TryGetCompletedMoonLordStatus(statuses, out SplitStatusSnapshot moonLordStatus, out TimeSpan moonLordTime) &&
             settings.TryGetReferenceSplit(moonLordStatus.Definition, out TimeSpan moonLordReference))
         {
             return moonLordTime < moonLordReference
@@ -421,11 +421,11 @@ internal static class OverlayTextStyles
     }
 
     private static bool TryGetCompletedMoonLordStatus(
-        IReadOnlyList<BossSplitStatus> statuses,
-        out BossSplitStatus moonLordStatus,
+        IReadOnlyList<SplitStatusSnapshot> statuses,
+        out SplitStatusSnapshot moonLordStatus,
         out TimeSpan moonLordTime)
     {
-        BossSplitStatus? match = statuses.FirstOrDefault(status =>
+        SplitStatusSnapshot? match = statuses.FirstOrDefault(status =>
             !status.IsSkipped &&
             status.Time is not null &&
             BossSplitDefinitions.IsMoonLordSplit(status.Definition));

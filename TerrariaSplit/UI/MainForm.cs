@@ -1,4 +1,4 @@
-﻿using System.Drawing;
+using System.Drawing;
 using System.Diagnostics;
 using System.Threading;
 using System.Windows.Forms;
@@ -16,18 +16,18 @@ internal sealed partial class MainForm : Form
     private const int WsExLayered = 0x80000;
     private const string SegmentTimerWindowTitle = "TerrariaSplit - Segment Timer";
 
-    private readonly RunSessionController runSession = new();
     private readonly TerrariaWorldAutomation worldAutomation = new();
     private readonly MainFormContextMenuBuilder contextMenuBuilder = new();
     private readonly SoundPlayerService soundPlayer = new();
     private readonly HighPrecisionScheduler controlScheduler;
     private readonly HighPrecisionScheduler statusPaintScheduler;
     private readonly GlobalHotkeyManager hotkeyManager = new();
-    private readonly Queue<TimerHotkeyRequest> pendingHotkeyRequests = new();
     private readonly OverlayRenderResources renderResources = new();
-    private readonly Dictionary<int, SegmentBestDeltaHighlight> segmentBestDeltaHighlights = new();
+    private readonly OverlayAnimationController overlayAnimations = new();
     private readonly ContextMenuStrip contextMenu = new();
     private readonly RuntimePerformanceTracker performance = new();
+    private readonly ApplicationController applicationController;
+    private readonly ApplicationShellEffectExecutor effectExecutor;
     private readonly TerrariaMonitorCoordinator monitorCoordinator;
     private readonly OverlayWindowController overlayWindowController;
     private readonly OverlayBoundsController overlayBoundsController;
@@ -38,7 +38,6 @@ internal sealed partial class MainForm : Form
     private bool mouseClickThrough;
     private bool dragging;
     private Point dragStartCursor;
-    private SplitCompletionAnimation? splitCompletionAnimation;
     private bool closeFinalizationPending;
     private bool closeFinalizationComplete;
     private bool settingsFormOpen;
@@ -48,7 +47,6 @@ internal sealed partial class MainForm : Form
     private bool closing;
     private bool runtimeResourcesDisposed;
     private string currentWindowText = string.Empty;
-    private long minimumAcceptedRuntimeCommandSequence;
     private IDisposable? settingsModalWindowRegistration;
     private bool overlayWindowsInitialized;
     private bool overlayWindowInitializationInProgress;
@@ -62,19 +60,28 @@ internal sealed partial class MainForm : Form
     private int controlTickDispatchPending;
     private int statusPaintDispatchPending;
 
-    private AppSettings settings = AppSettingsStore.Load();
     private AppSettings timerOverlaySettingsSnapshot = new();
     private UiPalette palette;
     private TerrariaWatcherDiagnostics watcherDiagnostics = TerrariaWatcherDiagnosticsDefaults.Empty;
     private TerrariaWatchSnapshot snapshot =
         new(false, null, false, null, TerrariaBossStates.Unknown, TerrariaWorldGenerationState.Unknown, false, "waiting for Terraria.exe");
+    private AppSettings settings => applicationController.Settings;
 
-    private SplitTimer runTimer => runSession.Timer;
+    private ApplicationViewState viewState => applicationController.ViewState;
 
-    private BossSplitTracker splitTracker => runSession.SplitTracker;
+    private RuntimeRunSnapshot runtimeSnapshot => viewState.RuntimeSnapshot;
+
+    private IReadOnlyList<SplitStatusSnapshot> splitStatuses => viewState.DisplayStatuses;
+
+    private int currentSplitIndex => viewState.CurrentSplitIndex;
+
+    private SplitTimerPhase timerPhase => viewState.TimerPhase;
+
+    private TimeSpan timerElapsed => viewState.ElapsedNow();
 
     public MainForm()
     {
+        applicationController = new ApplicationController(AppSettingsStore.Load(), ShowPersonalBestUpdateConfirmation);
         RefreshTimerOverlaySettingsSnapshot();
         palette = UiPalette.From(settings.Colors);
         monitorCoordinator = new TerrariaMonitorCoordinator(
@@ -91,7 +98,7 @@ internal sealed partial class MainForm : Form
                 return true;
             },
             elapsed => performance.RecordStatusPaint(elapsed));
-        overlayBoundsController = new OverlayBoundsController(RowGap, settings, runSession.SplitTracker.Statuses.Count);
+        overlayBoundsController = new OverlayBoundsController(RowGap, settings, splitStatuses.Count);
         overlayBoundsController.LayoutChanged += ApplyOverlayLayout;
         timerOverlayHost = new TimerOverlayWindowHost(
             callback => BeginInvoke(callback),
@@ -112,10 +119,26 @@ internal sealed partial class MainForm : Form
         timerOverlayHost.RightClickRequested += HandleTimerOverlayRightClickRequested;
         timerOverlayHost.Activated += QueueMainWindowForegroundGroupSync;
         timerOverlayHost.ModalActivationRequested += () => modalWindows.ActivateCurrentModal();
-        IReadOnlyList<BossSplitDefinition> initialDefinitions = BossSplitDefinitions.Build(settings);
-        runSession.SetDefinitions(initialDefinitions);
-        overlayBoundsController.UpdateContext(settings, runSession.SplitTracker.Statuses.Count);
-        minimumAcceptedRuntimeCommandSequence = monitorCoordinator.SetRuntimeDefinitions(initialDefinitions);
+        effectExecutor = new ApplicationShellEffectExecutor(
+            SubmitRuntimeCommand,
+            soundPlayer.StopAll,
+            soundPlayer.Play,
+            ToggleMouseClickThrough,
+            overlayAnimations.Clear,
+            overlayAnimations.ClearSplitCompletionAnimation,
+            TrackSegmentBestDeltaHighlight,
+            StartSplitCompletionAnimation,
+            AppSettingsStore.Save,
+            StartCreateWorldAutomation,
+            ShowPracticeWorldSelector,
+            () => worldAutomation.CancelCreateWorld(),
+            () => worldAutomation.CancelEnterWorld(),
+            monitorCoordinator.ResetUiScalePatchState,
+            ApplyLoadedSettings,
+            RefreshTimerOverlaySettingsSnapshot,
+            RefreshRuntimeUi);
+        overlayBoundsController.UpdateContext(settings, splitStatuses.Count);
+        AcceptRuntimeCommandSequence(monitorCoordinator.SetRuntimeDefinitions(applicationController.Definitions));
         Text = SegmentTimerWindowTitle;
         modalWindows.SetAlwaysOnTop(settings.AlwaysOnTop);
         FormBorderStyle = FormBorderStyle.None;
@@ -419,7 +442,7 @@ internal sealed partial class MainForm : Form
         ColumnRects columns = SplitListRenderer.GetColumnRects(settings, rowRect);
         if (columns.Time is Rectangle timeRect && timeRect.Contains(point))
         {
-            BossSplitStatus status = splitTracker.Statuses[rowIndex];
+            SplitStatusSnapshot status = splitStatuses[rowIndex];
             return status.IsCompleted;
         }
 
@@ -446,27 +469,18 @@ internal sealed partial class MainForm : Form
             return;
         }
 
-        if (hotkeyManager.TryGetAction(m, out TimerHotkeyAction action))
+        if (hotkeyManager.TryGetAction(m, out HotkeyAction action))
         {
-            if (worldAutomation.IsCreateWorldRunning && action != TimerHotkeyAction.CreateWorld)
+            if (HotkeyCommandMapper.TryMap(
+                    action,
+                    DateTime.UtcNow,
+                    worldAutomation.IsCreateWorldRunning,
+                    worldAutomation.IsEnterWorldRunning,
+                    out AppCommand command))
             {
-                m.Result = IntPtr.Zero;
-                return;
+                ExecuteAppCommand(command);
             }
 
-            if (worldAutomation.IsEnterWorldRunning && action != TimerHotkeyAction.PracticeWorld)
-            {
-                m.Result = IntPtr.Zero;
-                return;
-            }
-
-            if (TryHandleImmediateHotkey(action))
-            {
-                m.Result = IntPtr.Zero;
-                return;
-            }
-
-            pendingHotkeyRequests.Enqueue(new TimerHotkeyRequest(action, DateTime.UtcNow));
             m.Result = IntPtr.Zero;
             return;
         }
@@ -504,13 +518,9 @@ internal sealed partial class MainForm : Form
         long startTimestamp = Stopwatch.GetTimestamp();
         try
         {
-            TimerHotkeyRequest[] hotkeyRequests = DrainPendingHotkeyRequests();
-            hotkeyRequests = CancelRequestedAutomations(hotkeyRequests);
-            hotkeyRequests = ProcessLocalHotkeyRequests(hotkeyRequests);
             monitorCoordinator.Tick(
-                runTimer.Phase,
-                settings.Advanced?.EnableTerrariaUiScalePatch == true,
-                hotkeyRequests);
+                timerPhase,
+                settings.Advanced?.EnableTerrariaUiScalePatch == true);
             ProcessUiTick();
         }
         finally
@@ -613,85 +623,19 @@ internal sealed partial class MainForm : Form
 
     private void ProcessUiTick()
     {
-        monitorCoordinator.UpdateRunPhase(runTimer.Phase);
+        monitorCoordinator.UpdateRunPhase(timerPhase);
         UpdateWindowTitle();
-    }
-
-    private TimerHotkeyRequest[] ProcessLocalHotkeyRequests(IReadOnlyCollection<TimerHotkeyRequest> hotkeyRequests)
-    {
-        if (hotkeyRequests.Count == 0)
-        {
-            return [];
-        }
-
-        var forwardedRequests = new List<TimerHotkeyRequest>(hotkeyRequests.Count);
-        foreach (TimerHotkeyRequest request in hotkeyRequests)
-        {
-            if (request.Action == TimerHotkeyAction.MouseClickThrough)
-            {
-                SetMouseClickThrough(!mouseClickThrough);
-                InvalidateRuntimeRenderRegion();
-            }
-            else
-            {
-                forwardedRequests.Add(request);
-            }
-        }
-
-        return forwardedRequests.ToArray();
-    }
-
-    private bool TryHandleImmediateHotkey(TimerHotkeyAction action)
-    {
-        if (action == TimerHotkeyAction.MouseClickThrough)
-        {
-            SetMouseClickThrough(!mouseClickThrough);
-            InvalidateRuntimeRenderRegion();
-            return true;
-        }
-
-        if (action != TimerHotkeyAction.PauseResume)
-        {
-            return false;
-        }
-
-        TogglePauseImmediately();
-        return true;
-    }
-
-    private void TogglePauseImmediately()
-    {
-        SplitTimerPhase previousPhase = runTimer.Phase;
-        if (previousPhase == SplitTimerPhase.NotStarted)
-        {
-            return;
-        }
-
-        runTimer.TogglePause();
-        if (previousPhase == SplitTimerPhase.Running && runTimer.Phase == SplitTimerPhase.Paused)
-        {
-            soundPlayer.Play(settings.Sounds.Pause);
-        }
-        else if (previousPhase == SplitTimerPhase.Paused && runTimer.Phase == SplitTimerPhase.Running)
-        {
-            soundPlayer.Play(settings.Sounds.Resume);
-        }
-
-        SyncBackgroundRuntimeState();
-        UpdateStatusPaintSchedulerState();
-        UpdateWindowTitle();
-        Invalidate();
     }
 
     private void RenderStatusOverlayTick()
     {
-        if (splitCompletionAnimation is not null)
+        if (overlayAnimations.SplitCompletionAnimation is not null)
         {
             overlayWindowController.RenderImmediately();
             return;
         }
 
-        if (runTimer.Phase == SplitTimerPhase.Running)
+        if (timerPhase == SplitTimerPhase.Running)
         {
             overlayWindowController.RenderImmediately();
             return;
@@ -704,7 +648,7 @@ internal sealed partial class MainForm : Form
     {
         bool shouldRun = !closing &&
             runtimeOverlayPaintSuspensionCount <= 0 &&
-            (runTimer.Phase == SplitTimerPhase.Running || splitCompletionAnimation is not null);
+            (timerPhase == SplitTimerPhase.Running || overlayAnimations.SplitCompletionAnimation is not null);
         if (shouldRun && !statusPaintScheduler.IsRunning)
         {
             statusPaintScheduler.Start(statusPaintInterval);
@@ -727,90 +671,54 @@ internal sealed partial class MainForm : Form
             watcherDiagnostics = notification.Diagnostics;
         }
         UpdateConfiguredRefreshIntervals();
-        bool invalidateAll = false;
-        if (notification.RuntimeCommandSequence >= minimumAcceptedRuntimeCommandSequence)
-        {
-            runTimer.ApplyState(notification.RuntimeState.TimerState);
-            splitTracker.ApplyState(notification.RuntimeState.SplitTrackerState);
-            invalidateAll = ApplyRuntimeTickResult(notification.RuntimeTickResult);
-            minimumAcceptedRuntimeCommandSequence = Math.Max(
-                minimumAcceptedRuntimeCommandSequence,
-                notification.RuntimeCommandSequence);
-        }
+        ApplicationUpdate update = applicationController.HandleWatcherNotification(notification);
+        ApplyApplicationUpdate(update);
 
         ProcessUiTick();
         UpdateStatusPaintSchedulerState();
         PublishTimerOverlaySnapshot();
-        if (invalidateAll || !notification.Snapshot.Equals(notification.PreviousSnapshot))
+        if (update.InvalidateAll || !notification.Snapshot.Equals(notification.PreviousSnapshot))
         {
             Invalidate();
         }
     }
 
-    private bool ApplyRuntimeTickResult(TimerControllerTickResult tickResult)
+    private void ExecuteAppCommand(AppCommand command)
     {
-        bool invalidateAll = false;
+        ApplyApplicationUpdate(applicationController.HandleCommand(command));
+    }
 
-        if (tickResult.PauseSoundRequested)
+    private void ApplyApplicationUpdate(ApplicationUpdate update)
+    {
+        effectExecutor.Apply(update.Effects);
+
+        if (update.InvalidateAll)
         {
-            soundPlayer.Play(settings.Sounds.Pause);
-            invalidateAll = true;
+            RefreshRuntimeUi();
+            Invalidate();
         }
+    }
 
-        if (tickResult.ResumeSoundRequested)
-        {
-            soundPlayer.Play(settings.Sounds.Resume);
-            invalidateAll = true;
-        }
+    private void SubmitRuntimeCommand(RuntimeCommand command)
+    {
+        AcceptRuntimeCommandSequence(monitorCoordinator.SubmitRuntimeCommand(command));
+    }
 
-        if (tickResult.RequestedMenuAction is MenuHotkeyActionKind menuAction)
-        {
-            ExecuteMenuHotkeyAction(menuAction);
-            return true;
-        }
-
-        if (tickResult.RunStarted)
-        {
-            soundPlayer.Play(settings.Sounds.EnterWorld);
-            runSession.MarkRunStarted();
-            invalidateAll = true;
-        }
-
-        if (tickResult.CompletedSplitIndex is int completedIndex)
-        {
-            TrackSegmentBestDeltaHighlight(completedIndex);
-            PlaySplitSound(completedIndex);
-
-            if (settings.ShowSplitCompletionAnimation)
-            {
-                StartSplitCompletionAnimation(completedIndex);
-            }
-            else
-            {
-                splitCompletionAnimation = null;
-            }
-
-            if (tickResult.RunCompleted)
-            {
-                RecordRunStatsOnce();
-            }
-
-            invalidateAll = true;
-        }
-
-        return invalidateAll;
+    private void AcceptRuntimeCommandSequence(long sequence)
+    {
+        applicationController.AcceptRuntimeCommandSequence(sequence);
     }
 
     private void InvalidateRuntimeRenderRegion()
     {
         if (settings.ShowEarlyDeltaTime &&
-            splitTracker.CurrentIndex >= 0 &&
-            splitTracker.CurrentIndex < splitTracker.Statuses.Count &&
+            currentSplitIndex >= 0 &&
+            currentSplitIndex < splitStatuses.Count &&
             TryGetLayout(out SplitLayout layout))
         {
             Rectangle rowRect = overlayWindowsInitialized
-                ? overlayBoundsController.CurrentLayout.ToStatusLocal(layout.GetRowRect(splitTracker.CurrentIndex))
-                : layout.GetRowRect(splitTracker.CurrentIndex);
+                ? overlayBoundsController.CurrentLayout.ToStatusLocal(layout.GetRowRect(currentSplitIndex))
+                : layout.GetRowRect(currentSplitIndex);
             Invalidate(Rectangle.Inflate(rowRect, ScaleInt(6), ScaleInt(6)));
             return;
         }
@@ -839,47 +747,8 @@ internal sealed partial class MainForm : Form
     {
         lock (runtimeDebugSnapshotLock)
         {
-            return new RuntimeDebugSnapshot(snapshot, watcherDiagnostics, performance.Snapshot(), runTimer.Phase);
+            return new RuntimeDebugSnapshot(snapshot, watcherDiagnostics, performance.Snapshot(), timerPhase);
         }
-    }
-
-    private TimerHotkeyRequest[] DrainPendingHotkeyRequests()
-    {
-        if (pendingHotkeyRequests.Count == 0)
-        {
-            return [];
-        }
-
-        TimerHotkeyRequest[] requests = pendingHotkeyRequests.ToArray();
-        pendingHotkeyRequests.Clear();
-        return requests;
-    }
-
-    private TimerHotkeyRequest[] CancelRequestedAutomations(IReadOnlyCollection<TimerHotkeyRequest> hotkeyRequests)
-    {
-        if (hotkeyRequests.Count == 0)
-        {
-            return [];
-        }
-
-        var remainingRequests = new List<TimerHotkeyRequest>(hotkeyRequests.Count);
-        foreach (TimerHotkeyRequest request in hotkeyRequests)
-        {
-            if (request.Action == TimerHotkeyAction.CreateWorld && worldAutomation.IsCreateWorldRunning)
-            {
-                worldAutomation.CancelCreateWorld();
-                continue;
-            }
-            else if (request.Action == TimerHotkeyAction.PracticeWorld && worldAutomation.IsEnterWorldRunning)
-            {
-                worldAutomation.CancelEnterWorld();
-                continue;
-            }
-
-            remainingRequests.Add(request);
-        }
-
-        return remainingRequests.ToArray();
     }
 
     private bool ShowPersonalBestUpdateConfirmation(string promptText)
@@ -910,31 +779,9 @@ internal sealed partial class MainForm : Form
         }
     }
 
-    private void ExecuteReset()
-    {
-        ResetRunWithSound(recordStats: true);
-    }
-
-    private void ExecuteMenuHotkeyAction(MenuHotkeyActionKind action)
-    {
-        switch (action)
-        {
-            case MenuHotkeyActionKind.Reset:
-                ExecuteReset();
-                break;
-            case MenuHotkeyActionKind.CreateWorld:
-                StartCreateWorldAutomation();
-                break;
-            case MenuHotkeyActionKind.PracticeWorld:
-                ResetRunWithSound(recordStats: true);
-                ShowPracticeWorldSelector();
-                break;
-        }
-    }
-
     private string FormatTimerPhase()
     {
-        return runTimer.Phase switch
+        return timerPhase switch
         {
             SplitTimerPhase.NotStarted => "READY",
             SplitTimerPhase.Running => "RUNNING",
@@ -981,21 +828,18 @@ internal sealed partial class MainForm : Form
         settingsFormOpen = true;
         settingsModalWindowRegistration?.Dispose();
         hotkeyManager.Dispose();
-        pendingHotkeyRequests.Clear();
-        minimumAcceptedRuntimeCommandSequence = Math.Max(
-            minimumAcceptedRuntimeCommandSequence,
-            monitorCoordinator.ClearPendingHotkeys());
+        AcceptRuntimeCommandSequence(monitorCoordinator.ClearPendingMenuActions());
         settingsDialogHost = new SettingsDialogHost(
             settings,
             GetRuntimeDiagnostics,
             GetRuntimeDebugSnapshot,
             callback => BeginInvoke(callback),
-            ApplySettings,
+            appliedSettings => ExecuteAppCommand(AppCommand.ApplySettings(appliedSettings)),
             result =>
             {
                 if (result.DialogResult == DialogResult.OK)
                 {
-                    ApplySettings(result.Result);
+                    ExecuteAppCommand(AppCommand.ApplySettings(result.Result));
                 }
 
                 settingsModalWindowRegistration?.Dispose();
@@ -1017,16 +861,6 @@ internal sealed partial class MainForm : Form
         settingsDialogHost.Show();
     }
 
-    private void ApplySettings(AppSettings appliedSettings)
-    {
-        AppSettings previousSettings = AppSettingsStore.Clone(settings);
-        AppSettings nextSettings = AppSettingsStore.Clone(appliedSettings);
-        FinalizeCurrentRunForSettingsChange(nextSettings);
-        settings = nextSettings;
-        AppSettingsStore.Save(settings);
-        ApplyLoadedSettings(previousSettings);
-    }
-
     private void SwitchSettingsFile(string path)
     {
         if (string.Equals(
@@ -1037,38 +871,23 @@ internal sealed partial class MainForm : Form
             return;
         }
 
-        AppSettings previousSettings = AppSettingsStore.Clone(settings);
         AppSettings nextSettings = AppSettingsStore.Load(path);
-        FinalizeCurrentRunForSettingsChange(nextSettings);
-        settings = nextSettings;
-        ApplyLoadedSettings(previousSettings);
+        ExecuteAppCommand(AppCommand.ApplySettings(nextSettings));
     }
 
-    private void FinalizeCurrentRunForSettingsChange(AppSettings nextSettings)
+    private void ApplySettings(AppSettings appliedSettings)
     {
-        runSession.Reset(nextSettings, recordStats: true, ShowPersonalBestUpdateConfirmation);
-        splitCompletionAnimation = null;
-        segmentBestDeltaHighlights.Clear();
-        minimumAcceptedRuntimeCommandSequence = Math.Max(
-            minimumAcceptedRuntimeCommandSequence,
-            monitorCoordinator.ResetRuntimeState());
+        ExecuteAppCommand(AppCommand.ApplySettings(appliedSettings));
     }
 
-    private void ApplyLoadedSettings(AppSettings? previousSettings = null)
+    private void ApplyLoadedSettings(AppSettings? previousSettings = null, int splitCount = -1)
     {
         Rectangle? referenceCompositeBounds = overlayWindowsInitialized
             ? overlayBoundsController.CompositeBounds
             : pendingInitialCompositeBounds;
         palette = UiPalette.From(settings.Colors);
         RefreshTimerOverlaySettingsSnapshot();
-        IReadOnlyList<BossSplitDefinition> definitions = BossSplitDefinitions.Build(settings);
-        runSession.SetDefinitions(definitions);
-        overlayBoundsController.UpdateContext(settings, runSession.SplitTracker.Statuses.Count);
-        minimumAcceptedRuntimeCommandSequence = Math.Max(
-            minimumAcceptedRuntimeCommandSequence,
-            monitorCoordinator.SetRuntimeDefinitions(definitions));
-        ResetRun();
-        monitorCoordinator.ResetUiScalePatchState();
+        overlayBoundsController.UpdateContext(settings, splitCount >= 0 ? splitCount : splitStatuses.Count);
         UpdateEffectiveOverlayTopMost();
         if (IsHandleCreated && !settingsFormOpen)
         {
@@ -1142,7 +961,7 @@ internal sealed partial class MainForm : Form
         if (OverlayCompositeLayoutCalculator.TryCreate(
                 new Rectangle(Point.Empty, minimumCompositeSize),
                 settings,
-                runSession.SplitTracker.Statuses.Count,
+                splitStatuses.Count,
                 RowGap,
                 out OverlayCompositeLayout minimumLayout))
         {
@@ -1164,7 +983,7 @@ internal sealed partial class MainForm : Form
         return OverlayCompositeLayoutCalculator.TryCreate(
             compositeBounds,
             settings,
-            runSession.SplitTracker.Statuses.Count,
+            splitStatuses.Count,
             RowGap,
             out layout);
     }
@@ -1362,33 +1181,22 @@ internal sealed partial class MainForm : Form
 
     private TimerOverlayRenderState BuildTimerOverlaySnapshot()
     {
-        BossSplitStatus[] statusCopies = splitTracker.Statuses
-            .Select(status => status.CreateRenderCopy())
-            .ToArray();
         return new TimerOverlayRenderState(
             timerOverlaySettingsSnapshot,
             palette,
-            statusCopies,
-            splitTracker.CurrentIndex,
-            runTimer.CaptureState(),
+            splitStatuses,
+            currentSplitIndex,
+            runtimeSnapshot.TimerState,
             mouseClickThrough);
     }
 
     private TimerOverlayStateKey BuildTimerOverlaySnapshotKey()
     {
-        SplitTimerState timerState = runTimer.CaptureState();
-        var hash = new HashCode();
-        foreach (BossSplitStatus status in splitTracker.Statuses)
-        {
-            hash.Add(status.Time);
-            hash.Add(status.IsSkipped);
-        }
-
         return new TimerOverlayStateKey(
-            timerState,
-            splitTracker.CurrentIndex,
+            runtimeSnapshot.TimerState,
+            currentSplitIndex,
             mouseClickThrough,
-            hash.ToHashCode(),
+            viewState.StatusHash,
             timerOverlaySettingsRevision);
     }
 
@@ -1436,36 +1244,12 @@ internal sealed partial class MainForm : Form
 
     private void FinalizeRunBeforeExit()
     {
-        ResetRun(recordStats: true);
+        ExecuteAppCommand(AppCommand.ResetRun(recordStats: true, playResetSound: false));
     }
 
     private void ResetRun(bool recordStats = false)
     {
-        runSession.Reset(settings, recordStats, ShowPersonalBestUpdateConfirmation);
-        RefreshTimerOverlaySettingsSnapshot();
-        splitCompletionAnimation = null;
-        segmentBestDeltaHighlights.Clear();
-        minimumAcceptedRuntimeCommandSequence = Math.Max(
-            minimumAcceptedRuntimeCommandSequence,
-            monitorCoordinator.ResetRuntimeState());
-        UpdateStatusPaintSchedulerState();
-        PublishTimerOverlaySnapshot();
-        Invalidate();
-    }
-
-    private void RecordRunStatsOnce()
-    {
-        runSession.RecordRunStatsOnce();
-    }
-
-    private void SyncBackgroundRuntimeState()
-    {
-        minimumAcceptedRuntimeCommandSequence = Math.Max(
-            minimumAcceptedRuntimeCommandSequence,
-            monitorCoordinator.ReplaceRuntimeState(
-                runTimer.CaptureState(),
-                splitTracker.CaptureState()));
-        PublishTimerOverlaySnapshot();
+        ExecuteAppCommand(AppCommand.ResetRun(recordStats, playResetSound: false));
     }
 
     private void SetMouseClickThrough(bool enabled)
@@ -1478,11 +1262,20 @@ internal sealed partial class MainForm : Form
         UpdateWindowTitle();
     }
 
+    private void ToggleMouseClickThrough()
+    {
+        SetMouseClickThrough(!mouseClickThrough);
+        InvalidateRuntimeRenderRegion();
+    }
+
+    private void RefreshRuntimeUi()
+    {
+        UpdateStatusPaintSchedulerState();
+        PublishTimerOverlaySnapshot();
+    }
+
     private async void StartCreateWorldAutomation()
     {
-        pendingHotkeyRequests.Clear();
-        ResetRunWithSound(recordStats: true);
-
         try
         {
             await worldAutomation.StartCreateWorldAsync(AppSettingsStore.Clone(settings));
@@ -1526,10 +1319,7 @@ internal sealed partial class MainForm : Form
             return;
         }
 
-        pendingHotkeyRequests.Clear();
-        minimumAcceptedRuntimeCommandSequence = Math.Max(
-            minimumAcceptedRuntimeCommandSequence,
-            monitorCoordinator.ClearPendingHotkeys());
+        AcceptRuntimeCommandSequence(monitorCoordinator.ClearPendingMenuActions());
 
         try
         {
@@ -1543,9 +1333,7 @@ internal sealed partial class MainForm : Form
 
     private void ResetRunWithSound(bool recordStats = false)
     {
-        soundPlayer.StopAll();
-        soundPlayer.Play(settings.Sounds.Reset);
-        ResetRun(recordStats);
+        ExecuteAppCommand(AppCommand.ResetRun(recordStats, playResetSound: true));
     }
 
     private void RegisterConfiguredHotkeys()
@@ -1605,15 +1393,15 @@ internal sealed partial class MainForm : Form
         };
     }
 
-    private static string GetHotkeyActionDisplayName(TimerHotkeyAction action)
+    private static string GetHotkeyActionDisplayName(HotkeyAction action)
     {
         return action switch
         {
-            TimerHotkeyAction.PauseResume => "Pause / Resume",
-            TimerHotkeyAction.Reset => "Reset (Disabled in world)",
-            TimerHotkeyAction.MouseClickThrough => "Mouse passthrough",
-            TimerHotkeyAction.CreateWorld => "Create world (Disabled in world)",
-            TimerHotkeyAction.PracticeWorld => "Load world (Disabled in world)",
+            HotkeyAction.PauseResume => "Pause / Resume",
+            HotkeyAction.Reset => "Reset (Disabled in world)",
+            HotkeyAction.MouseClickThrough => "Mouse passthrough",
+            HotkeyAction.CreateWorld => "Create world (Disabled in world)",
+            HotkeyAction.PracticeWorld => "Load world (Disabled in world)",
             _ => action.ToString()
         };
     }

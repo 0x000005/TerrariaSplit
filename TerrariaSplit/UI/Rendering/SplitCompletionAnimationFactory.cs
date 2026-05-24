@@ -4,7 +4,7 @@ internal static class SplitCompletionAnimationFactory
 {
     public static SplitCompletionAnimation? Create(
         AppSettings settings,
-        IReadOnlyList<BossSplitStatus> statuses,
+        IReadOnlyList<SplitStatusSnapshot> statuses,
         int completedIndex,
         DateTime startedAtUtc)
     {

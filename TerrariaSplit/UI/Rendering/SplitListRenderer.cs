@@ -22,7 +22,7 @@ internal static class SplitListRenderer
 
         foreach (int i in rowOrder)
         {
-            BossSplitStatus status = context.Statuses[i];
+            SplitStatusSnapshot status = context.Statuses[i];
             bool isCurrent = i == context.CurrentSplitIndex && context.TimerPhase != SplitTimerPhase.NotStarted;
             float depthScale = GetCurrentSplitDepthScale(context.Settings, i, focusIndex);
             DrawSplitRow(
@@ -147,7 +147,7 @@ internal static class SplitListRenderer
         OverlayRenderContext context,
         OverlayRenderResources resources,
         Rectangle rect,
-        BossSplitStatus status,
+        SplitStatusSnapshot status,
         int rowIndex,
         bool isCurrent,
         float opacity,
@@ -240,7 +240,7 @@ internal static class SplitListRenderer
         OverlayRenderContext context,
         OverlayRenderResources resources,
         Rectangle rect,
-        BossSplitStatus status,
+        SplitStatusSnapshot status,
         float opacity = 1f,
         float sizeScale = 1f,
         bool brighten = false)
@@ -289,7 +289,7 @@ internal static class SplitListRenderer
         }
     }
 
-    private static bool IsIconLit(OverlayRenderContext context, BossSplitStatus status, int iconIndex)
+    private static bool IsIconLit(OverlayRenderContext context, SplitStatusSnapshot status, int iconIndex)
     {
         if (!context.Settings.EnableDefeatedBossIconLighting)
         {

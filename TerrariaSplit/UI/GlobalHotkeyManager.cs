@@ -4,6 +4,15 @@ using System.Windows.Forms;
 
 namespace TerrariaSplit;
 
+internal enum HotkeyAction
+{
+    PauseResume,
+    Reset,
+    MouseClickThrough,
+    CreateWorld,
+    PracticeWorld
+}
+
 internal sealed class GlobalHotkeyManager : IDisposable
 {
     public const int HotkeyMessage = 0x0312;
@@ -14,7 +23,7 @@ internal sealed class GlobalHotkeyManager : IDisposable
     private const uint ModShift = 0x0004;
     private const uint ModNoRepeat = 0x4000;
 
-    private readonly Dictionary<int, TimerHotkeyAction> actionsById = new();
+    private readonly Dictionary<int, HotkeyAction> actionsById = new();
     private IntPtr handle;
 
     public IReadOnlyList<HotkeyRegistrationWarning> RegisterConfiguredHotkeys(IntPtr windowHandle, AppSettings settings)
@@ -24,15 +33,15 @@ internal sealed class GlobalHotkeyManager : IDisposable
 
         var warnings = new List<HotkeyRegistrationWarning>();
         HashSet<HotkeyChord> registeredChords = new();
-        RegisterAction(TimerHotkeyAction.PauseResume, settings.PauseResumeKeys, registeredChords, warnings);
-        RegisterAction(TimerHotkeyAction.Reset, settings.ResetKeys, registeredChords, warnings);
-        RegisterAction(TimerHotkeyAction.MouseClickThrough, settings.MouseClickThroughKeys, registeredChords, warnings);
-        RegisterAction(TimerHotkeyAction.CreateWorld, settings.CreateWorldKeys, registeredChords, warnings);
-        RegisterAction(TimerHotkeyAction.PracticeWorld, settings.PracticeWorldKeys, registeredChords, warnings);
+        RegisterAction(HotkeyAction.PauseResume, settings.PauseResumeKeys, registeredChords, warnings);
+        RegisterAction(HotkeyAction.Reset, settings.ResetKeys, registeredChords, warnings);
+        RegisterAction(HotkeyAction.MouseClickThrough, settings.MouseClickThroughKeys, registeredChords, warnings);
+        RegisterAction(HotkeyAction.CreateWorld, settings.CreateWorldKeys, registeredChords, warnings);
+        RegisterAction(HotkeyAction.PracticeWorld, settings.PracticeWorldKeys, registeredChords, warnings);
         return warnings;
     }
 
-    public bool TryGetAction(Message message, out TimerHotkeyAction action)
+    public bool TryGetAction(Message message, out HotkeyAction action)
     {
         action = default;
         return message.Msg == HotkeyMessage &&
@@ -45,7 +54,7 @@ internal sealed class GlobalHotkeyManager : IDisposable
     }
 
     private void RegisterAction(
-        TimerHotkeyAction action,
+        HotkeyAction action,
         Keys keys,
         HashSet<HotkeyChord> registeredChords,
         List<HotkeyRegistrationWarning> warnings)
@@ -147,7 +156,7 @@ internal enum HotkeyRegistrationWarningKind
 }
 
 internal readonly record struct HotkeyRegistrationWarning(
-    TimerHotkeyAction Action,
+    HotkeyAction Action,
     Keys Keys,
     HotkeyRegistrationWarningKind Kind,
     string Detail);

@@ -11,7 +11,7 @@ internal static class MainShellRefactorTests
         yield return ("TerrariaMonitorCoordinator preserves watcher interval policy", TerrariaMonitorCoordinatorPreservesWatcherIntervalPolicy);
         yield return ("TerrariaMonitorCoordinator polls watcher without UI ticks", TerrariaMonitorCoordinatorPollsWatcherWithoutUiTicks);
         yield return ("TerrariaMonitorCoordinator produces runtime state without UI ticks", TerrariaMonitorCoordinatorProducesRuntimeStateWithoutUiTicks);
-        yield return ("TerrariaMonitorCoordinator clears queued hotkeys before processing", TerrariaMonitorCoordinatorClearsQueuedHotkeysBeforeProcessing);
+        yield return ("TerrariaMonitorCoordinator clears queued menu actions before processing", TerrariaMonitorCoordinatorClearsQueuedMenuActionsBeforeProcessing);
         yield return ("TerrariaMonitorCoordinator does not duplicate in-flight polls", TerrariaMonitorCoordinatorDoesNotDuplicateInflightPolls);
         yield return ("TerrariaMonitorCoordinator deduplicates repeated patch logs", TerrariaMonitorCoordinatorDeduplicatesRepeatedPatchLogs);
         yield return ("TerrariaMonitorCoordinator reset clears applied patch state", TerrariaMonitorCoordinatorResetClearsAppliedPatchState);
@@ -91,7 +91,9 @@ internal static class MainShellRefactorTests
         _ = coordinator.SetRuntimeDefinitions(CreateSingleBossDefinitions());
         coordinator.WatcherPollCompleted += notification =>
         {
-            if (notification.RuntimeTickResult.CompletedSplitIndex == 0)
+            if (notification.RunEvents.Any(runEvent =>
+                    runEvent.Kind == RunEventKind.SplitCompleted &&
+                    runEvent.SplitIndex == 0))
             {
                 completion = notification;
             }
@@ -100,14 +102,14 @@ internal static class MainShellRefactorTests
         coordinator.Tick(SplitTimerPhase.NotStarted, patchEnabled: false);
 
         TestAssert.Equal(true, SpinWait.SpinUntil(() => completion.HasValue, 1000));
-        TestAssert.Equal(true, completion!.Value.RuntimeState.SplitTrackerState.Statuses[0].Time.HasValue);
+        TestAssert.Equal(true, completion!.Value.RuntimeSnapshot.Statuses[0].Time.HasValue);
     }
 
-    private static void TerrariaMonitorCoordinatorClearsQueuedHotkeysBeforeProcessing()
+    private static void TerrariaMonitorCoordinatorClearsQueuedMenuActionsBeforeProcessing()
     {
         var watcher = new BlockingWatcher(TestSnapshots.Terraria(isGameMenu: true));
         var patch = new FakePatchApplier(TerrariaUiScalePatchResult.NoProcess());
-        var requestedActions = new List<MenuHotkeyActionKind>();
+        var requestedActions = new List<MenuActionKind>();
         using var coordinator = new TerrariaMonitorCoordinator(
             watcher,
             patch,
@@ -115,19 +117,21 @@ internal static class MainShellRefactorTests
             utcNowProvider: () => DateTime.UtcNow);
         coordinator.WatcherPollCompleted += notification =>
         {
-            if (notification.RuntimeTickResult.RequestedMenuAction is MenuHotkeyActionKind action)
+            foreach (RunEvent runEvent in notification.RunEvents)
             {
-                requestedActions.Add(action);
+                if (runEvent.Kind == RunEventKind.MenuActionRequested &&
+                    runEvent.MenuAction is MenuActionKind action)
+                {
+                    requestedActions.Add(action);
+                }
             }
         };
 
         coordinator.Tick(SplitTimerPhase.NotStarted, patchEnabled: false);
         SpinWait.SpinUntil(() => watcher.PollCount > 0, 1000);
-        coordinator.Tick(
-            SplitTimerPhase.NotStarted,
-            patchEnabled: false,
-            [new TimerHotkeyRequest(TimerHotkeyAction.CreateWorld, DateTime.UtcNow)]);
-        _ = coordinator.ClearPendingHotkeys();
+        _ = coordinator.SubmitRuntimeCommand(
+            RuntimeCommand.QueueMenuAction(MenuActionKind.CreateWorld, DateTime.UtcNow));
+        _ = coordinator.ClearPendingMenuActions();
         watcher.Release();
 
         SpinWait.SpinUntil(() => watcher.CompletedCount >= 2, 1000);

@@ -3,7 +3,7 @@ namespace TerrariaSplit;
 internal sealed record TimerOverlayRenderState(
     AppSettings Settings,
     UiPalette Palette,
-    IReadOnlyList<BossSplitStatus> Statuses,
+    IReadOnlyList<SplitStatusSnapshot> Statuses,
     int CurrentSplitIndex,
     SplitTimerState TimerState,
     bool MouseClickThrough);

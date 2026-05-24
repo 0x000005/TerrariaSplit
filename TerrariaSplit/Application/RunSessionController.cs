@@ -1,18 +1,9 @@
 namespace TerrariaSplit;
 
-internal sealed class RunSessionController
+internal sealed class RunLifecycleController
 {
     private readonly RunFinalizer runFinalizer = new();
     private bool runStatsRecorded;
-
-    public SplitTimer Timer { get; } = new();
-
-    public BossSplitTracker SplitTracker { get; } = new();
-
-    public void SetDefinitions(IReadOnlyList<BossSplitDefinition> definitions)
-    {
-        SplitTracker.SetDefinitions(definitions);
-    }
 
     public void MarkRunStarted()
     {
@@ -21,28 +12,27 @@ internal sealed class RunSessionController
 
     public void Reset(
         AppSettings settings,
+        IReadOnlyList<SplitStatusSnapshot> statuses,
         bool recordStats,
         Func<string, bool> confirmPersonalBestUpdate)
     {
         if (recordStats)
         {
-            runFinalizer.Finalize(settings, SplitTracker.Statuses, runStatsRecorded, confirmPersonalBestUpdate);
+            runFinalizer.Finalize(settings, statuses, runStatsRecorded, confirmPersonalBestUpdate);
             runStatsRecorded = true;
         }
 
-        Timer.Reset();
-        SplitTracker.Reset();
         runStatsRecorded = false;
     }
 
-    public void RecordRunStatsOnce()
+    public void RecordRunStatsOnce(IReadOnlyList<SplitStatusSnapshot> statuses)
     {
         if (runStatsRecorded)
         {
             return;
         }
 
-        RunStatsStore.RecordRun(SplitTracker.Statuses);
+        RunStatsStore.RecordRun(statuses);
         runStatsRecorded = true;
     }
 }

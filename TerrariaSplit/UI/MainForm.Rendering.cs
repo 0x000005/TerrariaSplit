@@ -18,27 +18,24 @@ internal sealed partial class MainForm : Form
             settings,
             palette,
             snapshot,
-            splitTracker.Statuses,
-            splitTracker.CurrentIndex,
-            runTimer.Phase,
-            runTimer.Elapsed,
+            splitStatuses,
+            currentSplitIndex,
+            timerPhase,
+            timerElapsed,
             layout,
             mouseClickThrough,
-            splitCompletionAnimation,
-            segmentBestDeltaHighlights,
+            overlayAnimations.SplitCompletionAnimation,
+            overlayAnimations.SegmentBestDeltaHighlights,
             DateTime.UtcNow);
         OverlayRenderResult result = OverlayRenderer.RenderStatus(graphics, context, renderResources);
-        if (splitCompletionAnimation is not null && !result.SplitCompletionAnimationActive)
-        {
-            splitCompletionAnimation = null;
-        }
+        overlayAnimations.UpdateAfterRender(result);
     }
 
     private bool TryGetSplitRowAt(Point point, out int rowIndex, out Rectangle rowRect)
     {
         rowIndex = -1;
         rowRect = Rectangle.Empty;
-        IReadOnlyList<BossSplitStatus> statuses = splitTracker.Statuses;
+        IReadOnlyList<SplitStatusSnapshot> statuses = splitStatuses;
         if (!TryGetLayout(out SplitLayout layout))
         {
             return false;
@@ -70,7 +67,7 @@ internal sealed partial class MainForm : Form
             return;
         }
 
-        BossSplitStatus status = splitTracker.Statuses[rowIndex];
+        SplitStatusSnapshot status = splitStatuses[rowIndex];
         ColumnRects columns = SplitListRenderer.GetColumnRects(settings, rowRect);
 
         if (columns.Time is Rectangle timeRect && timeRect.Contains(point) && status.IsCompleted)
@@ -79,7 +76,7 @@ internal sealed partial class MainForm : Form
         }
     }
 
-    private void EditPracticeSplitTime(int rowIndex, BossSplitStatus status)
+    private void EditPracticeSplitTime(int rowIndex, SplitStatusSnapshot status)
     {
         string currentText = status.Time is TimeSpan time ? TimeText.FormatRecord(time) : string.Empty;
         if (!PromptForTime(Localizer.Get("Edit split time", settings), currentText, allowEmpty: true, out string? editedText))
@@ -98,27 +95,19 @@ internal sealed partial class MainForm : Form
             parsedTime = value;
         }
 
-        splitTracker.SetPracticeTime(rowIndex, parsedTime);
-        TrackSegmentBestDeltaHighlight(rowIndex);
-        SyncBackgroundRuntimeState();
-        PublishTimerOverlaySnapshot();
-        Invalidate();
+        ExecuteAppCommand(AppCommand.EditPracticeSplitTime(rowIndex, parsedTime));
     }
 
     private void EditPracticeTotalTime()
     {
-        string currentText = TimeText.FormatRecord(runTimer.Elapsed);
+        string currentText = TimeText.FormatRecord(timerElapsed);
         if (!PromptForTime(Localizer.Get("Edit total time", settings), currentText, allowEmpty: false, out string? editedText) ||
             !TimeText.TryParse(editedText, out TimeSpan editedTime))
         {
             return;
         }
 
-        runTimer.SetPracticeElapsed(editedTime);
-        splitTracker.ClampCompletedTimes(editedTime);
-        SyncBackgroundRuntimeState();
-        PublishTimerOverlaySnapshot();
-        Invalidate();
+        ExecuteAppCommand(AppCommand.EditPracticeTotalTime(editedTime));
     }
 
     private bool PromptForTime(string title, string value, bool allowEmpty, out string editedText)
@@ -147,7 +136,7 @@ internal sealed partial class MainForm : Form
 
         if (!SplitLayoutCalculator.TryCreate(
                 ClientRectangle,
-                splitTracker.Statuses.Count,
+                splitStatuses.Count,
                 RowGap,
                 value => OverlayRenderContext.ScaleInt(settings, value),
                 out layout))
@@ -165,72 +154,12 @@ internal sealed partial class MainForm : Form
 
     private void StartSplitCompletionAnimation(int completedIndex)
     {
-        splitCompletionAnimation = SplitCompletionAnimationFactory.Create(
-            settings,
-            splitTracker.Statuses,
-            completedIndex,
-            DateTime.UtcNow);
+        overlayAnimations.StartSplitCompletionAnimation(settings, splitStatuses, completedIndex);
     }
 
     private void TrackSegmentBestDeltaHighlight(int completedIndex)
     {
-        segmentBestDeltaHighlights.Remove(completedIndex);
-
-        IReadOnlyList<BossSplitStatus> statuses = splitTracker.Statuses;
-        if (completedIndex < 0 ||
-            completedIndex >= statuses.Count ||
-            !settings.ShowSegmentBestDeltaHighlight ||
-            !SplitRenderData.TryGetCompletedSegmentTime(statuses, completedIndex, out TimeSpan segmentTime))
-        {
-            return;
-        }
-
-        BossSplitDefinition definition = statuses[completedIndex].Definition;
-        if (!SplitRenderData.TryGetPersonalBestSegment(settings, definition, out TimeSpan personalBestSegment) ||
-            segmentTime >= personalBestSegment)
-        {
-            return;
-        }
-
-        string style = SplitRenderData.GetSegmentBestDeltaHighlightStyle(
-            settings,
-            SplitRenderData.GetSplitCompletionGroupKey(definition));
-        if (SegmentBestDeltaHighlightStyles.Normalize(style) == SegmentBestDeltaHighlightStyles.None)
-        {
-            return;
-        }
-
-        segmentBestDeltaHighlights[completedIndex] = new SegmentBestDeltaHighlight(style, DateTime.UtcNow);
+        overlayAnimations.TrackSegmentBestDeltaHighlight(settings, splitStatuses, completedIndex);
     }
 
-    private void PlaySplitSound(int completedIndex)
-    {
-        IReadOnlyList<BossSplitStatus> statuses = splitTracker.Statuses;
-        if (completedIndex < 0 ||
-            completedIndex >= statuses.Count ||
-            statuses[completedIndex].Time is not TimeSpan splitTime)
-        {
-            return;
-        }
-
-        BossSplitDefinition definition = statuses[completedIndex].Definition;
-        TimeSpan? referenceSplit = settings.TryGetReferenceSplit(definition, out TimeSpan configuredReferenceSplit)
-            ? configuredReferenceSplit
-            : null;
-        TimeSpan? segmentTime = SplitRenderData.TryGetCompletedSegmentTime(statuses, completedIndex, out TimeSpan completedSegmentTime)
-            ? completedSegmentTime
-            : null;
-        TimeSpan? personalBestSegment = SplitRenderData.TryGetPersonalBestSegment(settings, definition, out TimeSpan configuredPersonalBestSegment)
-            ? configuredPersonalBestSegment
-            : null;
-
-        string path = SplitSoundSelector.GetPath(
-            settings.Sounds,
-            definition,
-            splitTime,
-            referenceSplit,
-            segmentTime,
-            personalBestSegment);
-        soundPlayer.Play(path);
-    }
 }

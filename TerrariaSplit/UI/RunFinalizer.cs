@@ -4,7 +4,7 @@ internal sealed class RunFinalizer
 {
     public void Finalize(
         AppSettings settings,
-        IReadOnlyList<BossSplitStatus> statuses,
+        IReadOnlyList<SplitStatusSnapshot> statuses,
         bool runStatsRecorded,
         Func<string, bool> confirmPersonalBestUpdates)
     {
@@ -64,7 +64,7 @@ internal sealed class RunFinalizer
 
     private static PendingPersonalBestUpdates BuildPendingPersonalBestUpdates(
         AppSettings settings,
-        IReadOnlyList<BossSplitStatus> statuses)
+        IReadOnlyList<SplitStatusSnapshot> statuses)
     {
         var segmentUpdates = new Dictionary<string, PendingPersonalBestSegmentUpdate>(StringComparer.OrdinalIgnoreCase);
         for (int i = 0; i < statuses.Count; i++)
@@ -78,7 +78,7 @@ internal sealed class RunFinalizer
 
     private static void AddPendingSegmentBestUpdate(
         AppSettings settings,
-        IReadOnlyList<BossSplitStatus> statuses,
+        IReadOnlyList<SplitStatusSnapshot> statuses,
         int completedIndex,
         Dictionary<string, PendingPersonalBestSegmentUpdate> segmentUpdates)
     {
@@ -134,14 +134,14 @@ internal sealed class RunFinalizer
 
     private static PendingPersonalBestTimeUpdate? BuildPendingTimeBestUpdate(
         AppSettings settings,
-        IReadOnlyList<BossSplitStatus> statuses)
+        IReadOnlyList<SplitStatusSnapshot> statuses)
     {
         if (statuses.Count == 0 || statuses.Any(status => status.Time is null || status.IsSkipped))
         {
             return null;
         }
 
-        BossSplitStatus? moonLordStatus = statuses.FirstOrDefault(status =>
+        SplitStatusSnapshot? moonLordStatus = statuses.FirstOrDefault(status =>
             BossSplitDefinitions.IsMoonLordSplit(status.Definition));
         if (moonLordStatus?.Time is not TimeSpan moonLordTime)
         {
@@ -163,10 +163,10 @@ internal sealed class RunFinalizer
             BuildCompletedSplitValues(statuses));
     }
 
-    private static Dictionary<string, string> BuildCompletedSplitValues(IReadOnlyList<BossSplitStatus> statuses)
+    private static Dictionary<string, string> BuildCompletedSplitValues(IReadOnlyList<SplitStatusSnapshot> statuses)
     {
         var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (BossSplitStatus status in statuses)
+        foreach (SplitStatusSnapshot status in statuses)
         {
             if (status.Time is not TimeSpan splitTime)
             {

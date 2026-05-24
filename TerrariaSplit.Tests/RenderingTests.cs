@@ -277,7 +277,7 @@ internal static class RenderingTests
         TextRenderStyle delta = OverlayTextStyles.GetDeltaTextStyle(settings, new SplitComparison(TimeSpan.FromSeconds(-1), true), palette);
         TextRenderStyle timer = OverlayTextStyles.GetTimerTextStyle(
             settings,
-            Array.Empty<BossSplitStatus>(),
+            Array.Empty<SplitStatusSnapshot>(),
             currentSplitIndex: 0,
             SplitTimerPhase.NotStarted,
             TimeSpan.Zero,
@@ -285,7 +285,7 @@ internal static class RenderingTests
             milliseconds: false);
         TextRenderStyle milliseconds = OverlayTextStyles.GetTimerTextStyle(
             settings,
-            Array.Empty<BossSplitStatus>(),
+            Array.Empty<SplitStatusSnapshot>(),
             currentSplitIndex: 0,
             SplitTimerPhase.NotStarted,
             TimeSpan.Zero,

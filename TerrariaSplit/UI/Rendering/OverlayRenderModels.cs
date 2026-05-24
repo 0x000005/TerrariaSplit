@@ -6,7 +6,7 @@ internal sealed record OverlayRenderContext(
     AppSettings Settings,
     UiPalette Palette,
     TerrariaWatchSnapshot Snapshot,
-    IReadOnlyList<BossSplitStatus> Statuses,
+    IReadOnlyList<SplitStatusSnapshot> Statuses,
     int CurrentSplitIndex,
     SplitTimerPhase TimerPhase,
     TimeSpan TimerElapsed,
