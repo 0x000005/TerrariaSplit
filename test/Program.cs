@@ -28,6 +28,7 @@ var legacyTests = new (string Name, Action Test)[]
     ("AppSettings falls back from invalid hotkeys", TestAppSettingsInvalidHotkeyFallback),
     ("AppSettings parses modifier hotkeys", TestAppSettingsParsesModifierHotkeys),
     ("AppSettings uses PB as reference time", TestAppSettingsUsesPersonalBestAsReferenceTime),
+    ("AppSettingsStore preserves active external split set names", TestAppSettingsStorePreservesActiveExternalSplitSetNames),
     ("Input model no longer exposes runtime hotkey requests", TestInputModelStaticRegression),
     ("Settings form orders moved pages", TestSettingsFormOrdersMovedPages),
     ("Settings form applies global scale from General page", TestSettingsFormAppliesGlobalScaleFromGeneralPage),
@@ -481,6 +482,85 @@ static void TestAppSettingsUsesPersonalBestAsReferenceTime()
 
     settings.SetReferenceText("Skeletron", "05:00");
     AssertEqual("00:30", settings.GetReferenceText("Skeletron"));
+}
+
+static void TestAppSettingsStorePreservesActiveExternalSplitSetNames()
+{
+    string settingsDirectory = AppSettingsStore.SettingsDirectory;
+    string referenceDirectory = SplitTimeSetStore.ReferenceDirectory;
+    string personalBestTimeDirectory = SplitTimeSetStore.PersonalBestTimeDirectory;
+    string personalBestSegmentDirectory = SplitTimeSetStore.PersonalBestSegmentDirectory;
+    DirectorySnapshot settingsSnapshot = SnapshotDirectory(settingsDirectory);
+    DirectorySnapshot referenceSnapshot = SnapshotDirectory(referenceDirectory);
+    DirectorySnapshot personalBestTimeSnapshot = SnapshotDirectory(personalBestTimeDirectory);
+    DirectorySnapshot personalBestSegmentSnapshot = SnapshotDirectory(personalBestSegmentDirectory);
+
+    try
+    {
+        DeleteDirectoryIfExists(settingsDirectory);
+        DeleteDirectoryIfExists(referenceDirectory);
+        DeleteDirectoryIfExists(personalBestTimeDirectory);
+        DeleteDirectoryIfExists(personalBestSegmentDirectory);
+
+        SplitTimeSetStore.SaveReferenceSets(
+        [
+            CreateSplitSet("WR", BossSplitDefinitions.Units.Select(unit => unit.Id)),
+            CreateSplitSet("Custom Reference", BossSplitDefinitions.Units.Select(unit => unit.Id))
+        ]);
+
+        SplitTimeSetStore.SavePersonalBestTimeSets(
+        [
+            CreateSplitSet("Personal", BossSplitDefinitions.Units.Select(unit => unit.Id)),
+            CreateSplitSet("Race PB", BossSplitDefinitions.Units.Select(unit => unit.Id))
+        ]);
+
+        var routeSettings = new AppSettings { Route = BossSplitDefinitions.CreateDefaultRoute() };
+        IEnumerable<string> segmentKeys = BossRouteGroups.Build(routeSettings).Select(group => group.Key);
+        SplitTimeSetStore.SavePersonalBestSegmentSets(
+        [
+            CreateSplitSet("Personal", segmentKeys),
+            CreateSplitSet("Race Segments", segmentKeys)
+        ]);
+
+        string profileName = "active-external-sets.json";
+        string settingsPath = Path.Combine(settingsDirectory, profileName);
+        Directory.CreateDirectory(settingsDirectory);
+        SettingsSerializer.WriteSettings(settingsPath, new AppSettings
+        {
+            ActiveReferenceSplitSet = "Custom Reference",
+            ActivePersonalBestTimeSet = "Race PB",
+            ActivePersonalBestSegmentSet = "Race Segments"
+        });
+
+        AppSettings loaded = AppSettingsStore.Load(profileName);
+
+        AssertEqual("Custom Reference", loaded.ActiveReferenceSplitSet);
+        AssertEqual("Race PB", loaded.ActivePersonalBestTimeSet);
+        AssertEqual("Race Segments", loaded.ActivePersonalBestSegmentSet);
+    }
+    finally
+    {
+        RestoreDirectory(settingsDirectory, settingsSnapshot);
+        RestoreDirectory(referenceDirectory, referenceSnapshot);
+        RestoreDirectory(personalBestTimeDirectory, personalBestTimeSnapshot);
+        RestoreDirectory(personalBestSegmentDirectory, personalBestSegmentSnapshot);
+    }
+}
+
+static ReferenceSplitSet CreateSplitSet(string name, IEnumerable<string> keys)
+{
+    var set = new ReferenceSplitSet
+    {
+        Name = name,
+        Splits = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    };
+
+    foreach (string key in keys)
+    {
+        set.Splits[key] = string.Empty;
+    }
+
+    return set;
 }
 
 static void TestInputModelStaticRegression()

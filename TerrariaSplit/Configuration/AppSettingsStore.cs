@@ -39,8 +39,16 @@ internal static class AppSettingsStore
             DefaultSettingsTemplatePath,
             "settings") ?? LoadDefaultSettingsTemplate();
         shouldSave = !File.Exists(SettingsPath);
+        string activeReferenceSplitSet = settings.ActiveReferenceSplitSet;
+        string activePersonalBestTimeSet = settings.ActivePersonalBestTimeSet;
+        string activePersonalBestSegmentSet = settings.ActivePersonalBestSegmentSet;
 
         Normalize(settings);
+        RestoreActiveSplitSetNames(
+            settings,
+            activeReferenceSplitSet,
+            activePersonalBestTimeSet,
+            activePersonalBestSegmentSet);
         SplitSetLoader.LoadInto(settings);
 
         if (shouldSave)
@@ -129,5 +137,27 @@ internal static class AppSettingsStore
     public static void Normalize(AppSettings settings)
     {
         SettingsNormalizer.Normalize(settings);
+    }
+
+    private static void RestoreActiveSplitSetNames(
+        AppSettings settings,
+        string? activeReferenceSplitSet,
+        string? activePersonalBestTimeSet,
+        string? activePersonalBestSegmentSet)
+    {
+        if (!string.IsNullOrWhiteSpace(activeReferenceSplitSet))
+        {
+            settings.ActiveReferenceSplitSet = activeReferenceSplitSet.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(activePersonalBestTimeSet))
+        {
+            settings.ActivePersonalBestTimeSet = activePersonalBestTimeSet.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(activePersonalBestSegmentSet))
+        {
+            settings.ActivePersonalBestSegmentSet = activePersonalBestSegmentSet.Trim();
+        }
     }
 }
