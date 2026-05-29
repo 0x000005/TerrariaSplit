@@ -312,6 +312,8 @@ internal sealed class AutoCreateWorldSettings
     public string ZenithStarCatchStopStage { get; set; } = AutoCreateZenithStarCatchStage.Default;
     public int ZenithStarCatchSpeedSliderValue { get; set; } = AutoCreateZenithStarCatchSpeed.DefaultSliderValue;
     public bool EnablePyramidFilter { get; set; }
+    public bool EnableSeedPool { get; set; } = true;
+    public int SeedPoolTargetCount { get; set; } = 10;
     public int ShortActionDelayMilliseconds { get; set; }
     public int MenuActionDelayMilliseconds { get; set; }
     public int WindowActivationDelayMilliseconds { get; set; }

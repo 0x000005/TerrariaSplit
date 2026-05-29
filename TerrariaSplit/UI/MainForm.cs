@@ -16,7 +16,9 @@ internal sealed partial class MainForm : Form
     private const int WsExLayered = 0x80000;
     private const string SegmentTimerWindowTitle = "TerrariaSplit - Segment Timer";
 
-    private readonly TerrariaWorldAutomation worldAutomation = new();
+    private readonly SeedPoolStore seedPoolStore = new();
+    private readonly TerrariaWorldAutomation worldAutomation;
+    private readonly SeedPoolFillService seedPoolFillService;
     private readonly MainFormContextMenuBuilder contextMenuBuilder = new();
     private readonly SoundPlayerService soundPlayer = new();
     private readonly HighPrecisionScheduler controlScheduler;
@@ -81,7 +83,9 @@ internal sealed partial class MainForm : Form
 
     public MainForm()
     {
+        worldAutomation = new TerrariaWorldAutomation(seedPoolStore);
         applicationController = new ApplicationController(AppSettingsStore.Load(), ShowPersonalBestUpdateConfirmation);
+        seedPoolFillService = new SeedPoolFillService(seedPoolStore);
         RefreshTimerOverlaySettingsSnapshot();
         palette = UiPalette.From(settings.Colors);
         monitorCoordinator = new TerrariaMonitorCoordinator(
@@ -217,6 +221,7 @@ internal sealed partial class MainForm : Form
     protected override void OnShown(EventArgs e)
     {
         base.OnShown(e);
+        seedPoolFillService.UpdateSettings(settings);
         QueueStatusOverlayRender();
     }
 
@@ -315,6 +320,7 @@ internal sealed partial class MainForm : Form
         statusPaintScheduler.Dispose();
         hotkeyManager.Dispose();
         monitorCoordinator.Dispose();
+        seedPoolFillService.Dispose();
         worldAutomation.Dispose();
         settingsDialogHost?.Dispose();
         settingsDialogHost = null;
@@ -901,6 +907,7 @@ internal sealed partial class MainForm : Form
         UpdateConfiguredRefreshIntervals();
         UpdateTimerOverlayRefreshInterval();
         PublishTimerOverlaySnapshot(true);
+        seedPoolFillService.UpdateSettings(settings);
         Invalidate();
     }
 

@@ -2,13 +2,14 @@ namespace TerrariaSplit;
 
 internal sealed class TerrariaWorldAutomation : IDisposable
 {
-    private readonly CreateWorldWorkflow createWorldWorkflow = new();
+    private readonly CreateWorldWorkflow createWorldWorkflow;
     private readonly EnterWorldWorkflow enterWorldWorkflow = new();
     private readonly AutomationRunner<AppSettings> createWorldRunner;
     private readonly AutomationRunner<EnterWorldAutomationRequest> enterWorldRunner;
 
-    public TerrariaWorldAutomation()
+    public TerrariaWorldAutomation(SeedPoolStore? seedPool = null)
     {
+        createWorldWorkflow = new CreateWorldWorkflow(seedPool);
         createWorldRunner = new AutomationRunner<AppSettings>(
             "Create world",
             createWorldWorkflow.RunAsync,

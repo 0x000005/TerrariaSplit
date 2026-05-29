@@ -12,11 +12,13 @@ internal sealed class CreateWorldWorkflow : IDisposable
     private readonly TerrariaAutomationContext automation = new("Create world");
     private readonly ZenithStarCatchAutomation zenithStarCatchAutomation;
     private readonly PyramidFilterAutomation pyramidFilterAutomation;
+    private readonly SeedPoolStore? seedPool;
     private TimeSpan shortActionDelay = TimeSpan.FromMilliseconds(AppSettingsDefaults.AutoCreate.ShortActionDelayMilliseconds);
     private TimeSpan menuActionDelay = TimeSpan.FromMilliseconds(AppSettingsDefaults.AutoCreate.MenuActionDelayMilliseconds);
 
-    public CreateWorldWorkflow()
+    public CreateWorldWorkflow(SeedPoolStore? seedPool = null)
     {
+        this.seedPool = seedPool;
         zenithStarCatchAutomation = new ZenithStarCatchAutomation(automation);
         pyramidFilterAutomation = new PyramidFilterAutomation(automation);
     }
@@ -133,13 +135,25 @@ internal sealed class CreateWorldWorkflow : IDisposable
         CancellationToken cancellationToken)
     {
         automation.ThrowIfCancellationRequested(cancellationToken);
+        string signature = WorldGenSignature.From(settings);
+        string? bankedSeed = TryResolveBankedSeed(settings, signature);
         Dictionary<string, DateTime> worldsBefore = savePreparation.SnapshotSaveFiles("Worlds", "*.wld");
-        if (!await CreateOneWorldAsync(settings, geometry, cancellationToken))
+        if (!await CreateOneWorldAsync(settings, geometry, cancellationToken, bankedSeed))
         {
             return false;
         }
 
         await zenithStarCatchAutomation.RunAsync(settings, cancellationToken);
+
+        if (bankedSeed is not null)
+        {
+            // A pooled copied seed is trusted to contain a pyramid, so consume it and keep the
+            // world without running the foreground pyramid filter.
+            seedPool?.RemoveFirst(signature, bankedSeed);
+            AppLogger.Info($"Create world automation used pooled seed {bankedSeed}; skipped pyramid filter.");
+            return false;
+        }
+
         PyramidFilterOutcome outcome = await pyramidFilterAutomation.RunAsync(settings, worldsBefore, cancellationToken);
         AppLogger.Info($"Create world automation pyramid filter outcome: {outcome}.");
         if (outcome != PyramidFilterOutcome.Rejected)
@@ -150,22 +164,36 @@ internal sealed class CreateWorldWorkflow : IDisposable
         return await ReturnToMainMenuByBackTwiceAsync(geometry, cancellationToken);
     }
 
+    private string? TryResolveBankedSeed(AutoCreateWorldSettings settings, string signature)
+    {
+        if (seedPool is null ||
+            !settings.EnablePyramidFilter ||
+            !settings.EnableSeedPool ||
+            !SeedPoolSupport.IsSupported(settings))
+        {
+            return null;
+        }
+
+        return seedPool.TryPeekFirst(signature, out string seed) ? seed : null;
+    }
+
     private async Task<bool> CreateOneWorldAsync(
         AutoCreateWorldSettings settings,
         TerrariaMenuGeometry geometry,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? bankedSeed)
     {
         if (!await automation.ClickAsync("new world", geometry.SelectMenuNewButton(), menuActionDelay, cancellationToken))
         {
             return false;
         }
 
-        if (!await ApplyWorldOptionsAsync(settings, geometry, cancellationToken))
+        if (bankedSeed is null && !await ApplyWorldOptionsAsync(settings, geometry, cancellationToken))
         {
             return false;
         }
 
-        if (!await ApplyWorldSeedOptionsAsync(settings, geometry, cancellationToken))
+        if (!await ApplyWorldSeedOptionsAsync(settings, geometry, cancellationToken, bankedSeed))
         {
             return false;
         }
@@ -227,11 +255,24 @@ internal sealed class CreateWorldWorkflow : IDisposable
     private async Task<bool> ApplyWorldSeedOptionsAsync(
         AutoCreateWorldSettings settings,
         TerrariaMenuGeometry geometry,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? bankedSeed)
     {
         if (!await automation.ClickAsync("advanced seed menu", geometry.WorldAdvancedSeedButton(), menuActionDelay, cancellationToken))
         {
             return false;
+        }
+
+        if (bankedSeed is not null)
+        {
+            // Terraria's copied seed format carries size, difficulty, evil, and special seed
+            // flags, so this path only pastes the seed and lets the game parse those options.
+            if (!await EnterWorldSeedAsync(bankedSeed, geometry, cancellationToken))
+            {
+                return false;
+            }
+
+            return await automation.ClickAsync("apply pooled seed", geometry.WorldAdvancedApplyButton(), menuActionDelay, cancellationToken);
         }
 
         if (!await ApplySpecialSeedsAsync(settings.SpecialSeeds, geometry, cancellationToken))

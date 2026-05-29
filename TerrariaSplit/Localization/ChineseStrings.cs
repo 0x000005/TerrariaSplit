@@ -289,6 +289,8 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Catch speed", "\u63A5\u661F\u901F\u5EA6" }
       , { "Auto filter pyramid", "\u81EA\u52A8\u7B5B\u9009\u91D1\u5B57\u5854" }
       , { "Filter pyramid", "\u7B5B\u9009\u91D1\u5B57\u5854" }
+      , { "Background seed pool", "\u540E\u53F0\u7B5B\u5854\u79CD\u5B50\u6C60" }
+      , { "Seed pool size", "\u79CD\u5B50\u6C60\u4E2A\u6570" }
       , { "Submit World Seed", "\u63D0\u4EA4\u4E16\u754C\u79CD\u5B50" }
       , { "Mouse / key press ms", "\u9F20\u6807 / \u6309\u952E\u6301\u7EED\u6BEB\u79D2" }
       , { "Window activation wait ms", "\u7A97\u53E3\u6FC0\u6D3B\u7B49\u5F85\u6BEB\u79D2" }

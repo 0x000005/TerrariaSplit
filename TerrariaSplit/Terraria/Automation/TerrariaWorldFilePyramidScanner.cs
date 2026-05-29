@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Globalization;
 
 namespace TerrariaSplit;
 
@@ -72,6 +73,255 @@ internal sealed class TerrariaWorldFilePyramidScanner
             AppLogger.Error(ex, $"Pyramid filter failed to scan Terraria world file: {worldPath}");
             return false;
         }
+    }
+
+    // Reads the world evil from the header section (true = crimson, false = corruption).
+    public bool TryReadWorldEvil(string worldPath, out bool hasCrimson, out string detail)
+    {
+        if (TryReadWorldSeedMetadata(worldPath, out TerrariaWorldSeedMetadata metadata, out detail))
+        {
+            hasCrimson = metadata.HasCrimson;
+            return true;
+        }
+
+        hasCrimson = false;
+        return false;
+    }
+
+    public bool TryReadWorldSeedAndEvil(
+        string worldPath,
+        out string seedText,
+        out bool hasCrimson,
+        out string detail)
+    {
+        if (TryReadWorldSeedMetadata(worldPath, out TerrariaWorldSeedMetadata metadata, out detail))
+        {
+            seedText = metadata.SeedText;
+            hasCrimson = metadata.HasCrimson;
+            return true;
+        }
+
+        seedText = string.Empty;
+        hasCrimson = false;
+        return false;
+    }
+
+    public bool TryReadWorldSeedMetadata(
+        string worldPath,
+        out TerrariaWorldSeedMetadata metadata,
+        out string detail)
+    {
+        metadata = default;
+        detail = string.Empty;
+
+        try
+        {
+            using FileStream stream = new(
+                worldPath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete);
+            using BinaryReader reader = new(stream);
+
+            if (!TryReadSectionPointers(reader, out int version, out int[] sectionPointers, out detail))
+            {
+                return false;
+            }
+
+            if (sectionPointers.Length < 1 || sectionPointers[0] <= 0 || sectionPointers[0] >= stream.Length)
+            {
+                detail = "invalid world header section offset";
+                return false;
+            }
+
+            stream.Position = sectionPointers[0];
+            metadata = ReadWorldSeedMetadata(reader, version);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or EndOfStreamException or ArgumentException or InvalidDataException)
+        {
+            detail = ex.Message;
+            AppLogger.Error(ex, $"Seed pool failed to read world seed metadata from Terraria world file: {worldPath}");
+            return false;
+        }
+    }
+
+    private static bool TryReadSectionPointers(BinaryReader reader, out int version, out int[] sectionPointers, out string detail)
+    {
+        sectionPointers = Array.Empty<int>();
+        detail = string.Empty;
+        version = reader.ReadInt32();
+        if (version >= 135)
+        {
+            ulong metadata = reader.ReadUInt64();
+            if ((metadata & 0x00FFFFFFFFFFFFFFUL) != ReLogicMagic)
+            {
+                detail = $"unexpected Terraria world metadata magic 0x{metadata:X16}";
+                return false;
+            }
+
+            byte fileType = (byte)(metadata >> 56);
+            if (fileType != WorldFileType)
+            {
+                detail = $"unexpected Terraria world file type {fileType}";
+                return false;
+            }
+
+            _ = reader.ReadUInt32();
+            _ = reader.ReadUInt64();
+        }
+
+        short sectionCount = reader.ReadInt16();
+        if (sectionCount < 1)
+        {
+            detail = $"unexpected world section count {sectionCount}";
+            return false;
+        }
+
+        sectionPointers = new int[sectionCount];
+        for (int i = 0; i < sectionPointers.Length; i++)
+        {
+            sectionPointers[i] = reader.ReadInt32();
+        }
+
+        return true;
+    }
+
+    // Mirrors WorldFile.LoadHeader field order up to WorldGen.crimson, gated by the file
+    // version so it self-adapts to whichever world version the file was written with.
+    private static TerrariaWorldSeedMetadata ReadWorldSeedMetadata(BinaryReader reader, int version)
+    {
+        _ = reader.ReadString(); // world name
+        string seedText = string.Empty;
+        if (version >= 179)
+        {
+            if (version == 179)
+            {
+                seedText = reader.ReadInt32().ToString(CultureInfo.InvariantCulture);
+            }
+            else
+            {
+                seedText = reader.ReadString(); // seed text
+            }
+
+            _ = reader.ReadUInt64(); // world generator version
+        }
+
+        if (version >= 181)
+        {
+            _ = reader.ReadBytes(16); // unique id
+        }
+
+        _ = reader.ReadInt32(); // world id
+        _ = reader.ReadInt32(); // left world
+        _ = reader.ReadInt32(); // right world
+        _ = reader.ReadInt32(); // top world
+        _ = reader.ReadInt32(); // bottom world
+        int maxTilesY = reader.ReadInt32();
+        int maxTilesX = reader.ReadInt32();
+
+        int gameMode = 0;
+        bool drunkWorld = false;
+        bool forTheWorthy = false;
+        bool celebration = false;
+        bool dontStarve = false;
+        bool notTheBees = false;
+        bool remix = false;
+        bool noTraps = false;
+        bool zenith = false;
+        bool skyblock = false;
+        if (version >= 209)
+        {
+            gameMode = reader.ReadInt32();
+            if (version >= 222) drunkWorld = reader.ReadBoolean();
+            if (version >= 227) forTheWorthy = reader.ReadBoolean();
+            if (version >= 238) celebration = reader.ReadBoolean();
+            if (version >= 239) dontStarve = reader.ReadBoolean();
+            if (version >= 241) notTheBees = reader.ReadBoolean();
+            if (version >= 249) remix = reader.ReadBoolean();
+            if (version >= 266) noTraps = reader.ReadBoolean();
+            if (version >= 267) zenith = reader.ReadBoolean();
+            if (version >= 302) skyblock = reader.ReadBoolean();
+        }
+        else
+        {
+            bool expert = false;
+            bool master = false;
+            if (version >= 112) expert = reader.ReadBoolean(); // legacy expert flag
+            if (version == 208) master = reader.ReadBoolean(); // legacy master flag
+            gameMode = master ? 2 : expert ? 1 : 0;
+        }
+
+        if (version >= 141) _ = reader.ReadInt64(); // creation time
+        if (version >= 284) _ = reader.ReadInt64(); // last played
+
+        _ = reader.ReadByte(); // moon type
+        for (int i = 0; i < 19; i++)
+        {
+            // treeX[3], treeStyle[4], caveBackX[3], caveBackStyle[4], ice/jungle/hell back styles, spawnTileX/Y
+            _ = reader.ReadInt32();
+        }
+
+        _ = reader.ReadDouble(); // world surface
+        _ = reader.ReadDouble(); // rock layer
+        _ = reader.ReadDouble(); // temp time
+        _ = reader.ReadBoolean(); // temp day time
+        _ = reader.ReadInt32(); // temp moon phase
+        _ = reader.ReadBoolean(); // temp blood moon
+        _ = reader.ReadBoolean(); // temp eclipse
+        _ = reader.ReadInt32(); // dungeon x
+        _ = reader.ReadInt32(); // dungeon y
+        bool hasCrimson = reader.ReadBoolean();
+
+        return new TerrariaWorldSeedMetadata(
+            seedText,
+            WorldSizeCode(maxTilesX, maxTilesY),
+            gameMode + 1,
+            hasCrimson,
+            SpecialSeedMask(
+                drunkWorld,
+                notTheBees,
+                forTheWorthy,
+                celebration,
+                dontStarve,
+                remix,
+                noTraps,
+                zenith,
+                skyblock));
+    }
+
+    private static int SpecialSeedMask(
+        bool drunkWorld,
+        bool notTheBees,
+        bool forTheWorthy,
+        bool celebration,
+        bool dontStarve,
+        bool remix,
+        bool noTraps,
+        bool zenith,
+        bool skyblock)
+    {
+        int mask = 0;
+        if (drunkWorld) mask += 1;
+        if (notTheBees) mask += 2;
+        if (forTheWorthy) mask += 4;
+        if (celebration) mask += 8;
+        if (dontStarve) mask += 16;
+        if (remix) mask += 32;
+        if (noTraps) mask += 64;
+        if (zenith) mask += 128;
+        if (skyblock) mask += 256;
+        return mask;
+    }
+
+    private static int WorldSizeCode(int maxTilesX, int maxTilesY)
+    {
+        return (maxTilesX, maxTilesY) switch
+        {
+            (4200, 1200) => 1,
+            (8400, 2400) => 3,
+            _ => 2
+        };
     }
 
     internal static Rectangle BuildSpeedrunCorridorBounds(TerrariaWorldDimensions dimensions)
@@ -318,6 +568,26 @@ internal readonly record struct TerrariaWorldDimensions(int Width, int Height)
             AutoCreateWorldSize.Large => new TerrariaWorldDimensions(8400, 2400),
             _ => new TerrariaWorldDimensions(6400, 1800)
         };
+    }
+}
+
+internal readonly record struct TerrariaWorldSeedMetadata(
+    string SeedText,
+    int SizeCode,
+    int DifficultyCode,
+    bool HasCrimson,
+    int SpecialSeedMask)
+{
+    public string ToFullSeedText()
+    {
+        int evilCode = HasCrimson ? 2 : 1;
+        return string.Join(
+            ".",
+            SizeCode.ToString(CultureInfo.InvariantCulture),
+            DifficultyCode.ToString(CultureInfo.InvariantCulture),
+            evilCode.ToString(CultureInfo.InvariantCulture),
+            SpecialSeedMask.ToString(CultureInfo.InvariantCulture),
+            SeedText);
     }
 }
 

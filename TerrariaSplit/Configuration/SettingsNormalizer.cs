@@ -81,6 +81,7 @@ internal static class SettingsNormalizer
         autoCreate.WindowActivationDelayMilliseconds = Math.Clamp(autoCreate.WindowActivationDelayMilliseconds, 0, 5000);
         autoCreate.ClickFocusDelayMilliseconds = Math.Clamp(autoCreate.ClickFocusDelayMilliseconds, 0, 5000);
         autoCreate.InputPressDurationMilliseconds = Math.Clamp(autoCreate.InputPressDurationMilliseconds, 1, 5000);
+        autoCreate.SeedPoolTargetCount = Math.Clamp(autoCreate.SeedPoolTargetCount, 1, 50);
     }
 
     private static void NormalizePracticeWorlds(PracticeWorldSettings practiceWorlds)

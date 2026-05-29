@@ -19,6 +19,7 @@ var legacyTests = new (string Name, Action Test)[]
     ("Localizer returns English fallback and Chinese Crimson", TestLocalizer),
     ("JsonFileStore writes settings atomically", TestJsonFileStoreWritesAtomically),
     ("Default settings template covers serializable settings", TestDefaultSettingsTemplateCoversSerializableSettings),
+    ("World generation signature starts with Terraria version", TestWorldGenSignatureStartsWithTerrariaVersion),
     ("SettingsNormalizer clamps auto-create timings", TestSettingsNormalize),
     ("SettingsNormalizer normalizes timer overlay refresh settings", TestSettingsNormalizeTimerOverlayRefresh),
     ("SettingsNormalizer normalizes practice world slots", TestSettingsNormalizePracticeWorlds),
@@ -40,6 +41,7 @@ var legacyTests = new (string Name, Action Test)[]
     ("Settings form saves The Constant special seed", TestSettingsFormSavesTheConstantSpecialSeed),
     ("Settings form applies Zenith star catch options", TestSettingsFormAppliesZenithStarCatchOptions),
     ("Settings form gates Zenith star catch behind Zenith seed", TestSettingsFormGatesZenithStarCatchBehindZenithSeed),
+    ("Settings form gates seed pool behind pyramid filter", TestSettingsFormGatesSeedPoolBehindPyramidFilter),
     ("Settings form applies timer start sound", TestSettingsFormAppliesTimerStartSound),
     ("Settings form applies resume sound", TestSettingsFormAppliesResumeSound),
     ("Settings form applies Moon Lord split sound", TestSettingsFormAppliesMoonLordSplitSound),
@@ -211,6 +213,8 @@ static void TestLocalizer()
     AssertEqual("\u7B49\u5F85\u8BA1\u65F6\u5F00\u59CB", Localizer.Get("Waiting for timer start", new AppSettings { Language = "\u4E2D\u6587" }));
     AssertEqual("\u5206\u6BB5\u65F6\u95F4", Localizer.Get("Segment time", new AppSettings { Language = "\u4E2D\u6587" }));
     AssertEqual("\u7D2F\u8BA1\u65F6\u95F4", Localizer.Get("Cumulative time", new AppSettings { Language = "\u4E2D\u6587" }));
+    AssertEqual("\u540E\u53F0\u7B5B\u5854\u79CD\u5B50\u6C60", Localizer.Get("Background seed pool", new AppSettings { Language = "\u4E2D\u6587" }));
+    AssertEqual("\u79CD\u5B50\u6C60\u4E2A\u6570", Localizer.Get("Seed pool size", new AppSettings { Language = "\u4E2D\u6587" }));
 }
 
 static void TestJsonFileStoreWritesAtomically()
@@ -248,6 +252,19 @@ static void TestDefaultSettingsTemplateCoversSerializableSettings()
     AssertJsonCoversType(typeof(AppSettings), document.RootElement, "settings");
 }
 
+static void TestWorldGenSignatureStartsWithTerrariaVersion()
+{
+    string signature = WorldGenSignature.From(new AutoCreateWorldSettings
+    {
+        WorldSize = AutoCreateWorldSize.Small,
+        WorldDifficulty = AutoCreateWorldDifficulty.Expert,
+        WorldEvil = AutoCreateWorldEvil.Crimson,
+        SpecialSeeds = "For the Worthy|No Traps"
+    });
+
+    AssertEqual("1.4.5.6|Small|Expert|Crimson|For the Worthy,No Traps", signature);
+}
+
 static void TestSettingsNormalize()
 {
     var settings = new AppSettings
@@ -280,6 +297,7 @@ static void TestSettingsNormalize()
     AssertEqual(AutoCreateZenithStarCatchStage.Pots, settings.AutoCreate.ZenithStarCatchStopStage);
     AssertEqual(AutoCreateZenithStarCatchSpeed.MaximumSliderValue, settings.AutoCreate.ZenithStarCatchSpeedSliderValue);
     AssertEqual(true, settings.AutoCreate.EnablePyramidFilter);
+    AssertEqual(10, AppSettingsDefaults.AutoCreate.SeedPoolTargetCount);
 
     settings.Advanced = null!;
     SettingsNormalizer.Normalize(settings);
@@ -795,6 +813,33 @@ static void TestSettingsFormGatesZenithStarCatchBehindZenithSeed()
     });
 }
 
+static void TestSettingsFormGatesSeedPoolBehindPyramidFilter()
+{
+    RunSta(() =>
+    {
+        using var form = new SettingsForm(new AppSettings
+        {
+            AutoCreate = new AutoCreateWorldSettings
+            {
+                EnablePyramidFilter = false,
+                EnableSeedPool = true,
+                SeedPoolTargetCount = 10
+            }
+        });
+        AutomationSettingsPage page = form.PageHost.GetOrCreatePage<AutomationSettingsPage>(SettingsPageId.Automation);
+
+        AssertEqual(false, page.AutoCreateSeedPoolBox.Enabled);
+        AssertEqual(false, page.AutoCreateSeedPoolTargetBox.Enabled);
+        AssertEqual(true, page.AutoCreateSeedPoolBox.Checked);
+        AssertEqual("10", page.AutoCreateSeedPoolTargetBox.Text);
+
+        page.AutoCreatePyramidFilterBox.Checked = true;
+
+        AssertEqual(true, page.AutoCreateSeedPoolBox.Enabled);
+        AssertEqual(true, page.AutoCreateSeedPoolTargetBox.Enabled);
+    });
+}
+
 static void TestSettingsFormAppliesTimerStartSound()
 {
     RunSta(() =>
@@ -856,6 +901,11 @@ static void TestPyramidFilterWorldFileScanner()
 
         string emptyWorld = Path.Combine(directory, "empty.wld");
         WriteSyntheticWorldFile(emptyWorld, dimensions, null);
+        AssertEqual(true, scanner.TryReadWorldSeedAndEvil(emptyWorld, out string seedText, out bool hasCrimson, out _));
+        AssertEqual("server-picked-seed", seedText);
+        AssertEqual(true, hasCrimson);
+        AssertEqual(true, scanner.TryReadWorldSeedMetadata(emptyWorld, out TerrariaWorldSeedMetadata metadata, out _));
+        AssertEqual("1.1.2.0.server-picked-seed", metadata.ToFullSeedText());
         AssertEqual(true, scanner.TryScanSpeedrunCorridor(
             emptyWorld,
             AutoCreateWorldSize.Small,
@@ -978,7 +1028,9 @@ static void TestOverlayCompositeLayoutCalculator()
 static void WriteSyntheticWorldFile(
     string path,
     TerrariaWorldDimensions dimensions,
-    SyntheticTileEvidence? evidence)
+    SyntheticTileEvidence? evidence,
+    string seedText = "server-picked-seed",
+    bool crimson = true)
 {
     using FileStream stream = File.Create(path);
     using BinaryWriter writer = new(stream);
@@ -996,9 +1048,11 @@ static void WriteSyntheticWorldFile(
         writer.Write((byte)0);
     }
 
+    int headerSectionOffset = (int)stream.Position;
+    WriteSyntheticWorldHeader(writer, dimensions, seedText, crimson);
     int tileSectionOffset = (int)stream.Position;
     stream.Position = sectionPointersOffset;
-    writer.Write(tileSectionOffset);
+    writer.Write(headerSectionOffset);
     writer.Write(tileSectionOffset);
     stream.Position = tileSectionOffset;
 
@@ -1023,6 +1077,51 @@ static void WriteSyntheticWorldFile(
             WriteSyntheticTile(writer, false, 0, 0, dimensions.Height);
         }
     }
+}
+
+static void WriteSyntheticWorldHeader(
+    BinaryWriter writer,
+    TerrariaWorldDimensions dimensions,
+    string seedText,
+    bool crimson)
+{
+    writer.Write("synthetic");
+    writer.Write(seedText);
+    writer.Write((ulong)279);
+    writer.Write(Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee").ToByteArray());
+    writer.Write(12345);
+    writer.Write(0);
+    writer.Write(dimensions.Width * 16);
+    writer.Write(0);
+    writer.Write(dimensions.Height * 16);
+    writer.Write(dimensions.Height);
+    writer.Write(dimensions.Width);
+    writer.Write(0);
+    writer.Write(false); // drunk world
+    writer.Write(false); // for the worthy
+    writer.Write(false); // celebration
+    writer.Write(false); // the constant
+    writer.Write(false); // not the bees
+    writer.Write(false); // remix
+    writer.Write(false); // no traps
+    writer.Write(false); // zenith
+    writer.Write(DateTime.UtcNow.ToBinary());
+    writer.Write((byte)0);
+    for (int i = 0; i < 19; i++)
+    {
+        writer.Write(0);
+    }
+
+    writer.Write(0d);
+    writer.Write(0d);
+    writer.Write(0d);
+    writer.Write(true);
+    writer.Write(0);
+    writer.Write(false);
+    writer.Write(false);
+    writer.Write(0);
+    writer.Write(0);
+    writer.Write(crimson);
 }
 
 static void WriteSyntheticTile(

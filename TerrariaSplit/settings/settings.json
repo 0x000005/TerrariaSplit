@@ -269,6 +269,8 @@
     "ZenithStarCatchStopStage": "Pots",
     "ZenithStarCatchSpeedSliderValue": 411,
     "EnablePyramidFilter": false,
+    "EnableSeedPool": true,
+    "SeedPoolTargetCount": 10,
     "ShortActionDelayMilliseconds": 10,
     "MenuActionDelayMilliseconds": 90,
     "WindowActivationDelayMilliseconds": 10,
