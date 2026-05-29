@@ -505,7 +505,7 @@ static void TestAppSettingsStorePreservesActiveExternalSplitSetNames()
         SplitTimeSetStore.SaveReferenceSets(
         [
             CreateSplitSet("WR", BossSplitDefinitions.Units.Select(unit => unit.Id)),
-            CreateSplitSet("Custom Reference", BossSplitDefinitions.Units.Select(unit => unit.Id))
+            CreateSplitSet("Custom Reference", BossSplitDefinitions.Units.Select(unit => unit.Id), "00:30")
         ]);
 
         SplitTimeSetStore.SavePersonalBestTimeSets(
@@ -547,7 +547,7 @@ static void TestAppSettingsStorePreservesActiveExternalSplitSetNames()
     }
 }
 
-static ReferenceSplitSet CreateSplitSet(string name, IEnumerable<string> keys)
+static ReferenceSplitSet CreateSplitSet(string name, IEnumerable<string> keys, string skeletronValue = "")
 {
     var set = new ReferenceSplitSet
     {
@@ -557,7 +557,9 @@ static ReferenceSplitSet CreateSplitSet(string name, IEnumerable<string> keys)
 
     foreach (string key in keys)
     {
-        set.Splits[key] = string.Empty;
+        set.Splits[key] = string.Equals(key, BossSplitDefinitions.Skeletron, StringComparison.OrdinalIgnoreCase)
+            ? skeletronValue
+            : string.Empty;
     }
 
     return set;
