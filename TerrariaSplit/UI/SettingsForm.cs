@@ -10,6 +10,7 @@ internal sealed partial class SettingsForm : Form
     private readonly AppSettings settings;
     private readonly Func<RuntimePerformanceDiagnostics>? runtimeDiagnosticsProvider;
     private readonly Func<RuntimeDebugSnapshot>? runtimeDebugSnapshotProvider;
+    private readonly Func<AutoCreateWorldSettings, int>? seedPoolCountProvider;
     private readonly SettingsUiFactory uiFactory;
     private readonly SettingsDialogService dialogService;
     private SettingsPageHost? pageHost;
@@ -20,11 +21,13 @@ internal sealed partial class SettingsForm : Form
     public SettingsForm(
         AppSettings currentSettings,
         Func<RuntimePerformanceDiagnostics>? runtimeDiagnosticsProvider = null,
-        Func<RuntimeDebugSnapshot>? runtimeDebugSnapshotProvider = null)
+        Func<RuntimeDebugSnapshot>? runtimeDebugSnapshotProvider = null,
+        Func<AutoCreateWorldSettings, int>? seedPoolCountProvider = null)
     {
         settings = AppSettingsStore.Clone(currentSettings);
         this.runtimeDiagnosticsProvider = runtimeDiagnosticsProvider;
         this.runtimeDebugSnapshotProvider = runtimeDebugSnapshotProvider;
+        this.seedPoolCountProvider = seedPoolCountProvider;
         uiFactory = new SettingsUiFactory(Localize);
         dialogService = new SettingsDialogService(this, Localize);
 
@@ -55,6 +58,19 @@ internal sealed partial class SettingsForm : Form
     internal RuntimeDebugSnapshot GetRuntimeDebugSnapshot()
     {
         return runtimeDebugSnapshotProvider?.Invoke() ?? RuntimeDebugSnapshot.Empty;
+    }
+
+    internal int GetSeedPoolCount(AutoCreateWorldSettings autoCreate)
+    {
+        try
+        {
+            return seedPoolCountProvider?.Invoke(autoCreate) ?? 0;
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error(ex, "Settings debug page failed to read seed pool count.");
+            return 0;
+        }
     }
 
     internal string Localize(string key)

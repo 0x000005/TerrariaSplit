@@ -42,6 +42,7 @@ var legacyTests = new (string Name, Action Test)[]
     ("Settings form applies Zenith star catch options", TestSettingsFormAppliesZenithStarCatchOptions),
     ("Settings form gates Zenith star catch behind Zenith seed", TestSettingsFormGatesZenithStarCatchBehindZenithSeed),
     ("Settings form gates seed pool behind pyramid filter", TestSettingsFormGatesSeedPoolBehindPyramidFilter),
+    ("Debug sequence uses pooled seed path when pool has a seed", TestDebugSequenceUsesPooledSeedPath),
     ("Settings form applies timer start sound", TestSettingsFormAppliesTimerStartSound),
     ("Settings form applies resume sound", TestSettingsFormAppliesResumeSound),
     ("Settings form applies Moon Lord split sound", TestSettingsFormAppliesMoonLordSplitSound),
@@ -215,6 +216,7 @@ static void TestLocalizer()
     AssertEqual("\u7D2F\u8BA1\u65F6\u95F4", Localizer.Get("Cumulative time", new AppSettings { Language = "\u4E2D\u6587" }));
     AssertEqual("\u540E\u53F0\u7B5B\u5854\u79CD\u5B50\u6C60", Localizer.Get("Background seed pool", new AppSettings { Language = "\u4E2D\u6587" }));
     AssertEqual("\u79CD\u5B50\u6C60\u4E2A\u6570", Localizer.Get("Seed pool size", new AppSettings { Language = "\u4E2D\u6587" }));
+    AssertEqual("\u79CD\u5B50\u6C60\u79CD\u5B50", Localizer.Get("Pooled seed", new AppSettings { Language = "\u4E2D\u6587" }));
 }
 
 static void TestJsonFileStoreWritesAtomically()
@@ -837,6 +839,42 @@ static void TestSettingsFormGatesSeedPoolBehindPyramidFilter()
 
         AssertEqual(true, page.AutoCreateSeedPoolBox.Enabled);
         AssertEqual(true, page.AutoCreateSeedPoolTargetBox.Enabled);
+    });
+}
+
+static void TestDebugSequenceUsesPooledSeedPath()
+{
+    RunSta(() =>
+    {
+        var settings = new AppSettings
+        {
+            AutoCreate = new AutoCreateWorldSettings
+            {
+                WorldSize = AutoCreateWorldSize.Small,
+                WorldDifficulty = AutoCreateWorldDifficulty.Expert,
+                WorldEvil = AutoCreateWorldEvil.Crimson,
+                SpecialSeeds = AutoCreateSpecialWorldSeed.ForTheWorthy,
+                EnablePyramidFilter = true,
+                EnableSeedPool = true
+            }
+        };
+        using var form = new SettingsForm(settings, seedPoolCountProvider: _ => 1);
+        TerrariaMenuGeometry geometry = TerrariaMenuGeometry.From(new Size(900, 900));
+        MethodInfo method = typeof(DebugSettingsPage).GetMethod(
+                "BuildAutoCreateSequenceText",
+                BindingFlags.Static | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("Missing debug sequence builder.");
+        string sequence = (string)(method.Invoke(null, [settings.AutoCreate, geometry, 0, form])
+            ?? throw new InvalidOperationException("Debug sequence builder returned null."));
+
+        AssertEqual(true, sequence.Contains("Pooled seed", StringComparison.Ordinal));
+        AssertEqual(true, sequence.Contains("Apply pooled seed", StringComparison.Ordinal));
+        AssertEqual(false, sequence.Contains("World size", StringComparison.Ordinal));
+        AssertEqual(false, sequence.Contains("World difficulty", StringComparison.Ordinal));
+        AssertEqual(false, sequence.Contains("World evil", StringComparison.Ordinal));
+        AssertEqual(false, sequence.Contains("Special seeds", StringComparison.Ordinal));
+        AssertEqual(false, sequence.Contains("Randomize Visible Seed", StringComparison.Ordinal));
+        AssertEqual(false, sequence.Contains("Filter pyramid", StringComparison.Ordinal));
     });
 }
 

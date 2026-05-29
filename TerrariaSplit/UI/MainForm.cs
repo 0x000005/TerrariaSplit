@@ -757,6 +757,11 @@ internal sealed partial class MainForm : Form
         }
     }
 
+    internal int GetSeedPoolCount(AutoCreateWorldSettings autoCreate)
+    {
+        return seedPoolStore.Count(WorldGenSignature.From(autoCreate));
+    }
+
     private bool ShowPersonalBestUpdateConfirmation(string promptText)
     {
         bool wasClickThrough = mouseClickThrough;
@@ -839,6 +844,7 @@ internal sealed partial class MainForm : Form
             settings,
             GetRuntimeDiagnostics,
             GetRuntimeDebugSnapshot,
+            GetSeedPoolCount,
             callback => BeginInvoke(callback),
             appliedSettings => ExecuteAppCommand(AppCommand.ApplySettings(appliedSettings)),
             result =>
