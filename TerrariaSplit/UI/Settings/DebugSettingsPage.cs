@@ -657,6 +657,12 @@ internal sealed class DebugSettingsPage : SettingsPageBase
     {
         var lines = new List<string>();
         int step = 1;
+        bool usesPooledWorld = UsesPooledWorldPath(autoCreate, owner);
+
+        if (usesPooledWorld)
+        {
+            lines.Add($"{step++}. {owner.Localize("Install pooled world")}");
+        }
 
         AppendSequenceStep(lines, owner, ref step, "Single Player", geometry.MainMenuSinglePlayer());
         AppendSequenceStep(lines, owner, ref step, "New Player", geometry.SelectMenuNewButton());
@@ -682,75 +688,63 @@ internal sealed class DebugSettingsPage : SettingsPageBase
 
         AppendSequenceStep(lines, owner, ref step, "Create Player", geometry.CreatePlayerButton());
         AppendSequenceStep(lines, owner, ref step, "Select Created Player", geometry.PlayerPlayButton(favoritePlayers));
+        if (usesPooledWorld)
+        {
+            lines.Add($"{step++}. {owner.Localize("Stop at world select")}");
+            return string.Join(Environment.NewLine, lines);
+        }
+
         AppendSequenceStep(lines, owner, ref step, "New World", geometry.SelectMenuNewButton());
 
-        bool usesPooledSeed = UsesPooledSeedPath(autoCreate, owner);
-        if (!usesPooledSeed)
-        {
-            string normalizedWorldSize = AutoCreateWorldSize.Normalize(autoCreate.WorldSize);
-            AppendSequenceStep(
-                lines,
-                owner,
-                ref step,
-                "World size",
-                geometry.WorldSizeButton(normalizedWorldSize),
-                owner.Localize(normalizedWorldSize));
+        string normalizedWorldSize = AutoCreateWorldSize.Normalize(autoCreate.WorldSize);
+        AppendSequenceStep(
+            lines,
+            owner,
+            ref step,
+            "World size",
+            geometry.WorldSizeButton(normalizedWorldSize),
+            owner.Localize(normalizedWorldSize));
 
-            string normalizedWorldDifficulty = AutoCreateWorldDifficulty.Normalize(autoCreate.WorldDifficulty);
-            AppendSequenceStep(
-                lines,
-                owner,
-                ref step,
-                "World difficulty",
-                geometry.WorldDifficultyButton(normalizedWorldDifficulty),
-                owner.Localize(normalizedWorldDifficulty));
+        string normalizedWorldDifficulty = AutoCreateWorldDifficulty.Normalize(autoCreate.WorldDifficulty);
+        AppendSequenceStep(
+            lines,
+            owner,
+            ref step,
+            "World difficulty",
+            geometry.WorldDifficultyButton(normalizedWorldDifficulty),
+            owner.Localize(normalizedWorldDifficulty));
 
-            string normalizedWorldEvil = AutoCreateWorldEvil.Normalize(autoCreate.WorldEvil);
-            AppendSequenceStep(
-                lines,
-                owner,
-                ref step,
-                "World evil",
-                geometry.WorldEvilButton(normalizedWorldEvil),
-                owner.Localize(normalizedWorldEvil));
-        }
+        string normalizedWorldEvil = AutoCreateWorldEvil.Normalize(autoCreate.WorldEvil);
+        AppendSequenceStep(
+            lines,
+            owner,
+            ref step,
+            "World evil",
+            geometry.WorldEvilButton(normalizedWorldEvil),
+            owner.Localize(normalizedWorldEvil));
 
         AppendSequenceStep(lines, owner, ref step, "Advanced Seed", geometry.WorldAdvancedSeedButton());
 
-        if (usesPooledSeed)
+        foreach (string specialSeed in AutoCreateSpecialWorldSeed.ParseList(autoCreate.SpecialSeeds))
         {
-            AppendSequenceStep(lines, owner, ref step, "Pooled seed", geometry.AdvancedSeedTextButton());
-            AppendSequenceStep(lines, owner, ref step, "Submit World Seed", geometry.VirtualKeyboardSubmitButton());
             AppendSequenceStep(
                 lines,
                 owner,
                 ref step,
-                "Apply pooled seed",
-                geometry.WorldAdvancedApplyButton());
+                "Special seeds",
+                geometry.AdvancedSpecialSeedButton(specialSeed),
+                owner.Localize(specialSeed));
         }
-        else
+
+        string secretSeeds = autoCreate.SecretSeeds?.Trim() ?? string.Empty;
+        if (!string.IsNullOrWhiteSpace(secretSeeds))
         {
-            foreach (string specialSeed in AutoCreateSpecialWorldSeed.ParseList(autoCreate.SpecialSeeds))
-            {
-                AppendSequenceStep(
-                    lines,
-                    owner,
-                    ref step,
-                    "Special seeds",
-                    geometry.AdvancedSpecialSeedButton(specialSeed),
-                    owner.Localize(specialSeed));
-            }
-
-            string secretSeeds = autoCreate.SecretSeeds?.Trim() ?? string.Empty;
-            if (!string.IsNullOrWhiteSpace(secretSeeds))
-            {
-                AppendSequenceStep(lines, owner, ref step, "Secret seeds", geometry.AdvancedSeedTextButton(), secretSeeds);
-                AppendSequenceStep(lines, owner, ref step, "Submit World Seed", geometry.VirtualKeyboardSubmitButton());
-            }
-
-            AppendSequenceStep(lines, owner, ref step, "Randomize Visible Seed", geometry.AdvancedSeedRandomizeButton());
-            AppendSequenceStep(lines, owner, ref step, "Apply visible seed", geometry.WorldAdvancedApplyButton());
+            AppendSequenceStep(lines, owner, ref step, "Secret seeds", geometry.AdvancedSeedTextButton(), secretSeeds);
+            AppendSequenceStep(lines, owner, ref step, "Submit World Seed", geometry.VirtualKeyboardSubmitButton());
         }
+
+        AppendSequenceStep(lines, owner, ref step, "Randomize Visible Seed", geometry.AdvancedSeedRandomizeButton());
+        AppendSequenceStep(lines, owner, ref step, "Apply visible seed", geometry.WorldAdvancedApplyButton());
 
         AppendSequenceStep(lines, owner, ref step, "Create World", geometry.CreateWorldButton());
 
@@ -766,7 +760,7 @@ internal sealed class DebugSettingsPage : SettingsPageBase
                 AutoCreateZenithStarCatchSpeed.FormatMultiplier(autoCreate.ZenithStarCatchSpeedSliderValue));
         }
 
-        if (autoCreate.EnablePyramidFilter && !usesPooledSeed)
+        if (autoCreate.EnablePyramidFilter)
         {
             lines.Add($"{step++}. {owner.Localize("Filter pyramid")}");
         }
@@ -774,7 +768,7 @@ internal sealed class DebugSettingsPage : SettingsPageBase
         return string.Join(Environment.NewLine, lines);
     }
 
-    private static bool UsesPooledSeedPath(AutoCreateWorldSettings autoCreate, SettingsForm owner)
+    private static bool UsesPooledWorldPath(AutoCreateWorldSettings autoCreate, SettingsForm owner)
     {
         return autoCreate.EnablePyramidFilter &&
             autoCreate.EnableSeedPool &&

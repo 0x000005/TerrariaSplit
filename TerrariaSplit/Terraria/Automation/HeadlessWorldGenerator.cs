@@ -5,10 +5,10 @@ using System.Text;
 namespace TerrariaSplit;
 
 // Generates a single world headlessly with TerrariaServer.exe (no game window, no
-// foreground), then scans the produced .wld for a pyramid and reads the copied seed
-// metadata from the world header. Used by the background seed pool to discover seeds
-// worth banking. The dedicated server writes the world to a private scratch folder, so
-// the user's Worlds folder is never touched.
+// foreground), then scans the produced .wld for a pyramid and reads metadata from the
+// world header. Used by the background seed pool to discover world files worth banking.
+// The dedicated server writes the world to a private scratch folder, so the user's Worlds
+// folder is never touched.
 internal sealed class HeadlessWorldGenerator : IDisposable
 {
     private static readonly string ScratchDirectory = Path.Combine(AppContext.BaseDirectory, "seed-pool", "scratch");
@@ -42,73 +42,72 @@ internal sealed class HeadlessWorldGenerator : IDisposable
         StopRecordedServer(serverExePath);
         CleanScratch();
 
+        string configPath = Path.Combine(ScratchDirectory, "server-config.txt");
+        File.WriteAllText(configPath, BuildServerConfig(settings));
+
+        Process? process = null;
+        int? processId = null;
+        string? worldPath;
         try
         {
-            string configPath = Path.Combine(ScratchDirectory, "server-config.txt");
-            File.WriteAllText(configPath, BuildServerConfig(settings));
-
-            Process? process = null;
-            int? processId = null;
-            string? worldPath;
-            try
-            {
-                process = StartServer(serverExePath, configPath);
-                processId = TryGetProcessId(process);
-                TrackCurrentProcess(process, serverExePath);
-                worldPath = await WaitForStableWorldFileAsync(cancellationToken);
-            }
-            finally
-            {
-                if (process is not null)
-                {
-                    processId ??= TryGetProcessId(process);
-                    TryKill(process);
-                    ClearCurrentProcess(processId);
-                }
-            }
-
-            if (worldPath is null)
-            {
-                AppLogger.Info("Seed pool headless generation produced no world file.");
-                return HeadlessWorldGenResult.Miss;
-            }
-
-            bool scanned = scanner.TryScanSpeedrunCorridor(
-                worldPath,
-                settings.WorldSize,
-                PyramidWallThreshold,
-                PyramidTileThreshold,
-                out PyramidEvidenceScanResult evidence,
-                out _,
-                out _);
-            bool pyramidFound = scanned && !evidence.ScanFailed && evidence.MeetsThreshold(PyramidWallThreshold, PyramidTileThreshold);
-
-            bool keep = false;
-            string copiedSeed = string.Empty;
-            bool worldHasCrimson = false;
-            if (pyramidFound)
-            {
-                if (scanner.TryReadWorldSeedMetadata(worldPath, out TerrariaWorldSeedMetadata metadata, out string detail))
-                {
-                    copiedSeed = metadata.ToFullSeedText();
-                    worldHasCrimson = metadata.HasCrimson;
-                    keep = !string.IsNullOrWhiteSpace(copiedSeed) &&
-                        EvilMatches(settings.WorldEvil, worldHasCrimson, evilRead: true);
-                }
-                else
-                {
-                    AppLogger.Info($"Seed pool could not read generated world seed metadata: {detail}");
-                }
-            }
-
-            string loggedSeed = string.IsNullOrWhiteSpace(copiedSeed) ? "<unread>" : copiedSeed;
-            AppLogger.Info($"Seed pool headless generation seed={loggedSeed}: pyramid={pyramidFound}, keep={keep}.");
-            return new HeadlessWorldGenResult(pyramidFound, keep, copiedSeed, Generated: true);
+            process = StartServer(serverExePath, configPath);
+            processId = TryGetProcessId(process);
+            TrackCurrentProcess(process, serverExePath);
+            worldPath = await WaitForStableWorldFileAsync(cancellationToken);
         }
         finally
         {
-            CleanScratch();
+            if (process is not null)
+            {
+                processId ??= TryGetProcessId(process);
+                TryKill(process);
+                ClearCurrentProcess(processId);
+            }
         }
+
+        if (worldPath is null)
+        {
+            AppLogger.Info("Seed pool headless generation produced no world file.");
+            CleanScratch();
+            return HeadlessWorldGenResult.Miss;
+        }
+
+        bool scanned = scanner.TryScanSpeedrunCorridor(
+            worldPath,
+            settings.WorldSize,
+            PyramidWallThreshold,
+            PyramidTileThreshold,
+            out PyramidEvidenceScanResult evidence,
+            out _,
+            out _);
+        bool pyramidFound = scanned && !evidence.ScanFailed && evidence.MeetsThreshold(PyramidWallThreshold, PyramidTileThreshold);
+
+        bool keep = false;
+        TerrariaWorldSeedMetadata metadata = default;
+        string metadataDetail = "<unread>";
+        if (pyramidFound)
+        {
+            if (scanner.TryReadWorldSeedMetadata(worldPath, out metadata, out string detail))
+            {
+                metadataDetail = metadata.FormatWorldOptions();
+                keep = metadata.MatchesWorldOptions(settings);
+            }
+            else
+            {
+                AppLogger.Info($"Seed pool could not read generated world metadata: {detail}");
+            }
+        }
+
+        AppLogger.Info(
+            $"Seed pool headless generation world='{Path.GetFileName(worldPath)}': pyramid={pyramidFound}, " +
+            $"metadata={metadataDetail}, expected={TerrariaWorldSeedMetadata.FormatExpectedWorldOptions(settings)}, keep={keep}.");
+        if (!keep)
+        {
+            CleanScratch();
+            return new HeadlessWorldGenResult(pyramidFound, false, string.Empty, default, Generated: true);
+        }
+
+        return new HeadlessWorldGenResult(pyramidFound, true, worldPath, metadata, Generated: true);
     }
 
     private static Process StartServer(string serverExePath, string configPath)
@@ -406,22 +405,6 @@ internal sealed class HeadlessWorldGenerator : IDisposable
         }
     }
 
-    private static bool EvilMatches(string worldEvil, bool hasCrimson, bool evilRead)
-    {
-        string evil = AutoCreateWorldEvil.Normalize(worldEvil);
-        if (evil == AutoCreateWorldEvil.Random)
-        {
-            return true;
-        }
-
-        if (!evilRead)
-        {
-            return false;
-        }
-
-        return evil == AutoCreateWorldEvil.Crimson ? hasCrimson : !hasCrimson;
-    }
-
     private static string BuildServerConfig(AutoCreateWorldSettings settings)
     {
         var builder = new StringBuilder();
@@ -491,6 +474,11 @@ internal sealed class HeadlessWorldGenerator : IDisposable
         }
     }
 
+    public void ClearScratch()
+    {
+        CleanScratch();
+    }
+
     private static void CleanScratch()
     {
         if (!Directory.Exists(ScratchDirectory))
@@ -535,6 +523,7 @@ internal sealed class HeadlessWorldGenerator : IDisposable
 
         TryKill(processToKill);
         TryDeleteFile(ServerPidPath);
+        CleanScratch();
     }
 
     private sealed class ServerProcessMarker
@@ -604,9 +593,14 @@ internal sealed class HeadlessWorldGenerator : IDisposable
     }
 }
 
-internal readonly record struct HeadlessWorldGenResult(bool PyramidFound, bool Keep, string Seed, bool Generated)
+internal readonly record struct HeadlessWorldGenResult(
+    bool PyramidFound,
+    bool Keep,
+    string WorldPath,
+    TerrariaWorldSeedMetadata Metadata,
+    bool Generated)
 {
-    public static HeadlessWorldGenResult Miss => new(false, false, string.Empty, Generated: true);
+    public static HeadlessWorldGenResult Miss => new(false, false, string.Empty, default, Generated: true);
 
-    public static HeadlessWorldGenResult Skipped => new(false, false, string.Empty, Generated: false);
+    public static HeadlessWorldGenResult Skipped => new(false, false, string.Empty, default, Generated: false);
 }

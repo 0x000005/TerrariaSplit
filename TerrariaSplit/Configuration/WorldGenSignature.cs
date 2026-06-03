@@ -1,9 +1,8 @@
 namespace TerrariaSplit;
 
 // A stable fingerprint of the world-generation inputs that affect terrain.
-// A banked copied seed only reproduces its pyramid when replayed under the same
-// Terraria version and compatible settings, so the seed pool is keyed by this and
-// cleared whenever it changes.
+// A pooled world file is only valid for compatible settings, so the seed pool is keyed
+// by this and cleared whenever it changes.
 internal static class WorldGenSignature
 {
     // Terraria's world generator is version-sensitive. Keep this as a visible pool
@@ -33,7 +32,7 @@ internal static class SeedPoolSupport
         }
 
         // The dedicated server config exposes no Skyblock toggle, so a Skyblock world
-        // cannot be reproduced headlessly from a banked seed.
+        // cannot be produced headlessly for the pool.
         return !AutoCreateSpecialWorldSeed.ParseList(autoCreate.SpecialSeeds)
             .Contains(AutoCreateSpecialWorldSeed.Skyblock, StringComparer.OrdinalIgnoreCase);
     }

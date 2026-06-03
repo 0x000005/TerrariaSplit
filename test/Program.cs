@@ -42,7 +42,7 @@ var legacyTests = new (string Name, Action Test)[]
     ("Settings form applies Zenith star catch options", TestSettingsFormAppliesZenithStarCatchOptions),
     ("Settings form gates Zenith star catch behind Zenith seed", TestSettingsFormGatesZenithStarCatchBehindZenithSeed),
     ("Settings form gates seed pool behind pyramid filter", TestSettingsFormGatesSeedPoolBehindPyramidFilter),
-    ("Debug sequence uses pooled seed path when pool has a seed", TestDebugSequenceUsesPooledSeedPath),
+    ("Debug sequence uses pooled world path when pool has a world", TestDebugSequenceUsesPooledWorldPath),
     ("Settings form applies timer start sound", TestSettingsFormAppliesTimerStartSound),
     ("Settings form applies resume sound", TestSettingsFormAppliesResumeSound),
     ("Settings form applies Moon Lord split sound", TestSettingsFormAppliesMoonLordSplitSound),
@@ -62,6 +62,7 @@ var legacyTests = new (string Name, Action Test)[]
     ("Zenith star catch stop stages follow world generation order", TestZenithStarCatchStageStopRules),
     ("Zenith star catch speed uses logarithmic stepped range", TestZenithStarCatchSpeedRange),
     ("Pyramid filter scans world file evidence in speedrun corridor", TestPyramidFilterWorldFileScanner),
+    ("World seed metadata matches world options", TestWorldSeedMetadataMatchesWorldOptions),
     ("Overlay composite layout derives status and timer windows from shared bounds", TestOverlayCompositeLayoutCalculator)
 };
 var tests = legacyTests
@@ -216,7 +217,8 @@ static void TestLocalizer()
     AssertEqual("\u7D2F\u8BA1\u65F6\u95F4", Localizer.Get("Cumulative time", new AppSettings { Language = "\u4E2D\u6587" }));
     AssertEqual("\u540E\u53F0\u7B5B\u5854\u79CD\u5B50\u6C60", Localizer.Get("Background seed pool", new AppSettings { Language = "\u4E2D\u6587" }));
     AssertEqual("\u79CD\u5B50\u6C60\u4E2A\u6570", Localizer.Get("Seed pool size", new AppSettings { Language = "\u4E2D\u6587" }));
-    AssertEqual("\u79CD\u5B50\u6C60\u79CD\u5B50", Localizer.Get("Pooled seed", new AppSettings { Language = "\u4E2D\u6587" }));
+    AssertEqual("\u5B89\u88C5\u79CD\u5B50\u6C60\u4E16\u754C", Localizer.Get("Install pooled world", new AppSettings { Language = "\u4E2D\u6587" }));
+    AssertEqual("\u505C\u5728\u4E16\u754C\u9009\u62E9\u754C\u9762", Localizer.Get("Stop at world select", new AppSettings { Language = "\u4E2D\u6587" }));
 }
 
 static void TestJsonFileStoreWritesAtomically()
@@ -842,7 +844,7 @@ static void TestSettingsFormGatesSeedPoolBehindPyramidFilter()
     });
 }
 
-static void TestDebugSequenceUsesPooledSeedPath()
+static void TestDebugSequenceUsesPooledWorldPath()
 {
     RunSta(() =>
     {
@@ -867,8 +869,11 @@ static void TestDebugSequenceUsesPooledSeedPath()
         string sequence = (string)(method.Invoke(null, [settings.AutoCreate, geometry, 0, form])
             ?? throw new InvalidOperationException("Debug sequence builder returned null."));
 
-        AssertEqual(true, sequence.Contains("Pooled seed", StringComparison.Ordinal));
-        AssertEqual(true, sequence.Contains("Apply pooled seed", StringComparison.Ordinal));
+        AssertEqual(true, sequence.Contains("Install pooled world", StringComparison.Ordinal));
+        AssertEqual(true, sequence.Contains("Stop at world select", StringComparison.Ordinal));
+        AssertEqual(false, sequence.Contains("New World", StringComparison.Ordinal));
+        AssertEqual(false, sequence.Contains("Advanced Seed", StringComparison.Ordinal));
+        AssertEqual(false, sequence.Contains("Create World", StringComparison.Ordinal));
         AssertEqual(false, sequence.Contains("World size", StringComparison.Ordinal));
         AssertEqual(false, sequence.Contains("World difficulty", StringComparison.Ordinal));
         AssertEqual(false, sequence.Contains("World evil", StringComparison.Ordinal));
@@ -943,7 +948,7 @@ static void TestPyramidFilterWorldFileScanner()
         AssertEqual("server-picked-seed", seedText);
         AssertEqual(true, hasCrimson);
         AssertEqual(true, scanner.TryReadWorldSeedMetadata(emptyWorld, out TerrariaWorldSeedMetadata metadata, out _));
-        AssertEqual("1.1.2.0.server-picked-seed", metadata.ToFullSeedText());
+        AssertEqual("size=1, difficulty=1, evil=2, special=0", metadata.FormatWorldOptions());
         AssertEqual(true, scanner.TryScanSpeedrunCorridor(
             emptyWorld,
             AutoCreateWorldSize.Small,
@@ -1061,6 +1066,43 @@ static void TestOverlayCompositeLayoutCalculator()
         originalStatusScreenBounds.Width + 40,
         originalStatusScreenBounds.Height));
     AssertEqual(resizedComposite.Width + 40, controller.CompositeBounds.Width);
+}
+
+static void TestWorldSeedMetadataMatchesWorldOptions()
+{
+    var metadata = new TerrariaWorldSeedMetadata("server-picked.seed", 1, 1, true, 4);
+
+    var settings = new AutoCreateWorldSettings
+    {
+        WorldSize = AutoCreateWorldSize.Small,
+        WorldDifficulty = AutoCreateWorldDifficulty.Classic,
+        WorldEvil = AutoCreateWorldEvil.Crimson,
+        SpecialSeeds = AutoCreateSpecialWorldSeed.ForTheWorthy
+    };
+    AssertEqual(true, metadata.MatchesWorldOptions(settings));
+
+    settings.WorldDifficulty = AutoCreateWorldDifficulty.Expert;
+    AssertEqual(false, metadata.MatchesWorldOptions(settings));
+
+    settings.WorldDifficulty = AutoCreateWorldDifficulty.Classic;
+    settings.WorldEvil = AutoCreateWorldEvil.Corruption;
+    AssertEqual(false, metadata.MatchesWorldOptions(settings));
+
+    settings.WorldEvil = AutoCreateWorldEvil.Random;
+    AssertEqual(true, metadata.MatchesWorldOptions(settings));
+
+    settings.SpecialSeeds = string.Empty;
+    AssertEqual(false, metadata.MatchesWorldOptions(settings));
+
+    var zenithMetadata = new TerrariaWorldSeedMetadata("server-picked.seed", 2, 2, false, 255);
+    settings.WorldSize = AutoCreateWorldSize.Medium;
+    settings.WorldDifficulty = AutoCreateWorldDifficulty.Expert;
+    settings.WorldEvil = AutoCreateWorldEvil.Corruption;
+    settings.SpecialSeeds = AutoCreateSpecialWorldSeed.Zenith;
+    AssertEqual(true, zenithMetadata.MatchesWorldOptions(settings));
+
+    var partialZenithMetadata = new TerrariaWorldSeedMetadata("server-picked.seed", 2, 2, false, 128);
+    AssertEqual(false, partialZenithMetadata.MatchesWorldOptions(settings));
 }
 
 static void WriteSyntheticWorldFile(

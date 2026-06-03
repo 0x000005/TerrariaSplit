@@ -1,6 +1,4 @@
 using System.Drawing;
-using System.Globalization;
-
 namespace TerrariaSplit;
 
 internal sealed class TerrariaWorldFilePyramidScanner
@@ -195,14 +193,9 @@ internal sealed class TerrariaWorldFilePyramidScanner
         string seedText = string.Empty;
         if (version >= 179)
         {
-            if (version == 179)
-            {
-                seedText = reader.ReadInt32().ToString(CultureInfo.InvariantCulture);
-            }
-            else
-            {
-                seedText = reader.ReadString(); // seed text
-            }
+            seedText = version == 179
+                ? reader.ReadInt32().ToString(System.Globalization.CultureInfo.InvariantCulture)
+                : reader.ReadString();
 
             _ = reader.ReadUInt64(); // world generator version
         }
@@ -578,16 +571,95 @@ internal readonly record struct TerrariaWorldSeedMetadata(
     bool HasCrimson,
     int SpecialSeedMask)
 {
-    public string ToFullSeedText()
+    private const int DrunkMask = 1;
+    private const int NotTheBeesMask = 2;
+    private const int ForTheWorthyMask = 4;
+    private const int CelebrationMask = 8;
+    private const int TheConstantMask = 16;
+    private const int RemixMask = 32;
+    private const int NoTrapsMask = 64;
+    private const int ZenithMask = 128;
+    private const int SkyblockMask = 256;
+    private const int ZenithDependencyMask =
+        DrunkMask |
+        NotTheBeesMask |
+        ForTheWorthyMask |
+        CelebrationMask |
+        TheConstantMask |
+        RemixMask |
+        NoTrapsMask;
+
+    public bool MatchesWorldOptions(AutoCreateWorldSettings settings)
     {
-        int evilCode = HasCrimson ? 2 : 1;
-        return string.Join(
-            ".",
-            SizeCode.ToString(CultureInfo.InvariantCulture),
-            DifficultyCode.ToString(CultureInfo.InvariantCulture),
-            evilCode.ToString(CultureInfo.InvariantCulture),
-            SpecialSeedMask.ToString(CultureInfo.InvariantCulture),
-            SeedText);
+        if (SizeCode != ExpectedSizeCode(settings.WorldSize) ||
+            DifficultyCode != ExpectedDifficultyCode(settings.WorldDifficulty) ||
+            SpecialSeedMask != ExpectedSpecialSeedMask(settings.SpecialSeeds))
+        {
+            return false;
+        }
+
+        string evil = AutoCreateWorldEvil.Normalize(settings.WorldEvil);
+        return evil == AutoCreateWorldEvil.Random ||
+            HasCrimson == string.Equals(evil, AutoCreateWorldEvil.Crimson, StringComparison.OrdinalIgnoreCase);
+    }
+
+    public string FormatWorldOptions()
+    {
+        return $"size={SizeCode}, difficulty={DifficultyCode}, evil={(HasCrimson ? 2 : 1)}, special={SpecialSeedMask}";
+    }
+
+    public static string FormatExpectedWorldOptions(AutoCreateWorldSettings settings)
+    {
+        string evil = AutoCreateWorldEvil.Normalize(settings.WorldEvil);
+        string evilText = evil == AutoCreateWorldEvil.Random
+            ? "1/2"
+            : string.Equals(evil, AutoCreateWorldEvil.Crimson, StringComparison.OrdinalIgnoreCase) ? "2" : "1";
+        return $"size={ExpectedSizeCode(settings.WorldSize)}, difficulty={ExpectedDifficultyCode(settings.WorldDifficulty)}, " +
+            $"evil={evilText}, special={ExpectedSpecialSeedMask(settings.SpecialSeeds)}";
+    }
+
+    private static int ExpectedSizeCode(string worldSize)
+    {
+        return AutoCreateWorldSize.Normalize(worldSize) switch
+        {
+            AutoCreateWorldSize.Small => 1,
+            AutoCreateWorldSize.Large => 3,
+            _ => 2
+        };
+    }
+
+    private static int ExpectedDifficultyCode(string worldDifficulty)
+    {
+        return AutoCreateWorldDifficulty.Normalize(worldDifficulty) switch
+        {
+            AutoCreateWorldDifficulty.Expert => 2,
+            AutoCreateWorldDifficulty.Master => 3,
+            AutoCreateWorldDifficulty.Journey => 4,
+            _ => 1
+        };
+    }
+
+    private static int ExpectedSpecialSeedMask(string? specialSeeds)
+    {
+        int mask = 0;
+        foreach (string seed in AutoCreateSpecialWorldSeed.ParseList(specialSeeds))
+        {
+            mask |= seed switch
+            {
+                AutoCreateSpecialWorldSeed.Drunk => DrunkMask,
+                AutoCreateSpecialWorldSeed.NotTheBees => NotTheBeesMask,
+                AutoCreateSpecialWorldSeed.ForTheWorthy => ForTheWorthyMask,
+                AutoCreateSpecialWorldSeed.Celebration => CelebrationMask,
+                AutoCreateSpecialWorldSeed.TheConstant => TheConstantMask,
+                AutoCreateSpecialWorldSeed.Remix => RemixMask,
+                AutoCreateSpecialWorldSeed.NoTraps => NoTrapsMask,
+                AutoCreateSpecialWorldSeed.Zenith => ZenithDependencyMask | ZenithMask,
+                AutoCreateSpecialWorldSeed.Skyblock => SkyblockMask,
+                _ => 0
+            };
+        }
+
+        return mask;
     }
 }
 

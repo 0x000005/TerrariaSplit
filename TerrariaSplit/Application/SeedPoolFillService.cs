@@ -2,8 +2,8 @@ namespace TerrariaSplit;
 
 // Background worker that keeps the seed pool topped up. While seed pooling is enabled and
 // supported, it repeatedly asks TerrariaServer.exe to generate a random-seed world
-// headlessly and banks the copied seed read from the .wld when the world has a pyramid.
-// It backs off once the pool reaches the target count and resumes when seeds are consumed.
+// headlessly and banks the .wld file when the world has a pyramid.
+// It backs off once the pool reaches the target count and resumes when worlds are consumed.
 // This is a background task, not a dedicated UI thread; the expensive work happens in a
 // separate TerrariaServer.exe process.
 internal sealed class SeedPoolFillService : IDisposable
@@ -136,11 +136,20 @@ internal sealed class SeedPoolFillService : IDisposable
         }
 
         HeadlessWorldGenResult result = await generator.GenerateAndScanAsync(serverExe, autoCreate, cancellationToken);
-        if (result.Keep &&
-            IsGenerationStillCurrent(signature) &&
-            store.TryAdd(signature, result.Seed))
+        try
         {
-            AppLogger.Info($"Seed pool banked seed {result.Seed}; pool now holds {store.Count(signature)}/{autoCreate.SeedPoolTargetCount}.");
+            if (result.Keep &&
+                IsGenerationStillCurrent(signature) &&
+                store.TryAdd(signature, result.WorldPath, result.Metadata, out SeedPoolWorldEntry entry))
+            {
+                AppLogger.Info(
+                    $"Seed pool banked world {entry.WorldFileName}; pool now holds " +
+                    $"{store.Count(signature)}/{autoCreate.SeedPoolTargetCount}.");
+            }
+        }
+        finally
+        {
+            generator.ClearScratch();
         }
 
         return result.Generated;

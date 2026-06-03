@@ -12,6 +12,7 @@ internal sealed class CreateWorldWorkflow : IDisposable
     private readonly TerrariaAutomationContext automation = new("Create world");
     private readonly ZenithStarCatchAutomation zenithStarCatchAutomation;
     private readonly PyramidFilterAutomation pyramidFilterAutomation;
+    private readonly TerrariaWorldFilePyramidScanner worldFileScanner = new();
     private readonly SeedPoolStore? seedPool;
     private TimeSpan shortActionDelay = TimeSpan.FromMilliseconds(AppSettingsDefaults.AutoCreate.ShortActionDelayMilliseconds);
     private TimeSpan menuActionDelay = TimeSpan.FromMilliseconds(AppSettingsDefaults.AutoCreate.MenuActionDelayMilliseconds);
@@ -71,6 +72,20 @@ internal sealed class CreateWorldWorkflow : IDisposable
                     return;
                 }
 
+                string worldGenSignature = WorldGenSignature.From(autoCreate);
+                SeedPoolWorldEntry? installedPooledWorld = null;
+                if (!await automation.RunStepAsync(
+                        "install pooled world",
+                        _ =>
+                        {
+                            installedPooledWorld = TryInstallPooledWorld(autoCreate, worldGenSignature);
+                            return Task.FromResult(true);
+                        },
+                        cancellationToken))
+                {
+                    return;
+                }
+
                 if (!await automation.ClickAsync("Single Player", geometry.MainMenuSinglePlayer(), menuActionDelay, cancellationToken))
                 {
                     return;
@@ -114,6 +129,15 @@ internal sealed class CreateWorldWorkflow : IDisposable
 
                 await automation.DelayAsync(menuActionDelay, cancellationToken);
 
+                if (installedPooledWorld is not null)
+                {
+                    seedPool?.RemoveFirst(worldGenSignature, installedPooledWorld);
+                    AppLogger.Info(
+                        $"Create world automation installed pooled world {installedPooledWorld.WorldFileName}; " +
+                        "stopped at world select.");
+                    return;
+                }
+
                 if (!await RunWorldCreationLoopAsync(autoCreate, geometry, cancellationToken))
                 {
                     return;
@@ -135,24 +159,13 @@ internal sealed class CreateWorldWorkflow : IDisposable
         CancellationToken cancellationToken)
     {
         automation.ThrowIfCancellationRequested(cancellationToken);
-        string signature = WorldGenSignature.From(settings);
-        string? bankedSeed = TryResolveBankedSeed(settings, signature);
         Dictionary<string, DateTime> worldsBefore = savePreparation.SnapshotSaveFiles("Worlds", "*.wld");
-        if (!await CreateOneWorldAsync(settings, geometry, cancellationToken, bankedSeed))
+        if (!await CreateOneWorldAsync(settings, geometry, cancellationToken))
         {
             return false;
         }
 
         await zenithStarCatchAutomation.RunAsync(settings, cancellationToken);
-
-        if (bankedSeed is not null)
-        {
-            // A pooled copied seed is trusted to contain a pyramid, so consume it and keep the
-            // world without running the foreground pyramid filter.
-            seedPool?.RemoveFirst(signature, bankedSeed);
-            AppLogger.Info($"Create world automation used pooled seed {bankedSeed}; skipped pyramid filter.");
-            return false;
-        }
 
         PyramidFilterOutcome outcome = await pyramidFilterAutomation.RunAsync(settings, worldsBefore, cancellationToken);
         AppLogger.Info($"Create world automation pyramid filter outcome: {outcome}.");
@@ -164,7 +177,7 @@ internal sealed class CreateWorldWorkflow : IDisposable
         return await ReturnToMainMenuByBackTwiceAsync(geometry, cancellationToken);
     }
 
-    private string? TryResolveBankedSeed(AutoCreateWorldSettings settings, string signature)
+    private SeedPoolWorldEntry? TryInstallPooledWorld(AutoCreateWorldSettings settings, string signature)
     {
         if (seedPool is null ||
             !settings.EnablePyramidFilter ||
@@ -174,26 +187,69 @@ internal sealed class CreateWorldWorkflow : IDisposable
             return null;
         }
 
-        return seedPool.TryPeekFirst(signature, out string seed) ? seed : null;
+        while (seedPool.TryPeekFirst(signature, out SeedPoolWorldEntry entry))
+        {
+            TerrariaWorldSeedMetadata storedMetadata = entry.ToMetadata();
+            if (!storedMetadata.MatchesWorldOptions(settings))
+            {
+                AppLogger.Info(
+                    $"Seed pool discarded world {entry.WorldFileName}: stored metadata " +
+                    $"({storedMetadata.FormatWorldOptions()}) does not match current settings " +
+                    $"({TerrariaWorldSeedMetadata.FormatExpectedWorldOptions(settings)}).");
+                seedPool.RemoveFirst(signature, entry);
+                continue;
+            }
+
+            if (!seedPool.TryGetWorldPath(entry, out string pooledWorldPath))
+            {
+                AppLogger.Info($"Seed pool discarded world {entry.WorldFileName}: pooled world file is missing.");
+                seedPool.RemoveFirst(signature, entry);
+                continue;
+            }
+
+            if (!worldFileScanner.TryReadWorldSeedMetadata(pooledWorldPath, out TerrariaWorldSeedMetadata actualMetadata, out string detail) ||
+                !actualMetadata.Equals(storedMetadata) ||
+                !actualMetadata.MatchesWorldOptions(settings))
+            {
+                AppLogger.Info(
+                    $"Seed pool discarded world {entry.WorldFileName}: actual metadata " +
+                    $"({(detail.Length > 0 ? detail : actualMetadata.FormatWorldOptions())}) does not match stored/current settings " +
+                    $"({TerrariaWorldSeedMetadata.FormatExpectedWorldOptions(settings)}).");
+                seedPool.RemoveFirst(signature, entry);
+                continue;
+            }
+
+            if (seedPool.TryInstallWorld(entry, out string installedPath, out string message))
+            {
+                AppLogger.Info(
+                    $"Create world automation installed pooled world {entry.WorldFileName} " +
+                    $"to '{Path.GetFileName(installedPath)}' ({actualMetadata.FormatWorldOptions()}).");
+                return entry;
+            }
+
+            AppLogger.Info($"Create world automation could not install pooled world {entry.WorldFileName}: {message}");
+            return null;
+        }
+
+        return null;
     }
 
     private async Task<bool> CreateOneWorldAsync(
         AutoCreateWorldSettings settings,
         TerrariaMenuGeometry geometry,
-        CancellationToken cancellationToken,
-        string? bankedSeed)
+        CancellationToken cancellationToken)
     {
         if (!await automation.ClickAsync("new world", geometry.SelectMenuNewButton(), menuActionDelay, cancellationToken))
         {
             return false;
         }
 
-        if (bankedSeed is null && !await ApplyWorldOptionsAsync(settings, geometry, cancellationToken))
+        if (!await ApplyWorldOptionsAsync(settings, geometry, cancellationToken))
         {
             return false;
         }
 
-        if (!await ApplyWorldSeedOptionsAsync(settings, geometry, cancellationToken, bankedSeed))
+        if (!await ApplyWorldSeedOptionsAsync(settings, geometry, cancellationToken))
         {
             return false;
         }
@@ -255,24 +311,11 @@ internal sealed class CreateWorldWorkflow : IDisposable
     private async Task<bool> ApplyWorldSeedOptionsAsync(
         AutoCreateWorldSettings settings,
         TerrariaMenuGeometry geometry,
-        CancellationToken cancellationToken,
-        string? bankedSeed)
+        CancellationToken cancellationToken)
     {
         if (!await automation.ClickAsync("advanced seed menu", geometry.WorldAdvancedSeedButton(), menuActionDelay, cancellationToken))
         {
             return false;
-        }
-
-        if (bankedSeed is not null)
-        {
-            // Terraria's copied seed format carries size, difficulty, evil, and special seed
-            // flags, so this path only pastes the seed and lets the game parse those options.
-            if (!await EnterWorldSeedAsync(bankedSeed, geometry, cancellationToken))
-            {
-                return false;
-            }
-
-            return await automation.ClickAsync("apply pooled seed", geometry.WorldAdvancedApplyButton(), menuActionDelay, cancellationToken);
         }
 
         if (!await ApplySpecialSeedsAsync(settings.SpecialSeeds, geometry, cancellationToken))

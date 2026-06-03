@@ -291,8 +291,8 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Filter pyramid", "\u7B5B\u9009\u91D1\u5B57\u5854" }
       , { "Background seed pool", "\u540E\u53F0\u7B5B\u5854\u79CD\u5B50\u6C60" }
       , { "Seed pool size", "\u79CD\u5B50\u6C60\u4E2A\u6570" }
-      , { "Pooled seed", "\u79CD\u5B50\u6C60\u79CD\u5B50" }
-      , { "Apply pooled seed", "\u5E94\u7528\u79CD\u5B50\u6C60\u79CD\u5B50" }
+      , { "Install pooled world", "\u5B89\u88C5\u79CD\u5B50\u6C60\u4E16\u754C" }
+      , { "Stop at world select", "\u505C\u5728\u4E16\u754C\u9009\u62E9\u754C\u9762" }
       , { "Apply visible seed", "\u5E94\u7528\u53EF\u89C1\u79CD\u5B50" }
       , { "Submit World Seed", "\u63D0\u4EA4\u4E16\u754C\u79CD\u5B50" }
       , { "Mouse / key press ms", "\u9F20\u6807 / \u6309\u952E\u6301\u7EED\u6BEB\u79D2" }
