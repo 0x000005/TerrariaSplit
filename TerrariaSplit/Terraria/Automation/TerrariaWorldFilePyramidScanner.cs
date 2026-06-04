@@ -5,6 +5,8 @@ internal sealed class TerrariaWorldFilePyramidScanner
 {
     private const ulong ReLogicMagic = 27981915666277746UL;
     private const byte WorldFileType = 2;
+    private const int BasicChestTileType = 21;
+    private const int PyramidChestStyle = 1;
     private const int PyramidWallType = 34;
     private const int PyramidTileType = 151;
     private const double CorridorHalfWidthRatio = 0.20d;
@@ -139,7 +141,101 @@ internal sealed class TerrariaWorldFilePyramidScanner
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or EndOfStreamException or ArgumentException or InvalidDataException)
         {
             detail = ex.Message;
-            AppLogger.Error(ex, $"Seed pool failed to read world seed metadata from Terraria world file: {worldPath}");
+            AppLogger.Error(ex, $"World pool failed to read world seed metadata from Terraria world file: {worldPath}");
+            return false;
+        }
+    }
+
+    public bool TryScanPyramidChests(
+        string worldPath,
+        string worldSize,
+        out PyramidChestScanResult result,
+        out string detail)
+    {
+        result = PyramidChestScanResult.Empty;
+        detail = string.Empty;
+        string phase = "open world file";
+
+        try
+        {
+            phase = "build scan bounds";
+            TerrariaWorldDimensions dimensions = TerrariaWorldDimensions.FromWorldSize(worldSize);
+            Rectangle corridorBounds = BuildSpeedrunCorridorBounds(dimensions);
+            if (corridorBounds.Width <= 0 || corridorBounds.Height <= 0)
+            {
+                detail = "empty scan corridor";
+                return true;
+            }
+
+            using FileStream stream = new(
+                worldPath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete);
+            using BinaryReader reader = new(stream);
+
+            phase = "read world file header";
+            if (!TryReadWorldFileHeader(reader, out WorldFileTileSection tileSection, out detail))
+            {
+                return false;
+            }
+
+            if (tileSection.ChestDataOffset <= 0)
+            {
+                return true;
+            }
+
+            phase = "read chest section";
+            stream.Position = tileSection.ChestDataOffset;
+            List<WorldChestData> chests = ReadChestData(reader, tileSection.Version);
+            if (chests.Count == 0)
+            {
+                return true;
+            }
+
+            Dictionary<Point, WorldChestData> targetChests = chests
+                .Where(chest => corridorBounds.IntersectsWith(new Rectangle(chest.X, chest.Y, 2, 2)))
+                .ToDictionary(chest => new Point(chest.X, chest.Y));
+            if (targetChests.Count == 0)
+            {
+                return true;
+            }
+
+            phase = "read chest tiles";
+            stream.Position = tileSection.TileDataOffset;
+            Dictionary<Point, WorldTileData> chestTiles = ReadTargetTiles(
+                reader,
+                dimensions.Width,
+                dimensions.Height,
+                tileSection.TileFrameImportant,
+                targetChests.Keys.ToHashSet());
+
+            var pyramidChests = new List<PyramidChestInfo>();
+            foreach ((Point point, WorldChestData chest) in targetChests)
+            {
+                chestTiles.TryGetValue(point, out WorldTileData tile);
+                int chestStyle = tile.Active && tile.Type == BasicChestTileType ? tile.FrameX / 36 : -1;
+                bool pyramidStyle = chestStyle == PyramidChestStyle;
+                bool pyramidLoot = chest.Items.Any(item => PyramidChestItemNames.IsPyramidItem(item.Type));
+                if (!pyramidStyle && !pyramidLoot)
+                {
+                    continue;
+                }
+
+                pyramidChests.Add(new PyramidChestInfo(
+                    chest.X,
+                    chest.Y,
+                    chestStyle,
+                    chest.Items.Select(item => new PyramidChestItem(item.Slot, item.Type, item.Stack, item.Prefix)).ToList()));
+            }
+
+            result = new PyramidChestScanResult(pyramidChests);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or EndOfStreamException or ArgumentException or InvalidDataException)
+        {
+            detail = $"{phase}: {ex.Message}";
+            AppLogger.Error(ex, $"Pyramid filter failed to scan Terraria chest data: {worldPath}");
             return false;
         }
     }
@@ -414,7 +510,25 @@ internal sealed class TerrariaWorldFilePyramidScanner
             tileDataEndOffset = sectionPointers[2];
         }
 
-        tileSection = new WorldFileTileSection(tileDataOffset, tileDataEndOffset, tileFrameImportant);
+        int chestDataOffset = 0;
+        if (sectionPointers.Length > 2 && sectionPointers[2] > 0 && sectionPointers[2] < reader.BaseStream.Length)
+        {
+            chestDataOffset = sectionPointers[2];
+        }
+
+        int chestDataEndOffset = 0;
+        if (sectionPointers.Length > 3 && sectionPointers[3] > chestDataOffset && sectionPointers[3] <= reader.BaseStream.Length)
+        {
+            chestDataEndOffset = sectionPointers[3];
+        }
+
+        tileSection = new WorldFileTileSection(
+            version,
+            tileDataOffset,
+            tileDataEndOffset,
+            chestDataOffset,
+            chestDataEndOffset,
+            tileFrameImportant);
         return true;
     }
 
@@ -468,6 +582,82 @@ internal sealed class TerrariaWorldFilePyramidScanner
         return new PyramidEvidenceScanResult(wallMatches, tileMatches);
     }
 
+    private static Dictionary<Point, WorldTileData> ReadTargetTiles(
+        BinaryReader reader,
+        int width,
+        int height,
+        bool[] tileFrameImportant,
+        HashSet<Point> targets)
+    {
+        var result = new Dictionary<Point, WorldTileData>();
+        if (targets.Count == 0)
+        {
+            return result;
+        }
+
+        for (int x = 0; x < width; x++)
+        {
+            int y = 0;
+            while (y < height)
+            {
+                WorldTileData tile = ReadTileData(reader, tileFrameImportant);
+                int runLength = Math.Min(tile.RunLength, height - y);
+                for (int offset = 0; offset < runLength; offset++)
+                {
+                    var point = new Point(x, y + offset);
+                    if (targets.Contains(point))
+                    {
+                        result[point] = tile;
+                        if (result.Count == targets.Count)
+                        {
+                            return result;
+                        }
+                    }
+                }
+
+                y += runLength;
+            }
+        }
+
+        return result;
+    }
+
+    private static List<WorldChestData> ReadChestData(BinaryReader reader, int version)
+    {
+        int chestCount = reader.ReadInt16();
+        if (chestCount < 0 || chestCount > 8000)
+        {
+            throw new InvalidDataException($"unexpected chest count {chestCount}");
+        }
+
+        int legacyMaxItems = version < 294 ? reader.ReadInt16() : 0;
+        var chests = new List<WorldChestData>(Math.Max(0, chestCount));
+        for (int chestIndex = 0; chestIndex < chestCount; chestIndex++)
+        {
+            int x = reader.ReadInt32();
+            int y = reader.ReadInt32();
+            _ = reader.ReadString();
+            int maxItems = version >= 294 ? reader.ReadInt32() : legacyMaxItems;
+            var items = new List<WorldChestItemData>();
+            for (int slot = 0; slot < maxItems; slot++)
+            {
+                short stack = reader.ReadInt16();
+                if (stack == 0)
+                {
+                    continue;
+                }
+
+                int type = reader.ReadInt32();
+                byte prefix = reader.ReadByte();
+                items.Add(new WorldChestItemData(slot, type, stack > 0 ? stack : 1, prefix));
+            }
+
+            chests.Add(new WorldChestData(x, y, items));
+        }
+
+        return chests;
+    }
+
     private static WorldTileData ReadTileData(BinaryReader reader, bool[] tileFrameImportant)
     {
         // Terraria world tiles can carry up to four chained header bytes in LoadWorldTiles:
@@ -491,6 +681,8 @@ internal sealed class TerrariaWorldFilePyramidScanner
 
         bool active = (flags1 & 0x02) != 0;
         ushort type = 0;
+        short frameX = 0;
+        short frameY = 0;
         if (active)
         {
             type = reader.ReadByte();
@@ -501,8 +693,8 @@ internal sealed class TerrariaWorldFilePyramidScanner
 
             if (type < tileFrameImportant.Length && tileFrameImportant[type])
             {
-                _ = reader.ReadInt16();
-                _ = reader.ReadInt16();
+                frameX = reader.ReadInt16();
+                frameY = reader.ReadInt16();
             }
 
             if ((flags3 & 0x08) != 0)
@@ -543,12 +735,22 @@ internal sealed class TerrariaWorldFilePyramidScanner
         }
 
         _ = flags4;
-        return new WorldTileData(active, type, wall, Math.Max(1, runLength));
+        return new WorldTileData(active, type, wall, Math.Max(1, runLength), frameX, frameY);
     }
 
-    private readonly record struct WorldFileTileSection(int TileDataOffset, int TileDataEndOffset, bool[] TileFrameImportant);
+    private readonly record struct WorldFileTileSection(
+        int Version,
+        int TileDataOffset,
+        int TileDataEndOffset,
+        int ChestDataOffset,
+        int ChestDataEndOffset,
+        bool[] TileFrameImportant);
 
-    private readonly record struct WorldTileData(bool Active, ushort Type, ushort Wall, int RunLength);
+    private readonly record struct WorldTileData(bool Active, ushort Type, ushort Wall, int RunLength, short FrameX, short FrameY);
+
+    private readonly record struct WorldChestData(int X, int Y, IReadOnlyList<WorldChestItemData> Items);
+
+    private readonly record struct WorldChestItemData(int Slot, int Type, int Stack, byte Prefix);
 }
 
 internal readonly record struct TerrariaWorldDimensions(int Width, int Height)
@@ -571,36 +773,16 @@ internal readonly record struct TerrariaWorldSeedMetadata(
     bool HasCrimson,
     int SpecialSeedMask)
 {
-    private const int DrunkMask = 1;
-    private const int NotTheBeesMask = 2;
-    private const int ForTheWorthyMask = 4;
-    private const int CelebrationMask = 8;
-    private const int TheConstantMask = 16;
-    private const int RemixMask = 32;
-    private const int NoTrapsMask = 64;
-    private const int ZenithMask = 128;
-    private const int SkyblockMask = 256;
-    private const int ZenithDependencyMask =
-        DrunkMask |
-        NotTheBeesMask |
-        ForTheWorthyMask |
-        CelebrationMask |
-        TheConstantMask |
-        RemixMask |
-        NoTrapsMask;
-
     public bool MatchesWorldOptions(AutoCreateWorldSettings settings)
     {
-        if (SizeCode != ExpectedSizeCode(settings.WorldSize) ||
-            DifficultyCode != ExpectedDifficultyCode(settings.WorldDifficulty) ||
-            SpecialSeedMask != ExpectedSpecialSeedMask(settings.SpecialSeeds))
+        if (SizeCode != TerrariaWorldSeedOptions.SizeCode(settings.WorldSize) ||
+            DifficultyCode != TerrariaWorldSeedOptions.CopiedDifficultyCode(settings.WorldDifficulty) ||
+            SpecialSeedMask != TerrariaWorldSeedOptions.SpecialSeedMask(settings.SpecialSeeds))
         {
             return false;
         }
 
-        string evil = AutoCreateWorldEvil.Normalize(settings.WorldEvil);
-        return evil == AutoCreateWorldEvil.Random ||
-            HasCrimson == string.Equals(evil, AutoCreateWorldEvil.Crimson, StringComparison.OrdinalIgnoreCase);
+        return TerrariaWorldSeedOptions.EvilMatches(settings.WorldEvil, HasCrimson);
     }
 
     public string FormatWorldOptions()
@@ -610,56 +792,10 @@ internal readonly record struct TerrariaWorldSeedMetadata(
 
     public static string FormatExpectedWorldOptions(AutoCreateWorldSettings settings)
     {
-        string evil = AutoCreateWorldEvil.Normalize(settings.WorldEvil);
-        string evilText = evil == AutoCreateWorldEvil.Random
-            ? "1/2"
-            : string.Equals(evil, AutoCreateWorldEvil.Crimson, StringComparison.OrdinalIgnoreCase) ? "2" : "1";
-        return $"size={ExpectedSizeCode(settings.WorldSize)}, difficulty={ExpectedDifficultyCode(settings.WorldDifficulty)}, " +
-            $"evil={evilText}, special={ExpectedSpecialSeedMask(settings.SpecialSeeds)}";
-    }
-
-    private static int ExpectedSizeCode(string worldSize)
-    {
-        return AutoCreateWorldSize.Normalize(worldSize) switch
-        {
-            AutoCreateWorldSize.Small => 1,
-            AutoCreateWorldSize.Large => 3,
-            _ => 2
-        };
-    }
-
-    private static int ExpectedDifficultyCode(string worldDifficulty)
-    {
-        return AutoCreateWorldDifficulty.Normalize(worldDifficulty) switch
-        {
-            AutoCreateWorldDifficulty.Expert => 2,
-            AutoCreateWorldDifficulty.Master => 3,
-            AutoCreateWorldDifficulty.Journey => 4,
-            _ => 1
-        };
-    }
-
-    private static int ExpectedSpecialSeedMask(string? specialSeeds)
-    {
-        int mask = 0;
-        foreach (string seed in AutoCreateSpecialWorldSeed.ParseList(specialSeeds))
-        {
-            mask |= seed switch
-            {
-                AutoCreateSpecialWorldSeed.Drunk => DrunkMask,
-                AutoCreateSpecialWorldSeed.NotTheBees => NotTheBeesMask,
-                AutoCreateSpecialWorldSeed.ForTheWorthy => ForTheWorthyMask,
-                AutoCreateSpecialWorldSeed.Celebration => CelebrationMask,
-                AutoCreateSpecialWorldSeed.TheConstant => TheConstantMask,
-                AutoCreateSpecialWorldSeed.Remix => RemixMask,
-                AutoCreateSpecialWorldSeed.NoTraps => NoTrapsMask,
-                AutoCreateSpecialWorldSeed.Zenith => ZenithDependencyMask | ZenithMask,
-                AutoCreateSpecialWorldSeed.Skyblock => SkyblockMask,
-                _ => 0
-            };
-        }
-
-        return mask;
+        return $"size={TerrariaWorldSeedOptions.SizeCode(settings.WorldSize)}, " +
+            $"difficulty={TerrariaWorldSeedOptions.CopiedDifficultyCode(settings.WorldDifficulty)}, " +
+            $"evil={TerrariaWorldSeedOptions.FormatExpectedEvil(settings.WorldEvil)}, " +
+            $"special={TerrariaWorldSeedOptions.SpecialSeedMask(settings.SpecialSeeds)}";
     }
 }
 
@@ -671,5 +807,80 @@ internal readonly record struct PyramidEvidenceScanResult(int Wall34Count, int A
     {
         return (wallThreshold > 0 && Wall34Count >= wallThreshold) ||
             (tileThreshold > 0 && ActiveTile151Count >= tileThreshold);
+    }
+}
+
+internal readonly record struct PyramidChestScanResult(IReadOnlyList<PyramidChestInfo> Chests)
+{
+    public static PyramidChestScanResult Empty => new([]);
+
+    public bool HasPyramidChest => Chests.Count > 0;
+
+    public bool ContainsItem(int itemType)
+    {
+        return Chests.Any(chest => chest.ContainsItem(itemType));
+    }
+
+    public string FormatSummary()
+    {
+        if (Chests.Count == 0)
+        {
+            return "none";
+        }
+
+        return string.Join("; ", Chests.Select(chest => chest.FormatSummary()));
+    }
+}
+
+internal readonly record struct PyramidChestInfo(
+    int X,
+    int Y,
+    int ChestStyle,
+    IReadOnlyList<PyramidChestItem> Items)
+{
+    public bool ContainsItem(int itemType)
+    {
+        return Items.Any(item => item.Type == itemType && item.Stack > 0);
+    }
+
+    public string FormatSummary()
+    {
+        string items = Items.Count == 0
+            ? "empty"
+            : string.Join(", ", Items.Select(PyramidChestItemNames.Format));
+        return $"({X},{Y}) style={ChestStyle}: {items}";
+    }
+}
+
+internal readonly record struct PyramidChestItem(int Slot, int Type, int Stack, byte Prefix);
+
+internal static class PyramidChestItemNames
+{
+    public const int PharaohMask = 848;
+    public const int SandstormInABottle = 857;
+    public const int PharaohRobe = 866;
+    public const int FlyingCarpet = 934;
+
+    private static readonly Dictionary<int, string> KnownNames = new()
+    {
+        [PharaohMask] = "Pharaoh's Mask",
+        [SandstormInABottle] = "Sandstorm in a Bottle",
+        [PharaohRobe] = "Pharaoh's Robe",
+        [FlyingCarpet] = "Flying Carpet"
+    };
+
+    public static bool IsPyramidItem(int type)
+    {
+        return type is PharaohMask or SandstormInABottle or PharaohRobe or FlyingCarpet;
+    }
+
+    public static string Format(PyramidChestItem item)
+    {
+        string name = KnownNames.TryGetValue(item.Type, out string? knownName)
+            ? knownName
+            : "#" + item.Type.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        return item.Stack == 1
+            ? name
+            : name + " x" + item.Stack.ToString(System.Globalization.CultureInfo.InvariantCulture);
     }
 }

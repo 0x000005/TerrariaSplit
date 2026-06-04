@@ -5,16 +5,16 @@ using System.Text;
 namespace TerrariaSplit;
 
 // Generates a single world headlessly with TerrariaServer.exe (no game window, no
-// foreground), then scans the produced .wld for a pyramid and reads metadata from the
-// world header. Used by the background seed pool to discover world files worth banking.
+// foreground), then reads metadata from the world header and optionally scans for a
+// pyramid. Used by the background world pool to discover world files worth banking.
 // The dedicated server writes the world to a private scratch folder, so the user's Worlds
 // folder is never touched.
 internal sealed class HeadlessWorldGenerator : IDisposable
 {
-    private static readonly string ScratchDirectory = Path.Combine(AppContext.BaseDirectory, "seed-pool", "scratch");
+    private static readonly string ScratchDirectory = Path.Combine(AppContext.BaseDirectory, "world-pool", "scratch");
     private static readonly string ServerPidPath = Path.Combine(ScratchDirectory, "server.pid");
-    private const string GenerationMutexName = @"Local\TerrariaSplit.SeedPool.HeadlessWorldGenerator";
-    private const string WorldName = "tspool";
+    private const string GenerationMutexName = @"Local\TerrariaSplit.WorldPool.HeadlessWorldGenerator";
+    private const string WorldFileStem = "tspool";
     private const int PyramidWallThreshold = 1;
     private const int PyramidTileThreshold = 1;
     private static readonly TimeSpan GenerationTimeout = TimeSpan.FromMinutes(3);
@@ -28,13 +28,14 @@ internal sealed class HeadlessWorldGenerator : IDisposable
 
     public async Task<HeadlessWorldGenResult> GenerateAndScanAsync(
         string serverExePath,
+        string? appLanguage,
         AutoCreateWorldSettings settings,
         CancellationToken cancellationToken)
     {
         using HeadlessGenerationLease? lease = HeadlessGenerationLease.TryAcquire(GenerationMutexName);
         if (lease is null)
         {
-            AppLogger.Info("Seed pool headless generation skipped because another generator is already running.");
+            AppLogger.Info("World pool headless generation skipped because another generator is already running.");
             return HeadlessWorldGenResult.Skipped;
         }
 
@@ -42,8 +43,11 @@ internal sealed class HeadlessWorldGenerator : IDisposable
         StopRecordedServer(serverExePath);
         CleanScratch();
 
+        TerrariaCopiedSeed copiedSeed = TerrariaCopiedSeedBuilder.Create(settings);
+        string worldName = TerrariaWorldNameGenerator.Create(appLanguage);
+        string serverLanguage = TerrariaLanguageCodes.FromAppLanguage(appLanguage);
         string configPath = Path.Combine(ScratchDirectory, "server-config.txt");
-        File.WriteAllText(configPath, BuildServerConfig(settings));
+        File.WriteAllText(configPath, BuildServerConfig(settings, copiedSeed.Text, worldName, serverLanguage), new UTF8Encoding(false));
 
         Process? process = null;
         int? processId = null;
@@ -67,40 +71,65 @@ internal sealed class HeadlessWorldGenerator : IDisposable
 
         if (worldPath is null)
         {
-            AppLogger.Info("Seed pool headless generation produced no world file.");
+            AppLogger.Info("World pool headless generation produced no world file.");
             CleanScratch();
             return HeadlessWorldGenResult.Miss;
         }
 
-        bool scanned = scanner.TryScanSpeedrunCorridor(
-            worldPath,
-            settings.WorldSize,
-            PyramidWallThreshold,
-            PyramidTileThreshold,
-            out PyramidEvidenceScanResult evidence,
-            out _,
-            out _);
-        bool pyramidFound = scanned && !evidence.ScanFailed && evidence.MeetsThreshold(PyramidWallThreshold, PyramidTileThreshold);
+        bool pyramidFound = false;
+        bool pyramidItemMatches = true;
+        PyramidChestScanResult pyramidChests = PyramidChestScanResult.Empty;
+        if (settings.EnablePyramidFilter)
+        {
+            int requiredPyramidItemMask = AutoCreatePyramidFilterItem.NormalizeMask(settings.PyramidFilterItemMask);
+            bool scanned = scanner.TryScanSpeedrunCorridor(
+                worldPath,
+                settings.WorldSize,
+                PyramidWallThreshold,
+                PyramidTileThreshold,
+                out PyramidEvidenceScanResult evidence,
+                out _,
+                out _);
+            pyramidFound = scanned && !evidence.ScanFailed && evidence.MeetsThreshold(PyramidWallThreshold, PyramidTileThreshold);
+            if (pyramidFound)
+            {
+                bool chestScanned = scanner.TryScanPyramidChests(
+                    worldPath,
+                    settings.WorldSize,
+                    out pyramidChests,
+                    out string chestDetail);
+                if (!chestScanned)
+                {
+                    AppLogger.Info($"World pool could not scan pyramid chest contents: {chestDetail}");
+                }
+
+                if (requiredPyramidItemMask != 0)
+                {
+                    pyramidItemMatches = chestScanned && PyramidFilterItemMatcher.Matches(pyramidChests, requiredPyramidItemMask);
+                }
+            }
+        }
 
         bool keep = false;
         TerrariaWorldSeedMetadata metadata = default;
         string metadataDetail = "<unread>";
-        if (pyramidFound)
+        if (scanner.TryReadWorldSeedMetadata(worldPath, out metadata, out string detail))
         {
-            if (scanner.TryReadWorldSeedMetadata(worldPath, out metadata, out string detail))
-            {
-                metadataDetail = metadata.FormatWorldOptions();
-                keep = metadata.MatchesWorldOptions(settings);
-            }
-            else
-            {
-                AppLogger.Info($"Seed pool could not read generated world metadata: {detail}");
-            }
+            metadataDetail = metadata.FormatWorldOptions();
+            keep = metadata.Equals(copiedSeed.Metadata) &&
+                (!settings.EnablePyramidFilter || (pyramidFound && pyramidItemMatches));
+        }
+        else
+        {
+            AppLogger.Info($"World pool could not read generated world metadata: {detail}");
         }
 
         AppLogger.Info(
-            $"Seed pool headless generation world='{Path.GetFileName(worldPath)}': pyramid={pyramidFound}, " +
-            $"metadata={metadataDetail}, expected={TerrariaWorldSeedMetadata.FormatExpectedWorldOptions(settings)}, keep={keep}.");
+            $"World pool headless generation world='{Path.GetFileName(worldPath)}': pyramid={pyramidFound}, " +
+            $"requiredPyramidItems={PyramidFilterItemMatcher.FormatRequiredItems(settings)}, " +
+            $"pyramidItems={pyramidItemMatches}, " +
+            $"pyramidChests={pyramidChests.FormatSummary()}, " +
+            $"metadata={metadataDetail}, expected={copiedSeed.Metadata.FormatWorldOptions()}, keep={keep}.");
         if (!keep)
         {
             CleanScratch();
@@ -151,7 +180,7 @@ internal sealed class HeadlessWorldGenerator : IDisposable
                 StartTimeUtcTicks = TryGetProcessStartTimeUtcTicks(process, out long ticks) ? ticks : 0,
                 ServerExePath = Path.GetFullPath(serverExePath)
             },
-            "seed pool server marker");
+            "world pool server marker");
     }
 
     private void ClearCurrentProcess(int? processId)
@@ -198,7 +227,7 @@ internal sealed class HeadlessWorldGenerator : IDisposable
 
     private static void StopRecordedServer(string serverExePath)
     {
-        ServerProcessMarker? marker = JsonFileStore.Read<ServerProcessMarker>(ServerPidPath, "seed pool server marker");
+        ServerProcessMarker? marker = JsonFileStore.Read<ServerProcessMarker>(ServerPidPath, "world pool server marker");
         if (marker is null || marker.ProcessId <= 0)
         {
             return;
@@ -209,7 +238,7 @@ internal sealed class HeadlessWorldGenerator : IDisposable
             Process process = Process.GetProcessById(marker.ProcessId);
             if (IsMarkedServerProcess(process, marker, serverExePath))
             {
-                AppLogger.Info($"Stopping stale seed pool TerrariaServer.exe process {marker.ProcessId}.");
+                AppLogger.Info($"Stopping stale world pool TerrariaServer.exe process {marker.ProcessId}.");
                 TryKill(process);
             }
             else
@@ -302,7 +331,7 @@ internal sealed class HeadlessWorldGenerator : IDisposable
         }
         catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception or NotSupportedException or ObjectDisposedException)
         {
-            AppLogger.Error(ex, "Seed pool failed to stop headless Terraria server.");
+            AppLogger.Error(ex, "World pool failed to stop headless Terraria server.");
         }
         finally
         {
@@ -405,73 +434,30 @@ internal sealed class HeadlessWorldGenerator : IDisposable
         }
     }
 
-    private static string BuildServerConfig(AutoCreateWorldSettings settings)
+    private static string BuildServerConfig(
+        AutoCreateWorldSettings settings,
+        string copiedSeed,
+        string worldName,
+        string serverLanguage)
     {
         var builder = new StringBuilder();
         // autocreate only fires when the world named by `world=` is absent, so point it at the
         // scratch .wld we want generated. Without this line the dedicated server ignores
         // autocreate, drops into its interactive "Choose World" menu, and hangs on stdin until
         // the generation timeout, producing no world file.
-        builder.AppendLine("world=" + Path.Combine(ScratchDirectory, WorldName + ".wld"));
-        builder.AppendLine("autocreate=" + SizeCode(settings.WorldSize));
-        builder.AppendLine("worldname=" + WorldName);
+        builder.AppendLine("world=" + Path.Combine(ScratchDirectory, WorldFileStem + ".wld"));
+        builder.AppendLine("autocreate=" + TerrariaWorldSeedOptions.SizeCode(settings.WorldSize).ToString(CultureInfo.InvariantCulture));
+        builder.AppendLine("worldname=" + worldName);
         builder.AppendLine("worldpath=" + ScratchDirectory + Path.DirectorySeparatorChar);
-        builder.AppendLine("difficulty=" + DifficultyCode(settings.WorldDifficulty));
+        builder.AppendLine("difficulty=" + TerrariaWorldSeedOptions.ServerDifficultyCode(settings.WorldDifficulty).ToString(CultureInfo.InvariantCulture));
+        builder.AppendLine("seed=" + copiedSeed);
         builder.AppendLine("maxplayers=1");
         builder.AppendLine("port=" + Random.Shared.Next(7801, 7999).ToString(CultureInfo.InvariantCulture));
-        builder.AppendLine("language=en-US");
+        builder.AppendLine("language=" + serverLanguage);
         builder.AppendLine("secure=0");
         builder.AppendLine("upnp=0");
-        foreach (string key in SpecialSeedConfigKeys(settings.SpecialSeeds))
-        {
-            builder.AppendLine(key + "=1");
-        }
 
         return builder.ToString();
-    }
-
-    private static string SizeCode(string worldSize)
-    {
-        return AutoCreateWorldSize.Normalize(worldSize) switch
-        {
-            AutoCreateWorldSize.Small => "1",
-            AutoCreateWorldSize.Large => "3",
-            _ => "2"
-        };
-    }
-
-    private static string DifficultyCode(string worldDifficulty)
-    {
-        return AutoCreateWorldDifficulty.Normalize(worldDifficulty) switch
-        {
-            AutoCreateWorldDifficulty.Expert => "1",
-            AutoCreateWorldDifficulty.Master => "2",
-            AutoCreateWorldDifficulty.Journey => "3",
-            _ => "0"
-        };
-    }
-
-    private static IEnumerable<string> SpecialSeedConfigKeys(string? specialSeeds)
-    {
-        foreach (string seed in AutoCreateSpecialWorldSeed.ParseList(specialSeeds))
-        {
-            string? key = seed switch
-            {
-                AutoCreateSpecialWorldSeed.ForTheWorthy => "seed_fortheworthy",
-                AutoCreateSpecialWorldSeed.NotTheBees => "seed_notthebees",
-                AutoCreateSpecialWorldSeed.Celebration => "seed_celebration",
-                AutoCreateSpecialWorldSeed.TheConstant => "seed_theconstant",
-                AutoCreateSpecialWorldSeed.NoTraps => "seed_notraps",
-                AutoCreateSpecialWorldSeed.Remix => "seed_remix",
-                AutoCreateSpecialWorldSeed.Drunk => "seed_drunk",
-                AutoCreateSpecialWorldSeed.Zenith => "seed_zenith",
-                _ => null
-            };
-            if (key is not null)
-            {
-                yield return key;
-            }
-        }
     }
 
     public void ClearScratch()
@@ -569,7 +555,7 @@ internal sealed class HeadlessWorldGenerator : IDisposable
             catch (Exception ex) when (ex is UnauthorizedAccessException or IOException or System.ComponentModel.Win32Exception)
             {
                 mutex?.Dispose();
-                AppLogger.Error(ex, "Seed pool failed to acquire headless generation mutex.");
+                AppLogger.Error(ex, "World pool failed to acquire headless generation mutex.");
                 return null;
             }
         }

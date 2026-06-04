@@ -22,8 +22,9 @@ internal sealed class AutomationSettingsPage : SettingsPageBase
     private readonly ThemedSlider autoCreateZenithStarCatchSpeedBar = new();
     private readonly Label autoCreateZenithStarCatchSpeedValueLabel = new();
     private readonly CheckBox autoCreatePyramidFilterBox = new();
-    private readonly CheckBox autoCreateSeedPoolBox = new();
-    private readonly TextBox autoCreateSeedPoolTargetBox = new();
+    private readonly Dictionary<string, CheckBox> autoCreatePyramidItemBoxes = new(StringComparer.OrdinalIgnoreCase);
+    private readonly CheckBox autoCreateWorldPoolBox = new();
+    private readonly TextBox autoCreateWorldPoolTargetBox = new();
     private readonly TextBox autoCreateShortActionDelayBox = new();
     private readonly TextBox autoCreateMenuActionDelayBox = new();
     private readonly TextBox autoCreateWindowActivationDelayBox = new();
@@ -42,8 +43,9 @@ internal sealed class AutomationSettingsPage : SettingsPageBase
     internal IReadOnlyDictionary<string, CheckBox> AutoCreateZenithStarCatchStageBoxes => autoCreateZenithStarCatchStageBoxes;
     internal ThemedSlider AutoCreateZenithStarCatchSpeedBar => autoCreateZenithStarCatchSpeedBar;
     internal CheckBox AutoCreatePyramidFilterBox => autoCreatePyramidFilterBox;
-    internal CheckBox AutoCreateSeedPoolBox => autoCreateSeedPoolBox;
-    internal TextBox AutoCreateSeedPoolTargetBox => autoCreateSeedPoolTargetBox;
+    internal IReadOnlyDictionary<string, CheckBox> AutoCreatePyramidItemBoxes => autoCreatePyramidItemBoxes;
+    internal CheckBox AutoCreateWorldPoolBox => autoCreateWorldPoolBox;
+    internal TextBox AutoCreateWorldPoolTargetBox => autoCreateWorldPoolTargetBox;
     internal TextBox AutoCreateSecretSeedsBox => autoCreateSecretSeedsBox;
 
     protected override Control BuildPage(SettingsPageContext context)
@@ -73,10 +75,13 @@ internal sealed class AutomationSettingsPage : SettingsPageBase
         settings.AutoCreate.ZenithStarCatchStopStage = GetSelectedZenithStarCatchStopStage();
         settings.AutoCreate.ZenithStarCatchSpeedSliderValue = AutoCreateZenithStarCatchSpeed.NormalizeSliderValue(autoCreateZenithStarCatchSpeedBar.Value);
         settings.AutoCreate.EnablePyramidFilter = autoCreatePyramidFilterBox.Checked;
-        settings.AutoCreate.EnableSeedPool = autoCreateSeedPoolBox.Checked;
-        settings.AutoCreate.SeedPoolTargetCount = SettingsValueParser.ParseIntBox(
-            autoCreateSeedPoolTargetBox,
-            AppSettingsDefaults.AutoCreate.SeedPoolTargetCount,
+        settings.AutoCreate.PyramidFilterItemMask = AutoCreatePyramidFilterItem.ToMask(
+            AutoCreatePyramidFilterItem.All.Where(item =>
+                autoCreatePyramidItemBoxes.TryGetValue(item, out CheckBox? box) && box.Checked));
+        settings.AutoCreate.EnableWorldPool = autoCreateWorldPoolBox.Checked;
+        settings.AutoCreate.WorldPoolTargetCount = SettingsValueParser.ParseIntBox(
+            autoCreateWorldPoolTargetBox,
+            AppSettingsDefaults.AutoCreate.WorldPoolTargetCount,
             1,
             50);
         settings.AutoCreate.ShortActionDelayMilliseconds = SettingsValueParser.ParseIntBox(
@@ -143,16 +148,17 @@ internal sealed class AutomationSettingsPage : SettingsPageBase
         ConfigureZenithStarCatchSpeedBar(autoCreateZenithStarCatchSpeedBar, Draft.AutoCreate.ZenithStarCatchSpeedSliderValue);
         autoCreateZenithStarCatchSpeedBar.ValueChanged += (_, _) => UpdateZenithStarCatchSpeedLabel();
         ConfigureCheckBox(autoCreatePyramidFilterBox, Draft.AutoCreate.EnablePyramidFilter);
-        autoCreatePyramidFilterBox.CheckedChanged += (_, _) => UpdateSeedPoolAvailability();
-        ConfigureCheckBox(autoCreateSeedPoolBox, Draft.AutoCreate.EnableSeedPool);
-        autoCreateSeedPoolBox.CheckedChanged += (_, _) => UpdateSeedPoolAvailability();
-        ConfigureNumberBox(autoCreateSeedPoolTargetBox, Draft.AutoCreate.SeedPoolTargetCount, 1, 50);
+        autoCreatePyramidFilterBox.CheckedChanged += (_, _) => UpdatePyramidItemAvailability();
+        ConfigureCheckBox(autoCreateWorldPoolBox, Draft.AutoCreate.EnableWorldPool);
+        autoCreateWorldPoolBox.CheckedChanged += (_, _) => UpdateWorldPoolAvailability();
+        ConfigureNumberBox(autoCreateWorldPoolTargetBox, Draft.AutoCreate.WorldPoolTargetCount, 1, 50);
         ConfigureNumberBox(autoCreateShortActionDelayBox, Draft.AutoCreate.ShortActionDelayMilliseconds, 0, 5000);
         ConfigureNumberBox(autoCreateMenuActionDelayBox, Draft.AutoCreate.MenuActionDelayMilliseconds, 0, 5000);
         ConfigureNumberBox(autoCreateWindowActivationDelayBox, Draft.AutoCreate.WindowActivationDelayMilliseconds, 0, 5000);
         ConfigureNumberBox(autoCreateClickFocusDelayBox, Draft.AutoCreate.ClickFocusDelayMilliseconds, 0, 5000);
         ConfigureNumberBox(autoCreateInputPressDurationBox, Draft.AutoCreate.InputPressDurationMilliseconds, 1, 5000);
-        UpdateSeedPoolAvailability();
+        UpdateWorldPoolAvailability();
+        UpdatePyramidItemAvailability();
 
         AddCreateWorldSection(parent);
         AddEnterWorldSection(parent);
@@ -209,6 +215,7 @@ internal sealed class AutomationSettingsPage : SettingsPageBase
                 warningColor));
         SettingsUiFactory.AddSectionControl(createSection, CreateBackupNoticeRow(warningColor));
 
+        SettingsUiFactory.AddSectionControl(createSection, Factory.CreateSubsectionLabel("Player options"));
         TableLayoutPanel createGrid = Factory.CreateGrid(
             SettingsUiFactory.ColumnStylePercent(100f),
             SettingsUiFactory.ColumnStyleAbsolute(360f));
@@ -218,6 +225,7 @@ internal sealed class AutomationSettingsPage : SettingsPageBase
         SettingsUiFactory.AddSectionControl(createSection, Factory.CreateFieldLabel("Player code"));
         SettingsUiFactory.AddSectionControl(createSection, autoCreatePlayerTemplateCodeBox);
 
+        SettingsUiFactory.AddSectionControl(createSection, Factory.CreateSubsectionLabel("World options"));
         TableLayoutPanel worldGrid = Factory.CreateGrid(
             SettingsUiFactory.ColumnStylePercent(100f),
             SettingsUiFactory.ColumnStyleAbsolute(360f));
@@ -235,10 +243,11 @@ internal sealed class AutomationSettingsPage : SettingsPageBase
         Factory.AddSettingRow(seedGrid, "Secret seeds", autoCreateSecretSeedsBox);
         SettingsUiFactory.AddSectionControl(createSection, seedGrid);
 
+        SettingsUiFactory.AddSectionControl(createSection, Factory.CreateSubsectionLabel("Zenith star catch"));
         TableLayoutPanel zenithStarCatchGrid = Factory.CreateGrid(
             SettingsUiFactory.ColumnStylePercent(100f),
             SettingsUiFactory.ColumnStyleAbsolute(360f));
-        Factory.AddSettingRow(zenithStarCatchGrid, "Enable auto star catch (Zenith worlds only)", autoCreateZenithStarCatchBox);
+        Factory.AddSettingRow(zenithStarCatchGrid, "Enabled", autoCreateZenithStarCatchBox);
         SettingsUiFactory.AddSectionControl(createSection, zenithStarCatchGrid);
         SettingsUiFactory.AddSectionControl(createSection, Factory.CreateFieldLabel("Stop after stage"));
         SettingsUiFactory.AddSectionControl(createSection, CreateZenithStarCatchStageSelector());
@@ -247,18 +256,23 @@ internal sealed class AutomationSettingsPage : SettingsPageBase
             SettingsUiFactory.ColumnStyleAbsolute(360f));
         Factory.AddSettingRow(zenithStarCatchSpeedGrid, "Catch speed", CreateZenithStarCatchSpeedControl());
         SettingsUiFactory.AddSectionControl(createSection, zenithStarCatchSpeedGrid);
+
+        SettingsUiFactory.AddSectionControl(createSection, Factory.CreateSubsectionLabel("Pyramid filter"));
         TableLayoutPanel pyramidFilterGrid = Factory.CreateGrid(
             SettingsUiFactory.ColumnStylePercent(100f),
             SettingsUiFactory.ColumnStyleAbsolute(360f));
-        Factory.AddSettingRow(pyramidFilterGrid, "Auto filter pyramid", autoCreatePyramidFilterBox);
+        Factory.AddSettingRow(pyramidFilterGrid, "Enabled", autoCreatePyramidFilterBox);
         SettingsUiFactory.AddSectionControl(createSection, pyramidFilterGrid);
+        SettingsUiFactory.AddSectionControl(createSection, Factory.CreateFieldLabel("Required pyramid items"));
+        SettingsUiFactory.AddSectionControl(createSection, CreatePyramidItemSelector());
 
-        TableLayoutPanel seedPoolGrid = Factory.CreateGrid(
+        SettingsUiFactory.AddSectionControl(createSection, Factory.CreateSubsectionLabel("Background world generation"));
+        TableLayoutPanel worldPoolGrid = Factory.CreateGrid(
             SettingsUiFactory.ColumnStylePercent(100f),
             SettingsUiFactory.ColumnStyleAbsolute(360f));
-        Factory.AddSettingRow(seedPoolGrid, "Background seed pool", autoCreateSeedPoolBox);
-        Factory.AddSettingRow(seedPoolGrid, "Seed pool size", autoCreateSeedPoolTargetBox);
-        SettingsUiFactory.AddSectionControl(createSection, seedPoolGrid);
+        Factory.AddSettingRow(worldPoolGrid, "Background world pool", autoCreateWorldPoolBox);
+        Factory.AddSettingRow(worldPoolGrid, "World pool size", autoCreateWorldPoolTargetBox);
+        SettingsUiFactory.AddSectionControl(createSection, worldPoolGrid);
 
         SettingsUiFactory.AddSection(parent, createSection);
     }
@@ -304,6 +318,50 @@ internal sealed class AutomationSettingsPage : SettingsPageBase
         }
 
         UpdateSpecialSeedAvailability();
+        return panel;
+    }
+
+    private TableLayoutPanel CreatePyramidItemSelector()
+    {
+        var selectedItems = AutoCreatePyramidFilterItem.FromMask(Draft.AutoCreate.PyramidFilterItemMask)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        autoCreatePyramidItemBoxes.Clear();
+
+        const int columnCount = 3;
+        var panel = new TableLayoutPanel
+        {
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            BackColor = UiTheme.Surface,
+            ColumnCount = columnCount,
+            Dock = DockStyle.Top,
+            Margin = new Padding(0, 0, 0, 8),
+            Padding = Padding.Empty
+        };
+        UiTheme.EnableDoubleBuffering(panel);
+        for (int i = 0; i < columnCount; i++)
+        {
+            panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f / columnCount));
+        }
+
+        for (int index = 0; index < AutoCreatePyramidFilterItem.All.Length; index++)
+        {
+            string item = AutoCreatePyramidFilterItem.All[index];
+            CheckBox button = CreatePyramidItemButton(item, selectedItems.Contains(item));
+            int column = index % columnCount;
+            int row = index / columnCount;
+            if (column == 0)
+            {
+                panel.RowCount++;
+                panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 54f));
+            }
+
+            button.Margin = new Padding(0, 0, column == columnCount - 1 ? 0 : 8, 10);
+            autoCreatePyramidItemBoxes[item] = button;
+            panel.Controls.Add(button, column, row);
+        }
+
+        UpdatePyramidItemAvailability();
         return panel;
     }
 
@@ -355,6 +413,30 @@ internal sealed class AutomationSettingsPage : SettingsPageBase
 
     private CheckBox CreateSpecialSeedButton(string seed, bool selected)
     {
+        CheckBox button = CreateSelectorButton(seed, selected);
+        button.CheckedChanged += (_, _) =>
+        {
+            if (string.Equals(seed, AutoCreateSpecialWorldSeed.Zenith, StringComparison.OrdinalIgnoreCase))
+            {
+                UpdateSpecialSeedAvailability();
+            }
+            else
+            {
+                UpdateSpecialSeedButtonState(button);
+            }
+        };
+        return button;
+    }
+
+    private CheckBox CreatePyramidItemButton(string item, bool selected)
+    {
+        CheckBox button = CreateSelectorButton(item, selected);
+        button.CheckedChanged += (_, _) => UpdateSpecialSeedButtonState(button);
+        return button;
+    }
+
+    private CheckBox CreateSelectorButton(string textKey, bool selected)
+    {
         var button = new CheckBox
         {
             Appearance = Appearance.Button,
@@ -368,22 +450,11 @@ internal sealed class AutomationSettingsPage : SettingsPageBase
             Height = 44,
             MinimumSize = new Size(0, 44),
             Padding = new Padding(8, 0, 8, 2),
-            Text = Context.Localize(seed),
+            Text = Context.Localize(textKey),
             TextAlign = ContentAlignment.MiddleCenter,
             UseVisualStyleBackColor = false
         };
         button.FlatAppearance.CheckedBackColor = UiTheme.Selection;
-        button.CheckedChanged += (_, _) =>
-        {
-            if (string.Equals(seed, AutoCreateSpecialWorldSeed.Zenith, StringComparison.OrdinalIgnoreCase))
-            {
-                UpdateSpecialSeedAvailability();
-            }
-            else
-            {
-                UpdateSpecialSeedButtonState(button);
-            }
-        };
         button.EnabledChanged += (_, _) => UpdateSpecialSeedButtonState(button);
         UpdateSpecialSeedButtonState(button);
         return button;
@@ -481,6 +552,15 @@ internal sealed class AutomationSettingsPage : SettingsPageBase
         UpdateZenithStarCatchAvailability();
     }
 
+    private void UpdatePyramidItemAvailability()
+    {
+        foreach (CheckBox button in autoCreatePyramidItemBoxes.Values)
+        {
+            button.Enabled = autoCreatePyramidFilterBox.Checked;
+            UpdateSpecialSeedButtonState(button);
+        }
+    }
+
     private void SelectZenithStarCatchStage(string selectedStopStage)
     {
         if (updatingZenithStarCatchStageSelection)
@@ -542,13 +622,12 @@ internal sealed class AutomationSettingsPage : SettingsPageBase
             : UiTheme.MutedText;
     }
 
-    private void UpdateSeedPoolAvailability()
+    private void UpdateWorldPoolAvailability()
     {
-        bool pyramidFilterEnabled = autoCreatePyramidFilterBox.Checked;
-        autoCreateSeedPoolBox.Enabled = pyramidFilterEnabled;
-        autoCreateSeedPoolTargetBox.Enabled = pyramidFilterEnabled && autoCreateSeedPoolBox.Checked;
-        autoCreateSeedPoolBox.ForeColor = autoCreateSeedPoolBox.Enabled ? UiTheme.Text : UiTheme.MutedText;
-        autoCreateSeedPoolTargetBox.ForeColor = autoCreateSeedPoolTargetBox.Enabled ? UiTheme.Text : UiTheme.MutedText;
+        autoCreateWorldPoolBox.Enabled = true;
+        autoCreateWorldPoolTargetBox.Enabled = autoCreateWorldPoolBox.Checked;
+        autoCreateWorldPoolBox.ForeColor = autoCreateWorldPoolBox.Enabled ? UiTheme.Text : UiTheme.MutedText;
+        autoCreateWorldPoolTargetBox.ForeColor = autoCreateWorldPoolTargetBox.Enabled ? UiTheme.Text : UiTheme.MutedText;
     }
 
     private void AddEnterWorldSection(TableLayoutPanel parent)

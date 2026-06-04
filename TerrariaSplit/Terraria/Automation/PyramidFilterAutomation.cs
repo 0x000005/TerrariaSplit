@@ -67,6 +67,24 @@ internal sealed class PyramidFilterAutomation
             $"wall34={evidence.Wall34Count}, activeTile151={evidence.ActiveTile151Count}, " +
             $"scanMs={stopwatch.ElapsedMilliseconds}");
 
+        if (keep && PyramidFilterItemMatcher.HasItemRequirement(settings))
+        {
+            int requiredItemMask = AutoCreatePyramidFilterItem.NormalizeMask(settings.PyramidFilterItemMask);
+            if (!scanner.TryScanPyramidChests(worldPath, settings.WorldSize, out PyramidChestScanResult pyramidChests, out string chestDetail))
+            {
+                AppLogger.Info(
+                    $"Pyramid filter rejected '{Path.GetFileName(worldPath)}' because chest contents could not be scanned. " +
+                    $"requiredItems={PyramidFilterItemMatcher.FormatRequiredItems(requiredItemMask)}, detail={chestDetail}");
+                return PyramidFilterOutcome.Rejected;
+            }
+
+            keep = PyramidFilterItemMatcher.Matches(pyramidChests, requiredItemMask);
+            AppLogger.Info(
+                $"Pyramid filter item scan '{Path.GetFileName(worldPath)}': keep={keep}, " +
+                $"requiredItems={PyramidFilterItemMatcher.FormatRequiredItems(requiredItemMask)}, " +
+                $"pyramidChests={pyramidChests.FormatSummary()}");
+        }
+
         return keep
             ? PyramidFilterOutcome.Kept
             : PyramidFilterOutcome.Rejected;

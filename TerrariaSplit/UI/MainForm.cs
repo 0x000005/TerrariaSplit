@@ -16,9 +16,9 @@ internal sealed partial class MainForm : Form
     private const int WsExLayered = 0x80000;
     private const string SegmentTimerWindowTitle = "TerrariaSplit - Segment Timer";
 
-    private readonly SeedPoolStore seedPoolStore = new();
+    private readonly WorldPoolStore worldPoolStore = new();
     private readonly TerrariaWorldAutomation worldAutomation;
-    private readonly SeedPoolFillService seedPoolFillService;
+    private readonly WorldPoolFillService worldPoolFillService;
     private readonly MainFormContextMenuBuilder contextMenuBuilder = new();
     private readonly SoundPlayerService soundPlayer = new();
     private readonly HighPrecisionScheduler controlScheduler;
@@ -83,9 +83,9 @@ internal sealed partial class MainForm : Form
 
     public MainForm()
     {
-        worldAutomation = new TerrariaWorldAutomation(seedPoolStore);
+        worldAutomation = new TerrariaWorldAutomation(worldPoolStore);
         applicationController = new ApplicationController(AppSettingsStore.Load(), ShowPersonalBestUpdateConfirmation);
-        seedPoolFillService = new SeedPoolFillService(seedPoolStore);
+        worldPoolFillService = new WorldPoolFillService(worldPoolStore);
         RefreshTimerOverlaySettingsSnapshot();
         palette = UiPalette.From(settings.Colors);
         monitorCoordinator = new TerrariaMonitorCoordinator(
@@ -221,7 +221,7 @@ internal sealed partial class MainForm : Form
     protected override void OnShown(EventArgs e)
     {
         base.OnShown(e);
-        seedPoolFillService.UpdateSettings(settings);
+        worldPoolFillService.UpdateSettings(settings);
         QueueStatusOverlayRender();
     }
 
@@ -320,7 +320,7 @@ internal sealed partial class MainForm : Form
         statusPaintScheduler.Dispose();
         hotkeyManager.Dispose();
         monitorCoordinator.Dispose();
-        seedPoolFillService.Dispose();
+        worldPoolFillService.Dispose();
         worldAutomation.Dispose();
         settingsDialogHost?.Dispose();
         settingsDialogHost = null;
@@ -757,9 +757,9 @@ internal sealed partial class MainForm : Form
         }
     }
 
-    internal int GetSeedPoolCount(AutoCreateWorldSettings autoCreate)
+    internal int GetWorldPoolCount(AppSettings settings)
     {
-        return seedPoolStore.Count(WorldGenSignature.From(autoCreate));
+        return worldPoolStore.Count(WorldPoolSignature.From(settings));
     }
 
     private bool ShowPersonalBestUpdateConfirmation(string promptText)
@@ -844,7 +844,7 @@ internal sealed partial class MainForm : Form
             settings,
             GetRuntimeDiagnostics,
             GetRuntimeDebugSnapshot,
-            GetSeedPoolCount,
+            GetWorldPoolCount,
             callback => BeginInvoke(callback),
             appliedSettings => ExecuteAppCommand(AppCommand.ApplySettings(appliedSettings)),
             result =>
@@ -913,7 +913,7 @@ internal sealed partial class MainForm : Form
         UpdateConfiguredRefreshIntervals();
         UpdateTimerOverlayRefreshInterval();
         PublishTimerOverlaySnapshot(true);
-        seedPoolFillService.UpdateSettings(settings);
+        worldPoolFillService.UpdateSettings(settings);
         Invalidate();
     }
 

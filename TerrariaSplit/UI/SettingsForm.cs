@@ -10,7 +10,7 @@ internal sealed partial class SettingsForm : Form
     private readonly AppSettings settings;
     private readonly Func<RuntimePerformanceDiagnostics>? runtimeDiagnosticsProvider;
     private readonly Func<RuntimeDebugSnapshot>? runtimeDebugSnapshotProvider;
-    private readonly Func<AutoCreateWorldSettings, int>? seedPoolCountProvider;
+    private readonly Func<AppSettings, int>? worldPoolCountProvider;
     private readonly SettingsUiFactory uiFactory;
     private readonly SettingsDialogService dialogService;
     private SettingsPageHost? pageHost;
@@ -22,12 +22,12 @@ internal sealed partial class SettingsForm : Form
         AppSettings currentSettings,
         Func<RuntimePerformanceDiagnostics>? runtimeDiagnosticsProvider = null,
         Func<RuntimeDebugSnapshot>? runtimeDebugSnapshotProvider = null,
-        Func<AutoCreateWorldSettings, int>? seedPoolCountProvider = null)
+        Func<AppSettings, int>? worldPoolCountProvider = null)
     {
         settings = AppSettingsStore.Clone(currentSettings);
         this.runtimeDiagnosticsProvider = runtimeDiagnosticsProvider;
         this.runtimeDebugSnapshotProvider = runtimeDebugSnapshotProvider;
-        this.seedPoolCountProvider = seedPoolCountProvider;
+        this.worldPoolCountProvider = worldPoolCountProvider;
         uiFactory = new SettingsUiFactory(Localize);
         dialogService = new SettingsDialogService(this, Localize);
 
@@ -60,15 +60,15 @@ internal sealed partial class SettingsForm : Form
         return runtimeDebugSnapshotProvider?.Invoke() ?? RuntimeDebugSnapshot.Empty;
     }
 
-    internal int GetSeedPoolCount(AutoCreateWorldSettings autoCreate)
+    internal int GetWorldPoolCount()
     {
         try
         {
-            return seedPoolCountProvider?.Invoke(autoCreate) ?? 0;
+            return worldPoolCountProvider?.Invoke(PageHost.CreateAppliedSnapshot()) ?? 0;
         }
         catch (Exception ex)
         {
-            AppLogger.Error(ex, "Settings debug page failed to read seed pool count.");
+            AppLogger.Error(ex, "Settings debug page failed to read world pool count.");
             return 0;
         }
     }

@@ -3,7 +3,7 @@ using System.Diagnostics;
 namespace TerrariaSplit;
 
 // Resolves the path to TerrariaServer.exe, which ships alongside Terraria.exe in the
-// game install. The seed pool runs it headlessly to generate worlds in the background,
+// game install. The world pool runs it headlessly to generate worlds in the background,
 // so the lookup must work even when the game itself is not running.
 internal static class TerrariaServerLocator
 {

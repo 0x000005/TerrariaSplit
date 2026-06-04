@@ -27,7 +27,10 @@ internal static class RenderingTests
             TimerText = "#112233",
             TimerTextOutline = "#445566",
             TimerTextShadow = "#778899",
-            SplitCompletionTimeText = "#AABBCC"
+            SplitCompletionSegmentLabelText = "#8899AA",
+            SplitCompletionLabelText = "#99AABB",
+            SplitCompletionSegmentTimeText = "#AABBCC",
+            SplitCompletionTimeText = "#BBCCDD"
         };
 
         UiPalette palette = UiPalette.From(colors);
@@ -35,7 +38,10 @@ internal static class RenderingTests
         TestAssert.Equal(Color.FromArgb(0x11, 0x22, 0x33), palette.TimerText);
         TestAssert.Equal(Color.FromArgb(0x44, 0x55, 0x66), palette.TimerTextOutline);
         TestAssert.Equal(Color.FromArgb(0x77, 0x88, 0x99), palette.TimerTextShadow);
-        TestAssert.Equal(Color.FromArgb(0xAA, 0xBB, 0xCC), palette.SplitCompletionTimeText);
+        TestAssert.Equal(Color.FromArgb(0x88, 0x99, 0xAA), palette.SplitCompletionSegmentLabelText);
+        TestAssert.Equal(Color.FromArgb(0x99, 0xAA, 0xBB), palette.SplitCompletionLabelText);
+        TestAssert.Equal(Color.FromArgb(0xAA, 0xBB, 0xCC), palette.SplitCompletionSegmentTimeText);
+        TestAssert.Equal(Color.FromArgb(0xBB, 0xCC, 0xDD), palette.SplitCompletionTimeText);
     }
 
     private static void TextEffectRendererAppliesOpacity()

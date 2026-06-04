@@ -4,8 +4,12 @@ namespace TerrariaSplit;
 
 internal sealed class ThemedScrollPanel : Panel
 {
+    private const int WmMouseWheel = 0x020A;
+    private const int EmGetLineCount = 0x00BA;
+    private const int EmGetFirstVisibleLine = 0x00CE;
+    private const int EmLineScroll = 0x00B6;
     private const int ScrollBarWidth = 12;
-    private const int ScrollStep = 42;
+    private const int ScrollStep = 40;
     private int scrollOffset;
     private bool draggingThumb;
     private int dragThumbStartY;
@@ -18,7 +22,7 @@ internal sealed class ThemedScrollPanel : Panel
     {
         AutoScroll = false;
         SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
-        MouseWheel += (_, e) => ScrollBy(e.Delta);
+        MouseWheel += HandleOuterMouseWheel;
     }
 
     public void BeginContentUpdate()
@@ -156,15 +160,10 @@ internal sealed class ThemedScrollPanel : Panel
         }
 
         EventHandler sizeChanged = (_, _) => RequestLayoutContent();
-        MouseEventHandler mouseWheel = (_, e) =>
-        {
-            if (ShouldChildHandleMouseWheel(control))
-            {
-                return;
-            }
-
-            ScrollBy(e.Delta);
-        };
+        MouseEventHandler mouseWheel = HandleOuterMouseWheel;
+        TextBoxWheelRouter? textBoxWheelRouter = control is TextBox textBox && ShouldRouteTextBoxMouseWheel(textBox)
+            ? new TextBoxWheelRouter(this, textBox)
+            : null;
         ControlEventHandler controlAdded = (_, e) =>
         {
             if (e.Control is not null)
@@ -186,12 +185,17 @@ internal sealed class ThemedScrollPanel : Panel
 
         attachedContentHandlers[control] = new AttachedContentHandlers(
             sizeChanged,
-            mouseWheel,
+            textBoxWheelRouter is null ? mouseWheel : null,
             controlAdded,
-            controlRemoved);
+            controlRemoved,
+            textBoxWheelRouter);
 
         control.SizeChanged += sizeChanged;
-        control.MouseWheel += mouseWheel;
+        if (textBoxWheelRouter is null)
+        {
+            control.MouseWheel += mouseWheel;
+        }
+
         control.ControlAdded += controlAdded;
         control.ControlRemoved += controlRemoved;
 
@@ -214,9 +218,14 @@ internal sealed class ThemedScrollPanel : Panel
         }
 
         control.SizeChanged -= handlers.SizeChanged;
-        control.MouseWheel -= handlers.MouseWheel;
+        if (handlers.MouseWheel is not null)
+        {
+            control.MouseWheel -= handlers.MouseWheel;
+        }
+
         control.ControlAdded -= handlers.ControlAdded;
         control.ControlRemoved -= handlers.ControlRemoved;
+        handlers.TextBoxWheelRouter?.Dispose();
     }
 
     private void ScrollBy(int delta)
@@ -227,6 +236,20 @@ internal sealed class ThemedScrollPanel : Panel
         }
 
         ScrollToOffset(scrollOffset - Math.Sign(delta) * ScrollStep);
+    }
+
+    private void HandleOuterMouseWheel(object? sender, MouseEventArgs e)
+    {
+        if (e is HandledMouseEventArgs { Handled: true })
+        {
+            return;
+        }
+
+        ScrollBy(e.Delta);
+        if (e is HandledMouseEventArgs handled)
+        {
+            handled.Handled = true;
+        }
     }
 
     private void LayoutContent()
@@ -336,16 +359,117 @@ internal sealed class ThemedScrollPanel : Panel
         Invalidate();
     }
 
-    private static bool ShouldChildHandleMouseWheel(Control control)
+    private void RouteTextBoxMouseWheel(TextBox textBox, int delta)
     {
-        return control is TextBox textBox &&
-            textBox.Multiline &&
-            textBox.ScrollBars != ScrollBars.None;
+        if (!TryScrollTextBox(textBox, delta))
+        {
+            ScrollBy(delta);
+        }
+    }
+
+    private static bool ShouldRouteTextBoxMouseWheel(TextBox textBox)
+    {
+        return textBox.Multiline &&
+            (textBox.ScrollBars == ScrollBars.Vertical || textBox.ScrollBars == ScrollBars.Both);
+    }
+
+    private static bool TryScrollTextBox(TextBox textBox, int delta)
+    {
+        if (delta == 0 || !textBox.IsHandleCreated)
+        {
+            return false;
+        }
+
+        int firstVisibleLine = NativeMethods.SendMessage(
+            textBox.Handle,
+            EmGetFirstVisibleLine,
+            IntPtr.Zero,
+            IntPtr.Zero).ToInt32();
+
+        if (delta > 0)
+        {
+            if (firstVisibleLine <= 0)
+            {
+                return false;
+            }
+        }
+        else
+        {
+            int lineCount = NativeMethods.SendMessage(
+                textBox.Handle,
+                EmGetLineCount,
+                IntPtr.Zero,
+                IntPtr.Zero).ToInt32();
+            int visibleLineCount = Math.Max(1, textBox.ClientSize.Height / Math.Max(1, textBox.Font.Height));
+            if (firstVisibleLine + visibleLineCount >= lineCount)
+            {
+                return false;
+            }
+        }
+
+        int lineStep = Math.Max(1, (int)Math.Round(ScrollStep / (float)Math.Max(1, textBox.Font.Height)));
+        int signedLineStep = delta > 0 ? -lineStep : lineStep;
+        NativeMethods.SendMessage(textBox.Handle, EmLineScroll, IntPtr.Zero, new IntPtr(signedLineStep));
+
+        int newFirstVisibleLine = NativeMethods.SendMessage(
+            textBox.Handle,
+            EmGetFirstVisibleLine,
+            IntPtr.Zero,
+            IntPtr.Zero).ToInt32();
+        return newFirstVisibleLine != firstVisibleLine;
     }
 
     private sealed record AttachedContentHandlers(
         EventHandler SizeChanged,
-        MouseEventHandler MouseWheel,
+        MouseEventHandler? MouseWheel,
         ControlEventHandler ControlAdded,
-        ControlEventHandler ControlRemoved);
+        ControlEventHandler ControlRemoved,
+        TextBoxWheelRouter? TextBoxWheelRouter);
+
+    private sealed class TextBoxWheelRouter : NativeWindow, IDisposable
+    {
+        private readonly ThemedScrollPanel owner;
+        private readonly TextBox textBox;
+
+        public TextBoxWheelRouter(ThemedScrollPanel owner, TextBox textBox)
+        {
+            this.owner = owner;
+            this.textBox = textBox;
+            textBox.HandleCreated += HandleCreated;
+            textBox.HandleDestroyed += HandleDestroyed;
+            if (textBox.IsHandleCreated)
+            {
+                AssignHandle(textBox.Handle);
+            }
+        }
+
+        public void Dispose()
+        {
+            textBox.HandleCreated -= HandleCreated;
+            textBox.HandleDestroyed -= HandleDestroyed;
+            ReleaseHandle();
+        }
+
+        protected override void WndProc(ref Message m)
+        {
+            if (m.Msg == WmMouseWheel)
+            {
+                int delta = (short)((m.WParam.ToInt64() >> 16) & 0xffff);
+                owner.RouteTextBoxMouseWheel(textBox, delta);
+                return;
+            }
+
+            base.WndProc(ref m);
+        }
+
+        private void HandleCreated(object? sender, EventArgs e)
+        {
+            AssignHandle(textBox.Handle);
+        }
+
+        private void HandleDestroyed(object? sender, EventArgs e)
+        {
+            ReleaseHandle();
+        }
+    }
 }

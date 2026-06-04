@@ -43,7 +43,9 @@ internal readonly record struct UiPalette(
     Color TimerPausedText,
     Color TimerPausedTextOutline,
     Color TimerPausedTextShadow,
+    Color SplitCompletionSegmentLabelText,
     Color SplitCompletionLabelText,
+    Color SplitCompletionSegmentTimeText,
     Color SplitCompletionTimeText)
 {
     public static UiPalette From(UiColorSettings settings)
@@ -82,7 +84,9 @@ internal readonly record struct UiPalette(
             ColorText.Parse(settings.TimerPausedText, Color.Gainsboro),
             ColorText.Parse(settings.TimerPausedTextOutline, Color.FromArgb(16, 16, 16)),
             ColorText.Parse(settings.TimerPausedTextShadow, Color.Black),
+            ColorText.Parse(settings.SplitCompletionSegmentLabelText, Color.FromArgb(222, 222, 226)),
             ColorText.Parse(settings.SplitCompletionLabelText, Color.FromArgb(222, 222, 226)),
+            ColorText.Parse(settings.SplitCompletionSegmentTimeText, Color.White),
             ColorText.Parse(settings.SplitCompletionTimeText, Color.White));
     }
 }

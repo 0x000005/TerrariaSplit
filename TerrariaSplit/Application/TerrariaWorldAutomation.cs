@@ -7,9 +7,9 @@ internal sealed class TerrariaWorldAutomation : IDisposable
     private readonly AutomationRunner<AppSettings> createWorldRunner;
     private readonly AutomationRunner<EnterWorldAutomationRequest> enterWorldRunner;
 
-    public TerrariaWorldAutomation(SeedPoolStore? seedPool = null)
+    public TerrariaWorldAutomation(WorldPoolStore? worldPool = null)
     {
-        createWorldWorkflow = new CreateWorldWorkflow(seedPool);
+        createWorldWorkflow = new CreateWorldWorkflow(worldPool);
         createWorldRunner = new AutomationRunner<AppSettings>(
             "Create world",
             createWorldWorkflow.RunAsync,

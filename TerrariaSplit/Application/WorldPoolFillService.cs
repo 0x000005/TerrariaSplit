@@ -1,16 +1,16 @@
 namespace TerrariaSplit;
 
-// Background worker that keeps the seed pool topped up. While seed pooling is enabled and
-// supported, it repeatedly asks TerrariaServer.exe to generate a random-seed world
-// headlessly and banks the .wld file when the world has a pyramid.
+// Background worker that keeps the world pool topped up. While world pooling is enabled,
+// it asks TerrariaServer.exe to generate worlds from program-built copied seeds and banks
+// the .wld file after metadata and optional pyramid validation pass.
 // It backs off once the pool reaches the target count and resumes when worlds are consumed.
 // This is a background task, not a dedicated UI thread; the expensive work happens in a
 // separate TerrariaServer.exe process.
-internal sealed class SeedPoolFillService : IDisposable
+internal sealed class WorldPoolFillService : IDisposable
 {
     private static readonly TimeSpan IdleInterval = TimeSpan.FromSeconds(8);
 
-    private readonly SeedPoolStore store;
+    private readonly WorldPoolStore store;
     private readonly HeadlessWorldGenerator generator = new();
     private readonly object sync = new();
     private AppSettings? settings;
@@ -19,7 +19,7 @@ internal sealed class SeedPoolFillService : IDisposable
     private bool disposed;
     private bool loggedMissingServer;
 
-    public SeedPoolFillService(SeedPoolStore store)
+    public WorldPoolFillService(WorldPoolStore store)
     {
         this.store = store;
     }
@@ -40,7 +40,7 @@ internal sealed class SeedPoolFillService : IDisposable
             loggedMissingServer = false;
         }
 
-        store.EnsureSignature(WorldGenSignature.From(clone.AutoCreate));
+        store.EnsureSignature(WorldPoolSignature.From(clone));
         EnsureLoopRunning();
     }
 
@@ -74,7 +74,7 @@ internal sealed class SeedPoolFillService : IDisposable
             }
             catch (Exception ex)
             {
-                AppLogger.Error(ex, "Seed pool fill iteration failed.");
+                AppLogger.Error(ex, "World pool fill iteration failed.");
             }
 
             if (generated)
@@ -107,15 +107,13 @@ internal sealed class SeedPoolFillService : IDisposable
         }
 
         AutoCreateWorldSettings autoCreate = current.AutoCreate;
-        if (!autoCreate.EnablePyramidFilter ||
-            !autoCreate.EnableSeedPool ||
-            !SeedPoolSupport.IsSupported(autoCreate))
+        if (!autoCreate.EnableWorldPool)
         {
             return false;
         }
 
-        string signature = WorldGenSignature.From(autoCreate);
-        if (store.Count(signature) >= autoCreate.SeedPoolTargetCount)
+        string signature = WorldPoolSignature.From(current);
+        if (store.Count(signature) >= autoCreate.WorldPoolTargetCount)
         {
             return false;
         }
@@ -128,23 +126,23 @@ internal sealed class SeedPoolFillService : IDisposable
                 if (!loggedMissingServer)
                 {
                     loggedMissingServer = true;
-                    AppLogger.Info("Seed pool fill is idle because TerrariaServer.exe could not be located.");
+                    AppLogger.Info("World pool fill is idle because TerrariaServer.exe could not be located.");
                 }
             }
 
             return false;
         }
 
-        HeadlessWorldGenResult result = await generator.GenerateAndScanAsync(serverExe, autoCreate, cancellationToken);
+        HeadlessWorldGenResult result = await generator.GenerateAndScanAsync(serverExe, current.Language, autoCreate, cancellationToken);
         try
         {
             if (result.Keep &&
                 IsGenerationStillCurrent(signature) &&
-                store.TryAdd(signature, result.WorldPath, result.Metadata, out SeedPoolWorldEntry entry))
+                store.TryAdd(signature, result.WorldPath, result.Metadata, out WorldPoolEntry entry))
             {
                 AppLogger.Info(
-                    $"Seed pool banked world {entry.WorldFileName}; pool now holds " +
-                    $"{store.Count(signature)}/{autoCreate.SeedPoolTargetCount}.");
+                    $"World pool banked world {entry.WorldFileName}; pool now holds " +
+                    $"{store.Count(signature)}/{autoCreate.WorldPoolTargetCount}.");
             }
         }
         finally
@@ -169,10 +167,8 @@ internal sealed class SeedPoolFillService : IDisposable
         }
 
         AutoCreateWorldSettings autoCreate = current.AutoCreate;
-        return autoCreate.EnablePyramidFilter &&
-            autoCreate.EnableSeedPool &&
-            SeedPoolSupport.IsSupported(autoCreate) &&
-            string.Equals(WorldGenSignature.From(autoCreate), signature, StringComparison.Ordinal);
+        return autoCreate.EnableWorldPool &&
+            string.Equals(WorldPoolSignature.From(current), signature, StringComparison.Ordinal);
     }
 
     public void Dispose()

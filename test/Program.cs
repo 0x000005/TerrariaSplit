@@ -19,7 +19,11 @@ var legacyTests = new (string Name, Action Test)[]
     ("Localizer returns English fallback and Chinese Crimson", TestLocalizer),
     ("JsonFileStore writes settings atomically", TestJsonFileStoreWritesAtomically),
     ("Default settings template covers serializable settings", TestDefaultSettingsTemplateCoversSerializableSettings),
-    ("World generation signature starts with Terraria version", TestWorldGenSignatureStartsWithTerrariaVersion),
+    ("World pool signature starts with Terraria version", TestWorldPoolSignatureStartsWithTerrariaVersion),
+    ("World pool file names use TerrariaSplit timestamp", TestWorldPoolFileNameUsesTerrariaSplitTimestamp),
+    ("Terraria seed random matches UnifiedRandom sequence", TestTerrariaSeedRandomMatchesUnifiedRandomSequence),
+    ("Terraria copied seed builder formats options", TestTerrariaCopiedSeedBuilderFormatsOptions),
+    ("Terraria world name generator follows GUI rules", TestTerrariaWorldNameGeneratorFollowsGuiRules),
     ("SettingsNormalizer clamps auto-create timings", TestSettingsNormalize),
     ("SettingsNormalizer normalizes timer overlay refresh settings", TestSettingsNormalizeTimerOverlayRefresh),
     ("SettingsNormalizer normalizes practice world slots", TestSettingsNormalizePracticeWorlds),
@@ -39,9 +43,10 @@ var legacyTests = new (string Name, Action Test)[]
     ("Settings hotkey box captures modifier chords", TestSettingsHotkeyBoxCapturesModifierChords),
     ("Settings form collapses zenith special seed dependencies", TestSettingsFormCollapsesZenithSpecialSeedDependencies),
     ("Settings form saves The Constant special seed", TestSettingsFormSavesTheConstantSpecialSeed),
+    ("Settings form saves pyramid item filter", TestSettingsFormSavesPyramidItemFilter),
     ("Settings form applies Zenith star catch options", TestSettingsFormAppliesZenithStarCatchOptions),
     ("Settings form gates Zenith star catch behind Zenith seed", TestSettingsFormGatesZenithStarCatchBehindZenithSeed),
-    ("Settings form gates seed pool behind pyramid filter", TestSettingsFormGatesSeedPoolBehindPyramidFilter),
+    ("Settings form keeps world pool independent from pyramid filter", TestSettingsFormKeepsWorldPoolIndependentFromPyramidFilter),
     ("Debug sequence uses pooled world path when pool has a world", TestDebugSequenceUsesPooledWorldPath),
     ("Settings form applies timer start sound", TestSettingsFormAppliesTimerStartSound),
     ("Settings form applies resume sound", TestSettingsFormAppliesResumeSound),
@@ -58,10 +63,12 @@ var legacyTests = new (string Name, Action Test)[]
     ("Settings form applies advanced UI scale patch option", TestSettingsFormAppliesAdvancedUiScalePatchOption),
     ("Settings form applies timer overlay refresh settings", TestSettingsFormAppliesTimerOverlayRefreshSettings),
     ("Settings form keeps uncreated animation fields unchanged", TestSettingsFormKeepsUncreatedAnimationFieldsUnchanged),
+    ("Color settings labels follow requested order", TestColorSettingsLabelsFollowRequestedOrder),
     ("Terraria UI scale patch rewrites target IL constants", TestTerrariaUiScalePatchPlan),
     ("Zenith star catch stop stages follow world generation order", TestZenithStarCatchStageStopRules),
     ("Zenith star catch speed uses logarithmic stepped range", TestZenithStarCatchSpeedRange),
     ("Pyramid filter scans world file evidence in speedrun corridor", TestPyramidFilterWorldFileScanner),
+    ("Pyramid scanner reads chest contents", TestPyramidScannerReadsChestContents),
     ("World seed metadata matches world options", TestWorldSeedMetadataMatchesWorldOptions),
     ("Overlay composite layout derives status and timer windows from shared bounds", TestOverlayCompositeLayoutCalculator)
 };
@@ -74,6 +81,13 @@ var tests = legacyTests
     .Concat(RenderingTests.All())
     .Concat(WorldGenerationMemoryTests.All())
     .ToArray();
+string? testFilter = Environment.GetEnvironmentVariable("TERRARIA_SPLIT_TEST_FILTER");
+if (!string.IsNullOrWhiteSpace(testFilter))
+{
+    tests = tests
+        .Where(test => test.Name.Contains(testFilter, StringComparison.OrdinalIgnoreCase))
+        .ToArray();
+}
 
 int failures = 0;
 foreach ((string name, Action test) in tests)
@@ -210,14 +224,30 @@ static void TestLocalizer()
     AssertEqual("\u7D2F\u79EF", Localizer.Get("Cumulative", new AppSettings { Language = "\u4E2D\u6587" }));
     AssertEqual("\u5206\u6BB5", Localizer.Get("Segment", new AppSettings { Language = "\u4E2D\u6587" }));
     AssertEqual("\u4E0D\u900F\u660E\u5EA6 %", Localizer.Get("Opacity %", new AppSettings { Language = "\u4E2D\u6587" }));
-    AssertEqual("\u81EA\u52A8\u7B5B\u9009\u91D1\u5B57\u5854", Localizer.Get("Auto filter pyramid", new AppSettings { Language = "\u4E2D\u6587" }));
+    AssertEqual("\u542F\u7528", Localizer.Get("Enabled", new AppSettings { Language = "\u4E2D\u6587" }));
     AssertEqual("\u7B49\u5F85\u9644\u52A0\u5185\u5B58", Localizer.Get("Waiting for attached memory", new AppSettings { Language = "\u4E2D\u6587" }));
     AssertEqual("\u7B49\u5F85\u8BA1\u65F6\u5F00\u59CB", Localizer.Get("Waiting for timer start", new AppSettings { Language = "\u4E2D\u6587" }));
-    AssertEqual("\u5206\u6BB5\u65F6\u95F4", Localizer.Get("Segment time", new AppSettings { Language = "\u4E2D\u6587" }));
-    AssertEqual("\u7D2F\u8BA1\u65F6\u95F4", Localizer.Get("Cumulative time", new AppSettings { Language = "\u4E2D\u6587" }));
-    AssertEqual("\u540E\u53F0\u7B5B\u5854\u79CD\u5B50\u6C60", Localizer.Get("Background seed pool", new AppSettings { Language = "\u4E2D\u6587" }));
-    AssertEqual("\u79CD\u5B50\u6C60\u4E2A\u6570", Localizer.Get("Seed pool size", new AppSettings { Language = "\u4E2D\u6587" }));
-    AssertEqual("\u5B89\u88C5\u79CD\u5B50\u6C60\u4E16\u754C", Localizer.Get("Install pooled world", new AppSettings { Language = "\u4E2D\u6587" }));
+    AssertEqual("\u5355\u6BB5\u65F6\u95F4", Localizer.Get("Segment time", new AppSettings { Language = "\u4E2D\u6587" }));
+    AssertEqual("\u7D2F\u79EF\u65F6\u95F4", Localizer.Get("Cumulative time", new AppSettings { Language = "\u4E2D\u6587" }));
+    AssertEqual("\u53C2\u8003\u65F6\u95F4\uFF08\u672A\u6765\u9636\u6BB5\uFF09", Localizer.Get("Reference time (future stage)", new AppSettings { Language = "\u4E2D\u6587" }));
+    AssertEqual("\u53C2\u8003\u65F6\u95F4\uFF08\u5F53\u524D\u9636\u6BB5\uFF09", Localizer.Get("Reference time (current stage)", new AppSettings { Language = "\u4E2D\u6587" }));
+    AssertEqual("\u7D2F\u79EF\u65F6\u95F4\uFF08\u5DF2\u5B8C\u6210\u9636\u6BB5\uFF09", Localizer.Get("Cumulative time (completed stage)", new AppSettings { Language = "\u4E2D\u6587" }));
+    AssertEqual("\u4E3B\u8BA1\u65F6\u5668\uFF08\u603B\u6210\u7EE9\u5FEB\uFF09", Localizer.Get("Main timer (total fast)", new AppSettings { Language = "\u4E2D\u6587" }));
+    AssertEqual("\u5355\u6BB5\u65F6\u95F4\u63D0\u793A\u6587\u672C", Localizer.Get("Segment time hint text", new AppSettings { Language = "\u4E2D\u6587" }));
+    AssertEqual("\u7D2F\u79EF\u65F6\u95F4\u63D0\u793A\u6587\u672C", Localizer.Get("Cumulative time hint text", new AppSettings { Language = "\u4E2D\u6587" }));
+    AssertEqual("\u5206\u6BB5\u70B9\uFF1A\u7D2F\u79EF\u65F6\u95F4\u5FEB\u4E8E\u53C2\u8003\uFF0C\u5355\u6BB5\u65F6\u95F4\u5FEB\u4E8E PB", Localizer.Get("Stage reached: cumulative faster, segment faster", new AppSettings { Language = "\u4E2D\u6587" }));
+    AssertEqual("\u4EBA\u7269\u9009\u9879", Localizer.Get("Player options", new AppSettings { Language = "\u4E2D\u6587" }));
+    AssertEqual("\u4E16\u754C\u9009\u9879", Localizer.Get("World options", new AppSettings { Language = "\u4E2D\u6587" }));
+    AssertEqual("\u5929\u9876\u63A5\u661F", Localizer.Get("Zenith star catch", new AppSettings { Language = "\u4E2D\u6587" }));
+    AssertEqual("\u7B5B\u9009\u91D1\u5B57\u5854", Localizer.Get("Pyramid filter", new AppSettings { Language = "\u4E2D\u6587" }));
+    AssertEqual("\u6307\u5B9A\u7269\u54C1", Localizer.Get("Required pyramid items", new AppSettings { Language = "\u4E2D\u6587" }));
+    AssertEqual("\u6C99\u66B4\u74F6", Localizer.Get("Sandstorm in a Bottle", new AppSettings { Language = "\u4E2D\u6587" }));
+    AssertEqual("\u98DE\u6BEF", Localizer.Get("Flying Carpet", new AppSettings { Language = "\u4E2D\u6587" }));
+    AssertEqual("\u6CD5\u8001\u5957", Localizer.Get("Pharaoh set", new AppSettings { Language = "\u4E2D\u6587" }));
+    AssertEqual("\u540E\u53F0\u5EFA\u56FE", Localizer.Get("Background world generation", new AppSettings { Language = "\u4E2D\u6587" }));
+    AssertEqual("\u540E\u53F0\u9884\u5EFA\u4E16\u754C\u6C60", Localizer.Get("Background world pool", new AppSettings { Language = "\u4E2D\u6587" }));
+    AssertEqual("\u4E16\u754C\u6C60\u4E2A\u6570", Localizer.Get("World pool size", new AppSettings { Language = "\u4E2D\u6587" }));
+    AssertEqual("\u5B89\u88C5\u4E16\u754C\u6C60\u4E16\u754C", Localizer.Get("Install pooled world", new AppSettings { Language = "\u4E2D\u6587" }));
     AssertEqual("\u505C\u5728\u4E16\u754C\u9009\u62E9\u754C\u9762", Localizer.Get("Stop at world select", new AppSettings { Language = "\u4E2D\u6587" }));
 }
 
@@ -256,17 +286,108 @@ static void TestDefaultSettingsTemplateCoversSerializableSettings()
     AssertJsonCoversType(typeof(AppSettings), document.RootElement, "settings");
 }
 
-static void TestWorldGenSignatureStartsWithTerrariaVersion()
+static void TestWorldPoolSignatureStartsWithTerrariaVersion()
 {
-    string signature = WorldGenSignature.From(new AutoCreateWorldSettings
+    var settings = new AppSettings
     {
-        WorldSize = AutoCreateWorldSize.Small,
-        WorldDifficulty = AutoCreateWorldDifficulty.Expert,
-        WorldEvil = AutoCreateWorldEvil.Crimson,
-        SpecialSeeds = "For the Worthy|No Traps"
-    });
+        Language = LanguageNames.Chinese,
+        AutoCreate = new AutoCreateWorldSettings
+        {
+            WorldSize = AutoCreateWorldSize.Small,
+            WorldDifficulty = AutoCreateWorldDifficulty.Expert,
+            WorldEvil = AutoCreateWorldEvil.Crimson,
+            SpecialSeeds = "For the Worthy|No Traps",
+            SecretSeeds = "mole people|waterpark",
+            EnablePyramidFilter = true,
+            PyramidFilterItemMask = AutoCreatePyramidFilterItem.SandstormInABottleMask | AutoCreatePyramidFilterItem.PharaohSetMask
+        }
+    };
 
-    AssertEqual("1.4.5.6|Small|Expert|Crimson|For the Worthy,No Traps", signature);
+    string signature = WorldPoolSignature.From(settings);
+
+    AssertEqual("1.4.5.6|Small|Expert|Crimson|For the Worthy,No Traps|mole people,waterpark|pyramid=1|pyramidItems=5|name=zh-Hans", signature);
+
+    settings.Language = LanguageNames.English;
+    AssertEqual(
+        "1.4.5.6|Small|Expert|Crimson|For the Worthy,No Traps|mole people,waterpark|pyramid=1|pyramidItems=5|name=en-US",
+        WorldPoolSignature.From(settings));
+}
+
+static void TestWorldPoolFileNameUsesTerrariaSplitTimestamp()
+{
+    MethodInfo method = typeof(WorldPoolStore).GetMethod(
+            "CreateWorldFileName",
+            BindingFlags.Static | BindingFlags.NonPublic)
+        ?? throw new InvalidOperationException("Missing world pool file name builder.");
+    string fileName = (string)(method.Invoke(null, [])
+        ?? throw new InvalidOperationException("World pool file name builder returned null."));
+
+    AssertEqual(true, fileName.StartsWith("TerrariaSplit_", StringComparison.Ordinal));
+    AssertEqual(true, fileName.EndsWith(".wld", StringComparison.Ordinal));
+    AssertEqual(false, fileName.Contains('-', StringComparison.Ordinal));
+    AssertEqual(true, fileName.Length >= "TerrariaSplit_yyyyMMdd_HHmmss_fff.wld".Length);
+}
+
+static void TestTerrariaSeedRandomMatchesUnifiedRandomSequence()
+{
+    var random = new TerrariaSeedRandom(12345);
+
+    AssertEqual(143337951, random.Next());
+    AssertEqual(150666398, random.Next());
+    AssertEqual(1663795458, random.Next());
+    AssertEqual(1097663221, random.Next());
+    AssertEqual(1712597933, random.Next());
+}
+
+static void TestTerrariaCopiedSeedBuilderFormatsOptions()
+{
+    var settings = new AutoCreateWorldSettings
+    {
+        WorldSize = AutoCreateWorldSize.Medium,
+        WorldDifficulty = AutoCreateWorldDifficulty.Expert,
+        WorldEvil = AutoCreateWorldEvil.Random,
+        SpecialSeeds = "Zenith|Skyblock",
+        SecretSeeds = "mole people | waterpark"
+    };
+
+    TerrariaCopiedSeed copiedSeed = TerrariaCopiedSeedBuilder.Create(settings, "123456789", TerrariaWorldSeedOptions.CrimsonEvilCode);
+
+    AssertEqual("2.2.2.511.mole people|waterpark|123456789", copiedSeed.Text);
+    AssertEqual(new TerrariaWorldSeedMetadata("mole people|waterpark|123456789", 2, 2, true, 511), copiedSeed.Metadata);
+
+    settings.SpecialSeeds = string.Empty;
+    settings.SecretSeeds = string.Empty;
+    copiedSeed = TerrariaCopiedSeedBuilder.Create(settings, "42", TerrariaWorldSeedOptions.CorruptionEvilCode);
+
+    AssertEqual("2.2.1.0.42", copiedSeed.Text);
+    AssertEqual(new TerrariaWorldSeedMetadata("42", 2, 2, false, 0), copiedSeed.Metadata);
+}
+
+static void TestTerrariaWorldNameGeneratorFollowsGuiRules()
+{
+    AssertEqual(TerrariaLanguageCodes.English, TerrariaLanguageCodes.FromAppLanguage(LanguageNames.English));
+    AssertEqual(TerrariaLanguageCodes.ChineseSimplified, TerrariaLanguageCodes.FromAppLanguage(LanguageNames.Chinese));
+
+    var data = new TerrariaWorldNameData
+    {
+        Composition = ["first {Adjective} {Location} {Noun}", "last {Adjective}{Location}{Noun}"],
+        Adjective = ["A1", "A2"],
+        Location = ["L1", "L2"],
+        Noun = ["N1", "N2"]
+    };
+
+    AssertEqual("last A2L2N2", TerrariaWorldNameGenerator.Create(data, _ => 0));
+
+    data = new TerrariaWorldNameData
+    {
+        Composition = ["{Adjective} {Location} of {Noun}", "{Adjective}{Location}{Noun}"],
+        Adjective = ["ExtremelyLongAdjective", "A"],
+        Location = ["VeryLongLocation", "B"],
+        Noun = ["VeryLongNoun", "C"]
+    };
+
+    int calls = 0;
+    AssertEqual("ABC", TerrariaWorldNameGenerator.Create(data, max => ++calls <= 4 ? max - 1 : 0));
 }
 
 static void TestSettingsNormalize()
@@ -285,7 +406,8 @@ static void TestSettingsNormalize()
             EnableZenithStarCatch = true,
             ZenithStarCatchStopStage = "not a real stage",
             ZenithStarCatchSpeedSliderValue = 9999,
-            EnablePyramidFilter = true
+            EnablePyramidFilter = true,
+            PyramidFilterItemMask = AutoCreatePyramidFilterItem.AllMask | 8
         }
     };
 
@@ -301,7 +423,11 @@ static void TestSettingsNormalize()
     AssertEqual(AutoCreateZenithStarCatchStage.Pots, settings.AutoCreate.ZenithStarCatchStopStage);
     AssertEqual(AutoCreateZenithStarCatchSpeed.MaximumSliderValue, settings.AutoCreate.ZenithStarCatchSpeedSliderValue);
     AssertEqual(true, settings.AutoCreate.EnablePyramidFilter);
-    AssertEqual(10, AppSettingsDefaults.AutoCreate.SeedPoolTargetCount);
+    AssertEqual(AutoCreatePyramidFilterItem.AllMask, settings.AutoCreate.PyramidFilterItemMask);
+    AssertEqual(
+        AutoCreatePyramidFilterItem.FlyingCarpetMask | AutoCreatePyramidFilterItem.SandstormInABottleMask,
+        AutoCreatePyramidFilterItem.ToMask(AutoCreatePyramidFilterItem.ParseList(" \u98DE\u6BEF | sandstorm | unknown ")));
+    AssertEqual(10, AppSettingsDefaults.AutoCreate.WorldPoolTargetCount);
 
     settings.Advanced = null!;
     SettingsNormalizer.Normalize(settings);
@@ -765,6 +891,38 @@ static void TestSettingsFormSavesTheConstantSpecialSeed()
     });
 }
 
+static void TestSettingsFormSavesPyramidItemFilter()
+{
+    RunSta(() =>
+    {
+        using var form = new SettingsForm(new AppSettings
+        {
+            AutoCreate = new AutoCreateWorldSettings
+            {
+                EnablePyramidFilter = false,
+                PyramidFilterItemMask = AutoCreatePyramidFilterItem.FlyingCarpetMask
+            }
+        });
+        AutomationSettingsPage page = form.PageHost.GetOrCreatePage<AutomationSettingsPage>(SettingsPageId.Automation);
+
+        AssertEqual(false, page.AutoCreatePyramidItemBoxes[AutoCreatePyramidFilterItem.FlyingCarpet].Enabled);
+
+        page.AutoCreatePyramidFilterBox.Checked = true;
+        page.AutoCreatePyramidItemBoxes[AutoCreatePyramidFilterItem.SandstormInABottle].Checked = true;
+        page.AutoCreatePyramidItemBoxes[AutoCreatePyramidFilterItem.FlyingCarpet].Checked = false;
+        page.AutoCreatePyramidItemBoxes[AutoCreatePyramidFilterItem.PharaohSet].Checked = true;
+
+        AssertEqual(true, page.AutoCreatePyramidItemBoxes[AutoCreatePyramidFilterItem.SandstormInABottle].Enabled);
+
+        form.ApplyForTests();
+
+        AssertEqual(true, form.Result.AutoCreate.EnablePyramidFilter);
+        AssertEqual(
+            AutoCreatePyramidFilterItem.SandstormInABottleMask | AutoCreatePyramidFilterItem.PharaohSetMask,
+            form.Result.AutoCreate.PyramidFilterItemMask);
+    });
+}
+
 static void TestSettingsFormAppliesZenithStarCatchOptions()
 {
     RunSta(() =>
@@ -817,7 +975,7 @@ static void TestSettingsFormGatesZenithStarCatchBehindZenithSeed()
     });
 }
 
-static void TestSettingsFormGatesSeedPoolBehindPyramidFilter()
+static void TestSettingsFormKeepsWorldPoolIndependentFromPyramidFilter()
 {
     RunSta(() =>
     {
@@ -826,21 +984,26 @@ static void TestSettingsFormGatesSeedPoolBehindPyramidFilter()
             AutoCreate = new AutoCreateWorldSettings
             {
                 EnablePyramidFilter = false,
-                EnableSeedPool = true,
-                SeedPoolTargetCount = 10
+                EnableWorldPool = true,
+                WorldPoolTargetCount = 10
             }
         });
         AutomationSettingsPage page = form.PageHost.GetOrCreatePage<AutomationSettingsPage>(SettingsPageId.Automation);
 
-        AssertEqual(false, page.AutoCreateSeedPoolBox.Enabled);
-        AssertEqual(false, page.AutoCreateSeedPoolTargetBox.Enabled);
-        AssertEqual(true, page.AutoCreateSeedPoolBox.Checked);
-        AssertEqual("10", page.AutoCreateSeedPoolTargetBox.Text);
+        AssertEqual(true, page.AutoCreateWorldPoolBox.Enabled);
+        AssertEqual(true, page.AutoCreateWorldPoolTargetBox.Enabled);
+        AssertEqual(true, page.AutoCreateWorldPoolBox.Checked);
+        AssertEqual("10", page.AutoCreateWorldPoolTargetBox.Text);
 
         page.AutoCreatePyramidFilterBox.Checked = true;
 
-        AssertEqual(true, page.AutoCreateSeedPoolBox.Enabled);
-        AssertEqual(true, page.AutoCreateSeedPoolTargetBox.Enabled);
+        AssertEqual(true, page.AutoCreateWorldPoolBox.Enabled);
+        AssertEqual(true, page.AutoCreateWorldPoolTargetBox.Enabled);
+
+        page.AutoCreateWorldPoolBox.Checked = false;
+
+        AssertEqual(true, page.AutoCreateWorldPoolBox.Enabled);
+        AssertEqual(false, page.AutoCreateWorldPoolTargetBox.Enabled);
     });
 }
 
@@ -856,11 +1019,11 @@ static void TestDebugSequenceUsesPooledWorldPath()
                 WorldDifficulty = AutoCreateWorldDifficulty.Expert,
                 WorldEvil = AutoCreateWorldEvil.Crimson,
                 SpecialSeeds = AutoCreateSpecialWorldSeed.ForTheWorthy,
-                EnablePyramidFilter = true,
-                EnableSeedPool = true
+                EnablePyramidFilter = false,
+                EnableWorldPool = true
             }
         };
-        using var form = new SettingsForm(settings, seedPoolCountProvider: _ => 1);
+        using var form = new SettingsForm(settings, worldPoolCountProvider: _ => 1);
         TerrariaMenuGeometry geometry = TerrariaMenuGeometry.From(new Size(900, 900));
         MethodInfo method = typeof(DebugSettingsPage).GetMethod(
                 "BuildAutoCreateSequenceText",
@@ -1019,6 +1182,102 @@ static void TestPyramidFilterWorldFileScanner()
     }
 }
 
+static void TestPyramidScannerReadsChestContents()
+{
+    string directory = GetPublishOutputDirectory("test-output", "pyramid-chest-tests");
+    Directory.CreateDirectory(directory);
+    try
+    {
+        var scanner = new TerrariaWorldFilePyramidScanner();
+        TerrariaWorldDimensions dimensions = TerrariaWorldDimensions.FromWorldSize(AutoCreateWorldSize.Small);
+        Rectangle corridor = TerrariaWorldFilePyramidScanner.BuildSpeedrunCorridorBounds(dimensions);
+        int evidenceX = corridor.Left + corridor.Width / 2;
+        int evidenceY = corridor.Top + 32;
+        int chestX = evidenceX + 12;
+        int chestY = evidenceY + 3;
+
+        string chestWorld = Path.Combine(directory, "pyramid-chest.wld");
+        WriteSyntheticWorldFile(
+            chestWorld,
+            dimensions,
+            new SyntheticTileEvidence(evidenceX, evidenceY, false, 0, 34),
+            chests:
+            [
+                new SyntheticChest(
+                    chestX,
+                    chestY,
+                    1,
+                    [
+                        new SyntheticChestItem(0, 857),
+                        new SyntheticChestItem(1, 279, 250)
+                    ]),
+                new SyntheticChest(
+                    corridor.Left + 4,
+                    chestY,
+                    0,
+                    [
+                        new SyntheticChestItem(0, 8, 12)
+                    ])
+            ]);
+
+        bool scanned = scanner.TryScanPyramidChests(
+            chestWorld,
+            AutoCreateWorldSize.Small,
+            out PyramidChestScanResult result,
+            out string detail);
+        if (!scanned)
+        {
+            throw new InvalidOperationException(detail);
+        }
+
+        AssertEqual(string.Empty, detail);
+        AssertEqual(true, result.HasPyramidChest);
+        AssertEqual(1, result.Chests.Count);
+        PyramidChestInfo chest = result.Chests[0];
+        AssertEqual(chestX, chest.X);
+        AssertEqual(chestY, chest.Y);
+        AssertEqual(1, chest.ChestStyle);
+        AssertEqual(true, chest.ContainsItem(857));
+        AssertEqual(false, chest.ContainsItem(934));
+        AssertEqual(true, result.ContainsItem(PyramidChestItemNames.SandstormInABottle));
+        AssertEqual(false, result.ContainsItem(PyramidChestItemNames.FlyingCarpet));
+        AssertEqual(true, PyramidFilterItemMatcher.Matches(result, AutoCreatePyramidFilterItem.SandstormInABottleMask));
+        AssertEqual(false, PyramidFilterItemMatcher.Matches(result, AutoCreatePyramidFilterItem.FlyingCarpetMask));
+        AssertEqual(false, PyramidFilterItemMatcher.Matches(result, AutoCreatePyramidFilterItem.PharaohSetMask));
+        AssertEqual(true, result.FormatSummary().Contains("Sandstorm in a Bottle", StringComparison.Ordinal));
+        AssertEqual(true, result.FormatSummary().Contains("#279 x250", StringComparison.Ordinal));
+
+        var pharaohResult = new PyramidChestScanResult(
+        [
+            new PyramidChestInfo(
+                chestX,
+                chestY,
+                1,
+                [
+                    new PyramidChestItem(0, PyramidChestItemNames.PharaohMask, 1, 0),
+                    new PyramidChestItem(1, PyramidChestItemNames.PharaohRobe, 1, 0)
+                ])
+        ]);
+        var partialPharaohResult = new PyramidChestScanResult(
+        [
+            new PyramidChestInfo(
+                chestX,
+                chestY,
+                1,
+                [
+                    new PyramidChestItem(0, PyramidChestItemNames.PharaohMask, 1, 0)
+                ])
+        ]);
+        AssertEqual(true, PyramidFilterItemMatcher.Matches(pharaohResult, AutoCreatePyramidFilterItem.PharaohSetMask));
+        AssertEqual(false, PyramidFilterItemMatcher.Matches(partialPharaohResult, AutoCreatePyramidFilterItem.PharaohSetMask));
+        AssertEqual(true, PyramidFilterItemMatcher.Matches(partialPharaohResult, 0));
+    }
+    finally
+    {
+        DeleteDirectoryIfExists(directory);
+    }
+}
+
 static void TestOverlayCompositeLayoutCalculator()
 {
     var settings = new AppSettings();
@@ -1110,22 +1369,31 @@ static void WriteSyntheticWorldFile(
     TerrariaWorldDimensions dimensions,
     SyntheticTileEvidence? evidence,
     string seedText = "server-picked-seed",
-    bool crimson = true)
+    bool crimson = true,
+    IReadOnlyList<SyntheticChest>? chests = null)
 {
+    chests ??= [];
     using FileStream stream = File.Create(path);
     using BinaryWriter writer = new(stream);
     writer.Write(279);
     writer.Write(0x026369676F6C6572UL);
     writer.Write((uint)0);
     writer.Write((ulong)0);
-    writer.Write((short)2);
+    writer.Write((short)3);
     long sectionPointersOffset = stream.Position;
     writer.Write(0);
     writer.Write(0);
+    writer.Write(0);
     writer.Write((short)256);
-    for (int i = 0; i < 32; i++)
+    for (int byteIndex = 0; byteIndex < 32; byteIndex++)
     {
-        writer.Write((byte)0);
+        byte bits = 0;
+        if (byteIndex == 2)
+        {
+            bits |= 1 << 5; // Tile 21, basic chests, is frame-important.
+        }
+
+        writer.Write(bits);
     }
 
     int headerSectionOffset = (int)stream.Position;
@@ -1134,29 +1402,37 @@ static void WriteSyntheticWorldFile(
     stream.Position = sectionPointersOffset;
     writer.Write(headerSectionOffset);
     writer.Write(tileSectionOffset);
+    long chestPointerOffset = stream.Position;
+    writer.Write(0);
     stream.Position = tileSectionOffset;
+
+    List<SyntheticTileEvidence> tileEvidence = new();
+    if (evidence is not null)
+    {
+        tileEvidence.Add(evidence.Value);
+    }
+
+    foreach (SyntheticChest chest in chests)
+    {
+        tileEvidence.Add(new SyntheticTileEvidence(
+            chest.X,
+            chest.Y,
+            true,
+            21,
+            34,
+            FrameX: (short)(chest.Style * 36)));
+    }
 
     for (int x = 0; x < dimensions.Width; x++)
     {
-        if (evidence is SyntheticTileEvidence tile && tile.X == x && tile.Y >= 0 && tile.Y < dimensions.Height)
-        {
-            if (tile.Y > 0)
-            {
-                WriteSyntheticTile(writer, false, 0, 0, tile.Y);
-            }
-
-            WriteSyntheticTile(writer, tile.Active, tile.Type, tile.Wall, 1, tile.QuaternaryFlags);
-            int trailing = dimensions.Height - tile.Y - 1;
-            if (trailing > 0)
-            {
-                WriteSyntheticTile(writer, false, 0, 0, trailing);
-            }
-        }
-        else
-        {
-            WriteSyntheticTile(writer, false, 0, 0, dimensions.Height);
-        }
+        WriteSyntheticTileColumn(writer, dimensions.Height, tileEvidence.Where(tile => tile.X == x));
     }
+
+    int chestSectionOffset = (int)stream.Position;
+    stream.Position = chestPointerOffset;
+    writer.Write(chestSectionOffset);
+    stream.Position = chestSectionOffset;
+    WriteSyntheticChests(writer, chests, version: 279);
 }
 
 static void WriteSyntheticWorldHeader(
@@ -1210,7 +1486,9 @@ static void WriteSyntheticTile(
     ushort type,
     ushort wall,
     int runLength,
-    byte quaternaryFlags = 0)
+    byte quaternaryFlags = 0,
+    short frameX = 0,
+    short frameY = 0)
 {
     byte flags = 0;
     byte secondaryFlags = 0;
@@ -1262,6 +1540,12 @@ static void WriteSyntheticTile(
         {
             writer.Write((byte)(type >> 8));
         }
+
+        if (type == 21)
+        {
+            writer.Write(frameX);
+            writer.Write(frameY);
+        }
     }
 
     if (wall > 0)
@@ -1278,6 +1562,78 @@ static void WriteSyntheticTile(
         else
         {
             writer.Write((short)run);
+        }
+    }
+}
+
+static void WriteSyntheticTileColumn(
+    BinaryWriter writer,
+    int height,
+    IEnumerable<SyntheticTileEvidence> evidence)
+{
+    int y = 0;
+    foreach (SyntheticTileEvidence tile in evidence
+        .Where(tile => tile.Y >= 0 && tile.Y < height)
+        .OrderBy(tile => tile.Y))
+    {
+        if (tile.Y < y)
+        {
+            continue;
+        }
+
+        if (tile.Y > y)
+        {
+            WriteSyntheticTile(writer, false, 0, 0, tile.Y - y);
+        }
+
+        WriteSyntheticTile(
+            writer,
+            tile.Active,
+            tile.Type,
+            tile.Wall,
+            1,
+            tile.QuaternaryFlags,
+            tile.FrameX,
+            tile.FrameY);
+        y = tile.Y + 1;
+    }
+
+    if (y < height)
+    {
+        WriteSyntheticTile(writer, false, 0, 0, height - y);
+    }
+}
+
+static void WriteSyntheticChests(BinaryWriter writer, IReadOnlyList<SyntheticChest> chests, int version)
+{
+    writer.Write((short)chests.Count);
+    if (version < 294)
+    {
+        writer.Write((short)40);
+    }
+
+    foreach (SyntheticChest chest in chests)
+    {
+        writer.Write(chest.X);
+        writer.Write(chest.Y);
+        writer.Write(string.Empty);
+        if (version >= 294)
+        {
+            writer.Write(40);
+        }
+
+        Dictionary<int, SyntheticChestItem> items = chest.Items.ToDictionary(item => item.Slot);
+        for (int slot = 0; slot < 40; slot++)
+        {
+            if (!items.TryGetValue(slot, out SyntheticChestItem item) || item.Stack <= 0)
+            {
+                writer.Write((short)0);
+                continue;
+            }
+
+            writer.Write((short)item.Stack);
+            writer.Write(item.Type);
+            writer.Write(item.Prefix);
         }
     }
 }
@@ -1343,8 +1699,10 @@ static void TestSettingsFormAppliesTextOutlineAndShadowColors()
         colorTextBoxes[nameof(UiColorSettings.ReferenceTextShadow)].Text = "#445566";
         colorTextBoxes[nameof(UiColorSettings.TimerPausedTextOutline)].Text = "#778899";
         colorTextBoxes[nameof(UiColorSettings.TimerPausedTextShadow)].Text = "#AABBCC";
-        colorTextBoxes[nameof(UiColorSettings.SplitCompletionLabelText)].Text = "#DDEEFF";
-        colorTextBoxes[nameof(UiColorSettings.SplitCompletionTimeText)].Text = "#FEDCBA";
+        colorTextBoxes[nameof(UiColorSettings.SplitCompletionSegmentLabelText)].Text = "#DDEEFF";
+        colorTextBoxes[nameof(UiColorSettings.SplitCompletionLabelText)].Text = "#FEDCBA";
+        colorTextBoxes[nameof(UiColorSettings.SplitCompletionSegmentTimeText)].Text = "#123ABC";
+        colorTextBoxes[nameof(UiColorSettings.SplitCompletionTimeText)].Text = "#456DEF";
 
         form.ApplyForTests();
 
@@ -1352,9 +1710,41 @@ static void TestSettingsFormAppliesTextOutlineAndShadowColors()
         AssertEqual("#445566", form.Result.Colors.ReferenceTextShadow);
         AssertEqual("#778899", form.Result.Colors.TimerPausedTextOutline);
         AssertEqual("#AABBCC", form.Result.Colors.TimerPausedTextShadow);
-        AssertEqual("#DDEEFF", form.Result.Colors.SplitCompletionLabelText);
-        AssertEqual("#FEDCBA", form.Result.Colors.SplitCompletionTimeText);
+        AssertEqual("#DDEEFF", form.Result.Colors.SplitCompletionSegmentLabelText);
+        AssertEqual("#FEDCBA", form.Result.Colors.SplitCompletionLabelText);
+        AssertEqual("#123ABC", form.Result.Colors.SplitCompletionSegmentTimeText);
+        AssertEqual("#456DEF", form.Result.Colors.SplitCompletionTimeText);
     });
+}
+
+static void TestColorSettingsLabelsFollowRequestedOrder()
+{
+    string[] labels =
+    [
+        .. SettingsDescriptors.TextColors.Select(descriptor => descriptor.Label),
+        .. SettingsDescriptors.AnimationColors.Select(descriptor => descriptor.Label)
+    ];
+
+    string[] expected =
+    [
+        "Reference time (future stage)",
+        "Reference time (current stage)",
+        "Cumulative time (completed stage)",
+        "Delta (fast)",
+        "Delta (slow)",
+        "Main timer (not timing)",
+        "Main timer (fast)",
+        "Main timer (slow)",
+        "Main timer (total fast)",
+        "Main timer (total slow)",
+        "Main timer (paused)",
+        "Segment time hint text",
+        "Cumulative time hint text",
+        "Segment time",
+        "Cumulative time"
+    ];
+
+    AssertEqual(string.Join("|", expected), string.Join("|", labels));
 }
 
 static void TestMainFormPreservesSizeWhenApplyingNonLayoutSettings()
@@ -1977,6 +2367,18 @@ static void Nearly(double expected, double actual, double tolerance)
     }
 }
 
-readonly record struct SyntheticTileEvidence(int X, int Y, bool Active, ushort Type, ushort Wall, byte QuaternaryFlags = 0);
+readonly record struct SyntheticTileEvidence(
+    int X,
+    int Y,
+    bool Active,
+    ushort Type,
+    ushort Wall,
+    byte QuaternaryFlags = 0,
+    short FrameX = 0,
+    short FrameY = 0);
+
+readonly record struct SyntheticChest(int X, int Y, int Style, IReadOnlyList<SyntheticChestItem> Items);
+
+readonly record struct SyntheticChestItem(int Slot, int Type, int Stack = 1, byte Prefix = 0);
 
 readonly record struct DirectorySnapshot(bool Exists, Dictionary<string, byte[]> Files);

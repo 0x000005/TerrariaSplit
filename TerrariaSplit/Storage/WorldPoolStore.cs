@@ -1,22 +1,24 @@
+using System.Globalization;
+
 namespace TerrariaSplit;
 
-// Persisted, thread-safe pool of generated world files known to contain a pyramid for
-// one WorldGenSignature. The foreground workflow installs the first matching .wld into
+// Persisted, thread-safe pool of generated world files for one WorldPoolSignature.
+// The foreground workflow installs the first matching .wld into
 // Terraria's Worlds folder instead of replaying a seed through the UI.
-internal sealed class SeedPoolStore
+internal sealed class WorldPoolStore
 {
-    private static readonly string RootDirectory = Path.Combine(AppContext.BaseDirectory, "seed-pool");
-    private static readonly string FilePath = Path.Combine(RootDirectory, "seed-pool.json");
+    private static readonly string RootDirectory = Path.Combine(AppContext.BaseDirectory, "world-pool");
+    private static readonly string FilePath = Path.Combine(RootDirectory, "world-pool.json");
     private static readonly string WorldDirectory = Path.Combine(RootDirectory, "worlds");
 
     private readonly object sync = new();
-    private SeedPoolData data;
+    private WorldPoolData data;
 
-    public SeedPoolStore()
+    public WorldPoolStore()
     {
-        data = JsonFileStore.Read<SeedPoolData>(FilePath, "seed pool") ?? new SeedPoolData();
+        data = JsonFileStore.Read<WorldPoolData>(FilePath, "world pool") ?? new WorldPoolData();
         data.Signature ??= string.Empty;
-        data.Worlds ??= new List<SeedPoolWorldEntry>();
+        data.Worlds ??= new List<WorldPoolEntry>();
         PruneMissingFiles(persist: true);
     }
 
@@ -36,7 +38,7 @@ internal sealed class SeedPoolStore
             if (!SignatureMatches(signature))
             {
                 DeletePoolFiles();
-                data = new SeedPoolData { Signature = signature };
+                data = new WorldPoolData { Signature = signature };
                 Persist();
             }
         }
@@ -46,9 +48,9 @@ internal sealed class SeedPoolStore
         string signature,
         string sourceWorldPath,
         TerrariaWorldSeedMetadata metadata,
-        out SeedPoolWorldEntry entry)
+        out WorldPoolEntry entry)
     {
-        entry = new SeedPoolWorldEntry();
+        entry = new WorldPoolEntry();
         if (string.IsNullOrWhiteSpace(sourceWorldPath) || !File.Exists(sourceWorldPath))
         {
             return false;
@@ -64,25 +66,25 @@ internal sealed class SeedPoolStore
             try
             {
                 Directory.CreateDirectory(WorldDirectory);
-                string fileName = CreateWorldFileName(sourceWorldPath);
+                string fileName = CreateWorldFileName();
                 string targetPath = Path.Combine(WorldDirectory, fileName);
                 File.Copy(sourceWorldPath, targetPath, overwrite: false);
                 CopyBackupIfPresent(sourceWorldPath, targetPath);
 
-                entry = SeedPoolWorldEntry.From(fileName, metadata);
+                entry = WorldPoolEntry.From(fileName, metadata);
                 data.Worlds.Add(entry);
                 Persist();
                 return true;
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                AppLogger.Error(ex, "Seed pool failed to bank generated world file.");
+                AppLogger.Error(ex, "World pool failed to bank generated world file.");
                 return false;
             }
         }
     }
 
-    public bool TryPeekFirst(string signature, out SeedPoolWorldEntry entry)
+    public bool TryPeekFirst(string signature, out WorldPoolEntry entry)
     {
         lock (sync)
         {
@@ -94,11 +96,11 @@ internal sealed class SeedPoolStore
             }
         }
 
-        entry = new SeedPoolWorldEntry();
+        entry = new WorldPoolEntry();
         return false;
     }
 
-    public void RemoveFirst(string signature, SeedPoolWorldEntry entry)
+    public void RemoveFirst(string signature, WorldPoolEntry entry)
     {
         lock (sync)
         {
@@ -113,7 +115,7 @@ internal sealed class SeedPoolStore
         }
     }
 
-    public bool TryInstallWorld(SeedPoolWorldEntry entry, out string installedPath, out string message)
+    public bool TryInstallWorld(WorldPoolEntry entry, out string installedPath, out string message)
     {
         installedPath = string.Empty;
         message = string.Empty;
@@ -140,13 +142,13 @@ internal sealed class SeedPoolStore
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
                 message = ex.Message;
-                AppLogger.Error(ex, "Seed pool failed to install pooled world file.");
+                AppLogger.Error(ex, "World pool failed to install pooled world file.");
                 return false;
             }
         }
     }
 
-    public bool TryGetWorldPath(SeedPoolWorldEntry entry, out string worldPath)
+    public bool TryGetWorldPath(WorldPoolEntry entry, out string worldPath)
     {
         lock (sync)
         {
@@ -155,7 +157,7 @@ internal sealed class SeedPoolStore
         }
     }
 
-    private string? TryGetEntryPath(SeedPoolWorldEntry entry)
+    private string? TryGetEntryPath(WorldPoolEntry entry)
     {
         if (string.IsNullOrWhiteSpace(entry.WorldFileName))
         {
@@ -172,15 +174,25 @@ internal sealed class SeedPoolStore
         return string.Equals(data.Signature, signature, StringComparison.Ordinal);
     }
 
-    private static string CreateWorldFileName(string sourceWorldPath)
+    private static string CreateWorldFileName()
     {
-        string stem = Path.GetFileNameWithoutExtension(sourceWorldPath);
-        if (string.IsNullOrWhiteSpace(stem))
+        string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss_fff", CultureInfo.InvariantCulture);
+        string fileName = $"TerrariaSplit_{timestamp}.wld";
+        if (!File.Exists(Path.Combine(WorldDirectory, fileName)))
         {
-            stem = "pooled-world";
+            return fileName;
         }
 
-        return $"{stem}-{Guid.NewGuid():N}.wld";
+        for (int suffix = 2; suffix < 1000; suffix++)
+        {
+            fileName = $"TerrariaSplit_{timestamp}_{suffix.ToString(CultureInfo.InvariantCulture)}.wld";
+            if (!File.Exists(Path.Combine(WorldDirectory, fileName)))
+            {
+                return fileName;
+            }
+        }
+
+        return $"TerrariaSplit_{timestamp}_{Guid.NewGuid():N}.wld";
     }
 
     private void PruneMissingFiles(bool persist)
@@ -203,7 +215,7 @@ internal sealed class SeedPoolStore
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                AppLogger.Error(ex, $"Seed pool failed to copy optional backup file: {sourceBackupPath}");
+                AppLogger.Error(ex, $"World pool failed to copy optional backup file: {sourceBackupPath}");
             }
         }
     }
@@ -221,7 +233,7 @@ internal sealed class SeedPoolStore
         }
     }
 
-    private void DeleteEntryFiles(SeedPoolWorldEntry entry)
+    private void DeleteEntryFiles(WorldPoolEntry entry)
     {
         if (TryGetEntryPath(entry) is string worldPath)
         {
@@ -241,24 +253,24 @@ internal sealed class SeedPoolStore
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            AppLogger.Error(ex, $"Seed pool failed to delete file: {path}");
+            AppLogger.Error(ex, $"World pool failed to delete file: {path}");
         }
     }
 
     private void Persist()
     {
-        JsonFileStore.Write(FilePath, data, "seed pool");
+        JsonFileStore.Write(FilePath, data, "world pool");
     }
 
-    internal sealed class SeedPoolData
+    internal sealed class WorldPoolData
     {
         public string? Signature { get; set; } = string.Empty;
 
-        public List<SeedPoolWorldEntry> Worlds { get; set; } = new();
+        public List<WorldPoolEntry> Worlds { get; set; } = new();
     }
 }
 
-internal sealed class SeedPoolWorldEntry
+internal sealed class WorldPoolEntry
 {
     public string WorldFileName { get; set; } = string.Empty;
 
@@ -272,9 +284,11 @@ internal sealed class SeedPoolWorldEntry
 
     public int SpecialSeedMask { get; set; }
 
-    public static SeedPoolWorldEntry From(string worldFileName, TerrariaWorldSeedMetadata metadata)
+    public static WorldPoolEntry From(
+        string worldFileName,
+        TerrariaWorldSeedMetadata metadata)
     {
-        return new SeedPoolWorldEntry
+        return new WorldPoolEntry
         {
             WorldFileName = worldFileName,
             SeedText = metadata.SeedText,

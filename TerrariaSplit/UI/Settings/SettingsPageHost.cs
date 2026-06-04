@@ -116,18 +116,30 @@ internal sealed class SettingsPageHost
 
     public void ApplyToSettings()
     {
-        ApplyIfCreated(SettingsPageId.General);
-        ApplyIfCreated(SettingsPageId.Automation);
-        ApplyIfCreated(SettingsPageId.Data);
-        ApplyIfCreated(SettingsPageId.Boss);
-        AppSettingsStore.Normalize(draft);
-        ApplyIfCreated(SettingsPageId.Effects);
-        AppSettingsStore.Normalize(draft);
-        ApplyIfCreated(SettingsPageId.Ui);
-        ApplyIfCreated(SettingsPageId.Advanced);
-        ApplyIfCreated(SettingsPageId.Colors);
-        ApplyIfCreated(SettingsPageId.Sounds);
-        ApplyIfCreated(SettingsPageId.Debug);
+        ApplyTo(draft);
+    }
+
+    public AppSettings CreateAppliedSnapshot()
+    {
+        AppSettings snapshot = AppSettingsStore.Clone(draft);
+        ApplyTo(snapshot);
+        return snapshot;
+    }
+
+    private void ApplyTo(AppSettings target)
+    {
+        ApplyIfCreated(SettingsPageId.General, target);
+        ApplyIfCreated(SettingsPageId.Automation, target);
+        ApplyIfCreated(SettingsPageId.Data, target);
+        ApplyIfCreated(SettingsPageId.Boss, target);
+        AppSettingsStore.Normalize(target);
+        ApplyIfCreated(SettingsPageId.Effects, target);
+        AppSettingsStore.Normalize(target);
+        ApplyIfCreated(SettingsPageId.Ui, target);
+        ApplyIfCreated(SettingsPageId.Advanced, target);
+        ApplyIfCreated(SettingsPageId.Colors, target);
+        ApplyIfCreated(SettingsPageId.Sounds, target);
+        ApplyIfCreated(SettingsPageId.Debug, target);
     }
 
     public void NotifyModelChanged(SettingsModelChange change)
@@ -146,12 +158,12 @@ internal sealed class SettingsPageHost
         }
     }
 
-    private void ApplyIfCreated(SettingsPageId id)
+    private void ApplyIfCreated(SettingsPageId id, AppSettings target)
     {
         PageEntry entry = GetEntry(id);
         if (entry.PageControl is not null)
         {
-            entry.PageDefinition.Apply(draft);
+            entry.PageDefinition.Apply(target);
         }
     }
 

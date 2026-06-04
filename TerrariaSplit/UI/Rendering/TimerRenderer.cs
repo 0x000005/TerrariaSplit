@@ -136,6 +136,12 @@ internal static class TimerRenderer
         float mainY = baselineY - mainMetrics.Ascent;
         float millisecondsX = mainX + (context.Settings.Columns.Timer.Show ? mainSize.Width : 0f) + gap;
         float millisecondsY = baselineY - millisecondsMetrics.Ascent;
+        RectangleF mainVisualBounds = context.Settings.Columns.Timer.Show
+            ? OverlayTextMetrics.GetTextVisualBounds(graphics, mainText, mainFont, mainX, mainY, format)
+            : RectangleF.Empty;
+        RectangleF millisecondsVisualBounds = context.Settings.Columns.TimerMilliseconds.Show
+            ? OverlayTextMetrics.GetTextVisualBounds(graphics, millisecondsText, millisecondsFont, millisecondsX, millisecondsY, format)
+            : RectangleF.Empty;
 
         if (context.Settings.Columns.Timer.Show)
         {
@@ -168,8 +174,16 @@ internal static class TimerRenderer
         float groupWidth = (context.Settings.Columns.Timer.Show ? mainSize.Width : 0f) + gap +
             (context.Settings.Columns.TimerMilliseconds.Show ? millisecondsSize.Width : 0f);
         float mainHeight = mainMetrics.Ascent + mainMetrics.Descent;
-        float anchorTop = context.Settings.Columns.Timer.Show ? mainY : groupY;
-        float anchorHeight = context.Settings.Columns.Timer.Show ? mainHeight : groupHeight;
+        float anchorTop = context.Settings.Columns.Timer.Show && mainVisualBounds.Height > 0f
+            ? mainVisualBounds.Top
+            : context.Settings.Columns.TimerMilliseconds.Show && millisecondsVisualBounds.Height > 0f
+                ? millisecondsVisualBounds.Top
+                : context.Settings.Columns.Timer.Show ? mainY : groupY;
+        float anchorHeight = context.Settings.Columns.Timer.Show && mainVisualBounds.Height > 0f
+            ? mainVisualBounds.Height
+            : context.Settings.Columns.TimerMilliseconds.Show && millisecondsVisualBounds.Height > 0f
+                ? millisecondsVisualBounds.Height
+                : context.Settings.Columns.Timer.Show ? mainHeight : groupHeight;
         return new TimerTextLayout(
             mainX + groupWidth,
             anchorTop,

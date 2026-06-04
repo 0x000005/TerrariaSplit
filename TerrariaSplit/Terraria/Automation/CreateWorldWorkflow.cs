@@ -13,13 +13,13 @@ internal sealed class CreateWorldWorkflow : IDisposable
     private readonly ZenithStarCatchAutomation zenithStarCatchAutomation;
     private readonly PyramidFilterAutomation pyramidFilterAutomation;
     private readonly TerrariaWorldFilePyramidScanner worldFileScanner = new();
-    private readonly SeedPoolStore? seedPool;
+    private readonly WorldPoolStore? worldPool;
     private TimeSpan shortActionDelay = TimeSpan.FromMilliseconds(AppSettingsDefaults.AutoCreate.ShortActionDelayMilliseconds);
     private TimeSpan menuActionDelay = TimeSpan.FromMilliseconds(AppSettingsDefaults.AutoCreate.MenuActionDelayMilliseconds);
 
-    public CreateWorldWorkflow(SeedPoolStore? seedPool = null)
+    public CreateWorldWorkflow(WorldPoolStore? worldPool = null)
     {
-        this.seedPool = seedPool;
+        this.worldPool = worldPool;
         zenithStarCatchAutomation = new ZenithStarCatchAutomation(automation);
         pyramidFilterAutomation = new PyramidFilterAutomation(automation);
     }
@@ -72,8 +72,8 @@ internal sealed class CreateWorldWorkflow : IDisposable
                     return;
                 }
 
-                string worldGenSignature = WorldGenSignature.From(autoCreate);
-                SeedPoolWorldEntry? installedPooledWorld = null;
+                string worldGenSignature = WorldPoolSignature.From(settings);
+                WorldPoolEntry? installedPooledWorld = null;
                 if (!await automation.RunStepAsync(
                         "install pooled world",
                         _ =>
@@ -131,7 +131,7 @@ internal sealed class CreateWorldWorkflow : IDisposable
 
                 if (installedPooledWorld is not null)
                 {
-                    seedPool?.RemoveFirst(worldGenSignature, installedPooledWorld);
+                    worldPool?.RemoveFirst(worldGenSignature, installedPooledWorld);
                     AppLogger.Info(
                         $"Create world automation installed pooled world {installedPooledWorld.WorldFileName}; " +
                         "stopped at world select.");
@@ -177,33 +177,31 @@ internal sealed class CreateWorldWorkflow : IDisposable
         return await ReturnToMainMenuByBackTwiceAsync(geometry, cancellationToken);
     }
 
-    private SeedPoolWorldEntry? TryInstallPooledWorld(AutoCreateWorldSettings settings, string signature)
+    private WorldPoolEntry? TryInstallPooledWorld(AutoCreateWorldSettings settings, string signature)
     {
-        if (seedPool is null ||
-            !settings.EnablePyramidFilter ||
-            !settings.EnableSeedPool ||
-            !SeedPoolSupport.IsSupported(settings))
+        if (worldPool is null ||
+            !settings.EnableWorldPool)
         {
             return null;
         }
 
-        while (seedPool.TryPeekFirst(signature, out SeedPoolWorldEntry entry))
+        while (worldPool.TryPeekFirst(signature, out WorldPoolEntry entry))
         {
             TerrariaWorldSeedMetadata storedMetadata = entry.ToMetadata();
             if (!storedMetadata.MatchesWorldOptions(settings))
             {
                 AppLogger.Info(
-                    $"Seed pool discarded world {entry.WorldFileName}: stored metadata " +
+                    $"World pool discarded world {entry.WorldFileName}: stored metadata " +
                     $"({storedMetadata.FormatWorldOptions()}) does not match current settings " +
                     $"({TerrariaWorldSeedMetadata.FormatExpectedWorldOptions(settings)}).");
-                seedPool.RemoveFirst(signature, entry);
+                worldPool.RemoveFirst(signature, entry);
                 continue;
             }
 
-            if (!seedPool.TryGetWorldPath(entry, out string pooledWorldPath))
+            if (!worldPool.TryGetWorldPath(entry, out string pooledWorldPath))
             {
-                AppLogger.Info($"Seed pool discarded world {entry.WorldFileName}: pooled world file is missing.");
-                seedPool.RemoveFirst(signature, entry);
+                AppLogger.Info($"World pool discarded world {entry.WorldFileName}: pooled world file is missing.");
+                worldPool.RemoveFirst(signature, entry);
                 continue;
             }
 
@@ -212,14 +210,14 @@ internal sealed class CreateWorldWorkflow : IDisposable
                 !actualMetadata.MatchesWorldOptions(settings))
             {
                 AppLogger.Info(
-                    $"Seed pool discarded world {entry.WorldFileName}: actual metadata " +
+                    $"World pool discarded world {entry.WorldFileName}: actual metadata " +
                     $"({(detail.Length > 0 ? detail : actualMetadata.FormatWorldOptions())}) does not match stored/current settings " +
                     $"({TerrariaWorldSeedMetadata.FormatExpectedWorldOptions(settings)}).");
-                seedPool.RemoveFirst(signature, entry);
+                worldPool.RemoveFirst(signature, entry);
                 continue;
             }
 
-            if (seedPool.TryInstallWorld(entry, out string installedPath, out string message))
+            if (worldPool.TryInstallWorld(entry, out string installedPath, out string message))
             {
                 AppLogger.Info(
                     $"Create world automation installed pooled world {entry.WorldFileName} " +

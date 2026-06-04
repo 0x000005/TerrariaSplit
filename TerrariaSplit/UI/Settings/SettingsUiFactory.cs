@@ -175,16 +175,22 @@ internal sealed class SettingsUiFactory
 
     public Label CreateWrappedFieldLabel(string text, Color color)
     {
-        return new Label
+        Label label = new()
         {
-            AutoSize = true,
+            AutoSize = false,
             Dock = DockStyle.Top,
             Font = UiTheme.FormFont(),
             ForeColor = color,
             Margin = new Padding(0, 8, 0, 8),
-            MaximumSize = new Size(920, 0),
-            Text = localize(text)
+            Text = localize(text),
+            TextAlign = ContentAlignment.TopLeft
         };
+        label.SizeChanged += (_, _) => UpdateWrappedLabelHeight(label);
+        label.TextChanged += (_, _) => UpdateWrappedLabelHeight(label);
+        label.FontChanged += (_, _) => UpdateWrappedLabelHeight(label);
+        label.ParentChanged += (_, _) => UpdateWrappedLabelHeight(label);
+        UpdateWrappedLabelHeight(label);
+        return label;
     }
 
     public Label CreateSubsectionLabel(string text)
@@ -193,7 +199,7 @@ internal sealed class SettingsUiFactory
         {
             AutoSize = true,
             Dock = DockStyle.Top,
-            Font = UiTheme.FormFont(10f, FontStyle.Bold),
+            Font = UiTheme.FormFont(11f, FontStyle.Bold),
             ForeColor = UiTheme.Text,
             Margin = new Padding(0, 14, 0, 8),
             Text = localize(text)
@@ -511,6 +517,27 @@ internal sealed class SettingsUiFactory
             _ => Math.Max(0, (panel.ClientSize.Width - control.Width) / 2)
         };
         control.Top = Math.Max(0, (panel.ClientSize.Height - control.Height) / 2);
+    }
+
+    private static void UpdateWrappedLabelHeight(Label label)
+    {
+        int width = label.Width;
+        if (width <= 0 && label.Parent is not null)
+        {
+            width = label.Parent.ClientSize.Width - label.Margin.Horizontal;
+        }
+
+        width = Math.Max(1, width);
+        Size measured = TextRenderer.MeasureText(
+            label.Text,
+            label.Font,
+            new Size(width, int.MaxValue),
+            TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl);
+        int height = Math.Max(label.Font.Height, measured.Height);
+        if (label.Height != height)
+        {
+            label.Height = height;
+        }
     }
 
     private static ToolTip CreateOverflowToolTip()

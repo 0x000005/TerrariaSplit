@@ -329,6 +329,8 @@ internal static class SplitCompletionAnimationRenderer
             animation.PersonalBestSegmentComparison,
             animation.ShowSegmentComparison,
             animation.SegmentTimeOutlineStyle,
+            context.Palette.SplitCompletionSegmentLabelText,
+            context.Palette.SplitCompletionSegmentTimeText,
             labelFont,
             valueFont,
             deltaFont,
@@ -347,6 +349,8 @@ internal static class SplitCompletionAnimationRenderer
             animation.ReferenceSplitComparison,
             animation.ShowSplitComparison,
             animation.SplitTimeOutlineStyle,
+            context.Palette.SplitCompletionLabelText,
+            context.Palette.SplitCompletionTimeText,
             labelFont,
             valueFont,
             deltaFont,
@@ -489,6 +493,8 @@ internal static class SplitCompletionAnimationRenderer
         SplitComparison comparison,
         bool showComparison,
         string outlineStyle,
+        Color labelColor,
+        Color valueColor,
         Font labelFont,
         Font valueFont,
         Font deltaFont,
@@ -521,7 +527,7 @@ internal static class SplitCompletionAnimationRenderer
             bounds.Top,
             (int)Math.Ceiling(centerX + labelHalfWidth),
             bounds.Top + labelHeight);
-        using var labelBrush = new SolidBrush(TextEffectRenderer.WithOpacity(context.Palette.SplitCompletionLabelText, opacity * 0.86f));
+        using var labelBrush = new SolidBrush(TextEffectRenderer.WithOpacity(labelColor, opacity * 0.86f));
         TextEffectRenderer.DrawText(
             graphics,
             label,
@@ -544,7 +550,7 @@ internal static class SplitCompletionAnimationRenderer
                 graphics,
                 value,
                 valueFont,
-                context.Palette.SplitCompletionTimeText,
+                valueColor,
                 startX,
                 valueY,
                 format,
@@ -559,7 +565,7 @@ internal static class SplitCompletionAnimationRenderer
                 graphics,
                 value,
                 valueFont,
-                context.Palette.SplitCompletionTimeText,
+                valueColor,
                 startX,
                 valueY,
                 format,

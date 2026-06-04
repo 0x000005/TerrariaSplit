@@ -8,7 +8,7 @@ internal sealed class SettingsDialogHost : IDisposable
     private readonly AppSettings initialSettings;
     private readonly Func<RuntimePerformanceDiagnostics> runtimeDiagnosticsProvider;
     private readonly Func<RuntimeDebugSnapshot> runtimeDebugSnapshotProvider;
-    private readonly Func<AutoCreateWorldSettings, int> seedPoolCountProvider;
+    private readonly Func<AppSettings, int> worldPoolCountProvider;
     private readonly Action<Action> dispatchToOwner;
     private readonly Action<AppSettings> appliedCallback;
     private readonly Action<SettingsDialogResult> closedCallback;
@@ -25,7 +25,7 @@ internal sealed class SettingsDialogHost : IDisposable
         AppSettings initialSettings,
         Func<RuntimePerformanceDiagnostics> runtimeDiagnosticsProvider,
         Func<RuntimeDebugSnapshot> runtimeDebugSnapshotProvider,
-        Func<AutoCreateWorldSettings, int> seedPoolCountProvider,
+        Func<AppSettings, int> worldPoolCountProvider,
         Action<Action> dispatchToOwner,
         Action<AppSettings> appliedCallback,
         Action<SettingsDialogResult> closedCallback,
@@ -35,7 +35,7 @@ internal sealed class SettingsDialogHost : IDisposable
         this.initialSettings = AppSettingsStore.Clone(initialSettings);
         this.runtimeDiagnosticsProvider = runtimeDiagnosticsProvider;
         this.runtimeDebugSnapshotProvider = runtimeDebugSnapshotProvider;
-        this.seedPoolCountProvider = seedPoolCountProvider;
+        this.worldPoolCountProvider = worldPoolCountProvider;
         this.dispatchToOwner = dispatchToOwner;
         this.appliedCallback = appliedCallback;
         this.closedCallback = closedCallback;
@@ -120,7 +120,7 @@ internal sealed class SettingsDialogHost : IDisposable
             initialSettings,
             runtimeDiagnosticsProvider,
             runtimeDebugSnapshotProvider,
-            seedPoolCountProvider);
+            worldPoolCountProvider);
         dialog.HandleCreated += (_, _) =>
         {
             lock (sync)

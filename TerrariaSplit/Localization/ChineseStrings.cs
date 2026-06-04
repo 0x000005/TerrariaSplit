@@ -104,12 +104,12 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
         { "Aurora", "极光" },
         { "Gold", "鎏金" },
         { "Breathe", "呼吸" },
-        { "Segment Best Highlight", "分段最佳突出显示" },
-        { "Highlight best segment", "突出显示最佳分段" },
+        { "Segment Best Highlight", "单段最佳突出显示" },
+        { "Highlight best segment", "突出显示最佳单段" },
         { "Enable highlight", "启用突出显示" },
         { "Effect", "效果" },
-        { "Cumulative time", "累计时间" },
-        { "Segment comparison", "分段时间比较" },
+        { "Cumulative time", "累积时间" },
+        { "Segment comparison", "单段时间比较" },
         { "Rainbow outline %", "炫彩描边 %" },
         { "Unlit grayscale %", "未击败时图标灰度 %" },
         { "Unlit brightness %", "未击败时图标亮度 %" },
@@ -127,13 +127,15 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
         { "Text Colors", "界面颜色" },
         { "Text type", "文字类型" },
         { "Reference text", "参考时间文字" },
+        { "Reference time (future stage)", "参考时间（未来阶段）" },
+        { "Reference time (current stage)", "参考时间（当前阶段）" },
         { "Reference", "参考" },
         { "Reference time", "参考时间" },
         { "Reference run", "参考局" },
         { "Selected run", "选择一局" },
         { "Personal best", "个人累计最佳" },
         { "Personal Cumulative Best", "个人累计最佳" },
-        { "Personal segment best", "个人分段最佳" },
+        { "Personal segment best", "个人单段最佳" },
         { "Personal Data", "个人数据" },
         { "Auto update personal data", "自动更新个人数据" },
         { "Ask before updating personal data", "更新个人数据前询问" },
@@ -148,54 +150,65 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
         { "Transparent", "透明" },
         { "Cumulative", "累积" },
         { "No response updates automatically in {0}s.", "{0}秒内无响应将自动更新。" },
-        { "Segment time", "分段时间" },
+        { "Segment time", "单段时间" },
         { "Split time", "累计时间" },
         { "Reference time column", "参考累计时间" },
         { "Selected run time column", "该局累计时间" },
         { "Personal best time column", "个人最佳累计时间" },
-        { "Reference segment time column", "参考分段时间" },
-        { "Selected run segment time column", "该局分段时间" },
-        { "Personal best segment time column", "个人最佳分段时间" },
-        { "Reference segment", "参考分段时间" },
-        { "Personal segment", "该局分段时间" },
-        { "Personal best segment", "个人最佳分段时间" },
+        { "Reference segment time column", "参考单段时间" },
+        { "Selected run segment time column", "该局单段时间" },
+        { "Personal best segment time column", "个人最佳单段时间" },
+        { "Reference segment", "参考单段时间" },
+        { "Personal segment", "该局单段时间" },
+        { "Personal best segment", "个人最佳单段时间" },
         { "Active reference text", "当前目标时间文字" },
         { "Completed split text", "已完成分段文字" },
+        { "Cumulative time (completed stage)", "累积时间（已完成阶段）" },
+        { "Delta (fast)", "差值（快）" },
+        { "Delta (slow)", "差值（慢）" },
         { "Delta ahead text", "差值领先文字" },
         { "Delta behind text", "差值落后文字" },
         { "Timer text", "计时文字" },
+        { "Main timer (not timing)", "主计时器（不在计时中）" },
+        { "Main timer (fast)", "主计时器（快）" },
+        { "Main timer (slow)", "主计时器（慢）" },
+        { "Main timer (total fast)", "主计时器（总成绩快）" },
+        { "Main timer (total slow)", "主计时器（总成绩慢）" },
+        { "Main timer (paused)", "主计时器（暂停）" },
         { "Timer ahead text", "计时领先文字" },
         { "Timer behind text", "计时落后文字" },
         { "Timer record text", "计时破纪录文字" },
         { "Timer no record text", "计时未破纪录文字" },
         { "Timer paused text", "计时暂停文字" },
         { "Animation text", "动画文字" },
+        { "Segment time hint text", "单段时间提示文本" },
+        { "Cumulative time hint text", "累积时间提示文本" },
         { "Animation main time", "动画累计时间" },
         { "Animation cumulative time", "动画累计时间" },
         { "Pause sound", "暂停声音" },
         { "Resume sound", "继续声音" },
         { "Reset sound", "重置声音" },
         { "Timer start sound", "计时开始声音" },
-        { "Split: total behind, segment behind", "Split：累计时间不快于参考，分段时间不快于 PB" },
-        { "Split: total behind, segment not behind", "Split：累计时间不快于参考，分段时间快于 PB" },
-        { "Split: total not behind, segment behind", "Split：累计时间快于参考，分段时间不快于 PB" },
-        { "Split: total not behind, segment not behind", "Split：累计时间快于参考，分段时间快于 PB" },
-        { "Split reached: total slower than reference, segment slower than PB", "到达分段点：累计时间不快于参考，分段时间不快于 PB" },
-        { "Split reached: total slower than reference, segment not slower than PB", "到达分段点：累计时间不快于参考，分段时间快于 PB" },
-        { "Split reached: total not slower than reference, segment slower than PB", "到达分段点：累计时间快于参考，分段时间不快于 PB" },
-        { "Split reached: total not slower than reference, segment not slower than PB", "到达分段点：累计时间快于参考，分段时间快于 PB" },
-        { "Split: total slower, segment slower", "分段点：累计时间不快于参考，分段时间不快于 PB" },
-        { "Split: total slower, segment not slower", "分段点：累计时间不快于参考，分段时间快于 PB" },
-        { "Split: total not slower, segment slower", "分段点：累计时间快于参考，分段时间不快于 PB" },
-        { "Split: total not slower, segment not slower", "分段点：累计时间快于参考，分段时间快于 PB" },
-        { "Split: cumulative not faster, segment not faster", "分段点：累计时间不快于参考，分段时间不快于 PB" },
-        { "Split: cumulative not faster, segment faster", "分段点：累计时间不快于参考，分段时间快于 PB" },
-        { "Split: cumulative faster, segment not faster", "分段点：累计时间快于参考，分段时间不快于 PB" },
-        { "Split: cumulative faster, segment faster", "分段点：累计时间快于参考，分段时间快于 PB" },
-        { "Moon Lord: cumulative not faster, segment not faster", "月亮领主：累计时间不快于参考，分段时间不快于 PB" },
-        { "Moon Lord: cumulative not faster, segment faster", "月亮领主：累计时间不快于参考，分段时间快于 PB" },
-        { "Moon Lord: cumulative faster, segment not faster", "月亮领主：累计时间快于参考，分段时间不快于 PB" },
-        { "Moon Lord: cumulative faster, segment faster", "月亮领主：累计时间快于参考，分段时间快于 PB" },
+        { "Split: total behind, segment behind", "Split：累积时间不快于参考，单段时间不快于 PB" },
+        { "Split: total behind, segment not behind", "Split：累积时间不快于参考，单段时间快于 PB" },
+        { "Split: total not behind, segment behind", "Split：累积时间快于参考，单段时间不快于 PB" },
+        { "Split: total not behind, segment not behind", "Split：累积时间快于参考，单段时间快于 PB" },
+        { "Split reached: total slower than reference, segment slower than PB", "到达分段点：累积时间不快于参考，单段时间不快于 PB" },
+        { "Split reached: total slower than reference, segment not slower than PB", "到达分段点：累积时间不快于参考，单段时间快于 PB" },
+        { "Split reached: total not slower than reference, segment slower than PB", "到达分段点：累积时间快于参考，单段时间不快于 PB" },
+        { "Split reached: total not slower than reference, segment not slower than PB", "到达分段点：累积时间快于参考，单段时间快于 PB" },
+        { "Split: total slower, segment slower", "分段点：累积时间不快于参考，单段时间不快于 PB" },
+        { "Split: total slower, segment not slower", "分段点：累积时间不快于参考，单段时间快于 PB" },
+        { "Split: total not slower, segment slower", "分段点：累积时间快于参考，单段时间不快于 PB" },
+        { "Split: total not slower, segment not slower", "分段点：累积时间快于参考，单段时间快于 PB" },
+        { "Stage reached: cumulative not faster, segment not faster", "分段点：累积时间不快于参考，单段时间不快于 PB" },
+        { "Stage reached: cumulative not faster, segment faster", "分段点：累积时间不快于参考，单段时间快于 PB" },
+        { "Stage reached: cumulative faster, segment not faster", "分段点：累积时间快于参考，单段时间不快于 PB" },
+        { "Stage reached: cumulative faster, segment faster", "分段点：累积时间快于参考，单段时间快于 PB" },
+        { "Moon Lord: cumulative not faster, segment not faster", "月亮领主：累积时间不快于参考，单段时间不快于 PB" },
+        { "Moon Lord: cumulative not faster, segment faster", "月亮领主：累积时间不快于参考，单段时间快于 PB" },
+        { "Moon Lord: cumulative faster, segment not faster", "月亮领主：累积时间快于参考，单段时间不快于 PB" },
+        { "Moon Lord: cumulative faster, segment faster", "月亮领主：累积时间快于参考，单段时间快于 PB" },
         { "Choose sound", "选择声音" },
         { "Clear", "清空" },
         { "BOSS Groups", "BOSS 分组" },
@@ -211,12 +224,12 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
         { "Statistics...", "统计信息..." },
         { "Statistics", "统计信息" },
         { "Last run", "上一局" },
-        { "Best split", "历史最佳分段时间" },
-        { "Fastest segment", "最快分段时间" },
+        { "Best split", "历史最佳累积时间" },
+        { "Fastest segment", "最快单段时间" },
         { "No splits", "没有分段" },
         { "Exit", "退出" },
         { "Edit total time", "编辑总计时间" },
-        { "Edit split time", "编辑分段时间" },
+        { "Edit split time", "编辑累积时间" },
         { "Skeletron", "骷髅王" },
         { "Wall of Flesh", "血肉墙" },
         { "Destroyer", "毁灭者" },
@@ -274,24 +287,31 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Timing", "\u65F6\u95F4" }
       , { "Delay", "\u5EF6\u8FDF" }
       , { "Character", "\u4EBA\u7269" }
+      , { "Player options", "\u4EBA\u7269\u9009\u9879" }
       , { "Player name", "\u4EBA\u7269\u540D\u79F0" }
       , { "Player difficulty", "\u4EBA\u7269\u96BE\u5EA6" }
       , { "Player code", "\u4EBA\u7269\u4EE3\u7801" }
       , { "World", "\u4E16\u754C" }
+      , { "World options", "\u4E16\u754C\u9009\u9879" }
       , { "World size", "\u4E16\u754C\u5927\u5C0F" }
       , { "World difficulty", "\u4E16\u754C\u96BE\u5EA6" }
       , { "World evil", "\u90AA\u6076\u7C7B\u578B" }
       , { "World seed / secret seed", "\u4E16\u754C\u79CD\u5B50 / \u79D8\u5BC6\u79CD\u5B50" }
       , { "Special seeds", "\u5F69\u86CB\u79CD\u5B50" }
       , { "Secret seeds", "\u79D8\u5BC6\u79CD\u5B50" }
-      , { "Enable auto star catch (Zenith worlds only)", "\u542F\u7528\u81EA\u52A8\u63A5\u661F\u661F\uFF08\u4EC5\u5929\u9876\u4E16\u754C\u6709\u6548\uFF09" }
+      , { "Zenith star catch", "\u5929\u9876\u63A5\u661F" }
       , { "Stop after stage", "\u5728\u4EE5\u4E0B\u9636\u6BB5\u540E\u505C\u6B62" }
       , { "Catch speed", "\u63A5\u661F\u901F\u5EA6" }
-      , { "Auto filter pyramid", "\u81EA\u52A8\u7B5B\u9009\u91D1\u5B57\u5854" }
       , { "Filter pyramid", "\u7B5B\u9009\u91D1\u5B57\u5854" }
-      , { "Background seed pool", "\u540E\u53F0\u7B5B\u5854\u79CD\u5B50\u6C60" }
-      , { "Seed pool size", "\u79CD\u5B50\u6C60\u4E2A\u6570" }
-      , { "Install pooled world", "\u5B89\u88C5\u79CD\u5B50\u6C60\u4E16\u754C" }
+      , { "Pyramid filter", "\u7B5B\u9009\u91D1\u5B57\u5854" }
+      , { "Required pyramid items", "\u6307\u5B9A\u7269\u54C1" }
+      , { "Sandstorm in a Bottle", "\u6C99\u66B4\u74F6" }
+      , { "Flying Carpet", "\u98DE\u6BEF" }
+      , { "Pharaoh set", "\u6CD5\u8001\u5957" }
+      , { "Background world generation", "\u540E\u53F0\u5EFA\u56FE" }
+      , { "Background world pool", "\u540E\u53F0\u9884\u5EFA\u4E16\u754C\u6C60" }
+      , { "World pool size", "\u4E16\u754C\u6C60\u4E2A\u6570" }
+      , { "Install pooled world", "\u5B89\u88C5\u4E16\u754C\u6C60\u4E16\u754C" }
       , { "Stop at world select", "\u505C\u5728\u4E16\u754C\u9009\u62E9\u754C\u9762" }
       , { "Apply visible seed", "\u5E94\u7528\u53EF\u89C1\u79CD\u5B50" }
       , { "Submit World Seed", "\u63D0\u4EA4\u4E16\u754C\u79CD\u5B50" }

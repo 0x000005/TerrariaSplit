@@ -303,17 +303,18 @@ internal sealed class AutoCreateWorldSettings
     public string PlayerName { get; set; } = string.Empty;
     public string PlayerTemplateCode { get; set; } = string.Empty;
     public string PlayerDifficulty { get; set; } = AutoCreatePlayerDifficulty.Softcore;
-    public string WorldSize { get; set; } = AutoCreateWorldSize.Medium;
+    public string WorldSize { get; set; } = AutoCreateWorldSize.Small;
     public string WorldDifficulty { get; set; } = AutoCreateWorldDifficulty.Classic;
-    public string WorldEvil { get; set; } = AutoCreateWorldEvil.Random;
+    public string WorldEvil { get; set; } = AutoCreateWorldEvil.Crimson;
     public string SpecialSeeds { get; set; } = string.Empty;
     public string SecretSeeds { get; set; } = string.Empty;
     public bool EnableZenithStarCatch { get; set; }
     public string ZenithStarCatchStopStage { get; set; } = AutoCreateZenithStarCatchStage.Default;
     public int ZenithStarCatchSpeedSliderValue { get; set; } = AutoCreateZenithStarCatchSpeed.DefaultSliderValue;
     public bool EnablePyramidFilter { get; set; }
-    public bool EnableSeedPool { get; set; } = true;
-    public int SeedPoolTargetCount { get; set; } = 10;
+    public int PyramidFilterItemMask { get; set; } = AutoCreatePyramidFilterItem.SandstormInABottleMask | AutoCreatePyramidFilterItem.FlyingCarpetMask;
+    public bool EnableWorldPool { get; set; }
+    public int WorldPoolTargetCount { get; set; } = 10;
     public int ShortActionDelayMilliseconds { get; set; }
     public int MenuActionDelayMilliseconds { get; set; }
     public int WindowActivationDelayMilliseconds { get; set; }
@@ -371,7 +372,7 @@ internal static class AutoCreateWorldSize
 
     public static string Normalize(string? value)
     {
-        return All.FirstOrDefault(option => string.Equals(option, value, StringComparison.OrdinalIgnoreCase)) ?? Medium;
+        return All.FirstOrDefault(option => string.Equals(option, value, StringComparison.OrdinalIgnoreCase)) ?? Small;
     }
 }
 
@@ -406,7 +407,7 @@ internal static class AutoCreateWorldEvil
 
     public static string Normalize(string? value)
     {
-        return All.FirstOrDefault(option => string.Equals(option, value, StringComparison.OrdinalIgnoreCase)) ?? Random;
+        return All.FirstOrDefault(option => string.Equals(option, value, StringComparison.OrdinalIgnoreCase)) ?? Crimson;
     }
 }
 
@@ -552,6 +553,130 @@ internal static class AutoCreateSpecialWorldSeed
     }
 
     private static IEnumerable<string> SplitSeedList(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            yield break;
+        }
+
+        char[] separators = ['|', ',', ';', '\r', '\n', '\t', '\uFF0C', '\uFF1B'];
+        foreach (string token in value.Split(separators, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            yield return token;
+        }
+    }
+}
+
+internal static class AutoCreatePyramidFilterItem
+{
+    public const string SandstormInABottle = "Sandstorm in a Bottle";
+    public const string FlyingCarpet = "Flying Carpet";
+    public const string PharaohSet = "Pharaoh set";
+    public const int SandstormInABottleMask = 1;
+    public const int FlyingCarpetMask = 2;
+    public const int PharaohSetMask = 4;
+    public const int AllMask = SandstormInABottleMask | FlyingCarpetMask | PharaohSetMask;
+
+    public static readonly string[] All =
+    {
+        SandstormInABottle,
+        FlyingCarpet,
+        PharaohSet
+    };
+
+    private static readonly Dictionary<string, string> Aliases = new(StringComparer.OrdinalIgnoreCase)
+    {
+        { "sandstorm in a bottle", SandstormInABottle },
+        { "sandstorminabottle", SandstormInABottle },
+        { "sandstorm bottle", SandstormInABottle },
+        { "sandstormbottle", SandstormInABottle },
+        { "sandstorm", SandstormInABottle },
+        { "\u6C99\u66B4\u74F6", SandstormInABottle },
+        { "flying carpet", FlyingCarpet },
+        { "flyingcarpet", FlyingCarpet },
+        { "carpet", FlyingCarpet },
+        { "\u98DE\u6BEF", FlyingCarpet },
+        { "pharaoh set", PharaohSet },
+        { "pharaohset", PharaohSet },
+        { "pharaohs set", PharaohSet },
+        { "pharaohsset", PharaohSet },
+        { "pharaoh", PharaohSet },
+        { "\u6CD5\u8001\u5957", PharaohSet },
+        { "\u6CD5\u8001\u5957\u88C5", PharaohSet }
+    };
+
+    public static bool TryNormalize(string? value, out string item)
+    {
+        item = string.Empty;
+        string normalized = NormalizeToken(value);
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return false;
+        }
+
+        return Aliases.TryGetValue(normalized, out item!);
+    }
+
+    public static IReadOnlyList<string> ParseList(string? value)
+    {
+        List<string> items = new();
+        foreach (string token in SplitItemList(value))
+        {
+            if (TryNormalize(token, out string item) && !items.Contains(item, StringComparer.OrdinalIgnoreCase))
+            {
+                items.Add(item);
+            }
+        }
+
+        return items;
+    }
+
+    public static int NormalizeMask(int mask)
+    {
+        return mask & AllMask;
+    }
+
+    public static int Mask(string item)
+    {
+        return item switch
+        {
+            SandstormInABottle => SandstormInABottleMask,
+            FlyingCarpet => FlyingCarpetMask,
+            PharaohSet => PharaohSetMask,
+            _ => 0
+        };
+    }
+
+    public static IReadOnlyList<string> FromMask(int mask)
+    {
+        int normalized = NormalizeMask(mask);
+        return All
+            .Where(item => (normalized & Mask(item)) != 0)
+            .ToList();
+    }
+
+    public static int ToMask(IEnumerable<string> items)
+    {
+        int mask = 0;
+        foreach (string item in items)
+        {
+            mask |= Mask(item);
+        }
+
+        return NormalizeMask(mask);
+    }
+
+    private static string NormalizeToken(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        return new string(value.Trim().Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant();
+    }
+
+    private static IEnumerable<string> SplitItemList(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
         {

@@ -88,29 +88,34 @@ internal sealed class AnimationSettingsPage : SettingsPageBase
     private void BuildSections(TableLayoutPanel parent)
     {
         ConfigureCheckBox(enableDefeatedBossIconLightingBox, Draft.EnableDefeatedBossIconLighting);
+        enableDefeatedBossIconLightingBox.CheckedChanged += (_, _) => UpdateEffectAvailability();
         ConfigureNumberBox(undefeatedIconGrayscaleBox, Draft.UndefeatedIconGrayscalePercent, 0, 100);
         ConfigureNumberBox(undefeatedIconBrightnessBox, Draft.UndefeatedIconBrightnessPercent, 0, 100);
         ConfigureNumberBox(currentBossIconGrayscaleWeakenBox, Draft.CurrentBossIconGrayscaleWeakenPercent, 0, 100);
         ConfigureNumberBox(currentBossIconBrightnessBoostBox, Draft.CurrentBossIconBrightnessBoostPercent, 0, 100);
         ConfigureCheckBox(showCurrentSplitHighlightBox, Draft.ShowCurrentSplitHighlight);
+        showCurrentSplitHighlightBox.CheckedChanged += (_, _) => UpdateEffectAvailability();
         ConfigureNumberBox(currentSplitHighlightScaleBox, Draft.CurrentSplitHighlightScalePercent, 100, 140);
         ConfigureNumberBox(currentSplitDepthStrengthBox, Draft.CurrentSplitDepthStrengthPercent, 0, 100);
         ConfigureCheckBox(showEarlyDeltaTimeBox, Draft.ShowEarlyDeltaTime);
+        showEarlyDeltaTimeBox.CheckedChanged += (_, _) => UpdateEffectAvailability();
         ConfigureNumberBox(earlyDeltaTimeSecondsBox, Draft.EarlyDeltaTimeSeconds, 0, 3600);
         ConfigureCheckBox(enableDeltaGradientColorBox, Draft.EnableDeltaGradientColor);
         ConfigureCheckBox(enableCurrentDeltaGradientColorBox, Draft.EnableCurrentDeltaGradientColor);
         ConfigureCheckBox(enableTimerGradientColorBox, Draft.EnableTimerGradientColor);
         ConfigureTimeBox(deltaGradientThresholdBox, Draft.DeltaGradientThresholdSeconds, 1, 3600);
         ConfigureDeltaGradientCurveBox();
-        enableDeltaGradientColorBox.CheckedChanged += (_, _) => InvalidateDeltaGradientPreview();
-        enableCurrentDeltaGradientColorBox.CheckedChanged += (_, _) => InvalidateDeltaGradientPreview();
-        enableTimerGradientColorBox.CheckedChanged += (_, _) => InvalidateDeltaGradientPreview();
+        enableDeltaGradientColorBox.CheckedChanged += (_, _) => UpdateDeltaGradientState();
+        enableCurrentDeltaGradientColorBox.CheckedChanged += (_, _) => UpdateDeltaGradientState();
+        enableTimerGradientColorBox.CheckedChanged += (_, _) => UpdateDeltaGradientState();
         deltaGradientThresholdBox.TextChanged += (_, _) => InvalidateDeltaGradientPreview();
         ConfigureCheckBox(showSplitCompletionAnimationBox, Draft.ShowSplitCompletionAnimation);
+        showSplitCompletionAnimationBox.CheckedChanged += (_, _) => UpdateEffectAvailability();
         ConfigureDecimalBox(splitCompletionAnimationDurationBox, Draft.SplitCompletionAnimationDurationSeconds, 2m, 20m);
         ConfigureNumberBox(splitCompletionOutlineThicknessBox, Draft.SplitCompletionOutlineThicknessPercent, 0, 100);
         splitCompletionOutlineThicknessBox.TextChanged += (_, _) => outlineStylePreview.Invalidate();
         ConfigureCheckBox(showSegmentBestDeltaHighlightBox, Draft.ShowSegmentBestDeltaHighlight);
+        showSegmentBestDeltaHighlightBox.CheckedChanged += (_, _) => UpdateEffectAvailability();
 
         AddIconLightingSection(parent);
         AddCurrentSplitSection(parent);
@@ -118,6 +123,7 @@ internal sealed class AnimationSettingsPage : SettingsPageBase
         AddDeltaGradientSection(parent);
         AddSplitCompletionSection(parent);
         AddSegmentBestDeltaHighlightSection(parent);
+        UpdateEffectAvailability();
     }
 
     private void AddIconLightingSection(TableLayoutPanel parent)
@@ -277,6 +283,8 @@ internal sealed class AnimationSettingsPage : SettingsPageBase
             animationOutlineGrid.ResumeLayout(true);
             animationComparisonGrid.ResumeLayout(true);
         }
+
+        UpdateSplitCompletionAvailability();
     }
 
     private static bool GetAnimationOutlineSetting(Dictionary<string, bool> values, string key)
@@ -467,6 +475,66 @@ internal sealed class AnimationSettingsPage : SettingsPageBase
         }
     }
 
+    private void UpdateDeltaGradientState()
+    {
+        UpdateEffectAvailability();
+        InvalidateDeltaGradientPreview();
+    }
+
+    private void UpdateEffectAvailability()
+    {
+        SetEnabled(
+            enableDefeatedBossIconLightingBox.Checked,
+            undefeatedIconGrayscaleBox,
+            undefeatedIconBrightnessBox,
+            currentBossIconGrayscaleWeakenBox,
+            currentBossIconBrightnessBoostBox);
+
+        SetEnabled(
+            showCurrentSplitHighlightBox.Checked,
+            currentSplitHighlightScaleBox,
+            currentSplitDepthStrengthBox);
+
+        SetEnabled(showEarlyDeltaTimeBox.Checked, earlyDeltaTimeSecondsBox);
+
+        bool deltaGradientEnabled =
+            enableDeltaGradientColorBox.Checked ||
+            enableCurrentDeltaGradientColorBox.Checked ||
+            enableTimerGradientColorBox.Checked;
+        SetEnabled(deltaGradientEnabled, deltaGradientThresholdBox, deltaGradientCurveBox, deltaGradientPreview);
+
+        UpdateSplitCompletionAvailability();
+        UpdateSegmentBestDeltaHighlightAvailability();
+    }
+
+    private void UpdateSplitCompletionAvailability()
+    {
+        bool enabled = showSplitCompletionAnimationBox.Checked;
+        SetEnabled(enabled, splitCompletionAnimationDurationBox, splitCompletionOutlineThicknessBox, outlineStylePreview);
+        foreach (AnimationOutlineControls controls in animationOutlineControls.Values)
+        {
+            SetEnabled(enabled, controls.SplitComparison, controls.SegmentComparison, controls.SplitTime, controls.SegmentTime);
+        }
+    }
+
+    private void UpdateSegmentBestDeltaHighlightAvailability()
+    {
+        bool enabled = showSegmentBestDeltaHighlightBox.Checked;
+        SetEnabled(enabled, segmentBestDeltaHighlightPreview);
+        foreach (SegmentBestDeltaHighlightControls controls in segmentBestDeltaHighlightControls.Values)
+        {
+            controls.Style.Enabled = enabled;
+        }
+    }
+
+    private static void SetEnabled(bool enabled, params Control[] controls)
+    {
+        foreach (Control control in controls)
+        {
+            control.Enabled = enabled;
+        }
+    }
+
     private void PaintSegmentBestDeltaHighlightPreview(Graphics graphics, Rectangle bounds)
     {
         graphics.SmoothingMode = SmoothingMode.AntiAlias;
@@ -645,6 +713,8 @@ internal sealed class AnimationSettingsPage : SettingsPageBase
         {
             segmentBestDeltaHighlightGrid.ResumeLayout(true);
         }
+
+        UpdateSegmentBestDeltaHighlightAvailability();
     }
 
     private string GetSegmentBestDeltaHighlightStyle(string key)

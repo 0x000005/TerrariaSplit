@@ -60,6 +60,8 @@ internal sealed class DebugSettingsPage : SettingsPageBase
         Label worldSizeValue = CreateValueLabel();
         Label worldDifficultyValue = CreateValueLabel();
         Label worldEvilValue = CreateValueLabel();
+        Label pyramidFilterValue = CreateValueLabel();
+        Label pyramidItemsValue = CreateValueLabel();
         Label shortActionDelayValue = CreateValueLabel();
         Label menuActionDelayValue = CreateValueLabel();
         Label windowActivationDelayValue = CreateValueLabel();
@@ -165,6 +167,8 @@ internal sealed class DebugSettingsPage : SettingsPageBase
             AddValueRow(automationGrid, owner, "World size", worldSizeValue);
             AddValueRow(automationGrid, owner, "World difficulty", worldDifficultyValue);
             AddValueRow(automationGrid, owner, "World evil", worldEvilValue);
+            AddValueRow(automationGrid, owner, "Filter pyramid", pyramidFilterValue);
+            AddValueRow(automationGrid, owner, "Required pyramid items", pyramidItemsValue);
             AddValueRow(automationGrid, owner, "Short action delay ms", shortActionDelayValue);
             AddValueRow(automationGrid, owner, "Menu action delay ms", menuActionDelayValue);
             AddValueRow(automationGrid, owner, "Window activation wait ms", windowActivationDelayValue);
@@ -303,6 +307,8 @@ internal sealed class DebugSettingsPage : SettingsPageBase
                 SetValue(worldSizeValue, owner.Localize(AutoCreateWorldSize.Normalize(autoCreate.WorldSize)));
                 SetValue(worldDifficultyValue, owner.Localize(AutoCreateWorldDifficulty.Normalize(autoCreate.WorldDifficulty)));
                 SetValue(worldEvilValue, owner.Localize(AutoCreateWorldEvil.Normalize(autoCreate.WorldEvil)));
+                SetValue(pyramidFilterValue, FormatBool(autoCreate.EnablePyramidFilter, owner));
+                SetValue(pyramidItemsValue, FormatPyramidFilterItems(autoCreate, owner));
                 SetValue(shortActionDelayValue, autoCreate.ShortActionDelayMilliseconds.ToString(CultureInfo.InvariantCulture));
                 SetValue(menuActionDelayValue, autoCreate.MenuActionDelayMilliseconds.ToString(CultureInfo.InvariantCulture));
                 SetValue(windowActivationDelayValue, autoCreate.WindowActivationDelayMilliseconds.ToString(CultureInfo.InvariantCulture));
@@ -562,6 +568,7 @@ internal sealed class DebugSettingsPage : SettingsPageBase
                 ("Catch stars through", owner.Localize(AutoCreateZenithStarCatchStage.Normalize(autoCreate.ZenithStarCatchStopStage))),
                 ("Catch speed", AutoCreateZenithStarCatchSpeed.FormatMultiplier(autoCreate.ZenithStarCatchSpeedSliderValue)),
                 ("Filter pyramid", FormatBool(autoCreate.EnablePyramidFilter, owner)),
+                ("Required pyramid items", FormatPyramidFilterItems(autoCreate, owner)),
                 ("Short action delay ms", autoCreate.ShortActionDelayMilliseconds.ToString(CultureInfo.InvariantCulture)),
                 ("Menu action delay ms", autoCreate.MenuActionDelayMilliseconds.ToString(CultureInfo.InvariantCulture)),
                 ("Window activation wait ms", autoCreate.WindowActivationDelayMilliseconds.ToString(CultureInfo.InvariantCulture)),
@@ -762,7 +769,11 @@ internal sealed class DebugSettingsPage : SettingsPageBase
 
         if (autoCreate.EnablePyramidFilter)
         {
-            lines.Add($"{step++}. {owner.Localize("Filter pyramid")}");
+            string itemDetail = FormatPyramidFilterItems(autoCreate, owner);
+            string itemSuffix = HasPyramidFilterItems(autoCreate)
+                ? $" ({owner.Localize("Required pyramid items")}: {itemDetail})"
+                : string.Empty;
+            lines.Add($"{step++}. {owner.Localize("Filter pyramid")}{itemSuffix}");
         }
 
         return string.Join(Environment.NewLine, lines);
@@ -770,10 +781,21 @@ internal sealed class DebugSettingsPage : SettingsPageBase
 
     private static bool UsesPooledWorldPath(AutoCreateWorldSettings autoCreate, SettingsForm owner)
     {
-        return autoCreate.EnablePyramidFilter &&
-            autoCreate.EnableSeedPool &&
-            SeedPoolSupport.IsSupported(autoCreate) &&
-            owner.GetSeedPoolCount(autoCreate) > 0;
+        return autoCreate.EnableWorldPool &&
+            owner.GetWorldPoolCount() > 0;
+    }
+
+    private static bool HasPyramidFilterItems(AutoCreateWorldSettings autoCreate)
+    {
+        return AutoCreatePyramidFilterItem.NormalizeMask(autoCreate.PyramidFilterItemMask) != 0;
+    }
+
+    private static string FormatPyramidFilterItems(AutoCreateWorldSettings autoCreate, SettingsForm owner)
+    {
+        IReadOnlyList<string> items = AutoCreatePyramidFilterItem.FromMask(autoCreate.PyramidFilterItemMask);
+        return items.Count == 0
+            ? owner.Localize("None")
+            : string.Join(", ", items.Select(owner.Localize));
     }
 
     private static void AppendSequenceStep(

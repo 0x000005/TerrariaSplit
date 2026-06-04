@@ -35,6 +35,8 @@ internal sealed class UiColorSettings
     public string TimerPausedText { get; set; } = "#D8D8D8";
     public string TimerPausedTextOutline { get; set; } = "#101010";
     public string TimerPausedTextShadow { get; set; } = "#000000";
+    public string SplitCompletionSegmentLabelText { get; set; } = "#DEDEE2";
     public string SplitCompletionLabelText { get; set; } = "#DEDEE2";
+    public string SplitCompletionSegmentTimeText { get; set; } = "#FFFFFF";
     public string SplitCompletionTimeText { get; set; } = "#FFFFFF";
 }
