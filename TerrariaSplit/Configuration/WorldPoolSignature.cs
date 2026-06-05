@@ -28,7 +28,10 @@ internal static class WorldPoolSignature
         string specialSeeds = string.Join(",", AutoCreateSpecialWorldSeed.ParseList(autoCreate.SpecialSeeds));
         string secretSeeds = string.Join(",", AutoCreateSeedList.Parse(autoCreate.SecretSeeds));
         string pyramid = autoCreate.EnablePyramidFilter ? "pyramid=1" : "pyramid=0";
-        string pyramidItems = "pyramidItems=" + AutoCreatePyramidFilterItem.NormalizeMask(autoCreate.PyramidFilterItemMask).ToString(CultureInfo.InvariantCulture);
+        int pyramidItemMask = autoCreate.EnablePyramidFilter
+            ? AutoCreatePyramidFilterItem.NormalizeMaskOrAll(autoCreate.PyramidFilterItemMask)
+            : AutoCreatePyramidFilterItem.NormalizeMask(autoCreate.PyramidFilterItemMask);
+        string pyramidItems = "pyramidItems=" + pyramidItemMask.ToString(CultureInfo.InvariantCulture);
         string nameLanguage = "name=" + TerrariaLanguageCodes.FromAppLanguage(appLanguage);
         return string.Join("|", TerrariaVersion, size, difficulty, evil, specialSeeds, secretSeeds, pyramid, pyramidItems, nameLanguage);
     }

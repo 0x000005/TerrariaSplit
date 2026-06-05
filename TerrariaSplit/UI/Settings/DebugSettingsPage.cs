@@ -64,6 +64,7 @@ internal sealed class DebugSettingsPage : SettingsPageBase
         Label pyramidItemsValue = CreateValueLabel();
         Label shortActionDelayValue = CreateValueLabel();
         Label menuActionDelayValue = CreateValueLabel();
+        Label pyramidFilterPostDelayValue = CreateValueLabel();
         Label windowActivationDelayValue = CreateValueLabel();
         Label clickFocusDelayValue = CreateValueLabel();
         Label inputPressDurationValue = CreateValueLabel();
@@ -169,11 +170,12 @@ internal sealed class DebugSettingsPage : SettingsPageBase
             AddValueRow(automationGrid, owner, "World evil", worldEvilValue);
             AddValueRow(automationGrid, owner, "Filter pyramid", pyramidFilterValue);
             AddValueRow(automationGrid, owner, "Required pyramid items", pyramidItemsValue);
-            AddValueRow(automationGrid, owner, "Short action delay ms", shortActionDelayValue);
-            AddValueRow(automationGrid, owner, "Menu action delay ms", menuActionDelayValue);
-            AddValueRow(automationGrid, owner, "Window activation wait ms", windowActivationDelayValue);
-            AddValueRow(automationGrid, owner, "Click focus wait ms", clickFocusDelayValue);
-            AddValueRow(automationGrid, owner, "Mouse / key press ms", inputPressDurationValue);
+            AddValueRow(automationGrid, owner, "Initial wait ms", windowActivationDelayValue);
+            AddValueRow(automationGrid, owner, "Pre-click wait ms", clickFocusDelayValue);
+            AddValueRow(automationGrid, owner, "Mouse / key duration ms", inputPressDurationValue);
+            AddValueRow(automationGrid, owner, "Adjacent operation delay ms", shortActionDelayValue);
+            AddValueRow(automationGrid, owner, "Cross-menu operation delay ms", menuActionDelayValue);
+            AddValueRow(automationGrid, owner, "Pyramid filter post wait ms", pyramidFilterPostDelayValue);
             AddSectionControl(automationSection, automationGrid);
             AddSectionControl(automationSection, CreateMutedLabel(owner, "Click sequence"));
             AddSectionControl(automationSection, autoCreateSequenceValue);
@@ -311,6 +313,7 @@ internal sealed class DebugSettingsPage : SettingsPageBase
                 SetValue(pyramidItemsValue, FormatPyramidFilterItems(autoCreate, owner));
                 SetValue(shortActionDelayValue, autoCreate.ShortActionDelayMilliseconds.ToString(CultureInfo.InvariantCulture));
                 SetValue(menuActionDelayValue, autoCreate.MenuActionDelayMilliseconds.ToString(CultureInfo.InvariantCulture));
+                SetValue(pyramidFilterPostDelayValue, autoCreate.PyramidFilterPostDelayMilliseconds.ToString(CultureInfo.InvariantCulture));
                 SetValue(windowActivationDelayValue, autoCreate.WindowActivationDelayMilliseconds.ToString(CultureInfo.InvariantCulture));
                 SetValue(clickFocusDelayValue, autoCreate.ClickFocusDelayMilliseconds.ToString(CultureInfo.InvariantCulture));
                 SetValue(inputPressDurationValue, autoCreate.InputPressDurationMilliseconds.ToString(CultureInfo.InvariantCulture));
@@ -569,11 +572,12 @@ internal sealed class DebugSettingsPage : SettingsPageBase
                 ("Catch speed", AutoCreateZenithStarCatchSpeed.FormatMultiplier(autoCreate.ZenithStarCatchSpeedSliderValue)),
                 ("Filter pyramid", FormatBool(autoCreate.EnablePyramidFilter, owner)),
                 ("Required pyramid items", FormatPyramidFilterItems(autoCreate, owner)),
-                ("Short action delay ms", autoCreate.ShortActionDelayMilliseconds.ToString(CultureInfo.InvariantCulture)),
-                ("Menu action delay ms", autoCreate.MenuActionDelayMilliseconds.ToString(CultureInfo.InvariantCulture)),
-                ("Window activation wait ms", autoCreate.WindowActivationDelayMilliseconds.ToString(CultureInfo.InvariantCulture)),
-                ("Click focus wait ms", autoCreate.ClickFocusDelayMilliseconds.ToString(CultureInfo.InvariantCulture)),
-                ("Mouse / key press ms", autoCreate.InputPressDurationMilliseconds.ToString(CultureInfo.InvariantCulture))
+                ("Initial wait ms", autoCreate.WindowActivationDelayMilliseconds.ToString(CultureInfo.InvariantCulture)),
+                ("Pre-click wait ms", autoCreate.ClickFocusDelayMilliseconds.ToString(CultureInfo.InvariantCulture)),
+                ("Mouse / key duration ms", autoCreate.InputPressDurationMilliseconds.ToString(CultureInfo.InvariantCulture)),
+                ("Adjacent operation delay ms", autoCreate.ShortActionDelayMilliseconds.ToString(CultureInfo.InvariantCulture)),
+                ("Cross-menu operation delay ms", autoCreate.MenuActionDelayMilliseconds.ToString(CultureInfo.InvariantCulture)),
+                ("Pyramid filter post wait ms", autoCreate.PyramidFilterPostDelayMilliseconds.ToString(CultureInfo.InvariantCulture))
             ]);
 
         AppendMultilineSection(lines, owner, "Click sequence", autoCreateSequence);

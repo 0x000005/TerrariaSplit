@@ -17,6 +17,11 @@ internal sealed class TerrariaWindowController
 
     public bool TryActivate(out Size clientSize)
     {
+        return TryActivate(out clientSize, WindowActivationDelayMilliseconds);
+    }
+
+    public bool TryActivate(out Size clientSize, int activationDelayMilliseconds)
+    {
         clientSize = Size.Empty;
         Process? process = TerrariaProcessFinder.FindNewest();
         if (process is null || process.MainWindowHandle == IntPtr.Zero)
@@ -31,7 +36,7 @@ internal sealed class TerrariaWindowController
         }
 
         SetForegroundWindow(handle);
-        Sleep(WindowActivationDelayMilliseconds);
+        Sleep(activationDelayMilliseconds);
         if (!GetClientRect(handle, out Rect rect))
         {
             return false;

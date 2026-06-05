@@ -276,6 +276,7 @@
     "WorldPoolTargetCount": 10,
     "ShortActionDelayMilliseconds": 10,
     "MenuActionDelayMilliseconds": 90,
+    "PyramidFilterPostDelayMilliseconds": 50,
     "WindowActivationDelayMilliseconds": 10,
     "ClickFocusDelayMilliseconds": 10,
     "InputPressDurationMilliseconds": 140

@@ -67,8 +67,11 @@ var legacyTests = new (string Name, Action Test)[]
     ("Terraria UI scale patch rewrites target IL constants", TestTerrariaUiScalePatchPlan),
     ("Zenith star catch stop stages follow world generation order", TestZenithStarCatchStageStopRules),
     ("Zenith star catch speed uses logarithmic stepped range", TestZenithStarCatchSpeedRange),
-    ("Pyramid filter scans world file evidence in speedrun corridor", TestPyramidFilterWorldFileScanner),
+    ("Pyramid scanner reads world metadata", TestPyramidFilterWorldFileScanner),
     ("Pyramid scanner reads chest contents", TestPyramidScannerReadsChestContents),
+    ("Pyramid filter fast-opens after world generation state ends", TestPyramidFilterFastOpensAfterGenerationStateEnds),
+    ("Pyramid filter falls back to stable file wait without generation state", TestPyramidFilterFallsBackWithoutGenerationState),
+    ("Pyramid filter treats empty item mask as all candidate items", TestPyramidFilterTreatsEmptyItemMaskAsAllCandidateItems),
     ("World seed metadata matches world options", TestWorldSeedMetadataMatchesWorldOptions),
     ("Overlay composite layout derives status and timer windows from shared bounds", TestOverlayCompositeLayoutCalculator)
 };
@@ -311,6 +314,11 @@ static void TestWorldPoolSignatureStartsWithTerrariaVersion()
     AssertEqual(
         "1.4.5.6|Small|Expert|Crimson|For the Worthy,No Traps|mole people,waterpark|pyramid=1|pyramidItems=5|name=en-US",
         WorldPoolSignature.From(settings));
+
+    settings.AutoCreate.PyramidFilterItemMask = 0;
+    AssertEqual(
+        "1.4.5.6|Small|Expert|Crimson|For the Worthy,No Traps|mole people,waterpark|pyramid=1|pyramidItems=7|name=en-US",
+        WorldPoolSignature.From(settings));
 }
 
 static void TestWorldPoolFileNameUsesTerrariaSplitTimestamp()
@@ -398,6 +406,7 @@ static void TestSettingsNormalize()
         {
             ShortActionDelayMilliseconds = -1,
             MenuActionDelayMilliseconds = 6000,
+            PyramidFilterPostDelayMilliseconds = 6000,
             WindowActivationDelayMilliseconds = 6000,
             ClickFocusDelayMilliseconds = -10,
             InputPressDurationMilliseconds = 0,
@@ -414,6 +423,7 @@ static void TestSettingsNormalize()
     SettingsNormalizer.Normalize(settings);
     AssertEqual(0, settings.AutoCreate.ShortActionDelayMilliseconds);
     AssertEqual(5000, settings.AutoCreate.MenuActionDelayMilliseconds);
+    AssertEqual(5000, settings.AutoCreate.PyramidFilterPostDelayMilliseconds);
     AssertEqual(5000, settings.AutoCreate.WindowActivationDelayMilliseconds);
     AssertEqual(0, settings.AutoCreate.ClickFocusDelayMilliseconds);
     AssertEqual(1, settings.AutoCreate.InputPressDurationMilliseconds);
@@ -1102,79 +1112,14 @@ static void TestPyramidFilterWorldFileScanner()
         TerrariaWorldDimensions dimensions = TerrariaWorldDimensions.FromWorldSize(AutoCreateWorldSize.Small);
         Rectangle corridor = TerrariaWorldFilePyramidScanner.BuildSpeedrunCorridorBounds(dimensions);
         AssertEqual(new Rectangle(1260, 180, 1681, 241), corridor);
-        int evidenceX = corridor.Left + corridor.Width / 2;
-        int evidenceY = corridor.Top + 32;
 
         string emptyWorld = Path.Combine(directory, "empty.wld");
-        WriteSyntheticWorldFile(emptyWorld, dimensions, null);
+        WriteSyntheticWorldFile(emptyWorld, dimensions);
         AssertEqual(true, scanner.TryReadWorldSeedAndEvil(emptyWorld, out string seedText, out bool hasCrimson, out _));
         AssertEqual("server-picked-seed", seedText);
         AssertEqual(true, hasCrimson);
         AssertEqual(true, scanner.TryReadWorldSeedMetadata(emptyWorld, out TerrariaWorldSeedMetadata metadata, out _));
         AssertEqual("size=1, difficulty=1, evil=2, special=0", metadata.FormatWorldOptions());
-        AssertEqual(true, scanner.TryScanSpeedrunCorridor(
-            emptyWorld,
-            AutoCreateWorldSize.Small,
-            1,
-            1,
-            out PyramidEvidenceScanResult emptyEvidence,
-            out _,
-            out _));
-        AssertEqual(false, emptyEvidence.MeetsThreshold(1, 1));
-
-        string wallWorld = Path.Combine(directory, "wall.wld");
-        WriteSyntheticWorldFile(wallWorld, dimensions, new SyntheticTileEvidence(evidenceX, evidenceY, false, 0, 34));
-        AssertEqual(true, scanner.TryScanSpeedrunCorridor(
-            wallWorld,
-            AutoCreateWorldSize.Small,
-            1,
-            1,
-            out PyramidEvidenceScanResult wallEvidence,
-            out _,
-            out _));
-        AssertEqual(true, wallEvidence.MeetsThreshold(1, 1));
-        AssertEqual(true, wallEvidence.Wall34Count >= 1);
-
-        string fourthHeaderWallWorld = Path.Combine(directory, "wall-fourth-header.wld");
-        WriteSyntheticWorldFile(
-            fourthHeaderWallWorld,
-            dimensions,
-            new SyntheticTileEvidence(evidenceX, evidenceY, false, 0, 34, 0x10));
-        AssertEqual(true, scanner.TryScanSpeedrunCorridor(
-            fourthHeaderWallWorld,
-            AutoCreateWorldSize.Small,
-            1,
-            1,
-            out PyramidEvidenceScanResult fourthHeaderWallEvidence,
-            out _,
-            out _));
-        AssertEqual(true, fourthHeaderWallEvidence.MeetsThreshold(1, 1));
-        AssertEqual(true, fourthHeaderWallEvidence.Wall34Count >= 1);
-
-        string tileWorld = Path.Combine(directory, "tile.wld");
-        WriteSyntheticWorldFile(tileWorld, dimensions, new SyntheticTileEvidence(evidenceX, evidenceY, true, 151, 0));
-        AssertEqual(true, scanner.TryScanSpeedrunCorridor(
-            tileWorld,
-            AutoCreateWorldSize.Small,
-            1,
-            1,
-            out PyramidEvidenceScanResult tileEvidence,
-            out _,
-            out _));
-        AssertEqual(true, tileEvidence.MeetsThreshold(1, 1));
-        AssertEqual(true, tileEvidence.ActiveTile151Count >= 1);
-
-        string outsideWorld = Path.Combine(directory, "outside.wld");
-        WriteSyntheticWorldFile(outsideWorld, dimensions, new SyntheticTileEvidence(1, evidenceY, false, 0, 34));
-        AssertEqual(true, scanner.TryScanSpeedrunCorridor(
-            outsideWorld,
-            AutoCreateWorldSize.Small,
-            1,
-            1,
-            out PyramidEvidenceScanResult outsideEvidence,
-            out _,
-            out _));
-        AssertEqual(false, outsideEvidence.MeetsThreshold(1, 1));
     }
     finally
     {
@@ -1191,39 +1136,42 @@ static void TestPyramidScannerReadsChestContents()
         var scanner = new TerrariaWorldFilePyramidScanner();
         TerrariaWorldDimensions dimensions = TerrariaWorldDimensions.FromWorldSize(AutoCreateWorldSize.Small);
         Rectangle corridor = TerrariaWorldFilePyramidScanner.BuildSpeedrunCorridorBounds(dimensions);
-        int evidenceX = corridor.Left + corridor.Width / 2;
-        int evidenceY = corridor.Top + 32;
-        int chestX = evidenceX + 12;
-        int chestY = evidenceY + 3;
+        int chestX = corridor.Left + corridor.Width / 2 + 12;
+        int chestY = corridor.Top + 35;
 
-        string chestWorld = Path.Combine(directory, "pyramid-chest.wld");
+        string chestWorld = Path.Combine(directory, "candidate-chest.wld");
         WriteSyntheticWorldFile(
             chestWorld,
             dimensions,
-            new SyntheticTileEvidence(evidenceX, evidenceY, false, 0, 34),
             chests:
             [
                 new SyntheticChest(
                     chestX,
                     chestY,
-                    1,
                     [
                         new SyntheticChestItem(0, 857),
                         new SyntheticChestItem(1, 279, 250)
                     ]),
                 new SyntheticChest(
+                    12,
+                    chestY,
+                    [
+                        new SyntheticChestItem(0, PyramidChestItemNames.FlyingCarpet)
+                    ]),
+                new SyntheticChest(
                     corridor.Left + 4,
                     chestY,
-                    0,
                     [
                         new SyntheticChestItem(0, 8, 12)
                     ])
             ]);
 
-        bool scanned = scanner.TryScanPyramidChests(
+        bool scanned = scanner.TryScanCandidateItemChests(
             chestWorld,
             AutoCreateWorldSize.Small,
+            AutoCreatePyramidFilterItem.SandstormInABottleMask,
             out PyramidChestScanResult result,
+            out Rectangle candidateBounds,
             out string detail);
         if (!scanned)
         {
@@ -1231,12 +1179,11 @@ static void TestPyramidScannerReadsChestContents()
         }
 
         AssertEqual(string.Empty, detail);
-        AssertEqual(true, result.HasPyramidChest);
+        AssertEqual(corridor, candidateBounds);
         AssertEqual(1, result.Chests.Count);
         PyramidChestInfo chest = result.Chests[0];
         AssertEqual(chestX, chest.X);
         AssertEqual(chestY, chest.Y);
-        AssertEqual(1, chest.ChestStyle);
         AssertEqual(true, chest.ContainsItem(857));
         AssertEqual(false, chest.ContainsItem(934));
         AssertEqual(true, result.ContainsItem(PyramidChestItemNames.SandstormInABottle));
@@ -1246,13 +1193,42 @@ static void TestPyramidScannerReadsChestContents()
         AssertEqual(false, PyramidFilterItemMatcher.Matches(result, AutoCreatePyramidFilterItem.PharaohSetMask));
         AssertEqual(true, result.FormatSummary().Contains("Sandstorm in a Bottle", StringComparison.Ordinal));
         AssertEqual(true, result.FormatSummary().Contains("#279 x250", StringComparison.Ordinal));
+        AssertEqual("none", default(PyramidChestScanResult).FormatSummary());
+        AssertEqual(false, default(PyramidChestScanResult).ContainsItem(PyramidChestItemNames.SandstormInABottle));
+        AssertEqual("(0,0): empty", default(PyramidChestInfo).FormatSummary());
+
+        AssertEqual(true, scanner.TryScanCandidateItemChests(
+            chestWorld,
+            AutoCreateWorldSize.Small,
+            0,
+            out PyramidChestScanResult emptyMaskResult,
+            out _,
+            out _));
+        AssertEqual(1, emptyMaskResult.Chests.Count);
+
+        AssertEqual(true, scanner.TryScanCandidateItemChests(
+            chestWorld,
+            AutoCreateWorldSize.Small,
+            AutoCreatePyramidFilterItem.FlyingCarpetMask,
+            out PyramidChestScanResult outOfRangeResult,
+            out _,
+            out _));
+        AssertEqual(0, outOfRangeResult.Chests.Count);
+
+        AssertEqual(true, scanner.TryScanCandidateItemChests(
+            chestWorld,
+            AutoCreateWorldSize.Small,
+            AutoCreatePyramidFilterItem.PharaohSetMask,
+            out PyramidChestScanResult missingPharaohResult,
+            out _,
+            out _));
+        AssertEqual(0, missingPharaohResult.Chests.Count);
 
         var pharaohResult = new PyramidChestScanResult(
         [
             new PyramidChestInfo(
                 chestX,
                 chestY,
-                1,
                 [
                     new PyramidChestItem(0, PyramidChestItemNames.PharaohMask, 1, 0),
                     new PyramidChestItem(1, PyramidChestItemNames.PharaohRobe, 1, 0)
@@ -1263,14 +1239,160 @@ static void TestPyramidScannerReadsChestContents()
             new PyramidChestInfo(
                 chestX,
                 chestY,
-                1,
                 [
                     new PyramidChestItem(0, PyramidChestItemNames.PharaohMask, 1, 0)
                 ])
         ]);
         AssertEqual(true, PyramidFilterItemMatcher.Matches(pharaohResult, AutoCreatePyramidFilterItem.PharaohSetMask));
         AssertEqual(false, PyramidFilterItemMatcher.Matches(partialPharaohResult, AutoCreatePyramidFilterItem.PharaohSetMask));
-        AssertEqual(true, PyramidFilterItemMatcher.Matches(partialPharaohResult, 0));
+        AssertEqual(false, PyramidFilterItemMatcher.Matches(partialPharaohResult, 0));
+    }
+    finally
+    {
+        DeleteDirectoryIfExists(directory);
+    }
+}
+
+static void TestPyramidFilterFastOpensAfterGenerationStateEnds()
+{
+    string directory = GetPublishOutputDirectory("test-output", "pyramid-fast-open-tests");
+    string worldsDirectory = Path.Combine(directory, "Worlds");
+    Directory.CreateDirectory(worldsDirectory);
+    try
+    {
+        TerrariaWorldDimensions dimensions = TerrariaWorldDimensions.FromWorldSize(AutoCreateWorldSize.Small);
+        Rectangle corridor = TerrariaWorldFilePyramidScanner.BuildSpeedrunCorridorBounds(dimensions);
+        string worldPath = Path.Combine(worldsDirectory, "fast-open.wld");
+        WriteSyntheticWorldFile(
+            worldPath,
+            dimensions,
+            chests:
+            [
+                new SyntheticChest(
+                    corridor.Left + 8,
+                    corridor.Top + 8,
+                    [
+                        new SyntheticChestItem(0, PyramidChestItemNames.FlyingCarpet)
+                    ])
+            ]);
+
+        var filter = new PyramidFilterAutomation(
+            new TerrariaAutomationContext("test pyramid filter"),
+            watcherFactory: () => new SequenceGenerationWatcher(
+                GenerationSnapshot(hasGeneration: true),
+                GenerationSnapshot(hasGeneration: false)),
+            worldsDirectoryProvider: () => worldsDirectory,
+            waitTimings: new PyramidFilterWaitTimings(
+                WorldFileTimeout: TimeSpan.FromSeconds(2),
+                LegacyPollInterval: TimeSpan.FromMilliseconds(10),
+                LegacyStableFileDuration: TimeSpan.FromSeconds(5),
+                GenerationPollInterval: TimeSpan.FromMilliseconds(1),
+                FastOpenTimeout: TimeSpan.FromMilliseconds(1000)));
+
+        PyramidFilterOutcome outcome = filter.RunAsync(
+            new AutoCreateWorldSettings
+            {
+                EnablePyramidFilter = true,
+                WorldSize = AutoCreateWorldSize.Small,
+                PyramidFilterItemMask = 0
+            },
+            new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase),
+            CancellationToken.None).GetAwaiter().GetResult();
+
+        AssertEqual(PyramidFilterOutcome.Kept, outcome);
+    }
+    finally
+    {
+        DeleteDirectoryIfExists(directory);
+    }
+}
+
+static void TestPyramidFilterFallsBackWithoutGenerationState()
+{
+    string directory = GetPublishOutputDirectory("test-output", "pyramid-fallback-tests");
+    string worldsDirectory = Path.Combine(directory, "Worlds");
+    Directory.CreateDirectory(worldsDirectory);
+    try
+    {
+        TerrariaWorldDimensions dimensions = TerrariaWorldDimensions.FromWorldSize(AutoCreateWorldSize.Small);
+        Rectangle corridor = TerrariaWorldFilePyramidScanner.BuildSpeedrunCorridorBounds(dimensions);
+        string worldPath = Path.Combine(worldsDirectory, "fallback.wld");
+        WriteSyntheticWorldFile(
+            worldPath,
+            dimensions,
+            chests:
+            [
+                new SyntheticChest(
+                    corridor.Left + 8,
+                    corridor.Top + 8,
+                    [
+                        new SyntheticChestItem(0, PyramidChestItemNames.SandstormInABottle)
+                    ])
+            ]);
+
+        var filter = new PyramidFilterAutomation(
+            new TerrariaAutomationContext("test pyramid filter"),
+            watcherFactory: () => new SequenceGenerationWatcher(GenerationSnapshot(hasGeneration: false)),
+            worldsDirectoryProvider: () => worldsDirectory,
+            waitTimings: new PyramidFilterWaitTimings(
+                WorldFileTimeout: TimeSpan.FromSeconds(1),
+                LegacyPollInterval: TimeSpan.FromMilliseconds(5),
+                LegacyStableFileDuration: TimeSpan.FromMilliseconds(20),
+                GenerationPollInterval: TimeSpan.FromMilliseconds(5),
+                FastOpenTimeout: TimeSpan.FromMilliseconds(50)));
+
+        PyramidFilterOutcome outcome = filter.RunAsync(
+            new AutoCreateWorldSettings
+            {
+                EnablePyramidFilter = true,
+                WorldSize = AutoCreateWorldSize.Small,
+                PyramidFilterItemMask = 0
+            },
+            new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase),
+            CancellationToken.None).GetAwaiter().GetResult();
+
+        AssertEqual(PyramidFilterOutcome.Kept, outcome);
+    }
+    finally
+    {
+        DeleteDirectoryIfExists(directory);
+    }
+}
+
+static void TestPyramidFilterTreatsEmptyItemMaskAsAllCandidateItems()
+{
+    string directory = GetPublishOutputDirectory("test-output", "pyramid-empty-mask-tests");
+    string worldsDirectory = Path.Combine(directory, "Worlds");
+    Directory.CreateDirectory(worldsDirectory);
+    try
+    {
+        TerrariaWorldDimensions dimensions = TerrariaWorldDimensions.FromWorldSize(AutoCreateWorldSize.Small);
+        Rectangle corridor = TerrariaWorldFilePyramidScanner.BuildSpeedrunCorridorBounds(dimensions);
+        string worldPath = Path.Combine(worldsDirectory, "no-candidate-item.wld");
+        WriteSyntheticWorldFile(worldPath, dimensions);
+
+        var filter = new PyramidFilterAutomation(
+            new TerrariaAutomationContext("test pyramid filter"),
+            watcherFactory: () => new SequenceGenerationWatcher(GenerationSnapshot(hasGeneration: false)),
+            worldsDirectoryProvider: () => worldsDirectory,
+            waitTimings: new PyramidFilterWaitTimings(
+                WorldFileTimeout: TimeSpan.FromSeconds(1),
+                LegacyPollInterval: TimeSpan.FromMilliseconds(5),
+                LegacyStableFileDuration: TimeSpan.FromMilliseconds(20),
+                GenerationPollInterval: TimeSpan.FromMilliseconds(5),
+                FastOpenTimeout: TimeSpan.FromMilliseconds(50)));
+
+        PyramidFilterOutcome outcome = filter.RunAsync(
+            new AutoCreateWorldSettings
+            {
+                EnablePyramidFilter = true,
+                WorldSize = AutoCreateWorldSize.Small,
+                PyramidFilterItemMask = 0
+            },
+            new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase),
+            CancellationToken.None).GetAwaiter().GetResult();
+
+        AssertEqual(PyramidFilterOutcome.Rejected, outcome);
     }
     finally
     {
@@ -1367,7 +1489,6 @@ static void TestWorldSeedMetadataMatchesWorldOptions()
 static void WriteSyntheticWorldFile(
     string path,
     TerrariaWorldDimensions dimensions,
-    SyntheticTileEvidence? evidence,
     string seedText = "server-picked-seed",
     bool crimson = true,
     IReadOnlyList<SyntheticChest>? chests = null)
@@ -1406,26 +1527,9 @@ static void WriteSyntheticWorldFile(
     writer.Write(0);
     stream.Position = tileSectionOffset;
 
-    List<SyntheticTileEvidence> tileEvidence = new();
-    if (evidence is not null)
-    {
-        tileEvidence.Add(evidence.Value);
-    }
-
-    foreach (SyntheticChest chest in chests)
-    {
-        tileEvidence.Add(new SyntheticTileEvidence(
-            chest.X,
-            chest.Y,
-            true,
-            21,
-            34,
-            FrameX: (short)(chest.Style * 36)));
-    }
-
     for (int x = 0; x < dimensions.Width; x++)
     {
-        WriteSyntheticTileColumn(writer, dimensions.Height, tileEvidence.Where(tile => tile.X == x));
+        WriteSyntheticTileColumn(writer, dimensions.Height);
     }
 
     int chestSectionOffset = (int)stream.Position;
@@ -1480,79 +1584,16 @@ static void WriteSyntheticWorldHeader(
     writer.Write(crimson);
 }
 
-static void WriteSyntheticTile(
-    BinaryWriter writer,
-    bool active,
-    ushort type,
-    ushort wall,
-    int runLength,
-    byte quaternaryFlags = 0,
-    short frameX = 0,
-    short frameY = 0)
+static void WriteSyntheticEmptyTileRun(BinaryWriter writer, int runLength)
 {
-    byte flags = 0;
-    byte secondaryFlags = 0;
-    byte tertiaryFlags = 0;
-    if (active)
-    {
-        flags |= 0x02;
-    }
-
-    if (wall > 0)
-    {
-        flags |= 0x04;
-    }
-
-    if (active && type > byte.MaxValue)
-    {
-        flags |= 0x20;
-    }
-
     int run = Math.Max(0, runLength - 1);
+    byte flags = 0;
     if (run > 0)
     {
         flags |= run <= byte.MaxValue ? (byte)0x40 : (byte)0x80;
     }
 
-    if (quaternaryFlags != 0)
-    {
-        tertiaryFlags |= 0x01;
-        secondaryFlags |= 0x01;
-    }
-
-    if (secondaryFlags != 0)
-    {
-        flags |= 0x01;
-    }
-
     writer.Write(flags);
-    if (secondaryFlags != 0)
-    {
-        writer.Write(secondaryFlags);
-        writer.Write(tertiaryFlags);
-        writer.Write(quaternaryFlags);
-    }
-
-    if (active)
-    {
-        writer.Write((byte)(type & 0xFF));
-        if (type > byte.MaxValue)
-        {
-            writer.Write((byte)(type >> 8));
-        }
-
-        if (type == 21)
-        {
-            writer.Write(frameX);
-            writer.Write(frameY);
-        }
-    }
-
-    if (wall > 0)
-    {
-        writer.Write((byte)(wall & 0xFF));
-    }
-
     if (run > 0)
     {
         if (run <= byte.MaxValue)
@@ -1568,40 +1609,9 @@ static void WriteSyntheticTile(
 
 static void WriteSyntheticTileColumn(
     BinaryWriter writer,
-    int height,
-    IEnumerable<SyntheticTileEvidence> evidence)
+    int height)
 {
-    int y = 0;
-    foreach (SyntheticTileEvidence tile in evidence
-        .Where(tile => tile.Y >= 0 && tile.Y < height)
-        .OrderBy(tile => tile.Y))
-    {
-        if (tile.Y < y)
-        {
-            continue;
-        }
-
-        if (tile.Y > y)
-        {
-            WriteSyntheticTile(writer, false, 0, 0, tile.Y - y);
-        }
-
-        WriteSyntheticTile(
-            writer,
-            tile.Active,
-            tile.Type,
-            tile.Wall,
-            1,
-            tile.QuaternaryFlags,
-            tile.FrameX,
-            tile.FrameY);
-        y = tile.Y + 1;
-    }
-
-    if (y < height)
-    {
-        WriteSyntheticTile(writer, false, 0, 0, height - y);
-    }
+    WriteSyntheticEmptyTileRun(writer, height);
 }
 
 static void WriteSyntheticChests(BinaryWriter writer, IReadOnlyList<SyntheticChest> chests, int version)
@@ -2085,6 +2095,22 @@ static bool ContainsPattern(byte[] buffer, byte[] pattern)
     return false;
 }
 
+static TerrariaWatchSnapshot GenerationSnapshot(bool hasGeneration)
+{
+    TerrariaWorldGenerationState generation = hasGeneration
+        ? new TerrariaWorldGenerationState("Final Cleanup", "Saving world", 1d, 1d)
+        : TerrariaWorldGenerationState.Unknown;
+    return new TerrariaWatchSnapshot(
+        true,
+        123,
+        true,
+        true,
+        TerrariaBossStates.Unknown,
+        generation,
+        false,
+        "test watcher");
+}
+
 static void RunSta(Action action)
 {
     Exception? failure = null;
@@ -2367,18 +2393,48 @@ static void Nearly(double expected, double actual, double tolerance)
     }
 }
 
-readonly record struct SyntheticTileEvidence(
-    int X,
-    int Y,
-    bool Active,
-    ushort Type,
-    ushort Wall,
-    byte QuaternaryFlags = 0,
-    short FrameX = 0,
-    short FrameY = 0);
-
-readonly record struct SyntheticChest(int X, int Y, int Style, IReadOnlyList<SyntheticChestItem> Items);
+readonly record struct SyntheticChest(int X, int Y, IReadOnlyList<SyntheticChestItem> Items);
 
 readonly record struct SyntheticChestItem(int Slot, int Type, int Stack = 1, byte Prefix = 0);
 
 readonly record struct DirectorySnapshot(bool Exists, Dictionary<string, byte[]> Files);
+
+sealed class SequenceGenerationWatcher : ITerrariaWorldWatcher
+{
+    private readonly TerrariaWatchSnapshot[] snapshots;
+    private int index;
+
+    public SequenceGenerationWatcher(params TerrariaWatchSnapshot[] snapshots)
+    {
+        this.snapshots = snapshots.Length == 0
+            ? [new TerrariaWatchSnapshot(
+                true,
+                123,
+                true,
+                true,
+                TerrariaBossStates.Unknown,
+                TerrariaWorldGenerationState.Unknown,
+                false,
+                "test watcher")]
+            : snapshots;
+    }
+
+    public TerrariaWatchSnapshot Poll()
+    {
+        if (index < snapshots.Length)
+        {
+            return snapshots[index++];
+        }
+
+        return snapshots[^1];
+    }
+
+    public TerrariaWatcherDiagnostics GetDiagnostics()
+    {
+        return TerrariaWatcherDiagnosticsDefaults.Empty;
+    }
+
+    public void Dispose()
+    {
+    }
+}

@@ -1,79 +1,14 @@
 using System.Drawing;
+
 namespace TerrariaSplit;
 
 internal sealed class TerrariaWorldFilePyramidScanner
 {
     private const ulong ReLogicMagic = 27981915666277746UL;
     private const byte WorldFileType = 2;
-    private const int BasicChestTileType = 21;
-    private const int PyramidChestStyle = 1;
-    private const int PyramidWallType = 34;
-    private const int PyramidTileType = 151;
     private const double CorridorHalfWidthRatio = 0.20d;
     private const double CorridorTopRatio = 0.15d;
     private const double CorridorBottomRatio = 0.35d;
-
-    public bool TryScanSpeedrunCorridor(
-        string worldPath,
-        string worldSize,
-        int wallThreshold,
-        int tileThreshold,
-        out PyramidEvidenceScanResult result,
-        out Rectangle corridorBounds,
-        out string detail)
-    {
-        result = new PyramidEvidenceScanResult(-1, -1);
-        corridorBounds = Rectangle.Empty;
-        detail = string.Empty;
-
-        try
-        {
-            TerrariaWorldDimensions dimensions = TerrariaWorldDimensions.FromWorldSize(worldSize);
-            corridorBounds = BuildSpeedrunCorridorBounds(dimensions);
-            if (corridorBounds.Width <= 0 || corridorBounds.Height <= 0)
-            {
-                detail = "empty scan corridor";
-                return true;
-            }
-
-            using FileStream stream = new(
-                worldPath,
-                FileMode.Open,
-                FileAccess.Read,
-                FileShare.ReadWrite | FileShare.Delete);
-            using BinaryReader reader = new(stream);
-
-            if (!TryReadWorldFileHeader(reader, out WorldFileTileSection tileSection, out detail))
-            {
-                return false;
-            }
-
-            stream.Position = tileSection.TileDataOffset;
-            result = ScanTileData(
-                reader,
-                dimensions.Width,
-                dimensions.Height,
-                corridorBounds,
-                tileSection.TileFrameImportant,
-                wallThreshold,
-                tileThreshold);
-            if (!result.MeetsThreshold(wallThreshold, tileThreshold) &&
-                tileSection.TileDataEndOffset > tileSection.TileDataOffset &&
-                stream.Position != tileSection.TileDataEndOffset)
-            {
-                detail = $"tile section parse ended at {stream.Position}, expected {tileSection.TileDataEndOffset}";
-                result = new PyramidEvidenceScanResult(-1, -1);
-            }
-
-            return true;
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or EndOfStreamException or ArgumentException or InvalidDataException)
-        {
-            detail = ex.Message;
-            AppLogger.Error(ex, $"Pyramid filter failed to scan Terraria world file: {worldPath}");
-            return false;
-        }
-    }
 
     // Reads the world evil from the header section (true = crimson, false = corruption).
     public bool TryReadWorldEvil(string worldPath, out bool hasCrimson, out string detail)
@@ -146,13 +81,16 @@ internal sealed class TerrariaWorldFilePyramidScanner
         }
     }
 
-    public bool TryScanPyramidChests(
+    public bool TryScanCandidateItemChests(
         string worldPath,
         string worldSize,
+        int requiredItemMask,
         out PyramidChestScanResult result,
+        out Rectangle corridorBounds,
         out string detail)
     {
         result = PyramidChestScanResult.Empty;
+        corridorBounds = Rectangle.Empty;
         detail = string.Empty;
         string phase = "open world file";
 
@@ -160,7 +98,7 @@ internal sealed class TerrariaWorldFilePyramidScanner
         {
             phase = "build scan bounds";
             TerrariaWorldDimensions dimensions = TerrariaWorldDimensions.FromWorldSize(worldSize);
-            Rectangle corridorBounds = BuildSpeedrunCorridorBounds(dimensions);
+            corridorBounds = BuildSpeedrunCorridorBounds(dimensions);
             if (corridorBounds.Width <= 0 || corridorBounds.Height <= 0)
             {
                 detail = "empty scan corridor";
@@ -174,68 +112,51 @@ internal sealed class TerrariaWorldFilePyramidScanner
                 FileShare.ReadWrite | FileShare.Delete);
             using BinaryReader reader = new(stream);
 
-            phase = "read world file header";
-            if (!TryReadWorldFileHeader(reader, out WorldFileTileSection tileSection, out detail))
+            phase = "read world file sections";
+            if (!TryReadWorldFileSections(reader, out WorldFileSections sections, out detail))
             {
                 return false;
             }
 
-            if (tileSection.ChestDataOffset <= 0)
+            if (sections.ChestDataOffset <= 0)
             {
                 return true;
             }
 
             phase = "read chest section";
-            stream.Position = tileSection.ChestDataOffset;
-            List<WorldChestData> chests = ReadChestData(reader, tileSection.Version);
+            stream.Position = sections.ChestDataOffset;
+            List<WorldChestData> chests = ReadChestData(reader, sections.Version);
             if (chests.Count == 0)
             {
                 return true;
             }
 
-            Dictionary<Point, WorldChestData> targetChests = chests
-                .Where(chest => corridorBounds.IntersectsWith(new Rectangle(chest.X, chest.Y, 2, 2)))
-                .ToDictionary(chest => new Point(chest.X, chest.Y));
-            if (targetChests.Count == 0)
+            int normalizedRequiredItemMask = PyramidFilterItemMatcher.ResolveRequiredMaskOrAll(requiredItemMask);
+            var candidateChests = new List<PyramidChestInfo>();
+            foreach (WorldChestData chest in chests)
             {
-                return true;
-            }
-
-            phase = "read chest tiles";
-            stream.Position = tileSection.TileDataOffset;
-            Dictionary<Point, WorldTileData> chestTiles = ReadTargetTiles(
-                reader,
-                dimensions.Width,
-                dimensions.Height,
-                tileSection.TileFrameImportant,
-                targetChests.Keys.ToHashSet());
-
-            var pyramidChests = new List<PyramidChestInfo>();
-            foreach ((Point point, WorldChestData chest) in targetChests)
-            {
-                chestTiles.TryGetValue(point, out WorldTileData tile);
-                int chestStyle = tile.Active && tile.Type == BasicChestTileType ? tile.FrameX / 36 : -1;
-                bool pyramidStyle = chestStyle == PyramidChestStyle;
-                bool pyramidLoot = chest.Items.Any(item => PyramidChestItemNames.IsPyramidItem(item.Type));
-                if (!pyramidStyle && !pyramidLoot)
+                if (!corridorBounds.IntersectsWith(new Rectangle(chest.X, chest.Y, 2, 2)))
                 {
                     continue;
                 }
 
-                pyramidChests.Add(new PyramidChestInfo(
+                var chestInfo = new PyramidChestInfo(
                     chest.X,
                     chest.Y,
-                    chestStyle,
-                    chest.Items.Select(item => new PyramidChestItem(item.Slot, item.Type, item.Stack, item.Prefix)).ToList()));
+                    chest.Items.Select(item => new PyramidChestItem(item.Slot, item.Type, item.Stack, item.Prefix)).ToList());
+                if (PyramidFilterItemMatcher.Matches(new PyramidChestScanResult([chestInfo]), normalizedRequiredItemMask))
+                {
+                    candidateChests.Add(chestInfo);
+                }
             }
 
-            result = new PyramidChestScanResult(pyramidChests);
+            result = new PyramidChestScanResult(candidateChests);
             return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or EndOfStreamException or ArgumentException or InvalidDataException)
         {
             detail = $"{phase}: {ex.Message}";
-            AppLogger.Error(ex, $"Pyramid filter failed to scan Terraria chest data: {worldPath}");
+            AppLogger.Error(ex, $"Pyramid filter failed to scan Terraria candidate chest data: {worldPath}");
             return false;
         }
     }
@@ -431,46 +352,17 @@ internal sealed class TerrariaWorldFilePyramidScanner
         return Rectangle.FromLTRB(left, top, right + 1, bottom + 1);
     }
 
-    private static bool TryReadWorldFileHeader(
+    private static bool TryReadWorldFileSections(
         BinaryReader reader,
-        out WorldFileTileSection tileSection,
+        out WorldFileSections sections,
         out string detail)
     {
-        tileSection = default;
+        sections = default;
         detail = string.Empty;
 
-        int version = reader.ReadInt32();
-        if (version >= 135)
+        if (!TryReadSectionPointers(reader, out int version, out int[] sectionPointers, out detail))
         {
-            ulong metadata = reader.ReadUInt64();
-            if ((metadata & 0x00FFFFFFFFFFFFFFUL) != ReLogicMagic)
-            {
-                detail = $"unexpected Terraria world metadata magic 0x{metadata:X16}";
-                return false;
-            }
-
-            byte fileType = (byte)(metadata >> 56);
-            if (fileType != WorldFileType)
-            {
-                detail = $"unexpected Terraria world file type {fileType}";
-                return false;
-            }
-
-            _ = reader.ReadUInt32();
-            _ = reader.ReadUInt64();
-        }
-
-        short sectionCount = reader.ReadInt16();
-        if (sectionCount < 2)
-        {
-            detail = $"unexpected world section count {sectionCount}";
             return false;
-        }
-
-        int[] sectionPointers = new int[sectionCount];
-        for (int i = 0; i < sectionPointers.Length; i++)
-        {
-            sectionPointers[i] = reader.ReadInt32();
         }
 
         short importanceCount = reader.ReadInt16();
@@ -480,35 +372,8 @@ internal sealed class TerrariaWorldFilePyramidScanner
             return false;
         }
 
-        bool[] tileFrameImportant = new bool[importanceCount];
         int importanceByteCount = (importanceCount + 7) / 8;
-        for (int byteIndex = 0; byteIndex < importanceByteCount; byteIndex++)
-        {
-            byte bits = reader.ReadByte();
-            for (int bit = 0; bit < 8; bit++)
-            {
-                int index = byteIndex * 8 + bit;
-                if (index >= tileFrameImportant.Length)
-                {
-                    break;
-                }
-
-                tileFrameImportant[index] = (bits & (1 << bit)) != 0;
-            }
-        }
-
-        int tileDataOffset = sectionPointers[1];
-        if (tileDataOffset <= 0 || tileDataOffset >= reader.BaseStream.Length)
-        {
-            detail = $"invalid tile section offset {tileDataOffset}";
-            return false;
-        }
-
-        int tileDataEndOffset = 0;
-        if (sectionPointers.Length > 2 && sectionPointers[2] > tileDataOffset && sectionPointers[2] <= reader.BaseStream.Length)
-        {
-            tileDataEndOffset = sectionPointers[2];
-        }
+        _ = reader.ReadBytes(importanceByteCount);
 
         int chestDataOffset = 0;
         if (sectionPointers.Length > 2 && sectionPointers[2] > 0 && sectionPointers[2] < reader.BaseStream.Length)
@@ -516,110 +381,8 @@ internal sealed class TerrariaWorldFilePyramidScanner
             chestDataOffset = sectionPointers[2];
         }
 
-        int chestDataEndOffset = 0;
-        if (sectionPointers.Length > 3 && sectionPointers[3] > chestDataOffset && sectionPointers[3] <= reader.BaseStream.Length)
-        {
-            chestDataEndOffset = sectionPointers[3];
-        }
-
-        tileSection = new WorldFileTileSection(
-            version,
-            tileDataOffset,
-            tileDataEndOffset,
-            chestDataOffset,
-            chestDataEndOffset,
-            tileFrameImportant);
+        sections = new WorldFileSections(version, chestDataOffset);
         return true;
-    }
-
-    private static PyramidEvidenceScanResult ScanTileData(
-        BinaryReader reader,
-        int width,
-        int height,
-        Rectangle bounds,
-        bool[] tileFrameImportant,
-        int wallThreshold,
-        int tileThreshold)
-    {
-        int wallMatches = 0;
-        int tileMatches = 0;
-        for (int x = 0; x < width; x++)
-        {
-            int y = 0;
-            while (y < height)
-            {
-                WorldTileData tile = ReadTileData(reader, tileFrameImportant);
-                int runLength = Math.Min(tile.RunLength, height - y);
-                if (x >= bounds.Left && x < bounds.Right)
-                {
-                    int overlapTop = Math.Max(y, bounds.Top);
-                    int overlapBottom = Math.Min(y + runLength, bounds.Bottom);
-                    int overlap = overlapBottom - overlapTop;
-                    if (overlap > 0)
-                    {
-                        if (tile.Wall == PyramidWallType)
-                        {
-                            wallMatches += overlap;
-                        }
-
-                        if (tile.Active && tile.Type == PyramidTileType)
-                        {
-                            tileMatches += overlap;
-                        }
-
-                        PyramidEvidenceScanResult current = new(wallMatches, tileMatches);
-                        if (current.MeetsThreshold(wallThreshold, tileThreshold))
-                        {
-                            return current;
-                        }
-                    }
-                }
-
-                y += runLength;
-            }
-        }
-
-        return new PyramidEvidenceScanResult(wallMatches, tileMatches);
-    }
-
-    private static Dictionary<Point, WorldTileData> ReadTargetTiles(
-        BinaryReader reader,
-        int width,
-        int height,
-        bool[] tileFrameImportant,
-        HashSet<Point> targets)
-    {
-        var result = new Dictionary<Point, WorldTileData>();
-        if (targets.Count == 0)
-        {
-            return result;
-        }
-
-        for (int x = 0; x < width; x++)
-        {
-            int y = 0;
-            while (y < height)
-            {
-                WorldTileData tile = ReadTileData(reader, tileFrameImportant);
-                int runLength = Math.Min(tile.RunLength, height - y);
-                for (int offset = 0; offset < runLength; offset++)
-                {
-                    var point = new Point(x, y + offset);
-                    if (targets.Contains(point))
-                    {
-                        result[point] = tile;
-                        if (result.Count == targets.Count)
-                        {
-                            return result;
-                        }
-                    }
-                }
-
-                y += runLength;
-            }
-        }
-
-        return result;
     }
 
     private static List<WorldChestData> ReadChestData(BinaryReader reader, int version)
@@ -658,95 +421,7 @@ internal sealed class TerrariaWorldFilePyramidScanner
         return chests;
     }
 
-    private static WorldTileData ReadTileData(BinaryReader reader, bool[] tileFrameImportant)
-    {
-        // Terraria world tiles can carry up to four chained header bytes in LoadWorldTiles:
-        // primary (b4), secondary (b), tertiary (b2), quaternary (b3).
-        byte flags1 = reader.ReadByte();
-        byte flags2 = 0;
-        byte flags3 = 0;
-        byte flags4 = 0;
-        if ((flags1 & 0x01) != 0)
-        {
-            flags2 = reader.ReadByte();
-            if ((flags2 & 0x01) != 0)
-            {
-                flags3 = reader.ReadByte();
-                if ((flags3 & 0x01) != 0)
-                {
-                    flags4 = reader.ReadByte();
-                }
-            }
-        }
-
-        bool active = (flags1 & 0x02) != 0;
-        ushort type = 0;
-        short frameX = 0;
-        short frameY = 0;
-        if (active)
-        {
-            type = reader.ReadByte();
-            if ((flags1 & 0x20) != 0)
-            {
-                type = (ushort)(type | (reader.ReadByte() << 8));
-            }
-
-            if (type < tileFrameImportant.Length && tileFrameImportant[type])
-            {
-                frameX = reader.ReadInt16();
-                frameY = reader.ReadInt16();
-            }
-
-            if ((flags3 & 0x08) != 0)
-            {
-                _ = reader.ReadByte();
-            }
-        }
-
-        ushort wall = 0;
-        if ((flags1 & 0x04) != 0)
-        {
-            wall = reader.ReadByte();
-            if ((flags3 & 0x40) != 0)
-            {
-                wall = (ushort)(wall | (reader.ReadByte() << 8));
-            }
-
-            if ((flags3 & 0x10) != 0)
-            {
-                _ = reader.ReadByte();
-            }
-        }
-
-        if ((flags1 & 0x18) != 0)
-        {
-            _ = reader.ReadByte();
-        }
-
-        int runLength = 1;
-        int runCode = (flags1 & 0xC0) >> 6;
-        if (runCode == 1)
-        {
-            runLength += reader.ReadByte();
-        }
-        else if (runCode is 2 or 3)
-        {
-            runLength += reader.ReadInt16();
-        }
-
-        _ = flags4;
-        return new WorldTileData(active, type, wall, Math.Max(1, runLength), frameX, frameY);
-    }
-
-    private readonly record struct WorldFileTileSection(
-        int Version,
-        int TileDataOffset,
-        int TileDataEndOffset,
-        int ChestDataOffset,
-        int ChestDataEndOffset,
-        bool[] TileFrameImportant);
-
-    private readonly record struct WorldTileData(bool Active, ushort Type, ushort Wall, int RunLength, short FrameX, short FrameY);
+    private readonly record struct WorldFileSections(int Version, int ChestDataOffset);
 
     private readonly record struct WorldChestData(int X, int Y, IReadOnlyList<WorldChestItemData> Items);
 
@@ -799,31 +474,18 @@ internal readonly record struct TerrariaWorldSeedMetadata(
     }
 }
 
-internal readonly record struct PyramidEvidenceScanResult(int Wall34Count, int ActiveTile151Count)
-{
-    public bool ScanFailed => Wall34Count < 0 || ActiveTile151Count < 0;
-
-    public bool MeetsThreshold(int wallThreshold, int tileThreshold)
-    {
-        return (wallThreshold > 0 && Wall34Count >= wallThreshold) ||
-            (tileThreshold > 0 && ActiveTile151Count >= tileThreshold);
-    }
-}
-
 internal readonly record struct PyramidChestScanResult(IReadOnlyList<PyramidChestInfo> Chests)
 {
     public static PyramidChestScanResult Empty => new([]);
 
-    public bool HasPyramidChest => Chests.Count > 0;
-
     public bool ContainsItem(int itemType)
     {
-        return Chests.Any(chest => chest.ContainsItem(itemType));
+        return Chests is not null && Chests.Any(chest => chest.ContainsItem(itemType));
     }
 
     public string FormatSummary()
     {
-        if (Chests.Count == 0)
+        if (Chests is null || Chests.Count == 0)
         {
             return "none";
         }
@@ -835,20 +497,19 @@ internal readonly record struct PyramidChestScanResult(IReadOnlyList<PyramidChes
 internal readonly record struct PyramidChestInfo(
     int X,
     int Y,
-    int ChestStyle,
     IReadOnlyList<PyramidChestItem> Items)
 {
     public bool ContainsItem(int itemType)
     {
-        return Items.Any(item => item.Type == itemType && item.Stack > 0);
+        return Items is not null && Items.Any(item => item.Type == itemType && item.Stack > 0);
     }
 
     public string FormatSummary()
     {
-        string items = Items.Count == 0
+        string items = Items is null || Items.Count == 0
             ? "empty"
             : string.Join(", ", Items.Select(PyramidChestItemNames.Format));
-        return $"({X},{Y}) style={ChestStyle}: {items}";
+        return $"({X},{Y}): {items}";
     }
 }
 
@@ -868,11 +529,6 @@ internal static class PyramidChestItemNames
         [PharaohRobe] = "Pharaoh's Robe",
         [FlyingCarpet] = "Flying Carpet"
     };
-
-    public static bool IsPyramidItem(int type)
-    {
-        return type is PharaohMask or SandstormInABottle or PharaohRobe or FlyingCarpet;
-    }
 
     public static string Format(PyramidChestItem item)
     {

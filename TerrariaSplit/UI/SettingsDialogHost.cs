@@ -183,8 +183,10 @@ internal sealed class SettingsDialogHost : IDisposable
         Rectangle targetArea = ownerBounds.Width > 0 && ownerBounds.Height > 0
             ? ownerBounds
             : Screen.PrimaryScreen?.WorkingArea ?? new Rectangle(0, 0, 1920, 1080);
+        Rectangle screenBounds = Screen.FromRectangle(targetArea).Bounds;
         int x = targetArea.Left + Math.Max(0, (targetArea.Width - dialogSize.Width) / 2);
         int y = targetArea.Top + Math.Max(0, (targetArea.Height - dialogSize.Height) / 2);
+        y = Math.Max(screenBounds.Top, y);
         return new Point(x, y);
     }
 

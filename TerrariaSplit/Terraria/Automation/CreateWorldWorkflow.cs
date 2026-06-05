@@ -16,6 +16,7 @@ internal sealed class CreateWorldWorkflow : IDisposable
     private readonly WorldPoolStore? worldPool;
     private TimeSpan shortActionDelay = TimeSpan.FromMilliseconds(AppSettingsDefaults.AutoCreate.ShortActionDelayMilliseconds);
     private TimeSpan menuActionDelay = TimeSpan.FromMilliseconds(AppSettingsDefaults.AutoCreate.MenuActionDelayMilliseconds);
+    private int pyramidFilterPostDelayMilliseconds = AppSettingsDefaults.AutoCreate.PyramidFilterPostDelayMilliseconds;
 
     public CreateWorldWorkflow(WorldPoolStore? worldPool = null)
     {
@@ -417,7 +418,7 @@ internal sealed class CreateWorldWorkflow : IDisposable
         TerrariaMenuGeometry geometry,
         CancellationToken cancellationToken)
     {
-        if (!automation.Window.TryActivate(out _))
+        if (!automation.TryActivate(out _, pyramidFilterPostDelayMilliseconds))
         {
             AppLogger.Info("Create world automation could not reactivate Terraria before clicking back out of a rejected world.");
             return false;
@@ -448,6 +449,7 @@ internal sealed class CreateWorldWorkflow : IDisposable
     {
         shortActionDelay = TimeSpan.FromMilliseconds(settings.ShortActionDelayMilliseconds);
         menuActionDelay = TimeSpan.FromMilliseconds(settings.MenuActionDelayMilliseconds);
+        pyramidFilterPostDelayMilliseconds = settings.PyramidFilterPostDelayMilliseconds;
         automation.ConfigureTiming(settings);
     }
 

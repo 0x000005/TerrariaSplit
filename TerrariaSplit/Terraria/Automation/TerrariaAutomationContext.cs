@@ -33,12 +33,24 @@ internal sealed class TerrariaAutomationContext
     public bool TryActivate(out Size clientSize)
     {
         bool success = Window.TryActivate(out clientSize);
+        LogActivationResult(success, clientSize);
+        return success;
+    }
+
+    public bool TryActivate(out Size clientSize, int activationDelayMilliseconds)
+    {
+        bool success = Window.TryActivate(out clientSize, activationDelayMilliseconds);
+        LogActivationResult(success, clientSize);
+        return success;
+    }
+
+    private void LogActivationResult(bool success, Size clientSize)
+    {
         Log(new AutomationStepResult(
             "activate Terraria window",
             success,
             ClientSize: clientSize,
             Detail: success ? null : "window activation failed"));
-        return success;
     }
 
     public async Task<bool> RunStepAsync(

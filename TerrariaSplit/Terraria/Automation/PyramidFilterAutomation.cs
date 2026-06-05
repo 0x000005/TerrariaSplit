@@ -1,25 +1,32 @@
-using System.Diagnostics;
-using System.Drawing;
-
 namespace TerrariaSplit;
 
 internal sealed class PyramidFilterAutomation
 {
-    private const int PyramidWallThreshold = 1;
-    private const int PyramidTileThreshold = 1;
-    private static readonly TimeSpan WorldFileTimeout = TimeSpan.FromMinutes(5);
-    private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(100);
-    private static readonly TimeSpan StableFileDuration = TimeSpan.FromMilliseconds(400);
+    private static readonly PyramidFilterWaitTimings DefaultWaitTimings = new(
+        WorldFileTimeout: TimeSpan.FromMinutes(5),
+        LegacyPollInterval: TimeSpan.FromMilliseconds(100),
+        LegacyStableFileDuration: TimeSpan.FromMilliseconds(400),
+        GenerationPollInterval: TimeSpan.FromMilliseconds(30),
+        FastOpenTimeout: TimeSpan.FromMilliseconds(1000));
 
     private readonly TerrariaAutomationContext automation;
-    private readonly TerrariaWorldFilePyramidScanner scanner;
+    private readonly PyramidFilterWorldFileEvaluator worldFileEvaluator;
+    private readonly Func<ITerrariaWorldWatcher> watcherFactory;
+    private readonly Func<string> worldsDirectoryProvider;
+    private readonly PyramidFilterWaitTimings waitTimings;
 
     public PyramidFilterAutomation(
         TerrariaAutomationContext automation,
-        TerrariaWorldFilePyramidScanner? scanner = null)
+        TerrariaWorldFilePyramidScanner? scanner = null,
+        Func<ITerrariaWorldWatcher>? watcherFactory = null,
+        Func<string>? worldsDirectoryProvider = null,
+        PyramidFilterWaitTimings? waitTimings = null)
     {
         this.automation = automation;
-        this.scanner = scanner ?? new TerrariaWorldFilePyramidScanner();
+        worldFileEvaluator = new PyramidFilterWorldFileEvaluator(scanner);
+        this.watcherFactory = watcherFactory ?? (() => new TerrariaWorldWatcher());
+        this.worldsDirectoryProvider = worldsDirectoryProvider ?? DefaultWorldsDirectory;
+        this.waitTimings = waitTimings ?? DefaultWaitTimings;
     }
 
     public async Task<PyramidFilterOutcome> RunAsync(
@@ -41,51 +48,24 @@ internal sealed class PyramidFilterAutomation
 
         AppLogger.Info($"Pyramid filter will scan world file '{Path.GetFileName(worldPath)}'.");
 
-        Stopwatch stopwatch = Stopwatch.StartNew();
-        bool scanned = scanner.TryScanSpeedrunCorridor(
-            worldPath,
-            settings.WorldSize,
-            PyramidWallThreshold,
-            PyramidTileThreshold,
-            out PyramidEvidenceScanResult evidence,
-            out Rectangle bounds,
-            out string detail);
-        stopwatch.Stop();
-
-        if (!scanned || evidence.ScanFailed)
+        PyramidFilterWorldFileResult result = worldFileEvaluator.Evaluate(worldPath, settings);
+        if (!result.ScanSucceeded)
         {
             AppLogger.Info(
-                $"Pyramid filter kept '{Path.GetFileName(worldPath)}' to avoid a false delete. " +
-                $"scanFailed={evidence.ScanFailed}, detail={detail}, scanMs={stopwatch.ElapsedMilliseconds}");
-            return PyramidFilterOutcome.KeptWithoutVerification;
+                $"Pyramid filter rejected '{Path.GetFileName(worldPath)}' because candidate chest contents could not be scanned. " +
+                $"requiredItems={PyramidFilterItemMatcher.FormatRequiredItems(result.RequiredItemMask)}, detail={result.Detail}, " +
+                $"scanMs={result.ScanDuration.TotalMilliseconds:0}");
+            return PyramidFilterOutcome.Rejected;
         }
 
-        bool keep = evidence.MeetsThreshold(PyramidWallThreshold, PyramidTileThreshold);
         AppLogger.Info(
-            $"Pyramid filter scanned '{Path.GetFileName(worldPath)}': keep={keep}, " +
-            $"corridor={bounds.Left},{bounds.Top},{bounds.Right},{bounds.Bottom}, " +
-            $"wall34={evidence.Wall34Count}, activeTile151={evidence.ActiveTile151Count}, " +
-            $"scanMs={stopwatch.ElapsedMilliseconds}");
+            $"Pyramid filter candidate item scan '{Path.GetFileName(worldPath)}': keep={result.Keep}, " +
+            $"requiredItems={PyramidFilterItemMatcher.FormatRequiredItems(result.RequiredItemMask)}, " +
+            $"corridor={result.ScanBounds.Left},{result.ScanBounds.Top},{result.ScanBounds.Right},{result.ScanBounds.Bottom}, " +
+            $"candidateChests={result.CandidateChests.FormatSummary()}, " +
+            $"scanMs={result.ScanDuration.TotalMilliseconds:0}");
 
-        if (keep && PyramidFilterItemMatcher.HasItemRequirement(settings))
-        {
-            int requiredItemMask = AutoCreatePyramidFilterItem.NormalizeMask(settings.PyramidFilterItemMask);
-            if (!scanner.TryScanPyramidChests(worldPath, settings.WorldSize, out PyramidChestScanResult pyramidChests, out string chestDetail))
-            {
-                AppLogger.Info(
-                    $"Pyramid filter rejected '{Path.GetFileName(worldPath)}' because chest contents could not be scanned. " +
-                    $"requiredItems={PyramidFilterItemMatcher.FormatRequiredItems(requiredItemMask)}, detail={chestDetail}");
-                return PyramidFilterOutcome.Rejected;
-            }
-
-            keep = PyramidFilterItemMatcher.Matches(pyramidChests, requiredItemMask);
-            AppLogger.Info(
-                $"Pyramid filter item scan '{Path.GetFileName(worldPath)}': keep={keep}, " +
-                $"requiredItems={PyramidFilterItemMatcher.FormatRequiredItems(requiredItemMask)}, " +
-                $"pyramidChests={pyramidChests.FormatSummary()}");
-        }
-
-        return keep
+        return result.Keep
             ? PyramidFilterOutcome.Kept
             : PyramidFilterOutcome.Rejected;
     }
@@ -94,48 +74,193 @@ internal sealed class PyramidFilterAutomation
         IReadOnlyDictionary<string, DateTime> worldsBefore,
         CancellationToken cancellationToken)
     {
-        DateTime deadline = DateTime.UtcNow + WorldFileTimeout;
+        DateTime deadline = DateTime.UtcNow + waitTimings.WorldFileTimeout;
         string? stablePath = null;
         long stableLength = -1;
         DateTime stableWriteTime = DateTime.MinValue;
         DateTime stableSince = DateTime.MinValue;
+        ITerrariaWorldWatcher? generationWatcher = TryCreateGenerationWatcher();
+        bool generationWasVisible = false;
+        bool observedGeneration = false;
+        DateTime fastOpenDeadline = DateTime.MinValue;
+        bool fastOpenExpiredLogged = true;
 
-        while (DateTime.UtcNow <= deadline)
+        try
         {
-            automation.ThrowIfCancellationRequested(cancellationToken);
-            if (TryFindNewestCreatedWorldFile(worldsBefore, out string? candidatePath, out long length, out DateTime writeTime) &&
-                candidatePath is not null)
+            while (DateTime.UtcNow <= deadline)
             {
-                if (string.Equals(stablePath, candidatePath, StringComparison.OrdinalIgnoreCase) &&
-                    stableLength == length &&
-                    stableWriteTime == writeTime &&
-                    CanOpenForRead(candidatePath))
+                automation.ThrowIfCancellationRequested(cancellationToken);
+                DateTime nowUtc = DateTime.UtcNow;
+                PollGenerationState(
+                    ref generationWatcher,
+                    nowUtc,
+                    ref generationWasVisible,
+                    ref observedGeneration,
+                    ref fastOpenDeadline,
+                    ref fastOpenExpiredLogged);
+
+                bool hasCandidate = TryFindNewestCreatedWorldFile(
+                    worldsBefore,
+                    out string? candidatePath,
+                    out long length,
+                    out DateTime writeTime);
+                if (hasCandidate && candidatePath is not null)
                 {
-                    if (stableSince == DateTime.MinValue)
+                    bool fastOpenActive = IsFastOpenActive(nowUtc, fastOpenDeadline);
+                    if (fastOpenActive && CanOpenForExclusiveRead(candidatePath))
                     {
-                        stableSince = DateTime.UtcNow;
+                        AppLogger.Info(
+                            $"Pyramid filter will scan '{Path.GetFileName(candidatePath)}' after world generation state ended.");
+                        return candidatePath;
                     }
-                    else if (DateTime.UtcNow - stableSince >= StableFileDuration)
+
+                    bool allowStableFallback = generationWatcher is null || (!generationWasVisible && !fastOpenActive);
+                    if (allowStableFallback && TryAcceptStableCandidate(
+                            candidatePath,
+                            length,
+                            writeTime,
+                            ref stablePath,
+                            ref stableLength,
+                            ref stableWriteTime,
+                            ref stableSince))
                     {
                         return candidatePath;
                     }
                 }
-                else
-                {
-                    stablePath = candidatePath;
-                    stableLength = length;
-                    stableWriteTime = writeTime;
-                    stableSince = DateTime.MinValue;
-                }
-            }
 
-            await automation.DelayAsync(PollInterval, cancellationToken);
+                if (!fastOpenExpiredLogged && fastOpenDeadline != DateTime.MinValue && nowUtc > fastOpenDeadline)
+                {
+                    fastOpenExpiredLogged = true;
+                    AppLogger.Info("Pyramid filter fast world-file open window expired; falling back to stable file wait.");
+                }
+
+                await automation.DelayAsync(NextWaitInterval(nowUtc, fastOpenDeadline), cancellationToken);
+            }
+        }
+        finally
+        {
+            generationWatcher?.Dispose();
         }
 
         return null;
     }
 
-    private static bool TryFindNewestCreatedWorldFile(
+    private void PollGenerationState(
+        ref ITerrariaWorldWatcher? generationWatcher,
+        DateTime nowUtc,
+        ref bool generationWasVisible,
+        ref bool observedGeneration,
+        ref DateTime fastOpenDeadline,
+        ref bool fastOpenExpiredLogged)
+    {
+        if (generationWatcher is null)
+        {
+            return;
+        }
+
+        TerrariaWatchSnapshot snapshot;
+        try
+        {
+            snapshot = generationWatcher.Poll();
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error(ex, "Pyramid filter world generation watcher failed; falling back to stable file wait.");
+            generationWatcher.Dispose();
+            generationWatcher = null;
+            generationWasVisible = false;
+            return;
+        }
+
+        bool generationVisible = snapshot.WorldGeneration.HasAnyData;
+        if (generationVisible)
+        {
+            generationWasVisible = true;
+            if (!observedGeneration)
+            {
+                observedGeneration = true;
+                AppLogger.Info("Pyramid filter observed active world generation state.");
+            }
+
+            return;
+        }
+
+        if (!generationWasVisible)
+        {
+            return;
+        }
+
+        generationWasVisible = false;
+        fastOpenDeadline = nowUtc + waitTimings.FastOpenTimeout;
+        fastOpenExpiredLogged = false;
+        AppLogger.Info(
+            $"Pyramid filter observed world generation state end; trying completed world file open for " +
+            $"{(int)waitTimings.FastOpenTimeout.TotalMilliseconds}ms.");
+    }
+
+    private ITerrariaWorldWatcher? TryCreateGenerationWatcher()
+    {
+        try
+        {
+            return watcherFactory();
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error(ex, "Pyramid filter could not start world generation watcher; falling back to stable file wait.");
+            return null;
+        }
+    }
+
+    private bool TryAcceptStableCandidate(
+        string candidatePath,
+        long length,
+        DateTime writeTime,
+        ref string? stablePath,
+        ref long stableLength,
+        ref DateTime stableWriteTime,
+        ref DateTime stableSince)
+    {
+        if (string.Equals(stablePath, candidatePath, StringComparison.OrdinalIgnoreCase) &&
+            stableLength == length &&
+            stableWriteTime == writeTime &&
+            CanOpenForRead(candidatePath))
+        {
+            if (stableSince == DateTime.MinValue)
+            {
+                stableSince = DateTime.UtcNow;
+            }
+            else if (DateTime.UtcNow - stableSince >= waitTimings.LegacyStableFileDuration)
+            {
+                return true;
+            }
+        }
+        else
+        {
+            stablePath = candidatePath;
+            stableLength = length;
+            stableWriteTime = writeTime;
+            stableSince = DateTime.MinValue;
+        }
+
+        return false;
+    }
+
+    private TimeSpan NextWaitInterval(DateTime nowUtc, DateTime fastOpenDeadline)
+    {
+        TimeSpan interval = IsFastOpenActive(nowUtc, fastOpenDeadline)
+            ? waitTimings.GenerationPollInterval
+            : waitTimings.GenerationPollInterval < waitTimings.LegacyPollInterval
+                ? waitTimings.GenerationPollInterval
+                : waitTimings.LegacyPollInterval;
+        return interval <= TimeSpan.Zero ? TimeSpan.FromMilliseconds(1) : interval;
+    }
+
+    private static bool IsFastOpenActive(DateTime nowUtc, DateTime fastOpenDeadline)
+    {
+        return fastOpenDeadline != DateTime.MinValue && nowUtc <= fastOpenDeadline;
+    }
+
+    private bool TryFindNewestCreatedWorldFile(
         IReadOnlyDictionary<string, DateTime> worldsBefore,
         out string? path,
         out long length,
@@ -144,7 +269,7 @@ internal sealed class PyramidFilterAutomation
         path = null;
         length = -1;
         writeTimeUtc = DateTime.MinValue;
-        string worldsPath = Path.Combine(TerrariaSavePaths.SaveRoot(), "Worlds");
+        string worldsPath = worldsDirectoryProvider();
         if (!Directory.Exists(worldsPath))
         {
             return false;
@@ -178,6 +303,28 @@ internal sealed class PyramidFilterAutomation
         return path is not null;
     }
 
+    private static string DefaultWorldsDirectory()
+    {
+        return Path.Combine(TerrariaSavePaths.SaveRoot(), "Worlds");
+    }
+
+    private static bool CanOpenForExclusiveRead(string path)
+    {
+        try
+        {
+            using FileStream stream = new(
+                path,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.None);
+            return stream.Length > 0;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
     private static bool CanOpenForRead(string path)
     {
         try
@@ -195,6 +342,13 @@ internal sealed class PyramidFilterAutomation
         }
     }
 }
+
+internal readonly record struct PyramidFilterWaitTimings(
+    TimeSpan WorldFileTimeout,
+    TimeSpan LegacyPollInterval,
+    TimeSpan LegacyStableFileDuration,
+    TimeSpan GenerationPollInterval,
+    TimeSpan FastOpenTimeout);
 
 internal enum PyramidFilterOutcome
 {

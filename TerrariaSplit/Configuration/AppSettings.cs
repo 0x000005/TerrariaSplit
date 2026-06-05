@@ -317,6 +317,7 @@ internal sealed class AutoCreateWorldSettings
     public int WorldPoolTargetCount { get; set; } = 10;
     public int ShortActionDelayMilliseconds { get; set; }
     public int MenuActionDelayMilliseconds { get; set; }
+    public int PyramidFilterPostDelayMilliseconds { get; set; } = 50;
     public int WindowActivationDelayMilliseconds { get; set; }
     public int ClickFocusDelayMilliseconds { get; set; }
     public int InputPressDurationMilliseconds { get; set; }
@@ -634,6 +635,12 @@ internal static class AutoCreatePyramidFilterItem
     public static int NormalizeMask(int mask)
     {
         return mask & AllMask;
+    }
+
+    public static int NormalizeMaskOrAll(int mask)
+    {
+        int normalized = NormalizeMask(mask);
+        return normalized == 0 ? AllMask : normalized;
     }
 
     public static int Mask(string item)

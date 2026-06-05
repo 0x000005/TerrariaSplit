@@ -27,6 +27,7 @@ internal sealed class AutomationSettingsPage : SettingsPageBase
     private readonly TextBox autoCreateWorldPoolTargetBox = new();
     private readonly TextBox autoCreateShortActionDelayBox = new();
     private readonly TextBox autoCreateMenuActionDelayBox = new();
+    private readonly TextBox autoCreatePyramidFilterPostDelayBox = new();
     private readonly TextBox autoCreateWindowActivationDelayBox = new();
     private readonly TextBox autoCreateClickFocusDelayBox = new();
     private readonly TextBox autoCreateInputPressDurationBox = new();
@@ -94,6 +95,11 @@ internal sealed class AutomationSettingsPage : SettingsPageBase
             AppSettingsDefaults.AutoCreate.MenuActionDelayMilliseconds,
             0,
             5000);
+        settings.AutoCreate.PyramidFilterPostDelayMilliseconds = SettingsValueParser.ParseIntBox(
+            autoCreatePyramidFilterPostDelayBox,
+            AppSettingsDefaults.AutoCreate.PyramidFilterPostDelayMilliseconds,
+            0,
+            5000);
         settings.AutoCreate.WindowActivationDelayMilliseconds = SettingsValueParser.ParseIntBox(
             autoCreateWindowActivationDelayBox,
             AppSettingsDefaults.AutoCreate.WindowActivationDelayMilliseconds,
@@ -154,6 +160,7 @@ internal sealed class AutomationSettingsPage : SettingsPageBase
         ConfigureNumberBox(autoCreateWorldPoolTargetBox, Draft.AutoCreate.WorldPoolTargetCount, 1, 50);
         ConfigureNumberBox(autoCreateShortActionDelayBox, Draft.AutoCreate.ShortActionDelayMilliseconds, 0, 5000);
         ConfigureNumberBox(autoCreateMenuActionDelayBox, Draft.AutoCreate.MenuActionDelayMilliseconds, 0, 5000);
+        ConfigureNumberBox(autoCreatePyramidFilterPostDelayBox, Draft.AutoCreate.PyramidFilterPostDelayMilliseconds, 0, 5000);
         ConfigureNumberBox(autoCreateWindowActivationDelayBox, Draft.AutoCreate.WindowActivationDelayMilliseconds, 0, 5000);
         ConfigureNumberBox(autoCreateClickFocusDelayBox, Draft.AutoCreate.ClickFocusDelayMilliseconds, 0, 5000);
         ConfigureNumberBox(autoCreateInputPressDurationBox, Draft.AutoCreate.InputPressDurationMilliseconds, 1, 5000);
@@ -719,11 +726,12 @@ internal sealed class AutomationSettingsPage : SettingsPageBase
         TableLayoutPanel timingGrid = Factory.CreateGrid(
             SettingsUiFactory.ColumnStylePercent(100f),
             SettingsUiFactory.ColumnStyleAbsolute(180f));
-        Factory.AddSettingRow(timingGrid, "Mouse / key press ms", autoCreateInputPressDurationBox);
-        Factory.AddSettingRow(timingGrid, "Window activation wait ms", autoCreateWindowActivationDelayBox);
-        Factory.AddSettingRow(timingGrid, "Click focus wait ms", autoCreateClickFocusDelayBox);
-        Factory.AddSettingRow(timingGrid, "Short action delay ms", autoCreateShortActionDelayBox);
-        Factory.AddSettingRow(timingGrid, "Menu action delay ms", autoCreateMenuActionDelayBox);
+        Factory.AddSettingRow(timingGrid, "Initial wait ms", autoCreateWindowActivationDelayBox);
+        Factory.AddSettingRow(timingGrid, "Pre-click wait ms", autoCreateClickFocusDelayBox);
+        Factory.AddSettingRow(timingGrid, "Mouse / key duration ms", autoCreateInputPressDurationBox);
+        Factory.AddSettingRow(timingGrid, "Adjacent operation delay ms", autoCreateShortActionDelayBox);
+        Factory.AddSettingRow(timingGrid, "Cross-menu operation delay ms", autoCreateMenuActionDelayBox);
+        Factory.AddSettingRow(timingGrid, "Pyramid filter post wait ms", autoCreatePyramidFilterPostDelayBox);
         SettingsUiFactory.AddSectionControl(timingSection, timingGrid);
         SettingsUiFactory.AddSection(parent, timingSection);
     }

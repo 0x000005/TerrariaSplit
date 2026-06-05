@@ -1,7 +1,7 @@
 # Agent 工作说明
 
 ## 项目定位
-- 本项目是 C# WinForms / .NET 10 的 Terraria 分段计时器，主工程在 `TerrariaSplit/`，测试工程在 `test/`。
+- 本项目是 C# WinForms / .NET 10 的 Terraria 分段计时器，主工程在 `TerrariaSplit/`，测试工程在 `test/`，发布程序在`publish/`。
 - 开发时先理解现有信息流和模块边界，再改代码；不要为了局部任务引入另一套并行架构。
 - 可以参考 Terraria 源码 `..\reference\Terraria1456`，但只把必要事实沉淀成项目内模型或小注释。
 

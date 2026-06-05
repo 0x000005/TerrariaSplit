@@ -5,8 +5,8 @@ using System.Text;
 namespace TerrariaSplit;
 
 // Generates a single world headlessly with TerrariaServer.exe (no game window, no
-// foreground), then reads metadata from the world header and optionally scans for a
-// pyramid. Used by the background world pool to discover world files worth banking.
+// foreground), then reads metadata from the world header and optionally scans for
+// candidate item chests. Used by the background world pool to discover world files worth banking.
 // The dedicated server writes the world to a private scratch folder, so the user's Worlds
 // folder is never touched.
 internal sealed class HeadlessWorldGenerator : IDisposable
@@ -15,16 +15,20 @@ internal sealed class HeadlessWorldGenerator : IDisposable
     private static readonly string ServerPidPath = Path.Combine(ScratchDirectory, "server.pid");
     private const string GenerationMutexName = @"Local\TerrariaSplit.WorldPool.HeadlessWorldGenerator";
     private const string WorldFileStem = "tspool";
-    private const int PyramidWallThreshold = 1;
-    private const int PyramidTileThreshold = 1;
     private static readonly TimeSpan GenerationTimeout = TimeSpan.FromMinutes(3);
     private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(150);
     private static readonly TimeSpan StableFileDuration = TimeSpan.FromMilliseconds(500);
 
     private readonly TerrariaWorldFilePyramidScanner scanner = new();
+    private readonly PyramidFilterWorldFileEvaluator worldFileEvaluator;
     private readonly object currentProcessSync = new();
     private Process? currentProcess;
     private bool disposed;
+
+    public HeadlessWorldGenerator()
+    {
+        worldFileEvaluator = new PyramidFilterWorldFileEvaluator(scanner);
+    }
 
     public async Task<HeadlessWorldGenResult> GenerateAndScanAsync(
         string serverExePath,
@@ -76,38 +80,19 @@ internal sealed class HeadlessWorldGenerator : IDisposable
             return HeadlessWorldGenResult.Miss;
         }
 
-        bool pyramidFound = false;
-        bool pyramidItemMatches = true;
-        PyramidChestScanResult pyramidChests = PyramidChestScanResult.Empty;
+        bool candidateItemFound = false;
+        bool pyramidFilterMatches = true;
+        PyramidFilterWorldFileResult pyramidFilterResult = default;
         if (settings.EnablePyramidFilter)
         {
-            int requiredPyramidItemMask = AutoCreatePyramidFilterItem.NormalizeMask(settings.PyramidFilterItemMask);
-            bool scanned = scanner.TryScanSpeedrunCorridor(
-                worldPath,
-                settings.WorldSize,
-                PyramidWallThreshold,
-                PyramidTileThreshold,
-                out PyramidEvidenceScanResult evidence,
-                out _,
-                out _);
-            pyramidFound = scanned && !evidence.ScanFailed && evidence.MeetsThreshold(PyramidWallThreshold, PyramidTileThreshold);
-            if (pyramidFound)
+            pyramidFilterResult = worldFileEvaluator.Evaluate(worldPath, settings);
+            if (!pyramidFilterResult.ScanSucceeded)
             {
-                bool chestScanned = scanner.TryScanPyramidChests(
-                    worldPath,
-                    settings.WorldSize,
-                    out pyramidChests,
-                    out string chestDetail);
-                if (!chestScanned)
-                {
-                    AppLogger.Info($"World pool could not scan pyramid chest contents: {chestDetail}");
-                }
-
-                if (requiredPyramidItemMask != 0)
-                {
-                    pyramidItemMatches = chestScanned && PyramidFilterItemMatcher.Matches(pyramidChests, requiredPyramidItemMask);
-                }
+                AppLogger.Info($"World pool could not scan candidate chest contents: {pyramidFilterResult.Detail}");
             }
+
+            candidateItemFound = pyramidFilterResult.Keep;
+            pyramidFilterMatches = candidateItemFound;
         }
 
         bool keep = false;
@@ -117,26 +102,32 @@ internal sealed class HeadlessWorldGenerator : IDisposable
         {
             metadataDetail = metadata.FormatWorldOptions();
             keep = metadata.Equals(copiedSeed.Metadata) &&
-                (!settings.EnablePyramidFilter || (pyramidFound && pyramidItemMatches));
+                (!settings.EnablePyramidFilter || pyramidFilterMatches);
         }
         else
         {
             AppLogger.Info($"World pool could not read generated world metadata: {detail}");
         }
 
+        string requiredPyramidItems = settings.EnablePyramidFilter
+            ? PyramidFilterItemMatcher.FormatRequiredItems(pyramidFilterResult.RequiredItemMask)
+            : "disabled";
+        string candidateChestsSummary = settings.EnablePyramidFilter
+            ? pyramidFilterResult.CandidateChests.FormatSummary()
+            : "not scanned";
         AppLogger.Info(
-            $"World pool headless generation world='{Path.GetFileName(worldPath)}': pyramid={pyramidFound}, " +
-            $"requiredPyramidItems={PyramidFilterItemMatcher.FormatRequiredItems(settings)}, " +
-            $"pyramidItems={pyramidItemMatches}, " +
-            $"pyramidChests={pyramidChests.FormatSummary()}, " +
+            $"World pool headless generation world='{Path.GetFileName(worldPath)}': " +
+            $"requiredPyramidItems={requiredPyramidItems}, " +
+            $"candidateItems={candidateItemFound}, " +
+            $"candidateChests={candidateChestsSummary}, " +
             $"metadata={metadataDetail}, expected={copiedSeed.Metadata.FormatWorldOptions()}, keep={keep}.");
         if (!keep)
         {
             CleanScratch();
-            return new HeadlessWorldGenResult(pyramidFound, false, string.Empty, default, Generated: true);
+            return new HeadlessWorldGenResult(candidateItemFound, false, string.Empty, default, Generated: true);
         }
 
-        return new HeadlessWorldGenResult(pyramidFound, true, worldPath, metadata, Generated: true);
+        return new HeadlessWorldGenResult(candidateItemFound, true, worldPath, metadata, Generated: true);
     }
 
     private static Process StartServer(string serverExePath, string configPath)
@@ -580,7 +571,7 @@ internal sealed class HeadlessWorldGenerator : IDisposable
 }
 
 internal readonly record struct HeadlessWorldGenResult(
-    bool PyramidFound,
+    bool CandidateItemFound,
     bool Keep,
     string WorldPath,
     TerrariaWorldSeedMetadata Metadata,

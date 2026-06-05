@@ -9,9 +9,9 @@ internal static class PyramidFilterItemMatcher
         [AutoCreatePyramidFilterItem.PharaohSet] = [PyramidChestItemNames.PharaohMask, PyramidChestItemNames.PharaohRobe]
     };
 
-    public static bool HasItemRequirement(AutoCreateWorldSettings settings)
+    public static int ResolveRequiredMaskOrAll(int requiredItemMask)
     {
-        return AutoCreatePyramidFilterItem.NormalizeMask(settings.PyramidFilterItemMask) != 0;
+        return AutoCreatePyramidFilterItem.NormalizeMaskOrAll(requiredItemMask);
     }
 
     public static bool Matches(PyramidChestScanResult scanResult, AutoCreateWorldSettings settings)
@@ -21,12 +21,7 @@ internal static class PyramidFilterItemMatcher
 
     public static bool Matches(PyramidChestScanResult scanResult, int requiredItemMask)
     {
-        IReadOnlyList<string> requiredItems = AutoCreatePyramidFilterItem.FromMask(requiredItemMask);
-        if (requiredItems.Count == 0)
-        {
-            return true;
-        }
-
+        IReadOnlyList<string> requiredItems = AutoCreatePyramidFilterItem.FromMask(ResolveRequiredMaskOrAll(requiredItemMask));
         return requiredItems.Any(item => MatchesItem(scanResult, item));
     }
 
@@ -37,10 +32,8 @@ internal static class PyramidFilterItemMatcher
 
     public static string FormatRequiredItems(int requiredItemMask)
     {
-        IReadOnlyList<string> requiredItems = AutoCreatePyramidFilterItem.FromMask(requiredItemMask);
-        return requiredItems.Count == 0
-            ? "any"
-            : string.Join(", ", requiredItems);
+        IReadOnlyList<string> requiredItems = AutoCreatePyramidFilterItem.FromMask(ResolveRequiredMaskOrAll(requiredItemMask));
+        return string.Join(", ", requiredItems);
     }
 
     private static bool MatchesItem(PyramidChestScanResult scanResult, string item)
