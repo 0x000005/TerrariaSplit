@@ -376,6 +376,19 @@ internal sealed class WorldGenState
         pyramidCandidates.Add(new PyramidCandidate(x, y, sourceIndex));
     }
 
+    public void IncludeJungleMudColumns(int leftInclusive, int rightExclusive)
+    {
+        int left = Math.Clamp(leftInclusive, 0, Options.Dimensions.Width);
+        int right = Math.Clamp(rightExclusive, left, Options.Dimensions.Width);
+        if (right <= left)
+        {
+            return;
+        }
+
+        JungleMinX = JungleMinX < 0 ? left : Math.Min(JungleMinX, left);
+        JungleMaxX = JungleMaxX < 0 ? right : Math.Max(JungleMaxX, right);
+    }
+
     public void AddPyramidChest(int x, int y, IReadOnlyList<PyramidChestItem> items)
     {
         pyramidChests.Add(new PyramidChest(x, y, items));

@@ -14,9 +14,10 @@ internal static class MudCavesToGrassPassReplica
             throw new InvalidOperationException(state.Options.TargetScopeDetail());
         }
 
-        int width = state.Options.Dimensions.Width;
         int height = state.Options.Dimensions.Height;
-        for (int x = 0; x < width; x++)
+        (int jungleLeft, int jungleRight) = JungleMudScanRange(state);
+        int jungleWidth = Math.Max(1, jungleRight - jungleLeft);
+        for (int x = jungleLeft; x < jungleRight; x++)
         {
             for (int y = 0; y < height; y++)
             {
@@ -27,15 +28,62 @@ internal static class MudCavesToGrassPassReplica
                 }
             }
 
-            progress.Set(0.2 * ((x + 1.0) / width));
+            progress.Set(0.2 * ((x - jungleLeft + 1.0) / jungleWidth));
         }
 
-        double scanWidth = width - 20;
+        List<int> cleanupColumns = CleanupScanColumns(state, jungleLeft, jungleRight);
+        for (int i = 0; i < cleanupColumns.Count; i++)
+        {
+            int x = cleanupColumns[i];
+            ScanTileColumnAndRemoveClumps(state, x);
+            progress.Set(0.2 + ((i + 1.0) / cleanupColumns.Count) * 0.8);
+        }
+    }
+
+    private static (int LeftInclusive, int RightExclusive) JungleMudScanRange(WorldGenState state)
+    {
+        int width = state.Options.Dimensions.Width;
+        if (state.JungleMinX < 0 || state.JungleMaxX <= state.JungleMinX)
+        {
+            return (0, width);
+        }
+
+        int left = Math.Max(0, state.JungleMinX - TileCounterMax);
+        int right = Math.Min(width, state.JungleMaxX + TileCounterMax);
+        return (left, right);
+    }
+
+    private static List<int> CleanupScanColumns(WorldGenState state, int jungleLeft, int jungleRight)
+    {
+        int width = state.Options.Dimensions.Width;
+        bool[] include = new bool[width];
+        int left = Math.Max(10, jungleLeft - TileCounterMax);
+        int right = Math.Min(width - 10, jungleRight + TileCounterMax);
+        for (int x = left; x < right; x++)
+        {
+            include[x] = true;
+        }
+
+        foreach (PyramidCandidate candidate in state.PyramidCandidates)
+        {
+            left = Math.Max(10, candidate.X - TileCounterMax);
+            right = Math.Min(width - 10, candidate.X + TileCounterMax + 1);
+            for (int x = left; x < right; x++)
+            {
+                include[x] = true;
+            }
+        }
+
+        var columns = new List<int>();
         for (int x = 10; x < width - 10; x++)
         {
-            ScanTileColumnAndRemoveClumps(state, x);
-            progress.Set(0.2 + ((x - 10) / scanWidth) * 0.8);
+            if (include[x])
+            {
+                columns.Add(x);
+            }
         }
+
+        return columns;
     }
 
     private static void SpreadGrass(WorldGenState state, int x, int y, int recursionDepth)

@@ -61,6 +61,10 @@ internal static class WorldGenTileRunner
             int right = Math.Min(worldWidth - 1, (int)(x + currentStrength * 0.5));
             int top = Math.Max(1, (int)(y - currentStrength * 0.5));
             int bottom = Math.Min(worldHeight - 1, (int)(y + currentStrength * 0.5));
+            if (state.MudWall && type == TileIds.Mud)
+            {
+                state.IncludeJungleMudColumns(left, right);
+            }
 
             for (int tileX = left; tileX < right; tileX++)
             {
