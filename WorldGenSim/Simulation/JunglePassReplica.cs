@@ -56,8 +56,11 @@ internal static class JunglePassReplica
         state.MudWall = false;
 
         progress.Set(0.6);
-        GenerateHolesInMudWalls(state, random);
-        GenerateFinishingTouches(state, random, progress, worldScale, oldX, oldY);
+        // The pyramid simulator only needs the main jungle mud body and surface
+        // tunnel because they feed the later Mud Caves To Grass and Crimson
+        // surface-range decisions. Deep jungle finishing details do not affect
+        // the shallow pyramid candidate scan.
+        progress.Set(1.0);
     }
 
     private static void PlaceGemsAt(WorldGenState state, UnifiedRandom random, double worldScale, int x, int y, int baseGem, int gemVariants)
