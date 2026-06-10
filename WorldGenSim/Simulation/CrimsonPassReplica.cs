@@ -562,17 +562,20 @@ internal static class CrimsonPassReplica
                     double dy = Math.Abs(y - centerY);
                     double scaledX = dx * (1.0 + random.Next(-20, 21) * 0.01);
                     dy *= 1.0 + random.Next(-20, 21) * 0.01;
-                    double distance = Math.Sqrt(scaledX * scaledX + dy * dy);
+                    double distanceSquared = scaledX * scaledX + dy * dy;
                     ref TileData tile = ref state.Tiles[x, y];
-                    if (distance < radius * 0.25)
+                    double clearRadius = radius * 0.25;
+                    double stoneRadius = radius * 0.4;
+                    if (distanceSquared < clearRadius * clearRadius)
                     {
                         tile.Active = false;
                         tile.Wall = CrimstoneWall;
                     }
-                    else if (distance < radius * 0.4 && tile.Wall != CrimstoneWall)
+                    else if (distanceSquared < stoneRadius * stoneRadius && tile.Wall != CrimstoneWall)
                     {
                         tile.SetType(TileIds.Crimstone);
-                        if (distance < radius * 0.35)
+                        double wallRadius = radius * 0.35;
+                        if (distanceSquared < wallRadius * wallRadius)
                         {
                             tile.Wall = CrimstoneWall;
                         }
@@ -651,21 +654,23 @@ internal static class CrimsonPassReplica
                     double dy = Math.Abs(y - centerY);
                     double scaledX = dx * (1.0 + random.Next(-20, 21) * 0.005);
                     dy *= 1.0 + random.Next(-20, 21) * 0.005;
-                    double distance = Math.Sqrt(scaledX * scaledX + dy * dy);
+                    double distanceSquared = scaledX * scaledX + dy * dy;
                     ref TileData tile = ref state.Tiles[x, y];
-                    if (distance < radius * 0.2 * (random.Next(90, 111) * 0.01))
+                    double clearRadius = radius * 0.2 * (random.Next(90, 111) * 0.01);
+                    if (distanceSquared < clearRadius * clearRadius)
                     {
                         tile.Active = false;
                         tile.Wall = CrimstoneWall;
                     }
-                    else if (distance < radius * 0.45)
+                    else if (distanceSquared < radius * radius * 0.45 * 0.45)
                     {
                         left = Math.Min(left, x);
                         right = Math.Max(right, x);
                         if (tile.Wall != CrimstoneWall)
                         {
                             tile.SetType(TileIds.Crimstone);
-                            if (distance < radius * 0.35)
+                            double wallRadius = radius * 0.35;
+                            if (distanceSquared < wallRadius * wallRadius)
                             {
                                 tile.Wall = CrimstoneWall;
                             }
@@ -740,17 +745,20 @@ internal static class CrimsonPassReplica
 
                     double dx = Math.Abs(x - position.X);
                     double dy = Math.Abs(y - position.Y);
-                    double distance = Math.Sqrt(dx * dx + dy * dy);
+                    double distanceSquared = dx * dx + dy * dy;
                     ref TileData tile = ref state.Tiles[x, y];
-                    if (distance < radius * 0.2)
+                    double clearRadius = radius * 0.2;
+                    double stoneRadius = radius * 0.5;
+                    if (distanceSquared < clearRadius * clearRadius)
                     {
                         tile.Active = false;
                         tile.Wall = CrimstoneWall;
                     }
-                    else if (distance < radius * 0.5 && tile.Wall != CrimstoneWall)
+                    else if (distanceSquared < stoneRadius * stoneRadius && tile.Wall != CrimstoneWall)
                     {
                         tile.SetType(TileIds.Crimstone);
-                        if (distance < radius * 0.4)
+                        double wallRadius = radius * 0.4;
+                        if (distanceSquared < wallRadius * wallRadius)
                         {
                             tile.Wall = CrimstoneWall;
                         }
@@ -800,7 +808,8 @@ internal static class CrimsonPassReplica
 
                     double dx = Math.Abs(x - position.X);
                     double dy = Math.Abs(y - position.Y);
-                    if (Math.Sqrt(dx * dx + dy * dy) < radius * 0.5 &&
+                    double entRadius = radius * 0.5;
+                    if (dx * dx + dy * dy < entRadius * entRadius &&
                         state.Tiles[x, y].Active &&
                         state.Tiles[x, y].Type == TileIds.Crimstone)
                     {
@@ -834,7 +843,8 @@ internal static class CrimsonPassReplica
 
                     double dx = Math.Abs(tileX - x);
                     double dy = Math.Abs(tileY - y);
-                    if (Math.Sqrt(dx * dx + dy * dy) < radius * 0.4)
+                    double heartRadius = radius * 0.4;
+                    if (dx * dx + dy * dy < heartRadius * heartRadius)
                     {
                         state.Tiles[tileX, tileY].SetType(TileIds.Crimstone);
                         state.Tiles[tileX, tileY].Wall = CrimstoneWall;
@@ -857,7 +867,8 @@ internal static class CrimsonPassReplica
 
                     double dx = Math.Abs(tileX - x);
                     double dy = Math.Abs(tileY - y);
-                    if (Math.Sqrt(dx * dx + dy * dy) < radius * 0.3)
+                    double clearRadius = radius * 0.3;
+                    if (dx * dx + dy * dy < clearRadius * clearRadius)
                     {
                         state.Tiles[tileX, tileY].Active = false;
                         state.Tiles[tileX, tileY].Wall = CrimstoneWall;
