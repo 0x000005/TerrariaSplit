@@ -54,9 +54,9 @@ internal static class OfficialPassPlan
 
     public static int PassCount => PassesToPyramids.Length;
 
-    public static int ImplementedPassCount => 28;
+    public static int ImplementedPassCount => 21;
 
-    public static int ExplicitlySkippedPassCount => 13;
+    public static int ExplicitlySkippedPassCount => 20;
 
     public static int StubPassCount => PassesToPyramids.Length - ImplementedPassCount - ExplicitlySkippedPassCount;
 
@@ -103,25 +103,25 @@ internal static class OfficialPassPlan
 
             if (string.Equals(name, "Dirt Wall Backgrounds", StringComparison.Ordinal))
             {
-                generator.Append(new DelegateGenPass(name, weight, EarlyWorldMutationPasses.ApplyDirtWallBackgrounds));
+                AppendSkippedIsolatedPass(generator, name, weight);
                 continue;
             }
 
             if (string.Equals(name, "Rocks In Dirt", StringComparison.Ordinal))
             {
-                generator.Append(new DelegateGenPass(name, weight, EarlyWorldMutationPasses.ApplyRocksInDirt));
+                AppendSkippedIsolatedPass(generator, name, weight);
                 continue;
             }
 
             if (string.Equals(name, "Dirt In Rocks", StringComparison.Ordinal))
             {
-                generator.Append(new DelegateGenPass(name, weight, EarlyWorldMutationPasses.ApplyDirtInRocks));
+                AppendSkippedIsolatedPass(generator, name, weight);
                 continue;
             }
 
             if (string.Equals(name, "Clay", StringComparison.Ordinal))
             {
-                generator.Append(new DelegateGenPass(name, weight, EarlyWorldMutationPasses.ApplyClay));
+                AppendSkippedIsolatedPass(generator, name, weight);
                 continue;
             }
 
@@ -214,19 +214,19 @@ internal static class OfficialPassPlan
 
             if (string.Equals(name, "Dirt To Mud", StringComparison.Ordinal))
             {
-                generator.Append(new DelegateGenPass(name, weight, OreAndGroundPasses.ApplyDirtToMud));
+                AppendSkippedIsolatedPass(generator, name, weight);
                 continue;
             }
 
             if (string.Equals(name, "Silt", StringComparison.Ordinal))
             {
-                generator.Append(new DelegateGenPass(name, weight, OreAndGroundPasses.ApplySilt));
+                AppendSkippedIsolatedPass(generator, name, weight);
                 continue;
             }
 
             if (string.Equals(name, "Shinies", StringComparison.Ordinal))
             {
-                generator.Append(new DelegateGenPass(name, weight, OreAndGroundPasses.ApplyShinies));
+                AppendSkippedIsolatedPass(generator, name, weight);
                 continue;
             }
 
