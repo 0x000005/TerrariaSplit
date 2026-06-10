@@ -27,7 +27,7 @@ internal sealed class DenseTileGrid
                 throw new ArgumentOutOfRangeException($"Tile coordinate ({x}, {y}) outside {Width}x{Height} world.");
             }
 
-            return ref tiles[(y * Width) + x];
+            return ref tiles[(x * Height) + y];
         }
     }
 
