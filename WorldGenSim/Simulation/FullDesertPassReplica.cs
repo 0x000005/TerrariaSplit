@@ -68,7 +68,7 @@ internal static class FullDesertPassReplica
         PlaceSandMound(state, random, description, progress, 0.0, 0.1);
         description = description.WithUpdatedSurface(state);
 
-        if (random.NextDouble() <= 0.3333)
+        if (random.NextDouble() <= 0.5)
         {
             int entrance = random.Next(4);
             PlaceEntranceApproximation(state, random, description, entrance, progress, 0.1, 0.2);
@@ -891,7 +891,7 @@ internal static class FullDesertPassReplica
                 heights[x - startX] = checked((short)surface);
             }
 
-            WorldSurfaceLimit = (int)state.WorldSurface - 10;
+            WorldSurfaceLimit = (int)state.MainWorldSurface - 10;
             return new SurfaceMap(heights, startX);
         }
     }

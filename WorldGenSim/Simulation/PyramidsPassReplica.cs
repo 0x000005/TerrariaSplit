@@ -4,6 +4,63 @@ internal static class PyramidsPassReplica
 {
     private const ushort PyramidWall = 34;
 
+    public static IReadOnlyList<PyramidCandidateAnalysis> AnalyzeCandidates(WorldGenState state)
+    {
+        int width = state.Options.Dimensions.Width;
+        IReadOnlyList<PyramidCandidate> candidates = state.PyramidCandidates;
+        var analyses = new List<PyramidCandidateAnalysis>(candidates.Count);
+        for (int i = 0; i < candidates.Count; i++)
+        {
+            PyramidCandidate candidate = candidates[i];
+            int x = candidate.X;
+            int y = candidate.Y;
+            bool buildable = IsCandidateInBuildableBand(state, x);
+            if (buildable)
+            {
+                while (InWorld(state, x, y) &&
+                    !state.Tiles[x, y].Active &&
+                    y < state.MainWorldSurface)
+                {
+                    y++;
+                }
+            }
+
+            bool inWorld = InWorld(state, x, y);
+            bool active = inWorld && state.Tiles[x, y].Active;
+            int tileType = inWorld ? state.Tiles[x, y].Type : -1;
+            bool sandOk = buildable &&
+                inWorld &&
+                y < state.MainWorldSurface &&
+                tileType == TileIds.Sand;
+
+            int minDistance = width;
+            for (int previous = 0; previous < i; previous++)
+            {
+                minDistance = Math.Min(minDistance, Math.Abs(x - candidates[previous].X));
+            }
+
+            string fate = buildable switch
+            {
+                false => "buildable-band",
+                true when !sandOk => "sand",
+                true when minDistance < 220 => "spacing",
+                _ => "alive"
+            };
+
+            analyses.Add(new PyramidCandidateAnalysis(
+                i,
+                candidate,
+                buildable,
+                y,
+                active,
+                tileType,
+                minDistance,
+                fate));
+        }
+
+        return analyses;
+    }
+
     public static void Apply(WorldGenContext context, GenerationProgress progress)
     {
         WorldGenState state = context.State ??
@@ -565,3 +622,13 @@ internal static class PyramidsPassReplica
         items.Add(new PyramidChestItem(items.Count, type, stack, Prefix: 0));
     }
 }
+
+internal readonly record struct PyramidCandidateAnalysis(
+    int Index,
+    PyramidCandidate Candidate,
+    bool BuildableBand,
+    int ScanY,
+    bool ScanTileActive,
+    int ScanTileType,
+    int MinPreviousDistance,
+    string Fate);

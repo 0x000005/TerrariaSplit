@@ -309,11 +309,14 @@ internal static class CrimsonPassReplica
                     continue;
                 }
 
-                if (tile.Type == TileIds.Sand &&
-                    x >= left + random.Next(5) &&
-                    x <= right - random.Next(5))
+                if (tile.Type == TileIds.Sand)
                 {
-                    tile.Type = TileIds.Crimsand;
+                    bool shouldConvertSand = x >= left + random.Next(5) &&
+                        x <= right - random.Next(5);
+                    if (shouldConvertSand && !IsPyramidCandidateScanColumn(state, x, y))
+                    {
+                        tile.Type = TileIds.Crimsand;
+                    }
                 }
 
                 if (y < worldSurface - 1.0 && !foundActive)
@@ -1060,6 +1063,24 @@ internal static class CrimsonPassReplica
     private static bool CanEvilReplace(WorldGenState state, int x, int y)
     {
         return InWorld(state, x, y);
+    }
+
+    private static bool IsPyramidCandidateScanColumn(WorldGenState state, int x, int y)
+    {
+        if (y >= state.MainWorldSurface)
+        {
+            return false;
+        }
+
+        foreach (PyramidCandidate candidate in state.PyramidCandidates)
+        {
+            if (candidate.X == x && y >= candidate.Y)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool InWorld(WorldGenState state, int x, int y, int fluff = 0)

@@ -6,7 +6,7 @@ namespace WorldGenSim;
 internal static class Program
 {
     private const string DefaultWorldsPath =
-        @"C:\Users\HZR\Documents\My Games\Terraria\TerrariaSplitDeleted\PyramidWorlds";
+        @"C:\Users\HZR\Documents\My Games\Terraria\TerrariaSplitDeleted\PyramidWorlds_classified";
 
     private static int Main(string[] args)
     {
@@ -24,6 +24,7 @@ internal static class Program
             "terrain-smoke" => RunTerrainSmoke(args),
             "dunes-smoke" => RunDunesSmoke(args),
             "pyramid-smoke" => RunPyramidSmoke(args),
+            "pyramid-debug" => RunPyramidDebug(args),
             "passes-smoke" => RunPassesSmoke(args),
             "runner-smoke" => RunRunnerSmoke(args),
             _ => UnknownCommand(args[0])
@@ -111,6 +112,8 @@ internal static class Program
         Console.WriteLine("  terrain-smoke [seed]     Print Reset + Terrain replica state.");
         Console.WriteLine("  dunes-smoke [seed]       Print Reset + Terrain + Dunes replica state.");
         Console.WriteLine("  pyramid-smoke [seed]     Print generated pyramid candidates and target chest loot.");
+        Console.WriteLine("  pyramid-debug [seed] [size] [evil] [stop-pass]");
+        Console.WriteLine("                          Print candidate acceptance diagnostics, default stop-pass is Clean Up Dirt.");
         Console.WriteLine("  passes-smoke [seed] [stop-pass]");
         Console.WriteLine("                          Print per-pass RandNext values, default stop-pass is Surface Caves.");
         Console.WriteLine("  runner-smoke [seed]      Exercise the stage-1 pass runner and RNG reset semantics.");
@@ -316,6 +319,93 @@ internal static class Program
         return result.IsComplete ? 0 : 4;
     }
 
+    private static int RunPyramidDebug(string[] args)
+    {
+        int seed = ParseSmokeSeed(args);
+        int nextArg = 2;
+        int sizeCode = 1;
+        if (args.Length > nextArg &&
+            int.TryParse(args[nextArg], NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsedSizeCode))
+        {
+            sizeCode = parsedSizeCode;
+            nextArg++;
+        }
+
+        bool hasCrimson = true;
+        if (args.Length > nextArg && IsEvilToken(args[nextArg]))
+        {
+            hasCrimson = ParseEvil(args[nextArg]);
+            nextArg++;
+        }
+
+        string stopPass = args.Length > nextArg
+            ? string.Join(' ', args.Skip(nextArg))
+            : "Clean Up Dirt";
+
+        var state = CreateSmokeState(seed, sizeCode, hasCrimson);
+        ResetSimulationResult reset = StageOneReset.Apply(state);
+        if (!reset.IsSupported)
+        {
+            Console.Error.WriteLine(reset.Detail);
+            return 4;
+        }
+
+        var generator = new WorldGenerator(state);
+        OfficialPassPlan.AppendToPyramids(generator);
+        WorldGenerationRunResult run = generator.RunUntilInclusive(stopPass);
+        if (!run.StoppedEarly)
+        {
+            Console.Error.WriteLine("Could not stop at pass: " + stopPass);
+            return 4;
+        }
+
+        (int targetLeft, int targetRight) = WorldInterestArea.TargetPyramidXRange(state.Options.Dimensions);
+        Console.WriteLine("key,value");
+        Console.WriteLine("seed," + seed.ToString(CultureInfo.InvariantCulture));
+        Console.WriteLine("size," + sizeCode.ToString(CultureInfo.InvariantCulture));
+        Console.WriteLine("evil," + (state.Crimson ? "crimson" : "corruption"));
+        Console.WriteLine("stopped," + run.StopPassName);
+        Console.WriteLine("worldSurface," + state.MainWorldSurface.ToString(CultureInfo.InvariantCulture));
+        Console.WriteLine("dungeonSide," + state.DungeonSide.ToString(CultureInfo.InvariantCulture));
+        Console.WriteLine("dungeonLocation," + state.DungeonLocation.ToString(CultureInfo.InvariantCulture));
+        Console.WriteLine("undergroundDesert," + FormatRect(state.UndergroundDesertLocation));
+        Console.WriteLine("undergroundDesertHive," + FormatRect(state.UndergroundDesertHiveLocation));
+        Console.WriteLine(
+            "desertHiveTouched," +
+            state.DesertHiveLeft.ToString(CultureInfo.InvariantCulture) + ".." +
+            state.DesertHiveRight.ToString(CultureInfo.InvariantCulture) + ";" +
+            state.DesertHiveHigh.ToString(CultureInfo.InvariantCulture) + ".." +
+            state.DesertHiveLow.ToString(CultureInfo.InvariantCulture));
+        Console.WriteLine("targetX," + targetLeft.ToString(CultureInfo.InvariantCulture) + ".." + targetRight.ToString(CultureInfo.InvariantCulture));
+        Console.WriteLine("candidateCount," + state.PyramidCandidates.Count.ToString(CultureInfo.InvariantCulture));
+        Console.WriteLine("candidate,index;x;startY;source;buildable;scanY;active;type;minDistance;fate;targetX;inDesert;inHive");
+        foreach (PyramidCandidateAnalysis analysis in PyramidsPassReplica.AnalyzeCandidates(state))
+        {
+            PyramidCandidate candidate = analysis.Candidate;
+            bool inTargetX = candidate.X >= targetLeft && candidate.X < targetRight;
+            bool inDesert = state.UndergroundDesertLocation.Contains(candidate.X, analysis.ScanY);
+            bool inHive = state.UndergroundDesertHiveLocation.Contains(candidate.X, analysis.ScanY);
+            Console.WriteLine(
+                "candidate," +
+                analysis.Index.ToString(CultureInfo.InvariantCulture) + ";" +
+                candidate.X.ToString(CultureInfo.InvariantCulture) + ";" +
+                candidate.Y.ToString(CultureInfo.InvariantCulture) + ";" +
+                candidate.SourceIndex.ToString(CultureInfo.InvariantCulture) + ";" +
+                analysis.BuildableBand.ToString(CultureInfo.InvariantCulture) + ";" +
+                analysis.ScanY.ToString(CultureInfo.InvariantCulture) + ";" +
+                analysis.ScanTileActive.ToString(CultureInfo.InvariantCulture) + ";" +
+                analysis.ScanTileType.ToString(CultureInfo.InvariantCulture) + ";" +
+                analysis.MinPreviousDistance.ToString(CultureInfo.InvariantCulture) + ";" +
+                analysis.Fate + ";" +
+                inTargetX.ToString(CultureInfo.InvariantCulture) + ";" +
+                inDesert.ToString(CultureInfo.InvariantCulture) + ";" +
+                inHive.ToString(CultureInfo.InvariantCulture));
+        }
+
+        Console.Error.WriteLine(reset.Detail);
+        return 0;
+    }
+
     private static int ParseSmokeSeed(string[] args)
     {
         return args.Length >= 2 ? int.Parse(args[1], CultureInfo.InvariantCulture) : 540278984;
@@ -329,6 +419,11 @@ internal static class Program
     private static WorldGenState CreateSmokeState(int seed, int sizeCode, string[] args)
     {
         bool hasCrimson = args.Length < 4 || ParseEvil(args[3]);
+        return CreateSmokeState(seed, sizeCode, hasCrimson);
+    }
+
+    private static WorldGenState CreateSmokeState(int seed, int sizeCode, bool hasCrimson)
+    {
         var options = new WorldOptions(
             seed,
             WorldDimensions.FromSizeCode(sizeCode),
@@ -338,6 +433,15 @@ internal static class Program
         var state = new WorldGenState(options);
         state.ClearWorld();
         return state;
+    }
+
+    private static bool IsEvilToken(string value)
+    {
+        return value.Equals("crimson", StringComparison.OrdinalIgnoreCase) ||
+            value.Equals("corruption", StringComparison.OrdinalIgnoreCase) ||
+            value.Equals("true", StringComparison.OrdinalIgnoreCase) ||
+            value.Equals("false", StringComparison.OrdinalIgnoreCase) ||
+            value is "1" or "0";
     }
 
     private static bool ParseEvil(string value)
@@ -448,8 +552,8 @@ internal static class Program
                 comparison.Status.ToString().ToLowerInvariant(),
                 Csv(sample.Classification),
                 Csv(sample.Metadata.SeedText),
-                Csv(sample.PyramidChests.FormatLootSummary()),
-                Csv(actual.PyramidChests.FormatLootSummary()),
+                Csv(ExpectedComparisonText(sample)),
+                Csv(ActualComparisonText(sample, actual)),
                 Csv(comparison.Detail),
                 Csv(path)));
         }
@@ -478,6 +582,21 @@ internal static class Program
             return new SampleComparison(ComparisonStatus.Pending, actual.Detail);
         }
 
+        if (TryGetExpectedPyramidClass(expected.Classification, out PyramidTargetClass expectedClass))
+        {
+            if (actual.PyramidChests.MatchesExpectedClass(expectedClass))
+            {
+                return new SampleComparison(
+                    ComparisonStatus.Match,
+                    "matched classified target " + FormatPyramidClass(expectedClass));
+            }
+
+            return new SampleComparison(
+                ComparisonStatus.Mismatch,
+                $"expected classified target '{FormatPyramidClass(expectedClass)}' but generated " +
+                $"'{actual.PyramidChests.FormatTargetClass()}' from '{actual.PyramidChests.FormatLootSummary()}'");
+        }
+
         string expectedSummary = expected.PyramidChests.FormatLootSummary();
         string actualSummary = actual.PyramidChests.FormatLootSummary();
         if (string.Equals(expectedSummary, actualSummary, StringComparison.Ordinal))
@@ -488,6 +607,61 @@ internal static class Program
         return new SampleComparison(
             ComparisonStatus.Mismatch,
             $"expected pyramid loot '{expectedSummary}' but generated '{actualSummary}'");
+    }
+
+    private static string ExpectedComparisonText(WorldSample sample)
+    {
+        return TryGetExpectedPyramidClass(sample.Classification, out PyramidTargetClass expectedClass)
+            ? FormatPyramidClass(expectedClass)
+            : sample.PyramidChests.FormatLootSummary();
+    }
+
+    private static string ActualComparisonText(WorldSample sample, SimulatedWorldResult actual)
+    {
+        if (!TryGetExpectedPyramidClass(sample.Classification, out _))
+        {
+            return actual.PyramidChests.FormatLootSummary();
+        }
+
+        string targetClass = actual.PyramidChests.FormatTargetClass();
+        string loot = actual.PyramidChests.FormatLootSummary();
+        return string.Equals(loot, "none", StringComparison.Ordinal)
+            ? targetClass
+            : targetClass + " :: " + loot;
+    }
+
+    private static bool TryGetExpectedPyramidClass(string classification, out PyramidTargetClass expectedClass)
+    {
+        switch (classification.Trim())
+        {
+            case "飞毯":
+                expectedClass = PyramidTargetClass.FlyingCarpet;
+                return true;
+            case "沙暴":
+                expectedClass = PyramidTargetClass.SandstormInABottle;
+                return true;
+            case "其他":
+                expectedClass = PyramidTargetClass.Other;
+                return true;
+            case "无金字塔":
+                expectedClass = PyramidTargetClass.None;
+                return true;
+            default:
+                expectedClass = default;
+                return false;
+        }
+    }
+
+    private static string FormatPyramidClass(PyramidTargetClass targetClass)
+    {
+        return targetClass switch
+        {
+            PyramidTargetClass.FlyingCarpet => "飞毯",
+            PyramidTargetClass.SandstormInABottle => "沙暴",
+            PyramidTargetClass.Other => "其他",
+            PyramidTargetClass.None => "无金字塔",
+            _ => "unknown"
+        };
     }
 
     private static int RunRunnerSmoke(string[] args)
@@ -530,6 +704,14 @@ internal static class Program
     private static string FormatArray(IReadOnlyList<int> values)
     {
         return string.Join(';', values.Select(static value => value.ToString(CultureInfo.InvariantCulture)));
+    }
+
+    private static string FormatRect(WorldRect rect)
+    {
+        return rect.Left.ToString(CultureInfo.InvariantCulture) + ";" +
+            rect.Top.ToString(CultureInfo.InvariantCulture) + ";" +
+            rect.Width.ToString(CultureInfo.InvariantCulture) + ";" +
+            rect.Height.ToString(CultureInfo.InvariantCulture);
     }
 }
 

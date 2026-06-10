@@ -38,9 +38,22 @@ internal sealed class WorldFileSampleReader
             return Path.GetFileName(Path.GetDirectoryName(fullPath)) ?? string.Empty;
         }
 
-        string? firstPart = relative.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
-            .FirstOrDefault();
+        string[] parts = relative.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        foreach (string part in parts)
+        {
+            if (IsKnownClassification(part))
+            {
+                return part;
+            }
+        }
+
+        string? firstPart = parts.FirstOrDefault();
         return firstPart ?? string.Empty;
+    }
+
+    private static bool IsKnownClassification(string value)
+    {
+        return value is "飞毯" or "沙暴" or "其他" or "无金字塔";
     }
 
     private static bool TryReadPyramidChests(
@@ -49,6 +62,7 @@ internal sealed class WorldFileSampleReader
         out PyramidChestSet chests,
         out string detail)
     {
+        Bounds bounds = Bounds.ForSpeedrunCorridor(metadata.SizeCode);
         chests = PyramidChestSet.Empty;
         detail = string.Empty;
 
@@ -83,9 +97,8 @@ internal sealed class WorldFileSampleReader
 
             stream.Position = sectionPointers[2];
             List<WorldChest> allChests = ReadChests(reader, version);
-            Bounds corridor = Bounds.ForSpeedrunCorridor(metadata.SizeCode);
             var pyramidChests = allChests
-                .Where(chest => corridor.Intersects(chest.X, chest.Y, width: 2, height: 2))
+                .Where(chest => bounds.Intersects(chest.X, chest.Y, width: 2, height: 2))
                 .Select(chest => new PyramidChest(chest.X, chest.Y, chest.Items))
                 .Where(chest => chest.Items.Any(PyramidChestItemNames.IsKnownPyramidItem))
                 .ToList();
@@ -153,6 +166,34 @@ internal readonly record struct PyramidChestSet(IReadOnlyList<PyramidChest> Ches
 {
     public static PyramidChestSet Empty => new([]);
 
+    public bool MatchesExpectedClass(PyramidTargetClass expectedClass)
+    {
+        return expectedClass switch
+        {
+            PyramidTargetClass.FlyingCarpet => ContainsItem(PyramidChestItemNames.FlyingCarpet),
+            PyramidTargetClass.SandstormInABottle => ContainsItem(PyramidChestItemNames.SandstormInABottle),
+            PyramidTargetClass.Other => Chests.Count > 0 &&
+                !ContainsItem(PyramidChestItemNames.FlyingCarpet) &&
+                !ContainsItem(PyramidChestItemNames.SandstormInABottle),
+            PyramidTargetClass.None => Chests.Count == 0,
+            _ => false
+        };
+    }
+
+    public string FormatTargetClass()
+    {
+        bool hasFlyingCarpet = ContainsItem(PyramidChestItemNames.FlyingCarpet);
+        bool hasSandstorm = ContainsItem(PyramidChestItemNames.SandstormInABottle);
+        return (Chests.Count, hasFlyingCarpet, hasSandstorm) switch
+        {
+            (0, _, _) => "无金字塔",
+            (_, true, true) => "飞毯+沙暴",
+            (_, true, _) => "飞毯",
+            (_, _, true) => "沙暴",
+            _ => "其他"
+        };
+    }
+
     public string FormatLootSummary()
     {
         return Chests.Count == 0
@@ -169,6 +210,19 @@ internal readonly record struct PyramidChestSet(IReadOnlyList<PyramidChest> Ches
             : string.Join("; ", Chests.Select(static chest => chest.FormatSummary()));
     }
 
+    private bool ContainsItem(int itemType)
+    {
+        return Chests.Any(chest => chest.Items.Any(item => item.Type == itemType));
+    }
+
+}
+
+internal enum PyramidTargetClass
+{
+    FlyingCarpet,
+    SandstormInABottle,
+    Other,
+    None
 }
 
 internal readonly record struct PyramidChest(
@@ -194,12 +248,17 @@ internal readonly record struct PyramidChestItem(int Slot, int Type, int Stack, 
 
 internal static class PyramidChestItemNames
 {
+    public const int PharaohsMask = 848;
+    public const int SandstormInABottle = 857;
+    public const int PharaohsRobe = 866;
+    public const int FlyingCarpet = 934;
+
     private static readonly Dictionary<int, string> KnownNames = new()
     {
-        [848] = "Pharaoh's Mask",
-        [857] = "Sandstorm in a Bottle",
-        [866] = "Pharaoh's Robe",
-        [934] = "Flying Carpet"
+        [PharaohsMask] = "Pharaoh's Mask",
+        [SandstormInABottle] = "Sandstorm in a Bottle",
+        [PharaohsRobe] = "Pharaoh's Robe",
+        [FlyingCarpet] = "Flying Carpet"
     };
 
     public static string Format(PyramidChestItem item)
