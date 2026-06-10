@@ -56,6 +56,15 @@ internal static class FullDesertPassReplica
         }
 
         ExportDescriptionToState(state, description);
+        if (!WorldInterestArea.IntersectsTargetPyramidArea(
+            state.Options.Dimensions,
+            description.CombinedArea,
+            horizontalPadding: 30,
+            verticalPadding: 30))
+        {
+            return true;
+        }
+
         PlaceSandMound(state, random, description, progress, 0.0, 0.1);
         description = description.WithUpdatedSurface(state);
 

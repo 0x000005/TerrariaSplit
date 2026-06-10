@@ -13,7 +13,7 @@ internal static class SandCleanupPasses
 
         int width = state.Options.Dimensions.Width;
         int height = state.Options.Dimensions.Height;
-        (int interestLeft, int interestRight) = WorldInterestArea.CenterSixtyXRange(state.Options.Dimensions);
+        (int interestLeft, int interestRight) = WorldInterestArea.TargetPyramidXRange(state.Options.Dimensions);
         for (int pass = 0; pass < 2; pass++)
         {
             int direction = 1;
@@ -49,7 +49,7 @@ internal static class SandCleanupPasses
 
                     int targetX = x + direction;
                     int targetY = y + 1;
-                    if (!WorldInterestArea.IsInCenterSixty(state.Options.Dimensions, targetX))
+                    if (!WorldInterestArea.IsInTargetPyramidXRange(state.Options.Dimensions, targetX))
                     {
                         continue;
                     }
@@ -83,7 +83,7 @@ internal static class SandCleanupPasses
 
         int width = state.Options.Dimensions.Width;
         int height = state.Options.Dimensions.Height;
-        (int interestLeft, int interestRight) = WorldInterestArea.CenterSixtyXRange(state.Options.Dimensions);
+        (int interestLeft, int interestRight) = WorldInterestArea.TargetPyramidXRange(state.Options.Dimensions);
         for (int x = interestLeft; x < interestRight; x++)
         {
             progress.Set((x - interestLeft) / (double)(interestRight - interestLeft));

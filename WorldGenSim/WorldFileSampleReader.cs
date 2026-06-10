@@ -237,12 +237,10 @@ internal readonly record struct Bounds(int Left, int Top, int RightExclusive, in
             _ => (6400, 1800)
         };
 
-        int centerTileX = width / 2;
-        int halfWidth = (int)Math.Round(width * 0.20d);
-        int left = Math.Max(1, centerTileX - halfWidth);
-        int right = Math.Min(width - 2, centerTileX + halfWidth);
+        int left = Math.Max(1, (int)Math.Floor(width * 0.35d));
+        int rightExclusive = Math.Min(width - 1, (int)Math.Ceiling(width * 0.75d));
         int top = Math.Max(1, (int)Math.Floor(height * 0.15d));
-        int bottom = Math.Min(height - 2, Math.Max(top, (int)Math.Ceiling(height * 0.35d)));
-        return new Bounds(left, top, right + 1, bottom + 1);
+        int bottomExclusive = Math.Min(height - 1, Math.Max(top + 1, (int)Math.Ceiling(height * 0.35d)));
+        return new Bounds(left, top, rightExclusive, bottomExclusive);
     }
 }

@@ -11,7 +11,7 @@ internal static class SnowConversionPasses
             throw new InvalidOperationException(state.Options.TargetScopeDetail());
         }
 
-        (int interestLeft, int interestRight) = WorldInterestArea.CenterSixtyXRange(state.Options.Dimensions);
+        (int interestLeft, int interestRight) = WorldInterestArea.TargetPyramidXRange(state.Options.Dimensions);
         int top = Math.Clamp(state.SnowTop, 0, state.Options.Dimensions.Height);
         int bottom = Math.Clamp(state.SnowBottom, top, state.Options.Dimensions.Height);
         for (int y = top; y < bottom; y++)

@@ -7,7 +7,7 @@ Stage 1 is intentionally split into two tracks:
 1. Build a verifiable baseline that can run Terraria-compatible generation to the `Pyramids` pass.
 2. Build a sample corpus reader from existing `.wld` files, so generated results can be compared against known worlds.
 
-The first correctness target is small-world, crimson, normal non-secret seeds. A seed is only considered matched when the simulator and the reference world agree on:
+The first correctness target is small-world, crimson, normal non-secret seeds. The pyramid search area is `X=[35%,75%)` and `Y=[15%,35%)` of the world. A seed is only considered matched when the simulator and the reference world agree on:
 
 - world metadata: seed text, size, difficulty, evil, special seed mask
 - `Pyramids` outcome: whether a pyramid chest exists in the target scan area, and the generated chest loot
@@ -44,6 +44,6 @@ The current replica backend has the official normal-world pass order wired throu
 
 Terraria 1.4.5.6 resets the worldgen random stream at the start of each pass. Because of that, skipping an entire pass body does not change later pass RNG, but it can still be wrong if the skipped pass mutates tiles or state read by a later pass.
 
-For stage 1, pass-level skips are limited to audited sky-only, cavern-only, bottom-only, far-edge, or wall-only generation that has no known pre-`Pyramids` dependency in the center target area.
+For stage 1, pass-level skips are limited to audited sky-only, cavern-only, bottom-only, far-edge, or wall-only generation that has no known pre-`Pyramids` dependency in the target pyramid area.
 
-Horizontal center-60% cropping is only applied to independent tile scans that do not consume random numbers. Do not crop an RNG-consuming loop unless the outside-center work is dry-run to preserve the official random stream before any center work.
+Horizontal target-area cropping is only applied to independent tile scans that do not consume random numbers. Do not crop an RNG-consuming loop unless the outside-target work is dry-run to preserve the official random stream before any target-area work.
