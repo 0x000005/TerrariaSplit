@@ -382,6 +382,12 @@ internal static class FullDesertPassReplica
     {
         ClusterGroup clusters = ClusterGroup.FromDescription(description, random);
         WorldRect area = description.Hive.Inflated(20, 20);
+        area = ClipToTargetPyramidArea(state, area, horizontalPadding: 16, verticalPadding: 16);
+        if (area.Width <= 0 || area.Height <= 0)
+        {
+            return;
+        }
+
         PlaceClustersArea(state, description, clusters, area, progress, progressMin, progressMax);
         AddTileVariance(state, random, description);
     }
@@ -657,6 +663,26 @@ internal static class FullDesertPassReplica
         {
             state.DesertHiveRight = x;
         }
+    }
+
+    private static WorldRect ClipToTargetPyramidArea(
+        WorldGenState state,
+        WorldRect area,
+        int horizontalPadding,
+        int verticalPadding)
+    {
+        (int targetLeft, int targetRight) = WorldInterestArea.TargetPyramidXRange(state.Options.Dimensions);
+        (int targetTop, int targetBottom) = WorldInterestArea.TargetPyramidYRange(state.Options.Dimensions);
+        int left = Math.Max(area.Left, targetLeft - horizontalPadding);
+        int right = Math.Min(area.Right, targetRight + horizontalPadding);
+        int top = Math.Max(area.Top, targetTop - verticalPadding);
+        int bottom = Math.Min(area.Bottom, targetBottom + verticalPadding);
+        if (right <= left || bottom <= top)
+        {
+            return WorldRect.Empty;
+        }
+
+        return new WorldRect(left, top, right - left, bottom - top);
     }
 
     private static void CarveEllipse(
