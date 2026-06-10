@@ -3,6 +3,8 @@ namespace WorldGenSim.Simulation;
 internal static class TerrainPassReplica
 {
     private const int FlatBeachPadding = 5;
+    private static readonly TileData DirtTile = TileData.CreateActive(TileIds.Dirt);
+    private static readonly TileData StoneTile = TileData.CreateActive(TileIds.Stone);
 
     private enum TerrainFeatureType
     {
@@ -162,17 +164,16 @@ internal static class TerrainPassReplica
 
     private static void FillColumn(WorldGenState state, int x, double worldSurface, double rockLayer)
     {
-        for (int y = 0; y < worldSurface; y++)
-        {
-            state.Tiles[x, y].Clear();
-        }
+        int height = state.Options.Dimensions.Height;
+        int surfaceY = Math.Clamp((int)worldSurface, 0, height);
+        int stoneY = Math.Clamp((int)Math.Ceiling(rockLayer), surfaceY, height);
+        Span<TileData> column = state.Tiles.GetColumnUnchecked(x);
 
-        for (int y = (int)worldSurface; y < state.Options.Dimensions.Height; y++)
-        {
-            state.Tiles[x, y].SetType(y < rockLayer ? TileIds.Dirt : TileIds.Stone);
-        }
+        column[..surfaceY].Clear();
+        column.Slice(surfaceY, stoneY - surfaceY).Fill(DirtTile);
+        column[stoneY..].Fill(StoneTile);
 
-        state.TerrainSurfaceHeights[x] = (int)worldSurface;
+        state.TerrainSurfaceHeights[x] = surfaceY;
         state.TerrainRockLayerHeights[x] = rockLayer;
     }
 
@@ -183,21 +184,21 @@ internal static class TerrainPassReplica
             return;
         }
 
-        for (int y = 0; y < worldSurface; y++)
-        {
-            state.Tiles[x, y].Clear();
-        }
+        int height = state.Options.Dimensions.Height;
+        int surfaceY = Math.Clamp((int)worldSurface, 0, height);
+        Span<TileData> column = state.Tiles.GetColumnUnchecked(x);
+        column[..surfaceY].Clear();
 
-        for (int y = (int)worldSurface; y < state.Options.Dimensions.Height; y++)
+        for (int y = surfaceY; y < height; y++)
         {
-            ref TileData tile = ref state.Tiles[x, y];
+            ref TileData tile = ref column[y];
             if (!tile.IsActiveType(TileIds.Stone))
             {
-                tile.SetType(TileIds.Dirt);
+                tile = DirtTile;
             }
         }
 
-        state.TerrainSurfaceHeights[x] = (int)worldSurface;
+        state.TerrainSurfaceHeights[x] = surfaceY;
     }
 
     private static double GenerateWorldSurfaceOffset(UnifiedRandom random, TerrainFeatureType featureType)

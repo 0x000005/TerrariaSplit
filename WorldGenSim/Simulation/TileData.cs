@@ -43,6 +43,13 @@ internal struct TileData
         return active && type == tileType;
     }
 
+    public static TileData CreateActive(int tileType)
+    {
+        var tile = new TileData();
+        tile.SetType(tileType);
+        return tile;
+    }
+
     public void Clear()
     {
         type = 0;

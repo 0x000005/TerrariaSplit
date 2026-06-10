@@ -37,6 +37,11 @@ internal sealed class DenseTileGrid
         return ref tiles[(x * Height) + y];
     }
 
+    public Span<TileData> GetColumnUnchecked(int x)
+    {
+        return tiles.AsSpan(x * Height, Height);
+    }
+
     public void Clear()
     {
         Array.Clear(tiles);
