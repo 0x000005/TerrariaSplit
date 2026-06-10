@@ -83,6 +83,7 @@ var tests = legacyTests
     .Concat(MainShellRefactorTests.All())
     .Concat(RenderingTests.All())
     .Concat(WorldGenerationMemoryTests.All())
+    .Concat(TerrariaMemoryResolverTests.All())
     .ToArray();
 string? testFilter = Environment.GetEnvironmentVariable("TERRARIA_SPLIT_TEST_FILTER");
 if (!string.IsNullOrWhiteSpace(testFilter))

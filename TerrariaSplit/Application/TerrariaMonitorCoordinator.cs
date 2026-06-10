@@ -193,10 +193,10 @@ internal sealed class TerrariaMonitorCoordinator : IDisposable
             loopCompleted = true;
         }
 
-        watcher.Dispose();
-        watcherLoopSignal.Dispose();
         if (loopCompleted)
         {
+            watcher.Dispose();
+            watcherLoopSignal.Dispose();
             cancellation?.Dispose();
         }
     }

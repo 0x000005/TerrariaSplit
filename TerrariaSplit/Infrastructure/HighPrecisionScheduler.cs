@@ -125,14 +125,18 @@ internal sealed class HighPrecisionScheduler : IDisposable
         }
 
         signal.Set();
+        bool threadExited = true;
         if (threadToJoin is not null &&
             threadToJoin.IsAlive &&
             threadToJoin.ManagedThreadId != Environment.CurrentManagedThreadId)
         {
-            threadToJoin.Join(TimeSpan.FromSeconds(1));
+            threadExited = threadToJoin.Join(TimeSpan.FromSeconds(1));
         }
 
-        signal.Dispose();
+        if (threadExited)
+        {
+            signal.Dispose();
+        }
     }
 
     private void EnsureThreadStarted()

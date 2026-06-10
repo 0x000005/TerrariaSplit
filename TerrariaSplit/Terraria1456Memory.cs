@@ -14,6 +14,7 @@ internal static class Terraria1456Memory
         CurrentGenerationProgressSignature,
         GameMenuPointerOffset,
         GameMenuFallbackGameMenuInlineAddressOffset,
+        BossProgressionFallbackGameMenuFromHardmodeOffset,
         BossProgressionFallbackSkeletronInlineAddressOffset,
         BossProgressionFallbackHardmodeInlineAddressOffset,
         CurrentControllerInlineAddressOffset,
@@ -46,6 +47,7 @@ internal static class Terraria1456Memory
 
     private const int GameMenuPointerOffset = 0x90;
     private const int GameMenuFallbackGameMenuInlineAddressOffset = 0xB;
+    private const int BossProgressionFallbackGameMenuFromHardmodeOffset = 0x4E;
     private const int BossProgressionFallbackSkeletronInlineAddressOffset = 0x2;
     private const int BossProgressionFallbackHardmodeInlineAddressOffset = 0x17;
     private const int CurrentControllerInlineAddressOffset = 13;

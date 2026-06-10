@@ -21,6 +21,7 @@ internal sealed class TerrariaMemoryResolver
     private IntPtr hardmodeAddress;
     private IntPtr currentGenerationProgressAddress;
     private IntPtr currentControllerAddress;
+    private bool usingBossProgressionMenuFallback;
     private bool usingGameMenuFallback;
     private bool usingBossProgressionFallback;
 
@@ -43,6 +44,7 @@ internal sealed class TerrariaMemoryResolver
         hardmodeAddress,
         currentGenerationProgressAddress,
         currentControllerAddress,
+        usingBossProgressionMenuFallback,
         usingGameMenuFallback,
         usingBossProgressionFallback);
 
@@ -63,6 +65,7 @@ internal sealed class TerrariaMemoryResolver
         hardmodeAddress = IntPtr.Zero;
         currentGenerationProgressAddress = IntPtr.Zero;
         currentControllerAddress = IntPtr.Zero;
+        usingBossProgressionMenuFallback = false;
         usingGameMenuFallback = false;
         usingBossProgressionFallback = false;
         SignatureScanAttempts = 0;
@@ -79,6 +82,7 @@ internal sealed class TerrariaMemoryResolver
         hardmodeAddress = IntPtr.Zero;
         currentGenerationProgressAddress = IntPtr.Zero;
         currentControllerAddress = IntPtr.Zero;
+        usingBossProgressionMenuFallback = false;
         usingGameMenuFallback = false;
         usingBossProgressionFallback = false;
     }
@@ -99,6 +103,7 @@ internal sealed class TerrariaMemoryResolver
             updateTimeAddress = resolvedUpdateTimeAddress;
             if (TryResolveGameMenuFromUpdateTime(memory, resolvedUpdateTimeAddress, out bool isGameMenu))
             {
+                usingBossProgressionMenuFallback = false;
                 usingGameMenuFallback = false;
                 TryResolveBossAddressesWithFallbacks(memory, resolvedUpdateTimeAddress);
                 TryResolveWorldGenerationAddresses(memory);
@@ -107,19 +112,6 @@ internal sealed class TerrariaMemoryResolver
                     BuildResolutionStatusDetail(),
                     isGameMenu);
             }
-
-            if (gameMenuAddress != IntPtr.Zero)
-            {
-                return new TerrariaMemoryResolveResult(
-                    "menu state target unreadable",
-                    "menu-state pointer became unreadable",
-                    null);
-            }
-
-            return new TerrariaMemoryResolveResult(
-                "menu state pointer unreadable",
-                "found signature but not menu-state pointer",
-                null);
         }
 
         IntPtr fallbackAnchorAddress = SignatureScanner.Scan(
@@ -132,6 +124,7 @@ internal sealed class TerrariaMemoryResolver
             TryResolveGameMenuFromFallback(memory, fallbackAnchorAddress, out bool fallbackGameMenu))
         {
             updateTimeAddress = fallbackAnchorAddress;
+            usingBossProgressionMenuFallback = false;
             usingGameMenuFallback = true;
             TryResolveBossAddressesWithFallbacks(memory, null);
             TryResolveWorldGenerationAddresses(memory);
@@ -139,6 +132,18 @@ internal sealed class TerrariaMemoryResolver
                 BuildResolutionStage(),
                 BuildResolutionStatusDetail(),
                 fallbackGameMenu);
+        }
+
+        if (TryResolveGameMenuFromBossProgressionFallback(memory, out bool bossProgressionGameMenu))
+        {
+            usingBossProgressionMenuFallback = true;
+            usingGameMenuFallback = false;
+            usingBossProgressionFallback = true;
+            TryResolveWorldGenerationAddresses(memory);
+            return new TerrariaMemoryResolveResult(
+                BuildResolutionStage(),
+                BuildResolutionStatusDetail(),
+                bossProgressionGameMenu);
         }
 
         if (gameMenuAddress != IntPtr.Zero)
@@ -150,6 +155,14 @@ internal sealed class TerrariaMemoryResolver
         }
 
         updateTimeAddress = IntPtr.Zero;
+        if (resolvedUpdateTimeAddress != IntPtr.Zero)
+        {
+            return new TerrariaMemoryResolveResult(
+                "menu state pointer unreadable",
+                "found UpdateTime signature but neither primary nor fallback menu-state route resolved",
+                null);
+        }
+
         return new TerrariaMemoryResolveResult(
             "signature missing",
             "waiting for UpdateTime signature",
@@ -263,6 +276,11 @@ internal sealed class TerrariaMemoryResolver
                 return "ready via gameMenu fallback";
             }
 
+            if (usingBossProgressionMenuFallback)
+            {
+                return "ready via boss progression menu fallback";
+            }
+
             if (usingBossProgressionFallback)
             {
                 return "ready via boss fallback";
@@ -273,12 +291,24 @@ internal sealed class TerrariaMemoryResolver
 
         if (HasResolvedBossAddresses)
         {
-            return usingGameMenuFallback
-                ? "world generation pointers pending via fallback"
+            if (usingGameMenuFallback)
+            {
+                return "world generation pointers pending via fallback";
+            }
+
+            return usingBossProgressionMenuFallback
+                ? "world generation pointers pending via boss progression menu fallback"
                 : "world generation pointers pending";
         }
 
-        return usingGameMenuFallback ? "timer ready via fallback" : "boss pointers pending";
+        if (usingGameMenuFallback)
+        {
+            return "timer ready via fallback";
+        }
+
+        return usingBossProgressionMenuFallback
+            ? "timer ready via boss progression menu fallback"
+            : "boss pointers pending";
     }
 
     public string BuildResolutionStatusDetail()
@@ -290,13 +320,23 @@ internal sealed class TerrariaMemoryResolver
 
         if (HasResolvedBossAddresses)
         {
-            return usingGameMenuFallback
-                ? "timer and boss pointers ready via fallback; world generation scan pending"
+            if (usingGameMenuFallback)
+            {
+                return "timer and boss pointers ready via fallback; world generation scan pending";
+            }
+
+            return usingBossProgressionMenuFallback
+                ? "timer and boss pointers ready via boss progression menu fallback; world generation scan pending"
                 : "timer and boss pointers ready; world generation scan pending";
         }
 
-        return usingGameMenuFallback
-            ? "timer ready via fallback; boss scan pending"
+        if (usingGameMenuFallback)
+        {
+            return "timer ready via fallback; boss scan pending";
+        }
+
+        return usingBossProgressionMenuFallback
+            ? "timer ready via boss progression menu fallback; boss scan pending"
             : "boss scan pending";
     }
 
@@ -374,14 +414,7 @@ internal sealed class TerrariaMemoryResolver
             return true;
         }
 
-        IntPtr fallbackAnchorAddress = SignatureScanner.Scan(
-            memory,
-            profile.BossProgressionFallbackSignature,
-            profile.SignatureScanScopeLabel,
-            out SignatureScanDiagnostics fallbackScanDiagnostics);
-        LastSignatureScan = fallbackScanDiagnostics;
-        if (fallbackAnchorAddress != IntPtr.Zero &&
-            TryResolveBossAddressesFromProgressionFallback(memory, fallbackAnchorAddress))
+        if (TryResolveBossAddressesFromProgressionFallback(memory, out _))
         {
             usingBossProgressionFallback = true;
             return true;
@@ -391,6 +424,18 @@ internal sealed class TerrariaMemoryResolver
         hardmodeAddress = IntPtr.Zero;
         usingBossProgressionFallback = false;
         return false;
+    }
+
+    private bool TryResolveBossAddressesFromProgressionFallback(IProcessMemoryReader memory, out IntPtr fallbackAnchorAddress)
+    {
+        fallbackAnchorAddress = SignatureScanner.Scan(
+            memory,
+            profile.BossProgressionFallbackSignature,
+            profile.SignatureScanScopeLabel,
+            out SignatureScanDiagnostics fallbackScanDiagnostics);
+        LastSignatureScan = fallbackScanDiagnostics;
+        return fallbackAnchorAddress != IntPtr.Zero &&
+            TryResolveBossAddressesFromProgressionFallback(memory, fallbackAnchorAddress);
     }
 
     private bool TryResolveBossAddressesFromProgressionFallback(IProcessMemoryReader memory, IntPtr fallbackAnchorAddress)
@@ -467,13 +512,34 @@ internal sealed class TerrariaMemoryResolver
         IntPtr gameMenuInlineAddressLocation = IntPtr.Add(
             fallbackAnchorAddress,
             profile.GameMenuFallbackGameMenuInlineAddressOffset);
-        if (!memory.TryReadPointer(gameMenuInlineAddressLocation, out IntPtr resolvedGameMenuAddress))
+        if (memory.TryReadPointer(gameMenuInlineAddressLocation, out IntPtr resolvedGameMenuAddress) &&
+            memory.TryReadBool(resolvedGameMenuAddress, out isGameMenu))
+        {
+            gameMenuAddress = resolvedGameMenuAddress;
+            gameMenuSecondaryAddress = IntPtr.Zero;
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool TryResolveGameMenuFromBossProgressionFallback(
+        IProcessMemoryReader memory,
+        out bool isGameMenu)
+    {
+        isGameMenu = false;
+        if (!TryResolveBossAddressesFromProgressionFallback(memory, out _))
         {
             return false;
         }
 
+        IntPtr resolvedGameMenuAddress = IntPtr.Add(
+            hardmodeAddress,
+            profile.BossProgressionFallbackGameMenuFromHardmodeOffset);
         if (!memory.TryReadBool(resolvedGameMenuAddress, out isGameMenu))
         {
+            bossFlagsBaseAddress = IntPtr.Zero;
+            hardmodeAddress = IntPtr.Zero;
             return false;
         }
 

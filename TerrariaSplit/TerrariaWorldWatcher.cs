@@ -379,6 +379,11 @@ internal sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
             return "Watcher first became ready while Terraria was already in a world. The timer starts only on a menu-to-world transition, so return to the main menu once and enter the world again.";
         }
 
+        if (resolution.UsingBossProgressionMenuFallback)
+        {
+            return "Boss progression fallback resolved hardmode and boss flags, then inferred gameMenu from the Terraria static field layout after the primary menu routes failed.";
+        }
+
         if (resolution.UsingGameMenuFallback && resolution.UsingBossProgressionFallback)
         {
             return "Fallback signatures resolved menu state and boss progression when the primary UpdateTime anchor was unavailable on this runtime.";

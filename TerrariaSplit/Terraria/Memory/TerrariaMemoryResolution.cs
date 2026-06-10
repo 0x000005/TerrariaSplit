@@ -8,6 +8,7 @@ internal readonly record struct TerrariaMemoryResolution(
     IntPtr HardmodeAddress,
     IntPtr CurrentGenerationProgressAddress,
     IntPtr CurrentControllerAddress,
+    bool UsingBossProgressionMenuFallback,
     bool UsingGameMenuFallback,
     bool UsingBossProgressionFallback)
 {
