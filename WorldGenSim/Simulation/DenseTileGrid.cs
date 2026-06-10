@@ -1,6 +1,8 @@
+using System.Runtime.CompilerServices;
+
 namespace WorldGenSim.Simulation;
 
-internal sealed class DenseTileGrid : ITileGrid
+internal sealed class DenseTileGrid
 {
     private readonly TileData[] tiles;
 
@@ -17,6 +19,7 @@ internal sealed class DenseTileGrid : ITileGrid
 
     public ref TileData this[int x, int y]
     {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get
         {
             if ((uint)x >= (uint)Width || (uint)y >= (uint)Height)

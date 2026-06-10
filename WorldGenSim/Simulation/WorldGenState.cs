@@ -13,7 +13,7 @@ internal sealed class WorldGenState
 
     public WorldOptions Options { get; }
 
-    public ITileGrid Tiles { get; }
+    public DenseTileGrid Tiles { get; }
 
     public bool ResetApplied { get; set; }
 

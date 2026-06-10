@@ -20,13 +20,14 @@ internal static class MudCavesToGrassPassReplica
         {
             for (int y = 0; y < height; y++)
             {
-                if (state.Tiles[x, y].Active)
+                ref TileData tile = ref state.Tiles[x, y];
+                if (tile.Active && tile.Type == TileIds.Mud)
                 {
                     SpreadGrass(state, x, y, recursionDepth: 0);
                 }
-
-                progress.Set(0.2 * ((double)(x * height + y) / (width * height)));
             }
+
+            progress.Set(0.2 * ((x + 1.0) / width));
         }
 
         double scanWidth = width - 20;
