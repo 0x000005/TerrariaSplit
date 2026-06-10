@@ -107,6 +107,9 @@ internal static class JunglePassReplica
 
     private static void GenerateTunnelToSurface(WorldGenState state, UnifiedRandom random, int startX, int startY)
     {
+        DenseTileGrid tiles = state.Tiles;
+        int worldWidth = state.Options.Dimensions.Width;
+        int worldHeight = state.Options.Dimensions.Height;
         double strength = random.Next(5, 11);
         double x = startX;
         double y = startY;
@@ -120,8 +123,8 @@ internal static class JunglePassReplica
         {
             if (y < state.MainWorldSurface)
             {
-                int tileX = Math.Clamp((int)x, 10, state.Options.Dimensions.Width - 10);
-                int tileY = Math.Clamp((int)y, 10, state.Options.Dimensions.Height - 10);
+                int tileX = Math.Clamp((int)x, 10, worldWidth - 10);
+                int tileY = Math.Clamp((int)y, 10, worldHeight - 10);
                 if (tileY < 5)
                 {
                     tileY = 5;
@@ -137,17 +140,17 @@ internal static class JunglePassReplica
             strength += random.Next(-20, 21) * 0.1;
             strength = Math.Clamp(strength, 5.0, 10.0);
 
-            int left = Math.Clamp((int)(x - strength * 0.5), 10, state.Options.Dimensions.Width - 10);
-            int right = Math.Clamp((int)(x + strength * 0.5), 10, state.Options.Dimensions.Width - 10);
-            int top = Math.Clamp((int)(y - strength * 0.5), 10, state.Options.Dimensions.Height - 10);
-            int bottom = Math.Clamp((int)(y + strength * 0.5), 10, state.Options.Dimensions.Height - 10);
+            int left = Math.Clamp((int)(x - strength * 0.5), 10, worldWidth - 10);
+            int right = Math.Clamp((int)(x + strength * 0.5), 10, worldWidth - 10);
+            int top = Math.Clamp((int)(y - strength * 0.5), 10, worldHeight - 10);
+            int bottom = Math.Clamp((int)(y + strength * 0.5), 10, worldHeight - 10);
             for (int tileX = left; tileX < right; tileX++)
             {
                 for (int tileY = top; tileY < bottom; tileY++)
                 {
                     if (Math.Abs(tileX - x) + Math.Abs(tileY - y) < strength * 0.5 * (1.0 + random.Next(-10, 11) * 0.015))
                     {
-                        state.Tiles[tileX, tileY].Active = false;
+                        tiles.GetUnchecked(tileX, tileY).Active = false;
                     }
                 }
             }
@@ -192,7 +195,7 @@ internal static class JunglePassReplica
     {
         for (int offset = 0; offset <= 5; offset++)
         {
-            ref TileData tile = ref state.Tiles[x, y - offset];
+            ref TileData tile = ref state.Tiles.GetUnchecked(x, y - offset);
             if (tile.Wall != 0 || tile.Active)
             {
                 return false;
@@ -211,7 +214,7 @@ internal static class JunglePassReplica
             int x = random.Next(20, width - 20);
             int y = random.Next((int)state.WorldSurface + 10, underworld);
             int attempts = 0;
-            while (state.Tiles[x, y].Wall != 64 && state.Tiles[x, y].Wall != 15)
+            while (state.Tiles.GetUnchecked(x, y).Wall != 64 && state.Tiles.GetUnchecked(x, y).Wall != 15)
             {
                 x = random.Next(20, width - 20);
                 y = random.Next((int)state.WorldSurface + 10, underworld);
@@ -300,11 +303,14 @@ internal static class JunglePassReplica
             x < state.Options.Dimensions.Width - 1 &&
             y >= 1 &&
             y < state.Options.Dimensions.Height - 1 &&
-            state.Tiles[x, y].Type == TileIds.Mud;
+            state.Tiles.GetUnchecked(x, y).Type == TileIds.Mud;
     }
 
     private static void MudWallRunner(WorldGenState state, UnifiedRandom random, int i, int j)
     {
+        DenseTileGrid tiles = state.Tiles;
+        int worldWidth = state.Options.Dimensions.Width;
+        int worldHeight = state.Options.Dimensions.Height;
         double strength = random.Next(8, 21);
         double steps = random.Next(8, 33);
         double stepsRemaining = steps;
@@ -316,10 +322,10 @@ internal static class JunglePassReplica
         {
             double currentStrength = strength * (stepsRemaining / steps);
             stepsRemaining -= 1.0;
-            int left = Math.Clamp((int)(x - currentStrength * 0.5), 0, state.Options.Dimensions.Width);
-            int right = Math.Clamp((int)(x + currentStrength * 0.5), 0, state.Options.Dimensions.Width);
-            int top = Math.Clamp((int)(y - currentStrength * 0.5), 0, state.Options.Dimensions.Height);
-            int bottom = Math.Clamp((int)(y + currentStrength * 0.5), 0, state.Options.Dimensions.Height);
+            int left = Math.Clamp((int)(x - currentStrength * 0.5), 0, worldWidth);
+            int right = Math.Clamp((int)(x + currentStrength * 0.5), 0, worldWidth);
+            int top = Math.Clamp((int)(y - currentStrength * 0.5), 0, worldHeight);
+            int bottom = Math.Clamp((int)(y + currentStrength * 0.5), 0, worldHeight);
 
             for (int tileX = left; tileX < right; tileX++)
             {
@@ -328,7 +334,7 @@ internal static class JunglePassReplica
                     if (Math.Abs(tileX - x) + Math.Abs(tileY - y) < strength * 0.5 * (1.0 + random.Next(-10, 11) * 0.015) &&
                         tileY > state.MainWorldSurface)
                     {
-                        state.Tiles[tileX, tileY].Wall = 0;
+                        tiles.GetUnchecked(tileX, tileY).Wall = 0;
                     }
                 }
             }
