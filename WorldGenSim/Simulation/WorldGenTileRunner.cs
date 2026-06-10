@@ -27,6 +27,12 @@ internal static class WorldGenTileRunner
             throw new InvalidOperationException(state.Options.TargetScopeDetail());
         }
 
+        DenseTileGrid tiles = state.Tiles;
+        int worldWidth = state.Options.Dimensions.Width;
+        int worldHeight = state.Options.Dimensions.Height;
+        double mainWorldSurface = state.MainWorldSurface;
+        int waterLine = state.WaterLine;
+        int lavaLine = state.LavaLine;
         double currentStrength = strength;
         double stepsRemaining = steps;
         double x = i;
@@ -52,15 +58,15 @@ internal static class WorldGenTileRunner
             stepsRemaining -= 1.0;
 
             int left = Math.Max(1, (int)(x - currentStrength * 0.5));
-            int right = Math.Min(state.Options.Dimensions.Width - 1, (int)(x + currentStrength * 0.5));
+            int right = Math.Min(worldWidth - 1, (int)(x + currentStrength * 0.5));
             int top = Math.Max(1, (int)(y - currentStrength * 0.5));
-            int bottom = Math.Min(state.Options.Dimensions.Height - 1, (int)(y + currentStrength * 0.5));
+            int bottom = Math.Min(worldHeight - 1, (int)(y + currentStrength * 0.5));
 
             for (int tileX = left; tileX < right; tileX++)
             {
                 for (int tileY = top; tileY < bottom; tileY++)
                 {
-                    ref TileData tile = ref state.Tiles.GetUnchecked(tileX, tileY);
+                    ref TileData tile = ref tiles.GetUnchecked(tileX, tileY);
                     if (ignoreTileType >= 0 && tile.Active && tile.Type == ignoreTileType)
                     {
                         continue;
@@ -73,26 +79,26 @@ internal static class WorldGenTileRunner
                     }
 
                     if (state.MudWall &&
-                        tileY > state.MainWorldSurface &&
-                        state.Tiles.GetUnchecked(tileX, tileY - 1).Wall != 2 &&
-                        tileY < state.Options.Dimensions.Height - 210 - random.Next(3) &&
+                        tileY > mainWorldSurface &&
+                        tiles.GetUnchecked(tileX, tileY - 1).Wall != 2 &&
+                        tileY < worldHeight - 210 - random.Next(3) &&
                         Math.Abs(tileX - x) + Math.Abs(tileY - y) < strength * 0.45 * (1.0 + random.Next(-10, 11) * 0.01))
                     {
-                        if (tileY > state.LavaLine - random.Next(0, 4) - 50)
+                        if (tileY > lavaLine - random.Next(0, 4) - 50)
                         {
-                            if (state.Tiles.GetUnchecked(tileX, tileY - 1).Wall != 64 &&
-                                state.Tiles.GetUnchecked(tileX, tileY + 1).Wall != 64 &&
-                                state.Tiles.GetUnchecked(tileX - 1, tileY).Wall != 64 &&
-                                state.Tiles.GetUnchecked(tileX + 1, tileY).Wall != 64)
+                            if (tiles.GetUnchecked(tileX, tileY - 1).Wall != 64 &&
+                                tiles.GetUnchecked(tileX, tileY + 1).Wall != 64 &&
+                                tiles.GetUnchecked(tileX - 1, tileY).Wall != 64 &&
+                                tiles.GetUnchecked(tileX + 1, tileY).Wall != 64)
                             {
                                 tile.Wall = 15;
                             }
                         }
                         else if (
-                            state.Tiles.GetUnchecked(tileX, tileY - 1).Wall != 15 &&
-                            state.Tiles.GetUnchecked(tileX, tileY + 1).Wall != 15 &&
-                            state.Tiles.GetUnchecked(tileX - 1, tileY).Wall != 15 &&
-                            state.Tiles.GetUnchecked(tileX + 1, tileY).Wall != 15)
+                            tiles.GetUnchecked(tileX, tileY - 1).Wall != 15 &&
+                            tiles.GetUnchecked(tileX, tileY + 1).Wall != 15 &&
+                            tiles.GetUnchecked(tileX - 1, tileY).Wall != 15 &&
+                            tiles.GetUnchecked(tileX + 1, tileY).Wall != 15)
                         {
                             tile.Wall = 64;
                         }
@@ -105,10 +111,10 @@ internal static class WorldGenTileRunner
                             continue;
                         }
 
-                        if (type == -2 && tile.Active && (tileY < state.WaterLine || tileY > state.LavaLine))
+                        if (type == -2 && tile.Active && (tileY < waterLine || tileY > lavaLine))
                         {
                             tile.Liquid = byte.MaxValue;
-                            tile.LiquidType = tileY > state.LavaLine ? (byte)1 : (byte)0;
+                            tile.LiquidType = tileY > lavaLine ? (byte)1 : (byte)0;
                         }
 
                         tile.Active = false;
@@ -118,7 +124,7 @@ internal static class WorldGenTileRunner
                     bool skipPlacement = false;
                     if (overRide && tile.Active)
                     {
-                        skipPlacement = ShouldSkipPlacement(state, random, tile, tileY, type);
+                        skipPlacement = ShouldSkipPlacement(random, tile, tileY, type, mainWorldSurface);
                     }
 
                     if (!skipPlacement)
@@ -133,12 +139,12 @@ internal static class WorldGenTileRunner
                         tile.LiquidType = 0;
                     }
 
-                    if (noYChange && tileY < state.MainWorldSurface && type != TileIds.Mud)
+                    if (noYChange && tileY < mainWorldSurface && type != TileIds.Mud)
                     {
                         tile.Wall = 2;
                     }
 
-                    if (type == TileIds.Mud && tileY > state.WaterLine && tile.Liquid > 0)
+                    if (type == TileIds.Mud && tileY > waterLine && tile.Liquid > 0)
                     {
                         tile.Liquid = 0;
                         tile.LiquidType = 0;
@@ -182,7 +188,7 @@ internal static class WorldGenTileRunner
                     velocityY = 1.0;
                 }
 
-                if (y > state.Options.Dimensions.Height - 300)
+                if (y > worldHeight - 300)
                 {
                     velocityY = -1.0;
                 }
@@ -191,11 +197,11 @@ internal static class WorldGenTileRunner
     }
 
     private static bool ShouldSkipPlacement(
-        WorldGenState state,
         UnifiedRandom random,
         TileData tile,
         int tileY,
-        int type)
+        int type,
+        double mainWorldSurface)
     {
         if (!CanBeClearedDuringGeneration(tile.Type))
         {
@@ -209,7 +215,7 @@ internal static class WorldGenTileRunner
                 return true;
             }
 
-            if (tileY < state.MainWorldSurface && type != TileIds.Mud)
+            if (tileY < mainWorldSurface && type != TileIds.Mud)
             {
                 return true;
             }
@@ -217,7 +223,7 @@ internal static class WorldGenTileRunner
 
         if (tile.Type == TileIds.Stone && type == TileIds.Mud)
         {
-            return tileY < state.MainWorldSurface + random.Next(-50, 50);
+            return tileY < mainWorldSurface + random.Next(-50, 50);
         }
 
         return false;
