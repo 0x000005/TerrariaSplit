@@ -51,7 +51,19 @@ internal static class JunglePassReplica
             state.RightBeachStart - mainMudStrength / 2 - padding);
 
         state.MudWall = true;
-        WorldGenTileRunner.Run(state, random, x, y, mainMudStrength, 10000, TileIds.Mud, addTile: false, speedX: 0.0, speedY: -20.0, noYChange: true);
+        WorldGenTileRunner.Run(
+            state,
+            random,
+            x,
+            y,
+            mainMudStrength,
+            10000,
+            TileIds.Mud,
+            addTile: false,
+            speedX: 0.0,
+            speedY: -20.0,
+            noYChange: true,
+            placeMudWalls: false);
         GenerateTunnelToSurface(state, random, x, y);
         state.MudWall = false;
 
@@ -90,7 +102,8 @@ internal static class JunglePassReplica
             random.Next(50, 150),
             TileIds.Mud,
             addTile: false,
-            speedX: state.DungeonSide * xSpeedScale);
+            speedX: state.DungeonSide * xSpeedScale,
+            placeMudWalls: false);
         state.MudWall = false;
     }
 

@@ -20,7 +20,8 @@ internal static class WorldGenTileRunner
         double speedY = 0.0,
         bool noYChange = false,
         bool overRide = true,
-        int ignoreTileType = -1)
+        int ignoreTileType = -1,
+        bool placeMudWalls = true)
     {
         if (!state.Options.IsTargetScope)
         {
@@ -82,7 +83,8 @@ internal static class WorldGenTileRunner
                         continue;
                     }
 
-                    if (state.MudWall &&
+                    if (placeMudWalls &&
+                        state.MudWall &&
                         tileY > mainWorldSurface &&
                         tiles.GetUnchecked(tileX, tileY - 1).Wall != 2 &&
                         tileY < worldHeight - 210 - random.Next(3) &&
