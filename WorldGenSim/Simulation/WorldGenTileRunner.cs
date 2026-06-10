@@ -75,12 +75,6 @@ internal static class WorldGenTileRunner
             {
                 for (int tileY = top; tileY < bottom; tileY++)
                 {
-                    ref TileData tile = ref tiles.GetUnchecked(tileX, tileY);
-                    if (ignoreTileType >= 0 && tile.Active && tile.Type == ignoreTileType)
-                    {
-                        continue;
-                    }
-
                     double manhattan = Math.Abs(tileX - x) + Math.Abs(tileY - y);
                     if (skipDeterministicRadiusRolls)
                     {
@@ -88,7 +82,21 @@ internal static class WorldGenTileRunner
                         {
                             continue;
                         }
+                    }
+                    else if (ignoreTileType < 0 && manhattan >= maximumRadius)
+                    {
+                        _ = random.Next(-10, 11);
+                        continue;
+                    }
 
+                    ref TileData tile = ref tiles.GetUnchecked(tileX, tileY);
+                    if (ignoreTileType >= 0 && tile.Active && tile.Type == ignoreTileType)
+                    {
+                        continue;
+                    }
+
+                    if (skipDeterministicRadiusRolls)
+                    {
                         if (manhattan >= guaranteedRadius)
                         {
                             double randomizedRadius = baseRadius * (1.0 + random.Next(-10, 11) * 0.015);
