@@ -63,8 +63,7 @@ internal static class JunglePassReplica
             speedX: 0.0,
             speedY: -20.0,
             noYChange: true,
-            placeMudWalls: false,
-            skipDeterministicRadiusRolls: true);
+            placeMudWalls: false);
         GenerateTunnelToSurface(state, random, x, y);
         state.MudWall = false;
 
@@ -104,8 +103,7 @@ internal static class JunglePassReplica
             TileIds.Mud,
             addTile: false,
             speedX: state.DungeonSide * xSpeedScale,
-            placeMudWalls: false,
-            skipDeterministicRadiusRolls: true);
+            placeMudWalls: false);
         state.MudWall = false;
     }
 
