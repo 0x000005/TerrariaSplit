@@ -54,9 +54,9 @@ internal static class OfficialPassPlan
 
     public static int PassCount => PassesToPyramids.Length;
 
-    public static int ImplementedPassCount => 29;
+    public static int ImplementedPassCount => 28;
 
-    public static int ExplicitlySkippedPassCount => 12;
+    public static int ExplicitlySkippedPassCount => 13;
 
     public static int StubPassCount => PassesToPyramids.Length - ImplementedPassCount - ExplicitlySkippedPassCount;
 
@@ -190,7 +190,7 @@ internal static class OfficialPassPlan
 
             if (string.Equals(name, "Mushroom Patches", StringComparison.Ordinal))
             {
-                generator.Append(new DelegateGenPass(name, weight, MushroomPatchesPassReplica.Apply));
+                AppendSkippedIsolatedPass(generator, name, weight);
                 continue;
             }
 
@@ -325,8 +325,8 @@ internal static class OfficialPassPlan
         generator.Append(new DelegateGenPass(name, weight, static (_, _) =>
         {
             // Stage 1 stops at Pyramids. These audited skips are sky-only, cavern-only,
-            // bottom-only, far-edge, or wall-only work with no known pre-Pyramids
-            // dependency in the center target corridor.
+            // bottom-only, far-edge, wall-only, or post-target work with no known
+            // pre-Pyramids dependency in the target pyramid area.
         }));
     }
 }

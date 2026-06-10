@@ -5,8 +5,8 @@ namespace WorldGenSim;
 
 internal static class Program
 {
-    private const string DefaultClassifiedWorldsPath =
-        @"C:\Users\HZR\Documents\My Games\Terraria\TerrariaSplitDeleted\PyramidWorlds_classified\PyramidWorlds_classified";
+    private const string DefaultWorldsPath =
+        @"C:\Users\HZR\Documents\My Games\Terraria\TerrariaSplitDeleted\PyramidWorlds";
 
     private static int Main(string[] args)
     {
@@ -32,7 +32,7 @@ internal static class Program
 
     private static int RunSamples(string[] args)
     {
-        string root = args.Length >= 2 ? args[1] : DefaultClassifiedWorldsPath;
+        string root = args.Length >= 2 ? args[1] : DefaultWorldsPath;
         if (!Directory.Exists(root))
         {
             Console.Error.WriteLine("World folder not found: " + root);
@@ -105,8 +105,8 @@ internal static class Program
         Console.WriteLine("WorldGenSim");
         Console.WriteLine();
         Console.WriteLine("Commands:");
-        Console.WriteLine("  samples [world-folder]   Read metadata from classified .wld files.");
-        Console.WriteLine("  compare [options]        Compare generated simulator results with classified .wld samples.");
+        Console.WriteLine("  samples [world-folder]   Read metadata from reference .wld files.");
+        Console.WriteLine("  compare [options]        Compare generated simulator results with reference .wld samples.");
         Console.WriteLine("  reset-smoke [seed]       Print non-special WorldGen.Reset replica state.");
         Console.WriteLine("  terrain-smoke [seed]     Print Reset + Terrain replica state.");
         Console.WriteLine("  dunes-smoke [seed]       Print Reset + Terrain + Dunes replica state.");
@@ -116,7 +116,7 @@ internal static class Program
         Console.WriteLine("  runner-smoke [seed]      Exercise the stage-1 pass runner and RNG reset semantics.");
         Console.WriteLine();
         Console.WriteLine("Compare options:");
-        Console.WriteLine("  --worlds <folder>        Classified world folder. Defaults to the configured corpus.");
+        Console.WriteLine("  --worlds <folder>        Reference world folder. Defaults to the configured corpus.");
         Console.WriteLine("  --limit <N>              Compare at most N samples.");
         Console.WriteLine("  --backend <replica|echo> replica = current stage-1 simulator; echo = comparer self-test.");
     }
@@ -355,7 +355,7 @@ internal static class Program
         CompareOptions options;
         try
         {
-            options = CompareOptions.Parse(args, DefaultClassifiedWorldsPath);
+            options = CompareOptions.Parse(args, DefaultWorldsPath);
         }
         catch (ArgumentException ex)
         {
