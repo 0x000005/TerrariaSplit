@@ -403,9 +403,11 @@ internal static class FullDesertPassReplica
     {
         FastRandomReplica fastRandom = new((ulong)state.Options.Seed);
         fastRandom = fastRandom.WithModifier(57005UL);
-        Vec2 hiveSize = new(description.Hive.Width, description.Hive.Height);
-        Vec2 clusterSize = new(clusters.Width, clusters.Height);
-        Vec2 blockHalfScale = new(2.0, 1.0);
+        ClusterData[] clusterData = ClusterData.From(clusters);
+        double hiveWidth = description.Hive.Width;
+        double hiveHeight = description.Hive.Height;
+        double clusterWidth = clusters.Width;
+        double clusterHeight = clusters.Height;
 
         for (int x = area.Left; x < area.Right; x++)
         {
@@ -426,20 +428,24 @@ internal static class FullDesertPassReplica
 
                 int relativeX = x - description.Hive.X;
                 int relativeY = y - description.Hive.Y;
-                Vec2 clusterPoint = (new Vec2(relativeX, relativeY) - blockHalfScale) / hiveSize * clusterSize;
-                for (int i = 0; i < clusters.Count; i++)
+                double clusterPointX = (relativeX - 2.0) / hiveWidth * clusterWidth;
+                double clusterPointY = (relativeY - 1.0) / hiveHeight * clusterHeight;
+                for (int i = 0; i < clusterData.Length; i++)
                 {
-                    Cluster cluster = clusters[i];
-                    if (Math.Abs(cluster[0].Position.X - clusterPoint.X) > 10.0 ||
-                        Math.Abs(cluster[0].Position.Y - clusterPoint.Y) > 10.0)
+                    ClusterData cluster = clusterData[i];
+                    if (Math.Abs(cluster.FirstX - clusterPointX) > 10.0 ||
+                        Math.Abs(cluster.FirstY - clusterPointY) > 10.0)
                     {
                         continue;
                     }
 
                     double influence = 0.0;
-                    foreach (Block block in cluster)
+                    foreach (Block block in cluster.Blocks)
                     {
-                        influence += 1.0 / Vec2.DistanceSquared(block.Position, clusterPoint);
+                        double dx = block.Position.X - clusterPointX;
+                        double dy = block.Position.Y - clusterPointY;
+                        double distance = dx * dx + dy * dy;
+                        influence += 1.0 / (distance == 0.0 ? double.Epsilon : distance);
                     }
 
                     if (influence > best)
@@ -450,7 +456,7 @@ internal static class FullDesertPassReplica
                         }
 
                         best = influence;
-                        bestIndex = i;
+                        bestIndex = cluster.Index;
                     }
                     else if (influence > secondBest)
                     {
@@ -459,8 +465,9 @@ internal static class FullDesertPassReplica
                 }
 
                 double combinedInfluence = best + secondBest;
-                Vec2 normalized = (new Vec2(relativeX, relativeY) - blockHalfScale) / hiveSize * 2.0 - Vec2.One;
-                bool outsideCore = normalized.Length() >= 0.8;
+                double normalizedX = (relativeX - 2.0) / hiveWidth * 2.0 - 1.0;
+                double normalizedY = (relativeY - 1.0) / hiveHeight * 2.0 - 1.0;
+                bool outsideCore = Math.Sqrt(normalizedX * normalizedX + normalizedY * normalizedY) >= 0.8;
                 bool touchedHive = true;
                 if (combinedInfluence > 3.5)
                 {
@@ -918,6 +925,22 @@ internal static class FullDesertPassReplica
     }
 
     private readonly record struct Block(Vec2 Position);
+
+    private readonly record struct ClusterData(int Index, double FirstX, double FirstY, Block[] Blocks)
+    {
+        public static ClusterData[] From(ClusterGroup clusters)
+        {
+            ClusterData[] data = new ClusterData[clusters.Count];
+            for (int i = 0; i < clusters.Count; i++)
+            {
+                Cluster cluster = clusters[i];
+                Vec2 first = cluster[0].Position;
+                data[i] = new ClusterData(i, first.X, first.Y, cluster.ToArray());
+            }
+
+            return data;
+        }
+    }
 
     private sealed class Cluster : List<Block>
     {
