@@ -426,6 +426,11 @@ internal static class FullDesertPassReplica
                     ? (ushort)TileIds.HardenedSand
                     : (ushort)TileIds.Sand;
 
+                if (!IsPyramidCandidateScanTile(state, x, y))
+                {
+                    continue;
+                }
+
                 int relativeX = x - description.Hive.X;
                 int relativeY = y - description.Hive.Y;
                 double clusterPointX = (relativeX - 2.0) / hiveWidth * clusterWidth;
@@ -544,17 +549,27 @@ internal static class FullDesertPassReplica
 
     private static void AddTileVariance(WorldGenState state, UnifiedRandom random, DesertDescription description)
     {
-        for (int i = -20; i < description.Hive.Width + 20; i++)
+        foreach (PyramidCandidate candidate in state.PyramidCandidates)
         {
-            for (int j = -20; j < description.Hive.Height + 20; j++)
+            if (!WorldInterestArea.IsInTargetPyramidXRange(state.Options.Dimensions, candidate.X))
             {
-                int x = i + description.Hive.X;
-                int y = j + description.Hive.Y;
-                if (InWorld(state, x, y + 2, 1))
+                continue;
+            }
+
+            if (candidate.X < description.Hive.Left - 20 || candidate.X >= description.Hive.Right + 20)
+            {
+                continue;
+            }
+
+            int startY = Math.Max(candidate.Y, description.Hive.Top - 20);
+            int endY = Math.Min((int)state.MainWorldSurface, description.Hive.Bottom + 20);
+            for (int y = startY; y < endY; y++)
+            {
+                if (InWorld(state, candidate.X, y + 2, 1))
                 {
-                    ref TileData tile = ref state.Tiles[x, y];
+                    ref TileData tile = ref state.Tiles[candidate.X, y];
                     if (tile.Type == TileIds.Sand &&
-                        (!IsSolid(state.Tiles[x, y + 1]) || !IsSolid(state.Tiles[x, y + 2])))
+                        (!IsSolid(state.Tiles[candidate.X, y + 1]) || !IsSolid(state.Tiles[candidate.X, y + 2])))
                     {
                         tile.Type = TileIds.HardenedSand;
                     }
@@ -562,15 +577,25 @@ internal static class FullDesertPassReplica
             }
         }
 
-        for (int k = -20; k < description.Hive.Width + 20; k++)
+        foreach (PyramidCandidate candidate in state.PyramidCandidates)
         {
-            for (int l = -20; l < description.Hive.Height + 20; l++)
+            if (!WorldInterestArea.IsInTargetPyramidXRange(state.Options.Dimensions, candidate.X))
             {
-                int x = k + description.Hive.X;
-                int y = l + description.Hive.Y;
-                if (!InWorld(state, x, y, 5) ||
-                    !state.Tiles[x, y].Active ||
-                    state.Tiles[x, y].Type != TileIds.Sandstone)
+                continue;
+            }
+
+            if (candidate.X < description.Hive.Left - 20 || candidate.X >= description.Hive.Right + 20)
+            {
+                continue;
+            }
+
+            int startY = Math.Max(candidate.Y, description.Hive.Top - 20);
+            int endY = Math.Min((int)state.MainWorldSurface, description.Hive.Bottom + 20);
+            for (int y = startY; y < endY; y++)
+            {
+                if (!InWorld(state, candidate.X, y, 5) ||
+                    !state.Tiles[candidate.X, y].Active ||
+                    state.Tiles[candidate.X, y].Type != TileIds.Sandstone)
                 {
                     continue;
                 }
@@ -578,7 +603,7 @@ internal static class FullDesertPassReplica
                 bool openAbove = true;
                 for (int offset = -1; offset >= -3; offset--)
                 {
-                    if (state.Tiles[x, y + offset].Active || state.Tiles[x + 1, y + offset].Active)
+                    if (state.Tiles[candidate.X, y + offset].Active || state.Tiles[candidate.X + 1, y + offset].Active)
                     {
                         openAbove = false;
                         break;
@@ -588,7 +613,7 @@ internal static class FullDesertPassReplica
                 bool openBelow = true;
                 for (int offset = 1; offset <= 3; offset++)
                 {
-                    if (state.Tiles[x, y + offset].Active || state.Tiles[x + 1, y + offset].Active)
+                    if (state.Tiles[candidate.X, y + offset].Active || state.Tiles[candidate.X + 1, y + offset].Active)
                     {
                         openBelow = false;
                         break;
@@ -606,21 +631,21 @@ internal static class FullDesertPassReplica
                     }
 
                     _ = style;
-                    PlaceDecorativeTile(state, x, y - 1, type);
+                    PlaceDecorativeTile(state, candidate.X, y - 1, type);
                 }
                 else if (openAbove && random.Next(5) == 0)
                 {
-                    PlaceDecorativeTile(state, x, y - 1, 484);
+                    PlaceDecorativeTile(state, candidate.X, y - 1, 484);
                 }
                 else if ((openAbove ^ openBelow) && random.Next(5) == 0)
                 {
-                    PlaceDecorativeTile(state, x, y + (openAbove ? -1 : 1), 165);
+                    PlaceDecorativeTile(state, candidate.X, y + (openAbove ? -1 : 1), 165);
                 }
                 else if (openAbove && random.Next(5) == 0)
                 {
                     int style = 29 + random.Next(6);
                     _ = style;
-                    PlaceDecorativeTile(state, x, y - 1, 187);
+                    PlaceDecorativeTile(state, candidate.X, y - 1, 187);
                 }
             }
         }
@@ -670,6 +695,26 @@ internal static class FullDesertPassReplica
         {
             state.DesertHiveRight = x;
         }
+    }
+
+    private static bool IsPyramidCandidateScanTile(WorldGenState state, int x, int y)
+    {
+        if (y >= state.MainWorldSurface)
+        {
+            return false;
+        }
+
+        foreach (PyramidCandidate candidate in state.PyramidCandidates)
+        {
+            if (WorldInterestArea.IsInTargetPyramidXRange(state.Options.Dimensions, candidate.X) &&
+                candidate.X == x &&
+                y >= candidate.Y)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static WorldRect ClipToTargetPyramidArea(
