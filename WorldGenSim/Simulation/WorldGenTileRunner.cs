@@ -21,7 +21,8 @@ internal static class WorldGenTileRunner
         bool noYChange = false,
         bool overRide = true,
         int ignoreTileType = -1,
-        bool placeMudWalls = true)
+        bool placeMudWalls = true,
+        bool skipDeterministicRadiusRolls = false)
     {
         if (!state.Options.IsTargetScope)
         {
@@ -38,6 +39,9 @@ internal static class WorldGenTileRunner
         double stepsRemaining = steps;
         double x = i;
         double y = j;
+        double baseRadius = strength * 0.5;
+        double guaranteedRadius = baseRadius * 0.85;
+        double maximumRadius = baseRadius * 1.15;
         double velocityX = random.Next(-10, 11) * 0.1;
         double velocityY = random.Next(-10, 11) * 0.1;
         if (speedX != 0.0 || speedY != 0.0)
@@ -77,8 +81,24 @@ internal static class WorldGenTileRunner
                         continue;
                     }
 
-                    double randomizedRadius = strength * 0.5 * (1.0 + random.Next(-10, 11) * 0.015);
-                    if (Math.Abs(tileX - x) + Math.Abs(tileY - y) >= randomizedRadius)
+                    double manhattan = Math.Abs(tileX - x) + Math.Abs(tileY - y);
+                    if (skipDeterministicRadiusRolls)
+                    {
+                        if (manhattan >= maximumRadius)
+                        {
+                            continue;
+                        }
+
+                        if (manhattan >= guaranteedRadius)
+                        {
+                            double randomizedRadius = baseRadius * (1.0 + random.Next(-10, 11) * 0.015);
+                            if (manhattan >= randomizedRadius)
+                            {
+                                continue;
+                            }
+                        }
+                    }
+                    else if (manhattan >= baseRadius * (1.0 + random.Next(-10, 11) * 0.015))
                     {
                         continue;
                     }
