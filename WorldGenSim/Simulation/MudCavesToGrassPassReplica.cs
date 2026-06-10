@@ -20,7 +20,7 @@ internal static class MudCavesToGrassPassReplica
         {
             for (int y = 0; y < height; y++)
             {
-                ref TileData tile = ref state.Tiles[x, y];
+                ref TileData tile = ref state.Tiles.GetUnchecked(x, y);
                 if (tile.Active && tile.Type == TileIds.Mud)
                 {
                     SpreadGrass(state, x, y, recursionDepth: 0);
@@ -40,9 +40,13 @@ internal static class MudCavesToGrassPassReplica
 
     private static void SpreadGrass(WorldGenState state, int x, int y, int recursionDepth)
     {
-        if (!InWorld(state, x, y, 10) ||
-            !state.Tiles[x, y].Active ||
-            state.Tiles[x, y].Type != TileIds.Mud)
+        if (!InWorld(state, x, y, 10))
+        {
+            return;
+        }
+
+        ref TileData current = ref state.Tiles.GetUnchecked(x, y);
+        if (!current.Active || current.Type != TileIds.Mud)
         {
             return;
         }
@@ -56,7 +60,7 @@ internal static class MudCavesToGrassPassReplica
         {
             for (int tileY = top; tileY < bottom; tileY++)
             {
-                ref TileData tile = ref state.Tiles[tileX, tileY];
+                ref TileData tile = ref state.Tiles.GetUnchecked(tileX, tileY);
                 if (!tile.Active || !IsSolid(tile.Type))
                 {
                     fullySurroundedBySolid = false;
@@ -70,18 +74,19 @@ internal static class MudCavesToGrassPassReplica
             }
         }
 
-        if (fullySurroundedBySolid || !CanBeClearedDuringGeneration(state.Tiles[x, y].Type))
+        if (fullySurroundedBySolid || !CanBeClearedDuringGeneration(current.Type))
         {
             return;
         }
 
-        state.Tiles[x, y].Type = JungleGrass;
+        current.Type = JungleGrass;
         for (int tileX = left; tileX < right; tileX++)
         {
             for (int tileY = top; tileY < bottom; tileY++)
             {
-                if (state.Tiles[tileX, tileY].Active &&
-                    state.Tiles[tileX, tileY].Type == TileIds.Mud &&
+                ref TileData tile = ref state.Tiles.GetUnchecked(tileX, tileY);
+                if (tile.Active &&
+                    tile.Type == TileIds.Mud &&
                     recursionDepth < 1000)
                 {
                     SpreadGrass(state, tileX, tileY, recursionDepth + 1);
@@ -96,7 +101,7 @@ internal static class MudCavesToGrassPassReplica
         int startY = 0;
         for (int y = 10; y < state.Options.Dimensions.Height - 10; y++)
         {
-            if (IsClearableSolid(state.Tiles[x, y]))
+            if (IsClearableSolid(state.Tiles.GetUnchecked(x, y)))
             {
                 if (consecutive == 0)
                 {
@@ -112,7 +117,7 @@ internal static class MudCavesToGrassPassReplica
             {
                 foreach ((int tileX, int tileY) in connected)
                 {
-                    state.Tiles[tileX, tileY].Active = false;
+                    state.Tiles.GetUnchecked(tileX, tileY).Active = false;
                 }
             }
 
@@ -132,7 +137,7 @@ internal static class MudCavesToGrassPassReplica
                 x > state.Options.Dimensions.Width - 5 ||
                 y < 5 ||
                 y > state.Options.Dimensions.Height - 5 ||
-                !IsClearableSolid(state.Tiles[x, y]) ||
+                !IsClearableSolid(state.Tiles.GetUnchecked(x, y)) ||
                 connected.Contains((x, y)))
             {
                 continue;

@@ -54,9 +54,9 @@ internal static class OfficialPassPlan
 
     public static int PassCount => PassesToPyramids.Length;
 
-    public static int ImplementedPassCount => 21;
+    public static int ImplementedPassCount => 19;
 
-    public static int ExplicitlySkippedPassCount => 20;
+    public static int ExplicitlySkippedPassCount => 22;
 
     public static int StubPassCount => PassesToPyramids.Length - ImplementedPassCount - ExplicitlySkippedPassCount;
 
@@ -85,19 +85,19 @@ internal static class OfficialPassPlan
 
             if (string.Equals(name, "Sand Patches", StringComparison.Ordinal))
             {
-                generator.Append(new DelegateGenPass(name, weight, SandPatchesPassReplica.Apply));
+                AppendCandidateDependentPass(generator, name, weight, SandPatchesPassReplica.Apply);
                 continue;
             }
 
             if (string.Equals(name, "Tunnels", StringComparison.Ordinal))
             {
-                generator.Append(new DelegateGenPass(name, weight, EarlyWorldMutationPasses.ApplyTunnels));
+                AppendCandidateDependentPass(generator, name, weight, EarlyWorldMutationPasses.ApplyTunnels);
                 continue;
             }
 
             if (string.Equals(name, "Mount Caves", StringComparison.Ordinal))
             {
-                generator.Append(new DelegateGenPass(name, weight, EarlyWorldMutationPasses.ApplyMountCaves));
+                AppendCandidateDependentPass(generator, name, weight, EarlyWorldMutationPasses.ApplyMountCaves);
                 continue;
             }
 
@@ -127,25 +127,25 @@ internal static class OfficialPassPlan
 
             if (string.Equals(name, "Small Holes", StringComparison.Ordinal))
             {
-                generator.Append(new DelegateGenPass(name, weight, EarlyWorldMutationPasses.ApplySmallHoles));
+                AppendSkippedIsolatedPass(generator, name, weight);
                 continue;
             }
 
             if (string.Equals(name, "Dirt Layer Caves", StringComparison.Ordinal))
             {
-                generator.Append(new DelegateGenPass(name, weight, EarlyWorldMutationPasses.ApplyDirtLayerCaves));
+                AppendCandidateDependentPass(generator, name, weight, EarlyWorldMutationPasses.ApplyDirtLayerCaves);
                 continue;
             }
 
             if (string.Equals(name, "Rock Layer Caves", StringComparison.Ordinal))
             {
-                generator.Append(new DelegateGenPass(name, weight, EarlyWorldMutationPasses.ApplyRockLayerCaves));
+                AppendSkippedIsolatedPass(generator, name, weight);
                 continue;
             }
 
             if (string.Equals(name, "Surface Caves", StringComparison.Ordinal))
             {
-                generator.Append(new DelegateGenPass(name, weight, EarlyWorldMutationPasses.ApplySurfaceCaves));
+                AppendCandidateDependentPass(generator, name, weight, EarlyWorldMutationPasses.ApplySurfaceCaves);
                 continue;
             }
 
@@ -160,31 +160,31 @@ internal static class OfficialPassPlan
 
             if (string.Equals(name, "Generate Ice Biome", StringComparison.Ordinal))
             {
-                generator.Append(new DelegateGenPass(name, weight, IceBiomePassReplica.Apply));
+                AppendCandidateDependentPass(generator, name, weight, IceBiomePassReplica.Apply);
                 continue;
             }
 
             if (string.Equals(name, "Grass", StringComparison.Ordinal))
             {
-                generator.Append(new DelegateGenPass(name, weight, GrassPassReplica.Apply));
+                AppendCandidateDependentPass(generator, name, weight, GrassPassReplica.Apply);
                 continue;
             }
 
             if (string.Equals(name, "Jungle", StringComparison.Ordinal))
             {
-                generator.Append(new DelegateGenPass(name, weight, JunglePassReplica.Apply));
+                AppendCandidateDependentPass(generator, name, weight, JunglePassReplica.Apply);
                 continue;
             }
 
             if (string.Equals(name, "Mud Caves To Grass", StringComparison.Ordinal))
             {
-                generator.Append(new DelegateGenPass(name, weight, MudCavesToGrassPassReplica.Apply));
+                AppendCandidateDependentPass(generator, name, weight, MudCavesToGrassPassReplica.Apply);
                 continue;
             }
 
             if (string.Equals(name, "Full Desert", StringComparison.Ordinal))
             {
-                generator.Append(new DelegateGenPass(name, weight, FullDesertPassReplica.Apply));
+                AppendCandidateDependentPass(generator, name, weight, FullDesertPassReplica.Apply);
                 continue;
             }
 
@@ -244,7 +244,7 @@ internal static class OfficialPassPlan
 
             if (string.Equals(name, "Corruption", StringComparison.Ordinal))
             {
-                generator.Append(new DelegateGenPass(name, weight, CrimsonPassReplica.Apply));
+                AppendCandidateDependentPass(generator, name, weight, CrimsonPassReplica.Apply);
                 continue;
             }
 
@@ -256,7 +256,7 @@ internal static class OfficialPassPlan
 
             if (string.Equals(name, "Slush", StringComparison.Ordinal))
             {
-                generator.Append(new DelegateGenPass(name, weight, SnowConversionPasses.ApplySlush));
+                AppendCandidateDependentPass(generator, name, weight, SnowConversionPasses.ApplySlush);
                 continue;
             }
 
@@ -280,13 +280,13 @@ internal static class OfficialPassPlan
 
             if (string.Equals(name, "Gems", StringComparison.Ordinal))
             {
-                generator.Append(new DelegateGenPass(name, weight, SandCleanupPasses.ApplyGemsSandSettling));
+                AppendCandidateDependentPass(generator, name, weight, SandCleanupPasses.ApplyGemsSandSettling);
                 continue;
             }
 
             if (string.Equals(name, "Gravitating Sand", StringComparison.Ordinal))
             {
-                generator.Append(new DelegateGenPass(name, weight, SandCleanupPasses.ApplyGravitatingSand));
+                AppendCandidateDependentPass(generator, name, weight, SandCleanupPasses.ApplyGravitatingSand);
                 continue;
             }
 
@@ -310,7 +310,7 @@ internal static class OfficialPassPlan
 
             if (string.Equals(name, "Pyramids", StringComparison.Ordinal))
             {
-                generator.Append(new DelegateGenPass(name, weight, PyramidsPassReplica.Apply));
+                AppendCandidateDependentPass(generator, name, weight, PyramidsPassReplica.Apply);
                 continue;
             }
 
@@ -325,8 +325,27 @@ internal static class OfficialPassPlan
         generator.Append(new DelegateGenPass(name, weight, static (_, _) =>
         {
             // Stage 1 stops at Pyramids. These audited skips are sky-only, cavern-only,
-            // bottom-only, far-edge, wall-only, or post-target work with no known
-            // pre-Pyramids dependency in the target pyramid area.
+            // bottom-only, far-edge, wall-only, sand-protected, or post-target work
+            // with no known pre-Pyramids dependency in the target pyramid area.
+        }));
+    }
+
+    private static void AppendCandidateDependentPass(
+        WorldGenerator generator,
+        string name,
+        double weight,
+        Action<WorldGenContext, GenerationProgress> apply)
+    {
+        generator.Append(new DelegateGenPass(name, weight, (context, progress) =>
+        {
+            WorldGenState? state = context.State;
+            if (state is not null && !WorldInterestArea.HasPyramidCandidateNearTarget(state))
+            {
+                progress.Set(1.0);
+                return;
+            }
+
+            apply(context, progress);
         }));
     }
 }

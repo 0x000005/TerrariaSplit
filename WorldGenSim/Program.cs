@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using WorldGenSim.Simulation;
 
@@ -121,6 +122,7 @@ internal static class Program
         Console.WriteLine("Compare options:");
         Console.WriteLine("  --worlds <folder>        Reference world folder. Defaults to the configured corpus.");
         Console.WriteLine("  --limit <N>              Compare at most N samples.");
+        Console.WriteLine("  --class <name>           Compare only one known classification folder.");
         Console.WriteLine("  --backend <replica|echo> replica = current stage-1 simulator; echo = comparer self-test.");
     }
 
@@ -489,7 +491,7 @@ internal static class Program
         int unreadable = 0;
         int targetCompared = 0;
 
-        Console.WriteLine("status,class,seed,expected,actual,detail,path");
+        Console.WriteLine("status,class,seed,expected,actual,durationMs,detail,path");
         foreach (string path in Directory.EnumerateFiles(options.WorldsPath, "*.wld", SearchOption.AllDirectories)
                      .OrderBy(static p => p, StringComparer.OrdinalIgnoreCase))
         {
@@ -509,12 +511,19 @@ internal static class Program
                     string.Empty,
                     string.Empty,
                     string.Empty,
+                    string.Empty,
                     Csv(detail),
                     Csv(path)));
                 continue;
             }
 
             readable++;
+            if (options.ClassFilter is not null &&
+                !string.Equals(sample.Classification, options.ClassFilter, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
             WorldOptions sampleOptions = WorldOptions.FromMetadata(sample.Metadata);
             if (!sampleOptions.IsTargetScope)
             {
@@ -526,13 +535,16 @@ internal static class Program
                     Csv(sample.Metadata.SeedText),
                     Csv(sample.PyramidChests.FormatLootSummary()),
                     string.Empty,
+                    string.Empty,
                     Csv(sampleOptions.TargetScopeDetail()),
                     Csv(path)));
                 continue;
             }
 
             targetCompared++;
+            Stopwatch stopwatch = Stopwatch.StartNew();
             SimulatedWorldResult actual = simulator.Generate(sample);
+            stopwatch.Stop();
             SampleComparison comparison = CompareSample(sample, actual);
             switch (comparison.Status)
             {
@@ -554,6 +566,7 @@ internal static class Program
                 Csv(sample.Metadata.SeedText),
                 Csv(ExpectedComparisonText(sample)),
                 Csv(ActualComparisonText(sample, actual)),
+                stopwatch.ElapsedMilliseconds.ToString(CultureInfo.InvariantCulture),
                 Csv(comparison.Detail),
                 Csv(path)));
         }
@@ -721,13 +734,14 @@ internal enum CompareBackend
     Echo
 }
 
-internal sealed record CompareOptions(string WorldsPath, int? Limit, CompareBackend Backend)
+internal sealed record CompareOptions(string WorldsPath, int? Limit, CompareBackend Backend, string? ClassFilter)
 {
     public static CompareOptions Parse(string[] args, string defaultWorldsPath)
     {
         string worldsPath = defaultWorldsPath;
         int? limit = null;
         CompareBackend backend = CompareBackend.Replica;
+        string? classFilter = null;
 
         for (int i = 1; i < args.Length; i++)
         {
@@ -746,6 +760,14 @@ internal sealed record CompareOptions(string WorldsPath, int? Limit, CompareBack
                     }
 
                     limit = parsedLimit;
+                    break;
+                case "--class":
+                    classFilter = RequireValue(args, ref i, arg);
+                    if (!IsKnownClassFilter(classFilter))
+                    {
+                        throw new ArgumentException("Unknown compare class: " + classFilter);
+                    }
+
                     break;
                 case "--backend":
                     string backendText = RequireValue(args, ref i, arg);
@@ -767,7 +789,7 @@ internal sealed record CompareOptions(string WorldsPath, int? Limit, CompareBack
             }
         }
 
-        return new CompareOptions(worldsPath, limit, backend);
+        return new CompareOptions(worldsPath, limit, backend, classFilter);
     }
 
     private static string RequireValue(string[] args, ref int index, string option)
@@ -779,6 +801,11 @@ internal sealed record CompareOptions(string WorldsPath, int? Limit, CompareBack
 
         index++;
         return args[index];
+    }
+
+    private static bool IsKnownClassFilter(string value)
+    {
+        return value is "飞毯" or "沙暴" or "其他" or "无金字塔";
     }
 }
 

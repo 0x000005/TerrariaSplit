@@ -31,6 +31,12 @@ internal sealed class DenseTileGrid
         }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ref TileData GetUnchecked(int x, int y)
+    {
+        return ref tiles[(x * Height) + y];
+    }
+
     public void Clear()
     {
         Array.Clear(tiles);

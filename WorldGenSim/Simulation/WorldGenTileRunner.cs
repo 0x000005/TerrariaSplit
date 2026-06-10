@@ -60,7 +60,7 @@ internal static class WorldGenTileRunner
             {
                 for (int tileY = top; tileY < bottom; tileY++)
                 {
-                    ref TileData tile = ref state.Tiles[tileX, tileY];
+                    ref TileData tile = ref state.Tiles.GetUnchecked(tileX, tileY);
                     if (ignoreTileType >= 0 && tile.Active && tile.Type == ignoreTileType)
                     {
                         continue;
@@ -74,25 +74,25 @@ internal static class WorldGenTileRunner
 
                     if (state.MudWall &&
                         tileY > state.MainWorldSurface &&
-                        state.Tiles[tileX, tileY - 1].Wall != 2 &&
+                        state.Tiles.GetUnchecked(tileX, tileY - 1).Wall != 2 &&
                         tileY < state.Options.Dimensions.Height - 210 - random.Next(3) &&
                         Math.Abs(tileX - x) + Math.Abs(tileY - y) < strength * 0.45 * (1.0 + random.Next(-10, 11) * 0.01))
                     {
                         if (tileY > state.LavaLine - random.Next(0, 4) - 50)
                         {
-                            if (state.Tiles[tileX, tileY - 1].Wall != 64 &&
-                                state.Tiles[tileX, tileY + 1].Wall != 64 &&
-                                state.Tiles[tileX - 1, tileY].Wall != 64 &&
-                                state.Tiles[tileX + 1, tileY].Wall != 64)
+                            if (state.Tiles.GetUnchecked(tileX, tileY - 1).Wall != 64 &&
+                                state.Tiles.GetUnchecked(tileX, tileY + 1).Wall != 64 &&
+                                state.Tiles.GetUnchecked(tileX - 1, tileY).Wall != 64 &&
+                                state.Tiles.GetUnchecked(tileX + 1, tileY).Wall != 64)
                             {
                                 tile.Wall = 15;
                             }
                         }
                         else if (
-                            state.Tiles[tileX, tileY - 1].Wall != 15 &&
-                            state.Tiles[tileX, tileY + 1].Wall != 15 &&
-                            state.Tiles[tileX - 1, tileY].Wall != 15 &&
-                            state.Tiles[tileX + 1, tileY].Wall != 15)
+                            state.Tiles.GetUnchecked(tileX, tileY - 1).Wall != 15 &&
+                            state.Tiles.GetUnchecked(tileX, tileY + 1).Wall != 15 &&
+                            state.Tiles.GetUnchecked(tileX - 1, tileY).Wall != 15 &&
+                            state.Tiles.GetUnchecked(tileX + 1, tileY).Wall != 15)
                         {
                             tile.Wall = 64;
                         }

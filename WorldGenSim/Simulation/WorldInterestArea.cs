@@ -2,6 +2,8 @@ namespace WorldGenSim.Simulation;
 
 internal static class WorldInterestArea
 {
+    private const int PyramidCandidateTargetPadding = 500;
+
     public static (int LeftInclusive, int RightExclusive) TargetPyramidXRange(WorldDimensions dimensions)
     {
         int left = (int)Math.Floor(dimensions.Width * 0.35);
@@ -34,5 +36,21 @@ internal static class WorldInterestArea
             area.Right + horizontalPadding > left &&
             area.Top - verticalPadding < bottom &&
             area.Bottom + verticalPadding > top;
+    }
+
+    public static bool HasPyramidCandidateNearTarget(WorldGenState state)
+    {
+        (int left, int right) = TargetPyramidXRange(state.Options.Dimensions);
+        left -= PyramidCandidateTargetPadding;
+        right += PyramidCandidateTargetPadding;
+        foreach (PyramidCandidate candidate in state.PyramidCandidates)
+        {
+            if (candidate.X >= left && candidate.X < right)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

@@ -81,12 +81,18 @@ internal static class SandCleanupPasses
             throw new InvalidOperationException(state.Options.TargetScopeDetail());
         }
 
-        int width = state.Options.Dimensions.Width;
         int height = state.Options.Dimensions.Height;
-        (int interestLeft, int interestRight) = WorldInterestArea.TargetPyramidXRange(state.Options.Dimensions);
-        for (int x = interestLeft; x < interestRight; x++)
+        List<int> columns = TargetPyramidCandidateColumns(state);
+        if (columns.Count == 0)
         {
-            progress.Set((x - interestLeft) / (double)(interestRight - interestLeft));
+            progress.Set(1.0);
+            return;
+        }
+
+        for (int columnIndex = 0; columnIndex < columns.Count; columnIndex++)
+        {
+            int x = columns[columnIndex];
+            progress.Set(columnIndex / (double)columns.Count);
             bool foundSolidBelow = false;
             int lowerSolidY = 0;
             for (int y = height - 1; y > 0; y--)
@@ -112,6 +118,37 @@ internal static class SandCleanupPasses
                 lowerSolidY = y;
             }
         }
+
+        progress.Set(1.0);
+    }
+
+    private static List<int> TargetPyramidCandidateColumns(WorldGenState state)
+    {
+        var columns = new List<int>(state.PyramidCandidates.Count);
+        foreach (PyramidCandidate candidate in state.PyramidCandidates)
+        {
+            if (!WorldInterestArea.IsInTargetPyramidXRange(state.Options.Dimensions, candidate.X))
+            {
+                continue;
+            }
+
+            bool alreadyAdded = false;
+            for (int i = 0; i < columns.Count; i++)
+            {
+                if (columns[i] == candidate.X)
+                {
+                    alreadyAdded = true;
+                    break;
+                }
+            }
+
+            if (!alreadyAdded)
+            {
+                columns.Add(candidate.X);
+            }
+        }
+
+        return columns;
     }
 
     private static void ResetToType(ref TileData tile, int type)
