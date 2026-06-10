@@ -13,17 +13,18 @@ internal static class SandCleanupPasses
 
         int width = state.Options.Dimensions.Width;
         int height = state.Options.Dimensions.Height;
+        DenseTileGrid tiles = state.Tiles;
         (int interestLeft, int interestRight) = WorldInterestArea.TargetPyramidXRange(state.Options.Dimensions);
         for (int pass = 0; pass < 2; pass++)
         {
             int direction = 1;
             int start = Math.Max(5, interestLeft);
-            int end = Math.Min(width - 5, interestRight);
+            int end = Math.Min(width - 5, interestRight - 1);
             if (pass == 1)
             {
                 direction = -1;
                 start = Math.Min(width - 5, interestRight - 1);
-                end = Math.Max(5, interestLeft - 1);
+                end = Math.Max(5, interestLeft);
             }
 
             for (int x = start; x != end; x += direction)
@@ -33,40 +34,34 @@ internal static class SandCleanupPasses
                     continue;
                 }
 
-                progress.Set(pass == 0
-                    ? x / (double)width * 0.5
-                    : 0.5 + (width - x) / (double)width * 0.5);
-
                 for (int y = 10; y < height - 10; y++)
                 {
-                    if (!state.Tiles[x, y].Active ||
-                        !state.Tiles[x, y + 1].Active ||
-                        !IsSand(state.Tiles[x, y].Type) ||
-                        !IsSand(state.Tiles[x, y + 1].Type))
+                    ref TileData tile = ref tiles.GetUnchecked(x, y);
+                    ref TileData lowerTile = ref tiles.GetUnchecked(x, y + 1);
+                    if (!tile.Active ||
+                        !lowerTile.Active ||
+                        !IsSand(tile.Type) ||
+                        !IsSand(lowerTile.Type))
                     {
                         continue;
                     }
 
                     int targetX = x + direction;
                     int targetY = y + 1;
-                    if (!WorldInterestArea.IsInTargetPyramidXRange(state.Options.Dimensions, targetX))
+                    if (tiles.GetUnchecked(targetX, y).Active || tiles.GetUnchecked(targetX, targetY).Active)
                     {
                         continue;
                     }
 
-                    if (state.Tiles[targetX, y].Active || state.Tiles[targetX, targetY].Active)
-                    {
-                        continue;
-                    }
-
-                    while (!state.Tiles[targetX, targetY].Active && InWorld(state, targetX, targetY, 10))
+                    while (InWorld(state, targetX, targetY, 10) && !tiles.GetUnchecked(targetX, targetY).Active)
                     {
                         targetY++;
                     }
 
                     targetY--;
-                    state.Tiles[x, y].Active = false;
-                    state.Tiles[targetX, targetY].SetType(state.Tiles[x, y].Type);
+                    ushort fallingType = tile.Type;
+                    tile.Active = false;
+                    tiles.GetUnchecked(targetX, targetY).SetType(fallingType);
                 }
             }
         }
