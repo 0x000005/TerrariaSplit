@@ -15,11 +15,12 @@ internal static class MudCavesToGrassPassReplica
         }
 
         int height = state.Options.Dimensions.Height;
+        int shallowBottom = Math.Clamp((int)Math.Ceiling(state.MainWorldSurface) + TileCounterMax, 0, height);
         (int jungleLeft, int jungleRight) = JungleMudScanRange(state);
         int jungleWidth = Math.Max(1, jungleRight - jungleLeft);
         for (int x = jungleLeft; x < jungleRight; x++)
         {
-            for (int y = 0; y < height; y++)
+            for (int y = 0; y < shallowBottom; y++)
             {
                 ref TileData tile = ref state.Tiles.GetUnchecked(x, y);
                 if (tile.Active && tile.Type == TileIds.Mud)
@@ -35,7 +36,7 @@ internal static class MudCavesToGrassPassReplica
         for (int i = 0; i < cleanupColumns.Count; i++)
         {
             int x = cleanupColumns[i];
-            ScanTileColumnAndRemoveClumps(state, x);
+            ScanTileColumnAndRemoveClumps(state, x, Math.Min(height - 10, shallowBottom + TileCounterMax));
             progress.Set(0.2 + ((i + 1.0) / cleanupColumns.Count) * 0.8);
         }
     }
@@ -143,11 +144,11 @@ internal static class MudCavesToGrassPassReplica
         }
     }
 
-    private static void ScanTileColumnAndRemoveClumps(WorldGenState state, int x)
+    private static void ScanTileColumnAndRemoveClumps(WorldGenState state, int x, int bottom)
     {
         int consecutive = 0;
         int startY = 0;
-        for (int y = 10; y < state.Options.Dimensions.Height - 10; y++)
+        for (int y = 10; y < bottom; y++)
         {
             if (IsClearableSolid(state.Tiles.GetUnchecked(x, y)))
             {
