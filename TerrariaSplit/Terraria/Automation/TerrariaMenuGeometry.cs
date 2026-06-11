@@ -70,6 +70,11 @@ internal readonly record struct TerrariaMenuGeometry(float Scale, float LogicalW
         return ToClient(LogicalWidth / 2f + 130f, 534f);
     }
 
+    public Point CreateWorldBackButton()
+    {
+        return ToClient(LogicalWidth / 2f - 130f, 534f);
+    }
+
     public Point WorldSizeButton(string worldSize)
     {
         float x = AutoCreateWorldSize.Normalize(worldSize) switch

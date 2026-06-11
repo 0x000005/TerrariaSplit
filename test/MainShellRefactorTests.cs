@@ -24,6 +24,7 @@ internal static class MainShellRefactorTests
         yield return ("ProgramModalWindowCoordinator registers modal forms through one gateway", ProgramModalWindowCoordinatorRegistersModalFormsThroughOneGateway);
         yield return ("ProgramModalWindowCoordinator enables only the current nested modal", ProgramModalWindowCoordinatorEnablesOnlyCurrentNestedModal);
         yield return ("MainWindowModalInputRouter redirects blocked main window activation", MainWindowModalInputRouterRedirectsBlockedMainWindowActivation);
+        yield return ("MainFormContextMenuBuilder exposes pyramid filter toggle", MainFormContextMenuBuilderExposesPyramidFilterToggle);
         yield return ("PracticeWorldSelectorForm uses save selector text", PracticeWorldSelectorFormUsesSaveSelectorText);
         yield return ("PracticeWorldSelectorForm scales layout with display context", PracticeWorldSelectorFormScalesLayoutWithDisplayContext);
         yield return ("HotkeyWarningDialog uses plain dialog content", HotkeyWarningDialogUsesPlainDialogContent);
@@ -430,6 +431,43 @@ internal static class MainShellRefactorTests
                 TestAssert.Equal(true, stoppedMainInteraction);
                 TestAssert.Equal((IntPtr)MainWindowModalInputRouter.MaNoActivateAndEat, message.Result);
             }
+        });
+    }
+
+    private static void MainFormContextMenuBuilderExposesPyramidFilterToggle()
+    {
+        RunSta(() =>
+        {
+            int toggleCount = 0;
+            using var menu = new ContextMenuStrip();
+            var settings = new AppSettings
+            {
+                Language = "\u4E2D\u6587",
+                AutoCreate = new AutoCreateWorldSettings
+                {
+                    EnablePyramidFilter = true
+                }
+            };
+
+            new MainFormContextMenuBuilder().Rebuild(
+                menu,
+                settings,
+                () => { },
+                () => { },
+                () => toggleCount++,
+                _ => { },
+                () => { });
+
+            ToolStripMenuItem item = menu.Items
+                .OfType<ToolStripMenuItem>()
+                .Single(menuItem => menuItem.Name == MainFormContextMenuBuilder.PyramidFilterToggleItemName);
+
+            TestAssert.Equal("\u7B5B\u5854", item.Text);
+            TestAssert.Equal(true, item.Checked);
+
+            item.PerformClick();
+
+            TestAssert.Equal(1, toggleCount);
         });
     }
 

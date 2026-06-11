@@ -286,6 +286,7 @@ internal sealed partial class MainForm : Form
             settings,
             OpenStatistics,
             OpenSettings,
+            TogglePyramidFilter,
             SwitchSettingsFile,
             Close);
     }
@@ -1279,6 +1280,11 @@ internal sealed partial class MainForm : Form
     {
         SetMouseClickThrough(!mouseClickThrough);
         InvalidateRuntimeRenderRegion();
+    }
+
+    private void TogglePyramidFilter()
+    {
+        ExecuteAppCommand(AppCommand.TogglePyramidFilter());
     }
 
     private void RefreshRuntimeUi()

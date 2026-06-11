@@ -138,6 +138,10 @@ internal sealed class ApplicationController
                 effects.Add(ApplicationEffect.Simple(ApplicationEffectKind.ToggleMouseClickThrough));
                 invalidateAll = true;
                 break;
+            case AppCommandKind.TogglePyramidFilter:
+                TogglePyramidFilter(effects);
+                invalidateAll = true;
+                break;
             case AppCommandKind.QueueMenuAction:
                 effects.Add(ApplicationEffect.SubmitRuntimeCommand(
                     RuntimeCommand.QueueMenuAction(command.MenuAction, command.RequestedAtUtc)));
@@ -205,6 +209,17 @@ internal sealed class ApplicationController
 
         effects.Add(ApplicationEffect.SubmitRuntimeCommand(RuntimeCommand.Reset()));
         effects.Add(ApplicationEffect.Simple(ApplicationEffectKind.RefreshRuntimeUi));
+    }
+
+    private void TogglePyramidFilter(List<ApplicationEffect> effects)
+    {
+        AppSettings previousSettings = AppSettingsStore.Clone(Settings);
+        AppSettings nextSettings = AppSettingsStore.Clone(Settings);
+        nextSettings.AutoCreate.EnablePyramidFilter = !nextSettings.AutoCreate.EnablePyramidFilter;
+        Settings = nextSettings;
+
+        effects.Add(ApplicationEffect.SaveSettings(Settings));
+        effects.Add(ApplicationEffect.ApplySettingsToShell(previousSettings, Definitions.Count));
     }
 
     private void AddStartCreateWorldEffects(List<ApplicationEffect> effects)

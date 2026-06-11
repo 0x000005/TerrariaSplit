@@ -304,7 +304,9 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Catch speed", "\u63A5\u661F\u901F\u5EA6" }
       , { "Filter pyramid", "\u7B5B\u9009\u91D1\u5B57\u5854" }
       , { "Pyramid filter", "\u7B5B\u9009\u91D1\u5B57\u5854" }
+      , { "Quick pyramid filter", "\u7B5B\u5854" }
       , { "Required pyramid items", "\u6307\u5B9A\u7269\u54C1" }
+      , { "Return to main menu on filter failure", "\u7B5B\u9009\u5931\u8D25\u8FD4\u56DE\u4E3B\u9875\u91CD\u65B0\u521B\u5EFA" }
       , { "Sandstorm in a Bottle", "\u6C99\u66B4\u74F6" }
       , { "Flying Carpet", "\u98DE\u6BEF" }
       , { "Pharaoh set", "\u6CD5\u8001\u5957" }
@@ -417,6 +419,7 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Generation progress address", "\u521B\u4E16\u754C\u8FDB\u5EA6\u5730\u5740" }
       , { "Generation controller address", "\u521B\u4E16\u754C\u63A7\u5236\u5668\u5730\u5740" }
       , { "Failure stage", "\u5931\u8D25\u9636\u6BB5" }
+      , { "Current seed", "\u5F53\u524D\u79CD\u5B50" }
       , { "world generation pointers pending", "\u521B\u4E16\u754C\u6307\u9488\u7B49\u5F85\u4E2D" }
       , { "world generation pointers pending via fallback", "\u901A\u8FC7\u56DE\u9000\u65B9\u5F0F\u7B49\u5F85\u521B\u4E16\u754C\u6307\u9488" }
       , { "timer and boss pointers ready; world generation scan pending", "\u8BA1\u65F6\u5668\u4E0E BOSS \u6307\u9488\u5C31\u7EEA\uFF1B\u521B\u4E16\u754C\u626B\u63CF\u7B49\u5F85\u4E2D" }
@@ -444,6 +447,8 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Yes", "\u662F" }
       , { "No", "\u5426" }
       , { "Unknown", "\u672A\u77E5" }
+      , { "Empty", "\u7A7A" }
+      , { "Not on world creation page", "\u4E0D\u5728\u521B\u4E16\u754C\u9875\u9762" }
       , { "World generation idle", "\u5F53\u524D\u672A\u5728\u521B\u4E16\u754C" }
       , { "Ready", "\u5C31\u7EEA" }
       , { "Pending", "\u7B49\u5F85\u4E2D" }

@@ -12,6 +12,7 @@ internal sealed class CreateWorldWorkflow : IDisposable
     private readonly TerrariaAutomationContext automation = new("Create world");
     private readonly ZenithStarCatchAutomation zenithStarCatchAutomation;
     private readonly PyramidFilterAutomation pyramidFilterAutomation;
+    private readonly PyramidSeedPreScreenAutomation pyramidSeedPreScreenAutomation;
     private readonly TerrariaWorldFilePyramidScanner worldFileScanner = new();
     private readonly WorldPoolStore? worldPool;
     private TimeSpan shortActionDelay = TimeSpan.FromMilliseconds(AppSettingsDefaults.AutoCreate.ShortActionDelayMilliseconds);
@@ -23,6 +24,7 @@ internal sealed class CreateWorldWorkflow : IDisposable
         this.worldPool = worldPool;
         zenithStarCatchAutomation = new ZenithStarCatchAutomation(automation);
         pyramidFilterAutomation = new PyramidFilterAutomation(automation);
+        pyramidSeedPreScreenAutomation = new PyramidSeedPreScreenAutomation(automation);
     }
 
     public Task RunAsync(CancellationToken cancellationToken = default)
@@ -159,23 +161,40 @@ internal sealed class CreateWorldWorkflow : IDisposable
         TerrariaMenuGeometry geometry,
         CancellationToken cancellationToken)
     {
-        automation.ThrowIfCancellationRequested(cancellationToken);
-        Dictionary<string, DateTime> worldsBefore = savePreparation.SnapshotSaveFiles("Worlds", "*.wld");
-        if (!await CreateOneWorldAsync(settings, geometry, cancellationToken))
+        while (true)
         {
-            return false;
+            automation.ThrowIfCancellationRequested(cancellationToken);
+            Dictionary<string, DateTime> worldsBefore = savePreparation.SnapshotSaveFiles("Worlds", "*.wld");
+            CreateWorldAttemptResult createResult = await CreateOneWorldAsync(settings, geometry, cancellationToken);
+            if (createResult == CreateWorldAttemptResult.RetryFromMainMenu)
+            {
+                return await ReturnToMainMenuFromAdvancedSeedPageAsync(geometry, cancellationToken);
+            }
+
+            if (createResult == CreateWorldAttemptResult.Failed)
+            {
+                return false;
+            }
+
+            await zenithStarCatchAutomation.RunAsync(settings, cancellationToken);
+
+            PyramidFilterOutcome outcome = await pyramidFilterAutomation.RunAsync(settings, worldsBefore, cancellationToken);
+            AppLogger.Info($"Create world automation pyramid filter outcome: {outcome}.");
+            if (outcome != PyramidFilterOutcome.Rejected)
+            {
+                return false;
+            }
+
+            if (settings.ReturnToMainMenuOnFilterFailure)
+            {
+                return await ReturnToMainMenuByBackTwiceAsync(geometry, cancellationToken);
+            }
+
+            if (!await PrepareRejectedWorldSelectRetryAsync(cancellationToken))
+            {
+                return false;
+            }
         }
-
-        await zenithStarCatchAutomation.RunAsync(settings, cancellationToken);
-
-        PyramidFilterOutcome outcome = await pyramidFilterAutomation.RunAsync(settings, worldsBefore, cancellationToken);
-        AppLogger.Info($"Create world automation pyramid filter outcome: {outcome}.");
-        if (outcome != PyramidFilterOutcome.Rejected)
-        {
-            return false;
-        }
-
-        return await ReturnToMainMenuByBackTwiceAsync(geometry, cancellationToken);
     }
 
     private WorldPoolEntry? TryInstallPooledWorld(AutoCreateWorldSettings settings, string signature)
@@ -233,27 +252,35 @@ internal sealed class CreateWorldWorkflow : IDisposable
         return null;
     }
 
-    private async Task<bool> CreateOneWorldAsync(
+    private async Task<CreateWorldAttemptResult> CreateOneWorldAsync(
         AutoCreateWorldSettings settings,
         TerrariaMenuGeometry geometry,
         CancellationToken cancellationToken)
     {
         if (!await automation.ClickAsync("new world", geometry.SelectMenuNewButton(), menuActionDelay, cancellationToken))
         {
-            return false;
+            return CreateWorldAttemptResult.Failed;
         }
 
         if (!await ApplyWorldOptionsAsync(settings, geometry, cancellationToken))
         {
-            return false;
+            return CreateWorldAttemptResult.Failed;
         }
 
-        if (!await ApplyWorldSeedOptionsAsync(settings, geometry, cancellationToken))
+        WorldSeedOptionsResult seedOptionsResult = await ApplyWorldSeedOptionsAsync(settings, geometry, cancellationToken);
+        if (seedOptionsResult == WorldSeedOptionsResult.RetryFromMainMenu)
         {
-            return false;
+            return CreateWorldAttemptResult.RetryFromMainMenu;
         }
 
-        return await automation.ClickAsync("create world", geometry.CreateWorldButton(), shortActionDelay, cancellationToken);
+        if (seedOptionsResult == WorldSeedOptionsResult.Failed)
+        {
+            return CreateWorldAttemptResult.Failed;
+        }
+
+        return await automation.ClickAsync("create world", geometry.CreateWorldButton(), shortActionDelay, cancellationToken)
+            ? CreateWorldAttemptResult.Created
+            : CreateWorldAttemptResult.Failed;
     }
 
     private async Task<bool> ApplyPlayerTemplateAsync(
@@ -307,32 +334,50 @@ internal sealed class CreateWorldWorkflow : IDisposable
             await automation.ClickAsync($"world evil {settings.WorldEvil}", geometry.WorldEvilButton(settings.WorldEvil), shortActionDelay, cancellationToken);
     }
 
-    private async Task<bool> ApplyWorldSeedOptionsAsync(
+    private async Task<WorldSeedOptionsResult> ApplyWorldSeedOptionsAsync(
         AutoCreateWorldSettings settings,
         TerrariaMenuGeometry geometry,
         CancellationToken cancellationToken)
     {
         if (!await automation.ClickAsync("advanced seed menu", geometry.WorldAdvancedSeedButton(), menuActionDelay, cancellationToken))
         {
-            return false;
+            return WorldSeedOptionsResult.Failed;
         }
 
         if (!await ApplySpecialSeedsAsync(settings.SpecialSeeds, geometry, cancellationToken))
         {
-            return false;
+            return WorldSeedOptionsResult.Failed;
         }
 
         if (!await ApplySecretSeedsAsync(settings.SecretSeeds, geometry, cancellationToken))
         {
-            return false;
+            return WorldSeedOptionsResult.Failed;
         }
 
-        if (!await automation.ClickAsync("randomize visible seed", geometry.AdvancedSeedRandomizeButton(), shortActionDelay, cancellationToken))
+        PyramidSeedPreScreenAutomationResult preScreenResult = await pyramidSeedPreScreenAutomation.RandomizeUntilAcceptedAsync(
+                settings,
+                geometry,
+                shortActionDelay,
+                cancellationToken);
+        if (preScreenResult.Status == PyramidSeedPreScreenAutomationStatus.RetryFromMainMenu)
         {
-            return false;
+            AppLogger.Info($"Create world automation will return to main menu after pyramid seed pre-screen rejection: {preScreenResult.Detail}");
+            return WorldSeedOptionsResult.RetryFromMainMenu;
         }
 
-        return await automation.ClickAsync("apply visible seed", geometry.WorldAdvancedApplyButton(), menuActionDelay, cancellationToken);
+        if (!preScreenResult.CanCreateWorld)
+        {
+            return WorldSeedOptionsResult.Failed;
+        }
+
+        if (preScreenResult.Status == PyramidSeedPreScreenAutomationStatus.ContinueWithoutPreScreen)
+        {
+            AppLogger.Info($"Create world automation will continue without pyramid seed pre-screen result: {preScreenResult.Detail}");
+        }
+
+        return await automation.ClickAsync("apply visible seed", geometry.WorldAdvancedApplyButton(), menuActionDelay, cancellationToken)
+            ? WorldSeedOptionsResult.Applied
+            : WorldSeedOptionsResult.Failed;
     }
 
     private async Task<bool> ApplySpecialSeedsAsync(
@@ -442,6 +487,64 @@ internal sealed class CreateWorldWorkflow : IDisposable
             return false;
         }
 
+        return true;
+    }
+
+    private async Task<bool> ReturnToMainMenuFromAdvancedSeedPageAsync(
+        TerrariaMenuGeometry geometry,
+        CancellationToken cancellationToken)
+    {
+        if (!automation.TryActivate(out _, pyramidFilterPostDelayMilliseconds))
+        {
+            AppLogger.Info("Create world automation could not reactivate Terraria before returning from rejected pre-screen seed.");
+            return false;
+        }
+
+        if (!await automation.ClickOnceAsync(
+                "apply visible seed after rejected pre-screen seed",
+                geometry.WorldAdvancedApplyButton(),
+                menuActionDelay,
+                cancellationToken))
+        {
+            return false;
+        }
+
+        if (!await automation.ClickOnceAsync(
+                "back from world creation after rejected pre-screen seed",
+                geometry.CreateWorldBackButton(),
+                menuActionDelay,
+                cancellationToken))
+        {
+            return false;
+        }
+
+        return await ReturnToMainMenuByBackTwiceAsync(geometry, cancellationToken);
+    }
+
+    private async Task<bool> PrepareRejectedWorldSelectRetryAsync(CancellationToken cancellationToken)
+    {
+        if (!automation.TryActivate(out _, pyramidFilterPostDelayMilliseconds))
+        {
+            AppLogger.Info("Create world automation could not reactivate Terraria before retrying a rejected world.");
+            return false;
+        }
+
+        TerrariaWorldCleanupResult cleanup = default;
+        if (!await automation.RunStepAsync(
+                "rejected world cleanup",
+                _ =>
+                {
+                    cleanup = savePreparation.MoveNonFavoriteWorldsToBackup();
+                    return Task.FromResult(true);
+                },
+                cancellationToken))
+        {
+            return false;
+        }
+
+        AppLogger.Info(
+            $"Create world automation removed {cleanup.MovedWorlds} non-favorite world(s) " +
+            $"before retrying from world select; favoriteWorlds={cleanup.FavoriteWorlds}.");
         return true;
     }
 
@@ -570,4 +673,18 @@ internal sealed class CreateWorldWorkflow : IDisposable
         return false;
     }
 
+}
+
+internal enum CreateWorldAttemptResult
+{
+    Created,
+    RetryFromMainMenu,
+    Failed
+}
+
+internal enum WorldSeedOptionsResult
+{
+    Applied,
+    RetryFromMainMenu,
+    Failed
 }

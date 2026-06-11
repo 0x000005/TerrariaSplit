@@ -4,20 +4,37 @@ namespace TerrariaSplit;
 
 internal sealed class MainFormContextMenuBuilder
 {
+    internal const string PyramidFilterToggleItemName = "PyramidFilterToggle";
+
     public void Rebuild(
         ContextMenuStrip menu,
         AppSettings settings,
         Action openStatistics,
         Action openSettings,
+        Action togglePyramidFilter,
         Action<string> switchSettingsFile,
         Action exit)
     {
         menu.Items.Clear();
         menu.Items.Add(Localizer.Get("Statistics...", settings), null, (_, _) => openStatistics());
         menu.Items.Add(Localizer.Get("Settings...", settings), null, (_, _) => openSettings());
+        menu.Items.Add(CreatePyramidFilterToggle(settings, togglePyramidFilter));
         menu.Items.Add(CreateSettingsFileMenu(settings, switchSettingsFile));
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(Localizer.Get("Exit", settings), null, (_, _) => exit());
+    }
+
+    private static ToolStripMenuItem CreatePyramidFilterToggle(
+        AppSettings settings,
+        Action togglePyramidFilter)
+    {
+        var item = new ToolStripMenuItem(Localizer.Get("Quick pyramid filter", settings))
+        {
+            Name = PyramidFilterToggleItemName,
+            Checked = settings.AutoCreate.EnablePyramidFilter
+        };
+        item.Click += (_, _) => togglePyramidFilter();
+        return item;
     }
 
     private static ToolStripMenuItem CreateSettingsFileMenu(

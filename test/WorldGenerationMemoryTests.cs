@@ -9,6 +9,10 @@ internal static class WorldGenerationMemoryTests
     {
         yield return ("TerrariaMemoryResolver reads world generation progress and pass name", TerrariaMemoryResolverReadsWorldGenerationProgressAndPassName);
         yield return ("TerrariaMemoryResolver ignores progress slots without a valid message string", TerrariaMemoryResolverIgnoresProgressWithoutMessageString);
+        yield return ("TerrariaWorldCreationSeedReader reads advanced seed page through visible seed plate", TerrariaWorldCreationSeedReaderReadsAdvancedSeedPage);
+        yield return ("TerrariaWorldCreationSeedReader accepts high x86 managed object pointers", TerrariaWorldCreationSeedReaderAcceptsHighX86ManagedObjectPointers);
+        yield return ("TerrariaWorldCreationSeedReader reads current state while randomize button is hovered", TerrariaWorldCreationSeedReaderReadsCurrentStateWhileRandomizeButtonIsHovered);
+        yield return ("TerrariaWorldCreationSeedReader does not reuse stale world creation object off page", TerrariaWorldCreationSeedReaderDoesNotReuseStaleWorldCreationObjectOffPage);
     }
 
     private static void TerrariaMemoryResolverReadsWorldGenerationProgressAndPassName()
@@ -61,7 +65,180 @@ internal static class WorldGenerationMemoryTests
         TestAssert.Equal<double?>(null, state.TotalProgress);
     }
 
-    private static void SetPrivateField(object target, string fieldName, IntPtr value)
+    private static void TerrariaWorldCreationSeedReaderReadsAdvancedSeedPage()
+    {
+        const int advancedCreationStateOffset = 0xF0;
+        const int advancedSeedPlateOffset = 0xFC;
+        const int worldNameOffset = 0xF0;
+        const int seedOffset = 0xF4;
+        const int actualContentsOffset = 0xFC;
+
+        var memory = new FakeProcessMemoryReader(is64Bit: false);
+        IntPtr advancedState = new(0x100000);
+        IntPtr creationState = new(0x110000);
+        IntPtr seedPlate = new(0x120000);
+        IntPtr worldName = new(0x130000);
+        IntPtr seedText = new(0x140000);
+
+        memory.WritePointer(IntPtr.Add(advancedState, advancedCreationStateOffset), creationState);
+        memory.WritePointer(IntPtr.Add(advancedState, advancedSeedPlateOffset), seedPlate);
+        memory.WritePointer(IntPtr.Add(creationState, worldNameOffset), worldName);
+        memory.WritePointer(IntPtr.Add(creationState, seedOffset), seedText);
+        memory.WritePointer(IntPtr.Add(seedPlate, actualContentsOffset), seedText);
+        memory.WriteManagedString(worldName, "The Test World");
+        memory.WriteManagedString(seedText, "26045689");
+
+        TerrariaWorldCreationSeedSnapshot snapshot = ReadWorldCreationSeedFromUiState(memory, advancedState);
+
+        TestAssert.Equal(TerrariaWorldCreationSeedStatus.Seed, snapshot.Status);
+        TestAssert.Equal("26045689", snapshot.SeedText);
+        TestAssert.Equal(creationState, snapshot.WorldCreationAddress);
+    }
+
+    private static void TerrariaWorldCreationSeedReaderAcceptsHighX86ManagedObjectPointers()
+    {
+        const int advancedCreationStateOffset = 0xF0;
+        const int advancedSeedPlateOffset = 0xFC;
+        const int worldNameOffset = 0xF0;
+        const int seedOffset = 0xF4;
+        const int actualContentsOffset = 0xFC;
+
+        var memory = new FakeProcessMemoryReader(is64Bit: false);
+        IntPtr advancedState = new(0x895B17D4L);
+        IntPtr creationState = new(0x895A874CL);
+        IntPtr seedPlate = new(0x895B34F0L);
+        IntPtr worldName = new(0x89C20200L);
+        IntPtr seedText = new(0x89C21C08L);
+
+        memory.WritePointer(IntPtr.Add(advancedState, advancedCreationStateOffset), creationState);
+        memory.WritePointer(IntPtr.Add(advancedState, advancedSeedPlateOffset), seedPlate);
+        memory.WritePointer(IntPtr.Add(creationState, worldNameOffset), worldName);
+        memory.WritePointer(IntPtr.Add(creationState, seedOffset), seedText);
+        memory.WritePointer(IntPtr.Add(seedPlate, actualContentsOffset), seedText);
+        memory.WriteManagedString(worldName, "High Heap World");
+        memory.WriteManagedString(seedText, "2018947530");
+
+        TerrariaWorldCreationSeedSnapshot snapshot = ReadWorldCreationSeedFromUiState(memory, advancedState);
+
+        TestAssert.Equal(TerrariaWorldCreationSeedStatus.Seed, snapshot.Status);
+        TestAssert.Equal("2018947530", snapshot.SeedText);
+        TestAssert.Equal(creationState, snapshot.WorldCreationAddress);
+    }
+
+    private static void TerrariaWorldCreationSeedReaderReadsCurrentStateWhileRandomizeButtonIsHovered()
+    {
+        const int currentStateOffset = 0x1C;
+        const int lastElementHoverOffset = 0x58;
+        const int advancedCreationStateOffset = 0xF0;
+        const int advancedSeedPlateOffset = 0xFC;
+        const int worldNameOffset = 0xF0;
+        const int seedOffset = 0xF4;
+        const int actualContentsOffset = 0xFC;
+
+        var reader = new TerrariaWorldCreationSeedReader();
+        var memory = new FakeProcessMemoryReader(is64Bit: false);
+        IntPtr menuUiSlot = new(0x100000);
+        IntPtr menuUiObject = new(0x110000);
+        IntPtr advancedState = new(0x895B17D4L);
+        IntPtr randomizeButton = new(0x895B1F9CL);
+        IntPtr creationState = new(0x895A874CL);
+        IntPtr seedPlate = new(0x895B463CL);
+        IntPtr worldName = new(0x89C20200L);
+        IntPtr seedText = new(0x895F3568L);
+
+        SetPrivateField(reader, "menuUiSlotAddress", menuUiSlot);
+        memory.WritePointer(menuUiSlot, menuUiObject);
+        memory.WritePointer(IntPtr.Add(menuUiObject, currentStateOffset), advancedState);
+        memory.WritePointer(IntPtr.Add(menuUiObject, lastElementHoverOffset), randomizeButton);
+        memory.WritePointer(IntPtr.Add(advancedState, advancedCreationStateOffset), creationState);
+        memory.WritePointer(IntPtr.Add(advancedState, advancedSeedPlateOffset), seedPlate);
+        memory.WritePointer(IntPtr.Add(creationState, worldNameOffset), worldName);
+        memory.WritePointer(IntPtr.Add(creationState, seedOffset), seedText);
+        memory.WritePointer(IntPtr.Add(seedPlate, actualContentsOffset), seedText);
+        memory.WriteManagedString(worldName, "Hovered Randomize World");
+        memory.WriteManagedString(seedText, "2033256499");
+
+        TerrariaWorldCreationSeedSnapshot snapshot = reader.Read(memory);
+
+        TestAssert.Equal(TerrariaWorldCreationSeedStatus.Seed, snapshot.Status);
+        TestAssert.Equal("2033256499", snapshot.SeedText);
+        TestAssert.Equal(creationState, snapshot.WorldCreationAddress);
+    }
+
+    private static void TerrariaWorldCreationSeedReaderDoesNotReuseStaleWorldCreationObjectOffPage()
+    {
+        const int currentStateOffset = 0x1C;
+        const int worldNameOffset = 0xF0;
+        const int seedOffset = 0xF4;
+        const int namePlateOffset = 0x10C;
+        const int seedPlateOffset = 0x110;
+        const int actualContentsOffset = 0xFC;
+
+        var reader = new TerrariaWorldCreationSeedReader();
+        var memory = new FakeProcessMemoryReader(is64Bit: false);
+        IntPtr menuUiSlot = new(0x100000);
+        IntPtr menuUiObject = new(0x110000);
+        IntPtr unrelatedCurrentState = new(0x120000);
+        IntPtr oldCreationState = new(0x130000);
+        IntPtr oldWorldName = new(0x140000);
+        IntPtr oldSeedText = new(0x150000);
+        IntPtr oldNamePlate = new(0x160000);
+        IntPtr oldSeedPlate = new(0x170000);
+
+        SetPrivateField(reader, "menuUiSlotAddress", menuUiSlot);
+        SetPrivateField(
+            reader,
+            "lastSnapshot",
+            TerrariaWorldCreationSeedSnapshot.FromSeed("old-seed", oldCreationState));
+
+        memory.WritePointer(menuUiSlot, menuUiObject);
+        memory.WritePointer(IntPtr.Add(menuUiObject, currentStateOffset), unrelatedCurrentState);
+        memory.WritePointer(IntPtr.Add(oldCreationState, worldNameOffset), oldWorldName);
+        memory.WritePointer(IntPtr.Add(oldCreationState, seedOffset), oldSeedText);
+        memory.WritePointer(IntPtr.Add(oldCreationState, namePlateOffset), oldNamePlate);
+        memory.WritePointer(IntPtr.Add(oldCreationState, seedPlateOffset), oldSeedPlate);
+        memory.WritePointer(IntPtr.Add(oldNamePlate, actualContentsOffset), oldWorldName);
+        memory.WritePointer(IntPtr.Add(oldSeedPlate, actualContentsOffset), oldSeedText);
+        memory.WriteManagedString(oldWorldName, "Old World");
+        memory.WriteManagedString(oldSeedText, "old-seed");
+
+        TerrariaWorldCreationSeedSnapshot snapshot = reader.Read(memory);
+
+        TestAssert.Equal(TerrariaWorldCreationSeedStatus.NotOnWorldCreationPage, snapshot.Status);
+        TestAssert.Equal<string?>(null, snapshot.SeedText);
+        TestAssert.Equal(IntPtr.Zero, snapshot.WorldCreationAddress);
+    }
+
+    private static TerrariaWorldCreationSeedSnapshot ReadWorldCreationSeedFromUiState(
+        IProcessMemoryReader memory,
+        IntPtr stateObjectAddress)
+    {
+        TerrariaWorldCreationSeedSnapshot snapshot = TryReadWorldCreationSeedFromUiState(memory, stateObjectAddress);
+        if (snapshot.Status == TerrariaWorldCreationSeedStatus.NotOnWorldCreationPage)
+        {
+            throw new InvalidOperationException("Expected world creation seed to be readable from UI state.");
+        }
+
+        return snapshot;
+    }
+
+    private static TerrariaWorldCreationSeedSnapshot TryReadWorldCreationSeedFromUiState(
+        IProcessMemoryReader memory,
+        IntPtr stateObjectAddress)
+    {
+        MethodInfo method = typeof(TerrariaWorldCreationSeedReader).GetMethod(
+                "TryReadFromUiState",
+                BindingFlags.Static | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("Missing TryReadFromUiState.");
+        object?[] args = [memory, stateObjectAddress, null];
+        _ = (bool)(method.Invoke(null, args)
+            ?? throw new InvalidOperationException("TryReadFromUiState returned null."));
+
+        return (TerrariaWorldCreationSeedSnapshot)(args[2]
+            ?? throw new InvalidOperationException("TryReadFromUiState did not set snapshot."));
+    }
+
+    private static void SetPrivateField(object target, string fieldName, object? value)
     {
         FieldInfo field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic)
             ?? throw new InvalidOperationException("Missing field " + fieldName);
@@ -142,7 +319,7 @@ internal static class WorldGenerationMemoryTests
 
             value = Is64Bit
                 ? new IntPtr(BitConverter.ToInt64(buffer!, 0))
-                : new IntPtr(BitConverter.ToInt32(buffer!, 0));
+                : new IntPtr(BitConverter.ToUInt32(buffer!, 0));
             return true;
         }
 
@@ -172,7 +349,7 @@ internal static class WorldGenerationMemoryTests
             }
             else
             {
-                WriteBytes(address, BitConverter.GetBytes(value.ToInt32()));
+                WriteBytes(address, BitConverter.GetBytes(unchecked((uint)value.ToInt64())));
             }
         }
 

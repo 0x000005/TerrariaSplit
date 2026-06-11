@@ -72,6 +72,15 @@ var legacyTests = new (string Name, Action Test)[]
     ("Pyramid filter fast-opens after world generation state ends", TestPyramidFilterFastOpensAfterGenerationStateEnds),
     ("Pyramid filter falls back to stable file wait without generation state", TestPyramidFilterFallsBackWithoutGenerationState),
     ("Pyramid filter treats empty item mask as all candidate items", TestPyramidFilterTreatsEmptyItemMaskAsAllCandidateItems),
+    ("Pyramid seed pre-screen only enables supported scope", TestPyramidSeedPreScreenScope),
+    ("Pyramid seed pre-screen loop accepts after rejected seed", TestPyramidSeedPreScreenLoopAcceptsAfterRejectedSeed),
+    ("Pyramid seed pre-screen loop stops first rejection without local retry", TestPyramidSeedPreScreenLoopStopsFirstRejectionWithoutLocalRetry),
+    ("Pyramid seed pre-screen loop retries transient seed read failure", TestPyramidSeedPreScreenLoopRetriesTransientSeedReadFailure),
+    ("Pyramid seed pre-screen loop does not retry seed read failure without local retry", TestPyramidSeedPreScreenLoopDoesNotRetrySeedReadFailureWithoutLocalRetry),
+    ("Pyramid seed pre-screen loop stops after repeated seed read failures", TestPyramidSeedPreScreenLoopStopsAfterRepeatedSeedReadFailures),
+    ("Pyramid seed pre-screen predicts known pyramid seed", TestPyramidSeedPreScreenPredictsKnownPyramidSeed),
+    ("Pyramid seed pre-screen evaluator requires selected item", TestPyramidSeedPreScreenEvaluatorRequiresSelectedItem),
+    ("Pyramid seed pre-screen keeps first pyramid chest", TestPyramidSeedPreScreenKeepsFirstPyramidChest),
     ("World seed metadata matches world options", TestWorldSeedMetadataMatchesWorldOptions),
     ("Overlay composite layout derives status and timer windows from shared bounds", TestOverlayCompositeLayoutCalculator)
 };
@@ -217,6 +226,7 @@ static void TestTerrariaMenuGeometry()
     AssertEqual(new Point(450, 245), geometry.MainMenuSinglePlayer());
     AssertEqual(new Point(282, 830), geometry.SelectMenuBackButton());
     AssertEqual(new Point(580, 534), geometry.CreatePlayerButton());
+    AssertEqual(new Point(320, 534), geometry.CreateWorldBackButton());
     AssertEqual(new Point(450, 230), geometry.AdvancedSeedTextButton());
     AssertEqual(new Point(342, 287), geometry.AdvancedSpecialSeedButton(AutoCreateSpecialWorldSeed.NotTheBees));
 }
@@ -245,6 +255,7 @@ static void TestLocalizer()
     AssertEqual("\u5929\u9876\u63A5\u661F", Localizer.Get("Zenith star catch", new AppSettings { Language = "\u4E2D\u6587" }));
     AssertEqual("\u7B5B\u9009\u91D1\u5B57\u5854", Localizer.Get("Pyramid filter", new AppSettings { Language = "\u4E2D\u6587" }));
     AssertEqual("\u6307\u5B9A\u7269\u54C1", Localizer.Get("Required pyramid items", new AppSettings { Language = "\u4E2D\u6587" }));
+    AssertEqual("\u7B5B\u9009\u5931\u8D25\u8FD4\u56DE\u4E3B\u9875\u91CD\u65B0\u521B\u5EFA", Localizer.Get("Return to main menu on filter failure", new AppSettings { Language = "\u4E2D\u6587" }));
     AssertEqual("\u6C99\u66B4\u74F6", Localizer.Get("Sandstorm in a Bottle", new AppSettings { Language = "\u4E2D\u6587" }));
     AssertEqual("\u98DE\u6BEF", Localizer.Get("Flying Carpet", new AppSettings { Language = "\u4E2D\u6587" }));
     AssertEqual("\u6CD5\u8001\u5957", Localizer.Get("Pharaoh set", new AppSettings { Language = "\u4E2D\u6587" }));
@@ -439,6 +450,7 @@ static void TestSettingsNormalize()
         AutoCreatePyramidFilterItem.FlyingCarpetMask | AutoCreatePyramidFilterItem.SandstormInABottleMask,
         AutoCreatePyramidFilterItem.ToMask(AutoCreatePyramidFilterItem.ParseList(" \u98DE\u6BEF | sandstorm | unknown ")));
     AssertEqual(10, AppSettingsDefaults.AutoCreate.WorldPoolTargetCount);
+    AssertEqual(false, AppSettingsDefaults.AutoCreate.ReturnToMainMenuOnFilterFailure);
 
     settings.Advanced = null!;
     SettingsNormalizer.Normalize(settings);
@@ -911,23 +923,28 @@ static void TestSettingsFormSavesPyramidItemFilter()
             AutoCreate = new AutoCreateWorldSettings
             {
                 EnablePyramidFilter = false,
-                PyramidFilterItemMask = AutoCreatePyramidFilterItem.FlyingCarpetMask
+                PyramidFilterItemMask = AutoCreatePyramidFilterItem.FlyingCarpetMask,
+                ReturnToMainMenuOnFilterFailure = false
             }
         });
         AutomationSettingsPage page = form.PageHost.GetOrCreatePage<AutomationSettingsPage>(SettingsPageId.Automation);
 
         AssertEqual(false, page.AutoCreatePyramidItemBoxes[AutoCreatePyramidFilterItem.FlyingCarpet].Enabled);
+        AssertEqual(false, page.AutoCreateReturnToMainMenuOnFilterFailureBox.Enabled);
 
         page.AutoCreatePyramidFilterBox.Checked = true;
+        page.AutoCreateReturnToMainMenuOnFilterFailureBox.Checked = true;
         page.AutoCreatePyramidItemBoxes[AutoCreatePyramidFilterItem.SandstormInABottle].Checked = true;
         page.AutoCreatePyramidItemBoxes[AutoCreatePyramidFilterItem.FlyingCarpet].Checked = false;
         page.AutoCreatePyramidItemBoxes[AutoCreatePyramidFilterItem.PharaohSet].Checked = true;
 
         AssertEqual(true, page.AutoCreatePyramidItemBoxes[AutoCreatePyramidFilterItem.SandstormInABottle].Enabled);
+        AssertEqual(true, page.AutoCreateReturnToMainMenuOnFilterFailureBox.Enabled);
 
         form.ApplyForTests();
 
         AssertEqual(true, form.Result.AutoCreate.EnablePyramidFilter);
+        AssertEqual(true, form.Result.AutoCreate.ReturnToMainMenuOnFilterFailure);
         AssertEqual(
             AutoCreatePyramidFilterItem.SandstormInABottleMask | AutoCreatePyramidFilterItem.PharaohSetMask,
             form.Result.AutoCreate.PyramidFilterItemMask);
@@ -1399,6 +1416,251 @@ static void TestPyramidFilterTreatsEmptyItemMaskAsAllCandidateItems()
     {
         DeleteDirectoryIfExists(directory);
     }
+}
+
+static void TestPyramidSeedPreScreenScope()
+{
+    var settings = new AutoCreateWorldSettings
+    {
+        EnablePyramidFilter = true,
+        WorldSize = AutoCreateWorldSize.Small,
+        WorldEvil = AutoCreateWorldEvil.Crimson,
+        SpecialSeeds = string.Empty,
+        SecretSeeds = string.Empty
+    };
+
+    AssertEqual(true, PyramidSeedPreScreenAutomation.IsEnabledFor(settings));
+
+    settings.WorldSize = AutoCreateWorldSize.Medium;
+    AssertEqual(false, PyramidSeedPreScreenAutomation.IsEnabledFor(settings));
+
+    settings.WorldSize = AutoCreateWorldSize.Small;
+    settings.WorldEvil = AutoCreateWorldEvil.Corruption;
+    AssertEqual(false, PyramidSeedPreScreenAutomation.IsEnabledFor(settings));
+
+    settings.WorldEvil = AutoCreateWorldEvil.Crimson;
+    settings.SpecialSeeds = AutoCreateSpecialWorldSeed.ForTheWorthy;
+    AssertEqual(false, PyramidSeedPreScreenAutomation.IsEnabledFor(settings));
+
+    settings.SpecialSeeds = string.Empty;
+    settings.SecretSeeds = "mole people";
+    AssertEqual(false, PyramidSeedPreScreenAutomation.IsEnabledFor(settings));
+
+    settings.SecretSeeds = string.Empty;
+    settings.EnablePyramidFilter = false;
+    AssertEqual(false, PyramidSeedPreScreenAutomation.IsEnabledFor(settings));
+}
+
+static void TestPyramidSeedPreScreenLoopAcceptsAfterRejectedSeed()
+{
+    var randomizer = new FakePyramidSeedRandomizer();
+    var reader = new FakePyramidVisibleSeedReader("100", [
+        PyramidVisibleSeedReadResult.FromSeed("101", 1),
+        PyramidVisibleSeedReadResult.FromSeed("102", 1)
+    ]);
+    var evaluator = new FakePyramidSeedPreScreenEvaluator(seedText => new PyramidSeedPreScreenPrediction(
+        default,
+        "all",
+        CanUsePrediction: true,
+        AcceptSeed: seedText == "102",
+        RejectReason: seedText == "102" ? string.Empty : "no pyramid"));
+    var loop = new PyramidSeedPreScreenLoop(evaluator, _ => { });
+
+    PyramidSeedPreScreenLoopResult result = loop.RunAsync(
+        new AutoCreateWorldSettings(),
+        randomizer,
+        reader,
+        CancellationToken.None).GetAwaiter().GetResult();
+
+    AssertEqual(PyramidSeedPreScreenLoopStatus.Accepted, result.Status);
+    AssertEqual("102", result.AcceptedSeed);
+    AssertEqual(2, result.Attempts);
+    AssertEqual(2, randomizer.Attempts);
+    AssertEqual("100|101", string.Join("|", reader.PreviousSeedsSeen));
+}
+
+static void TestPyramidSeedPreScreenLoopStopsFirstRejectionWithoutLocalRetry()
+{
+    var randomizer = new FakePyramidSeedRandomizer();
+    var reader = new FakePyramidVisibleSeedReader("100", [
+        PyramidVisibleSeedReadResult.FromSeed("101", 1),
+        PyramidVisibleSeedReadResult.FromSeed("102", 1)
+    ]);
+    var evaluator = new FakePyramidSeedPreScreenEvaluator(seedText => new PyramidSeedPreScreenPrediction(
+        default,
+        "all",
+        CanUsePrediction: true,
+        AcceptSeed: false,
+        RejectReason: "no pyramid"));
+    var loop = new PyramidSeedPreScreenLoop(evaluator, _ => { });
+
+    PyramidSeedPreScreenLoopResult result = loop.RunAsync(
+        new AutoCreateWorldSettings
+        {
+            ReturnToMainMenuOnFilterFailure = true
+        },
+        randomizer,
+        reader,
+        CancellationToken.None).GetAwaiter().GetResult();
+
+    AssertEqual(PyramidSeedPreScreenLoopStatus.RejectedSeed, result.Status);
+    AssertEqual<string?>(null, result.AcceptedSeed);
+    AssertEqual(1, result.Attempts);
+    AssertEqual(1, randomizer.Attempts);
+    AssertEqual("100", string.Join("|", reader.PreviousSeedsSeen));
+}
+
+static void TestPyramidSeedPreScreenLoopRetriesTransientSeedReadFailure()
+{
+    var randomizer = new FakePyramidSeedRandomizer();
+    var reader = new FakePyramidVisibleSeedReader("200", [
+        PyramidVisibleSeedReadResult.Failed(TerrariaWorldCreationSeedStatus.NotOnWorldCreationPage, 40, "200"),
+        PyramidVisibleSeedReadResult.FromSeed("201", 1)
+    ]);
+    var evaluator = new FakePyramidSeedPreScreenEvaluator(seedText => new PyramidSeedPreScreenPrediction(
+        default,
+        "all",
+        CanUsePrediction: true,
+        AcceptSeed: seedText == "201",
+        RejectReason: seedText == "201" ? string.Empty : "no pyramid"));
+    var loop = new PyramidSeedPreScreenLoop(evaluator, _ => { });
+
+    PyramidSeedPreScreenLoopResult result = loop.RunAsync(
+        new AutoCreateWorldSettings(),
+        randomizer,
+        reader,
+        CancellationToken.None).GetAwaiter().GetResult();
+
+    AssertEqual(PyramidSeedPreScreenLoopStatus.Accepted, result.Status);
+    AssertEqual("201", result.AcceptedSeed);
+    AssertEqual(2, result.Attempts);
+    AssertEqual(2, randomizer.Attempts);
+    AssertEqual("200|200", string.Join("|", reader.PreviousSeedsSeen));
+}
+
+static void TestPyramidSeedPreScreenLoopDoesNotRetrySeedReadFailureWithoutLocalRetry()
+{
+    var randomizer = new FakePyramidSeedRandomizer();
+    var reader = new FakePyramidVisibleSeedReader("200", [
+        PyramidVisibleSeedReadResult.Failed(TerrariaWorldCreationSeedStatus.NotOnWorldCreationPage, 40, "200"),
+        PyramidVisibleSeedReadResult.FromSeed("201", 1)
+    ]);
+    var evaluator = new FakePyramidSeedPreScreenEvaluator(_ => new PyramidSeedPreScreenPrediction(
+        default,
+        "all",
+        CanUsePrediction: true,
+        AcceptSeed: true,
+        RejectReason: string.Empty));
+    var loop = new PyramidSeedPreScreenLoop(evaluator, _ => { });
+
+    PyramidSeedPreScreenLoopResult result = loop.RunAsync(
+        new AutoCreateWorldSettings
+        {
+            ReturnToMainMenuOnFilterFailure = true
+        },
+        randomizer,
+        reader,
+        CancellationToken.None).GetAwaiter().GetResult();
+
+    AssertEqual(PyramidSeedPreScreenLoopStatus.SeedReadFailed, result.Status);
+    AssertEqual<string?>(null, result.AcceptedSeed);
+    AssertEqual(1, result.Attempts);
+    AssertEqual(1, randomizer.Attempts);
+    AssertEqual("200", string.Join("|", reader.PreviousSeedsSeen));
+}
+
+static void TestPyramidSeedPreScreenLoopStopsAfterRepeatedSeedReadFailures()
+{
+    var randomizer = new FakePyramidSeedRandomizer();
+    var reader = new FakePyramidVisibleSeedReader("300", [
+        PyramidVisibleSeedReadResult.Failed(TerrariaWorldCreationSeedStatus.NotOnWorldCreationPage, 40, "300"),
+        PyramidVisibleSeedReadResult.Failed(TerrariaWorldCreationSeedStatus.NotOnWorldCreationPage, 40, "300"),
+        PyramidVisibleSeedReadResult.Failed(TerrariaWorldCreationSeedStatus.NotOnWorldCreationPage, 40, "300")
+    ]);
+    var evaluator = new FakePyramidSeedPreScreenEvaluator(_ => new PyramidSeedPreScreenPrediction(
+        default,
+        "all",
+        CanUsePrediction: true,
+        AcceptSeed: true,
+        RejectReason: string.Empty));
+    var loop = new PyramidSeedPreScreenLoop(evaluator, _ => { });
+
+    PyramidSeedPreScreenLoopResult result = loop.RunAsync(
+        new AutoCreateWorldSettings(),
+        randomizer,
+        reader,
+        CancellationToken.None).GetAwaiter().GetResult();
+
+    AssertEqual(PyramidSeedPreScreenLoopStatus.SeedReadFailed, result.Status);
+    AssertEqual<string?>(null, result.AcceptedSeed);
+    AssertEqual(3, result.Attempts);
+    AssertEqual(3, randomizer.Attempts);
+    AssertEqual("300|300|300", string.Join("|", reader.PreviousSeedsSeen));
+}
+
+static void TestPyramidSeedPreScreenPredictsKnownPyramidSeed()
+{
+    var result = TerrariaSplit.Terraria.WorldGeneration.PyramidSeedPreScreen.EvaluateSmallCrimson(
+        "540278984",
+        difficultyCode: 1,
+        requiredItemMask: AutoCreatePyramidFilterItem.SandstormInABottleMask);
+
+    AssertEqual(TerrariaSplit.Terraria.WorldGeneration.PyramidSeedPreScreenStatus.Complete, result.Status);
+    AssertEqual(true, result.HasTargetPyramid);
+    AssertEqual(true, result.MatchesRequiredItems);
+    AssertEqual(true, result.LootSummary.Contains("Sandstorm in a Bottle", StringComparison.Ordinal));
+}
+
+static void TestPyramidSeedPreScreenEvaluatorRequiresSelectedItem()
+{
+    var evaluator = new PyramidSeedPreScreenEvaluator();
+    var settings = new AutoCreateWorldSettings
+    {
+        EnablePyramidFilter = true,
+        WorldSize = AutoCreateWorldSize.Small,
+        WorldDifficulty = AutoCreateWorldDifficulty.Classic,
+        WorldEvil = AutoCreateWorldEvil.Crimson,
+        SpecialSeeds = string.Empty,
+        SecretSeeds = string.Empty,
+        PyramidFilterItemMask = AutoCreatePyramidFilterItem.FlyingCarpetMask
+    };
+
+    PyramidSeedPreScreenPrediction prediction = evaluator.Evaluate(settings, "540278984");
+
+    AssertEqual(true, prediction.CanUsePrediction);
+    AssertEqual(true, prediction.Result.HasTargetPyramid);
+    AssertEqual(false, prediction.Result.MatchesRequiredItems);
+    AssertEqual(false, prediction.AcceptSeed);
+    AssertEqual("item mismatch", prediction.RejectReason);
+
+    settings.PyramidFilterItemMask = AutoCreatePyramidFilterItem.SandstormInABottleMask;
+    PyramidSeedPreScreenPrediction matchingPrediction = evaluator.Evaluate(settings, "540278984");
+
+    AssertEqual(true, matchingPrediction.Result.MatchesRequiredItems);
+    AssertEqual(true, matchingPrediction.AcceptSeed);
+    AssertEqual(string.Empty, matchingPrediction.RejectReason);
+}
+
+static void TestPyramidSeedPreScreenKeepsFirstPyramidChest()
+{
+    var carpetResult = TerrariaSplit.Terraria.WorldGeneration.PyramidSeedPreScreen.EvaluateSmallCrimson(
+        "1092653535",
+        difficultyCode: 1,
+        requiredItemMask: AutoCreatePyramidFilterItem.FlyingCarpetMask);
+
+    AssertEqual(TerrariaSplit.Terraria.WorldGeneration.PyramidSeedPreScreenStatus.Complete, carpetResult.Status);
+    AssertEqual(true, carpetResult.HasTargetPyramid);
+    AssertEqual(false, carpetResult.MatchesRequiredItems);
+    AssertEqual(false, carpetResult.LootSummary.Contains("Flying Carpet", StringComparison.Ordinal));
+    AssertEqual(true, carpetResult.LootSummary.Contains("Pharaoh's Mask", StringComparison.Ordinal));
+
+    var pharaohResult = TerrariaSplit.Terraria.WorldGeneration.PyramidSeedPreScreen.EvaluateSmallCrimson(
+        "1092653535",
+        difficultyCode: 1,
+        requiredItemMask: AutoCreatePyramidFilterItem.PharaohSetMask);
+
+    AssertEqual(true, pharaohResult.MatchesRequiredItems);
+    AssertEqual("other", pharaohResult.TargetClass);
 }
 
 static void TestOverlayCompositeLayoutCalculator()
@@ -2399,6 +2661,74 @@ readonly record struct SyntheticChest(int X, int Y, IReadOnlyList<SyntheticChest
 readonly record struct SyntheticChestItem(int Slot, int Type, int Stack = 1, byte Prefix = 0);
 
 readonly record struct DirectorySnapshot(bool Exists, Dictionary<string, byte[]> Files);
+
+sealed class FakePyramidSeedRandomizer : IPyramidSeedRandomizer
+{
+    public int Attempts { get; private set; }
+
+    public Task<bool> RandomizeVisibleSeedAsync(int attempt, CancellationToken cancellationToken)
+    {
+        Attempts++;
+        return Task.FromResult(true);
+    }
+}
+
+sealed class FakePyramidVisibleSeedReader : IPyramidVisibleSeedReader
+{
+    private readonly Queue<PyramidVisibleSeedReadResult> readResults;
+
+    public FakePyramidVisibleSeedReader(string? currentSeed, IEnumerable<PyramidVisibleSeedReadResult> readResults)
+    {
+        CurrentSeed = currentSeed;
+        this.readResults = new Queue<PyramidVisibleSeedReadResult>(readResults);
+    }
+
+    public string? CurrentSeed { get; private set; }
+
+    public List<string?> PreviousSeedsSeen { get; } = [];
+
+    public string? ReadCurrentSeed()
+    {
+        return CurrentSeed;
+    }
+
+    public Task<PyramidVisibleSeedReadResult> WaitForSeedAfterRandomizeAsync(
+        string? previousSeedText,
+        CancellationToken cancellationToken)
+    {
+        PreviousSeedsSeen.Add(previousSeedText);
+        if (readResults.Count == 0)
+        {
+            return Task.FromResult(PyramidVisibleSeedReadResult.Failed(
+                TerrariaWorldCreationSeedStatus.Unknown,
+                0,
+                CurrentSeed ?? string.Empty));
+        }
+
+        PyramidVisibleSeedReadResult result = readResults.Dequeue();
+        if (result.Success)
+        {
+            CurrentSeed = result.SeedText;
+        }
+
+        return Task.FromResult(result);
+    }
+}
+
+sealed class FakePyramidSeedPreScreenEvaluator : IPyramidSeedPreScreenEvaluator
+{
+    private readonly Func<string, PyramidSeedPreScreenPrediction> evaluate;
+
+    public FakePyramidSeedPreScreenEvaluator(Func<string, PyramidSeedPreScreenPrediction> evaluate)
+    {
+        this.evaluate = evaluate;
+    }
+
+    public PyramidSeedPreScreenPrediction Evaluate(AutoCreateWorldSettings settings, string seedText)
+    {
+        return evaluate(seedText);
+    }
+}
 
 sealed class SequenceGenerationWatcher : ITerrariaWorldWatcher
 {

@@ -313,6 +313,7 @@ internal sealed class AutoCreateWorldSettings
     public int ZenithStarCatchSpeedSliderValue { get; set; } = AutoCreateZenithStarCatchSpeed.DefaultSliderValue;
     public bool EnablePyramidFilter { get; set; }
     public int PyramidFilterItemMask { get; set; } = AutoCreatePyramidFilterItem.SandstormInABottleMask | AutoCreatePyramidFilterItem.FlyingCarpetMask;
+    public bool ReturnToMainMenuOnFilterFailure { get; set; }
     public bool EnableWorldPool { get; set; }
     public int WorldPoolTargetCount { get; set; } = 10;
     public int ShortActionDelayMilliseconds { get; set; }

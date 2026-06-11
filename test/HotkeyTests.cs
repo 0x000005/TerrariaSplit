@@ -101,6 +101,14 @@ internal static class HotkeyTests
         ApplicationUpdate clickThroughUpdate = controller.HandleCommand(AppCommand.ToggleMouseClickThrough());
         TestAssert.Equal(ApplicationEffectKind.ToggleMouseClickThrough, clickThroughUpdate.Effects.Single().Kind);
 
+        ApplicationUpdate pyramidFilterUpdate = controller.HandleCommand(AppCommand.TogglePyramidFilter());
+        TestAssert.Equal(true, controller.Settings.AutoCreate.EnablePyramidFilter);
+        TestAssert.Equal(2, pyramidFilterUpdate.Effects.Count);
+        TestAssert.Equal(ApplicationEffectKind.SaveSettings, pyramidFilterUpdate.Effects[0].Kind);
+        TestAssert.Equal(ApplicationEffectKind.ApplySettingsToShell, pyramidFilterUpdate.Effects[1].Kind);
+        TestAssert.Equal(false, pyramidFilterUpdate.Effects.Any(effect =>
+            effect.Kind == ApplicationEffectKind.SubmitRuntimeCommand));
+
         ApplicationUpdate cancelCreateUpdate = controller.HandleCommand(AppCommand.CancelCreateWorld());
         TestAssert.Equal(ApplicationEffectKind.CancelCreateWorldAutomation, cancelCreateUpdate.Effects.Single().Kind);
 

@@ -20,6 +20,7 @@ internal readonly record struct TerrariaWatcherDiagnostics(
     IntPtr HardmodeAddress,
     IntPtr CurrentGenerationProgressAddress,
     IntPtr CurrentControllerAddress,
+    TerrariaWorldCreationSeedSnapshot WorldCreationSeed,
     string CompatibilityHint);
 
 internal static class TerrariaWatcherDiagnosticsDefaults
@@ -44,5 +45,6 @@ internal static class TerrariaWatcherDiagnosticsDefaults
         HardmodeAddress: IntPtr.Zero,
         CurrentGenerationProgressAddress: IntPtr.Zero,
         CurrentControllerAddress: IntPtr.Zero,
+        WorldCreationSeed: TerrariaWorldCreationSeedSnapshot.Unknown,
         CompatibilityHint: string.Empty);
 }

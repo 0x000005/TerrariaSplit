@@ -62,6 +62,7 @@ internal sealed class DebugSettingsPage : SettingsPageBase
         Label worldEvilValue = CreateValueLabel();
         Label pyramidFilterValue = CreateValueLabel();
         Label pyramidItemsValue = CreateValueLabel();
+        Label returnToMainMenuOnFilterFailureValue = CreateValueLabel();
         Label shortActionDelayValue = CreateValueLabel();
         Label menuActionDelayValue = CreateValueLabel();
         Label pyramidFilterPostDelayValue = CreateValueLabel();
@@ -81,6 +82,7 @@ internal sealed class DebugSettingsPage : SettingsPageBase
         Label moonLordValue = CreateValueLabel();
 
         Label currentPassValue = CreateValueLabel();
+        Label currentSeedValue = CreateValueLabel();
         Label progressMessageValue = CreateValueLabel();
         Label currentProgressValue = CreateValueLabel();
         Label totalProgressValue = CreateValueLabel();
@@ -170,6 +172,7 @@ internal sealed class DebugSettingsPage : SettingsPageBase
             AddValueRow(automationGrid, owner, "World evil", worldEvilValue);
             AddValueRow(automationGrid, owner, "Filter pyramid", pyramidFilterValue);
             AddValueRow(automationGrid, owner, "Required pyramid items", pyramidItemsValue);
+            AddValueRow(automationGrid, owner, "Return to main menu on filter failure", returnToMainMenuOnFilterFailureValue);
             AddValueRow(automationGrid, owner, "Initial wait ms", windowActivationDelayValue);
             AddValueRow(automationGrid, owner, "Pre-click wait ms", clickFocusDelayValue);
             AddValueRow(automationGrid, owner, "Mouse / key duration ms", inputPressDurationValue);
@@ -198,6 +201,7 @@ internal sealed class DebugSettingsPage : SettingsPageBase
             TableLayoutPanel worldGenerationSection = CreateSection(owner, "World Generation");
             TableLayoutPanel worldGenerationGrid = CreateGrid(owner);
             AddValueRow(worldGenerationGrid, owner, "Current pass", currentPassValue);
+            AddValueRow(worldGenerationGrid, owner, "Current seed", currentSeedValue);
             AddValueRow(worldGenerationGrid, owner, "Progress message", progressMessageValue);
             AddValueRow(worldGenerationGrid, owner, "Current progress", currentProgressValue);
             AddValueRow(worldGenerationGrid, owner, "Total progress", totalProgressValue);
@@ -311,6 +315,7 @@ internal sealed class DebugSettingsPage : SettingsPageBase
                 SetValue(worldEvilValue, owner.Localize(AutoCreateWorldEvil.Normalize(autoCreate.WorldEvil)));
                 SetValue(pyramidFilterValue, FormatBool(autoCreate.EnablePyramidFilter, owner));
                 SetValue(pyramidItemsValue, FormatPyramidFilterItems(autoCreate, owner));
+                SetValue(returnToMainMenuOnFilterFailureValue, FormatBool(autoCreate.ReturnToMainMenuOnFilterFailure, owner));
                 SetValue(shortActionDelayValue, autoCreate.ShortActionDelayMilliseconds.ToString(CultureInfo.InvariantCulture));
                 SetValue(menuActionDelayValue, autoCreate.MenuActionDelayMilliseconds.ToString(CultureInfo.InvariantCulture));
                 SetValue(pyramidFilterPostDelayValue, autoCreate.PyramidFilterPostDelayMilliseconds.ToString(CultureInfo.InvariantCulture));
@@ -334,6 +339,9 @@ internal sealed class DebugSettingsPage : SettingsPageBase
                         snapshot.WorldGeneration.CurrentPassName,
                         diagnostics.CurrentControllerAddress,
                         owner));
+                SetValue(
+                    currentSeedValue,
+                    FormatWorldCreationSeed(diagnostics.WorldCreationSeed, owner));
                 SetValue(
                     progressMessageValue,
                     FormatWorldGenerationText(
@@ -572,6 +580,7 @@ internal sealed class DebugSettingsPage : SettingsPageBase
                 ("Catch speed", AutoCreateZenithStarCatchSpeed.FormatMultiplier(autoCreate.ZenithStarCatchSpeedSliderValue)),
                 ("Filter pyramid", FormatBool(autoCreate.EnablePyramidFilter, owner)),
                 ("Required pyramid items", FormatPyramidFilterItems(autoCreate, owner)),
+                ("Return to main menu on filter failure", FormatBool(autoCreate.ReturnToMainMenuOnFilterFailure, owner)),
                 ("Initial wait ms", autoCreate.WindowActivationDelayMilliseconds.ToString(CultureInfo.InvariantCulture)),
                 ("Pre-click wait ms", autoCreate.ClickFocusDelayMilliseconds.ToString(CultureInfo.InvariantCulture)),
                 ("Mouse / key duration ms", autoCreate.InputPressDurationMilliseconds.ToString(CultureInfo.InvariantCulture)),
@@ -604,6 +613,7 @@ internal sealed class DebugSettingsPage : SettingsPageBase
             "World Generation",
             [
                 ("Current pass", FormatWorldGenerationText(snapshot.WorldGeneration.CurrentPassName, diagnostics.CurrentControllerAddress, owner)),
+                ("Current seed", FormatWorldCreationSeed(diagnostics.WorldCreationSeed, owner)),
                 ("Progress message", FormatWorldGenerationText(snapshot.WorldGeneration.ProgressMessage, diagnostics.CurrentGenerationProgressAddress, owner)),
                 ("Current progress", FormatWorldGenerationPercent(snapshot.WorldGeneration.CurrentProgress, diagnostics.CurrentGenerationProgressAddress, owner)),
                 ("Total progress", FormatWorldGenerationPercent(snapshot.WorldGeneration.TotalProgress, diagnostics.CurrentGenerationProgressAddress, owner))
@@ -778,6 +788,10 @@ internal sealed class DebugSettingsPage : SettingsPageBase
                 ? $" ({owner.Localize("Required pyramid items")}: {itemDetail})"
                 : string.Empty;
             lines.Add($"{step++}. {owner.Localize("Filter pyramid")}{itemSuffix}");
+            if (autoCreate.ReturnToMainMenuOnFilterFailure)
+            {
+                lines.Add($"{step++}. {owner.Localize("Return to main menu on filter failure")}");
+            }
         }
 
         return string.Join(Environment.NewLine, lines);
@@ -1163,6 +1177,19 @@ internal sealed class DebugSettingsPage : SettingsPageBase
         return slotAddress != IntPtr.Zero
             ? owner.Localize("World generation idle")
             : owner.Localize("Unknown");
+    }
+
+    private static string FormatWorldCreationSeed(
+        TerrariaWorldCreationSeedSnapshot snapshot,
+        SettingsForm owner)
+    {
+        return snapshot.Status switch
+        {
+            TerrariaWorldCreationSeedStatus.Seed => FormatText(snapshot.SeedText, owner),
+            TerrariaWorldCreationSeedStatus.Empty => owner.Localize("Empty"),
+            TerrariaWorldCreationSeedStatus.NotOnWorldCreationPage => owner.Localize("Not on world creation page"),
+            _ => owner.Localize("Unknown")
+        };
     }
 
     private static string FormatWorldGenerationPercent(double? value, IntPtr slotAddress, SettingsForm owner)

@@ -5,6 +5,7 @@ internal enum AppCommandKind
     TogglePause,
     ResetRun,
     ToggleMouseClickThrough,
+    TogglePyramidFilter,
     QueueMenuAction,
     CancelCreateWorld,
     CancelEnterWorld,
@@ -48,6 +49,8 @@ internal sealed record AppCommand
     }
 
     public static AppCommand ToggleMouseClickThrough() => new(AppCommandKind.ToggleMouseClickThrough);
+
+    public static AppCommand TogglePyramidFilter() => new(AppCommandKind.TogglePyramidFilter);
 
     public static AppCommand QueueMenuAction(MenuActionKind action, DateTime requestedAtUtc)
     {

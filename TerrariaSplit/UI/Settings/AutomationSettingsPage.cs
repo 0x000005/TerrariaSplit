@@ -22,6 +22,7 @@ internal sealed class AutomationSettingsPage : SettingsPageBase
     private readonly ThemedSlider autoCreateZenithStarCatchSpeedBar = new();
     private readonly Label autoCreateZenithStarCatchSpeedValueLabel = new();
     private readonly CheckBox autoCreatePyramidFilterBox = new();
+    private readonly CheckBox autoCreateReturnToMainMenuOnFilterFailureBox = new();
     private readonly Dictionary<string, CheckBox> autoCreatePyramidItemBoxes = new(StringComparer.OrdinalIgnoreCase);
     private readonly CheckBox autoCreateWorldPoolBox = new();
     private readonly TextBox autoCreateWorldPoolTargetBox = new();
@@ -44,6 +45,7 @@ internal sealed class AutomationSettingsPage : SettingsPageBase
     internal IReadOnlyDictionary<string, CheckBox> AutoCreateZenithStarCatchStageBoxes => autoCreateZenithStarCatchStageBoxes;
     internal ThemedSlider AutoCreateZenithStarCatchSpeedBar => autoCreateZenithStarCatchSpeedBar;
     internal CheckBox AutoCreatePyramidFilterBox => autoCreatePyramidFilterBox;
+    internal CheckBox AutoCreateReturnToMainMenuOnFilterFailureBox => autoCreateReturnToMainMenuOnFilterFailureBox;
     internal IReadOnlyDictionary<string, CheckBox> AutoCreatePyramidItemBoxes => autoCreatePyramidItemBoxes;
     internal CheckBox AutoCreateWorldPoolBox => autoCreateWorldPoolBox;
     internal TextBox AutoCreateWorldPoolTargetBox => autoCreateWorldPoolTargetBox;
@@ -76,6 +78,7 @@ internal sealed class AutomationSettingsPage : SettingsPageBase
         settings.AutoCreate.ZenithStarCatchStopStage = GetSelectedZenithStarCatchStopStage();
         settings.AutoCreate.ZenithStarCatchSpeedSliderValue = AutoCreateZenithStarCatchSpeed.NormalizeSliderValue(autoCreateZenithStarCatchSpeedBar.Value);
         settings.AutoCreate.EnablePyramidFilter = autoCreatePyramidFilterBox.Checked;
+        settings.AutoCreate.ReturnToMainMenuOnFilterFailure = autoCreateReturnToMainMenuOnFilterFailureBox.Checked;
         settings.AutoCreate.PyramidFilterItemMask = AutoCreatePyramidFilterItem.ToMask(
             AutoCreatePyramidFilterItem.All.Where(item =>
                 autoCreatePyramidItemBoxes.TryGetValue(item, out CheckBox? box) && box.Checked));
@@ -155,6 +158,9 @@ internal sealed class AutomationSettingsPage : SettingsPageBase
         autoCreateZenithStarCatchSpeedBar.ValueChanged += (_, _) => UpdateZenithStarCatchSpeedLabel();
         ConfigureCheckBox(autoCreatePyramidFilterBox, Draft.AutoCreate.EnablePyramidFilter);
         autoCreatePyramidFilterBox.CheckedChanged += (_, _) => UpdatePyramidItemAvailability();
+        ConfigureCheckBox(
+            autoCreateReturnToMainMenuOnFilterFailureBox,
+            Draft.AutoCreate.ReturnToMainMenuOnFilterFailure);
         ConfigureCheckBox(autoCreateWorldPoolBox, Draft.AutoCreate.EnableWorldPool);
         autoCreateWorldPoolBox.CheckedChanged += (_, _) => UpdateWorldPoolAvailability();
         ConfigureNumberBox(autoCreateWorldPoolTargetBox, Draft.AutoCreate.WorldPoolTargetCount, 1, 50);
@@ -269,6 +275,7 @@ internal sealed class AutomationSettingsPage : SettingsPageBase
             SettingsUiFactory.ColumnStylePercent(100f),
             SettingsUiFactory.ColumnStyleAbsolute(360f));
         Factory.AddSettingRow(pyramidFilterGrid, "Enabled", autoCreatePyramidFilterBox);
+        Factory.AddSettingRow(pyramidFilterGrid, "Return to main menu on filter failure", autoCreateReturnToMainMenuOnFilterFailureBox);
         SettingsUiFactory.AddSectionControl(createSection, pyramidFilterGrid);
         SettingsUiFactory.AddSectionControl(createSection, Factory.CreateFieldLabel("Required pyramid items"));
         SettingsUiFactory.AddSectionControl(createSection, CreatePyramidItemSelector());
@@ -561,6 +568,11 @@ internal sealed class AutomationSettingsPage : SettingsPageBase
 
     private void UpdatePyramidItemAvailability()
     {
+        autoCreateReturnToMainMenuOnFilterFailureBox.Enabled = autoCreatePyramidFilterBox.Checked;
+        autoCreateReturnToMainMenuOnFilterFailureBox.ForeColor = autoCreateReturnToMainMenuOnFilterFailureBox.Enabled
+            ? UiTheme.Text
+            : UiTheme.MutedText;
+
         foreach (CheckBox button in autoCreatePyramidItemBoxes.Values)
         {
             button.Enabled = autoCreatePyramidFilterBox.Checked;

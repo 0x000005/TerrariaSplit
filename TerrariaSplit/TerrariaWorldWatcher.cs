@@ -7,6 +7,7 @@ internal sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
 {
     private readonly TerrariaMemoryProfile profile;
     private readonly TerrariaMemoryResolver resolver;
+    private readonly TerrariaWorldCreationSeedReader worldCreationSeedReader = new();
     private readonly TimeSpan initialScanInterval = TimeSpan.FromMilliseconds(250);
     private readonly TimeSpan rescanInterval = TimeSpan.FromSeconds(2);
     private readonly TimeSpan processLookupInterval = TimeSpan.FromSeconds(1);
@@ -45,6 +46,7 @@ internal sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
                 process = null;
                 memory = null;
                 resolver.Reset();
+                worldCreationSeedReader.Reset();
                 previousGameMenu = null;
                 awaitingInitialMenuObservation = false;
                 diagnosticStage = "waiting for process";
@@ -88,6 +90,7 @@ internal sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
         if (!resolver.TryReadGameMenuState(memory, out bool isGameMenu))
         {
             resolver.ResetResolvedAddresses();
+            worldCreationSeedReader.Reset();
             previousGameMenu = null;
             awaitingInitialMenuObservation = false;
             diagnosticStage = "menu state pointer lost";
@@ -138,6 +141,7 @@ internal sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
     public TerrariaWatcherDiagnostics GetDiagnostics()
     {
         TerrariaMemoryResolution resolution = resolver.Resolution;
+        TerrariaWorldCreationSeedSnapshot worldCreationSeed = ReadWorldCreationSeedDiagnostics();
         return new TerrariaWatcherDiagnostics(
             diagnosticStage,
             profile.SupportedVersionLabel,
@@ -158,6 +162,7 @@ internal sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
             resolution.HardmodeAddress,
             resolution.CurrentGenerationProgressAddress,
             resolution.CurrentControllerAddress,
+            worldCreationSeed,
             BuildCompatibilityHint(resolution));
     }
 
@@ -179,6 +184,7 @@ internal sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
         process = null;
         memory = null;
         resolver.Reset();
+        worldCreationSeedReader.Reset();
         previousGameMenu = null;
         awaitingInitialMenuObservation = false;
 
@@ -288,6 +294,25 @@ internal sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
         return process is null
             ? status
             : $"attached to Terraria PID {process.Id}, {detail}";
+    }
+
+    private TerrariaWorldCreationSeedSnapshot ReadWorldCreationSeedDiagnostics()
+    {
+        if (memory is null)
+        {
+            worldCreationSeedReader.Reset();
+            return TerrariaWorldCreationSeedSnapshot.Unknown;
+        }
+
+        if (previousGameMenu != true)
+        {
+            worldCreationSeedReader.Reset();
+            return previousGameMenu == false
+                ? TerrariaWorldCreationSeedSnapshot.NotOnWorldCreationPage
+                : TerrariaWorldCreationSeedSnapshot.Unknown;
+        }
+
+        return worldCreationSeedReader.Read(memory);
     }
 
     private string FormatProcessArchitecture()
