@@ -408,10 +408,13 @@ internal static class FullDesertPassReplica
         double hiveHeight = description.Hive.Height;
         double clusterWidth = clusters.Width;
         double clusterHeight = clusters.Height;
+        int[] candidateStartYByColumn = CandidateScanStartsByColumn(state, area);
+        int mainWorldSurface = (int)state.MainWorldSurface;
 
         for (int x = area.Left; x < area.Right; x++)
         {
             SetProgress(progress, (double)(x - area.Left) / (area.Right - area.Left), progressMin, progressMax);
+            int candidateStartY = candidateStartYByColumn[x - area.Left];
             for (int y = area.Top; y < area.Bottom; y++)
             {
                 if (!InWorld(state, x, y, 1))
@@ -426,7 +429,7 @@ internal static class FullDesertPassReplica
                     ? (ushort)TileIds.HardenedSand
                     : (ushort)TileIds.Sand;
 
-                if (!IsPyramidCandidateScanTile(state, x, y))
+                if (candidateStartY < 0 || y < candidateStartY || y >= mainWorldSurface)
                 {
                     continue;
                 }
@@ -545,6 +548,26 @@ internal static class FullDesertPassReplica
                 }
             }
         }
+    }
+
+    private static int[] CandidateScanStartsByColumn(WorldGenState state, WorldRect area)
+    {
+        var starts = new int[area.Width];
+        Array.Fill(starts, -1);
+        foreach (PyramidCandidate candidate in state.PyramidCandidates)
+        {
+            if (!WorldInterestArea.IsInTargetPyramidXRange(state.Options.Dimensions, candidate.X) ||
+                candidate.X < area.Left ||
+                candidate.X >= area.Right)
+            {
+                continue;
+            }
+
+            int index = candidate.X - area.Left;
+            starts[index] = starts[index] < 0 ? candidate.Y : Math.Min(starts[index], candidate.Y);
+        }
+
+        return starts;
     }
 
     private static void AddTileVariance(WorldGenState state, UnifiedRandom random, DesertDescription description)
@@ -695,26 +718,6 @@ internal static class FullDesertPassReplica
         {
             state.DesertHiveRight = x;
         }
-    }
-
-    private static bool IsPyramidCandidateScanTile(WorldGenState state, int x, int y)
-    {
-        if (y >= state.MainWorldSurface)
-        {
-            return false;
-        }
-
-        foreach (PyramidCandidate candidate in state.PyramidCandidates)
-        {
-            if (WorldInterestArea.IsInTargetPyramidXRange(state.Options.Dimensions, candidate.X) &&
-                candidate.X == x &&
-                y >= candidate.Y)
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private static WorldRect ClipToTargetPyramidArea(
