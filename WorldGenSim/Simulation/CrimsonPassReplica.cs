@@ -86,22 +86,27 @@ internal static class CrimsonPassReplica
         snowRight = 0;
 
         int scanBottom = Math.Clamp((int)worldSurface, 0, state.Options.Dimensions.Height);
-        for (int x = 0; x < width; x++)
+        (int jungleScanLeft, int jungleScanRight) = JungleSurfaceScanRange(state, width);
+        for (int x = jungleScanLeft; x < jungleScanRight; x++)
         {
             for (int y = 0; y < scanBottom; y++)
             {
                 TileData tile = state.Tiles[x, y];
-                if (!tile.Active)
-                {
-                    continue;
-                }
-
-                if (tile.Type == JungleGrass)
+                if (tile.Active && tile.Type == JungleGrass)
                 {
                     jungleLeft = Math.Min(jungleLeft, x);
                     jungleRight = Math.Max(jungleRight, x);
                 }
-                else if (tile.Type is TileIds.SnowBlock or TileIds.IceBlock)
+            }
+        }
+
+        (int snowScanLeft, int snowScanRight) = SnowSurfaceScanRange(state, width, scanBottom);
+        for (int x = snowScanLeft; x < snowScanRight; x++)
+        {
+            for (int y = 0; y < scanBottom; y++)
+            {
+                TileData tile = state.Tiles[x, y];
+                if (tile.Active && tile.Type is TileIds.SnowBlock or TileIds.IceBlock)
                 {
                     snowLeft = Math.Min(snowLeft, x);
                     snowRight = Math.Max(snowRight, x);
@@ -114,6 +119,47 @@ internal static class CrimsonPassReplica
         jungleRight += padding;
         snowLeft -= padding;
         snowRight += padding;
+    }
+
+    private static (int Left, int Right) JungleSurfaceScanRange(WorldGenState state, int width)
+    {
+        if (state.JungleMinX < 0 || state.JungleMaxX <= state.JungleMinX)
+        {
+            return (0, width);
+        }
+
+        return (Math.Max(0, state.JungleMinX - 20), Math.Min(width, state.JungleMaxX + 20));
+    }
+
+    private static (int Left, int Right) SnowSurfaceScanRange(WorldGenState state, int width, int scanBottom)
+    {
+        if (state.SnowMinX.Length == 0 || state.SnowMaxX.Length == 0)
+        {
+            return (0, width);
+        }
+
+        int left = width;
+        int right = 0;
+        int bottom = Math.Min(scanBottom, Math.Min(state.SnowMinX.Length, state.SnowMaxX.Length));
+        for (int y = 0; y < bottom; y++)
+        {
+            int rowLeft = state.SnowMinX[y];
+            int rowRight = state.SnowMaxX[y];
+            if (rowRight <= rowLeft)
+            {
+                continue;
+            }
+
+            left = Math.Min(left, rowLeft);
+            right = Math.Max(right, rowRight);
+        }
+
+        if (right <= left)
+        {
+            return (0, width);
+        }
+
+        return (Math.Max(0, left - 20), Math.Min(width, right + 20));
     }
 
     private static void RollCrimsonRange(
