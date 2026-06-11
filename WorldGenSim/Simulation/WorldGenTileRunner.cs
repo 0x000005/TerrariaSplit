@@ -230,6 +230,95 @@ internal static class WorldGenTileRunner
         }
     }
 
+    public static void RunSandPatch(
+        WorldGenState state,
+        UnifiedRandom random,
+        int i,
+        int j,
+        double strength,
+        int steps)
+    {
+        if (!state.Options.IsTargetScope)
+        {
+            throw new InvalidOperationException(state.Options.TargetScopeDetail());
+        }
+
+        DenseTileGrid tiles = state.Tiles;
+        int worldWidth = state.Options.Dimensions.Width;
+        int worldHeight = state.Options.Dimensions.Height;
+        double mainWorldSurface = state.MainWorldSurface;
+        double currentStrength = strength;
+        double stepsRemaining = steps;
+        double x = i;
+        double y = j;
+        double baseRadius = strength * 0.5;
+        double maximumRadius = baseRadius * 1.15;
+        double velocityX = random.Next(-10, 11) * 0.1;
+        double velocityY = random.Next(-10, 11) * 0.1;
+
+        _ = random.Next(4);
+
+        while (currentStrength > 0.0 && stepsRemaining > 0.0)
+        {
+            currentStrength = strength * (stepsRemaining / steps);
+            stepsRemaining -= 1.0;
+
+            int left = Math.Max(1, (int)(x - currentStrength * 0.5));
+            int right = Math.Min(worldWidth - 1, (int)(x + currentStrength * 0.5));
+            int top = Math.Max(1, (int)(y - currentStrength * 0.5));
+            int bottom = Math.Min(worldHeight - 1, (int)(y + currentStrength * 0.5));
+
+            for (int tileX = left; tileX < right; tileX++)
+            {
+                for (int tileY = top; tileY < bottom; tileY++)
+                {
+                    double manhattan = Math.Abs(tileX - x) + Math.Abs(tileY - y);
+                    if (manhattan >= maximumRadius)
+                    {
+                        _ = random.Next(-10, 11);
+                        continue;
+                    }
+
+                    ref TileData tile = ref tiles.GetUnchecked(tileX, tileY);
+                    if (manhattan >= baseRadius * (1.0 + random.Next(-10, 11) * 0.015))
+                    {
+                        continue;
+                    }
+
+                    if (tile.Active &&
+                        (!CanBeClearedDuringGeneration(tile.Type) ||
+                        (tile.Type == TileIds.Sand && tileY < mainWorldSurface)))
+                    {
+                        continue;
+                    }
+
+                    tile.Type = TileIds.Sand;
+                }
+            }
+
+            x += velocityX;
+            y += velocityY;
+            for (int thresholdIndex = 0; thresholdIndex < ExtraStepThresholds.Length; thresholdIndex++)
+            {
+                if (currentStrength <= ExtraStepThresholds[thresholdIndex])
+                {
+                    break;
+                }
+
+                x += velocityX;
+                y += velocityY;
+                stepsRemaining -= 1.0;
+                velocityY += random.Next(-10, 11) * 0.05;
+                velocityX += random.Next(-10, 11) * 0.05;
+            }
+
+            velocityX += random.Next(-10, 11) * 0.05;
+            velocityX = Math.Clamp(velocityX, -1.0, 1.0);
+            velocityY += random.Next(-10, 11) * 0.05;
+            velocityY = Math.Clamp(velocityY, -1.0, 1.0);
+        }
+    }
+
     private static bool ShouldSkipPlacement(
         UnifiedRandom random,
         TileData tile,

@@ -28,7 +28,7 @@ internal static class SandPatchesPassReplica
 
             int strength = random.Next(15, 70);
             int steps = random.Next(20, 130);
-            WorldGenTileRunner.Run(state, random, x, y, strength, steps, TileIds.Sand);
+            WorldGenTileRunner.RunSandPatch(state, random, x, y, strength, steps);
         }
 
         state.SandPatchesApplied = true;
