@@ -111,24 +111,7 @@ internal static class PyramidsPassReplica
 
     private static bool IsCandidateInBuildableBand(WorldGenState state, int x)
     {
-        int width = state.Options.Dimensions.Width;
-        if (x <= 300 || x >= width - 300)
-        {
-            return false;
-        }
-
-        double dungeonShadow = width * 0.15;
-        if (state.DungeonSide <= -1 && x < state.DungeonLocation + dungeonShadow)
-        {
-            return false;
-        }
-
-        if (state.DungeonSide >= 1 && x > state.DungeonLocation - dungeonShadow)
-        {
-            return false;
-        }
-
-        return true;
+        return WorldInterestArea.IsPyramidCandidateInBuildableBand(state, x);
     }
 
     private static void SimulatePyramid(

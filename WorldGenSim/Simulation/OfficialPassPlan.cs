@@ -339,7 +339,7 @@ internal static class OfficialPassPlan
         generator.Append(new DelegateGenPass(name, weight, (context, progress) =>
         {
             WorldGenState? state = context.State;
-            if (state is not null && !WorldInterestArea.HasPyramidCandidateNearTarget(state))
+            if (state is not null && !WorldInterestArea.HasPotentialTargetPyramidCandidate(state))
             {
                 progress.Set(1.0);
                 return;

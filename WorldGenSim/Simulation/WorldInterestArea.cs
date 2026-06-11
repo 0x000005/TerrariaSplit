@@ -53,4 +53,60 @@ internal static class WorldInterestArea
 
         return false;
     }
+
+    public static bool HasPotentialTargetPyramidCandidate(WorldGenState state)
+    {
+        (int left, int right) = TargetPyramidXRange(state.Options.Dimensions);
+        left -= PyramidCandidateTargetPadding;
+        right += PyramidCandidateTargetPadding;
+        IReadOnlyList<PyramidCandidate> candidates = state.PyramidCandidates;
+        for (int i = 0; i < candidates.Count; i++)
+        {
+            PyramidCandidate candidate = candidates[i];
+            if (candidate.X < left || candidate.X >= right)
+            {
+                continue;
+            }
+
+            if (!IsPyramidCandidateInBuildableBand(state, candidate.X))
+            {
+                continue;
+            }
+
+            int minDistance = state.Options.Dimensions.Width;
+            for (int previous = 0; previous < i; previous++)
+            {
+                minDistance = Math.Min(minDistance, Math.Abs(candidate.X - candidates[previous].X));
+            }
+
+            if (minDistance >= 220)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public static bool IsPyramidCandidateInBuildableBand(WorldGenState state, int x)
+    {
+        int width = state.Options.Dimensions.Width;
+        if (x <= 300 || x >= width - 300)
+        {
+            return false;
+        }
+
+        double dungeonShadow = width * 0.15;
+        if (state.DungeonSide <= -1 && x < state.DungeonLocation + dungeonShadow)
+        {
+            return false;
+        }
+
+        if (state.DungeonSide >= 1 && x > state.DungeonLocation - dungeonShadow)
+        {
+            return false;
+        }
+
+        return true;
+    }
 }
