@@ -15,6 +15,10 @@
 - UI 可以准备 render state 和调度刷新，但具体绘制规则放在 `UI/Rendering/`。
 - 传给渲染器的数据应是快照、设置和布局上下文，不是 live runtime 对象。
 
+## 与设置页的关系
+- `UI/Settings/` 有独立说明；设置页负责编辑和展示，设置语义、默认值、归一化和持久化仍由 `Configuration/` 等层处理。
+- 从设置页触发的副作用要回到 shell 或 Application 的既有路径，不要让某个 page 绕过主流程直接操作运行状态。
+
 ## 验证
 - 修改窗口、输入、设置应用或 overlay 生命周期后，运行相关 shell 测试和完整测试命令。
 - 改动影响用户可见布局时，检查主 overlay 和 timer overlay 是否仍使用一致的状态来源。

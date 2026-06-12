@@ -2,6 +2,7 @@
 
 ## 职责
 - 本目录是自定义测试工程，入口在 `Program.cs`，通过 `dotnet run --project test\TerrariaSplit.Tests.csproj` 执行。
+- 测试项目当前只编译 `test/*.cs`；子目录里的诊断工具需要按各自说明单独构建或运行。
 - 测试应帮助维护模块边界、核心行为和外部集成适配的可预测性。
 - `PyramidPreScreenMetrics.cs` 和 `PyramidPreScreenTrace.cs` 是诊断/评估工具；`OfficialProbe/` 是官方流程对照工具，不属于主程序运行路径。
 
@@ -12,6 +13,7 @@
 - 数据集评估输出可以用于比较 FP/FN/耗时，但不能单独作为筛选规则来源。
 - 临时 CSV、trace 和 probe 输出不要提交；只有明确刷新基线或当前指标文件时才保留。
 - 读取真实世界文件的数据集评估按一个世界一个世界处理，不要为了提速并行读取 `.wld`。
+- `pyramid-metrics` 增加诊断输出时，保持默认测试入口轻量；耗时数据集评估应通过显式命令触发。
 
 ## 覆盖重点
 - 输入如何变成应用命令。

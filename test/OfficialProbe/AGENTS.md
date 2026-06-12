@@ -3,6 +3,7 @@
 ## 职责
 - 本目录放官方流程对照诊断工具，用来解释金字塔预筛 FP/FN 的机制来源。
 - Probe 输出是证据和调试材料，不是主程序筛选逻辑。
+- 本目录不被 `test/TerrariaSplit.Tests.csproj` 自动编译；构建方式以 `README.md` 为准。
 
 ## 使用原则
 - 先用 probe 归因候选点差异、scan tile 差异、spacing/order 差异、pass-local 地形修改差异或箱子/物品差异，再决定是否改模拟器。

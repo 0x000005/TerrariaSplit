@@ -57,8 +57,8 @@ TerrariaSplit/Terraria/WorldGeneration/Simulation/OfficialPassPlan.cs
 
 维护。当前 pass 总数为 41，其中：
 
-- `ImplementedPassCount = 19`
-- `ExplicitlySkippedPassCount = 22`
+- `ImplementedPassCount = 20`
+- `ExplicitlySkippedPassCount = 21`
 - `StubPassCount = 0`
 
 必须精确或结构等价的核心步骤：
@@ -74,6 +74,7 @@ TerrariaSplit/Terraria/WorldGeneration/Simulation/OfficialPassPlan.cs
 - `Sand Patches`
 - `Tunnels`
 - `Mount Caves`
+- `Dirt Wall Backgrounds`
 - `Dirt Layer Caves`
 - `Surface Caves`
 - `Generate Ice Biome`
@@ -109,7 +110,7 @@ TerrariaSplit/Terraria/WorldGeneration/Simulation/OfficialPassPlan.cs
 
 ### 4. pass 级跳过
 
-由于每个 pass RNG 重置，跳过已审计无关 pass 不会污染后续 pass 的 RNG。当前显式跳过包括墙体、矿物、深层洞穴、浮岛、地狱、湖泊、海滩、Shimmer、Clean Up Dirt 等多类 pass。
+由于每个 pass RNG 重置，跳过已审计无关 pass 不会污染后续 pass 的 RNG。当前显式跳过包括矿物、深层洞穴、浮岛、地狱、湖泊、海滩、Shimmer、Clean Up Dirt 等多类 pass；`Dirt Wall Backgrounds` 已实现，因为 `wall == 2` 会影响后续 jungle mud wall 分支。
 
 ### 5. tile grid 轻量化
 
@@ -127,7 +128,18 @@ TerrariaSplit/Terraria/WorldGeneration/Simulation/OfficialPassPlan.cs
 
 猩红 pass 会把候选扫描沙变成 `Crimsand` 或改变附近地形。当前 `CrimsonConvertedScanSand` 是 hard risk 的一部分，用于避免明显 FP。之前尝试过更官方化 Crimson 局部细节，但在大集上仍不能达标，已按要求不保留那组行为改动。
 
-### 9. Pyramids 只模拟到首个箱子所需信息
+### 9. Crimson surface biome bounds 缓存
+
+Crimson range 选择前需要知道 surface 层 `JungleGrass` 和 `Snow/Ice` 的横向范围。旧实现每次 Crimson pass 开头做两次全宽扫描；当前改为 `WorldGenState` 中的 dirty-column surface biome tracking：
+
+- `Generate Ice Biome` 开始时重置 tracking。
+- Ice、Mud Caves To Grass、Jungle tunnel、Full Desert 等会影响这些 tile 的局部写入只标记 dirty 列。
+- Crimson 读取前只重建 dirty 列的 surface 计数，再计算与旧扫描相同的 padded bounds。
+- 若 tracking 未初始化，会退回一次全宽精确重建，保证语义优先于性能。
+
+该优化在 `D:\Worlds` 上不改变 FP/FN/itemMismatch；主要收益是移除 Crimson 内部的全宽双扫结构，当前总耗时仍主要受 Jungle 和 Full Desert 波动支配。
+
+### 10. Pyramids 只模拟到首个箱子所需信息
 
 预筛只需要知道是否有目标金字塔，以及箱内目标物品。无需完整模拟金字塔每一处墙、装饰和后续无关生成。
 
@@ -189,6 +201,8 @@ dotnet run -c Release --project test\TerrariaSplit.Tests.csproj -- pyramid-metri
 - `--diagnose-all`：输出所有样本诊断，文件会很大。
 - `--diagnostics-csv <path>`：输出候选和箱子细节。
 - `--diagnose-seed <seed>`：只诊断指定 seed。
+- `--pass-timings`：额外打印每个 simulated pass 的耗时摘要，诊断模式使用，不影响正常预筛运行。
+- `--pass-timings-csv <path>`：输出每个 seed、每个 pass 的 `durationMs` 和 `randNext`，用于定位新增 pass 或优化后的耗时来源。
 
 指标含义：
 
@@ -284,10 +298,10 @@ fn=59
 itemMismatch=2
 fpRate=1.80 %
 fnRate=22.43 %
-avgMs=99.778
-p50Ms=115
-p95Ms=236
-maxMs=529
+avgMs=99.578
+p50Ms=134
+p95Ms=214
+maxMs=692
 ```
 
 这个结果未达到目标：
@@ -351,6 +365,8 @@ maxMs=529
 
 当前 `JungleMudCoverageUncertain` 会产生不少 FN。不能直接删除。可行方向：
 
+- `Dirt Wall Backgrounds` 已接入，用于修正 `wall == 2` 对后续泥墙生成的影响；单独接入在 `D:\Worlds` 上不改变 FP/FN，但保持 p50 在目标内。
+- `Rocks In Dirt` / `Dirt In Rocks` / `Clay` 目前仍未接入主流程。完整接入并逐 tile 消耗 RNG 的实验会把 16 样本 p50 推到约 230ms 以上，不满足性能目标；后续需要真正的 per-run 快进或更窄的官方可证写入域。
 - 对候选列附近做更接近官方的局部 Jungle 主泥团/通道模拟。
 - 只在官方机制证明泥团能覆盖 scan column 时 hard reject。
 - 用候选的 `sandDepth`、`sandSpan`、`activeDepth` 和离 Jungle 真实范围距离做辅助诊断，但不要引入数据集魔法阈值。
@@ -392,6 +408,7 @@ Crimson 是 FP/FN 的共同高风险点。后续不要整体回退或整体放�
 
 当前 p50 仍低于 `140ms`，但 p95 较高。后续增加模拟时应遵守：
 
+- 先用 `pyramid-metrics --pass-timings` 或 `--pass-timings-csv` 量化每个 pass 的耗时，再决定优化点。
 - 优先候选列和候选附近局部模拟。
 - 不引入整段 Full Jungle、Full Desert、全 cave 级模拟。
 - 增加诊断可以放在测试入口，不要默认影响预筛运行。

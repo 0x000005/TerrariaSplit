@@ -65,6 +65,7 @@ Local simulation is required in the target corridor:
 - `Sand Patches`
 - `Tunnels`
 - `Mount Caves`
+- `Dirt Wall Backgrounds`
 - `Dirt Layer Caves`
 - `Surface Caves`
 - `Generate Ice Biome`
@@ -81,7 +82,6 @@ These passes may be skipped only because their mutation is outside the current
 target, is shielded by sand/height checks, or is paired with a conservative risk
 gate:
 
-- `Dirt Wall Backgrounds`
 - `Rocks In Dirt`
 - `Dirt In Rocks`
 - `Clay`
