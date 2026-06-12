@@ -32,6 +32,9 @@ internal static class PyramidsPassReplica
                 inWorld &&
                 y < state.MainWorldSurface &&
                 tileType == TileIds.Sand;
+            PyramidCandidateSurfaceFeatures surfaceFeatures = sandOk
+                ? PyramidCandidateSurfaceFeatures.From(state, x, y)
+                : PyramidCandidateSurfaceFeatures.Empty;
 
             int minDistance = width;
             for (int previous = 0; previous < i; previous++)
@@ -55,7 +58,10 @@ internal static class PyramidsPassReplica
                 active,
                 tileType,
                 minDistance,
-                fate));
+                fate,
+                surfaceFeatures.SandDepth,
+                surfaceFeatures.SandSpan,
+                surfaceFeatures.ActiveDepth));
         }
 
         return analyses;
@@ -105,7 +111,26 @@ internal static class PyramidsPassReplica
                 continue;
             }
 
-            SimulatePyramid(state, random, x, y - 1, pyramidMinDepth: 75, pyramidMaxDepth: 125);
+            PyramidCandidateSurfaceFeatures surfaceFeatures = PyramidCandidateSurfaceFeatures.From(state, x, y);
+            // A one-column sand cap inside the upper underground desert is an artifact-prone
+            // surface in the clipped Full Desert replica; official generation can expose dirt.
+            if (IsFullDesertSurfaceUncertain(state, x, y, surfaceFeatures))
+            {
+                state.AddPyramidCandidateRisk(i, PyramidCandidateRisk.FullDesertSurfaceUncertain);
+                continue;
+            }
+
+            SimulatePyramid(
+                state,
+                random,
+                x,
+                y - 1,
+                pyramidMinDepth: 75,
+                pyramidMaxDepth: 125,
+                i,
+                candidate.SourceIndex,
+                y,
+                surfaceFeatures);
         }
     }
 
@@ -114,13 +139,34 @@ internal static class PyramidsPassReplica
         return WorldInterestArea.IsPyramidCandidateInBuildableBand(state, x);
     }
 
+    private static bool IsFullDesertSurfaceUncertain(
+        WorldGenState state,
+        int x,
+        int scanY,
+        PyramidCandidateSurfaceFeatures surfaceFeatures)
+    {
+        WorldRect desert = state.UndergroundDesertLocation;
+        WorldRect hive = state.UndergroundDesertHiveLocation;
+        return desert.Width > 0 &&
+            hive.Width > 0 &&
+            x >= desert.Left &&
+            x < desert.Right &&
+            scanY >= desert.Top &&
+            scanY < hive.Top + 20 &&
+            surfaceFeatures.SandSpan <= 8;
+    }
+
     private static void SimulatePyramid(
         WorldGenState state,
         UnifiedRandom random,
         int x,
         int y,
         int pyramidMinDepth,
-        int pyramidMaxDepth)
+        int pyramidMaxDepth,
+        int candidateIndex,
+        int candidateSourceIndex,
+        int candidateScanY,
+        PyramidCandidateSurfaceFeatures candidateSurfaceFeatures)
     {
         if (state.Tiles[x, y].Active && state.Tiles[x, y].Type == TileIds.SandstoneBrick)
         {
@@ -246,7 +292,16 @@ internal static class PyramidsPassReplica
                     int chestMainItem = RollPyramidMainItem(random);
                     int chestX = (left + right) / 2;
                     int chestGroundY = FindChestGroundY(state, chestX, hallY);
-                    state.AddPyramidChest(chestX - 1, chestGroundY - 1, RollPyramidChestItems(state, random, chestMainItem));
+                    state.AddPyramidChest(
+                        chestX - 1,
+                        chestGroundY - 1,
+                        RollPyramidChestItems(state, random, chestMainItem),
+                        candidateIndex,
+                        candidateSourceIndex,
+                        candidateScanY,
+                        candidateSurfaceFeatures.SandDepth,
+                        candidateSurfaceFeatures.SandSpan,
+                        candidateSurfaceFeatures.ActiveDepth);
 
                     int pileCount = random.Next(1, 10);
                     for (int i = 0; i < pileCount; i++)
@@ -614,4 +669,63 @@ internal readonly record struct PyramidCandidateAnalysis(
     bool ScanTileActive,
     int ScanTileType,
     int MinPreviousDistance,
-    string Fate);
+    string Fate,
+    int SandDepth,
+    int SandSpan,
+    int ActiveDepth);
+
+internal readonly record struct PyramidCandidateSurfaceFeatures(int SandDepth, int SandSpan, int ActiveDepth)
+{
+    public static PyramidCandidateSurfaceFeatures Empty { get; } = new(0, 0, 0);
+
+    public static PyramidCandidateSurfaceFeatures From(WorldGenState state, int x, int y)
+    {
+        int sandDepth = CountVertical(
+            state,
+            x,
+            y,
+            static tile => tile.Active && tile.Type == TileIds.Sand);
+        int activeDepth = CountVertical(
+            state,
+            x,
+            y,
+            static tile => tile.Active);
+        int sandSpan = CountHorizontalSandSpan(state, x, y);
+        return new PyramidCandidateSurfaceFeatures(sandDepth, sandSpan, activeDepth);
+    }
+
+    private static int CountVertical(WorldGenState state, int x, int y, Func<TileData, bool> predicate)
+    {
+        int count = 0;
+        while ((uint)x < (uint)state.Options.Dimensions.Width &&
+            (uint)y < (uint)state.Options.Dimensions.Height &&
+            predicate(state.Tiles[x, y]))
+        {
+            count++;
+            y++;
+        }
+
+        return count;
+    }
+
+    private static int CountHorizontalSandSpan(WorldGenState state, int x, int y)
+    {
+        int left = x;
+        while (left > 0 &&
+            state.Tiles[left - 1, y].Active &&
+            state.Tiles[left - 1, y].Type == TileIds.Sand)
+        {
+            left--;
+        }
+
+        int right = x;
+        while (right < state.Options.Dimensions.Width - 1 &&
+            state.Tiles[right + 1, y].Active &&
+            state.Tiles[right + 1, y].Type == TileIds.Sand)
+        {
+            right++;
+        }
+
+        return right - left + 1;
+    }
+}

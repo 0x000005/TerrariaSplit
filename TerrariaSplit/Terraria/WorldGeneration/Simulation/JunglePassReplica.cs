@@ -75,6 +75,47 @@ internal static class JunglePassReplica
         progress.Set(1.0);
     }
 
+    public static void MarkCandidatesInSkippedJungleMudUncertaintyBand(WorldGenState state)
+    {
+        int width = state.Options.Dimensions.Width;
+        int inwardReach = (int)Math.Ceiling(800.0 * width / 4200.0);
+        IReadOnlyList<PyramidCandidate> candidates = state.PyramidCandidates;
+        for (int i = 0; i < candidates.Count; i++)
+        {
+            PyramidCandidate candidate = candidates[i];
+            if (!WorldInterestArea.IsInTargetPyramidXRange(state.Options.Dimensions, candidate.X) ||
+                !WorldInterestArea.IsPyramidCandidateInBuildableBand(state, candidate.X) ||
+                IsInUndergroundDesert(state, candidate.X) ||
+                !IsOnJungleInwardSide(state, candidate.X, inwardReach) ||
+                !state.TryGetPyramidCandidateScanTile(i, out _, out ushort tileType) ||
+                tileType != TileIds.Sand)
+            {
+                continue;
+            }
+
+            state.AddPyramidCandidateRisk(i, PyramidCandidateRisk.JungleMudCoverageUncertain);
+        }
+    }
+
+    private static bool IsOnJungleInwardSide(WorldGenState state, int x, int inwardReach)
+    {
+        int width = state.Options.Dimensions.Width;
+        if (state.JungleOriginX < width / 2)
+        {
+            return x >= state.JungleOriginX && x <= state.JungleOriginX + inwardReach;
+        }
+
+        return x <= state.JungleOriginX && x >= state.JungleOriginX - inwardReach;
+    }
+
+    private static bool IsInUndergroundDesert(WorldGenState state, int x)
+    {
+        WorldRect desert = state.UndergroundDesertLocation;
+        return desert.Width > 0 &&
+            x >= desert.Left &&
+            x < desert.Right;
+    }
+
     private static void PlaceGemsAt(WorldGenState state, UnifiedRandom random, double worldScale, int x, int y, int baseGem, int gemVariants)
     {
         for (int i = 0; i < 6.0 * worldScale; i++)

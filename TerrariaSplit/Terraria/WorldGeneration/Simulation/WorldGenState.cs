@@ -4,6 +4,7 @@ internal sealed class WorldGenState
 {
     private readonly List<PyramidChest> pyramidChests = [];
     private readonly List<PyramidCandidate> pyramidCandidates = [];
+    private readonly List<PyramidCandidateRisk> pyramidCandidateRisks = [];
 
     public WorldGenState(WorldOptions options)
     {
@@ -249,11 +250,14 @@ internal sealed class WorldGenState
 
     public IReadOnlyList<PyramidCandidate> PyramidCandidates => pyramidCandidates;
 
+    public IReadOnlyList<PyramidChest> PyramidChestsForDiagnostics => pyramidChests;
+
     public void ClearWorld()
     {
         Tiles.Clear();
         pyramidChests.Clear();
         pyramidCandidates.Clear();
+        pyramidCandidateRisks.Clear();
         ResetApplied = false;
         ResetProbeRandNext = 0;
         WorldId = 0;
@@ -374,6 +378,74 @@ internal sealed class WorldGenState
     public void AddPyramidCandidate(int x, int y, int sourceIndex)
     {
         pyramidCandidates.Add(new PyramidCandidate(x, y, sourceIndex));
+        PyramidCandidateRisk risk = WorldInterestArea.IsInSkippedDungeonBoundaryUncertaintyBand(this, x)
+            ? PyramidCandidateRisk.SkippedDungeonBoundaryUncertain
+            : PyramidCandidateRisk.None;
+        pyramidCandidateRisks.Add(risk);
+    }
+
+    public void AddPyramidCandidateRisk(int candidateIndex, PyramidCandidateRisk risk)
+    {
+        if ((uint)candidateIndex >= (uint)pyramidCandidateRisks.Count)
+        {
+            return;
+        }
+
+        pyramidCandidateRisks[candidateIndex] |= risk;
+    }
+
+    public bool TryGetPyramidCandidateScanTile(int candidateIndex, out int scanY, out ushort tileType)
+    {
+        scanY = 0;
+        tileType = 0;
+        if ((uint)candidateIndex >= (uint)pyramidCandidates.Count)
+        {
+            return false;
+        }
+
+        PyramidCandidate candidate = pyramidCandidates[candidateIndex];
+        int y = Math.Max(0, candidate.Y);
+        int limit = Math.Clamp(
+            (int)Math.Ceiling(MainWorldSurface),
+            0,
+            Options.Dimensions.Height);
+        while (y < limit && !Tiles[candidate.X, y].Active)
+        {
+            y++;
+        }
+
+        if (y >= limit || !Tiles[candidate.X, y].Active)
+        {
+            return false;
+        }
+
+        scanY = y;
+        tileType = Tiles[candidate.X, y].Type;
+        return true;
+    }
+
+    public void AddRiskToCandidatesWhoseScanStopsAt(int x, int y, PyramidCandidateRisk risk)
+    {
+        for (int i = 0; i < pyramidCandidates.Count; i++)
+        {
+            PyramidCandidate candidate = pyramidCandidates[i];
+            if (candidate.X != x ||
+                y < candidate.Y ||
+                y >= MainWorldSurface ||
+                !IsFirstActiveScanTile(candidate.X, candidate.Y, y))
+            {
+                continue;
+            }
+
+            AddPyramidCandidateRisk(i, risk);
+        }
+    }
+
+    public PyramidCandidateRisk GetPyramidCandidateRisk(int candidateIndex)
+    {
+        return (uint)candidateIndex < (uint)pyramidCandidateRisks.Count
+            ? pyramidCandidateRisks[candidateIndex]
+            : PyramidCandidateRisk.None;
     }
 
     public void IncludeJungleMudColumns(int leftInclusive, int rightExclusive)
@@ -389,26 +461,84 @@ internal sealed class WorldGenState
         JungleMaxX = JungleMaxX < 0 ? right : Math.Max(JungleMaxX, right);
     }
 
-    public void AddPyramidChest(int x, int y, IReadOnlyList<PyramidChestItem> items)
+    public void AddPyramidChest(
+        int x,
+        int y,
+        IReadOnlyList<PyramidChestItem> items,
+        int candidateIndex,
+        int candidateSourceIndex,
+        int candidateScanY,
+        int candidateSandDepth,
+        int candidateSandSpan,
+        int candidateActiveDepth)
     {
-        pyramidChests.Add(new PyramidChest(x, y, items));
+        pyramidChests.Add(new PyramidChest(
+            x,
+            y,
+            items,
+            candidateIndex,
+            candidateSourceIndex,
+            candidateScanY,
+            candidateSandDepth,
+            candidateSandSpan,
+            candidateActiveDepth));
     }
 
     public PyramidChestSet ScanTargetPyramidChests()
     {
         Bounds bounds = Bounds.ForSpeedrunCorridor(Options.Dimensions.SizeCode());
-        // Later simulated pyramid candidates can be false positives when earlier pyramid terrain blocks them in the real world.
         for (int i = 0; i < pyramidChests.Count; i++)
         {
             PyramidChest chest = pyramidChests[i];
             if (bounds.Intersects(chest.X, chest.Y, width: 2, height: 2) &&
                 chest.Items.Any(PyramidChestItemNames.IsKnownPyramidItem))
             {
+                if (IsRejectedByCandidateRisk(chest))
+                {
+                    return PyramidChestSet.Empty;
+                }
+
                 return new PyramidChestSet([chest]);
             }
         }
 
         return PyramidChestSet.Empty;
+    }
+
+    private bool IsRejectedByCandidateRisk(PyramidChest chest)
+    {
+        PyramidCandidateRisk risk = GetPyramidCandidateRisk(chest.CandidateIndex);
+        if ((risk & PyramidCandidateRisk.HardRejectMask) != 0)
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool IsFirstActiveScanTile(int x, int candidateY, int y)
+    {
+        if (!InWorld(x, y) || !Tiles[x, y].Active)
+        {
+            return false;
+        }
+
+        int startY = Math.Max(0, candidateY);
+        for (int scanY = startY; scanY < y; scanY++)
+        {
+            if (Tiles[x, scanY].Active)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private bool InWorld(int x, int y)
+    {
+        return (uint)x < (uint)Options.Dimensions.Width &&
+            (uint)y < (uint)Options.Dimensions.Height;
     }
 
 }
@@ -482,3 +612,21 @@ internal static class TileIds
 }
 
 internal readonly record struct PyramidCandidate(int X, int Y, int SourceIndex);
+
+[Flags]
+internal enum PyramidCandidateRisk
+{
+    None = 0,
+    CrimsonConvertedScanSand = 1 << 0,
+    FullDesertBoundaryUncertain = 1 << 1,
+    SkippedDungeonBoundaryUncertain = 1 << 2,
+    JungleMudCoverageUncertain = 1 << 3,
+    FullDesertSurfaceUncertain = 1 << 4,
+
+    HardRejectMask =
+        CrimsonConvertedScanSand |
+        FullDesertBoundaryUncertain |
+        SkippedDungeonBoundaryUncertain |
+        JungleMudCoverageUncertain |
+        FullDesertSurfaceUncertain
+}

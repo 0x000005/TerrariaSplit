@@ -14,6 +14,7 @@ internal sealed partial class MainForm : Form
             return;
         }
 
+        TimeSpan elapsed = timerElapsed;
         var context = new OverlayRenderContext(
             settings,
             palette,
@@ -21,14 +22,118 @@ internal sealed partial class MainForm : Form
             splitStatuses,
             currentSplitIndex,
             timerPhase,
-            timerElapsed,
+            elapsed,
             layout,
             mouseClickThrough,
             overlayAnimations.SplitCompletionAnimation,
             overlayAnimations.SegmentBestDeltaHighlights,
             DateTime.UtcNow);
-        OverlayRenderResult result = OverlayRenderer.RenderStatus(graphics, context, renderResources);
+        OverlayRenderResult result = OverlayRenderer.RenderStatus(
+            graphics,
+            context,
+            renderResources,
+            statusOverlayPartialClipBounds);
         overlayAnimations.UpdateAfterRender(result);
+
+        lastStatusOverlayDynamicKey = ComputeStatusOverlayDynamicKey(elapsed);
+        if (statusOverlayPartialClipBounds is null)
+        {
+            statusOverlayContentDirty = false;
+        }
+    }
+
+    private StatusOverlayDynamicKey ComputeStatusOverlayDynamicKey(TimeSpan elapsed)
+    {
+        int index = currentSplitIndex;
+        if (index < 0 ||
+            index >= splitStatuses.Count ||
+            timerPhase == SplitTimerPhase.NotStarted ||
+            !settings.Columns.Delta.Show)
+        {
+            return new StatusOverlayDynamicKey(index, string.Empty, 0);
+        }
+
+        SplitStatusSnapshot status = splitStatuses[index];
+        SplitComparison comparison = SplitRenderData.GetSplitComparison(
+            settings,
+            timerPhase,
+            elapsed,
+            status,
+            isCurrent: true);
+        string deltaText = SplitRenderData.FormatSplitDelta(settings, comparison);
+        if (deltaText.Length == 0)
+        {
+            return new StatusOverlayDynamicKey(index, string.Empty, 0);
+        }
+
+        bool enableDeltaGradient = status.Time is TimeSpan
+            ? settings.EnableDeltaGradientColor
+            : settings.EnableCurrentDeltaGradientColor;
+        Color deltaColor = OverlayColorMath.GetDeltaComparisonColor(
+            settings,
+            comparison,
+            palette,
+            enableDeltaGradient);
+        return new StatusOverlayDynamicKey(index, deltaText, deltaColor.ToArgb());
+    }
+
+    private bool StatusOverlayHighlightsActive =>
+        settings.ShowSegmentBestDeltaHighlight &&
+        overlayAnimations.SegmentBestDeltaHighlights.Count > 0;
+
+    private Rectangle? ComputeStatusOverlayDynamicRegion()
+    {
+        if (!overlayWindowsInitialized || !TryGetLayout(out SplitLayout layout))
+        {
+            return null;
+        }
+
+        OverlayCompositeLayout compositeLayout = overlayBoundsController.CurrentLayout;
+        int bleed = SplitListRenderer.GetRowBleedMargin(settings);
+        Rectangle? region = null;
+
+        void AddRow(int row)
+        {
+            if (row < 0 || row >= splitStatuses.Count)
+            {
+                return;
+            }
+
+            Rectangle rect = Rectangle.Inflate(
+                compositeLayout.ToStatusLocal(layout.GetRowRect(row)),
+                bleed,
+                bleed);
+            region = region is Rectangle existing ? Rectangle.Union(existing, rect) : rect;
+        }
+
+        AddRow(currentSplitIndex);
+        if (StatusOverlayHighlightsActive)
+        {
+            foreach (int row in overlayAnimations.SegmentBestDeltaHighlights.Keys)
+            {
+                AddRow(row);
+            }
+        }
+
+        return region;
+    }
+
+    private bool TryRenderStatusOverlayRegion()
+    {
+        if (ComputeStatusOverlayDynamicRegion() is not Rectangle region)
+        {
+            return false;
+        }
+
+        statusOverlayPartialClipBounds = region;
+        try
+        {
+            return overlayWindowController.RenderRegionImmediately(region);
+        }
+        finally
+        {
+            statusOverlayPartialClipBounds = null;
+        }
     }
 
     private bool TryGetSplitRowAt(Point point, out int rowIndex, out Rectangle rowRect)
@@ -163,3 +268,13 @@ internal sealed partial class MainForm : Form
     }
 
 }
+
+/// <summary>
+/// Per-frame dynamic content of the status overlay while a run is in progress.
+/// When this key is unchanged (and no highlight/completion animation is active),
+/// the previously rendered frame is still pixel-accurate and painting is skipped.
+/// </summary>
+internal readonly record struct StatusOverlayDynamicKey(
+    int CurrentSplitIndex,
+    string DeltaText,
+    int DeltaColorArgb);

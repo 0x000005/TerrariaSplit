@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Reflection;
 
 namespace TerrariaSplit.Tests;
@@ -11,6 +12,51 @@ internal static class HighPrecisionSchedulerTests
         yield return ("High precision scheduler stops callbacks", TestStopStopsCallbacks);
         yield return ("High precision scheduler avoids callback reentry", TestNoCallbackReentry);
         yield return ("High precision scheduler disposes thread", TestDisposeStopsThread);
+        yield return ("High precision scheduler paces ticks near requested interval", TestTickPacingNearRequestedInterval);
+    }
+
+    private static void TestTickPacingNearRequestedInterval()
+    {
+        const int RequiredTicks = 40;
+        using var enoughTicks = new ManualResetEventSlim(false);
+        var timestamps = new List<long>();
+        using var scheduler = new HighPrecisionScheduler("test pacing", tick =>
+        {
+            lock (timestamps)
+            {
+                if (timestamps.Count < RequiredTicks)
+                {
+                    timestamps.Add(tick.ActualTimestamp);
+                    if (timestamps.Count == RequiredTicks)
+                    {
+                        enoughTicks.Set();
+                    }
+                }
+            }
+        });
+
+        scheduler.Start(TimeSpan.FromMilliseconds(5));
+        if (!enoughTicks.Wait(TimeSpan.FromSeconds(3)))
+        {
+            throw new InvalidOperationException("Scheduler did not produce enough ticks before timeout.");
+        }
+
+        scheduler.Stop();
+        long first;
+        long last;
+        lock (timestamps)
+        {
+            first = timestamps[0];
+            last = timestamps[^1];
+        }
+
+        double averageMilliseconds =
+            Stopwatch.GetElapsedTime(first, last).TotalMilliseconds / (RequiredTicks - 1);
+        if (averageMilliseconds < 4.0 || averageMilliseconds > 7.5)
+        {
+            throw new InvalidOperationException(
+                $"Average tick interval {averageMilliseconds:0.00}ms drifted from the requested 5ms.");
+        }
     }
 
     private static void TestStartIsIdempotent()

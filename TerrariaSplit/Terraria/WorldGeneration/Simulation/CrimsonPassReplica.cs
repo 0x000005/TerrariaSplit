@@ -359,9 +359,16 @@ internal static class CrimsonPassReplica
                 {
                     bool shouldConvertSand = x >= left + random.Next(5) &&
                         x <= right - random.Next(5);
-                    if (shouldConvertSand && !IsPyramidCandidateScanColumn(state, x, y))
+                    if (shouldConvertSand)
                     {
-                        tile.Type = TileIds.Crimsand;
+                        state.AddRiskToCandidatesWhoseScanStopsAt(
+                            x,
+                            y,
+                            PyramidCandidateRisk.CrimsonConvertedScanSand);
+                        if (!IsPyramidCandidateScanColumn(state, x, y))
+                        {
+                            tile.Type = TileIds.Crimsand;
+                        }
                     }
                 }
 

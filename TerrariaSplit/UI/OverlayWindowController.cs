@@ -31,6 +31,7 @@ internal sealed class OverlayWindowController : IDisposable
     private readonly Action<Action> dispatch;
     private readonly Func<Bitmap, bool> updateLayeredBitmap;
     private readonly LayeredWindowRenderTarget? renderTarget;
+    private readonly Action renderQueuedCallback;
     private bool renderPending;
     private bool renderInProgress;
     private bool disposed;
@@ -46,6 +47,7 @@ internal sealed class OverlayWindowController : IDisposable
         this.draw = draw;
         this.recordPaint = recordPaint;
         this.dispatch = dispatch ?? (callback => owner.BeginInvoke(callback));
+        renderQueuedCallback = RenderQueued;
         if (updateLayeredBitmap is null)
         {
             renderTarget = new LayeredWindowRenderTarget();
@@ -67,7 +69,7 @@ internal sealed class OverlayWindowController : IDisposable
         renderPending = true;
         try
         {
-            dispatch(RenderQueued);
+            dispatch(renderQueuedCallback);
         }
         catch (ObjectDisposedException)
         {
@@ -105,6 +107,58 @@ internal sealed class OverlayWindowController : IDisposable
         catch (Exception ex)
         {
             AppLogger.Error(ex, "Layered overlay render failed.");
+        }
+        finally
+        {
+            renderInProgress = false;
+            recordPaint(Stopwatch.GetElapsedTime(startTimestamp));
+        }
+    }
+
+    /// <summary>
+    /// Redraws only <paramref name="dirtyRect"/> on the persistent layered
+    /// surface. Returns false when no persistent render target is available so
+    /// the caller can fall back to a full render.
+    /// </summary>
+    public bool RenderRegionImmediately(Rectangle dirtyRect)
+    {
+        if (!owner.IsHandleCreated || owner.IsDisposed || owner.Disposing || disposed)
+        {
+            renderPending = false;
+            return true;
+        }
+
+        if (renderTarget is null)
+        {
+            return false;
+        }
+
+        if (renderInProgress)
+        {
+            return true;
+        }
+
+        renderPending = false;
+        renderInProgress = true;
+        long startTimestamp = Stopwatch.GetTimestamp();
+        try
+        {
+            if (owner.ClientSize.Width <= 0 || owner.ClientSize.Height <= 0)
+            {
+                return true;
+            }
+
+            if (!renderTarget.RenderRegion(owner, draw, ConfigureGraphics, dirtyRect))
+            {
+                AppLogger.Info($"Layered overlay region update failed. Win32Error={Marshal.GetLastWin32Error()}.");
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error(ex, "Layered overlay region render failed.");
+            return true;
         }
         finally
         {

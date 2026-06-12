@@ -14,17 +14,26 @@ internal static class SandCleanupPasses
         int width = state.Options.Dimensions.Width;
         int height = state.Options.Dimensions.Height;
         DenseTileGrid tiles = state.Tiles;
-        (int interestLeft, int interestRight) = WorldInterestArea.TargetPyramidXRange(state.Options.Dimensions);
+        const int boundaryPadding = 3;
+        (int targetLeft, int targetRight) = WorldInterestArea.TargetPyramidXRange(state.Options.Dimensions);
+        int interestLeft = Math.Max(5, targetLeft - boundaryPadding);
+        int interestRight = Math.Min(width - 5, targetRight + boundaryPadding);
+        if (interestLeft >= interestRight)
+        {
+            progress.Set(1.0);
+            return;
+        }
+
         for (int pass = 0; pass < 2; pass++)
         {
             int direction = 1;
-            int start = Math.Max(5, interestLeft);
-            int end = Math.Min(width - 5, interestRight - 1);
+            int start = interestLeft;
+            int end = interestRight;
             if (pass == 1)
             {
                 direction = -1;
-                start = Math.Min(width - 5, interestRight - 1);
-                end = Math.Max(5, interestLeft);
+                start = interestRight - 1;
+                end = interestLeft - 1;
             }
 
             for (int x = start; x != end; x += direction)

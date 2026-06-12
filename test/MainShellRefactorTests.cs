@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Drawing;
 using System.Windows.Forms;
 using TerrariaSplit;
@@ -9,6 +10,7 @@ internal static class MainShellRefactorTests
     public static IEnumerable<(string Name, Action Test)> All()
     {
         yield return ("TerrariaMonitorCoordinator preserves watcher interval policy", TerrariaMonitorCoordinatorPreservesWatcherIntervalPolicy);
+        yield return ("TerrariaMonitorCoordinator publishes only changed or heartbeat completions", TerrariaMonitorCoordinatorPublishesOnlyChangedOrHeartbeatCompletions);
         yield return ("TerrariaMonitorCoordinator polls watcher without UI ticks", TerrariaMonitorCoordinatorPollsWatcherWithoutUiTicks);
         yield return ("TerrariaMonitorCoordinator produces runtime state without UI ticks", TerrariaMonitorCoordinatorProducesRuntimeStateWithoutUiTicks);
         yield return ("TerrariaMonitorCoordinator clears queued menu actions before processing", TerrariaMonitorCoordinatorClearsQueuedMenuActionsBeforeProcessing);
@@ -50,6 +52,68 @@ internal static class MainShellRefactorTests
         TestAssert.Equal(
             TimeSpan.FromMilliseconds(5),
             TerrariaMonitorCoordinator.GetNextWatcherPollInterval(TestSnapshots.Terraria(isGameMenu: true), SplitTimerPhase.Paused));
+    }
+
+    private static void TerrariaMonitorCoordinatorPublishesOnlyChangedOrHeartbeatCompletions()
+    {
+        TimeSpan heartbeat = TimeSpan.FromMilliseconds(250);
+        long heartbeatTicks = (long)(heartbeat.TotalSeconds * Stopwatch.Frequency);
+        TerrariaWatchSnapshot snapshot = TestSnapshots.Terraria(isGameMenu: true);
+        RuntimeRunSnapshot runtimeSnapshot = RuntimeRunSnapshot.Empty;
+        TerrariaWatcherDiagnostics diagnostics = TerrariaWatcherDiagnosticsDefaults.Empty;
+
+        WatcherPollCompletion MakeCompletion(
+            long completedTimestamp,
+            TerrariaWatchSnapshot? snapshotOverride = null,
+            RuntimeRunSnapshot? runtimeOverride = null,
+            IReadOnlyList<RunEvent>? events = null,
+            long commandSequence = 0)
+        {
+            return new WatcherPollCompletion(
+                snapshotOverride ?? snapshot,
+                diagnostics,
+                runtimeOverride ?? runtimeSnapshot,
+                events ?? [],
+                commandSequence,
+                TimeSpan.FromMilliseconds(1),
+                completedTimestamp,
+                TimeSpan.FromMilliseconds(5),
+                TimeSpan.FromMilliseconds(5),
+                null);
+        }
+
+        // First completion always publishes.
+        WatcherPollCompletion first = MakeCompletion(1_000);
+        TestAssert.Equal(true, TerrariaMonitorCoordinator.ShouldPublishWatcherCompletion(
+            first, WatcherPublishState.Empty, heartbeat));
+        WatcherPublishState published = WatcherPublishState.FromCompletion(first);
+
+        // Unchanged state inside the heartbeat window stays silent.
+        TestAssert.Equal(false, TerrariaMonitorCoordinator.ShouldPublishWatcherCompletion(
+            MakeCompletion(1_000 + heartbeatTicks / 2), published, heartbeat));
+
+        // Heartbeat republishes unchanged state.
+        TestAssert.Equal(true, TerrariaMonitorCoordinator.ShouldPublishWatcherCompletion(
+            MakeCompletion(1_000 + heartbeatTicks), published, heartbeat));
+
+        // Snapshot value change publishes immediately.
+        TestAssert.Equal(true, TerrariaMonitorCoordinator.ShouldPublishWatcherCompletion(
+            MakeCompletion(1_001, snapshotOverride: TestSnapshots.Terraria(isGameMenu: false)),
+            published,
+            heartbeat));
+
+        // Runtime snapshot instance change publishes immediately.
+        var changedRuntime = RuntimeRunSnapshot.Empty with { CurrentSplitIndex = 1 };
+        TestAssert.Equal(true, TerrariaMonitorCoordinator.ShouldPublishWatcherCompletion(
+            MakeCompletion(1_001, runtimeOverride: changedRuntime), published, heartbeat));
+
+        // Run events publish immediately.
+        TestAssert.Equal(true, TerrariaMonitorCoordinator.ShouldPublishWatcherCompletion(
+            MakeCompletion(1_001, events: [new RunEvent(RunEventKind.RunStarted)]), published, heartbeat));
+
+        // Newly applied runtime commands publish immediately.
+        TestAssert.Equal(true, TerrariaMonitorCoordinator.ShouldPublishWatcherCompletion(
+            MakeCompletion(1_001, commandSequence: 7), published, heartbeat));
     }
 
     private static void TerrariaMonitorCoordinatorPollsWatcherWithoutUiTicks()

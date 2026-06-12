@@ -6,7 +6,8 @@ internal sealed class TerrariaWorldFilePyramidScanner
 {
     private const ulong ReLogicMagic = 27981915666277746UL;
     private const byte WorldFileType = 2;
-    private const double CorridorHalfWidthRatio = 0.20d;
+    private const double CorridorLeftRatio = 0.32d;
+    private const double CorridorRightRatio = 0.68d;
     private const double CorridorTopRatio = 0.15d;
     private const double CorridorBottomRatio = 0.35d;
 
@@ -336,20 +337,18 @@ internal sealed class TerrariaWorldFilePyramidScanner
 
     internal static Rectangle BuildSpeedrunCorridorBounds(TerrariaWorldDimensions dimensions)
     {
-        int centerTileX = dimensions.Width / 2;
-        int halfWidth = (int)Math.Round(dimensions.Width * CorridorHalfWidthRatio);
-        int left = Math.Max(1, centerTileX - halfWidth);
-        int right = Math.Min(dimensions.Width - 2, centerTileX + halfWidth);
+        int left = Math.Max(1, (int)Math.Floor(dimensions.Width * CorridorLeftRatio));
+        int rightExclusive = Math.Min(dimensions.Width - 1, (int)Math.Ceiling(dimensions.Width * CorridorRightRatio));
         int top = Math.Max(1, (int)Math.Floor(dimensions.Height * CorridorTopRatio));
         int bottom = Math.Min(
             dimensions.Height - 2,
             Math.Max(top, (int)Math.Ceiling(dimensions.Height * CorridorBottomRatio)));
-        if (right < left || bottom < top)
+        if (rightExclusive <= left || bottom < top)
         {
             return Rectangle.Empty;
         }
 
-        return Rectangle.FromLTRB(left, top, right + 1, bottom + 1);
+        return Rectangle.FromLTRB(left, top, rightExclusive, bottom + 1);
     }
 
     private static bool TryReadWorldFileSections(

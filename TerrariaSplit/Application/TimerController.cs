@@ -34,11 +34,9 @@ internal sealed class TimerController
         int? completedSplitIndex = null;
         bool runCompleted = false;
 
-        var events = new List<RunEvent>(4);
         if (TryConsumePendingMenuAction(snapshot, out MenuActionKind pendingAction))
         {
-            events.Add(new RunEvent(RunEventKind.MenuActionRequested, MenuAction: pendingAction));
-            return events;
+            return [new RunEvent(RunEventKind.MenuActionRequested, MenuAction: pendingAction)];
         }
 
         if (snapshot.EnteredWorld && runTimer.Phase == SplitTimerPhase.NotStarted)
@@ -62,6 +60,12 @@ internal sealed class TimerController
             }
         }
 
+        if (!runStarted && completedSplitIndex is null && !runCompleted)
+        {
+            return [];
+        }
+
+        var events = new List<RunEvent>(3);
         if (runStarted)
         {
             events.Add(new RunEvent(RunEventKind.RunStarted));

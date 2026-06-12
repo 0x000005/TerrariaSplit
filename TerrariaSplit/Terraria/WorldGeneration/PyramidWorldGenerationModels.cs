@@ -52,7 +52,13 @@ internal readonly record struct PyramidChestSet(IReadOnlyList<PyramidChest> Ches
 internal readonly record struct PyramidChest(
     int X,
     int Y,
-    IReadOnlyList<PyramidChestItem> Items)
+    IReadOnlyList<PyramidChestItem> Items,
+    int CandidateIndex,
+    int CandidateSourceIndex,
+    int CandidateScanY,
+    int CandidateSandDepth,
+    int CandidateSandSpan,
+    int CandidateActiveDepth)
 {
     public string FormatLootSummary()
     {
@@ -131,8 +137,8 @@ internal readonly record struct Bounds(int Left, int Top, int RightExclusive, in
             _ => (6400, 1800)
         };
 
-        int left = Math.Max(1, (int)Math.Floor(width * 0.35d));
-        int rightExclusive = Math.Min(width - 1, (int)Math.Ceiling(width * 0.75d));
+        int left = Math.Max(1, (int)Math.Floor(width * 0.32d));
+        int rightExclusive = Math.Min(width - 1, (int)Math.Ceiling(width * 0.68d));
         int top = Math.Max(1, (int)Math.Floor(height * 0.15d));
         int bottomExclusive = Math.Min(height - 1, Math.Max(top + 1, (int)Math.Ceiling(height * 0.35d)));
         return new Bounds(left, top, rightExclusive, bottomExclusive);

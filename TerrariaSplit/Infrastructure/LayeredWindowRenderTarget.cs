@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
@@ -13,12 +14,24 @@ internal sealed class LayeredWindowRenderTarget : IDisposable
     private const uint BiRgb = 0;
     private const uint DibRgbColors = 0;
 
+    // Offsets into the unmanaged scratch block used for the pointer members of
+    // UPDATELAYEREDWINDOWINFO (POINT dst, SIZE size, POINT src, BLENDFUNCTION,
+    // RECT dirty).
+    private const int ScratchDestinationOffset = 0;
+    private const int ScratchSizeOffset = 8;
+    private const int ScratchSourceOffset = 16;
+    private const int ScratchBlendOffset = 24;
+    private const int ScratchDirtyRectOffset = 28;
+    private const int ScratchLength = 44;
+
     private Bitmap? bitmap;
     private IntPtr memoryDc;
     private IntPtr bitmapHandle;
     private IntPtr oldBitmap;
     private IntPtr bits;
     private Size size;
+    private IntPtr scratch;
+    private SolidBrush? clearBrush;
 
     public bool Render(Form form, Func<Graphics, bool> draw, Action<Graphics> configureGraphics)
     {
@@ -46,10 +59,52 @@ internal sealed class LayeredWindowRenderTarget : IDisposable
         return UpdateWindow(form);
     }
 
+    /// <summary>
+    /// Redraws only <paramref name="dirtyRect"/> on the persistent surface and
+    /// pushes that region to the compositor. Requires a previous full
+    /// <see cref="Render"/> at the current client size; falls back to a full
+    /// render otherwise. The draw callback runs with the clip set to the dirty
+    /// region, over a region cleared back to transparent.
+    /// </summary>
+    public bool RenderRegion(Form form, Func<Graphics, bool> draw, Action<Graphics> configureGraphics, Rectangle dirtyRect)
+    {
+        Size clientSize = form.ClientSize;
+        if (bitmap is null || size != clientSize)
+        {
+            return Render(form, draw, configureGraphics);
+        }
+
+        dirtyRect.Intersect(new Rectangle(Point.Empty, size));
+        if (dirtyRect.Width <= 0 || dirtyRect.Height <= 0)
+        {
+            return true;
+        }
+
+        using (Graphics graphics = Graphics.FromImage(bitmap))
+        {
+            configureGraphics(graphics);
+            graphics.SetClip(dirtyRect);
+            graphics.CompositingMode = CompositingMode.SourceCopy;
+            graphics.FillRectangle(clearBrush ??= new SolidBrush(Color.Transparent), dirtyRect);
+            graphics.CompositingMode = CompositingMode.SourceOver;
+            if (!draw(graphics))
+            {
+                return false;
+            }
+
+            graphics.ResetClip();
+        }
+
+        return UpdateWindowRegion(form, dirtyRect) || UpdateWindow(form);
+    }
+
     public void Dispose()
     {
         bitmap?.Dispose();
         bitmap = null;
+
+        clearBrush?.Dispose();
+        clearBrush = null;
 
         if (oldBitmap != IntPtr.Zero && memoryDc != IntPtr.Zero)
         {
@@ -67,6 +122,12 @@ internal sealed class LayeredWindowRenderTarget : IDisposable
         {
             DeleteDC(memoryDc);
             memoryDc = IntPtr.Zero;
+        }
+
+        if (scratch != IntPtr.Zero)
+        {
+            Marshal.FreeHGlobal(scratch);
+            scratch = IntPtr.Zero;
         }
 
         bits = IntPtr.Zero;
@@ -226,6 +287,70 @@ internal sealed class LayeredWindowRenderTarget : IDisposable
         }
     }
 
+    private bool UpdateWindowRegion(Form form, Rectangle dirtyRect)
+    {
+        IntPtr screenDc = GetDC(IntPtr.Zero);
+        if (screenDc == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        try
+        {
+            if (scratch == IntPtr.Zero)
+            {
+                scratch = Marshal.AllocHGlobal(ScratchLength);
+            }
+
+            Marshal.StructureToPtr(
+                new NativePoint(form.Left, form.Top),
+                scratch + ScratchDestinationOffset,
+                fDeleteOld: false);
+            Marshal.StructureToPtr(
+                new NativeSize(size.Width, size.Height),
+                scratch + ScratchSizeOffset,
+                fDeleteOld: false);
+            Marshal.StructureToPtr(
+                new NativePoint(0, 0),
+                scratch + ScratchSourceOffset,
+                fDeleteOld: false);
+            Marshal.StructureToPtr(
+                new BlendFunction
+                {
+                    BlendOp = AcSrcOver,
+                    BlendFlags = 0,
+                    SourceConstantAlpha = 255,
+                    AlphaFormat = AcSrcAlpha
+                },
+                scratch + ScratchBlendOffset,
+                fDeleteOld: false);
+            Marshal.StructureToPtr(
+                new NativeRect(dirtyRect.Left, dirtyRect.Top, dirtyRect.Right, dirtyRect.Bottom),
+                scratch + ScratchDirtyRectOffset,
+                fDeleteOld: false);
+
+            var info = new UpdateLayeredWindowInfo
+            {
+                Size = (uint)Marshal.SizeOf<UpdateLayeredWindowInfo>(),
+                DestinationDc = screenDc,
+                DestinationPoint = scratch + ScratchDestinationOffset,
+                WindowSize = scratch + ScratchSizeOffset,
+                SourceDc = memoryDc,
+                SourcePoint = scratch + ScratchSourceOffset,
+                ColorKey = 0,
+                BlendFunction = scratch + ScratchBlendOffset,
+                Flags = UlwAlpha,
+                DirtyRect = scratch + ScratchDirtyRectOffset
+            };
+
+            return UpdateLayeredWindowIndirect(form.Handle, ref info);
+        }
+        finally
+        {
+            ReleaseDC(IntPtr.Zero, screenDc);
+        }
+    }
+
     [DllImport("user32.dll", SetLastError = true)]
     private static extern IntPtr GetDC(IntPtr hWnd);
 
@@ -266,6 +391,44 @@ internal sealed class LayeredWindowRenderTarget : IDisposable
         int crKey,
         ref BlendFunction pblend,
         int dwFlags);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool UpdateLayeredWindowIndirect(
+        IntPtr hWnd,
+        ref UpdateLayeredWindowInfo info);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct UpdateLayeredWindowInfo
+    {
+        public uint Size;
+        public IntPtr DestinationDc;
+        public IntPtr DestinationPoint;
+        public IntPtr WindowSize;
+        public IntPtr SourceDc;
+        public IntPtr SourcePoint;
+        public uint ColorKey;
+        public IntPtr BlendFunction;
+        public uint Flags;
+        public IntPtr DirtyRect;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativeRect
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+
+        public NativeRect(int left, int top, int right, int bottom)
+        {
+            Left = left;
+            Top = top;
+            Right = right;
+            Bottom = bottom;
+        }
+    }
 
     [StructLayout(LayoutKind.Sequential)]
     private struct NativePoint

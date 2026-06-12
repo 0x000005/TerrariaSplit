@@ -13,6 +13,7 @@ internal sealed class TerrariaMonitorCoordinator : IDisposable
     private static readonly TimeSpan WatcherScanPollInterval = TimeSpan.FromMilliseconds(250);
     private static readonly TimeSpan WatcherProcessLookupInterval = TimeSpan.FromSeconds(1);
     private static readonly TimeSpan UiScalePatchRetryInterval = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan WatcherHeartbeatInterval = TimeSpan.FromMilliseconds(250);
     private const int MaxWatcherCompletionsPerDispatch = 8;
 
     private readonly ITerrariaWorldWatcher watcher;
@@ -21,6 +22,7 @@ internal sealed class TerrariaMonitorCoordinator : IDisposable
     private readonly Func<DateTime> utcNowProvider;
     private readonly Func<int, bool> isProcessStillRunning;
     private readonly Func<bool> shouldYieldDispatch;
+    private readonly Action<TimeSpan, long>? recordPoll;
     private readonly Action<string> logInfo;
     private readonly Action<Exception, string> logError;
     private readonly ConcurrentQueue<WatcherPollCompletion> pendingWatcherCompletions = new();
@@ -50,7 +52,8 @@ internal sealed class TerrariaMonitorCoordinator : IDisposable
         Action<Exception, string>? logError = null,
         Func<DateTime>? utcNowProvider = null,
         Func<int, bool>? isProcessStillRunning = null,
-        Func<bool>? shouldYieldDispatch = null)
+        Func<bool>? shouldYieldDispatch = null,
+        Action<TimeSpan, long>? recordPoll = null)
     {
         this.watcher = watcher;
         this.uiScalePatchApplier = uiScalePatchApplier;
@@ -60,6 +63,7 @@ internal sealed class TerrariaMonitorCoordinator : IDisposable
         this.utcNowProvider = utcNowProvider ?? (() => DateTime.UtcNow);
         this.isProcessStillRunning = isProcessStillRunning ?? IsProcessStillRunning;
         this.shouldYieldDispatch = shouldYieldDispatch ?? (() => false);
+        this.recordPoll = recordPoll;
         CurrentSnapshot = new TerrariaWatchSnapshot(
             false,
             null,
@@ -246,13 +250,13 @@ internal sealed class TerrariaMonitorCoordinator : IDisposable
     private void RunWatcherLoop(CancellationToken cancellationToken)
     {
         using HighResolutionTimerPeriod? timerPeriod = HighResolutionTimerPeriod.TryBegin(1);
+        WaitHandle[] loopWaitHandles = [cancellationToken.WaitHandle, watcherLoopSignal];
+        var publishState = WatcherPublishState.Empty;
         while (!cancellationToken.IsCancellationRequested)
         {
             if (IsUiDispatchSuspended())
             {
-                int suspendedWaitResult = WaitHandle.WaitAny(
-                    [cancellationToken.WaitHandle, watcherLoopSignal],
-                    WatcherScanPollInterval);
+                int suspendedWaitResult = WaitHandle.WaitAny(loopWaitHandles, WatcherScanPollInterval);
                 if (suspendedWaitResult == 0)
                 {
                     return;
@@ -265,16 +269,43 @@ internal sealed class TerrariaMonitorCoordinator : IDisposable
             WatcherPollCompletion completion = PollWatcher(
                 commandResult.LatestAppliedSequence,
                 commandResult.Events);
-            QueueWatcherCompletion(completion);
+            recordPoll?.Invoke(completion.Elapsed, completion.CompletedTimestamp);
 
-            int signaled = WaitHandle.WaitAny(
-                [cancellationToken.WaitHandle, watcherLoopSignal],
-                completion.NextPollInterval);
+            // Most polls observe identical state; skipping their dispatch keeps
+            // the UI thread idle without delaying change notifications, while the
+            // heartbeat keeps diagnostics consumers fresh.
+            if (ShouldPublishWatcherCompletion(completion, publishState, WatcherHeartbeatInterval))
+            {
+                publishState = WatcherPublishState.FromCompletion(completion);
+                QueueWatcherCompletion(completion);
+            }
+
+            int signaled = WaitHandle.WaitAny(loopWaitHandles, completion.NextPollInterval);
             if (signaled == 0)
             {
                 return;
             }
         }
+    }
+
+    internal static bool ShouldPublishWatcherCompletion(
+        in WatcherPollCompletion completion,
+        in WatcherPublishState lastPublished,
+        TimeSpan heartbeatInterval)
+    {
+        if (!lastPublished.HasPublished ||
+            completion.Error is not null ||
+            completion.RunEvents.Count > 0 ||
+            completion.RuntimeCommandSequence != lastPublished.RuntimeCommandSequence ||
+            completion.Snapshot != lastPublished.Snapshot ||
+            !ReferenceEquals(completion.RuntimeSnapshot, lastPublished.RuntimeSnapshot) ||
+            completion.Diagnostics != lastPublished.Diagnostics)
+        {
+            return true;
+        }
+
+        return Stopwatch.GetElapsedTime(lastPublished.PublishedTimestamp, completion.CompletedTimestamp) >=
+            heartbeatInterval;
     }
 
     private WatcherPollCompletion PollWatcher(
@@ -649,3 +680,25 @@ internal readonly record struct WatcherPollCompletion(
 internal readonly record struct RuntimeProcessorCommand(
     long Sequence,
     RuntimeCommand Command);
+
+internal readonly record struct WatcherPublishState(
+    bool HasPublished,
+    TerrariaWatchSnapshot Snapshot,
+    RuntimeRunSnapshot? RuntimeSnapshot,
+    TerrariaWatcherDiagnostics Diagnostics,
+    long RuntimeCommandSequence,
+    long PublishedTimestamp)
+{
+    public static WatcherPublishState Empty => default;
+
+    public static WatcherPublishState FromCompletion(in WatcherPollCompletion completion)
+    {
+        return new WatcherPublishState(
+            HasPublished: true,
+            completion.Snapshot,
+            completion.RuntimeSnapshot,
+            completion.Diagnostics,
+            completion.RuntimeCommandSequence,
+            completion.CompletedTimestamp);
+    }
+}

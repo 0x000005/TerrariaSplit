@@ -13,6 +13,7 @@ internal static class HotkeyTests
         yield return ("TimerController records automatic events at observed timestamps", TimerControllerRecordsAutomaticEventsAtObservedTimestamps);
         yield return ("BossSplitTracker skips initially defeated bosses after delayed state resolution", BossSplitTrackerSkipsInitiallyDefeatedBossesAfterDelayedStateResolution);
         yield return ("BossSplitTracker completes bosses after initial incomplete state", BossSplitTrackerCompletesBossesAfterInitialIncompleteState);
+        yield return ("WatcherRuntimeProcessor reuses snapshot instances while state is unchanged", WatcherRuntimeProcessorReusesUnchangedSnapshots);
     }
 
     private static void HotkeyCommandMapperRoutesHotkeysIntoAppCommands()
@@ -279,6 +280,47 @@ internal static class HotkeyTests
                 [BossSplitDefinitions.Skeletron])
         ]);
         return tracker;
+    }
+
+    private static void WatcherRuntimeProcessorReusesUnchangedSnapshots()
+    {
+        var processor = new WatcherRuntimeProcessor(TimeSpan.FromSeconds(1));
+        _ = processor.ApplyCommand(
+            RuntimeCommand.SetDefinitions([
+                new BossSplitDefinition(
+                    BossSplitDefinitions.Skeletron,
+                    "Skeletron",
+                    [BossFlag.Skeletron],
+                    Array.Empty<string>(),
+                    Array.Empty<string>(),
+                    [BossSplitDefinitions.Skeletron])
+            ]),
+            1_000);
+
+        RuntimeProcessorTickResult first = processor.Tick(TestSnapshots.Terraria(isGameMenu: true), 2_000, []);
+        RuntimeProcessorTickResult second = processor.Tick(TestSnapshots.Terraria(isGameMenu: true), 3_000, []);
+        TestAssert.Equal(true, ReferenceEquals(first.Snapshot, second.Snapshot));
+        TestAssert.Equal(0, second.Events.Count);
+
+        RuntimeProcessorTickResult started = processor.Tick(
+            TestSnapshots.Terraria(isGameMenu: false, bossStates: CreateSkeletronState(false), enteredWorld: true),
+            4_000,
+            []);
+        TestAssert.Equal(false, ReferenceEquals(second.Snapshot, started.Snapshot));
+        TestAssert.Equal(true, HasEvent(started.Events, RunEventKind.RunStarted));
+
+        RuntimeProcessorTickResult running = processor.Tick(
+            TestSnapshots.Terraria(isGameMenu: false, bossStates: CreateSkeletronState(false)),
+            5_000,
+            []);
+        TestAssert.Equal(true, ReferenceEquals(started.Snapshot, running.Snapshot));
+
+        RuntimeProcessorTickResult completed = processor.Tick(
+            TestSnapshots.Terraria(isGameMenu: false, bossStates: CreateSkeletronState(true)),
+            6_000,
+            []);
+        TestAssert.Equal(false, ReferenceEquals(running.Snapshot, completed.Snapshot));
+        TestAssert.Equal(0, GetCompletedSplitIndex(completed.Events));
     }
 
     private static TerrariaBossStates CreateSkeletronState(bool defeated)

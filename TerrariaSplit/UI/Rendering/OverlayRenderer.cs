@@ -7,7 +7,8 @@ internal static class OverlayRenderer
     public static OverlayRenderResult RenderStatus(
         Graphics graphics,
         OverlayRenderContext context,
-        OverlayRenderResources resources)
+        OverlayRenderResources resources,
+        Rectangle? clipBounds = null)
     {
         bool animationActive = SplitCompletionAnimationRenderer.TryGetActiveAnimation(
             context.Settings,
@@ -20,7 +21,7 @@ internal static class OverlayRenderer
             context.SplitCompletionAnimation is not null;
         float listOpacity = animationVisible ? 1f - animationOpacity : 1f;
 
-        SplitListRenderer.Render(graphics, context, resources, listOpacity);
+        SplitListRenderer.Render(graphics, context, resources, listOpacity, clipBounds);
 
         if (animationVisible && context.SplitCompletionAnimation is not null)
         {

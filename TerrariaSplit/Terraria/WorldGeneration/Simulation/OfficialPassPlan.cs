@@ -324,9 +324,9 @@ internal static class OfficialPassPlan
     {
         generator.Append(new DelegateGenPass(name, weight, static (_, _) =>
         {
-            // Stage 1 stops at Pyramids. These audited skips are sky-only, cavern-only,
-            // bottom-only, far-edge, wall-only, sand-protected, or post-target work
-            // with no known pre-Pyramids dependency in the target pyramid area.
+            // Pass RNG is reset by Terraria's worldgen runner. Skipping these bodies
+            // is only valid when their target-area mutations are audited away or
+            // guarded later by PyramidCandidateRisk hard rejects.
         }));
     }
 

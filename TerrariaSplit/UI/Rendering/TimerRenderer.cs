@@ -75,15 +75,12 @@ internal static class TimerRenderer
         string millisecondsText = SplitTimerFormatter.FormatMilliseconds(context.TimerElapsed);
         Font mainFont = resources.Fonts.GetColumnFont(context.Settings.Columns.Timer, context.ScaleFactor);
         Font millisecondsFont = resources.Fonts.GetColumnFont(context.Settings.Columns.TimerMilliseconds, context.ScaleFactor);
-        float mainOpacity = OverlayTextStyles.GetTimerTextOpacity(context.Settings, milliseconds: false);
-        float millisecondsOpacity = OverlayTextStyles.GetTimerTextOpacity(context.Settings, milliseconds: true);
 
-        using var format = new StringFormat(StringFormat.GenericTypographic);
         SizeF millisecondsSize = context.Settings.Columns.TimerMilliseconds.Show
-            ? graphics.MeasureString(millisecondsText, millisecondsFont, bounds.Size, format)
+            ? resources.MeasureTimerText(graphics, millisecondsText, millisecondsFont, bounds.Size)
             : SizeF.Empty;
         SizeF mainSize = context.Settings.Columns.Timer.Show
-            ? graphics.MeasureString(mainText, mainFont, bounds.Size, format)
+            ? resources.MeasureTimerText(graphics, mainText, mainFont, bounds.Size)
             : SizeF.Empty;
 
         float gap = context.Settings.Columns.Timer.Show && context.Settings.Columns.TimerMilliseconds.Show
@@ -113,19 +110,19 @@ internal static class TimerRenderer
         float mainOpacity = OverlayTextStyles.GetTimerTextOpacity(context.Settings, milliseconds: false);
         float millisecondsOpacity = OverlayTextStyles.GetTimerTextOpacity(context.Settings, milliseconds: true);
 
-        using var format = new StringFormat(StringFormat.GenericTypographic);
+        StringFormat format = resources.TypographicFormat;
         SizeF millisecondsSize = context.Settings.Columns.TimerMilliseconds.Show
-            ? graphics.MeasureString(millisecondsText, millisecondsFont, bounds.Size, format)
+            ? resources.MeasureTimerText(graphics, millisecondsText, millisecondsFont, bounds.Size)
             : SizeF.Empty;
         SizeF mainSize = context.Settings.Columns.Timer.Show
-            ? graphics.MeasureString(mainText, mainFont, bounds.Size, format)
+            ? resources.MeasureTimerText(graphics, mainText, mainFont, bounds.Size)
             : SizeF.Empty;
 
         float gap = context.Settings.Columns.Timer.Show && context.Settings.Columns.TimerMilliseconds.Show
             ? context.ScaleInt(2)
             : 0f;
-        FontMetrics mainMetrics = OverlayTextMetrics.GetFontMetrics(graphics, mainFont);
-        FontMetrics millisecondsMetrics = OverlayTextMetrics.GetFontMetrics(graphics, millisecondsFont);
+        FontMetrics mainMetrics = resources.GetFontMetrics(graphics, mainFont);
+        FontMetrics millisecondsMetrics = resources.GetFontMetrics(graphics, millisecondsFont);
         float groupAscent = Math.Max(mainMetrics.Ascent, millisecondsMetrics.Ascent);
         float groupDescent = Math.Max(mainMetrics.Descent, millisecondsMetrics.Descent);
         float groupHeight = groupAscent + groupDescent;
@@ -136,12 +133,16 @@ internal static class TimerRenderer
         float mainY = baselineY - mainMetrics.Ascent;
         float millisecondsX = mainX + (context.Settings.Columns.Timer.Show ? mainSize.Width : 0f) + gap;
         float millisecondsY = baselineY - millisecondsMetrics.Ascent;
-        RectangleF mainVisualBounds = context.Settings.Columns.Timer.Show
-            ? OverlayTextMetrics.GetTextVisualBounds(graphics, mainText, mainFont, mainX, mainY, format)
-            : RectangleF.Empty;
-        RectangleF millisecondsVisualBounds = context.Settings.Columns.TimerMilliseconds.Show
-            ? OverlayTextMetrics.GetTextVisualBounds(graphics, millisecondsText, millisecondsFont, millisecondsX, millisecondsY, format)
-            : RectangleF.Empty;
+
+        // Timer strings only contain digit-class glyphs, so the cached per-font
+        // digit bounds reproduce the live text's vertical visual extent without
+        // building a GraphicsPath per frame.
+        (float mainTopOffset, float mainVisualHeight) = context.Settings.Columns.Timer.Show
+            ? resources.GetTimerDigitsVisualBounds(graphics, mainFont)
+            : (0f, 0f);
+        (float millisecondsTopOffset, float millisecondsVisualHeight) = context.Settings.Columns.TimerMilliseconds.Show
+            ? resources.GetTimerDigitsVisualBounds(graphics, millisecondsFont)
+            : (0f, 0f);
 
         if (context.Settings.Columns.Timer.Show)
         {
@@ -174,15 +175,15 @@ internal static class TimerRenderer
         float groupWidth = (context.Settings.Columns.Timer.Show ? mainSize.Width : 0f) + gap +
             (context.Settings.Columns.TimerMilliseconds.Show ? millisecondsSize.Width : 0f);
         float mainHeight = mainMetrics.Ascent + mainMetrics.Descent;
-        float anchorTop = context.Settings.Columns.Timer.Show && mainVisualBounds.Height > 0f
-            ? mainVisualBounds.Top
-            : context.Settings.Columns.TimerMilliseconds.Show && millisecondsVisualBounds.Height > 0f
-                ? millisecondsVisualBounds.Top
+        float anchorTop = context.Settings.Columns.Timer.Show && mainVisualHeight > 0f
+            ? mainY + mainTopOffset
+            : context.Settings.Columns.TimerMilliseconds.Show && millisecondsVisualHeight > 0f
+                ? millisecondsY + millisecondsTopOffset
                 : context.Settings.Columns.Timer.Show ? mainY : groupY;
-        float anchorHeight = context.Settings.Columns.Timer.Show && mainVisualBounds.Height > 0f
-            ? mainVisualBounds.Height
-            : context.Settings.Columns.TimerMilliseconds.Show && millisecondsVisualBounds.Height > 0f
-                ? millisecondsVisualBounds.Height
+        float anchorHeight = context.Settings.Columns.Timer.Show && mainVisualHeight > 0f
+            ? mainVisualHeight
+            : context.Settings.Columns.TimerMilliseconds.Show && millisecondsVisualHeight > 0f
+                ? millisecondsVisualHeight
                 : context.Settings.Columns.Timer.Show ? mainHeight : groupHeight;
         return new TimerTextLayout(
             mainX + groupWidth,

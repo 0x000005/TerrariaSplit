@@ -41,6 +41,10 @@ internal static class FullDesertPassReplica
                 }
             }
         }
+
+        // Jungle uncertainty needs underground-desert bounds so true desert pyramids
+        // are not rejected just because they are on the jungle-facing side.
+        JunglePassReplica.MarkCandidatesInSkippedJungleMudUncertaintyBand(state);
     }
 
     private static bool PlaceDesert(
@@ -76,6 +80,7 @@ internal static class FullDesertPassReplica
 
         PlaceDesertHive(state, random, description, progress, 0.2, 0.75);
         CleanupArea(state, description.Hive, progress, 0.75, 1.0);
+        MarkCandidatesWithFullDesertSurfaceUncertainty(state, description);
         return true;
     }
 
@@ -381,8 +386,9 @@ internal static class FullDesertPassReplica
         double progressMax)
     {
         ClusterGroup clusters = ClusterGroup.FromDescription(description, random);
-        WorldRect area = description.Hive.Inflated(20, 20);
-        area = ClipToTargetPyramidArea(state, area, horizontalPadding: 16, verticalPadding: 16);
+        WorldRect fullArea = description.Hive.Inflated(20, 20);
+        WorldRect area = ClipToTargetPyramidArea(state, fullArea, horizontalPadding: 16, verticalPadding: 16);
+        MarkCandidatesWithUnsimulatedHiveScanPrefix(state, fullArea, area);
         if (area.Width <= 0 || area.Height <= 0)
         {
             return;
@@ -390,6 +396,123 @@ internal static class FullDesertPassReplica
 
         PlaceClustersArea(state, description, clusters, area, progress, progressMin, progressMax);
         AddTileVariance(state, random, description);
+        MarkCandidatesWithUnsimulatedHiveScanPrefix(state, fullArea, area);
+    }
+
+    private static void MarkCandidatesWithUnsimulatedHiveScanPrefix(
+        WorldGenState state,
+        WorldRect fullArea,
+        WorldRect simulatedArea)
+    {
+        IReadOnlyList<PyramidCandidate> candidates = state.PyramidCandidates;
+        for (int i = 0; i < candidates.Count; i++)
+        {
+            PyramidCandidate candidate = candidates[i];
+            if (!WorldInterestArea.IsInTargetPyramidXRange(state.Options.Dimensions, candidate.X) ||
+                candidate.X < fullArea.Left ||
+                candidate.X >= fullArea.Right)
+            {
+                continue;
+            }
+
+            int scanTop = Math.Max(0, candidate.Y);
+            int scanLimit = Math.Clamp(
+                (int)Math.Ceiling(state.MainWorldSurface),
+                0,
+                state.Options.Dimensions.Height);
+            if (scanTop >= scanLimit)
+            {
+                continue;
+            }
+
+            int scanStopExclusive = FirstActiveScanStopExclusive(state, candidate.X, scanTop, scanLimit);
+            int affectedTop = Math.Max(scanTop, fullArea.Top);
+            int affectedBottom = Math.Min(scanStopExclusive, fullArea.Bottom);
+            if (affectedTop >= affectedBottom)
+            {
+                continue;
+            }
+
+            if (IsScanPrefixCoveredBySimulatedArea(candidate.X, affectedTop, affectedBottom, simulatedArea))
+            {
+                continue;
+            }
+
+            state.AddPyramidCandidateRisk(i, PyramidCandidateRisk.FullDesertBoundaryUncertain);
+        }
+    }
+
+    private static int FirstActiveScanStopExclusive(WorldGenState state, int x, int top, int limit)
+    {
+        int y = top;
+        while (y < limit && !state.Tiles[x, y].Active)
+        {
+            y++;
+        }
+
+        return y < limit ? y + 1 : limit;
+    }
+
+    private static bool IsScanPrefixCoveredBySimulatedArea(
+        int x,
+        int top,
+        int bottom,
+        WorldRect simulatedArea)
+    {
+        return simulatedArea.Width > 0 &&
+            simulatedArea.Height > 0 &&
+            x >= simulatedArea.Left &&
+            x < simulatedArea.Right &&
+            top >= simulatedArea.Top &&
+            bottom <= simulatedArea.Bottom;
+    }
+
+    private static void MarkCandidatesWithFullDesertSurfaceUncertainty(
+        WorldGenState state,
+        DesertDescription description)
+    {
+        IReadOnlyList<PyramidCandidate> candidates = state.PyramidCandidates;
+        for (int i = 0; i < candidates.Count; i++)
+        {
+            PyramidCandidate candidate = candidates[i];
+            if (!WorldInterestArea.IsInTargetPyramidXRange(state.Options.Dimensions, candidate.X) ||
+                !WorldInterestArea.IsPyramidCandidateInBuildableBand(state, candidate.X) ||
+                candidate.X < description.Desert.Left ||
+                candidate.X >= description.Desert.Right ||
+                !state.TryGetPyramidCandidateScanTile(i, out int scanY, out ushort tileType) ||
+                tileType != TileIds.Sand)
+            {
+                continue;
+            }
+
+            if (scanY >= description.Desert.Top &&
+                scanY < description.Hive.Top + 20 &&
+                CountHorizontalSandSpan(state, candidate.X, scanY) <= 8)
+            {
+                state.AddPyramidCandidateRisk(i, PyramidCandidateRisk.FullDesertSurfaceUncertain);
+            }
+        }
+    }
+
+    private static int CountHorizontalSandSpan(WorldGenState state, int x, int y)
+    {
+        int left = x;
+        while (left > 0 &&
+            state.Tiles[left - 1, y].Active &&
+            state.Tiles[left - 1, y].Type == TileIds.Sand)
+        {
+            left--;
+        }
+
+        int right = x;
+        while (right < state.Options.Dimensions.Width - 1 &&
+            state.Tiles[right + 1, y].Active &&
+            state.Tiles[right + 1, y].Type == TileIds.Sand)
+        {
+            right++;
+        }
+
+        return right - left + 1;
     }
 
     private static void PlaceClustersArea(

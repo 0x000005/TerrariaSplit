@@ -6,6 +6,7 @@ internal sealed class WatcherRuntimeProcessor
     private readonly BossSplitTracker splitTracker = new();
     private readonly PendingMenuActionScheduler pendingMenuActions = new();
     private readonly TimerController timerController;
+    private RuntimeRunSnapshot? lastCapturedSnapshot;
 
     public WatcherRuntimeProcessor(TimeSpan pendingMenuGraceDuration)
     {
@@ -76,15 +77,73 @@ internal sealed class WatcherRuntimeProcessor
         IReadOnlyList<RunEvent> commandEvents)
     {
         IReadOnlyList<RunEvent> tickEvents = timerController.Tick(snapshot, observedTimestamp);
-        List<RunEvent> events = new(commandEvents.Count + tickEvents.Count);
-        events.AddRange(commandEvents);
-        events.AddRange(tickEvents);
+        IReadOnlyList<RunEvent> events;
+        if (commandEvents.Count == 0)
+        {
+            events = tickEvents;
+        }
+        else if (tickEvents.Count == 0)
+        {
+            events = commandEvents;
+        }
+        else
+        {
+            var merged = new List<RunEvent>(commandEvents.Count + tickEvents.Count);
+            merged.AddRange(commandEvents);
+            merged.AddRange(tickEvents);
+            events = merged;
+        }
+
         return new RuntimeProcessorTickResult(CaptureSnapshot(observedTimestamp), events);
     }
 
     public RuntimeRunSnapshot CaptureSnapshot(long observedTimestamp)
     {
-        return RuntimeRunSnapshot.FromState(timer.CaptureState(), splitTracker, observedTimestamp);
+        // The watcher loop captures at poll rate while runs sit unchanged for
+        // most polls, so reuse the previous snapshot instance when the timer
+        // state and every tracker status still match it. The comparison is
+        // against live state, so no mutation-side invalidation is needed.
+        SplitTimerState timerState = timer.CaptureState();
+        RuntimeRunSnapshot? cached = lastCapturedSnapshot;
+        if (cached is not null &&
+            cached.TimerState == timerState &&
+            SnapshotMatchesTracker(cached))
+        {
+            return cached;
+        }
+
+        RuntimeRunSnapshot snapshot = RuntimeRunSnapshot.FromState(timerState, splitTracker, observedTimestamp);
+        lastCapturedSnapshot = snapshot;
+        return snapshot;
+    }
+
+    private bool SnapshotMatchesTracker(RuntimeRunSnapshot snapshot)
+    {
+        if (snapshot.CurrentSplitIndex != splitTracker.CurrentIndex)
+        {
+            return false;
+        }
+
+        IReadOnlyList<BossSplitStatus> statuses = splitTracker.Statuses;
+        IReadOnlyList<SplitStatusSnapshot> copies = snapshot.Statuses;
+        if (copies.Count != statuses.Count)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < statuses.Count; i++)
+        {
+            BossSplitStatus status = statuses[i];
+            SplitStatusSnapshot copy = copies[i];
+            if (!ReferenceEquals(copy.Definition, status.Definition) ||
+                copy.Time != status.Time ||
+                copy.IsSkipped != status.IsSkipped)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private IReadOnlyList<RunEvent> ApplyTogglePauseCommand(long observedTimestamp)

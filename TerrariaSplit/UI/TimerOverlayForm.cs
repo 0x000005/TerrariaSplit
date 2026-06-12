@@ -10,6 +10,7 @@ internal sealed class TimerOverlayForm : Form
     private static readonly TimeSpan DefaultRefreshInterval = TimeSpan.FromMilliseconds(16);
     private static readonly TerrariaWatchSnapshot UnknownSnapshot =
         new(false, null, false, null, TerrariaBossStates.Unknown, TerrariaWorldGenerationState.Unknown, false, string.Empty);
+    private static readonly Dictionary<int, SegmentBestDeltaHighlight> EmptySegmentBestDeltaHighlights = new();
     private const string MainTimerWindowTitle = "TerrariaSplit - Main Timer";
     private const int ResizeBorder = 8;
     private const int WsExTransparent = 0x20;
@@ -22,6 +23,7 @@ internal sealed class TimerOverlayForm : Form
     private readonly Action recordPaintDispatchSkipped;
     private readonly Action recordPaintInputSkipped;
     private readonly Func<bool> isInteractionBlocked;
+    private readonly Action dispatchedPaintTick;
     private TimeSpan paintInterval = DefaultRefreshInterval;
     private bool mouseClickThrough;
     private bool interactionBlocked;
@@ -44,6 +46,7 @@ internal sealed class TimerOverlayForm : Form
         this.recordPaintDispatchSkipped = recordPaintDispatchSkipped;
         this.recordPaintInputSkipped = recordPaintInputSkipped;
         this.isInteractionBlocked = isInteractionBlocked;
+        dispatchedPaintTick = DispatchedPaintTick;
         overlayWindowController = new OverlayWindowController(
             this,
             DrawOverlay,
@@ -391,35 +394,37 @@ internal sealed class TimerOverlayForm : Form
 
         try
         {
-            BeginInvoke(new Action(() =>
-            {
-                try
-                {
-                    if (!CanDispatchToUiThread())
-                    {
-                        return;
-                    }
-
-                    if (!UiInputMessageProbe.HasPendingInputMessage())
-                    {
-                        overlayWindowController.RenderImmediately();
-                    }
-                    else
-                    {
-                        recordPaintInputSkipped();
-                    }
-                }
-                finally
-                {
-                    Interlocked.Exchange(ref paintDispatchPending, 0);
-                }
-            }));
+            BeginInvoke(dispatchedPaintTick);
         }
         catch (ObjectDisposedException)
         {
             Interlocked.Exchange(ref paintDispatchPending, 0);
         }
         catch (InvalidOperationException)
+        {
+            Interlocked.Exchange(ref paintDispatchPending, 0);
+        }
+    }
+
+    private void DispatchedPaintTick()
+    {
+        try
+        {
+            if (!CanDispatchToUiThread())
+            {
+                return;
+            }
+
+            if (!UiInputMessageProbe.HasPendingInputMessage())
+            {
+                overlayWindowController.RenderImmediately();
+            }
+            else
+            {
+                recordPaintInputSkipped();
+            }
+        }
+        finally
         {
             Interlocked.Exchange(ref paintDispatchPending, 0);
         }
@@ -478,7 +483,7 @@ internal sealed class TimerOverlayForm : Form
                 layout.Layout,
                 currentState.MouseClickThrough,
                 null,
-                new Dictionary<int, SegmentBestDeltaHighlight>(),
+                EmptySegmentBestDeltaHighlights,
                 DateTime.UtcNow);
             OverlayRenderer.RenderTimer(graphics, context, renderResources);
             return true;

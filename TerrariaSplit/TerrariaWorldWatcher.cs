@@ -21,6 +21,25 @@ internal sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
     private string diagnosticStage = "waiting for process";
     private string status = "waiting for Terraria.exe";
 
+    // Module facts and operational strings are stable between watcher state
+    // transitions, so they are cached instead of being recomputed on every poll
+    // (Process.MainModule enumerates the target's modules and FileVersionInfo
+    // reads version resources from disk on each call).
+    private static readonly TimeSpan ModuleFactsRetryInterval = TimeSpan.FromSeconds(1);
+    private static readonly TimeSpan SeedDiagnosticsReadInterval = TimeSpan.FromMilliseconds(100);
+    private int? moduleFactsProcessId;
+    private bool moduleFactsCaptured;
+    private DateTime nextModuleFactsAttemptUtc = DateTime.MinValue;
+    private string? cachedProcessPath;
+    private string? cachedProcessVersion;
+    private IntPtr cachedMainModuleBaseAddress;
+    private int? cachedMainModuleSize;
+    private TerrariaWorldCreationSeedSnapshot lastSeedDiagnostics = TerrariaWorldCreationSeedSnapshot.Unknown;
+    private DateTime nextSeedDiagnosticsReadUtc = DateTime.MinValue;
+    private (string Stage, string Detail, int ProcessId, bool StartPending)? operationalTextKey;
+    private string? cachedOperationalStage;
+    private string? cachedOperationalStatus;
+
     public TerrariaWorldWatcher()
         : this(Terraria1456Memory.Profile)
     {
@@ -119,8 +138,7 @@ internal sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
         }
 
         previousGameMenu = isGameMenu;
-        diagnosticStage = BuildOperationalStage();
-        status = BuildOperationalStatus();
+        UpdateOperationalText();
 
         return new TerrariaWatchSnapshot(
             true,
@@ -140,6 +158,7 @@ internal sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
 
     public TerrariaWatcherDiagnostics GetDiagnostics()
     {
+        EnsureModuleFactsCaptured();
         TerrariaMemoryResolution resolution = resolver.Resolution;
         TerrariaWorldCreationSeedSnapshot worldCreationSeed = ReadWorldCreationSeedDiagnostics();
         return new TerrariaWatcherDiagnostics(
@@ -148,10 +167,10 @@ internal sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
             profile.SignatureProfileLabel,
             memory?.Is64Bit,
             FormatProcessArchitecture(),
-            TryGetProcessPath(),
-            TryGetProcessVersion(),
-            TryGetMainModuleBaseAddress(),
-            TryGetMainModuleSize(),
+            cachedProcessPath,
+            cachedProcessVersion,
+            cachedMainModuleBaseAddress,
+            cachedMainModuleSize,
             resolver.SignatureScanAttempts,
             resolver.LastSignatureScanUtc,
             resolver.LastSignatureScan,
@@ -235,16 +254,14 @@ internal sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
         if (result.ObservedGameMenu.HasValue)
         {
             InitializeGameMenuState(result.ObservedGameMenu.Value);
-            diagnosticStage = BuildOperationalStage();
-            status = BuildOperationalStatus();
+            UpdateOperationalText();
             return;
         }
 
         if (resolver.HasGameMenuAddress &&
             string.Equals(result.Stage, resolver.BuildResolutionStage(), StringComparison.Ordinal))
         {
-            diagnosticStage = BuildOperationalStage();
-            status = BuildOperationalStatus();
+            UpdateOperationalText();
             return;
         }
 
@@ -289,6 +306,32 @@ internal sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
             : operationalStatus;
     }
 
+    private void UpdateOperationalText()
+    {
+        // Stage and detail are interned constants from the resolver, so the key
+        // comparison is cheap; the interpolated strings are only rebuilt when the
+        // resolver state, process id, or start-pending flag actually changes. The
+        // reference checks guard against other paths having overwritten the text
+        // (e.g. a transient pointer-lost stage) while the key stayed the same.
+        (string, string, int, bool) key = (
+            resolver.BuildResolutionStage(),
+            resolver.BuildResolutionStatusDetail(),
+            process!.Id,
+            IsTimerStartPending());
+        if (operationalTextKey == key &&
+            ReferenceEquals(diagnosticStage, cachedOperationalStage) &&
+            ReferenceEquals(status, cachedOperationalStatus))
+        {
+            return;
+        }
+
+        operationalTextKey = key;
+        cachedOperationalStage = BuildOperationalStage();
+        cachedOperationalStatus = BuildOperationalStatus();
+        diagnosticStage = cachedOperationalStage;
+        status = cachedOperationalStatus;
+    }
+
     private string BuildAttachedStatus(string detail)
     {
         return process is null
@@ -301,18 +344,30 @@ internal sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
         if (memory is null)
         {
             worldCreationSeedReader.Reset();
-            return TerrariaWorldCreationSeedSnapshot.Unknown;
+            nextSeedDiagnosticsReadUtc = DateTime.MinValue;
+            lastSeedDiagnostics = TerrariaWorldCreationSeedSnapshot.Unknown;
+            return lastSeedDiagnostics;
         }
 
         if (previousGameMenu != true)
         {
             worldCreationSeedReader.Reset();
-            return previousGameMenu == false
+            nextSeedDiagnosticsReadUtc = DateTime.MinValue;
+            lastSeedDiagnostics = previousGameMenu == false
                 ? TerrariaWorldCreationSeedSnapshot.NotOnWorldCreationPage
                 : TerrariaWorldCreationSeedSnapshot.Unknown;
+            return lastSeedDiagnostics;
         }
 
-        return worldCreationSeedReader.Read(memory);
+        DateTime now = DateTime.UtcNow;
+        if (now < nextSeedDiagnosticsReadUtc)
+        {
+            return lastSeedDiagnostics;
+        }
+
+        nextSeedDiagnosticsReadUtc = now + SeedDiagnosticsReadInterval;
+        lastSeedDiagnostics = worldCreationSeedReader.Read(memory);
+        return lastSeedDiagnostics;
     }
 
     private string FormatProcessArchitecture()
@@ -325,40 +380,54 @@ internal sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
         return memory.Is64Bit ? "x64" : "x86";
     }
 
-    private string? TryGetProcessPath()
+    private void EnsureModuleFactsCaptured()
     {
-        return TryGetMainModule()?.FileName;
+        if (process is null)
+        {
+            moduleFactsProcessId = null;
+            moduleFactsCaptured = false;
+            cachedProcessPath = null;
+            cachedProcessVersion = null;
+            cachedMainModuleBaseAddress = IntPtr.Zero;
+            cachedMainModuleSize = null;
+            return;
+        }
+
+        if (moduleFactsProcessId != process.Id)
+        {
+            moduleFactsProcessId = process.Id;
+            moduleFactsCaptured = false;
+            cachedProcessPath = null;
+            cachedProcessVersion = null;
+            cachedMainModuleBaseAddress = IntPtr.Zero;
+            cachedMainModuleSize = null;
+            nextModuleFactsAttemptUtc = DateTime.MinValue;
+        }
+
+        if (moduleFactsCaptured || DateTime.UtcNow < nextModuleFactsAttemptUtc)
+        {
+            return;
+        }
+
+        nextModuleFactsAttemptUtc = DateTime.UtcNow + ModuleFactsRetryInterval;
+        ProcessModule? mainModule = TryGetMainModule();
+        if (mainModule is null)
+        {
+            return;
+        }
+
+        cachedProcessPath = mainModule.FileName;
+        cachedProcessVersion = TryGetFileVersion(mainModule);
+        cachedMainModuleBaseAddress = mainModule.BaseAddress;
+        cachedMainModuleSize = mainModule.ModuleMemorySize;
+        moduleFactsCaptured = true;
     }
 
-    private string? TryGetProcessVersion()
+    private static string? TryGetFileVersion(ProcessModule module)
     {
         try
         {
-            return TryGetMainModule()?.FileVersionInfo.FileVersion;
-        }
-        catch (Win32Exception)
-        {
-            return null;
-        }
-    }
-
-    private IntPtr TryGetMainModuleBaseAddress()
-    {
-        try
-        {
-            return TryGetMainModule()?.BaseAddress ?? IntPtr.Zero;
-        }
-        catch (Win32Exception)
-        {
-            return IntPtr.Zero;
-        }
-    }
-
-    private int? TryGetMainModuleSize()
-    {
-        try
-        {
-            return TryGetMainModule()?.ModuleMemorySize;
+            return module.FileVersionInfo.FileVersion;
         }
         catch (Win32Exception)
         {

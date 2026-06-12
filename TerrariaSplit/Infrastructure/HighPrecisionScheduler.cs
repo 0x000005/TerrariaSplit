@@ -12,6 +12,7 @@ internal sealed class HighPrecisionScheduler : IDisposable
 {
     private static readonly TimeSpan MinimumInterval = TimeSpan.FromMilliseconds(1);
     private static readonly TimeSpan SleepGuard = TimeSpan.FromMilliseconds(1);
+    private static readonly TimeSpan HighResolutionWaitGuard = TimeSpan.FromMilliseconds(0.1);
     private static readonly long SpinThresholdTicks = Stopwatch.Frequency / 1000;
 
     private readonly string name;
@@ -157,6 +158,10 @@ internal sealed class HighPrecisionScheduler : IDisposable
     private void Run()
     {
         using HighResolutionTimerPeriod? timerPeriod = HighResolutionTimerPeriod.TryBegin(1);
+        using HighResolutionWaitableTimer? waitableTimer = HighResolutionWaitableTimer.TryCreate();
+        WaitHandle[]? timerWaitHandles = waitableTimer is null
+            ? null
+            : [signal, waitableTimer.WaitHandle];
         long nextScheduledTimestamp = Stopwatch.GetTimestamp();
         int observedVersion = -1;
 
@@ -197,7 +202,7 @@ internal sealed class HighPrecisionScheduler : IDisposable
                 nextScheduledTimestamp = Stopwatch.GetTimestamp() + ToStopwatchTicks(currentInterval);
             }
 
-            if (!WaitUntil(nextScheduledTimestamp))
+            if (!WaitUntil(nextScheduledTimestamp, waitableTimer, timerWaitHandles))
             {
                 continue;
             }
@@ -227,7 +232,10 @@ internal sealed class HighPrecisionScheduler : IDisposable
         }
     }
 
-    private bool WaitUntil(long scheduledTimestamp)
+    private bool WaitUntil(
+        long scheduledTimestamp,
+        HighResolutionWaitableTimer? waitableTimer,
+        WaitHandle[]? timerWaitHandles)
     {
         while (true)
         {
@@ -247,6 +255,21 @@ internal sealed class HighPrecisionScheduler : IDisposable
             }
 
             TimeSpan remaining = TimeSpan.FromSeconds(remainingTicks / (double)Stopwatch.Frequency);
+            if (waitableTimer is not null &&
+                timerWaitHandles is not null &&
+                remaining > HighResolutionWaitGuard &&
+                waitableTimer.TrySet(remaining))
+            {
+                // The high-resolution timer fires at the due time itself, so no
+                // spin tail is needed; index 0 is the schedule-change signal.
+                if (WaitHandle.WaitAny(timerWaitHandles) == 0)
+                {
+                    return false;
+                }
+
+                continue;
+            }
+
             if (remaining > SleepGuard)
             {
                 TimeSpan wait = remaining - SleepGuard;

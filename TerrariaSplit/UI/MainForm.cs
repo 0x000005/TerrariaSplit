@@ -64,6 +64,11 @@ internal sealed partial class MainForm : Form
 
     private AppSettings timerOverlaySettingsSnapshot = new();
     private UiPalette palette;
+    private readonly Action dispatchedControlTick;
+    private readonly Action dispatchedStatusPaintTick;
+    private bool statusOverlayContentDirty = true;
+    private StatusOverlayDynamicKey? lastStatusOverlayDynamicKey;
+    private Rectangle? statusOverlayPartialClipBounds;
     private TerrariaWatcherDiagnostics watcherDiagnostics = TerrariaWatcherDiagnosticsDefaults.Empty;
     private TerrariaWatchSnapshot snapshot =
         new(false, null, false, null, TerrariaBossStates.Unknown, TerrariaWorldGenerationState.Unknown, false, "waiting for Terraria.exe");
@@ -83,6 +88,8 @@ internal sealed partial class MainForm : Form
 
     public MainForm()
     {
+        dispatchedControlTick = DispatchedControlTick;
+        dispatchedStatusPaintTick = DispatchedStatusPaintTick;
         worldAutomation = new TerrariaWorldAutomation(worldPoolStore);
         applicationController = new ApplicationController(AppSettingsStore.Load(), ShowPersonalBestUpdateConfirmation);
         worldPoolFillService = new WorldPoolFillService(worldPoolStore);
@@ -92,7 +99,8 @@ internal sealed partial class MainForm : Form
             new TerrariaWorldWatcher(),
             new TerrariaUiScalePatchApplierAdapter(),
             callback => BeginInvoke(callback),
-            shouldYieldDispatch: UiInputMessageProbe.HasPendingInputMessage);
+            shouldYieldDispatch: UiInputMessageProbe.HasPendingInputMessage,
+            recordPoll: performance.RecordWatcherPoll);
         monitorCoordinator.WatcherPollCompleted += HandleWatcherPollCompleted;
         overlayWindowController = new OverlayWindowController(
             this,
@@ -262,6 +270,7 @@ internal sealed partial class MainForm : Form
     protected override void OnInvalidated(InvalidateEventArgs e)
     {
         base.OnInvalidated(e);
+        statusOverlayContentDirty = true;
         QueueStatusOverlayRender();
     }
 
@@ -551,26 +560,28 @@ internal sealed partial class MainForm : Form
 
         try
         {
-            BeginInvoke(new Action(() =>
-            {
-                try
-                {
-                    if (CanDispatchToUiThread())
-                    {
-                        ControlTick();
-                    }
-                }
-                finally
-                {
-                    Interlocked.Exchange(ref controlTickDispatchPending, 0);
-                }
-            }));
+            BeginInvoke(dispatchedControlTick);
         }
         catch (ObjectDisposedException)
         {
             Interlocked.Exchange(ref controlTickDispatchPending, 0);
         }
         catch (InvalidOperationException)
+        {
+            Interlocked.Exchange(ref controlTickDispatchPending, 0);
+        }
+    }
+
+    private void DispatchedControlTick()
+    {
+        try
+        {
+            if (CanDispatchToUiThread())
+            {
+                ControlTick();
+            }
+        }
+        finally
         {
             Interlocked.Exchange(ref controlTickDispatchPending, 0);
         }
@@ -593,31 +604,33 @@ internal sealed partial class MainForm : Form
 
         try
         {
-            BeginInvoke(new Action(() =>
-            {
-                try
-                {
-                    if (!CanDispatchToUiThread())
-                    {
-                        return;
-                    }
-
-                    if (!UiInputMessageProbe.HasPendingInputMessage())
-                    {
-                        RenderStatusOverlayTick();
-                    }
-                }
-                finally
-                {
-                    Interlocked.Exchange(ref statusPaintDispatchPending, 0);
-                }
-            }));
+            BeginInvoke(dispatchedStatusPaintTick);
         }
         catch (ObjectDisposedException)
         {
             Interlocked.Exchange(ref statusPaintDispatchPending, 0);
         }
         catch (InvalidOperationException)
+        {
+            Interlocked.Exchange(ref statusPaintDispatchPending, 0);
+        }
+    }
+
+    private void DispatchedStatusPaintTick()
+    {
+        try
+        {
+            if (!CanDispatchToUiThread())
+            {
+                return;
+            }
+
+            if (!UiInputMessageProbe.HasPendingInputMessage())
+            {
+                RenderStatusOverlayTick();
+            }
+        }
+        finally
         {
             Interlocked.Exchange(ref statusPaintDispatchPending, 0);
         }
@@ -644,11 +657,35 @@ internal sealed partial class MainForm : Form
 
         if (timerPhase == SplitTimerPhase.Running)
         {
-            overlayWindowController.RenderImmediately();
+            RenderRunningStatusOverlayFrame();
             return;
         }
 
         UpdateStatusPaintSchedulerState();
+    }
+
+    private void RenderRunningStatusOverlayFrame()
+    {
+        // Static content (other rows, icons, layout) only changes alongside an
+        // Invalidate(); between those, the per-frame dynamics are the current
+        // row's early delta and any segment-best highlight colors, so frames
+        // can be skipped or limited to redrawing the affected rows.
+        if (statusOverlayContentDirty || lastStatusOverlayDynamicKey is null)
+        {
+            overlayWindowController.RenderImmediately();
+            return;
+        }
+
+        if (!StatusOverlayHighlightsActive &&
+            ComputeStatusOverlayDynamicKey(timerElapsed) == lastStatusOverlayDynamicKey.Value)
+        {
+            return;
+        }
+
+        if (!TryRenderStatusOverlayRegion())
+        {
+            overlayWindowController.RenderImmediately();
+        }
     }
 
     private void UpdateStatusPaintSchedulerState()
@@ -668,7 +705,8 @@ internal sealed partial class MainForm : Form
 
     private void HandleWatcherPollCompleted(WatcherPollNotification notification)
     {
-        performance.RecordWatcherPoll(notification.Elapsed, notification.CompletedTimestamp);
+        // Poll durations are recorded on the watcher thread via recordPoll; this
+        // handler only sees published (changed or heartbeat) completions.
         performance.WatcherPollInterval = notification.NextPollInterval;
         performance.ProcessLookupInterval = notification.ProcessLookupInterval;
 

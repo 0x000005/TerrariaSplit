@@ -6,8 +6,8 @@ internal static class WorldInterestArea
 
     public static (int LeftInclusive, int RightExclusive) TargetPyramidXRange(WorldDimensions dimensions)
     {
-        int left = (int)Math.Floor(dimensions.Width * 0.35);
-        int right = (int)Math.Ceiling(dimensions.Width * 0.75);
+        int left = (int)Math.Floor(dimensions.Width * 0.32);
+        int right = (int)Math.Ceiling(dimensions.Width * 0.68);
         return (Math.Max(1, left), Math.Min(dimensions.Width - 1, right));
     }
 
@@ -108,5 +108,28 @@ internal static class WorldInterestArea
         }
 
         return true;
+    }
+
+    public static bool IsInSkippedDungeonBoundaryUncertaintyBand(WorldGenState state, int x)
+    {
+        int width = state.Options.Dimensions.Width;
+        (int targetLeft, int targetRight) = TargetPyramidXRange(state.Options.Dimensions);
+        // The dungeon location is side-limited to 20%, but Pyramids rejects another
+        // 15% world width inward. In the 32%-68% target corridor, only 32%-35% and
+        // 65%-68% can depend on the skipped dungeon boundary details.
+        int leftDungeonShadowLimit = (int)Math.Ceiling(width * 0.35);
+        int rightDungeonShadowLimit = (int)Math.Floor(width * 0.65);
+
+        if (state.DungeonSide <= -1)
+        {
+            return x >= targetLeft && x < Math.Min(targetRight, leftDungeonShadowLimit);
+        }
+
+        if (state.DungeonSide >= 1)
+        {
+            return x >= Math.Max(targetLeft, rightDungeonShadowLimit) && x < targetRight;
+        }
+
+        return false;
     }
 }

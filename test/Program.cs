@@ -6,6 +6,12 @@ using System.Text.Json.Serialization;
 using System.Windows.Forms;
 using TerrariaSplit;
 using TerrariaSplit.Tests;
+using TerrariaSplit.Terraria.WorldGeneration.Simulation;
+
+if (PyramidPreScreenMetrics.TryRun(args))
+{
+    return;
+}
 
 var legacyTests = new (string Name, Action Test)[]
 {
@@ -78,6 +84,8 @@ var legacyTests = new (string Name, Action Test)[]
     ("Pyramid seed pre-screen loop retries transient seed read failure", TestPyramidSeedPreScreenLoopRetriesTransientSeedReadFailure),
     ("Pyramid seed pre-screen loop does not retry seed read failure without local retry", TestPyramidSeedPreScreenLoopDoesNotRetrySeedReadFailureWithoutLocalRetry),
     ("Pyramid seed pre-screen loop stops after repeated seed read failures", TestPyramidSeedPreScreenLoopStopsAfterRepeatedSeedReadFailures),
+    ("Pyramid seed pre-screen marks only dungeon-side target boundary uncertainty", TestPyramidSeedPreScreenDungeonBoundaryRisk),
+    ("Pyramid seed pre-screen rejects known official no-tower false positives", TestPyramidSeedPreScreenRejectsKnownOfficialNoTowerFalsePositives),
     ("Pyramid seed pre-screen predicts known pyramid seed", TestPyramidSeedPreScreenPredictsKnownPyramidSeed),
     ("Pyramid seed pre-screen evaluator requires selected item", TestPyramidSeedPreScreenEvaluatorRequiresSelectedItem),
     ("Pyramid seed pre-screen keeps first pyramid chest", TestPyramidSeedPreScreenKeepsFirstPyramidChest),
@@ -1129,7 +1137,7 @@ static void TestPyramidFilterWorldFileScanner()
         var scanner = new TerrariaWorldFilePyramidScanner();
         TerrariaWorldDimensions dimensions = TerrariaWorldDimensions.FromWorldSize(AutoCreateWorldSize.Small);
         Rectangle corridor = TerrariaWorldFilePyramidScanner.BuildSpeedrunCorridorBounds(dimensions);
-        AssertEqual(new Rectangle(1260, 180, 1681, 241), corridor);
+        AssertEqual(new Rectangle(1344, 180, 1512, 241), corridor);
 
         string emptyWorld = Path.Combine(directory, "empty.wld");
         WriteSyntheticWorldFile(emptyWorld, dimensions);
@@ -1596,6 +1604,42 @@ static void TestPyramidSeedPreScreenLoopStopsAfterRepeatedSeedReadFailures()
     AssertEqual(3, result.Attempts);
     AssertEqual(3, randomizer.Attempts);
     AssertEqual("300|300|300", string.Join("|", reader.PreviousSeedsSeen));
+}
+
+static void TestPyramidSeedPreScreenDungeonBoundaryRisk()
+{
+    var leftDungeon = new WorldGenState(new WorldOptions(1, WorldDimensions.Small, 1, true, 0))
+    {
+        DungeonSide = -1
+    };
+    AssertEqual(false, WorldInterestArea.IsInSkippedDungeonBoundaryUncertaintyBand(leftDungeon, 1343));
+    AssertEqual(true, WorldInterestArea.IsInSkippedDungeonBoundaryUncertaintyBand(leftDungeon, 1344));
+    AssertEqual(true, WorldInterestArea.IsInSkippedDungeonBoundaryUncertaintyBand(leftDungeon, 1469));
+    AssertEqual(false, WorldInterestArea.IsInSkippedDungeonBoundaryUncertaintyBand(leftDungeon, 1470));
+    AssertEqual(false, WorldInterestArea.IsInSkippedDungeonBoundaryUncertaintyBand(leftDungeon, 2100));
+
+    var rightDungeon = new WorldGenState(new WorldOptions(1, WorldDimensions.Small, 1, true, 0))
+    {
+        DungeonSide = 1
+    };
+    AssertEqual(false, WorldInterestArea.IsInSkippedDungeonBoundaryUncertaintyBand(rightDungeon, 2100));
+    AssertEqual(false, WorldInterestArea.IsInSkippedDungeonBoundaryUncertaintyBand(rightDungeon, 2729));
+    AssertEqual(true, WorldInterestArea.IsInSkippedDungeonBoundaryUncertaintyBand(rightDungeon, 2730));
+    AssertEqual(true, WorldInterestArea.IsInSkippedDungeonBoundaryUncertaintyBand(rightDungeon, 2855));
+    AssertEqual(false, WorldInterestArea.IsInSkippedDungeonBoundaryUncertaintyBand(rightDungeon, 2856));
+}
+
+static void TestPyramidSeedPreScreenRejectsKnownOfficialNoTowerFalsePositives()
+{
+    foreach (string seed in new[] { "702683177", "349049665", "1944096670" })
+    {
+        var result = TerrariaSplit.Terraria.WorldGeneration.PyramidSeedPreScreen.EvaluateSmallCrimson(
+            seed,
+            difficultyCode: 1,
+            requiredItemMask: 0);
+
+        AssertEqual(false, result.HasTargetPyramid);
+    }
 }
 
 static void TestPyramidSeedPreScreenPredictsKnownPyramidSeed()

@@ -9,33 +9,84 @@ internal static class SplitListRenderer
         Graphics graphics,
         OverlayRenderContext context,
         OverlayRenderResources resources,
-        float listOpacity)
+        float listOpacity,
+        Rectangle? clipBounds = null)
     {
+        int count = context.Statuses.Count;
         int focusIndex = GetCurrentSplitHighlightIndex(context);
-        IEnumerable<int> rowOrder = Enumerable.Range(0, context.Statuses.Count);
-        if (focusIndex >= 0)
+        if (focusIndex < 0)
         {
-            rowOrder = rowOrder
-                .OrderByDescending(index => Math.Abs(index - focusIndex))
-                .ThenBy(index => index);
+            for (int i = 0; i < count; i++)
+            {
+                RenderRow(graphics, context, resources, listOpacity, i, focusIndex, clipBounds);
+            }
+
+            return;
         }
 
-        foreach (int i in rowOrder)
+        // Paint rows farthest from the focused row first so nearer (scaled-up)
+        // rows draw on top; ties resolve to the lower index, matching the
+        // previous OrderByDescending(distance).ThenBy(index) ordering.
+        int maxDistance = Math.Max(focusIndex, count - 1 - focusIndex);
+        for (int distance = maxDistance; distance >= 0; distance--)
         {
-            SplitStatusSnapshot status = context.Statuses[i];
-            bool isCurrent = i == context.CurrentSplitIndex && context.TimerPhase != SplitTimerPhase.NotStarted;
-            float depthScale = GetCurrentSplitDepthScale(context.Settings, i, focusIndex);
-            DrawSplitRow(
-                graphics,
-                context,
-                resources,
-                context.Layout.GetRowRect(i),
-                status,
-                i,
-                isCurrent,
-                GetCurrentSplitDepthOpacity(context.Settings, i, focusIndex, listOpacity),
-                depthScale);
+            int before = focusIndex - distance;
+            if (before >= 0 && before < count)
+            {
+                RenderRow(graphics, context, resources, listOpacity, before, focusIndex, clipBounds);
+            }
+
+            int after = focusIndex + distance;
+            if (distance > 0 && after >= 0 && after < count)
+            {
+                RenderRow(graphics, context, resources, listOpacity, after, focusIndex, clipBounds);
+            }
         }
+    }
+
+    /// <summary>
+    /// Margin around a row rect that covers every pixel the row can emit
+    /// (shadow offsets and outline radii are absolute-capped well below this).
+    /// Partial redraw uses it both to build dirty regions and to decide which
+    /// rows intersect them.
+    /// </summary>
+    public static int GetRowBleedMargin(AppSettings settings)
+    {
+        return Math.Max(OverlayRenderContext.ScaleInt(settings, 8), 10);
+    }
+
+    private static void RenderRow(
+        Graphics graphics,
+        OverlayRenderContext context,
+        OverlayRenderResources resources,
+        float listOpacity,
+        int rowIndex,
+        int focusIndex,
+        Rectangle? clipBounds)
+    {
+        Rectangle rowRect = context.Layout.GetRowRect(rowIndex);
+        if (clipBounds is Rectangle clip)
+        {
+            int bleed = GetRowBleedMargin(context.Settings);
+            if (!Rectangle.Inflate(rowRect, bleed, bleed).IntersectsWith(clip))
+            {
+                return;
+            }
+        }
+
+        SplitStatusSnapshot status = context.Statuses[rowIndex];
+        bool isCurrent = rowIndex == context.CurrentSplitIndex && context.TimerPhase != SplitTimerPhase.NotStarted;
+        float depthScale = GetCurrentSplitDepthScale(context.Settings, rowIndex, focusIndex);
+        DrawSplitRow(
+            graphics,
+            context,
+            resources,
+            rowRect,
+            status,
+            rowIndex,
+            isCurrent,
+            GetCurrentSplitDepthOpacity(context.Settings, rowIndex, focusIndex, listOpacity),
+            depthScale);
     }
 
     public static int GetCurrentSplitHighlightIndex(OverlayRenderContext context)
@@ -101,12 +152,18 @@ internal static class SplitListRenderer
 
     public static ColumnRects GetColumnRects(AppSettings settings, Rectangle rect)
     {
-        List<ColumnWidth> visibleColumns = new();
-        AddColumn(visibleColumns, SplitColumn.Icon, settings.Columns.Icon);
-        AddColumn(visibleColumns, SplitColumn.Time, settings.Columns.Time);
-        AddColumn(visibleColumns, SplitColumn.Delta, settings.Columns.Delta);
+        Span<ColumnWidth> visibleColumns = stackalloc ColumnWidth[3];
+        int columnCount = 0;
+        AddColumn(visibleColumns, ref columnCount, SplitColumn.Icon, settings.Columns.Icon);
+        AddColumn(visibleColumns, ref columnCount, SplitColumn.Time, settings.Columns.Time);
+        AddColumn(visibleColumns, ref columnCount, SplitColumn.Delta, settings.Columns.Delta);
 
-        int requestedWidth = visibleColumns.Sum(column => OverlayRenderContext.ScaleInt(settings, column.Width));
+        int requestedWidth = 0;
+        for (int i = 0; i < columnCount; i++)
+        {
+            requestedWidth += OverlayRenderContext.ScaleInt(settings, visibleColumns[i].Width);
+        }
+
         float scale = requestedWidth > rect.Width && requestedWidth > 0
             ? rect.Width / (float)requestedWidth
             : 1f;
@@ -116,10 +173,10 @@ internal static class SplitListRenderer
         Rectangle? delta = null;
 
         int x = rect.X;
-        for (int i = 0; i < visibleColumns.Count; i++)
+        for (int i = 0; i < columnCount; i++)
         {
             ColumnWidth column = visibleColumns[i];
-            int width = i == visibleColumns.Count - 1
+            int width = i == columnCount - 1
                 ? rect.Right - x
                 : Math.Max(1, (int)Math.Round(OverlayRenderContext.ScaleInt(settings, column.Width) * scale));
             var columnRect = new Rectangle(x, rect.Y, width, rect.Height);
@@ -334,11 +391,11 @@ internal static class SplitListRenderer
         return false;
     }
 
-    private static void AddColumn(List<ColumnWidth> columns, SplitColumn column, UiColumnSettings settings)
+    private static void AddColumn(Span<ColumnWidth> columns, ref int columnCount, SplitColumn column, UiColumnSettings settings)
     {
         if (settings.Show)
         {
-            columns.Add(new ColumnWidth(column, Math.Max(1, settings.Width)));
+            columns[columnCount++] = new ColumnWidth(column, Math.Max(1, settings.Width));
         }
     }
 }
