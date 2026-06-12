@@ -5,6 +5,9 @@ internal sealed class WorldGenState
     private readonly List<PyramidChest> pyramidChests = [];
     private readonly List<PyramidCandidate> pyramidCandidates = [];
     private readonly List<PyramidCandidateRisk> pyramidCandidateRisks = [];
+    private readonly List<CrimsonBiomeRange> crimsonBiomeRanges = [];
+    private readonly List<CrimsonRangeAttemptDiagnostic> crimsonRangeAttemptDiagnostics = [];
+    private readonly List<FullDesertCandidateDiagnostic> fullDesertCandidateDiagnostics = [];
 
     public WorldGenState(WorldOptions options)
     {
@@ -252,12 +255,27 @@ internal sealed class WorldGenState
 
     public IReadOnlyList<PyramidChest> PyramidChestsForDiagnostics => pyramidChests;
 
+    public IReadOnlyList<CrimsonBiomeRange> CrimsonBiomeRangesForDiagnostics => crimsonBiomeRanges;
+
+    public bool EnableCrimsonDiagnostics { get; set; }
+
+    public IReadOnlyList<CrimsonRangeAttemptDiagnostic> CrimsonRangeAttemptDiagnostics => crimsonRangeAttemptDiagnostics;
+
+    public bool EnableFullDesertDiagnostics { get; set; }
+
+    public IReadOnlyList<FullDesertCandidateDiagnostic> FullDesertCandidateDiagnostics => fullDesertCandidateDiagnostics;
+
     public void ClearWorld()
     {
         Tiles.Clear();
         pyramidChests.Clear();
         pyramidCandidates.Clear();
         pyramidCandidateRisks.Clear();
+        crimsonBiomeRanges.Clear();
+        crimsonRangeAttemptDiagnostics.Clear();
+        fullDesertCandidateDiagnostics.Clear();
+        EnableCrimsonDiagnostics = false;
+        EnableFullDesertDiagnostics = false;
         ResetApplied = false;
         ResetProbeRandNext = 0;
         WorldId = 0;
@@ -382,6 +400,64 @@ internal sealed class WorldGenState
             ? PyramidCandidateRisk.SkippedDungeonBoundaryUncertain
             : PyramidCandidateRisk.None;
         pyramidCandidateRisks.Add(risk);
+    }
+
+    public void AddCrimsonBiomeRange(int center, int left, int right)
+    {
+        crimsonBiomeRanges.Add(new CrimsonBiomeRange(center, left, right));
+    }
+
+    public void AddCrimsonRangeAttempt(
+        int biomeIndex,
+        int attemptIndex,
+        int center,
+        int left,
+        int right,
+        int jungleLeft,
+        int jungleRight,
+        int snowLeft,
+        int snowRight,
+        CrimsonRangeRejectReason rejectReason)
+    {
+        if (!EnableCrimsonDiagnostics)
+        {
+            return;
+        }
+
+        crimsonRangeAttemptDiagnostics.Add(new CrimsonRangeAttemptDiagnostic(
+            biomeIndex,
+            attemptIndex,
+            center,
+            left,
+            right,
+            jungleLeft,
+            jungleRight,
+            snowLeft,
+            snowRight,
+            rejectReason));
+    }
+
+    public void AddFullDesertDiagnosticStep(string step, int entranceKind = -1)
+    {
+        if (!EnableFullDesertDiagnostics)
+        {
+            return;
+        }
+
+        for (int i = 0; i < pyramidCandidates.Count; i++)
+        {
+            PyramidCandidate candidate = pyramidCandidates[i];
+            bool found = TryGetPyramidCandidateScanTile(i, out int scanY, out ushort tileType);
+            fullDesertCandidateDiagnostics.Add(new FullDesertCandidateDiagnostic(
+                step,
+                entranceKind,
+                i,
+                candidate.X,
+                candidate.Y,
+                found,
+                found ? scanY : -1,
+                found ? tileType : (ushort)0));
+        }
     }
 
     public void AddPyramidCandidateRisk(int candidateIndex, PyramidCandidateRisk risk)
@@ -564,9 +640,25 @@ internal static class TileIds
 
     public const int Grass = 2;
 
+    public const int BlueDungeonBrick = 41;
+
+    public const int GreenDungeonBrick = 43;
+
+    public const int PinkDungeonBrick = 44;
+
+    public const int GoldBrick = 45;
+
+    public const int AncientBlueBrick = 677;
+
+    public const int AncientGreenBrick = 678;
+
+    public const int AncientPinkBrick = 679;
+
     public const int Sand = 53;
 
     public const int Mud = 59;
+
+    public const int JungleGrass = 60;
 
     public const int Silt = 123;
 
@@ -578,6 +670,12 @@ internal static class TileIds
 
     public const int Stalactite = 165;
 
+    public const int Cloud = 189;
+
+    public const int MushroomBlock = 190;
+
+    public const int RainCloud = 196;
+
     public const int CrimsonGrass = 199;
 
     public const int FleshIce = 200;
@@ -588,7 +686,11 @@ internal static class TileIds
 
     public const int Slush = 224;
 
+    public const int LihzahrdBrick = 226;
+
     public const int Crimsand = 234;
+
+    public const int LihzahrdAltar = 237;
 
     public const int Marble = 367;
 
@@ -598,13 +700,31 @@ internal static class TileIds
 
     public const int CrimsonHardenedSand = 399;
 
+    public const int CorruptSandstone = 400;
+
     public const int CrimsonSandstone = 401;
 
     public const int Sandstone = 396;
 
     public const int HardenedSand = 397;
 
+    public const int CorruptHardenedSand = 398;
+
     public const int DesertFossil = 404;
+
+    public const int CrackedBlueDungeonBrick = 481;
+
+    public const int CrackedGreenDungeonBrick = 482;
+
+    public const int CrackedPinkDungeonBrick = 483;
+
+    public const int SnowCloud = 460;
+
+    public const int LavaCloud = 717;
+
+    public const int StarCloud = 718;
+
+    public const int RainbowCloud = 719;
 
     public const int Clay = 40;
 
@@ -612,6 +732,41 @@ internal static class TileIds
 }
 
 internal readonly record struct PyramidCandidate(int X, int Y, int SourceIndex);
+
+internal readonly record struct CrimsonBiomeRange(int Center, int LeftInclusive, int RightExclusive);
+
+internal readonly record struct CrimsonRangeAttemptDiagnostic(
+    int BiomeIndex,
+    int AttemptIndex,
+    int Center,
+    int LeftInclusive,
+    int RightExclusive,
+    int JungleLeft,
+    int JungleRight,
+    int SnowLeft,
+    int SnowRight,
+    CrimsonRangeRejectReason RejectReason);
+
+[Flags]
+internal enum CrimsonRangeRejectReason
+{
+    None = 0,
+    Dungeon = 1 << 0,
+    WorldCenter = 1 << 1,
+    UndergroundDesert = 1 << 2,
+    Snow = 1 << 3,
+    Jungle = 1 << 4
+}
+
+internal readonly record struct FullDesertCandidateDiagnostic(
+    string Step,
+    int EntranceKind,
+    int CandidateIndex,
+    int X,
+    int StartY,
+    bool Found,
+    int ScanY,
+    ushort TileType);
 
 [Flags]
 internal enum PyramidCandidateRisk

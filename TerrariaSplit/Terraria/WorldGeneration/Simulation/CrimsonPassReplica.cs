@@ -58,10 +58,12 @@ internal static class CrimsonPassReplica
                 ref localJungleRight,
                 ref localSnowLeft,
                 ref localSnowRight,
+                biomeIndex,
                 out int center,
                 out int left,
                 out int right);
 
+            state.AddCrimsonBiomeRange(center, left, right);
             CrimStart(state, random, center, (int)surfaceLow - 10, heartPositions);
             ConvertSurfaceJungleGrass(state, random, left, right, surfaceLow, worldSurface);
             ConvertSurfaceCrimsonTiles(state, random, left, right, surfaceLow, worldSurface);
@@ -86,8 +88,7 @@ internal static class CrimsonPassReplica
         snowRight = 0;
 
         int scanBottom = Math.Clamp((int)worldSurface, 0, state.Options.Dimensions.Height);
-        (int jungleScanLeft, int jungleScanRight) = JungleSurfaceScanRange(state, width);
-        for (int x = jungleScanLeft; x < jungleScanRight; x++)
+        for (int x = 0; x < width; x++)
         {
             for (int y = 0; y < scanBottom; y++)
             {
@@ -100,8 +101,7 @@ internal static class CrimsonPassReplica
             }
         }
 
-        (int snowScanLeft, int snowScanRight) = SnowSurfaceScanRange(state, width, scanBottom);
-        for (int x = snowScanLeft; x < snowScanRight; x++)
+        for (int x = 0; x < width; x++)
         {
             for (int y = 0; y < scanBottom; y++)
             {
@@ -121,47 +121,6 @@ internal static class CrimsonPassReplica
         snowRight += padding;
     }
 
-    private static (int Left, int Right) JungleSurfaceScanRange(WorldGenState state, int width)
-    {
-        if (state.JungleMinX < 0 || state.JungleMaxX <= state.JungleMinX)
-        {
-            return (0, width);
-        }
-
-        return (Math.Max(0, state.JungleMinX - 20), Math.Min(width, state.JungleMaxX + 20));
-    }
-
-    private static (int Left, int Right) SnowSurfaceScanRange(WorldGenState state, int width, int scanBottom)
-    {
-        if (state.SnowMinX.Length == 0 || state.SnowMaxX.Length == 0)
-        {
-            return (0, width);
-        }
-
-        int left = width;
-        int right = 0;
-        int bottom = Math.Min(scanBottom, Math.Min(state.SnowMinX.Length, state.SnowMaxX.Length));
-        for (int y = 0; y < bottom; y++)
-        {
-            int rowLeft = state.SnowMinX[y];
-            int rowRight = state.SnowMaxX[y];
-            if (rowRight <= rowLeft)
-            {
-                continue;
-            }
-
-            left = Math.Min(left, rowLeft);
-            right = Math.Max(right, rowRight);
-        }
-
-        if (right <= left)
-        {
-            return (0, width);
-        }
-
-        return (Math.Max(0, left - 20), Math.Min(width, right + 20));
-    }
-
     private static void RollCrimsonRange(
         WorldGenState state,
         UnifiedRandom random,
@@ -171,6 +130,7 @@ internal static class CrimsonPassReplica
         ref int jungleRight,
         ref int snowLeft,
         ref int snowRight,
+        int biomeIndex,
         out int center,
         out int left,
         out int right)
@@ -180,9 +140,15 @@ internal static class CrimsonPassReplica
         center = 0;
         left = 0;
         right = 0;
+        int attemptIndex = 0;
 
         while (!accepted)
         {
+            int attemptJungleLeft = jungleLeft;
+            int attemptJungleRight = jungleRight;
+            int attemptSnowLeft = snowLeft;
+            int attemptSnowRight = snowRight;
+            CrimsonRangeRejectReason rejectReason = CrimsonRangeRejectReason.None;
             accepted = true;
             int middle = width / 2;
             const int middleAvoidance = 200;
@@ -223,42 +189,50 @@ internal static class CrimsonPassReplica
             if (left < state.DungeonLocation + dungeonAvoidance &&
                 right > state.DungeonLocation - dungeonAvoidance)
             {
+                rejectReason |= CrimsonRangeRejectReason.Dungeon;
                 accepted = false;
             }
 
             if (center > middle - middleAvoidance && center < middle + middleAvoidance)
             {
+                rejectReason |= CrimsonRangeRejectReason.WorldCenter;
                 accepted = false;
             }
 
             if (left > middle - middleAvoidance && left < middle + middleAvoidance)
             {
+                rejectReason |= CrimsonRangeRejectReason.WorldCenter;
                 accepted = false;
             }
 
             if (right > middle - middleAvoidance && right < middle + middleAvoidance)
             {
+                rejectReason |= CrimsonRangeRejectReason.WorldCenter;
                 accepted = false;
             }
 
             WorldRect desert = state.UndergroundDesertLocation;
             if (center > desert.Left && center < desert.Right)
             {
+                rejectReason |= CrimsonRangeRejectReason.UndergroundDesert;
                 accepted = false;
             }
 
             if (left > desert.Left && left < desert.Right)
             {
+                rejectReason |= CrimsonRangeRejectReason.UndergroundDesert;
                 accepted = false;
             }
 
             if (right > desert.Left && right < desert.Right)
             {
+                rejectReason |= CrimsonRangeRejectReason.UndergroundDesert;
                 accepted = false;
             }
 
             if (left < snowRight && right > snowLeft)
             {
+                rejectReason |= CrimsonRangeRejectReason.Snow;
                 snowLeft++;
                 snowRight--;
                 accepted = false;
@@ -266,10 +240,24 @@ internal static class CrimsonPassReplica
 
             if (left < jungleRight && right > jungleLeft)
             {
+                rejectReason |= CrimsonRangeRejectReason.Jungle;
                 jungleLeft++;
                 jungleRight--;
                 accepted = false;
             }
+
+            state.AddCrimsonRangeAttempt(
+                biomeIndex,
+                attemptIndex,
+                center,
+                left,
+                right,
+                attemptJungleLeft,
+                attemptJungleRight,
+                attemptSnowLeft,
+                attemptSnowRight,
+                rejectReason);
+            attemptIndex++;
         }
     }
 
@@ -365,10 +353,7 @@ internal static class CrimsonPassReplica
                             x,
                             y,
                             PyramidCandidateRisk.CrimsonConvertedScanSand);
-                        if (!IsPyramidCandidateScanColumn(state, x, y))
-                        {
-                            tile.Type = TileIds.Crimsand;
-                        }
+                        tile.Type = TileIds.Crimsand;
                     }
                 }
 
@@ -1129,22 +1114,28 @@ internal static class CrimsonPassReplica
         return InWorld(state, x, y);
     }
 
-    private static bool IsPyramidCandidateScanColumn(WorldGenState state, int x, int y)
+    private static bool IsDungeonTile(int tileType)
     {
-        if (y >= state.MainWorldSurface)
-        {
-            return false;
-        }
+        return tileType is
+            TileIds.BlueDungeonBrick or
+            TileIds.GreenDungeonBrick or
+            TileIds.PinkDungeonBrick or
+            TileIds.AncientBlueBrick or
+            TileIds.AncientGreenBrick or
+            TileIds.AncientPinkBrick;
+    }
 
-        foreach (PyramidCandidate candidate in state.PyramidCandidates)
-        {
-            if (candidate.X == x && y >= candidate.Y)
-            {
-                return true;
-            }
-        }
+    private static bool IsCrackedDungeonBrick(int tileType)
+    {
+        return tileType is
+            TileIds.CrackedBlueDungeonBrick or
+            TileIds.CrackedGreenDungeonBrick or
+            TileIds.CrackedPinkDungeonBrick;
+    }
 
-        return false;
+    private static bool IsDungeonWall(int wallType)
+    {
+        return wallType is 7 or 8 or 9 or 94 or 95 or 96 or 97 or 98 or 99;
     }
 
     private static bool InWorld(WorldGenState state, int x, int y, int fluff = 0)

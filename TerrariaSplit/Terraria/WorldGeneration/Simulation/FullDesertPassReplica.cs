@@ -60,6 +60,7 @@ internal static class FullDesertPassReplica
         }
 
         ExportDescriptionToState(state, description);
+        state.AddFullDesertDiagnosticStep("description");
         if (!WorldInterestArea.IntersectsTargetPyramidArea(
             state.Options.Dimensions,
             description.CombinedArea,
@@ -70,17 +71,23 @@ internal static class FullDesertPassReplica
         }
 
         PlaceSandMound(state, random, description, progress, 0.0, 0.1);
+        state.AddFullDesertDiagnosticStep("sand-mound");
         description = description.WithUpdatedSurface(state);
+        state.AddFullDesertDiagnosticStep("surface-update");
 
+        int entranceKind = -1;
         if (random.NextDouble() <= 0.5)
         {
-            int entrance = random.Next(4);
-            PlaceEntranceApproximation(state, random, description, entrance, progress, 0.1, 0.2);
+            entranceKind = random.Next(4);
+            PlaceEntranceApproximation(state, random, description, entranceKind, progress, 0.1, 0.2);
         }
 
+        state.AddFullDesertDiagnosticStep("entrance", entranceKind);
         PlaceDesertHive(state, random, description, progress, 0.2, 0.75);
+        state.AddFullDesertDiagnosticStep("hive", entranceKind);
         CleanupArea(state, description.Hive, progress, 0.75, 1.0);
         MarkCandidatesWithFullDesertSurfaceUncertainty(state, description);
+        state.AddFullDesertDiagnosticStep("risk", entranceKind);
         return true;
     }
 
@@ -131,7 +138,7 @@ internal static class FullDesertPassReplica
             }
 
             ushort type = state.Tiles[x, startY].Type;
-            if (type is TileIds.Mud or 60 or TileIds.IceBlock or TileIds.SnowBlock)
+            if (type is TileIds.Mud or TileIds.JungleGrass or TileIds.IceBlock or TileIds.SnowBlock)
             {
                 return true;
             }
@@ -487,11 +494,26 @@ internal static class FullDesertPassReplica
 
             if (scanY >= description.Desert.Top &&
                 scanY < description.Hive.Top + 20 &&
-                CountHorizontalSandSpan(state, candidate.X, scanY) <= 8)
+                CountHorizontalSandSpan(state, candidate.X, scanY) <= PyramidsPassReplica.FullDesertSurfaceArtifactSandSpan &&
+                CountVerticalSandDepth(state, candidate.X, scanY) <= PyramidsPassReplica.FullDesertSurfaceArtifactSandDepth)
             {
                 state.AddPyramidCandidateRisk(i, PyramidCandidateRisk.FullDesertSurfaceUncertain);
             }
         }
+    }
+
+    private static int CountVerticalSandDepth(WorldGenState state, int x, int y)
+    {
+        int depth = 0;
+        while (InWorld(state, x, y, 0) &&
+            state.Tiles[x, y].Active &&
+            state.Tiles[x, y].Type == TileIds.Sand)
+        {
+            depth++;
+            y++;
+        }
+
+        return depth;
     }
 
     private static int CountHorizontalSandSpan(WorldGenState state, int x, int y)
@@ -966,8 +988,7 @@ internal static class FullDesertPassReplica
 
     private static double UnclampedSmoothStep(double min, double max, double value)
     {
-        double amount = (value - min) / (max - min);
-        return amount * amount * (3.0 - 2.0 * amount);
+        return (value - min) / (max - min);
     }
 
     private static void SetProgress(GenerationProgress progress, double value, double min, double max)
@@ -1046,7 +1067,11 @@ internal static class FullDesertPassReplica
                 {
                     if (InWorld(state, x, y, 0) && state.Tiles[x, y].Active)
                     {
-                        if (!found)
+                        if (IsCloudTile(state.Tiles[x, y].Type))
+                        {
+                            found = false;
+                        }
+                        else if (!found)
                         {
                             surface = y;
                             found = true;
@@ -1064,6 +1089,17 @@ internal static class FullDesertPassReplica
 
             WorldSurfaceLimit = (int)state.MainWorldSurface - 10;
             return new SurfaceMap(heights, startX);
+        }
+
+        private static bool IsCloudTile(int tileType)
+        {
+            return tileType is
+                TileIds.Cloud or
+                TileIds.RainCloud or
+                TileIds.SnowCloud or
+                TileIds.LavaCloud or
+                TileIds.StarCloud or
+                TileIds.RainbowCloud;
         }
     }
 

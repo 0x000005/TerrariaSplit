@@ -158,7 +158,7 @@ internal static class WorldGenTileRunner
                     bool skipPlacement = false;
                     if (overRide && tile.Active)
                     {
-                        skipPlacement = ShouldSkipPlacement(random, tile, tileY, type, mainWorldSurface);
+                        skipPlacement = ShouldSkipPlacement(state, random, tile, tileX, tileY, type, mainWorldSurface);
                     }
 
                     if (!skipPlacement)
@@ -320,46 +320,107 @@ internal static class WorldGenTileRunner
     }
 
     private static bool ShouldSkipPlacement(
+        WorldGenState state,
         UnifiedRandom random,
         TileData tile,
+        int tileX,
         int tileY,
         int type,
         double mainWorldSurface)
     {
+        bool skipPlacement = IsStoneBlendPlacement(type) && tile.Type != TileIds.Stone;
         if (!CanBeClearedDuringGeneration(tile.Type))
         {
-            return true;
+            skipPlacement = true;
         }
 
-        if (tile.Type == TileIds.Sand)
+        switch (tile.Type)
         {
-            if (type == TileIds.Clay)
-            {
-                return true;
-            }
+            case TileIds.Sand:
+                if (type == TileIds.Mud && state.UndergroundDesertLocation.Contains(tileX, tileY))
+                {
+                    skipPlacement = true;
+                }
 
-            if (tileY < mainWorldSurface && type != TileIds.Mud)
-            {
-                return true;
-            }
+                if (type == TileIds.Clay)
+                {
+                    skipPlacement = true;
+                }
+
+                if (tileY < mainWorldSurface && type != TileIds.Mud)
+                {
+                    skipPlacement = true;
+                }
+
+                break;
+
+            case TileIds.GoldBrick:
+            case TileIds.SnowBlock:
+            case TileIds.Cloud:
+            case TileIds.MushroomBlock:
+            case TileIds.RainCloud:
+            case TileIds.SnowCloud:
+            case TileIds.LavaCloud:
+            case TileIds.StarCloud:
+            case TileIds.RainbowCloud:
+                skipPlacement = true;
+                break;
+
+            case TileIds.Sandstone:
+            case TileIds.HardenedSand:
+                skipPlacement = !IsOrePlacement(type);
+                break;
+
+            case TileIds.Stone:
+                if (type == TileIds.Mud && tileY < mainWorldSurface + random.Next(-50, 50))
+                {
+                    skipPlacement = true;
+                }
+
+                break;
+
+            case TileIds.Marble:
+            case TileIds.Granite:
+                if (type == TileIds.Mud)
+                {
+                    skipPlacement = true;
+                }
+
+                break;
         }
 
-        if (tile.Type == TileIds.Stone && type == TileIds.Mud)
-        {
-            return tileY < mainWorldSurface + random.Next(-50, 50);
-        }
-
-        return false;
+        return skipPlacement;
     }
 
     private static bool CanBeClearedDuringGeneration(int tileType)
     {
-        return tileType is
-            TileIds.Dirt or
-            TileIds.Stone or
-            TileIds.Sand or
-            TileIds.Clay or
-            TileIds.Mud or
-            TileIds.Silt;
+        return tileType is not (
+            TileIds.Sandstone or
+            TileIds.CorruptSandstone or
+            TileIds.CrimsonSandstone or
+            TileIds.HardenedSand or
+            TileIds.CorruptHardenedSand or
+            TileIds.CrimsonHardenedSand or
+            TileIds.DesertFossil or
+            TileIds.Granite or
+            TileIds.Marble or
+            TileIds.BlueDungeonBrick or
+            TileIds.GreenDungeonBrick or
+            TileIds.PinkDungeonBrick or
+            TileIds.CrackedBlueDungeonBrick or
+            TileIds.CrackedGreenDungeonBrick or
+            TileIds.CrackedPinkDungeonBrick or
+            TileIds.LihzahrdBrick or
+            TileIds.LihzahrdAltar);
+    }
+
+    private static bool IsStoneBlendPlacement(int tileType)
+    {
+        return tileType is >= 63 and <= 68 or 130 or 131 or 566;
+    }
+
+    private static bool IsOrePlacement(int tileType)
+    {
+        return tileType is 6 or 7 or 8 or 9 or 22 or 37 or 58 or 107 or 108 or 111 or 166 or 167 or 168 or 169 or 204 or 211 or 221 or 222 or 223;
     }
 }

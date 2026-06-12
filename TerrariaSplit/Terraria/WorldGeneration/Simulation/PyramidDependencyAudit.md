@@ -1,8 +1,8 @@
 # Pyramid Candidate Dependency Audit
 
 This note is the working contract for the fast pyramid seed pre-screener in the
-main TerrariaSplit project. The standalone `WorldGenSim` folder is historical
-scratch space; the authoritative implementation is this namespace:
+main TerrariaSplit project. The standalone `WorldGenSim` folder was historical
+scratch space and has been removed; the authoritative implementation is this namespace:
 
 ```text
 TerrariaSplit.Terraria.WorldGeneration.Simulation

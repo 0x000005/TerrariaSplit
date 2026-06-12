@@ -2,6 +2,9 @@ namespace TerrariaSplit.Terraria.WorldGeneration.Simulation;
 
 internal static class PyramidsPassReplica
 {
+    public const int FullDesertSurfaceArtifactSandSpan = 8;
+    public const int FullDesertSurfaceArtifactSandDepth = 8;
+
     private const ushort PyramidWall = 34;
 
     public static IReadOnlyList<PyramidCandidateAnalysis> AnalyzeCandidates(WorldGenState state)
@@ -153,7 +156,8 @@ internal static class PyramidsPassReplica
             x < desert.Right &&
             scanY >= desert.Top &&
             scanY < hive.Top + 20 &&
-            surfaceFeatures.SandSpan <= 8;
+            surfaceFeatures.SandSpan <= FullDesertSurfaceArtifactSandSpan &&
+            surfaceFeatures.SandDepth <= FullDesertSurfaceArtifactSandDepth;
     }
 
     private static void SimulatePyramid(

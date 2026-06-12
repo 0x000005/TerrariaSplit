@@ -13,6 +13,11 @@ if (PyramidPreScreenMetrics.TryRun(args))
     return;
 }
 
+if (PyramidPreScreenTrace.TryRun(args))
+{
+    return;
+}
+
 var legacyTests = new (string Name, Action Test)[]
 {
     ("SignaturePattern matches wildcard bytes", TestSignaturePatternWildcard),

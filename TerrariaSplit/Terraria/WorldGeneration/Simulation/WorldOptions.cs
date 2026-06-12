@@ -23,19 +23,19 @@ internal readonly record struct WorldOptions(
     {
         if (Dimensions != WorldDimensions.Small)
         {
-            return "WorldGenSim stage-1 target scope is small worlds only.";
+            return "Pyramid pre-screen stage-1 target scope is small worlds only.";
         }
 
         if (!HasCrimson)
         {
-            return "WorldGenSim stage-1 target scope is crimson worlds only.";
+            return "Pyramid pre-screen stage-1 target scope is crimson worlds only.";
         }
 
         if (SpecialSeedMask != 0)
         {
-            return "WorldGenSim stage-1 target scope excludes special/secret seeds.";
+            return "Pyramid pre-screen stage-1 target scope excludes special/secret seeds.";
         }
 
-        return "WorldGenSim stage-1 target scope: small crimson non-special world.";
+        return "Pyramid pre-screen stage-1 target scope: small crimson non-special world.";
     }
 }

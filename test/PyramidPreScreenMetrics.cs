@@ -758,6 +758,7 @@ internal static class PyramidPreScreenMetrics
         string CsvPath,
         string DiagnosticsCsvPath,
         bool DiagnoseErrors,
+        bool DiagnoseAll,
         HashSet<string> DiagnoseSeeds)
     {
         public static PyramidMetricsOptions Parse(string[] args)
@@ -768,6 +769,7 @@ internal static class PyramidPreScreenMetrics
             string csvPath = string.Empty;
             string diagnosticsCsvPath = string.Empty;
             bool diagnoseErrors = false;
+            bool diagnoseAll = false;
             var diagnoseSeeds = new HashSet<string>(StringComparer.Ordinal);
             for (int i = 1; i < args.Length; i++)
             {
@@ -788,6 +790,9 @@ internal static class PyramidPreScreenMetrics
                         break;
                     case "--diagnose-errors":
                         diagnoseErrors = true;
+                        break;
+                    case "--diagnose-all":
+                        diagnoseAll = true;
                         break;
                     case "--diagnostics-csv":
                         diagnosticsCsvPath = RequireValue(args, ref i, arg);
@@ -817,12 +822,14 @@ internal static class PyramidPreScreenMetrics
                 csvPath,
                 diagnosticsCsvPath,
                 diagnoseErrors,
+                diagnoseAll,
                 diagnoseSeeds);
         }
 
         public bool ShouldDiagnose(string status, string seed)
         {
-            return DiagnoseSeeds.Contains(seed) ||
+            return DiagnoseAll ||
+                DiagnoseSeeds.Contains(seed) ||
                 (DiagnoseErrors && (status is "fp" or "fn" or "item-mismatch" or "error"));
         }
 
