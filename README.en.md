@@ -5,7 +5,16 @@
   <a href="README.md">简体中文</a>
 </p>
 
-TerrariaSplit is a highly customizable BOSS-only timer for 1.4.5 with polished split animations, flexible reference data, statistics comparison, and a full visual settings UI.
+TerrariaSplit is a highly customizable split timer for Terraria 1.4.5. It is built around boss-route timing, but can also fold key items, NPCs, and biome events into the same timing flow, with polished split animations, flexible reference data, statistics comparison, and a full visual settings UI.
+
+## Recent Updates
+
+The latest feature-focused commits mainly improve route editing, target icons, and pyramid pre-screening:
+
+- Custom routes now go beyond rearranging boss order. In the settings UI, you can add boss, item, NPC, or biome targets, then combine them into a split with conditions such as "all completed", "any completed", or "at least N completed".
+- Split icons are selected automatically from the route targets. Complex splits can show multiple target icons, or you can override the icon with a specific target or a local image file.
+- The default route can now express non-single-boss goals such as pyramid, tier-2 anvil, and the mech-boss trio. Reference times, personal bests, and statistics generate matching entries from the active route.
+- Pyramid seed pre-screening has been brought closer to Terraria's official world-generation flow, with added diagnostics and dataset evaluation tools for checking false-positive and false-negative risk while tuning the rules.
 
 ## Features
 
@@ -17,7 +26,8 @@ TerrariaSplit aims to feel ready the moment it opens. Startup is fast, the main 
 
 You can shape the timer around your own route and overlay style:
 
-- Fully customize BOSS order, enabled states, grouping, and icons.
+- Fully customize split order, enabled states, grouping, completion conditions, and target icons.
+- Use boss defeats, item pickups, NPC appearances, biome entry, and multi-target combinations as split goals.
 - Maintain multiple configurations and switch them from the main window context menu.
 - Adjust the position, size, font, opacity, shadow, outline, and visibility of split display and main timer components.
 - Customize UI colors to match your stream or recording layout.
@@ -33,7 +43,7 @@ To reduce Terraria-specific setup grind, the timer also includes:
 
 - A one-key Create World workflow for faster resets and boss practice.
 - Practice save slots for quickly switching between different training setups.
-- pyramid filtering and Zenith auto star catch to reduce world-generation grind.
+- Pyramid filtering and Zenith auto star catch to reduce world-generation grind, backed by maintenance docs and metrics tools for ongoing calibration.
 
 ### ✨ Visual Polish
 
