@@ -10,6 +10,7 @@ internal class ThemedDropDownList : UserControl
     private const int ArrowWidth = 36;
     private readonly DropDownItemCollection items;
     private ToolStripDropDown? dropDown;
+    private Func<object?, string>? collapsedItemTextFormatter;
     private int selectedIndex = -1;
     private bool hovered;
     private bool pressed;
@@ -65,6 +66,17 @@ internal class ThemedDropDownList : UserControl
     {
         get => selectedIndex >= 0 && selectedIndex < items.Count ? items[selectedIndex] : null;
         set => SelectedIndex = items.IndexOf(value);
+    }
+
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    public Func<object?, string>? CollapsedItemTextFormatter
+    {
+        get => collapsedItemTextFormatter;
+        set
+        {
+            collapsedItemTextFormatter = value;
+            UpdateDisplayedValue();
+        }
     }
 
     protected override void OnClick(EventArgs e)
@@ -203,6 +215,11 @@ internal class ThemedDropDownList : UserControl
         return item?.ToString() ?? string.Empty;
     }
 
+    protected virtual string GetCollapsedItemText(object? item)
+    {
+        return collapsedItemTextFormatter?.Invoke(item) ?? GetItemText(item);
+    }
+
     private void ToggleDropDown()
     {
         if (!Enabled || items.Count == 0)
@@ -279,7 +296,7 @@ internal class ThemedDropDownList : UserControl
 
     private void UpdateDisplayedValue()
     {
-        Text = GetItemText(SelectedItem);
+        Text = GetCollapsedItemText(SelectedItem);
         Invalidate();
     }
 

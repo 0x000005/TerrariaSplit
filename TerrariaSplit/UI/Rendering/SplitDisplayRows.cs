@@ -184,8 +184,8 @@ internal static class SplitDisplayRows
 
         int CompareAttachedStatuses(int left, int right)
         {
-            TimeSpan? leftTime = statuses[left].Time;
-            TimeSpan? rightTime = statuses[right].Time;
+            TimeSpan? leftTime = GetCompletionSortTime(statuses[left]);
+            TimeSpan? rightTime = GetCompletionSortTime(statuses[right]);
             if (leftTime is TimeSpan leftValue && rightTime is TimeSpan rightValue)
             {
                 int timeComparison = leftValue.CompareTo(rightValue);
@@ -201,6 +201,18 @@ internal static class SplitDisplayRows
 
             return left.CompareTo(right);
         }
+    }
+
+    private static TimeSpan? GetCompletionSortTime(SplitStatusSnapshot status)
+    {
+        if (status.Time is TimeSpan time)
+        {
+            return time;
+        }
+
+        return status.IsSkipped && status.CompletedFactKeys.Count > 0
+            ? TimeSpan.Zero
+            : null;
     }
 
     private static bool IsHiddenAttachedIndex(int statusIndex, IReadOnlyList<AttachedBlock> lockedBlocks)

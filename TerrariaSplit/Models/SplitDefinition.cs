@@ -96,6 +96,8 @@ internal sealed class SplitRouteEntry
 
     public bool IsAttached { get; set; }
 
+    public bool UseAdvancedConditionEditor { get; set; }
+
     [System.Text.Json.Serialization.JsonIgnore(
         Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
     public bool ExpandDetails { get; set; }

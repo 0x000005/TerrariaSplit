@@ -6,12 +6,11 @@ namespace TerrariaSplit;
 
 internal sealed class SplitSettingsPage : SettingsPageBase
 {
-    private const int EditorListHeight = 360;
+    private const int EditorListHeight = 468;
     private const int TopSettingsRowsHeight = 174;
     private const int MaxTargetSearchResults = 500;
 
     private readonly List<SplitRouteEntry> routeEntries = new();
-
     private ListBox targetList = null!;
     private ThemedDropDownList targetKindBox = null!;
     private TextBox targetSearchBox = null!;
@@ -23,17 +22,27 @@ internal sealed class SplitSettingsPage : SettingsPageBase
     private CheckBox expandSplitDetailsBox = null!;
     private CheckBox collapseSplitDetailsOnCompletionBox = null!;
     private CheckBox autoHideAttachedGroupsBox = null!;
-    private TextBox conditionMatchCountBox = null!;
+    private CheckBox attachedGroupsAffectTimerComparisonBox = null!;
+    private ThemedDropDownList conditionMatchModeBox = null!;
     private ThemedDropDownList iconOverrideBox = null!;
     private TextBox iconOverrideFileBox = null!;
     private ListBox conditionList = null!;
+    private TextBox advancedConditionBox = null!;
+    private Panel conditionEditorFrame = null!;
+    private Button addTargetToSelectedGroupButton = null!;
+    private Button removeConditionButton = null!;
     private Button addTargetToNewGroupButton = null!;
+    private Button advancedConditionButton = null!;
     private Label statusLabel = null!;
+    private SplitCondition currentCondition = SplitCondition.AtLeast([], 1);
 
     private bool updatingUi;
     private bool updatingConditionSettings;
     private bool refreshingRouteList;
     private bool routeDirty;
+    private bool preserveCurrentCondition;
+    private bool advancedConditionMode;
+    private string advancedConditionError = string.Empty;
     private int loadedRouteEntryIndex = -1;
     private int routeDragIndex = -1;
     private Point routeDragStartPoint;
@@ -68,13 +77,23 @@ internal sealed class SplitSettingsPage : SettingsPageBase
 
     internal CheckBox AutoHideAttachedGroupsBoxForTests => autoHideAttachedGroupsBox;
 
+    internal CheckBox AttachedGroupsAffectTimerComparisonBoxForTests => attachedGroupsAffectTimerComparisonBox;
+
     internal ThemedDropDownList IconOverrideBoxForTests => iconOverrideBox;
 
     internal TextBox IconOverrideFileBoxForTests => iconOverrideFileBox;
 
-    internal TextBox ConditionMatchCountBoxForTests => conditionMatchCountBox;
+    internal ThemedDropDownList ConditionMatchModeBoxForTests => conditionMatchModeBox;
+
+    internal Button AddTargetToSelectedGroupButtonForTests => addTargetToSelectedGroupButton;
 
     internal Button AddTargetToNewGroupButtonForTests => addTargetToNewGroupButton;
+
+    internal Button AdvancedConditionButtonForTests => advancedConditionButton;
+
+    internal TextBox AdvancedConditionBoxForTests => advancedConditionBox;
+
+    internal bool AdvancedConditionModeForTests => advancedConditionMode;
 
     protected override Control BuildPage(SettingsPageContext context)
     {
@@ -104,7 +123,11 @@ internal sealed class SplitSettingsPage : SettingsPageBase
 
     public override void Apply(AppSettings settings)
     {
-        SaveSelectedEntryFromControls();
+        if (!SaveSelectedEntryFromControls())
+        {
+            throw new SettingsApplyFailedException(advancedConditionError);
+        }
+
         EnsureRouteEntryIds();
         NormalizeAttachedRouteFlags();
         if (TryValidateRoute(out string validationMessage))
@@ -129,7 +152,12 @@ internal sealed class SplitSettingsPage : SettingsPageBase
 
     public override void OnDeselected()
     {
-        SaveSelectedEntryFromControls();
+        if (!SaveSelectedEntryFromControls())
+        {
+            statusLabel.Text = advancedConditionError;
+            return;
+        }
+
         EnsureRouteEntryIds();
         NormalizeAttachedRouteFlags();
         bool expansionChanged = SaveExpansionSettings(Draft);
@@ -168,12 +196,15 @@ internal sealed class SplitSettingsPage : SettingsPageBase
         bool expand = expandSplitDetailsBox?.Checked == true;
         bool collapse = collapseSplitDetailsOnCompletionBox?.Checked != false;
         bool autoHideAttachedGroups = autoHideAttachedGroupsBox?.Checked != false;
+        bool attachedGroupsAffectTimerComparison = attachedGroupsAffectTimerComparisonBox?.Checked != false;
         bool changed = settings.ExpandSplitDetails != expand ||
             settings.CollapseSplitDetailsOnCompletion != collapse ||
-            settings.AutoHideAttachedGroups != autoHideAttachedGroups;
+            settings.AutoHideAttachedGroups != autoHideAttachedGroups ||
+            settings.AttachedGroupsAffectTimerComparison != attachedGroupsAffectTimerComparison;
         settings.ExpandSplitDetails = expand;
         settings.CollapseSplitDetailsOnCompletion = collapse;
         settings.AutoHideAttachedGroups = autoHideAttachedGroups;
+        settings.AttachedGroupsAffectTimerComparison = attachedGroupsAffectTimerComparison;
         return changed;
     }
 
@@ -181,9 +212,9 @@ internal sealed class SplitSettingsPage : SettingsPageBase
     {
         TableLayoutPanel section = Factory.CreateSection("Route");
         TableLayoutPanel editor = Factory.CreateGrid(
-            SettingsUiFactory.ColumnStylePercent(32f),
-            SettingsUiFactory.ColumnStylePercent(32f),
-            SettingsUiFactory.ColumnStylePercent(36f));
+            SettingsUiFactory.ColumnStylePercent(33.33f),
+            SettingsUiFactory.ColumnStylePercent(33.34f),
+            SettingsUiFactory.ColumnStylePercent(33.33f));
         editor.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         editor.RowCount = 1;
 
@@ -220,6 +251,9 @@ internal sealed class SplitSettingsPage : SettingsPageBase
 
         autoHideAttachedGroupsBox = Factory.CreateCheckBox(Draft.AutoHideAttachedGroups);
         Factory.AddSettingRow(grid, "Auto hide attached groups", autoHideAttachedGroupsBox);
+
+        attachedGroupsAffectTimerComparisonBox = Factory.CreateCheckBox(Draft.AttachedGroupsAffectTimerComparison);
+        Factory.AddSettingRow(grid, "Attached groups affect main timer comparison", attachedGroupsAffectTimerComparisonBox);
 
         SettingsUiFactory.AddSectionControl(section, grid);
         SettingsUiFactory.AddSection(parent, section);
@@ -259,15 +293,15 @@ internal sealed class SplitSettingsPage : SettingsPageBase
         AddFullWidth(panel, CreateEditorListFrame(targetList));
 
         FlowLayoutPanel buttons = Factory.CreateActionBar();
-        Button addButton = Factory.CreateSmallButton("Add to selected group");
-        addButton.Width = 188;
-        addButton.MinimumSize = new Size(188, 36);
-        addButton.Click += (_, _) => AddFactToCurrentSplit();
+        addTargetToSelectedGroupButton = Factory.CreateSmallButton("Add to selected group");
+        addTargetToSelectedGroupButton.Width = 188;
+        addTargetToSelectedGroupButton.MinimumSize = new Size(188, 36);
+        addTargetToSelectedGroupButton.Click += (_, _) => AddFactToCurrentSplit();
         addTargetToNewGroupButton = Factory.CreateSmallButton("Add to new group");
         addTargetToNewGroupButton.Width = 172;
         addTargetToNewGroupButton.MinimumSize = new Size(172, 36);
         addTargetToNewGroupButton.Click += (_, _) => AddTargetToNewGroup();
-        buttons.Controls.Add(addButton);
+        buttons.Controls.Add(addTargetToSelectedGroupButton);
         buttons.Controls.Add(addTargetToNewGroupButton);
         AddFullWidth(panel, buttons);
         return panel;
@@ -327,10 +361,10 @@ internal sealed class SplitSettingsPage : SettingsPageBase
         TableLayoutPanel panel = CreateColumnPanel();
         panel.Controls.Add(Factory.CreateSubsectionLabel("Condition"), 0, panel.RowCount++);
 
-        conditionMatchCountBox = Factory.CreateTextBox("1");
-        conditionMatchCountBox.PlaceholderText = Context.Localize("At least count");
-        conditionMatchCountBox.TextChanged += (_, _) => UpdateSelectedConditionMatchCount();
-        TableLayoutPanel conditionSettingsGrid = CreateTopSettingsGrid();
+        conditionMatchModeBox = Factory.CreateDropDownList();
+        conditionMatchModeBox.CollapsedItemTextFormatter = FormatCollapsedMatchModeOption;
+        conditionMatchModeBox.SelectedIndexChanged += (_, _) => UpdateSelectedConditionMatchCount();
+        TableLayoutPanel conditionSettingsGrid = CreateTopSettingsGrid(250f);
         Factory.AddSettingRow(conditionSettingsGrid, "Match", CreateMatchCountEditor());
 
         itemQuantityBox = Factory.CreateTextBox("1");
@@ -388,12 +422,21 @@ internal sealed class SplitSettingsPage : SettingsPageBase
                 e.Handled = true;
             }
         };
-        AddFullWidth(panel, CreateEditorListFrame(conditionList));
+        advancedConditionBox = CreateAdvancedConditionBox();
+        conditionEditorFrame = CreateEditorFrame();
+        conditionEditorFrame.Controls.Add(advancedConditionBox);
+        conditionEditorFrame.Controls.Add(conditionList);
+        advancedConditionBox.Visible = false;
+        AddFullWidth(panel, conditionEditorFrame);
 
         FlowLayoutPanel groupButtons = Factory.CreateActionBar();
-        Button removeButton = Factory.CreateSmallButton("Remove selected condition");
-        removeButton.Click += (_, _) => RemoveSelectedFact();
-        groupButtons.Controls.Add(removeButton);
+        groupButtons.FlowDirection = FlowDirection.RightToLeft;
+        removeConditionButton = Factory.CreateSmallButton("Remove selected condition");
+        advancedConditionButton = Factory.CreateSmallButton("Switch to advanced");
+        removeConditionButton.Click += (_, _) => RemoveSelectedFact();
+        advancedConditionButton.Click += (_, _) => ToggleAdvancedConditionMode();
+        groupButtons.Controls.Add(advancedConditionButton);
+        groupButtons.Controls.Add(removeConditionButton);
         AddFullWidth(panel, groupButtons);
         return panel;
     }
@@ -438,7 +481,7 @@ internal sealed class SplitSettingsPage : SettingsPageBase
         return listBox;
     }
 
-    private static Control CreateEditorListFrame(ListBox listBox)
+    private static Panel CreateEditorFrame()
     {
         var frame = new Panel
         {
@@ -449,7 +492,6 @@ internal sealed class SplitSettingsPage : SettingsPageBase
             Padding = new Padding(1)
         };
         UiTheme.EnableDoubleBuffering(frame);
-        frame.Controls.Add(listBox);
         frame.Paint += (_, e) =>
         {
             using var borderPen = new Pen(UiTheme.Border);
@@ -463,7 +505,34 @@ internal sealed class SplitSettingsPage : SettingsPageBase
         return frame;
     }
 
-    private static TableLayoutPanel CreateTopSettingsGrid()
+    private static Control CreateEditorListFrame(ListBox listBox)
+    {
+        Panel frame = CreateEditorFrame();
+        frame.Controls.Add(listBox);
+        return frame;
+    }
+
+    private TextBox CreateAdvancedConditionBox()
+    {
+        var textBox = new ThemedMultilineTextBox
+        {
+            AcceptsReturn = true,
+            AcceptsTab = true,
+            BackColor = UiTheme.Field,
+            BorderStyle = BorderStyle.None,
+            Dock = DockStyle.Fill,
+            Font = new Font(FontFamily.GenericMonospace, UiTheme.FormFont().Size),
+            ForeColor = UiTheme.Text,
+            Margin = Padding.Empty,
+            Multiline = true,
+            ScrollBars = ScrollBars.None,
+            WordWrap = false
+        };
+        textBox.TextChanged += (_, _) => UpdateAdvancedConditionFromText();
+        return textBox;
+    }
+
+    private static TableLayoutPanel CreateTopSettingsGrid(float valueColumnWidth = 220f)
     {
         TableLayoutPanel grid = new()
         {
@@ -477,7 +546,7 @@ internal sealed class SplitSettingsPage : SettingsPageBase
         };
         UiTheme.EnableDoubleBuffering(grid);
         grid.ColumnStyles.Add(SettingsUiFactory.ColumnStylePercent(100f));
-        grid.ColumnStyles.Add(SettingsUiFactory.ColumnStyleAbsolute(220f));
+        grid.ColumnStyles.Add(SettingsUiFactory.ColumnStyleAbsolute(valueColumnWidth));
         return grid;
     }
 
@@ -531,15 +600,19 @@ internal sealed class SplitSettingsPage : SettingsPageBase
     private Control CreateMatchCountEditor()
     {
         TableLayoutPanel editor = Factory.CreateGrid(
-            SettingsUiFactory.ColumnStyleAbsolute(92f),
-            SettingsUiFactory.ColumnStylePercent(100f));
+            SettingsUiFactory.ColumnStylePercent(33.33f),
+            SettingsUiFactory.ColumnStylePercent(33.34f),
+            SettingsUiFactory.ColumnStylePercent(33.33f));
         editor.Margin = Padding.Empty;
         editor.Padding = Padding.Empty;
         int row = Factory.AddGridRow(editor);
-        Label label = Factory.CreateRowLabel("At least");
-        label.Margin = new Padding(0, 8, 8, 8);
-        editor.Controls.Add(label, 0, row);
-        editor.Controls.Add(conditionMatchCountBox, 1, row);
+        Label prefix = Factory.CreateRowLabel("Satisfy");
+        prefix.Margin = new Padding(0, 8, 8, 8);
+        Label suffix = Factory.CreateRowLabel("Conditions suffix");
+        suffix.Margin = new Padding(8, 8, 0, 8);
+        editor.Controls.Add(prefix, 0, row);
+        editor.Controls.Add(conditionMatchModeBox, 1, row);
+        editor.Controls.Add(suffix, 2, row);
         return editor;
     }
 
@@ -850,7 +923,12 @@ internal sealed class SplitSettingsPage : SettingsPageBase
             return;
         }
 
-        SaveSelectedEntryFromControls();
+        if (!SaveSelectedEntryFromControls())
+        {
+            RevertRouteSelection();
+            return;
+        }
+
         if (newIndex < 0 || newIndex >= routeEntries.Count)
         {
             ClearSelectedRouteControls();
@@ -866,7 +944,28 @@ internal sealed class SplitSettingsPage : SettingsPageBase
             splitEnabledBox.Checked = entry.Enabled;
             splitAttachedBox.Checked = entry.IsAttached;
             RenderConditionList(entry.Condition, entry.IconOverride);
+            SetAdvancedConditionMode(entry.UseAdvancedConditionEditor, updateEntry: false, updateText: true, markDirty: false);
             UpdateSelectedAttachedAvailability();
+        }
+        finally
+        {
+            updatingUi = false;
+        }
+    }
+
+    private void RevertRouteSelection()
+    {
+        if (loadedRouteEntryIndex < 0 ||
+            loadedRouteEntryIndex >= routeList.Items.Count ||
+            routeList.SelectedIndex == loadedRouteEntryIndex)
+        {
+            return;
+        }
+
+        updatingUi = true;
+        try
+        {
+            routeList.SelectedIndex = loadedRouteEntryIndex;
         }
         finally
         {
@@ -885,7 +984,10 @@ internal sealed class SplitSettingsPage : SettingsPageBase
             splitAttachedBox.Checked = false;
             splitAttachedBox.Enabled = false;
             conditionList.Items.Clear();
-            conditionMatchCountBox.Text = "1";
+            RefreshConditionMatchOptions(1);
+            currentCondition = SplitCondition.AtLeast([], 1);
+            preserveCurrentCondition = false;
+            SetAdvancedConditionMode(false, updateEntry: false, updateText: false, markDirty: false);
             RefreshIconOverrideOptions(new SplitIconOverride());
             LoadSelectedConditionSettings();
         }
@@ -895,14 +997,19 @@ internal sealed class SplitSettingsPage : SettingsPageBase
         }
     }
 
-    private void SaveSelectedEntryFromControls()
+    private bool SaveSelectedEntryFromControls()
     {
         if (updatingUi ||
             routeList is null ||
             loadedRouteEntryIndex < 0 ||
             loadedRouteEntryIndex >= routeEntries.Count)
         {
-            return;
+            return true;
+        }
+
+        if (!TryCommitCurrentEditor())
+        {
+            return false;
         }
 
         SplitRouteEntry entry = routeEntries[loadedRouteEntryIndex];
@@ -912,6 +1019,8 @@ internal sealed class SplitSettingsPage : SettingsPageBase
         entry.Condition = GetCurrentCondition();
         entry.IconTargetIds = SplitCatalog.InferTargetIds(entry.Condition).ToList();
         entry.IconOverride = GetCurrentIconOverride();
+        entry.UseAdvancedConditionEditor = advancedConditionMode;
+        return true;
     }
 
     private void NormalizeAttachedRouteFlags()
@@ -986,7 +1095,11 @@ internal sealed class SplitSettingsPage : SettingsPageBase
         }
 
         routeDirty = true;
-        SaveSelectedEntryFromControls();
+        if (!SaveSelectedEntryFromControls())
+        {
+            return;
+        }
+
         NormalizeAttachedRouteFlags();
         UpdateSelectedAttachedAvailability();
         RefreshRouteList();
@@ -994,7 +1107,11 @@ internal sealed class SplitSettingsPage : SettingsPageBase
 
     private void AddBlankSplit()
     {
-        SaveSelectedEntryFromControls();
+        if (!SaveSelectedEntryFromControls())
+        {
+            return;
+        }
+
         int index = routeEntries.Count + 1;
         routeEntries.Add(new SplitRouteEntry
         {
@@ -1003,7 +1120,8 @@ internal sealed class SplitSettingsPage : SettingsPageBase
             Enabled = true,
             IsAttached = false,
             Condition = SplitCondition.AtLeast([], 1),
-            IconTargetIds = []
+            IconTargetIds = [],
+            UseAdvancedConditionEditor = false
         });
         NormalizeAttachedRouteFlags();
         routeDirty = true;
@@ -1019,7 +1137,11 @@ internal sealed class SplitSettingsPage : SettingsPageBase
             return;
         }
 
-        SaveSelectedEntryFromControls();
+        if (!SaveSelectedEntryFromControls())
+        {
+            return;
+        }
+
         SplitCondition condition = SplitCondition.AtLeast([CreateFactCondition(target)], 1);
         routeEntries.Add(new SplitRouteEntry
         {
@@ -1028,7 +1150,8 @@ internal sealed class SplitSettingsPage : SettingsPageBase
             Enabled = true,
             IsAttached = false,
             Condition = condition,
-            IconTargetIds = SplitCatalog.InferTargetIds(condition).ToList()
+            IconTargetIds = SplitCatalog.InferTargetIds(condition).ToList(),
+            UseAdvancedConditionEditor = false
         });
 
         routeDirty = true;
@@ -1076,13 +1199,74 @@ internal sealed class SplitSettingsPage : SettingsPageBase
             : UiTheme.MutedText;
         Rectangle contentBounds = GetListItemContentBounds(listBox, e.Bounds);
         Rectangle textBounds = new(contentBounds.Left + 8, contentBounds.Top, contentBounds.Width - 16, contentBounds.Height);
+        Font itemFont = e.Font ?? listBox.Font;
+        if (item.Entry.IsAttached)
+        {
+            DrawRouteListItemWithAttachedMarker(e.Graphics, item, itemFont, textBounds, color);
+            return;
+        }
+
         TextRenderer.DrawText(
             e.Graphics,
             item.ToString(),
-            e.Font ?? listBox.Font,
+            itemFont,
             textBounds,
             color,
             TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+    }
+
+    private void DrawRouteListItemWithAttachedMarker(
+        Graphics graphics,
+        RouteListItem item,
+        Font itemFont,
+        Rectangle textBounds,
+        Color color)
+    {
+        string name = item.ToString();
+        string marker = Context.Localize("Attached group marker");
+        using Font markerFont = new(itemFont.FontFamily, Math.Max(6f, itemFont.Size - 1f), itemFont.Style);
+        const TextFormatFlags markerFlags = TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding;
+        Size markerSize = TextRenderer.MeasureText(
+            graphics,
+            marker,
+            markerFont,
+            Size.Empty,
+            markerFlags);
+        int gap = 6;
+        int markerWidth = Math.Min(markerSize.Width + 4, Math.Max(0, textBounds.Width));
+        int nameMaxWidth = Math.Max(0, textBounds.Width - markerWidth - gap);
+        Size nameSize = TextRenderer.MeasureText(
+            graphics,
+            name,
+            itemFont,
+            Size.Empty,
+            TextFormatFlags.NoPadding);
+        int visibleNameWidth = Math.Min(nameSize.Width, nameMaxWidth);
+        Rectangle nameBounds = new(
+            textBounds.Left,
+            textBounds.Top,
+            nameMaxWidth,
+            textBounds.Height);
+        Rectangle markerBounds = new(
+            textBounds.Left + visibleNameWidth + gap,
+            textBounds.Top,
+            markerWidth,
+            textBounds.Height);
+
+        TextRenderer.DrawText(
+            graphics,
+            name,
+            itemFont,
+            nameBounds,
+            color,
+            TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+        TextRenderer.DrawText(
+            graphics,
+            marker,
+            markerFont,
+            markerBounds,
+            UiTheme.MutedText,
+            markerFlags);
     }
 
     private static void DrawPlainListItem(object? sender, DrawItemEventArgs e)
@@ -1147,7 +1331,11 @@ internal sealed class SplitSettingsPage : SettingsPageBase
 
         int index = routeDragIndex;
         routeDragIndex = -1;
-        SaveSelectedEntryFromControls();
+        if (!SaveSelectedEntryFromControls())
+        {
+            return;
+        }
+
         routeList.DoDragDrop(new RouteDragItem(index), DragDropEffects.Move);
     }
 
@@ -1200,6 +1388,12 @@ internal sealed class SplitSettingsPage : SettingsPageBase
 
     private void AddFactToCurrentSplit()
     {
+        if (advancedConditionMode)
+        {
+            CopySelectedTargetReferenceId();
+            return;
+        }
+
         if (!TryGetSelectedTarget(out SplitTargetDefinition target))
         {
             statusLabel.Text = Context.Localize("Select a target first.");
@@ -1213,8 +1407,12 @@ internal sealed class SplitSettingsPage : SettingsPageBase
         }
 
         SplitCondition fact = CreateFactCondition(target);
+        bool matchAll = IsAllMatchModeSelected();
+        int selectedRequiredCount = GetConditionMatchCountFromSelection();
         int index = conditionList.Items.Add(CreateConditionListItem(fact));
+        RefreshConditionMatchOptions(matchAll ? conditionList.Items.Count : selectedRequiredCount);
         conditionList.SelectedIndex = index;
+        UseBasicConditionFromList();
         entry.Condition = GetCurrentCondition();
         entry.IconTargetIds = SplitCatalog.InferTargetIds(entry.Condition).ToList();
         SplitIconOverride previousOverride = GetCurrentIconOverride();
@@ -1224,8 +1422,29 @@ internal sealed class SplitSettingsPage : SettingsPageBase
         statusLabel.Text = string.Empty;
     }
 
+    private void CopySelectedTargetReferenceId()
+    {
+        if (!TryGetSelectedTarget(out SplitTargetDefinition target))
+        {
+            statusLabel.Text = Context.Localize("Select a target first.");
+            return;
+        }
+
+        string targetId = FormatTargetReferenceToken(target);
+        Clipboard.SetText(targetId);
+        statusLabel.Text = string.Format(
+            CultureInfo.InvariantCulture,
+            Context.Localize("Copied target ID: {0}"),
+            targetId);
+    }
+
     private void RemoveSelectedFact()
     {
+        if (advancedConditionMode)
+        {
+            return;
+        }
+
         if (!TryGetSelectedRouteEntry(out SplitRouteEntry entry) ||
             conditionList.SelectedIndex < 0 ||
             conditionList.SelectedIndex >= conditionList.Items.Count)
@@ -1234,13 +1453,20 @@ internal sealed class SplitSettingsPage : SettingsPageBase
         }
 
         int selected = conditionList.SelectedIndex;
+        bool matchAll = IsAllMatchModeSelected();
+        int selectedRequiredCount = GetConditionMatchCountFromSelection();
         conditionList.Items.RemoveAt(selected);
-        ClampConditionMatchCountToConditionCount();
+        int remainingConditionCount = conditionList.Items.Count;
+        int requiredCountAfterRemoval = matchAll
+            ? remainingConditionCount
+            : Math.Max(1, selectedRequiredCount - 1);
+        RefreshConditionMatchOptions(requiredCountAfterRemoval);
         if (conditionList.Items.Count > 0)
         {
             conditionList.SelectedIndex = Math.Min(selected, conditionList.Items.Count - 1);
         }
 
+        UseBasicConditionFromList();
         entry.Condition = GetCurrentCondition();
         entry.IconTargetIds = SplitCatalog.InferTargetIds(entry.Condition).ToList();
         SplitIconOverride previousOverride = GetCurrentIconOverride();
@@ -1249,8 +1475,197 @@ internal sealed class SplitSettingsPage : SettingsPageBase
         routeDirty = true;
     }
 
+    private void ToggleAdvancedConditionMode()
+    {
+        if (!advancedConditionMode)
+        {
+            SetAdvancedConditionMode(true);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(advancedConditionBox.Text))
+        {
+            currentCondition = SplitCondition.AtLeast([], 1);
+            preserveCurrentCondition = true;
+            advancedConditionError = string.Empty;
+            SplitIconOverride emptyOverride = GetCurrentIconOverride();
+            RenderConditionList(currentCondition, emptyOverride);
+            SetAdvancedConditionMode(false, updateText: false);
+            return;
+        }
+
+        if (!TryCommitAdvancedConditionText())
+        {
+            return;
+        }
+
+        if (!CanUseBasicConditionEditor(GetCurrentCondition()))
+        {
+            advancedConditionError = Context.Localize("Advanced condition cannot be converted to basic editor without losing structure.");
+            statusLabel.Text = advancedConditionError;
+            return;
+        }
+
+        SplitIconOverride previousOverride = GetCurrentIconOverride();
+        RenderConditionList(GetCurrentCondition(), previousOverride);
+        SetAdvancedConditionMode(false, updateText: false);
+    }
+
+    private void SetAdvancedConditionMode(
+        bool enabled,
+        bool updateEntry = true,
+        bool updateText = true,
+        bool markDirty = true)
+    {
+        bool changed = advancedConditionMode != enabled;
+        advancedConditionMode = enabled;
+        if (updateEntry && TryGetSelectedRouteEntry(out SplitRouteEntry entry))
+        {
+            if (entry.UseAdvancedConditionEditor != enabled)
+            {
+                entry.UseAdvancedConditionEditor = enabled;
+                if (markDirty)
+                {
+                    routeDirty = true;
+                }
+            }
+        }
+
+        if (enabled && updateText)
+        {
+            bool previousUpdating = updatingConditionSettings;
+            updatingConditionSettings = true;
+            try
+            {
+                advancedConditionBox.Text = SplitConditionText.Format(GetCurrentCondition(), Draft.Language);
+            }
+            finally
+            {
+                updatingConditionSettings = previousUpdating;
+            }
+        }
+
+        advancedConditionBox.Visible = enabled;
+        conditionList.Visible = !enabled;
+        advancedConditionButton.Text = Context.Localize(enabled ? "Switch to basic" : "Switch to advanced");
+        UpdateConditionEditorAvailability();
+        if (changed)
+        {
+            statusLabel.Text = string.Empty;
+        }
+    }
+
+    private void UpdateAdvancedConditionFromText()
+    {
+        if (updatingUi || updatingConditionSettings || !advancedConditionMode)
+        {
+            return;
+        }
+
+        if (!TryCommitAdvancedConditionText(updateStatusOnFailure: true))
+        {
+            return;
+        }
+
+        routeDirty = true;
+        statusLabel.Text = string.Empty;
+    }
+
+    private bool TryCommitCurrentEditor()
+    {
+        if (!advancedConditionMode)
+        {
+            advancedConditionError = string.Empty;
+            return true;
+        }
+
+        if (TryCommitAdvancedConditionText(updateStatusOnFailure: true))
+        {
+            return true;
+        }
+
+        if (string.IsNullOrWhiteSpace(advancedConditionError))
+        {
+            advancedConditionError = Context.Localize("Invalid advanced condition.");
+        }
+
+        return false;
+    }
+
+    private bool TryCommitAdvancedConditionText(bool updateStatusOnFailure = true)
+    {
+        if (!advancedConditionMode)
+        {
+            return true;
+        }
+
+        if (!SplitConditionText.TryParse(advancedConditionBox.Text, Draft.Language, out SplitCondition condition, out string errorMessage))
+        {
+            advancedConditionError = errorMessage;
+            if (updateStatusOnFailure)
+            {
+                statusLabel.Text = errorMessage;
+            }
+
+            return false;
+        }
+
+        advancedConditionError = string.Empty;
+        currentCondition = condition;
+        preserveCurrentCondition = true;
+        if (TryGetSelectedRouteEntry(out SplitRouteEntry entry))
+        {
+            entry.Condition = GetCurrentCondition();
+            entry.IconTargetIds = SplitCatalog.InferTargetIds(entry.Condition).ToList();
+            entry.UseAdvancedConditionEditor = advancedConditionMode;
+            SplitIconOverride previousOverride = GetCurrentIconOverride();
+            RefreshIconOverrideOptions(previousOverride);
+            entry.IconOverride = GetCurrentIconOverride();
+        }
+
+        return true;
+    }
+
+    private void UpdateConditionEditorAvailability()
+    {
+        bool basic = !advancedConditionMode;
+        conditionMatchModeBox.Enabled = basic;
+        conditionList.Enabled = basic;
+        removeConditionButton.Enabled = basic;
+        addTargetToSelectedGroupButton.Enabled = true;
+        addTargetToSelectedGroupButton.Text = Context.Localize(basic ? "Add to selected group" : "Copy ID");
+        addTargetToNewGroupButton.Enabled = true;
+        targetKindBox.Enabled = true;
+        targetSearchBox.Enabled = true;
+        targetList.Enabled = true;
+        LoadSelectedConditionSettings();
+    }
+
+    private static bool CanUseBasicConditionEditor(SplitCondition condition)
+    {
+        string kind = SplitConditionKind.Normalize(condition.Kind);
+        if (kind == SplitConditionKind.Fact)
+        {
+            return true;
+        }
+
+        if (kind != SplitConditionKind.All &&
+            kind != SplitConditionKind.Any &&
+            kind != SplitConditionKind.AtLeast)
+        {
+            return false;
+        }
+
+        return condition.Children.All(child => SplitConditionKind.Normalize(child.Kind) == SplitConditionKind.Fact);
+    }
+
     private void ConditionListMouseDown(object? sender, MouseEventArgs e)
     {
+        if (advancedConditionMode)
+        {
+            return;
+        }
+
         conditionDragIndex = -1;
         if (e.Button != MouseButtons.Left)
         {
@@ -1269,6 +1684,11 @@ internal sealed class SplitSettingsPage : SettingsPageBase
 
     private void ConditionListMouseMove(object? sender, MouseEventArgs e)
     {
+        if (advancedConditionMode)
+        {
+            return;
+        }
+
         if (conditionDragIndex < 0 ||
             e.Button != MouseButtons.Left ||
             !HasMovedBeyondDragThreshold(conditionDragStartPoint, e.Location))
@@ -1284,6 +1704,12 @@ internal sealed class SplitSettingsPage : SettingsPageBase
 
     private void ConditionListDragOver(object? sender, DragEventArgs e)
     {
+        if (advancedConditionMode)
+        {
+            e.Effect = DragDropEffects.None;
+            return;
+        }
+
         e.Effect = e.Data?.GetDataPresent(typeof(ConditionDragItem)) == true
             ? DragDropEffects.Move
             : DragDropEffects.None;
@@ -1291,6 +1717,11 @@ internal sealed class SplitSettingsPage : SettingsPageBase
 
     private void ConditionListDragDrop(object? sender, DragEventArgs e)
     {
+        if (advancedConditionMode)
+        {
+            return;
+        }
+
         if (e.Data?.GetData(typeof(ConditionDragItem)) is not ConditionDragItem drag)
         {
             return;
@@ -1303,6 +1734,11 @@ internal sealed class SplitSettingsPage : SettingsPageBase
 
     private void MoveConditionFact(int sourceIndex, int insertionIndex)
     {
+        if (advancedConditionMode)
+        {
+            return;
+        }
+
         if (!TryGetSelectedRouteEntry(out SplitRouteEntry entry) ||
             sourceIndex < 0 ||
             sourceIndex >= conditionList.Items.Count)
@@ -1342,6 +1778,7 @@ internal sealed class SplitSettingsPage : SettingsPageBase
         }
 
         conditionList.SelectedIndex = insertionIndex;
+        UseBasicConditionFromList();
         entry.Condition = GetCurrentCondition();
         entry.IconTargetIds = SplitCatalog.InferTargetIds(entry.Condition).ToList();
         SplitIconOverride previousOverride = GetCurrentIconOverride();
@@ -1385,7 +1822,8 @@ internal sealed class SplitSettingsPage : SettingsPageBase
         updatingConditionSettings = true;
         try
         {
-            if (TryGetSelectedConditionItem(out ConditionListItem item) &&
+            if (!advancedConditionMode &&
+                TryGetSelectedConditionItem(out ConditionListItem item) &&
                 IsItemCondition(item.Condition))
             {
                 itemQuantityBox.Enabled = true;
@@ -1404,7 +1842,7 @@ internal sealed class SplitSettingsPage : SettingsPageBase
 
     private void UpdateSelectedConditionQuantity()
     {
-        if (updatingUi || updatingConditionSettings)
+        if (updatingUi || updatingConditionSettings || advancedConditionMode)
         {
             return;
         }
@@ -1425,6 +1863,7 @@ internal sealed class SplitSettingsPage : SettingsPageBase
 
         if (TryGetSelectedRouteEntry(out SplitRouteEntry entry))
         {
+            UseBasicConditionFromList();
             entry.Condition = GetCurrentCondition();
             routeDirty = true;
             statusLabel.Text = string.Empty;
@@ -1433,13 +1872,14 @@ internal sealed class SplitSettingsPage : SettingsPageBase
 
     private void UpdateSelectedConditionMatchCount()
     {
-        if (updatingUi || updatingConditionSettings)
+        if (updatingUi || updatingConditionSettings || advancedConditionMode)
         {
             return;
         }
 
         if (TryGetSelectedRouteEntry(out SplitRouteEntry entry))
         {
+            UseBasicConditionFromList();
             entry.Condition = GetCurrentCondition();
             routeDirty = true;
             statusLabel.Text = string.Empty;
@@ -1448,38 +1888,101 @@ internal sealed class SplitSettingsPage : SettingsPageBase
 
     private SplitCondition GetCurrentCondition()
     {
+        return preserveCurrentCondition
+            ? currentCondition.Clone()
+            : BuildConditionFromList();
+    }
+
+    private SplitCondition BuildConditionFromList()
+    {
         IEnumerable<SplitCondition> facts = conditionList.Items
             .Cast<ConditionListItem>()
             .Select(item => item.Condition);
-        return SplitCondition.AtLeast(facts, GetConditionMatchCountFromText());
+        return SplitCondition.AtLeast(facts, GetConditionMatchCountFromSelection());
     }
 
-    private int GetConditionMatchCountFromText()
+    private void UseBasicConditionFromList()
     {
-        return int.TryParse(
-            conditionMatchCountBox.Text.Trim(),
-            NumberStyles.Integer,
-            CultureInfo.InvariantCulture,
-            out int count)
-            ? count
-            : 0;
+        preserveCurrentCondition = false;
+        currentCondition = BuildConditionFromList();
     }
 
-    private void ClampConditionMatchCountToConditionCount()
+    private int GetConditionMatchCountFromSelection()
     {
-        int conditionCount = conditionList.Items.Count;
-        if (conditionCount <= 0 ||
-            !int.TryParse(conditionMatchCountBox.Text.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int count) ||
-            count <= conditionCount)
+        int conditionCount = GetCurrentConditionCount();
+        if (conditionCount <= 0)
+        {
+            return 1;
+        }
+
+        return conditionMatchModeBox.SelectedItem is MatchModeOption option
+            ? Math.Clamp(option.RequiredCount, 1, conditionCount)
+            : conditionCount;
+    }
+
+    private bool IsAllMatchModeSelected()
+    {
+        int conditionCount = Math.Max(1, GetCurrentConditionCount());
+        return conditionMatchModeBox?.SelectedItem is not MatchModeOption option ||
+            option.RequiredCount >= conditionCount;
+    }
+
+    private int GetCurrentConditionCount()
+    {
+        return conditionList?.Items.Count ?? 0;
+    }
+
+    private void RefreshConditionMatchOptions(int selectedRequiredCount)
+    {
+        if (conditionMatchModeBox is null)
         {
             return;
         }
 
+        int conditionCount = GetCurrentConditionCount();
+        int normalizedRequiredCount = conditionCount <= 0
+            ? 1
+            : Math.Clamp(selectedRequiredCount, 1, conditionCount);
         bool previousUpdating = updatingConditionSettings;
         updatingConditionSettings = true;
         try
         {
-            conditionMatchCountBox.Text = conditionCount.ToString(CultureInfo.InvariantCulture);
+            conditionMatchModeBox.Items.Clear();
+            if (conditionCount <= 0)
+            {
+                string allText = Context.Localize("All");
+                conditionMatchModeBox.Items.Add(new MatchModeOption(1, allText, allText));
+            }
+            else
+            {
+                string allText = Context.Localize("All");
+                conditionMatchModeBox.Items.Add(new MatchModeOption(conditionCount, allText, allText));
+                for (int count = 1; count < conditionCount; count++)
+                {
+                    conditionMatchModeBox.Items.Add(new MatchModeOption(
+                        count,
+                        string.Format(
+                            CultureInfo.InvariantCulture,
+                            Context.Localize("At least {0}"),
+                            count),
+                        count.ToString(CultureInfo.InvariantCulture)));
+                }
+            }
+
+            for (int i = 0; i < conditionMatchModeBox.Items.Count; i++)
+            {
+                if (conditionMatchModeBox.Items[i] is MatchModeOption option &&
+                    option.RequiredCount == normalizedRequiredCount)
+                {
+                    conditionMatchModeBox.SelectedIndex = i;
+                    return;
+                }
+            }
+
+            if (conditionMatchModeBox.Items.Count > 0)
+            {
+                conditionMatchModeBox.SelectedIndex = 0;
+            }
         }
         finally
         {
@@ -1530,8 +2033,12 @@ internal sealed class SplitSettingsPage : SettingsPageBase
 
     private void RenderConditionList(SplitCondition condition, SplitIconOverride? selectedOverride = null)
     {
-        SplitCondition flat = (condition ?? SplitCondition.All([])).ToFlatGroup();
-        conditionMatchCountBox.Text = Math.Max(1, flat.GetRequiredCount()).ToString(CultureInfo.InvariantCulture);
+        currentCondition = (condition ?? SplitCondition.All([])).Clone();
+        currentCondition.Normalize();
+        preserveCurrentCondition = true;
+        SplitCondition flat = currentCondition.ToFlatGroup();
+        bool previousUpdating = updatingConditionSettings;
+        updatingConditionSettings = true;
         conditionList.BeginUpdate();
         try
         {
@@ -1541,6 +2048,7 @@ internal sealed class SplitSettingsPage : SettingsPageBase
                 conditionList.Items.Add(CreateConditionListItem(fact));
             }
 
+            RefreshConditionMatchOptions(Math.Max(1, flat.GetRequiredCount()));
             if (conditionList.Items.Count > 0)
             {
                 conditionList.SelectedIndex = 0;
@@ -1553,6 +2061,7 @@ internal sealed class SplitSettingsPage : SettingsPageBase
         finally
         {
             conditionList.EndUpdate();
+            updatingConditionSettings = previousUpdating;
         }
 
         RefreshIconOverrideOptions(selectedOverride);
@@ -1570,15 +2079,37 @@ internal sealed class SplitSettingsPage : SettingsPageBase
 
     private string FormatTargetListItem(SplitTargetDefinition target)
     {
-        string displayName = SplitTargetDisplayNames.GetTargetName(target, Draft.Language);
+        return $"{SplitTargetDisplayNames.GetTargetName(target, Draft.Language)} ({FormatTargetReferenceToken(target)})";
+    }
+
+    private static string FormatTargetReferenceToken(SplitTargetDefinition target)
+    {
         if (target.Kind == SplitTargetKind.Item && SplitCatalog.TryParseItemTargetId(target.Id, out int itemId))
         {
-            return $"{displayName} ({itemId.ToString(CultureInfo.InvariantCulture)})";
+            return $"Item:{itemId.ToString(CultureInfo.InvariantCulture)}";
         }
 
-        return target.Kind == SplitTargetKind.Npc && SplitCatalog.TryParseNpcTargetId(target.Id, out int npcId)
-            ? $"{displayName} ({npcId.ToString(CultureInfo.InvariantCulture)})"
-            : displayName;
+        if (target.Kind == SplitTargetKind.Npc && SplitCatalog.TryParseNpcTargetId(target.Id, out int npcId))
+        {
+            return $"NPC:{npcId.ToString(CultureInfo.InvariantCulture)}";
+        }
+
+        if (target.Kind == SplitTargetKind.Biome && SplitCatalog.TryParseBiomeTargetId(target.Id, out string biomeId))
+        {
+            return $"Biome:{ToPascalToken(biomeId)}";
+        }
+
+        return target.Id.StartsWith("boss:", StringComparison.OrdinalIgnoreCase)
+            ? $"Boss:{target.Id["boss:".Length..]}"
+            : target.Id;
+    }
+
+    private static string ToPascalToken(string value)
+    {
+        string[] parts = value.Split('-', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return string.Concat(parts.Select(part => part.Length == 0
+            ? part
+            : char.ToUpperInvariant(part[0]) + part[1..].ToLowerInvariant()));
     }
 
     private ConditionListItem CreateConditionListItem(SplitCondition condition)
@@ -1760,53 +2291,73 @@ internal sealed class SplitSettingsPage : SettingsPageBase
     private bool ValidateCondition(SplitCondition condition, out string message)
     {
         message = string.Empty;
-        SplitCondition flat = (condition ?? SplitCondition.All([])).ToFlatGroup();
-        string kind = SplitConditionKind.Normalize(flat.Kind);
-        if (kind != SplitConditionKind.AtLeast)
-        {
-            message = Context.Localize("Condition group must use AtLeast.");
-            return false;
-        }
-
-        if (flat.Children.Count == 0)
+        SplitCondition normalized = (condition ?? SplitCondition.All([])).Clone();
+        normalized.Normalize();
+        if (!normalized.GetFactConditions().Any())
         {
             message = Context.Localize("Condition group cannot be empty.");
             return false;
         }
 
-        int requiredCount = flat.GetRequiredCount();
+        return ValidateConditionNode(normalized, out message);
+    }
+
+    private bool ValidateConditionNode(SplitCondition condition, out string message)
+    {
+        message = string.Empty;
+        string kind = SplitConditionKind.Normalize(condition.Kind);
+        if (kind == SplitConditionKind.Fact)
+        {
+            if (!SplitCatalog.TryGetTargetByFactKey(condition.FactKey, out _))
+            {
+                message = Context.Localize("Unknown fact.");
+                return false;
+            }
+
+            string comparison = SplitFactComparison.Normalize(condition.Comparison);
+            if ((comparison == SplitFactComparison.AtLeast || comparison == SplitFactComparison.Equal) &&
+                condition.Value < 1)
+            {
+                message = Context.Localize("Item quantity must be at least 1.");
+                return false;
+            }
+
+            return true;
+        }
+
+        if (kind != SplitConditionKind.All &&
+            kind != SplitConditionKind.Any &&
+            kind != SplitConditionKind.AtLeast)
+        {
+            message = Context.Localize("Unknown condition group.");
+            return false;
+        }
+
+        if (condition.Children.Count == 0)
+        {
+            message = Context.Localize("Condition group cannot be empty.");
+            return false;
+        }
+
+        int requiredCount = kind == SplitConditionKind.All
+            ? condition.Children.Count
+            : Math.Max(1, condition.Value);
         if (requiredCount < 1)
         {
             message = Context.Localize("Match count must be at least 1.");
             return false;
         }
 
-        if (requiredCount > flat.Children.Count)
+        if (requiredCount > condition.Children.Count)
         {
             message = Context.Localize("Match count cannot exceed condition count.");
             return false;
         }
 
-        foreach (SplitCondition child in flat.Children)
+        foreach (SplitCondition child in condition.Children)
         {
-            child.Normalize();
-            if (SplitConditionKind.Normalize(child.Kind) != SplitConditionKind.Fact)
+            if (!ValidateConditionNode(child, out message))
             {
-                message = Context.Localize("Nested condition groups are not supported.");
-                return false;
-            }
-
-            if (!SplitCatalog.TryGetTargetByFactKey(child.FactKey, out _))
-            {
-                message = Context.Localize("Unknown fact.");
-                return false;
-            }
-
-            string comparison = SplitFactComparison.Normalize(child.Comparison);
-            if ((comparison == SplitFactComparison.AtLeast || comparison == SplitFactComparison.Equal) &&
-                child.Value < 1)
-            {
-                message = Context.Localize("Item quantity must be at least 1.");
                 return false;
             }
         }
@@ -1848,9 +2399,11 @@ internal sealed class SplitSettingsPage : SettingsPageBase
             Enabled = entry.Enabled,
             IsAttached = entry.IsAttached,
             DisplayName = entry.DisplayName,
-            Condition = (entry.Condition ?? SplitCondition.All([])).ToFlatGroup(),
+            Condition = (entry.Condition ?? SplitCondition.All([])).Clone(),
             IconTargetIds = entry.IconTargetIds?.ToList() ?? new List<string>(),
-            IconOverride = CloneIconOverride(entry.IconOverride)
+            IconOverride = CloneIconOverride(entry.IconOverride),
+            UseAdvancedConditionEditor = entry.UseAdvancedConditionEditor ||
+                !CanUseBasicConditionEditor(entry.Condition ?? SplitCondition.All([]))
         };
     }
 
@@ -1894,6 +2447,21 @@ internal sealed class SplitSettingsPage : SettingsPageBase
         {
             return DisplayName;
         }
+    }
+
+    private sealed record MatchModeOption(int RequiredCount, string DisplayName, string CollapsedDisplayName)
+    {
+        public override string ToString()
+        {
+            return DisplayName;
+        }
+    }
+
+    private static string FormatCollapsedMatchModeOption(object? item)
+    {
+        return item is MatchModeOption option
+            ? option.CollapsedDisplayName
+            : item?.ToString() ?? string.Empty;
     }
 
     private sealed record IconOverrideOption(string Source, string TargetId, string DisplayName)

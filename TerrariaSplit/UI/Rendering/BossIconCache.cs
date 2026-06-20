@@ -99,23 +99,91 @@ internal sealed class BossIconCache : IDisposable
             return fileName;
         }
 
-        string bossIconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "BossIcons", fileName);
-        if (File.Exists(bossIconPath))
+        if (SplitCatalog.TryGetReferenceIconFileName(iconKey, out string referenceFileName) &&
+            TryResolvePackagedIconPath(referenceFileName, iconKey, out string referencePath))
         {
-            return bossIconPath;
+            return referencePath;
         }
 
-        if (SplitCatalog.TryGetReferenceIconFileName(iconKey, out string referenceFileName))
+        if (TryResolvePackagedIconPath(fileName, iconKey, out string iconPath))
         {
-            string targetIconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "TargetIcons", referenceFileName);
-            if (File.Exists(targetIconPath))
+            return iconPath;
+        }
+
+        return Path.Combine(GetPreferredIconDirectory(iconKey), fileName);
+    }
+
+    private static bool TryResolvePackagedIconPath(string fileName, string iconKey, out string path)
+    {
+        path = string.Empty;
+        if (string.IsNullOrWhiteSpace(fileName))
+        {
+            return false;
+        }
+
+        foreach (string directory in GetCandidateIconDirectories(iconKey))
+        {
+            string candidate = Path.Combine(directory, fileName);
+            if (File.Exists(candidate))
             {
-                return targetIconPath;
+                path = candidate;
+                return true;
             }
         }
 
-        string directTargetIconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "TargetIcons", fileName);
-        return File.Exists(directTargetIconPath) ? directTargetIconPath : bossIconPath;
+        return false;
+    }
+
+    private static IEnumerable<string> GetCandidateIconDirectories(string iconKey)
+    {
+        string preferred = GetPreferredIconDirectory(iconKey);
+        yield return preferred;
+
+        foreach (string directory in GetAllIconDirectories())
+        {
+            if (!string.Equals(directory, preferred, StringComparison.OrdinalIgnoreCase))
+            {
+                yield return directory;
+            }
+        }
+    }
+
+    private static string GetPreferredIconDirectory(string iconKey)
+    {
+        if (SplitCatalog.TryGetBossFact(iconKey, out _))
+        {
+            return GetIconDirectory("Bosses");
+        }
+
+        if (SplitCatalog.TryParseItemTargetId(iconKey, out _))
+        {
+            return GetIconDirectory("Items");
+        }
+
+        if (SplitCatalog.TryParseNpcTargetId(iconKey, out _))
+        {
+            return GetIconDirectory("NPCs");
+        }
+
+        if (SplitCatalog.TryParseBiomeTargetId(iconKey, out _))
+        {
+            return GetIconDirectory("Biomes");
+        }
+
+        return GetIconDirectory("Bosses");
+    }
+
+    private static IEnumerable<string> GetAllIconDirectories()
+    {
+        yield return GetIconDirectory("Bosses");
+        yield return GetIconDirectory("Items");
+        yield return GetIconDirectory("NPCs");
+        yield return GetIconDirectory("Biomes");
+    }
+
+    private static string GetIconDirectory(string category)
+    {
+        return Path.Combine(AppContext.BaseDirectory, "Assets", "Icons", category);
     }
 
     private static Bitmap CreateBossChecklistUndefeatedIcon(

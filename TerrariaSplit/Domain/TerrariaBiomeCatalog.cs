@@ -60,7 +60,7 @@ internal static class TerrariaBiomeCatalog
         new("hallow", "Hallow", "神圣", Require(Zone.Hallow, Zone.Surface), "biome-hallow.png"),
         new("underground-hallow", "Underground Hallow", "地下神圣", Rule([Zone.Hallow], [Zone.Underground, Zone.Cavern], []), "biome-underground-hallow.png"),
         new("dungeon", "Dungeon", "地牢", Require(Zone.Dungeon), "biome-dungeon.png"),
-        new("aether", "Aether", "以太", Require(Zone.Shimmer), "Item_5340.png")
+        new("aether", "Aether", "以太", Require(Zone.Shimmer), "biome-aether.png")
     ];
 
     public static readonly IReadOnlyDictionary<string, TerrariaBiomeDefinition> ById =

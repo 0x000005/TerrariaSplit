@@ -18,6 +18,7 @@ internal static class HotkeyTests
         yield return ("SplitTracker keeps attached splits out of route decisions", SplitTrackerKeepsAttachedSplitsOutOfRouteDecisions);
         yield return ("SplitTracker records completion fact keys for OR display", SplitTrackerRecordsCompletionFactKeysForOrDisplay);
         yield return ("SplitTracker records partial fact completion times", SplitTrackerRecordsPartialFactCompletionTimes);
+        yield return ("SplitTracker keeps historical fact keys when split completes", SplitTrackerKeepsHistoricalFactKeysWhenSplitCompletes);
         yield return ("SplitTracker remembers ever owned item counts", SplitTrackerRemembersEverOwnedItemCounts);
         yield return ("SplitTracker skips initially satisfied conditions after delayed fact resolution", SplitTrackerSkipsInitiallySatisfiedConditionAfterDelayedFactResolution);
         yield return ("SplitTracker completes condition after initial false state", SplitTrackerCompletesConditionAfterInitialFalseState);
@@ -753,6 +754,51 @@ internal static class HotkeyTests
         TestAssert.Equal("split:expanded", completed?.Name);
         TestAssert.Equal(TimeSpan.FromSeconds(5), status.FactCompletionTimes["fact:a"]);
         TestAssert.Equal(TimeSpan.FromSeconds(9), status.FactCompletionTimes["fact:b"]);
+    }
+
+    private static void SplitTrackerKeepsHistoricalFactKeysWhenSplitCompletes()
+    {
+        var tracker = new SplitTracker();
+        tracker.SetDefinitions(
+        [
+            new SplitDefinition(
+                "split:expanded",
+                "Expanded",
+                SplitCondition.AtLeast(
+                [
+                    SplitCondition.Fact("fact:a"),
+                    SplitCondition.Fact("fact:b"),
+                    SplitCondition.Fact("fact:c")
+                ], 2),
+                [],
+                [],
+                [])
+        ]);
+        tracker.OnRunStarted(TestSnapshots.Terraria(
+            isGameMenu: false,
+            bossStates: CreateFacts(("fact:a", false), ("fact:b", false), ("fact:c", false))));
+
+        _ = tracker.Update(
+            TestSnapshots.Terraria(
+                isGameMenu: false,
+                bossStates: CreateFacts(("fact:a", true), ("fact:b", false), ("fact:c", false))),
+            TimeSpan.FromSeconds(5));
+
+        SplitRecord? completed = tracker.Update(
+            TestSnapshots.Terraria(
+                isGameMenu: false,
+                bossStates: CreateFacts(("fact:a", false), ("fact:b", true), ("fact:c", true))),
+            TimeSpan.FromSeconds(9));
+
+        TestAssert.Equal("split:expanded", completed?.Name);
+        SplitStatus status = tracker.Statuses[0];
+        TestAssert.Equal(3, status.CompletedFactKeys.Count);
+        TestAssert.Equal(true, status.CompletedFactKeys.Contains("fact:a", StringComparer.OrdinalIgnoreCase));
+        TestAssert.Equal(true, status.CompletedFactKeys.Contains("fact:b", StringComparer.OrdinalIgnoreCase));
+        TestAssert.Equal(true, status.CompletedFactKeys.Contains("fact:c", StringComparer.OrdinalIgnoreCase));
+        TestAssert.Equal(TimeSpan.FromSeconds(5), status.FactCompletionTimes["fact:a"]);
+        TestAssert.Equal(TimeSpan.FromSeconds(9), status.FactCompletionTimes["fact:b"]);
+        TestAssert.Equal(TimeSpan.FromSeconds(9), status.FactCompletionTimes["fact:c"]);
     }
 
     private static void SplitTrackerRemembersEverOwnedItemCounts()

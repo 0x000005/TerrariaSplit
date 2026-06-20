@@ -8,8 +8,6 @@ internal static class AppSettingsStore
 
     public static string SettingsDirectory => RuntimeDataPaths.SettingsDirectory;
 
-    private static string DefaultSettingsTemplatePath => AppSettingsDefaults.TemplatePath;
-
     private static string ActiveSettingsPath => Path.Combine(SettingsDirectory, ActiveSettingsFileName);
 
     public static string SettingsPath
@@ -34,11 +32,12 @@ internal static class AppSettingsStore
         AppSettings settings;
         bool shouldSave = false;
         activeSettingsPath = NormalizeSettingsPath(path);
+        AppSettings defaults = LoadDefaultSettingsTemplate();
         settings = SettingsSerializer.ReadSettingsWithDefaults(
             SettingsPath,
-            DefaultSettingsTemplatePath,
-            "settings") ?? LoadDefaultSettingsTemplate();
-        shouldSave = !File.Exists(SettingsPath);
+            defaults,
+            "settings",
+            out shouldSave) ?? defaults;
         string activeReferenceSplitSet = settings.ActiveReferenceSplitSet;
         string activePersonalBestTimeSet = settings.ActivePersonalBestTimeSet;
         string activePersonalBestSegmentSet = settings.ActivePersonalBestSegmentSet;

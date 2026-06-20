@@ -49,10 +49,17 @@ internal static class SplitLayoutCalculator
     {
         float scale = Math.Clamp(settings.Columns.ScalePercent, 25, 300) / 100f;
         int columnsWidth = 0;
-        columnsWidth += settings.Columns.Icon.Show ? (int)Math.Round(settings.Columns.Icon.Width * scale) : 0;
-        columnsWidth += settings.Columns.Time.Show ? (int)Math.Round(settings.Columns.Time.Width * scale) : 0;
-        columnsWidth += settings.Columns.Delta.Show ? (int)Math.Round(settings.Columns.Delta.Width * scale) : 0;
+        columnsWidth += GetMaximumColumnWidth(settings.Columns.Icon, settings.Columns.AttachedIcon, scale);
+        columnsWidth += GetMaximumColumnWidth(settings.Columns.Time, settings.Columns.AttachedTime, scale);
+        columnsWidth += GetMaximumColumnWidth(settings.Columns.Delta, settings.Columns.AttachedDelta, scale);
         return Math.Clamp(columnsWidth + (int)Math.Round(28 * scale), 300, 2400);
+    }
+
+    private static int GetMaximumColumnWidth(UiColumnSettings primary, UiColumnSettings attached, float scale)
+    {
+        int primaryWidth = primary.Show ? (int)Math.Round(primary.Width * scale) : 0;
+        int attachedWidth = attached.Show ? (int)Math.Round(attached.Width * scale) : 0;
+        return Math.Max(primaryWidth, attachedWidth);
     }
 
     public static int GetDefaultWindowHeight(AppSettings settings)

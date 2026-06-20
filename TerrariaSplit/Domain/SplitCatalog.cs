@@ -30,28 +30,6 @@ internal static class SplitCatalog
 
     private static readonly IReadOnlyDictionary<string, BossFactDescriptor> BossByTargetId;
     private static readonly IReadOnlyDictionary<string, SplitTargetDefinition> BossTargetsById;
-    private static readonly IReadOnlyDictionary<string, string> ReferenceIconFileNames =
-        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["boss:king-slime"] = "NPC_50.png",
-            ["boss:eye-of-cthulhu"] = "NPC_4.png",
-            ["boss:eater-of-worlds"] = "NPC_13.png",
-            ["boss:brain-of-cthulhu"] = "NPC_266.png",
-            ["boss:queen-bee"] = "NPC_222.png",
-            [Skeletron] = "NPC_35.png",
-            ["boss:deerclops"] = "NPC_668.png",
-            [WallOfFlesh] = "NPC_113.png",
-            ["boss:queen-slime"] = "NPC_657.png",
-            [Destroyer] = "NPC_134.png",
-            [Twins] = "NPC_125.png",
-            [SkeletronPrime] = "NPC_127.png",
-            [Plantera] = "NPC_262.png",
-            [Golem] = "NPC_245.png",
-            ["boss:duke-fishron"] = "NPC_370.png",
-            ["boss:empress-of-light"] = "NPC_636.png",
-            [LunaticCultist] = "NPC_439.png",
-            [MoonLord] = "NPC_396.png"
-        };
 
     static SplitCatalog()
     {
@@ -117,6 +95,12 @@ internal static class SplitCatalog
     public static bool TryGetReferenceIconFileName(string targetId, out string fileName)
     {
         fileName = string.Empty;
+        if (BossByTargetId.TryGetValue(targetId, out BossFactDescriptor? boss))
+        {
+            fileName = boss.IconFileName;
+            return true;
+        }
+
         if (TryParseItemTargetId(targetId, out int itemId))
         {
             fileName = $"Item_{itemId}.png";
@@ -136,7 +120,7 @@ internal static class SplitCatalog
             return true;
         }
 
-        return ReferenceIconFileNames.TryGetValue(targetId, out fileName!);
+        return false;
     }
 
     public static IReadOnlyList<SplitDefinition> Build(AppSettings settings)
@@ -355,7 +339,8 @@ internal static class SplitCatalog
 
     private static SplitDefinition? BuildSplit(SplitRouteEntry entry)
     {
-        entry.Condition = (entry.Condition ?? SplitCondition.All([])).ToFlatGroup();
+        SplitCondition condition = (entry.Condition ?? SplitCondition.All([])).Clone();
+        condition.Normalize();
 
         string id = string.IsNullOrWhiteSpace(entry.Id)
             ? CreateStableSplitId(entry)
@@ -363,7 +348,7 @@ internal static class SplitCatalog
         string displayName = string.IsNullOrWhiteSpace(entry.DisplayName)
             ? id
             : entry.DisplayName.Trim();
-        string[] targetIds = InferTargetIds(entry.Condition)
+        string[] targetIds = InferTargetIds(condition)
             .Where(id => !string.IsNullOrWhiteSpace(id))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
@@ -379,7 +364,7 @@ internal static class SplitCatalog
         return new SplitDefinition(
             id,
             displayName,
-            entry.Condition.ToFlatGroup(),
+            condition,
             iconData.FileNames,
             iconData.Keys,
             targetIds,
@@ -393,10 +378,9 @@ internal static class SplitCatalog
     {
         SplitIconOverride iconOverride = entry.IconOverride ?? new SplitIconOverride();
         string source = SplitIconOverrideSource.Normalize(iconOverride.Source);
-        SplitCondition[] lightingConditions = entry.Condition
-            .GetFactConditions()
-            .Select(condition => condition.Clone())
-            .ToArray();
+        SplitCondition lightingCondition = (entry.Condition ?? SplitCondition.All([])).Clone();
+        lightingCondition.Normalize();
+        SplitCondition[] lightingConditions = [lightingCondition];
 
         if (source == SplitIconOverrideSource.Target &&
             targetIds.Contains(iconOverride.TargetId, StringComparer.OrdinalIgnoreCase) &&

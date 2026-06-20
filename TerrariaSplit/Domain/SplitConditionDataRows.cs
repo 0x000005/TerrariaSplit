@@ -143,17 +143,18 @@ internal static class SplitConditionDataRows
             return true;
         }
 
-        SplitCondition flat = (condition ?? SplitCondition.All([])).ToFlatGroup();
-        int requiredCount = Math.Max(1, flat.GetRequiredCount());
-        if (parsed.Count < requiredCount)
-        {
-            return false;
-        }
+        Dictionary<string, List<TimeSpan>> factTimes = rows
+            .Select(row => (
+                Key: CreateFactSignature(row.Condition),
+                Time: TryGetTime(values, row.Key, out TimeSpan value) ? value : (TimeSpan?)null))
+            .Where(item => item.Time.HasValue)
+            .GroupBy(item => item.Key, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Select(item => item.Time!.Value).OrderBy(value => value).ToList(),
+                StringComparer.OrdinalIgnoreCase);
 
-        split = parsed
-            .OrderBy(value => value)
-            .ElementAt(requiredCount - 1);
-        return true;
+        return TryGetConditionCompletionTime(condition ?? SplitCondition.All([]), factTimes, out split);
     }
 
     private static bool TryGetTime(
@@ -168,9 +169,14 @@ internal static class SplitConditionDataRows
 
     private static string CreateBaseKey(string splitId, SplitCondition fact)
     {
-        string factKey = NormalizeItemFactKey(fact.FactKey);
-        string suffix = Sanitize($"{factKey}:{SplitFactComparison.Normalize(fact.Comparison)}:{Math.Max(1, fact.Value)}");
+        string suffix = Sanitize(CreateFactSignature(fact));
         return $"condition:{splitId}:{suffix}";
+    }
+
+    private static string CreateFactSignature(SplitCondition fact)
+    {
+        string factKey = NormalizeItemFactKey(fact.FactKey);
+        return $"{factKey}:{SplitFactComparison.Normalize(fact.Comparison)}:{Math.Max(1, fact.Value)}";
     }
 
     private static string CreateCompletedSplitKey(string splitId)
@@ -199,5 +205,68 @@ internal static class SplitConditionDataRows
         return conditionCount == 1 && string.Equals(splitDisplayName, factName, StringComparison.OrdinalIgnoreCase)
             ? factName
             : $"{splitDisplayName}：{factName}";
+    }
+
+    private static bool TryGetConditionCompletionTime(
+        SplitCondition condition,
+        IReadOnlyDictionary<string, List<TimeSpan>> factTimes,
+        out TimeSpan time)
+    {
+        time = TimeSpan.Zero;
+        string kind = SplitConditionKind.Normalize(condition.Kind);
+        if (kind == SplitConditionKind.Fact)
+        {
+            return TryGetFactCompletionTime(condition, factTimes, out time);
+        }
+
+        List<TimeSpan> childTimes = new();
+        IReadOnlyList<SplitCondition> children = condition.Children ?? [];
+        foreach (SplitCondition child in children)
+        {
+            if (TryGetConditionCompletionTime(child, factTimes, out TimeSpan childTime))
+            {
+                childTimes.Add(childTime);
+            }
+        }
+
+        if (kind == SplitConditionKind.All)
+        {
+            if (childTimes.Count != children.Count || childTimes.Count == 0)
+            {
+                return false;
+            }
+
+            time = childTimes.Max();
+            return true;
+        }
+
+        int requiredCount = kind == SplitConditionKind.AtLeast
+            ? Math.Max(1, condition.Value)
+            : 1;
+        if (childTimes.Count < requiredCount)
+        {
+            return false;
+        }
+
+        time = childTimes
+            .OrderBy(value => value)
+            .ElementAt(requiredCount - 1);
+        return true;
+    }
+
+    private static bool TryGetFactCompletionTime(
+        SplitCondition condition,
+        IReadOnlyDictionary<string, List<TimeSpan>> factTimes,
+        out TimeSpan time)
+    {
+        time = TimeSpan.Zero;
+        if (!factTimes.TryGetValue(CreateFactSignature(condition), out List<TimeSpan>? times) ||
+            times.Count == 0)
+        {
+            return false;
+        }
+
+        time = times[0];
+        return true;
     }
 }

@@ -29,7 +29,10 @@ var legacyTests = new (string Name, Action Test)[]
     ("SplitTimer clamps practice time at zero", TestSplitTimerPracticeClamp),
     ("SplitRouteGroups builds enabled main split entries", TestSplitRouteGroups),
     ("RunFinalizer applies simplified personal best eligibility", TestRunFinalizerSimplifiedPersonalBestEligibility),
+    ("SplitConditionText parses ALL and ATLEAST syntax", TestSplitConditionTextParsesAllAndAtLeastSyntax),
+    ("SplitCatalog preserves nested split conditions", TestSplitCatalogPreservesNestedSplitConditions),
     ("SplitConditionDataRows expands route conditions", TestSplitConditionDataRows),
+    ("SplitConditionDataRows calculates nested reference completion time", TestSplitConditionDataRowsCalculatesNestedReferenceCompletionTime),
     ("SplitConditionDataRows aggregates AtLeast cumulative times", TestSplitConditionDataRowsAggregatesAtLeastTimes),
     ("SplitCatalog maps reference target icons", TestSplitCatalogReferenceTargetIcons),
     ("SplitCatalog builds split icon overrides", TestSplitCatalogBuildsSplitIconOverrides),
@@ -38,7 +41,10 @@ var legacyTests = new (string Name, Action Test)[]
     ("Localizer returns English fallback and Chinese Crimson", TestLocalizer),
     ("JsonFileStore writes settings atomically", TestJsonFileStoreWritesAtomically),
     ("Default settings template covers serializable settings", TestDefaultSettingsTemplateCoversSerializableSettings),
+    ("Default attached split display matches primary display without bold", TestDefaultAttachedSplitDisplayMatchesPrimaryDisplayWithoutBold),
     ("Default reference times match default settings route", TestDefaultReferenceTimesMatchDefaultSettingsRoute),
+    ("AppSettingsStore writes embedded defaults when settings file is invalid", TestAppSettingsStoreWritesEmbeddedDefaultsWhenSettingsFileIsInvalid),
+    ("SplitTimeSetStore writes embedded WR when reference files are invalid", TestSplitTimeSetStoreWritesEmbeddedWrWhenReferenceFilesAreInvalid),
     ("Runtime data paths use final directory layout", TestRuntimeDataPathsUseFinalDirectoryLayout),
     ("AppLogger is disabled by default", TestAppLoggerIsDisabledByDefault),
     ("Main publish is single file", TestMainPublishIsSingleFile),
@@ -66,14 +72,20 @@ var legacyTests = new (string Name, Action Test)[]
     ("Settings form applies global scale from General page", TestSettingsFormAppliesGlobalScaleFromGeneralPage),
     ("Settings form applies dynamic delta units from UI page", TestSettingsFormAppliesDynamicDeltaUnitsFromUiPage),
     ("Settings form applies text effects from UI page", TestSettingsFormAppliesTextEffectsFromUiPage),
+    ("Settings form applies attached split display settings", TestSettingsFormAppliesAttachedSplitDisplaySettings),
     ("Settings form applies UI font families", TestSettingsFormAppliesUiFontFamilies),
     ("Settings form applies practice world slots", TestSettingsFormAppliesPracticeWorldSlots),
-    ("Settings form saves flat split route", TestSettingsFormSavesFlatSplitRoute),
+    ("Settings form preserves advanced split route", TestSettingsFormPreservesAdvancedSplitRoute),
+    ("Settings form keeps advanced condition mode per group", TestSettingsFormKeepsAdvancedConditionModePerGroup),
+    ("Settings form blocks lossy advanced condition downgrade", TestSettingsFormBlocksLossyAdvancedConditionDowngrade),
+    ("Settings form allows empty advanced condition downgrade", TestSettingsFormAllowsEmptyAdvancedConditionDowngrade),
     ("Settings form switches split conditions without overwrite", TestSettingsFormSwitchesSplitConditionsWithoutOverwrite),
     ("Settings form saves attached route flags", TestSettingsFormSavesAttachedRouteFlags),
     ("Settings form saves split icon override", TestSettingsFormSavesSplitIconOverride),
     ("Settings form saves localized split icon override", TestSettingsFormSavesLocalizedSplitIconOverride),
     ("Settings form rejects invalid split route apply", TestSettingsFormRejectsInvalidSplitRouteApply),
+    ("Settings form edits match mode from dropdown", TestSettingsFormEditsMatchModeFromDropdown),
+    ("Settings form decrements match mode when deleting condition", TestSettingsFormDecrementsMatchModeWhenDeletingCondition),
     ("Settings form edits item quantity from selected condition", TestSettingsFormEditsItemQuantityFromSelectedCondition),
     ("Settings form searches item targets by name", TestSettingsFormSearchesItemTargetsByName),
     ("Settings form searches NPC targets by name", TestSettingsFormSearchesNpcTargetsByName),
@@ -96,6 +108,7 @@ var legacyTests = new (string Name, Action Test)[]
     ("Main form preserves size when applying non-layout settings", TestMainFormPreservesSizeWhenApplyingNonLayoutSettings),
     ("Main form settings apply redraws static status overlay content", TestMainFormSettingsApplyRedrawsStaticStatusOverlayContent),
     ("Main form settings apply reloads definitions and records current run", TestMainFormSettingsApplyReloadsDefinitionsAndRecordsCurrentRun),
+    ("Window layer defers modal state updates", TestWindowLayerDefersModalStateUpdates),
     ("Main form initializes overlay layout with current split count", TestMainFormInitializesOverlayLayoutWithCurrentSplitCount),
     ("Main form overlay client size matches status layout", TestMainFormOverlayClientSizeMatchesStatusLayout),
     ("Main form scales size when global scale changes", TestMainFormScalesSizeWhenGlobalScaleChanges),
@@ -488,6 +501,77 @@ static (bool HasUpdates, int SegmentUpdateCount, bool HasTimeUpdate, Dictionary<
         timeUpdateSplits);
 }
 
+static void TestSplitConditionTextParsesAllAndAtLeastSyntax()
+{
+    string text = "ALL(\n  Boss:skeletron,\n  ATLEAST(2, Boss:destroyer, Boss:twins, Boss:skeletron-prime),\n  Item:50 >= 2\n)";
+    if (!SplitConditionText.TryParse(text, LanguageNames.Chinese, out SplitCondition condition, out string error))
+    {
+        throw new InvalidOperationException(error);
+    }
+    AssertEqual(SplitConditionKind.All, SplitConditionKind.Normalize(condition.Kind));
+    AssertEqual(3, condition.Children.Count);
+    AssertEqual(SplitConditionKind.AtLeast, SplitConditionKind.Normalize(condition.Children[1].Kind));
+    AssertEqual(2, condition.Children[1].Value);
+    AssertEqual(SplitCatalog.CreateItemEverOwnedFactKey(50), condition.Children[2].FactKey);
+    AssertEqual(SplitFactComparison.AtLeast, SplitFactComparison.Normalize(condition.Children[2].Comparison));
+    AssertEqual(2, condition.Children[2].Value);
+
+    TerrariaGameFacts.Builder builder = TerrariaGameFacts.CreateBuilder();
+    builder.SetBoolean(SplitCatalog.BossFacts.Single(boss => boss.TargetId == SplitCatalog.Skeletron).FactKey, true);
+    builder.SetBoolean(SplitCatalog.BossFacts.Single(boss => boss.TargetId == SplitCatalog.Destroyer).FactKey, true);
+    builder.SetBoolean(SplitCatalog.BossFacts.Single(boss => boss.TargetId == SplitCatalog.Twins).FactKey, false);
+    builder.SetBoolean(SplitCatalog.BossFacts.Single(boss => boss.TargetId == SplitCatalog.SkeletronPrime).FactKey, true);
+    builder.SetInteger(SplitCatalog.CreateItemEverOwnedFactKey(50), 2);
+    AssertEqual(SplitConditionResult.True, condition.Evaluate(builder.Build()));
+
+    string formatted = SplitConditionText.Format(condition, LanguageNames.Chinese);
+    AssertEqual(true, formatted.Contains("Boss:skeletron", StringComparison.Ordinal));
+    AssertEqual(true, formatted.Contains("Item:50 >= 2", StringComparison.Ordinal));
+    AssertEqual(true, SplitConditionText.TryParse(formatted, LanguageNames.Chinese, out SplitCondition reparsed, out _));
+    AssertEqual(condition.GetFactKeys().Count(), reparsed.GetFactKeys().Count());
+
+    string emptyAtLeast = SplitConditionText.Format(SplitCondition.AtLeast([], 1), LanguageNames.Chinese);
+    AssertEqual("ATLEAST(1)", emptyAtLeast);
+    AssertEqual(true, SplitConditionText.TryParse(emptyAtLeast, LanguageNames.Chinese, out SplitCondition emptyReparsed, out _));
+    AssertEqual(SplitConditionKind.AtLeast, SplitConditionKind.Normalize(emptyReparsed.Kind));
+    AssertEqual(0, emptyReparsed.Children.Count);
+    AssertEqual(1, emptyReparsed.Value);
+}
+
+static void TestSplitCatalogPreservesNestedSplitConditions()
+{
+    SplitCondition condition = SplitCondition.All(
+    [
+        SplitCatalog.CreateBossFactCondition(SplitCatalog.Skeletron),
+        SplitCondition.AtLeast(
+        [
+            SplitCatalog.CreateBossFactCondition(SplitCatalog.Destroyer),
+            SplitCatalog.CreateBossFactCondition(SplitCatalog.Twins),
+            SplitCatalog.CreateBossFactCondition(SplitCatalog.SkeletronPrime)
+        ], 2)
+    ]);
+    var settings = new AppSettings
+    {
+        SplitRoute =
+        [
+            new SplitRouteEntry
+            {
+                Id = "split:nested",
+                DisplayName = "Nested",
+                Enabled = true,
+                Condition = condition,
+                IconTargetIds = [SplitCatalog.Skeletron, SplitCatalog.Destroyer, SplitCatalog.Twins, SplitCatalog.SkeletronPrime]
+            }
+        ]
+    };
+
+    SplitDefinition definition = SplitCatalog.Build(settings).Single();
+
+    AssertEqual(SplitConditionKind.All, SplitConditionKind.Normalize(definition.Condition.Kind));
+    AssertEqual(SplitConditionKind.AtLeast, SplitConditionKind.Normalize(definition.Condition.Children[1].Kind));
+    AssertEqual(2, definition.Condition.Children[1].Value);
+}
+
 static void TestSplitConditionDataRows()
 {
     var settings = new AppSettings { SplitRoute = SplitCatalog.CreateDefaultRoute() };
@@ -520,6 +604,51 @@ static void TestSplitConditionDataRows()
     };
     AssertEqual(true, SplitConditionDataRows.TryGetSplitTime(settings, attachedValues, attachedDefinition, out TimeSpan attachedTime));
     AssertEqual(TimeSpan.FromSeconds(22), attachedTime);
+}
+
+static void TestSplitConditionDataRowsCalculatesNestedReferenceCompletionTime()
+{
+    SplitCondition skeletron = SplitCatalog.CreateBossFactCondition(SplitCatalog.Skeletron);
+    SplitCondition destroyer = SplitCatalog.CreateBossFactCondition(SplitCatalog.Destroyer);
+    SplitCondition twins = SplitCatalog.CreateBossFactCondition(SplitCatalog.Twins);
+    SplitCondition prime = SplitCatalog.CreateBossFactCondition(SplitCatalog.SkeletronPrime);
+    SplitCondition condition = SplitCondition.All(
+    [
+        skeletron,
+        SplitCondition.AtLeast([destroyer, twins, prime], 2)
+    ]);
+    var settings = new AppSettings
+    {
+        SplitRoute =
+        [
+            new SplitRouteEntry
+            {
+                Id = "split:nested",
+                DisplayName = "Nested",
+                Enabled = true,
+                Condition = condition,
+                IconTargetIds = [SplitCatalog.Skeletron, SplitCatalog.Destroyer, SplitCatalog.Twins, SplitCatalog.SkeletronPrime]
+            }
+        ]
+    };
+    IReadOnlyList<SplitConditionDataRow> rows = SplitConditionDataRows.Build(settings);
+    var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+    foreach (SplitConditionDataRow row in rows)
+    {
+        values[row.Key] = row.Condition.FactKey switch
+        {
+            var key when string.Equals(key, skeletron.FactKey, StringComparison.OrdinalIgnoreCase) => "0:10.00",
+            var key when string.Equals(key, destroyer.FactKey, StringComparison.OrdinalIgnoreCase) => "0:20.00",
+            var key when string.Equals(key, twins.FactKey, StringComparison.OrdinalIgnoreCase) => "0:30.00",
+            var key when string.Equals(key, prime.FactKey, StringComparison.OrdinalIgnoreCase) => "0:40.00",
+            _ => string.Empty
+        };
+    }
+
+    var definition = new SplitDefinition("split:nested", "Nested", condition, [], [], []);
+
+    AssertEqual(true, SplitConditionDataRows.TryGetSplitTime(settings, values, definition, out TimeSpan split));
+    AssertEqual(TimeSpan.FromSeconds(30), split);
 }
 
 static void TestSplitConditionDataRowsAggregatesAtLeastTimes()
@@ -596,15 +725,24 @@ static void TestSplitCatalogReferenceTargetIcons()
 {
     AssertEqual(true, SplitCatalog.TryGetReferenceIconFileName(SplitCatalog.CreateItemTargetId(50), out string itemIcon));
     AssertEqual("Item_50.png", itemIcon);
-    AssertEqual(true, File.Exists(Path.Combine("TerrariaSplit", "Assets", "TargetIcons", itemIcon)));
+    AssertEqual(true, File.Exists(Path.Combine("TerrariaSplit", "Assets", "Icons", "Items", itemIcon)));
 
     AssertEqual(true, SplitCatalog.TryGetReferenceIconFileName("boss:king-slime", out string bossIcon));
-    AssertEqual("NPC_50.png", bossIcon);
-    AssertEqual(true, File.Exists(Path.Combine("TerrariaSplit", "Assets", "TargetIcons", bossIcon)));
+    AssertEqual("king-slime.png", bossIcon);
+    AssertEqual(true, File.Exists(Path.Combine("TerrariaSplit", "Assets", "Icons", "Bosses", bossIcon)));
+
+    foreach (BossFactDescriptor boss in SplitCatalog.BossFacts)
+    {
+        AssertEqual(true, File.Exists(Path.Combine("TerrariaSplit", "Assets", "Icons", "Bosses", boss.IconFileName)));
+    }
 
     AssertEqual(true, SplitCatalog.TryGetReferenceIconFileName(SplitCatalog.CreateNpcTargetId(17), out string npcIcon));
     AssertEqual("NPC_Head_2.png", npcIcon);
-    AssertEqual(true, File.Exists(Path.Combine("TerrariaSplit", "Assets", "TargetIcons", npcIcon)));
+    AssertEqual(true, File.Exists(Path.Combine("TerrariaSplit", "Assets", "Icons", "NPCs", npcIcon)));
+
+    AssertEqual(true, SplitCatalog.TryGetReferenceIconFileName(SplitCatalog.CreateBiomeTargetId("aether"), out string biomeIcon));
+    AssertEqual("biome-aether.png", biomeIcon);
+    AssertEqual(true, File.Exists(Path.Combine("TerrariaSplit", "Assets", "Icons", "Biomes", biomeIcon)));
 }
 
 static void TestSplitCatalogBuildsSplitIconOverrides()
@@ -641,7 +779,9 @@ static void TestSplitCatalogBuildsSplitIconOverrides()
     AssertEqual(1, definition.IconKeys.Count);
     AssertEqual(SplitCatalog.WallOfFlesh, definition.IconKeys.Single());
     AssertEqual(2, definition.TargetIds.Count);
-    AssertEqual(2, definition.IconLightingConditions.Count);
+    AssertEqual(1, definition.IconLightingConditions.Count);
+    AssertEqual(SplitConditionKind.AtLeast, definition.IconLightingConditions.Single().Kind);
+    AssertEqual(1, definition.IconLightingConditions.Single().Value);
 
     var completedWithOtherTarget = new SplitStatusSnapshot(
         definition,
@@ -841,7 +981,14 @@ static void TestLocalizer()
     AssertEqual("m:ss \u6216 h:mm:ss", Localizer.Get("m:ss or h:mm:ss", new AppSettings { Language = "\u4E2D\u6587" }));
     AssertEqual("\u975E\u9644\u5C5E\u7EC4", Localizer.Get("Split details", new AppSettings { Language = "\u4E2D\u6587" }));
     AssertEqual("\u9644\u5C5E\u7EC4", Localizer.Get("Attached groups", new AppSettings { Language = "\u4E2D\u6587" }));
+    AssertEqual("\u9644\u5C5E\u7EC4", Localizer.Get("Attached group marker", new AppSettings { Language = "\u4E2D\u6587" }));
     AssertEqual("\u81EA\u52A8\u9690\u85CF\u9644\u5C5E\u7EC4", Localizer.Get("Auto hide attached groups", new AppSettings { Language = "\u4E2D\u6587" }));
+    AssertEqual("\u9644\u5C5E\u7EC4\u53C2\u4E0E\u4E3B\u8BA1\u65F6\u5668\u5FEB\u6162\u5224\u5B9A", Localizer.Get("Attached groups affect main timer comparison", new AppSettings { Language = "\u4E2D\u6587" }));
+    AssertEqual("\u5B8C\u6210\u5F53\u524D\u9636\u6BB5\u65F6\u70B9\u4EAE\u56FE\u6807", Localizer.Get("Light icons when current stage completed", new AppSettings { Language = "\u4E2D\u6587" }));
+    AssertEqual("\u4E3B\u9636\u6BB5\u5B8C\u6210\u52A8\u753B", Localizer.Get("Main stage completion animation", new AppSettings { Language = "\u4E2D\u6587" }));
+    AssertEqual("\u7EC4", Localizer.Get("BOSS Group", new AppSettings { Language = "\u4E2D\u6587" }));
+    AssertEqual("\u5F53\u524D\u9636\u6BB5\u56FE\u6807\u7070\u5EA6\u989D\u5916\u524A\u5F31 %", Localizer.Get("Current stage icon grayscale weaken %", new AppSettings { Language = "\u4E2D\u6587" }));
+    AssertEqual("\u5F53\u524D\u9636\u6BB5\u56FE\u6807\u4EAE\u5EA6\u989D\u5916\u589E\u5F3A %", Localizer.Get("Current stage icon brightness boost %", new AppSettings { Language = "\u4E2D\u6587" }));
 }
 
 static void TestJsonFileStoreWritesAtomically()
@@ -873,24 +1020,42 @@ static void TestJsonFileStoreWritesAtomically()
 
 static void TestDefaultSettingsTemplateCoversSerializableSettings()
 {
-    string path = FindDefaultSettingsTemplate();
-    using JsonDocument document = JsonDocument.Parse(File.ReadAllText(path));
+    using JsonDocument document = JsonDocument.Parse(AppSettingsDefaults.TemplateJson);
 
     AssertJsonCoversType(typeof(AppSettings), document.RootElement, "settings");
 }
 
+static void TestDefaultAttachedSplitDisplayMatchesPrimaryDisplayWithoutBold()
+{
+    AppSettings settings = AppSettingsDefaults.Create();
+
+    AssertColumnMatchesExceptBold(settings.Columns.Icon, settings.Columns.AttachedIcon);
+    AssertColumnMatchesExceptBold(settings.Columns.Time, settings.Columns.AttachedTime);
+    AssertColumnMatchesExceptBold(settings.Columns.Delta, settings.Columns.AttachedDelta);
+    AssertEqual(false, settings.Columns.AttachedIcon.Bold);
+    AssertEqual(false, settings.Columns.AttachedTime.Bold);
+    AssertEqual(false, settings.Columns.AttachedDelta.Bold);
+}
+
+static void AssertColumnMatchesExceptBold(UiColumnSettings expected, UiColumnSettings actual)
+{
+    AssertEqual(expected.Show, actual.Show);
+    AssertEqual(expected.Width, actual.Width);
+    AssertEqual(expected.FontFamily, actual.FontFamily);
+    AssertEqual(expected.FontSize, actual.FontSize);
+}
+
 static void TestDefaultReferenceTimesMatchDefaultSettingsRoute()
 {
-    AppSettings settings = SettingsSerializer.ReadSettings(FindDefaultSettingsTemplate(), "default settings template")
-        ?? throw new InvalidOperationException("Default settings template could not be read.");
+    AppSettings settings = AppSettingsDefaults.Create();
     SettingsNormalizer.Normalize(settings);
     HashSet<string> routeKeys = SplitConditionDataRows.Build(settings)
         .Select(row => row.Key)
         .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-    string sourceRoot = FindSourceRoot();
-    string defaultReferencePath = Path.Combine(sourceRoot, "TerrariaSplit", "Assets", "ReferenceTimes", "WR.json");
-    ReferenceSplitSet referenceSet = JsonFileStore.Read<ReferenceSplitSet>(defaultReferencePath, "default reference times")
+    ReferenceSplitSet referenceSet = System.Text.Json.JsonSerializer.Deserialize<ReferenceSplitSet>(
+        EmbeddedDefaults.ReferenceTimesWrJson,
+        JsonFileStore.JsonOptions)
         ?? throw new InvalidOperationException("Default WR reference times could not be read.");
 
     foreach (string key in referenceSet.Splits.Keys)
@@ -899,6 +1064,85 @@ static void TestDefaultReferenceTimesMatchDefaultSettingsRoute()
         {
             throw new InvalidOperationException($"Default WR reference key is not in the default route: {key}");
         }
+    }
+
+    AssertEqual("0:51.00", referenceSet.Splits["condition:split:item-857:complete"]);
+    AssertEqual("6:50.00", referenceSet.Splits["condition:split:item-167:complete"]);
+}
+
+static void TestAppSettingsStoreWritesEmbeddedDefaultsWhenSettingsFileIsInvalid()
+{
+    string settingsDirectory = AppSettingsStore.SettingsDirectory;
+    string referenceDirectory = SplitTimeSetStore.ReferenceDirectory;
+    string personalBestTimeDirectory = SplitTimeSetStore.PersonalBestTimeDirectory;
+    string personalBestSegmentDirectory = SplitTimeSetStore.PersonalBestSegmentDirectory;
+    DirectorySnapshot settingsSnapshot = SnapshotDirectory(settingsDirectory);
+    DirectorySnapshot referenceSnapshot = SnapshotDirectory(referenceDirectory);
+    DirectorySnapshot personalBestTimeSnapshot = SnapshotDirectory(personalBestTimeDirectory);
+    DirectorySnapshot personalBestSegmentSnapshot = SnapshotDirectory(personalBestSegmentDirectory);
+
+    try
+    {
+        DeleteDirectoryIfExists(settingsDirectory);
+        DeleteDirectoryIfExists(referenceDirectory);
+        DeleteDirectoryIfExists(personalBestTimeDirectory);
+        DeleteDirectoryIfExists(personalBestSegmentDirectory);
+
+        Directory.CreateDirectory(settingsDirectory);
+        string settingsPath = Path.Combine(settingsDirectory, "settings.json");
+        File.WriteAllText(settingsPath, "{ invalid json");
+
+        AppSettings loaded = AppSettingsStore.Load("settings.json");
+        AppSettings defaults = AppSettingsDefaults.Create();
+
+        AssertEqual(defaults.Language, loaded.Language);
+        AssertEqual(defaults.SplitRoute.Count, loaded.SplitRoute.Count);
+        AssertEqual(true, File.Exists(settingsPath));
+
+        AppSettings? saved = SettingsSerializer.ReadSettings(settingsPath, "saved settings");
+        AssertEqual(defaults.Language, saved?.Language);
+        AssertEqual(defaults.SplitRoute.Count, saved?.SplitRoute.Count);
+    }
+    finally
+    {
+        RestoreDirectory(settingsDirectory, settingsSnapshot);
+        RestoreDirectory(referenceDirectory, referenceSnapshot);
+        RestoreDirectory(personalBestTimeDirectory, personalBestTimeSnapshot);
+        RestoreDirectory(personalBestSegmentDirectory, personalBestSegmentSnapshot);
+    }
+}
+
+static void TestSplitTimeSetStoreWritesEmbeddedWrWhenReferenceFilesAreInvalid()
+{
+    string referenceDirectory = SplitTimeSetStore.ReferenceDirectory;
+    DirectorySnapshot referenceSnapshot = SnapshotDirectory(referenceDirectory);
+
+    try
+    {
+        DeleteDirectoryIfExists(referenceDirectory);
+        Directory.CreateDirectory(referenceDirectory);
+        File.WriteAllText(Path.Combine(referenceDirectory, "WR.json"), "{ invalid json");
+
+        List<ReferenceSplitSet> sets = SplitTimeSetStore.LoadReferenceSets();
+        ReferenceSplitSet embeddedWr = System.Text.Json.JsonSerializer.Deserialize<ReferenceSplitSet>(
+            EmbeddedDefaults.ReferenceTimesWrJson,
+            JsonFileStore.JsonOptions)
+            ?? throw new InvalidOperationException("Embedded WR reference times could not be read.");
+
+        AssertEqual(1, sets.Count);
+        AssertEqual("WR", sets[0].Name);
+        AssertEqual(embeddedWr.Splits.Count, sets[0].Splits.Count);
+        AssertEqual(true, File.Exists(Path.Combine(referenceDirectory, "WR.json")));
+
+        ReferenceSplitSet saved = JsonFileStore.Read<ReferenceSplitSet>(
+            Path.Combine(referenceDirectory, "WR.json"),
+            "saved WR reference times")
+            ?? throw new InvalidOperationException("Saved WR reference times could not be read.");
+        AssertEqual(embeddedWr.Splits.Count, saved.Splits.Count);
+    }
+    finally
+    {
+        RestoreDirectory(referenceDirectory, referenceSnapshot);
     }
 }
 
@@ -1624,6 +1868,58 @@ static void TestSettingsFormAppliesTextEffectsFromUiPage()
     });
 }
 
+static void TestSettingsFormAppliesAttachedSplitDisplaySettings()
+{
+    RunSta(() =>
+    {
+        AppSettings settings = AppSettingsDefaults.Create();
+        using var form = new SettingsForm(settings);
+        UiSettingsPage page = form.PageHost.GetOrCreatePage<UiSettingsPage>(SettingsPageId.Ui);
+        string selectedFamily = SelectInstalledFontFamilyForTest(settings.Columns.AttachedTime.FontFamily);
+
+        page.GetColumnWidthBoxForTests("AttachedIcon").Text = "212";
+        page.GetColumnFontSizeBoxForTests("AttachedIcon").Text = "41";
+        page.AttachedIconOpacityBox.Text = "44";
+
+        page.GetColumnWidthBoxForTests("AttachedTime").Text = "122";
+        SetFontFamilySelectorValue(page.GetFontFamilySelectorForTests("AttachedTime"), selectedFamily);
+        page.GetColumnFontSizeBoxForTests("AttachedTime").Text = "18.5";
+        (page.GetColumnBoldBoxForTests("AttachedTime") ?? throw new InvalidOperationException("Missing attached time bold box.")).Checked = true;
+        page.AttachedTimeOpacityBox.Text = "64";
+        page.AttachedTimeShadowBox.Text = "24";
+        page.AttachedTimeOutlineThicknessBox.Text = "34";
+
+        page.GetColumnWidthBoxForTests("AttachedDelta").Text = "132";
+        SetFontFamilySelectorValue(page.GetFontFamilySelectorForTests("AttachedDelta"), selectedFamily);
+        page.GetColumnFontSizeBoxForTests("AttachedDelta").Text = "19.5";
+        (page.GetColumnBoldBoxForTests("AttachedDelta") ?? throw new InvalidOperationException("Missing attached delta bold box.")).Checked = false;
+        page.AttachedDeltaOpacityBox.Text = "74";
+        page.AttachedDeltaShadowBox.Text = "32";
+        page.AttachedDeltaOutlineThicknessBox.Text = "42";
+
+        form.ApplyForTests();
+
+        AssertEqual(212, form.Result.Columns.AttachedIcon.Width);
+        AssertEqual(41f, form.Result.Columns.AttachedIcon.FontSize);
+        AssertEqual(false, form.Result.Columns.AttachedIcon.Bold);
+        AssertEqual(44, form.Result.TextEffects.AttachedIconOpacityPercent);
+        AssertEqual(122, form.Result.Columns.AttachedTime.Width);
+        AssertEqual(UiFontSettings.NormalizeFamilyName(selectedFamily), form.Result.Columns.AttachedTime.FontFamily);
+        AssertEqual(18.5f, form.Result.Columns.AttachedTime.FontSize);
+        AssertEqual(true, form.Result.Columns.AttachedTime.Bold);
+        AssertEqual(64, form.Result.TextEffects.AttachedTimeOpacityPercent);
+        AssertEqual(24, form.Result.TextEffects.AttachedTimeShadowPercent);
+        AssertEqual(34, form.Result.TextEffects.AttachedTimeOutlineThicknessPercent);
+        AssertEqual(132, form.Result.Columns.AttachedDelta.Width);
+        AssertEqual(UiFontSettings.NormalizeFamilyName(selectedFamily), form.Result.Columns.AttachedDelta.FontFamily);
+        AssertEqual(19.5f, form.Result.Columns.AttachedDelta.FontSize);
+        AssertEqual(false, form.Result.Columns.AttachedDelta.Bold);
+        AssertEqual(74, form.Result.TextEffects.AttachedDeltaOpacityPercent);
+        AssertEqual(32, form.Result.TextEffects.AttachedDeltaShadowPercent);
+        AssertEqual(42, form.Result.TextEffects.AttachedDeltaOutlineThicknessPercent);
+    });
+}
+
 static void TestSettingsFormAppliesUiFontFamilies()
 {
     RunSta(() =>
@@ -1669,7 +1965,7 @@ static void TestSettingsFormAppliesPracticeWorldSlots()
     });
 }
 
-static void TestSettingsFormSavesFlatSplitRoute()
+static void TestSettingsFormPreservesAdvancedSplitRoute()
 {
     RunSta(() =>
     {
@@ -1716,17 +2012,184 @@ static void TestSettingsFormSavesFlatSplitRoute()
         SplitRouteEntry entry = form.Result.SplitRoute.Single();
         AssertEqual("split:custom-composite", entry.Id);
         AssertEqual(5, entry.IconTargetIds.Count);
+        AssertEqual(true, entry.UseAdvancedConditionEditor);
 
         SplitCondition root = entry.Condition;
-        AssertEqual(SplitConditionKind.AtLeast, SplitConditionKind.Normalize(root.Kind));
-        AssertEqual(5, root.Value);
-        AssertEqual(5, root.Children.Count);
-        AssertEqual(true, root.Children.All(child => SplitConditionKind.Normalize(child.Kind) == SplitConditionKind.Fact));
-        AssertEqual(true, root.Children.Any(child => string.Equals(child.FactKey, SplitCatalog.CreateItemEverOwnedFactKey(70), StringComparison.OrdinalIgnoreCase)));
-        SplitCondition itemCondition = root.Children.Single(child =>
+        AssertEqual(SplitConditionKind.All, SplitConditionKind.Normalize(root.Kind));
+        AssertEqual(2, root.Children.Count);
+
+        SplitCondition firstGroup = root.Children[0];
+        AssertEqual(SplitConditionKind.AtLeast, SplitConditionKind.Normalize(firstGroup.Kind));
+        AssertEqual(1, firstGroup.Value);
+        AssertEqual(2, firstGroup.Children.Count);
+        AssertEqual(true, firstGroup.Children.All(child => SplitConditionKind.Normalize(child.Kind) == SplitConditionKind.Fact));
+
+        SplitCondition secondGroup = root.Children[1];
+        AssertEqual(SplitConditionKind.All, SplitConditionKind.Normalize(secondGroup.Kind));
+        AssertEqual(3, secondGroup.Children.Count);
+        AssertEqual(true, secondGroup.Children.Any(child => string.Equals(child.FactKey, SplitCatalog.CreateItemEverOwnedFactKey(70), StringComparison.OrdinalIgnoreCase)));
+        SplitCondition itemCondition = secondGroup.Children.Single(child =>
             string.Equals(child.FactKey, SplitCatalog.CreateItemEverOwnedFactKey(50), StringComparison.OrdinalIgnoreCase));
         AssertEqual(SplitFactComparison.AtLeast, SplitFactComparison.Normalize(itemCondition.Comparison));
         AssertEqual(3, itemCondition.Value);
+    });
+}
+
+static void TestSettingsFormKeepsAdvancedConditionModePerGroup()
+{
+    RunSta(() =>
+    {
+        var settings = new AppSettings
+        {
+            SplitRoute =
+            [
+                new SplitRouteEntry
+                {
+                    Id = "split:advanced",
+                    DisplayName = "Advanced",
+                    Enabled = true,
+                    UseAdvancedConditionEditor = true,
+                    Condition = SplitCondition.All(
+                    [
+                        SplitCatalog.CreateBossFactCondition(SplitCatalog.Skeletron),
+                        SplitCondition.AtLeast(
+                        [
+                            SplitCatalog.CreateBossFactCondition(SplitCatalog.Destroyer),
+                            SplitCatalog.CreateBossFactCondition(SplitCatalog.Twins)
+                        ], 1)
+                    ]),
+                    IconTargetIds = [SplitCatalog.Skeletron, SplitCatalog.Destroyer, SplitCatalog.Twins]
+                },
+                new SplitRouteEntry
+                {
+                    Id = "split:basic",
+                    DisplayName = "Basic",
+                    Enabled = true,
+                    UseAdvancedConditionEditor = false,
+                    Condition = SplitCondition.AtLeast(
+                    [
+                        SplitCatalog.CreateBossFactCondition(SplitCatalog.MoonLord)
+                    ], 1),
+                    IconTargetIds = [SplitCatalog.MoonLord]
+                }
+            ]
+        };
+
+        using var form = new SettingsForm(settings);
+        SplitSettingsPage page = form.PageHost.GetOrCreatePage<SplitSettingsPage>(SettingsPageId.Splits);
+
+        AssertEqual(true, page.AdvancedConditionModeForTests);
+        AssertEqual(true, page.AddTargetToSelectedGroupButtonForTests.Enabled);
+        AssertEqual("Copy ID", page.AddTargetToSelectedGroupButtonForTests.Text);
+        AssertEqual(true, page.AddTargetToNewGroupButtonForTests.Enabled);
+        AssertEqual(true, page.TargetKindBoxForTests.Enabled);
+        AssertEqual(true, page.TargetSearchBoxForTests.Enabled);
+        AssertEqual(true, page.TargetListForTests.Enabled);
+        page.AdvancedConditionBoxForTests.Text = """
+ALL(
+  Boss:moon-lord,
+  ATLEAST(1,
+    Boss:skeletron,
+    Boss:wall-of-flesh
+  )
+)
+""";
+
+        page.RouteListForTests.SelectedIndex = 1;
+        AssertEqual(false, page.AdvancedConditionModeForTests);
+        AssertEqual(true, page.AddTargetToSelectedGroupButtonForTests.Enabled);
+        AssertEqual("Add to selected group", page.AddTargetToSelectedGroupButtonForTests.Text);
+
+        page.RouteListForTests.SelectedIndex = 0;
+        AssertEqual(true, page.AdvancedConditionModeForTests);
+        AssertEqual("Copy ID", page.AddTargetToSelectedGroupButtonForTests.Text);
+        AssertEqual(true, page.AdvancedConditionBoxForTests.Text.Contains("Boss:moon-lord", StringComparison.Ordinal));
+
+        form.ApplyForTests();
+
+        SplitRouteEntry advanced = form.Result.SplitRoute[0];
+        AssertEqual(true, advanced.UseAdvancedConditionEditor);
+        AssertEqual(SplitConditionKind.All, SplitConditionKind.Normalize(advanced.Condition.Kind));
+        AssertEqual(SplitCatalog.CreateBossFactCondition(SplitCatalog.MoonLord).FactKey, advanced.Condition.Children[0].FactKey);
+        AssertEqual(SplitConditionKind.AtLeast, SplitConditionKind.Normalize(advanced.Condition.Children[1].Kind));
+        AssertEqual(false, form.Result.SplitRoute[1].UseAdvancedConditionEditor);
+    });
+}
+
+static void TestSettingsFormBlocksLossyAdvancedConditionDowngrade()
+{
+    RunSta(() =>
+    {
+        var settings = new AppSettings
+        {
+            SplitRoute =
+            [
+                new SplitRouteEntry
+                {
+                    Id = "split:advanced",
+                    DisplayName = "Advanced",
+                    Enabled = true,
+                    UseAdvancedConditionEditor = true,
+                    Condition = SplitCondition.All(
+                    [
+                        SplitCatalog.CreateBossFactCondition(SplitCatalog.Skeletron),
+                        SplitCondition.AtLeast(
+                        [
+                            SplitCatalog.CreateBossFactCondition(SplitCatalog.Destroyer),
+                            SplitCatalog.CreateBossFactCondition(SplitCatalog.Twins)
+                        ], 1)
+                    ]),
+                    IconTargetIds = [SplitCatalog.Skeletron, SplitCatalog.Destroyer, SplitCatalog.Twins]
+                }
+            ]
+        };
+
+        using var form = new SettingsForm(settings);
+        SplitSettingsPage page = form.PageHost.GetOrCreatePage<SplitSettingsPage>(SettingsPageId.Splits);
+
+        AssertEqual(true, page.AdvancedConditionModeForTests);
+        InvokePrivate(page, "ToggleAdvancedConditionMode");
+        AssertEqual(true, page.AdvancedConditionModeForTests);
+
+        form.ApplyForTests();
+        AssertEqual(true, form.Result.SplitRoute.Single().UseAdvancedConditionEditor);
+        AssertEqual(SplitConditionKind.All, SplitConditionKind.Normalize(form.Result.SplitRoute.Single().Condition.Kind));
+    });
+}
+
+static void TestSettingsFormAllowsEmptyAdvancedConditionDowngrade()
+{
+    RunSta(() =>
+    {
+        var settings = new AppSettings
+        {
+            SplitRoute =
+            [
+                new SplitRouteEntry
+                {
+                    Id = "split:advanced",
+                    DisplayName = "Advanced",
+                    Enabled = true,
+                    UseAdvancedConditionEditor = true,
+                    Condition = SplitCondition.AtLeast(
+                    [
+                        SplitCatalog.CreateBossFactCondition(SplitCatalog.Skeletron)
+                    ], 1),
+                    IconTargetIds = [SplitCatalog.Skeletron]
+                }
+            ]
+        };
+
+        using var form = new SettingsForm(settings);
+        SplitSettingsPage page = form.PageHost.GetOrCreatePage<SplitSettingsPage>(SettingsPageId.Splits);
+
+        AssertEqual(true, page.AdvancedConditionModeForTests);
+        page.AdvancedConditionBoxForTests.Text = string.Empty;
+        InvokePrivate(page, "ToggleAdvancedConditionMode");
+
+        AssertEqual(false, page.AdvancedConditionModeForTests);
+        AssertEqual(0, page.ConditionListForTests.Items.Count);
+        AssertEqual("Add to selected group", page.AddTargetToSelectedGroupButtonForTests.Text);
     });
 }
 
@@ -1958,6 +2421,90 @@ static void TestSettingsFormRejectsInvalidSplitRouteApply()
     });
 }
 
+static void TestSettingsFormEditsMatchModeFromDropdown()
+{
+    RunSta(() =>
+    {
+        var settings = new AppSettings
+        {
+            SplitRoute =
+            [
+                new SplitRouteEntry
+                {
+                    Id = "split:mechanical",
+                    DisplayName = "Mechanical",
+                    Enabled = true,
+                    Condition = SplitCondition.All(
+                    [
+                        SplitCatalog.CreateBossFactCondition(SplitCatalog.Destroyer),
+                        SplitCatalog.CreateBossFactCondition(SplitCatalog.Twins),
+                        SplitCatalog.CreateBossFactCondition(SplitCatalog.SkeletronPrime)
+                    ]),
+                    IconTargetIds = [SplitCatalog.Destroyer, SplitCatalog.Twins, SplitCatalog.SkeletronPrime]
+                }
+            ]
+        };
+
+        using var form = new SettingsForm(settings);
+        SplitSettingsPage page = form.PageHost.GetOrCreatePage<SplitSettingsPage>(SettingsPageId.Splits);
+
+        AssertEqual(3, page.ConditionMatchModeBoxForTests.Items.Count);
+        AssertEqual("All", page.ConditionMatchModeBoxForTests.SelectedItem?.ToString());
+        AssertEqual("All", page.ConditionMatchModeBoxForTests.Text);
+        SelectComboBoxItem(page.ConditionMatchModeBoxForTests, "At least 2");
+        AssertEqual("2", page.ConditionMatchModeBoxForTests.Text);
+
+        form.ApplyForTests();
+
+        SplitCondition condition = form.Result.SplitRoute.Single().Condition;
+        AssertEqual(SplitConditionKind.AtLeast, SplitConditionKind.Normalize(condition.Kind));
+        AssertEqual(2, condition.Value);
+        AssertEqual(3, condition.Children.Count);
+    });
+}
+
+static void TestSettingsFormDecrementsMatchModeWhenDeletingCondition()
+{
+    RunSta(() =>
+    {
+        var settings = new AppSettings
+        {
+            SplitRoute =
+            [
+                new SplitRouteEntry
+                {
+                    Id = "split:bosses",
+                    DisplayName = "Bosses",
+                    Enabled = true,
+                    Condition = SplitCondition.AtLeast(
+                    [
+                        SplitCatalog.CreateBossFactCondition("boss:king-slime"),
+                        SplitCatalog.CreateBossFactCondition(SplitCatalog.Skeletron),
+                        SplitCatalog.CreateBossFactCondition(SplitCatalog.WallOfFlesh),
+                        SplitCatalog.CreateBossFactCondition(SplitCatalog.Destroyer)
+                    ], 3),
+                    IconTargetIds = ["boss:king-slime", SplitCatalog.Skeletron, SplitCatalog.WallOfFlesh, SplitCatalog.Destroyer]
+                }
+            ]
+        };
+
+        using var form = new SettingsForm(settings);
+        SplitSettingsPage page = form.PageHost.GetOrCreatePage<SplitSettingsPage>(SettingsPageId.Splits);
+
+        AssertEqual("At least 3", page.ConditionMatchModeBoxForTests.SelectedItem?.ToString());
+        AssertEqual("3", page.ConditionMatchModeBoxForTests.Text);
+        page.ConditionListForTests.SelectedIndex = 0;
+        InvokePrivate(page, "RemoveSelectedFact");
+
+        form.ApplyForTests();
+
+        SplitCondition condition = form.Result.SplitRoute.Single().Condition;
+        AssertEqual(SplitConditionKind.AtLeast, SplitConditionKind.Normalize(condition.Kind));
+        AssertEqual(2, condition.Value);
+        AssertEqual(3, condition.Children.Count);
+    });
+}
+
 static void TestSettingsFormEditsItemQuantityFromSelectedCondition()
 {
     RunSta(() =>
@@ -2029,13 +2576,13 @@ static void TestSettingsFormSearchesItemTargetsByName()
         AssertEqual(true, page.TargetListForTests.Items.Count > 0);
 
         page.TargetSearchBoxForTests.Text = "Magic Mirror";
-        AssertEqual(true, ContainsTargetListItem(page.TargetListForTests, "Magic Mirror", "(50)"));
+        AssertEqual(true, ContainsTargetListItem(page.TargetListForTests, "Magic Mirror", "(Item:50)"));
 
         page.TargetSearchBoxForTests.Text = "MagicMirror";
-        AssertEqual(true, ContainsTargetListItem(page.TargetListForTests, "Magic Mirror", "(50)"));
+        AssertEqual(true, ContainsTargetListItem(page.TargetListForTests, "Magic Mirror", "(Item:50)"));
 
         page.TargetSearchBoxForTests.Text = "魔镜";
-        AssertEqual(true, ContainsTargetListItem(page.TargetListForTests, "Magic Mirror", "(50)"));
+        AssertEqual(true, ContainsTargetListItem(page.TargetListForTests, "Magic Mirror", "(Item:50)"));
     });
 }
 
@@ -2048,12 +2595,12 @@ static void TestSettingsFormSearchesNpcTargetsByName()
 
         page.TargetKindBoxForTests.SelectedIndex = 2;
         page.TargetSearchBoxForTests.Text = "Merchant";
-        AssertEqual(true, ContainsTargetListItem(page.TargetListForTests, "Merchant", "(17)"));
+        AssertEqual(true, ContainsTargetListItem(page.TargetListForTests, "Merchant", "(NPC:17)"));
 
         page.TargetSearchBoxForTests.Text = "商人";
-        AssertEqual(true, ContainsTargetListItem(page.TargetListForTests, "Merchant", "(17)"));
+        AssertEqual(true, ContainsTargetListItem(page.TargetListForTests, "Merchant", "(NPC:17)"));
 
-        SelectTargetListItem(page.TargetListForTests, "Merchant", "(17)");
+        SelectTargetListItem(page.TargetListForTests, "Merchant", "(NPC:17)");
         InvokePrivate(page, "AddTargetToNewGroup");
         form.ApplyForTests();
 
@@ -2081,7 +2628,7 @@ static void TestSettingsFormAddsSelectedTargetToNewGroup()
 
         page.TargetKindBoxForTests.SelectedIndex = 1;
         page.TargetSearchBoxForTests.Text = "Magic Mirror";
-        SelectTargetListItem(page.TargetListForTests, "Magic Mirror", "(50)");
+        SelectTargetListItem(page.TargetListForTests, "Magic Mirror", "(Item:50)");
         int initialRouteCount = page.RouteListForTests.Items.Count;
 
         AssertEqual("Add to new group", page.AddTargetToNewGroupButtonForTests.Text);
@@ -2142,19 +2689,19 @@ static void TestSettingsFormLocalizesTargetLibraryAndConditions()
 
         page.TargetKindBoxForTests.SelectedIndex = 1;
         page.TargetSearchBoxForTests.Text = "Magic Mirror";
-        AssertEqual(true, ContainsTargetListItem(page.TargetListForTests, "魔镜", "(50)"));
-        AssertEqual(false, ContainsTargetListItem(page.TargetListForTests, "Magic Mirror", "(50)"));
+        AssertEqual(true, ContainsTargetListItem(page.TargetListForTests, "魔镜", "(Item:50)"));
+        AssertEqual(false, ContainsTargetListItem(page.TargetListForTests, "Magic Mirror"));
 
         page.TargetSearchBoxForTests.Text = "魔镜";
-        AssertEqual(true, ContainsTargetListItem(page.TargetListForTests, "魔镜", "(50)"));
+        AssertEqual(true, ContainsTargetListItem(page.TargetListForTests, "魔镜", "(Item:50)"));
 
         page.TargetKindBoxForTests.SelectedIndex = 0;
         page.TargetSearchBoxForTests.Text = "Skeletron";
-        AssertEqual(true, ContainsTargetListItem(page.TargetListForTests, "骷髅王"));
+        AssertEqual(true, ContainsTargetListItem(page.TargetListForTests, "骷髅王", "(Boss:skeletron)"));
         AssertEqual(false, ContainsTargetListItem(page.TargetListForTests, "Skeletron"));
 
         page.TargetSearchBoxForTests.Text = "骷髅王";
-        AssertEqual(true, ContainsTargetListItem(page.TargetListForTests, "骷髅王"));
+        AssertEqual(true, ContainsTargetListItem(page.TargetListForTests, "骷髅王", "(Boss:skeletron)"));
 
         IReadOnlyList<SplitConditionDataRow> rows = SplitConditionDataRows.Build(settings);
         AssertEqual(true, rows.Any(row => string.Equals(row.DisplayName, "Skeletron：骷髅王", StringComparison.Ordinal)));
@@ -3592,6 +4139,35 @@ static void TestMainFormSettingsApplyReloadsDefinitionsAndRecordsCurrentRun()
     });
 }
 
+static void TestWindowLayerDefersModalStateUpdates()
+{
+    RunSta(() =>
+    {
+        using var form = new Form();
+        _ = form.Handle;
+        var blockedStates = new List<bool>();
+        var controller = new WindowLayerController(
+            form,
+            blocked => blockedStates.Add(blocked),
+            () => IntPtr.Zero);
+
+        IDisposable registration;
+        using (controller.DeferWindowStateUpdates())
+        {
+            registration = controller.RegisterModalWindow(() => IntPtr.Zero);
+            controller.ApplyWindowState();
+
+            AssertEqual(0, blockedStates.Count);
+        }
+
+        AssertEqual("True", string.Join('|', blockedStates));
+
+        registration.Dispose();
+
+        AssertEqual("True|False", string.Join('|', blockedStates));
+    });
+}
+
 static void TestMainFormInitializesOverlayLayoutWithCurrentSplitCount()
 {
     RunSta(() =>
@@ -4058,35 +4634,6 @@ static string FindSourceRoot()
     }
 
     throw new DirectoryNotFoundException("TerrariaSplit source root was not found.");
-}
-
-static string FindDefaultSettingsTemplate()
-{
-    string outputTemplatePath = AppSettingsDefaults.TemplatePath;
-    if (File.Exists(outputTemplatePath))
-    {
-        return outputTemplatePath;
-    }
-
-    string directory = Directory.GetCurrentDirectory();
-    while (!string.IsNullOrWhiteSpace(directory))
-    {
-        string sourceTemplatePath = Path.Combine(directory, "TerrariaSplit", "settings", "settings.json");
-        if (File.Exists(sourceTemplatePath))
-        {
-            return sourceTemplatePath;
-        }
-
-        string? parent = Directory.GetParent(directory)?.FullName;
-        if (string.Equals(parent, directory, StringComparison.OrdinalIgnoreCase))
-        {
-            break;
-        }
-
-        directory = parent ?? string.Empty;
-    }
-
-    throw new FileNotFoundException("Default settings template was not found.", outputTemplatePath);
 }
 
 static void AssertJsonCoversType(Type type, JsonElement element, string path)

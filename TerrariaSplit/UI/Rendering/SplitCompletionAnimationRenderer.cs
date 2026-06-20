@@ -5,22 +5,22 @@ namespace TerrariaSplit;
 
 internal static class SplitCompletionAnimationRenderer
 {
-    public const int ReservedRowCount = 7;
+    public const int ReservedRowCount = 8;
     private static readonly TimeSpan SplitCompletionFadeDuration = TimeSpan.FromSeconds(0.45);
     private static readonly TimeSpan SplitCompletionDeltaIntroGap = TimeSpan.FromSeconds(0.06);
-    private const float SplitCompletionLabelFontRatio = 0.58f;
-    private const float SplitCompletionDeltaFontRatio = 0.85f;
-    private const float SplitCompletionIconTopRatio = 0.10f;
+    private const float SplitCompletionLabelFontRatio = 0.64f;
+    private const float SplitCompletionDeltaFontRatio = 0.82f;
+    private const float SplitCompletionIconTopRatio = 0.05f;
     private const float SplitCompletionTextLeftPaddingRatio = 0.02f;
     private const float SplitCompletionTextRightPaddingRatio = 0.005f;
     private const float SplitCompletionIconTextGapRatio = 0.012f;
-    private const float SplitCompletionDeltaGapRatio = 0.42f;
-    private const float SplitCompletionRowGapRatio = 0.24f;
+    private const float SplitCompletionDeltaGapRatio = 0.28f;
+    private const float SplitCompletionRowGapRatio = 0.16f;
     private const float SplitCompletionDeltaOutroLeadRatio = 0.55f;
     private const float SplitCompletionDeltaIntroDurationRatio = 0.85f;
-    private const float SplitCompletionDeltaSlideDistanceRatio = 0.75f;
+    private const float SplitCompletionDeltaSlideDistanceRatio = 0.55f;
     private const float SplitCompletionDeltaMinSlideDistance = 10f;
-    private const float SplitCompletionDeltaMaxSlideDistance = 28f;
+    private const float SplitCompletionDeltaMaxSlideDistance = 20f;
 
     public static bool TryGetActiveAnimation(
         AppSettings settings,
@@ -157,14 +157,36 @@ internal static class SplitCompletionAnimationRenderer
 
     public static Rectangle GetAnimationBounds(OverlayRenderContext context)
     {
-        Rectangle firstVisibleRow = context.Layout.GetRowRect(0);
-        int visibleRowCount = Math.Max(ReservedRowCount, context.VisibleStatusRowCount);
-        Rectangle lastVisibleRow = context.Layout.GetRowRect(visibleRowCount - 1);
+        (int firstRowIndex, int lastRowIndex) = GetRenderedRowRange(context);
+        Rectangle firstVisibleRow = context.Layout.GetRowRect(firstRowIndex);
+        Rectangle lastVisibleRow = context.Layout.GetRowRect(lastRowIndex);
         int animationHeight = firstVisibleRow.Height * ReservedRowCount +
             context.Layout.RowGap * Math.Max(0, ReservedRowCount - 1);
         int visibleCenterY = firstVisibleRow.Top + (lastVisibleRow.Bottom - firstVisibleRow.Top) / 2;
         int animationTop = visibleCenterY - animationHeight / 2;
         return new Rectangle(firstVisibleRow.X, animationTop, firstVisibleRow.Width, animationHeight);
+    }
+
+    private static (int FirstRowIndex, int LastRowIndex) GetRenderedRowRange(OverlayRenderContext context)
+    {
+        IReadOnlyList<SplitDisplayRow> rows = SplitDisplayRows.Build(context.Settings, context.Statuses);
+        if (rows.Count == 0)
+        {
+            return (0, Math.Max(ReservedRowCount, context.VisibleStatusRowCount) - 1);
+        }
+
+        int first = rows.Min(row => row.RowIndex);
+        int last = rows.Max(row => row.RowIndex);
+        int span = last - first + 1;
+        if (span >= ReservedRowCount)
+        {
+            return (first, last);
+        }
+
+        int totalRows = Math.Max(Math.Max(context.VisibleStatusRowCount, last + 1), ReservedRowCount);
+        int start = first - (ReservedRowCount - span) / 2;
+        start = Math.Clamp(start, 0, Math.Max(0, totalRows - ReservedRowCount));
+        return (start, start + ReservedRowCount - 1);
     }
 
     private static TimeSpan GetFadeDuration(TimeSpan duration)

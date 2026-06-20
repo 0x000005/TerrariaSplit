@@ -19,6 +19,7 @@ internal static class RenderingTests
         yield return ("OverlayFontCache keeps main timer font independent from milliseconds visibility", OverlayFontCacheKeepsMainTimerFontIndependentFromMillisecondsVisibility);
         yield return ("OverlayFontCache honors configured font families", OverlayFontCacheHonorsConfiguredFontFamilies);
         yield return ("BossIconCache crops animated item textures", BossIconCacheCropsAnimatedItemTextures);
+        yield return ("BossIconCache loads boss icons from Icons Bosses", BossIconCacheLoadsBossIconsFromIconsBosses);
         yield return ("SplitSoundSelector routes equal times to not-faster sounds", SplitSoundSelectorRoutesEqualTimesToNotFasterSounds);
         yield return ("SplitSoundSelector treats missing comparison data as faster", SplitSoundSelectorTreatsMissingComparisonDataAsFaster);
         yield return ("SplitRenderData filters OR completion icons to matched target", SplitRenderDataFiltersOrCompletionIconsToMatchedTarget);
@@ -28,12 +29,16 @@ internal static class RenderingTests
         yield return ("SplitListRenderer orders satisfied icons first", SplitListRendererOrdersSatisfiedIconsFirst);
         yield return ("SplitListRenderer shows skipped time for skipped splits", SplitListRendererShowsSkippedTimeForSkippedSplits);
         yield return ("SplitListRenderer lights facts only after timer starts", SplitListRendererLightsFactsOnlyAfterTimerStarts);
+        yield return ("SplitListRenderer keeps ever owned item icons lit after item leaves inventory", SplitListRendererKeepsEverOwnedItemIconsLitAfterItemLeavesInventory);
+        yield return ("SplitListRenderer lights target override ever owned item icons", SplitListRendererLightsTargetOverrideEverOwnedItemIcons);
         yield return ("SplitListRenderer preserves current split depth curve", SplitListRendererPreservesCurrentSplitDepthCurve);
         yield return ("SplitListRenderer partial region redraw matches full render", SplitListRendererPartialRegionMatchesFullRender);
         yield return ("SplitCompletionAnimationFactory filters OR completion icons to matched target", SplitCompletionAnimationFactoryFiltersOrCompletionIconsToMatchedTarget);
         yield return ("SplitCompletionAnimationFactory creates animation with split delta", SplitCompletionAnimationFactoryCreatesAnimationWithSplitDelta);
         yield return ("SplitCompletionAnimationRenderer preserves fade curve", SplitCompletionAnimationRendererPreservesFadeCurve);
         yield return ("SplitCompletionAnimationRenderer preserves delta slide curve", SplitCompletionAnimationRendererPreservesDeltaSlideCurve);
+        yield return ("SplitCompletionAnimationRenderer centers on rendered rows", SplitCompletionAnimationRendererCentersOnRenderedRows);
+        yield return ("OverlayTextStyles can ignore attached groups for timer comparison", OverlayTextStylesCanIgnoreAttachedGroupsForTimerComparison);
         yield return ("OverlayTextStyles maps text effect percentages", OverlayTextStylesMapsTextEffectPercentages);
     }
 
@@ -253,6 +258,32 @@ internal static class RenderingTests
         }
     }
 
+    private static void BossIconCacheLoadsBossIconsFromIconsBosses()
+    {
+        string expectedPath = Path.Combine(AppContext.BaseDirectory, "Assets", "Icons", "Bosses", "king-slime.png");
+        string itemPath = Path.Combine(AppContext.BaseDirectory, "Assets", "Icons", "Items", "Item_50.png");
+        TestAssert.Equal(true, File.Exists(expectedPath));
+        TestAssert.Equal(true, File.Exists(itemPath));
+
+        using var expected = new Bitmap(expectedPath);
+        using var itemIcon = new Bitmap(itemPath);
+        var definition = new SplitDefinition(
+            "split:boss-king-slime",
+            "King Slime",
+            SplitCatalog.CreateBossFactCondition("boss:king-slime"),
+            ["king-slime.png"],
+            ["boss:king-slime"],
+            ["boss:king-slime"]);
+
+        using var cache = new BossIconCache();
+        IconPair icons = cache.Load(definition, "king-slime.png", new AppSettings());
+        using var lit = new Bitmap(icons.Lit);
+
+        TestAssert.Equal(expected.Width, lit.Width);
+        TestAssert.Equal(expected.Height, lit.Height);
+        TestAssert.Equal(false, lit.Width == itemIcon.Width && lit.Height == itemIcon.Height);
+    }
+
     private static void SplitSoundSelectorRoutesEqualTimesToNotFasterSounds()
     {
         var sounds = new UiSoundSettings
@@ -468,6 +499,14 @@ internal static class RenderingTests
         TestAssert.Equal(new SplitDisplayRow(3, 2), completedByTimeRows[2]);
         TestAssert.Equal(new SplitDisplayRow(2, 3), completedByTimeRows[3]);
 
+        var skippedBeforeTimed = visible.ToArray();
+        skippedBeforeTimed[2] = new SplitStatusSnapshot(attachedA, null, IsSkipped: true, CompletedFactKeys: ["fact:attached-a"]);
+        skippedBeforeTimed[3] = new SplitStatusSnapshot(attachedB, TimeSpan.FromSeconds(2), IsSkipped: false, CompletedFactKeys: []);
+        IReadOnlyList<SplitDisplayRow> skippedBeforeTimedRows = SplitDisplayRows.Build(skippedBeforeTimed);
+
+        TestAssert.Equal(new SplitDisplayRow(2, 2), skippedBeforeTimedRows[2]);
+        TestAssert.Equal(new SplitDisplayRow(3, 3), skippedBeforeTimedRows[3]);
+
         var hiddenAfterCompletedAnchor = visible.ToArray();
         hiddenAfterCompletedAnchor[4] = new SplitStatusSnapshot(parent, TimeSpan.FromSeconds(1), IsSkipped: false, CompletedFactKeys: []);
         IReadOnlyList<SplitDisplayRow> hiddenAfterCompletedAnchorRows = SplitDisplayRows.Build(hiddenAfterCompletedAnchor);
@@ -515,6 +554,7 @@ internal static class RenderingTests
         SplitCondition factC = SplitCondition.Fact("fact:c");
         SplitCondition condition = SplitCondition.AtLeast([factA, factB, factC], 2);
         SplitDefinition previous = CreateDisplayRowDefinition("split:previous", isAttached: false);
+        SplitDefinition next = CreateDisplayRowDefinition("split:next", isAttached: false);
         var expanded = new SplitDefinition(
             "split:expanded",
             "Expanded",
@@ -533,17 +573,16 @@ internal static class RenderingTests
         var statuses = new[] { previousCompleted, expandedPending };
 
         IReadOnlyList<SplitDisplayRow> pendingRows = SplitDisplayRows.Build(settings, statuses);
-        TestAssert.Equal(3, pendingRows.Count);
-        TestAssert.Equal(3, SplitDisplayRows.GetRequiredRowCount(settings, statuses));
+        TestAssert.Equal(2, pendingRows.Count);
+        TestAssert.Equal(2, SplitDisplayRows.GetRequiredRowCount(settings, statuses));
         TestAssert.Equal(3, SplitDisplayRows.GetReservedRowCount(settings, statuses));
         TestAssert.Equal(new SplitDisplayRow(0, 0), pendingRows[0]);
         TestAssert.Equal(new SplitDisplayRow(1, 1, 1), pendingRows[1]);
-        TestAssert.Equal(new SplitDisplayRow(1, 2, 0), pendingRows[2]);
 
         IReadOnlyList<SplitExpandedConditionRow> pendingExpandedRows =
             SplitExpandedConditionRows.Build(settings, statuses, statusIndex: 1);
+        TestAssert.Equal(1, pendingExpandedRows.Count);
         TestAssert.Equal(TimeSpan.FromSeconds(20), pendingExpandedRows[0].ReferenceTime);
-        TestAssert.Equal(TimeSpan.FromSeconds(30), pendingExpandedRows[1].ReferenceTime);
 
         SplitStatusSnapshot cCompleted = expandedPending with
         {
@@ -555,21 +594,52 @@ internal static class RenderingTests
         var partiallyCompleted = new[] { previousCompleted, cCompleted };
 
         IReadOnlyList<SplitDisplayRow> completedFirstRows = SplitDisplayRows.Build(settings, partiallyCompleted);
+        TestAssert.Equal(3, completedFirstRows.Count);
         TestAssert.Equal(new SplitDisplayRow(1, 1, 2), completedFirstRows[1]);
         TestAssert.Equal(new SplitDisplayRow(1, 2, 1), completedFirstRows[2]);
 
         IReadOnlyList<SplitExpandedConditionRow> completedExpandedRows =
             SplitExpandedConditionRows.Build(settings, partiallyCompleted, statusIndex: 1);
+        TestAssert.Equal(2, completedExpandedRows.Count);
         TestAssert.Equal(TimeSpan.FromSeconds(5), completedExpandedRows[0].CompletionTime);
         TestAssert.Equal(TimeSpan.FromSeconds(40), completedExpandedRows[0].ReferenceTime);
+
+        settings.CollapseSplitDetailsOnCompletion = false;
+        SplitStatusSnapshot completedKeyWithoutFactTime = expandedPending with
+        {
+            Time = TimeSpan.FromSeconds(25),
+            CompletedFactKeys = [factA.FactKey],
+            FactCompletionTimes = null
+        };
+        IReadOnlyList<SplitExpandedConditionRow> completedKeyRows =
+            SplitExpandedConditionRows.Build(settings, [previousCompleted, completedKeyWithoutFactTime], statusIndex: 1);
+        TestAssert.Equal(0, completedKeyRows[0].ConditionIndex);
+        TestAssert.Equal(TimeSpan.Zero, completedKeyRows[0].CompletionTime);
+        settings.CollapseSplitDetailsOnCompletion = true;
 
         var blocked = new[]
         {
             new SplitStatusSnapshot(previous, null, IsSkipped: false, CompletedFactKeys: []),
             expandedPending
         };
-        TestAssert.Equal(2, SplitDisplayRows.Build(settings, blocked).Count);
+        IReadOnlyList<SplitDisplayRow> blockedRows = SplitDisplayRows.Build(settings, blocked);
+        TestAssert.Equal(2, blockedRows.Count);
+        TestAssert.Equal(2, SplitDisplayRows.GetRequiredRowCount(settings, blocked));
         TestAssert.Equal(3, SplitDisplayRows.GetReservedRowCount(settings, blocked));
+
+        var blockedWithNext = new[]
+        {
+            blocked[0],
+            blocked[1],
+            new SplitStatusSnapshot(next, null, IsSkipped: false, CompletedFactKeys: [])
+        };
+        IReadOnlyList<SplitDisplayRow> blockedWithNextRows = SplitDisplayRows.Build(settings, blockedWithNext);
+        TestAssert.Equal(3, blockedWithNextRows.Count);
+        TestAssert.Equal(new SplitDisplayRow(0, 0), blockedWithNextRows[0]);
+        TestAssert.Equal(new SplitDisplayRow(1, 1), blockedWithNextRows[1]);
+        TestAssert.Equal(new SplitDisplayRow(2, 2), blockedWithNextRows[2]);
+        TestAssert.Equal(3, SplitDisplayRows.GetRequiredRowCount(settings, blockedWithNext));
+        TestAssert.Equal(4, SplitDisplayRows.GetReservedRowCount(settings, blockedWithNext));
 
         SplitStatusSnapshot expandedCompleted = expandedPending with
         {
@@ -588,7 +658,6 @@ internal static class RenderingTests
         TestAssert.Equal(3, SplitDisplayRows.Build(settings, completed).Count);
 
         var attached = expanded with { IsAttached = true };
-        SplitDefinition next = CreateDisplayRowDefinition("split:next", isAttached: false);
         var attachedStatuses = new[]
         {
             previousCompleted,
@@ -670,11 +739,21 @@ internal static class RenderingTests
             NowUtc: new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
 
         IReadOnlyList<int> order = InvokeIconDrawOrder(context, status, definition);
-        TestAssert.Equal(2, order.Count);
+        TestAssert.Equal(3, order.Count);
         TestAssert.Equal(2, order[0]);
         TestAssert.Equal(0, order[1]);
+        TestAssert.Equal(1, order[2]);
         TestAssert.Equal(true, InvokeIsIconLit(context, status, definition, iconIndex: 2));
         TestAssert.Equal(false, InvokeIsIconLit(context, status, definition, iconIndex: 1));
+
+        SplitStatusSnapshot completedStatus = status with
+        {
+            Time = TimeSpan.FromSeconds(9)
+        };
+        IReadOnlyList<int> completedOrder = InvokeIconDrawOrder(context, completedStatus, definition);
+        TestAssert.Equal(2, completedOrder.Count);
+        TestAssert.Equal(2, completedOrder[0]);
+        TestAssert.Equal(0, completedOrder[1]);
 
         SplitStatusSnapshot orderedByCompletedKeys = status with
         {
@@ -682,9 +761,24 @@ internal static class RenderingTests
             FactCompletionTimes = null
         };
         IReadOnlyList<int> completedKeyOrder = InvokeIconDrawOrder(context, orderedByCompletedKeys, definition);
-        TestAssert.Equal(2, completedKeyOrder.Count);
+        TestAssert.Equal(3, completedKeyOrder.Count);
         TestAssert.Equal(2, completedKeyOrder[0]);
         TestAssert.Equal(0, completedKeyOrder[1]);
+        TestAssert.Equal(1, completedKeyOrder[2]);
+
+        SplitStatusSnapshot skippedKeyBeforeTimed = status with
+        {
+            IsSkipped = true,
+            CompletedFactKeys = [wallOfFlesh.FactKey],
+            FactCompletionTimes = new Dictionary<string, TimeSpan>(StringComparer.OrdinalIgnoreCase)
+            {
+                [destroyer.FactKey] = TimeSpan.FromSeconds(5)
+            }
+        };
+        IReadOnlyList<int> skippedKeyBeforeTimedOrder = InvokeIconDrawOrder(context, skippedKeyBeforeTimed, definition);
+        TestAssert.Equal(2, skippedKeyBeforeTimedOrder.Count);
+        TestAssert.Equal(1, skippedKeyBeforeTimedOrder[0]);
+        TestAssert.Equal(2, skippedKeyBeforeTimedOrder[1]);
 
         SplitStatusSnapshot partialStatus = status with
         {
@@ -822,6 +916,166 @@ internal static class RenderingTests
         TestAssert.Equal(false, InvokeIsIconLit(bossContext, bossStatus, bossDefinition, iconIndex: 0));
     }
 
+    private static void SplitListRendererKeepsEverOwnedItemIconsLitAfterItemLeavesInventory()
+    {
+        const int itemId = 50;
+        string itemTargetId = SplitCatalog.CreateItemTargetId(itemId);
+        string currentItemFactKey = SplitCatalog.CreateItemFactKey(itemId);
+        string everOwnedFactKey = SplitCatalog.CreateItemEverOwnedFactKey(itemId);
+        var definition = new SplitDefinition(
+            "split:item-50",
+            "Item",
+            SplitCatalog.CreateItemEverOwnedCondition(itemId, 2),
+            ["item-50.png"],
+            [itemTargetId],
+            [itemTargetId]);
+        var status = new SplitStatusSnapshot(
+            definition,
+            null,
+            IsSkipped: false,
+            CompletedFactKeys: [],
+            FactCompletionTimes: new Dictionary<string, TimeSpan>(StringComparer.OrdinalIgnoreCase)
+            {
+                [everOwnedFactKey] = TimeSpan.FromSeconds(4)
+            });
+        var settings = new AppSettings { EnableDefeatedBossIconLighting = true };
+        var context = new OverlayRenderContext(
+            settings,
+            UiPalette.From(settings.Colors),
+            TestSnapshots.Terraria(
+                isGameMenu: false,
+                bossStates: CreateFacts((currentItemFactKey, 0))),
+            [status],
+            CurrentSplitIndex: 0,
+            SplitTimerPhase.Running,
+            TimeSpan.FromSeconds(5),
+            new SplitLayout(new Rectangle(0, 0, 120, 32), new Rectangle(0, 40, 120, 64), 6),
+            VisibleStatusRowCount: 1,
+            MouseClickThrough: false,
+            SplitCompletionAnimation: null,
+            SegmentBestDeltaHighlights: new Dictionary<int, SegmentBestDeltaHighlight>(),
+            NowUtc: new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+
+        TestAssert.Equal(true, InvokeIsIconLit(context, status, definition, iconIndex: 0));
+
+        var completedStatus = status with
+        {
+            CompletedFactKeys = [everOwnedFactKey],
+            FactCompletionTimes = new Dictionary<string, TimeSpan>()
+        };
+        TestAssert.Equal(true, InvokeIsIconLit(context, completedStatus, definition, iconIndex: 0));
+
+        var unlitStatus = status with
+        {
+            CompletedFactKeys = [],
+            FactCompletionTimes = null
+        };
+        TestAssert.Equal(false, InvokeIsIconLit(context, unlitStatus, definition, iconIndex: 0));
+    }
+
+    private static void SplitListRendererLightsTargetOverrideEverOwnedItemIcons()
+    {
+        const int itemId = 520;
+        string otherItemTargetId = SplitCatalog.CreateItemTargetId(43);
+        string otherItemFactKey = SplitCatalog.CreateItemFactKey(43);
+        string itemTargetId = SplitCatalog.CreateItemTargetId(itemId);
+        string currentItemFactKey = SplitCatalog.CreateItemFactKey(itemId);
+        string everOwnedFactKey = SplitCatalog.CreateItemEverOwnedFactKey(itemId);
+        var settings = new AppSettings
+        {
+            EnableDefeatedBossIconLighting = true,
+            SplitRoute =
+            [
+                new SplitRouteEntry
+                {
+                    Id = "split:item-520",
+                    DisplayName = "Summon Prep",
+                    Enabled = true,
+                    Condition = SplitCondition.All(
+                    [
+                        SplitCatalog.CreateItemEverOwnedCondition(43, 1),
+                        SplitCatalog.CreateItemEverOwnedCondition(itemId, 9)
+                    ]),
+                    IconTargetIds = [otherItemTargetId, itemTargetId],
+                    IconOverride = new SplitIconOverride
+                    {
+                        Source = SplitIconOverrideSource.Target,
+                        TargetId = itemTargetId
+                    }
+                }
+            ]
+        };
+        SettingsNormalizer.Normalize(settings);
+        SplitDefinition definition = SplitCatalog.Build(settings).Single();
+        TestAssert.Equal(1, definition.IconLightingConditions.Count);
+        TestAssert.Equal(SplitConditionKind.All, definition.IconLightingConditions.Single().Kind);
+        var status = new SplitStatusSnapshot(
+            definition,
+            null,
+            IsSkipped: false,
+            CompletedFactKeys: []);
+        var context = new OverlayRenderContext(
+            settings,
+            UiPalette.From(settings.Colors),
+            TestSnapshots.Terraria(
+                isGameMenu: false,
+                bossStates: CreateFacts((currentItemFactKey, 9))),
+            [status],
+            CurrentSplitIndex: 0,
+            SplitTimerPhase.Running,
+            TimeSpan.FromSeconds(5),
+            new SplitLayout(new Rectangle(0, 0, 120, 32), new Rectangle(0, 40, 120, 64), 6),
+            VisibleStatusRowCount: 1,
+            MouseClickThrough: false,
+            SplitCompletionAnimation: null,
+            SegmentBestDeltaHighlights: new Dictionary<int, SegmentBestDeltaHighlight>(),
+            NowUtc: new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+
+        TestAssert.Equal(false, InvokeIsIconLit(context, status, definition, iconIndex: 0));
+
+        OverlayRenderContext otherItemOnlyContext = context with
+        {
+            Snapshot = TestSnapshots.Terraria(
+                isGameMenu: false,
+                bossStates: CreateFacts((otherItemFactKey, 1), (currentItemFactKey, 0)))
+        };
+        TestAssert.Equal(false, InvokeIsIconLit(otherItemOnlyContext, status, definition, iconIndex: 0));
+
+        OverlayRenderContext completeContext = context with
+        {
+            Snapshot = TestSnapshots.Terraria(
+                isGameMenu: false,
+                bossStates: CreateFacts((otherItemFactKey, 1), (currentItemFactKey, 9)))
+        };
+        TestAssert.Equal(true, InvokeIsIconLit(completeContext, status, definition, iconIndex: 0));
+
+        var completedStatus = status with
+        {
+            Time = TimeSpan.FromSeconds(5),
+            FactCompletionTimes = new Dictionary<string, TimeSpan>(StringComparer.OrdinalIgnoreCase)
+            {
+                [SplitCatalog.CreateItemEverOwnedFactKey(43)] = TimeSpan.FromSeconds(4),
+                [everOwnedFactKey] = TimeSpan.FromSeconds(5)
+            }
+        };
+        OverlayRenderContext emptyInventoryContext = context with
+        {
+            Snapshot = TestSnapshots.Terraria(
+                isGameMenu: false,
+                bossStates: CreateFacts((otherItemFactKey, 0), (currentItemFactKey, 0)))
+        };
+        TestAssert.Equal(true, InvokeIsIconLit(emptyInventoryContext, completedStatus, definition, iconIndex: 0));
+
+        var partialRememberedStatus = status with
+        {
+            FactCompletionTimes = new Dictionary<string, TimeSpan>(StringComparer.OrdinalIgnoreCase)
+            {
+                [everOwnedFactKey] = TimeSpan.FromSeconds(4)
+            }
+        };
+        TestAssert.Equal(false, InvokeIsIconLit(emptyInventoryContext, partialRememberedStatus, definition, iconIndex: 0));
+    }
+
     private static void SplitListRendererPartialRegionMatchesFullRender()
     {
         var settings = new AppSettings
@@ -856,7 +1110,7 @@ internal static class RenderingTests
             new(definition, null, IsSkipped: false, CompletedFactKeys: [])
         };
 
-        var size = new Size(260, 160);
+        var size = new Size(260, 220);
         if (!SplitLayoutCalculator.TryCreate(
                 new Rectangle(Point.Empty, size),
                 statuses.Count,
@@ -1111,6 +1365,69 @@ internal static class RenderingTests
         Nearly(0f, ended.Opacity);
     }
 
+    private static void SplitCompletionAnimationRendererCentersOnRenderedRows()
+    {
+        AppSettings settings = new();
+        var statuses = new List<SplitStatusSnapshot>();
+        for (int i = 0; i < 4; i++)
+        {
+            statuses.Add(new SplitStatusSnapshot(
+                CreateDisplayRowDefinition($"split:attached-{i}", isAttached: true),
+                null,
+                IsSkipped: false,
+                CompletedFactKeys: []));
+        }
+
+        statuses.Add(new SplitStatusSnapshot(
+            CreateDisplayRowDefinition("split:completed-anchor", isAttached: false),
+            TimeSpan.FromSeconds(1),
+            IsSkipped: false,
+            CompletedFactKeys: []));
+        for (int i = 0; i < 9; i++)
+        {
+            statuses.Add(new SplitStatusSnapshot(
+                CreateDisplayRowDefinition($"split:visible-{i}", isAttached: false),
+                null,
+                IsSkipped: false,
+                CompletedFactKeys: []));
+        }
+
+        int visibleRowCount = SplitDisplayRows.GetRequiredRowCount(settings, statuses);
+        TestAssert.Equal(14, visibleRowCount);
+        IReadOnlyList<SplitDisplayRow> rows = SplitDisplayRows.Build(settings, statuses);
+        TestAssert.Equal(4, rows.Min(row => row.RowIndex));
+        TestAssert.Equal(13, rows.Max(row => row.RowIndex));
+        TestAssert.Equal(true, SplitLayoutCalculator.TryCreate(
+            new Rectangle(0, 0, 640, 900),
+            visibleRowCount,
+            baseRowGap: 9,
+            value => OverlayRenderContext.ScaleInt(settings, value),
+            out SplitLayout layout));
+
+        var context = new OverlayRenderContext(
+            settings,
+            UiPalette.From(settings.Colors),
+            TestSnapshots.Terraria(isGameMenu: false),
+            statuses,
+            CurrentSplitIndex: 4,
+            SplitTimerPhase.Running,
+            TimeSpan.FromSeconds(3),
+            layout,
+            visibleRowCount,
+            MouseClickThrough: false,
+            SplitCompletionAnimation: null,
+            SegmentBestDeltaHighlights: new Dictionary<int, SegmentBestDeltaHighlight>(),
+            NowUtc: new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+
+        Rectangle bounds = SplitCompletionAnimationRenderer.GetAnimationBounds(context);
+        Rectangle firstRenderedRow = layout.GetRowRect(4);
+        Rectangle lastRenderedRow = layout.GetRowRect(13);
+        int expectedCenterY = firstRenderedRow.Top + (lastRenderedRow.Bottom - firstRenderedRow.Top) / 2;
+
+        TestAssert.Equal(expectedCenterY, bounds.Top + bounds.Height / 2);
+        TestAssert.Equal(true, bounds.Top > layout.GetRowRect(0).Top);
+    }
+
     private static void OverlayTextStylesMapsTextEffectPercentages()
     {
         var settings = new AppSettings
@@ -1166,6 +1483,82 @@ internal static class RenderingTests
         TestAssert.Equal(32, timer.OutlineThicknessPercent);
         TestAssert.Equal(41, milliseconds.ShadowPercent);
         TestAssert.Equal(42, milliseconds.OutlineThicknessPercent);
+    }
+
+    private static void OverlayTextStylesCanIgnoreAttachedGroupsForTimerComparison()
+    {
+        var settings = new AppSettings
+        {
+            ActiveReferenceSplitSet = "WR",
+            EnableTimerGradientColor = false,
+            ShowEarlyDeltaTime = true,
+            EarlyDeltaTimeSeconds = 3600,
+            SplitRoute =
+            [
+                new SplitRouteEntry
+                {
+                    Id = "split:attached",
+                    DisplayName = "Attached",
+                    Enabled = true,
+                    Condition = SplitCondition.Fact("fact:attached"),
+                    IsAttached = true
+                },
+                new SplitRouteEntry
+                {
+                    Id = "split:main",
+                    DisplayName = "Main",
+                    Enabled = true,
+                    Condition = SplitCondition.Fact("fact:main")
+                }
+            ],
+            ReferenceSplitSets =
+            [
+                new ReferenceSplitSet
+                {
+                    Name = "WR",
+                    Splits = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                }
+            ],
+            Colors = new UiColorSettings
+            {
+                TimerAheadText = "#112233",
+                TimerAheadTextOutline = "#000000",
+                TimerAheadTextShadow = "#000000",
+                TimerBehindText = "#445566",
+                TimerBehindTextOutline = "#000000",
+                TimerBehindTextShadow = "#000000"
+            }
+        };
+        SettingsNormalizer.Normalize(settings);
+        settings.GetActiveReferenceSet().Splits[SingleCumulativeKey(settings, "split:attached")] = "0:10.00";
+        settings.GetActiveReferenceSet().Splits[SingleCumulativeKey(settings, "split:main")] = "0:30.00";
+        IReadOnlyList<SplitStatusSnapshot> statuses = SplitCatalog.Build(settings)
+            .Select(SplitStatusSnapshot.FromDefinition)
+            .ToArray();
+        UiPalette palette = UiPalette.From(settings.Colors);
+
+        settings.AttachedGroupsAffectTimerComparison = true;
+        TextRenderStyle attachedComparison = OverlayTextStyles.GetTimerTextStyle(
+            settings,
+            statuses,
+            currentSplitIndex: 0,
+            SplitTimerPhase.Running,
+            TimeSpan.FromSeconds(20),
+            palette,
+            milliseconds: false);
+
+        settings.AttachedGroupsAffectTimerComparison = false;
+        TextRenderStyle mainComparison = OverlayTextStyles.GetTimerTextStyle(
+            settings,
+            statuses,
+            currentSplitIndex: 0,
+            SplitTimerPhase.Running,
+            TimeSpan.FromSeconds(20),
+            palette,
+            milliseconds: false);
+
+        TestAssert.Equal(Color.FromArgb(0x44, 0x55, 0x66).ToArgb(), attachedComparison.Fill.ToArgb());
+        TestAssert.Equal(Color.FromArgb(0x11, 0x22, 0x33).ToArgb(), mainComparison.Fill.ToArgb());
     }
 
     private static SplitDefinition CreateAnyBossDefinition()
@@ -1268,6 +1661,17 @@ internal static class RenderingTests
         foreach ((string key, bool value) in values)
         {
             builder.SetBoolean(key, value);
+        }
+
+        return builder.Build();
+    }
+
+    private static TerrariaGameFacts CreateFacts(params (string Key, int Value)[] values)
+    {
+        TerrariaGameFacts.Builder builder = TerrariaGameFacts.CreateBuilder();
+        foreach ((string key, int value) in values)
+        {
+            builder.SetInteger(key, value);
         }
 
         return builder.Build();

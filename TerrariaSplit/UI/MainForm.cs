@@ -61,6 +61,8 @@ internal sealed partial class MainForm : Form
     private long timerOverlaySettingsRevision;
     private int controlTickDispatchPending;
     private int statusPaintDispatchPending;
+    private int appliedOverlayReservedRowCount = -1;
+    private int appliedOverlayVisibleRowCount = -1;
 
     private AppSettings timerOverlaySettingsSnapshot = new();
     private UiPalette palette;
@@ -112,11 +114,15 @@ internal sealed partial class MainForm : Form
                 return true;
             },
             elapsed => performance.RecordStatusPaint(elapsed));
+        int initialReservedRowCount = GetCurrentReservedLayoutRowCount();
+        int initialVisibleRowCount = GetCurrentLayoutRowCount();
         overlayBoundsController = new OverlayBoundsController(
             RowGap,
             settings,
-            GetCurrentReservedLayoutRowCount(),
-            GetCurrentLayoutRowCount());
+            initialReservedRowCount,
+            initialVisibleRowCount);
+        appliedOverlayReservedRowCount = initialReservedRowCount;
+        appliedOverlayVisibleRowCount = initialVisibleRowCount;
         overlayBoundsController.LayoutChanged += ApplyOverlayLayout;
         timerOverlayHost = new TimerOverlayWindowHost(
             callback => BeginInvoke(callback),
@@ -469,10 +475,10 @@ internal sealed partial class MainForm : Form
             return false;
         }
 
-        ColumnRects columns = SplitListRenderer.GetColumnRects(settings, rowRect);
+        SplitStatusSnapshot status = splitStatuses[rowIndex];
+        ColumnRects columns = SplitListRenderer.GetColumnRects(settings, rowRect, status.Definition.IsAttached);
         if (columns.Time is Rectangle timeRect && timeRect.Contains(point))
         {
-            SplitStatusSnapshot status = splitStatuses[rowIndex];
             return status.IsCompleted;
         }
 
@@ -733,6 +739,7 @@ internal sealed partial class MainForm : Form
         ApplicationUpdate update = applicationController.HandleWatcherNotification(notification);
         ApplyApplicationUpdate(update);
 
+        UpdateOverlayLayoutContextIfChanged();
         ProcessUiTick();
         UpdateStatusPaintSchedulerState();
         PublishTimerOverlaySnapshot();
@@ -744,7 +751,24 @@ internal sealed partial class MainForm : Form
 
     private void ExecuteAppCommand(AppCommand command)
     {
-        ApplyApplicationUpdate(applicationController.HandleCommand(command));
+        ApplicationUpdate update = applicationController.HandleCommand(command);
+        if (command.Kind == AppCommandKind.ApplySettings)
+        {
+            ApplySettingsApplicationUpdate(update);
+            return;
+        }
+
+        ApplyApplicationUpdate(update);
+    }
+
+    private void ApplySettingsApplicationUpdate(ApplicationUpdate update)
+    {
+        using IDisposable windowStateDeferral = modalWindows.DeferWindowStateUpdates();
+        RunWithSuspendedRuntimeOverlayPaint(() =>
+        {
+            ApplyApplicationUpdate(update);
+            return true;
+        });
     }
 
     private void ApplyApplicationUpdate(ApplicationUpdate update)
@@ -983,7 +1007,7 @@ internal sealed partial class MainForm : Form
             : GetCurrentReservedLayoutRowCount();
         palette = UiPalette.From(settings.Colors);
         RefreshTimerOverlaySettingsSnapshot();
-        overlayBoundsController.UpdateContext(settings, resolvedRowCount, visibleRowCount);
+        UpdateOverlayLayoutContext(resolvedRowCount, visibleRowCount, force: true);
         UpdateEffectiveOverlayTopMost();
         if (IsHandleCreated && !settingsFormOpen)
         {
@@ -1309,6 +1333,26 @@ internal sealed partial class MainForm : Form
         overlayWindowController.QueueRender();
     }
 
+    private void UpdateOverlayLayoutContextIfChanged()
+    {
+        UpdateOverlayLayoutContext(GetCurrentReservedLayoutRowCount(), GetCurrentLayoutRowCount(), force: false);
+    }
+
+    private void UpdateOverlayLayoutContext(int reservedRowCount, int visibleRowCount, bool force)
+    {
+        if (!force &&
+            reservedRowCount == appliedOverlayReservedRowCount &&
+            visibleRowCount == appliedOverlayVisibleRowCount)
+        {
+            return;
+        }
+
+        appliedOverlayReservedRowCount = reservedRowCount;
+        appliedOverlayVisibleRowCount = visibleRowCount;
+        overlayBoundsController.UpdateContext(settings, reservedRowCount, visibleRowCount);
+        MarkStatusOverlayStaticContentDirty();
+    }
+
     private void MarkStatusOverlayStaticContentDirty()
     {
         statusOverlayContentDirty = true;
@@ -1504,6 +1548,7 @@ internal sealed partial class MainForm : Form
 
     private void RefreshRuntimeUi()
     {
+        UpdateOverlayLayoutContextIfChanged();
         UpdateStatusPaintSchedulerState();
         PublishTimerOverlaySnapshot();
     }

@@ -300,19 +300,25 @@ internal static class SplitRenderData
 
 internal static class OverlayTextStyles
 {
-    public static float GetIconOpacity(AppSettings settings)
+    public static float GetIconOpacity(AppSettings settings, bool attached = false)
     {
-        return GetOpacity(settings.TextEffects.IconOpacityPercent);
+        return GetOpacity(attached
+            ? settings.TextEffects.AttachedIconOpacityPercent
+            : settings.TextEffects.IconOpacityPercent);
     }
 
-    public static float GetTimeTextOpacity(AppSettings settings)
+    public static float GetTimeTextOpacity(AppSettings settings, bool attached = false)
     {
-        return GetOpacity(settings.TextEffects.TimeOpacityPercent);
+        return GetOpacity(attached
+            ? settings.TextEffects.AttachedTimeOpacityPercent
+            : settings.TextEffects.TimeOpacityPercent);
     }
 
-    public static float GetDeltaTextOpacity(AppSettings settings)
+    public static float GetDeltaTextOpacity(AppSettings settings, bool attached = false)
     {
-        return GetOpacity(settings.TextEffects.DeltaOpacityPercent);
+        return GetOpacity(attached
+            ? settings.TextEffects.AttachedDeltaOpacityPercent
+            : settings.TextEffects.DeltaOpacityPercent);
     }
 
     public static float GetTimerTextOpacity(AppSettings settings, bool milliseconds)
@@ -325,35 +331,39 @@ internal static class OverlayTextStyles
     public static TextRenderStyle GetReferenceTextStyle(
         AppSettings settings,
         UiPalette palette,
-        bool active)
+        bool active,
+        bool attached = false)
     {
         return active
             ? CreateReferenceTextStyle(
                 settings,
                 palette.ActiveReferenceText,
                 palette.ActiveReferenceTextOutline,
-                palette.ActiveReferenceTextShadow)
+                palette.ActiveReferenceTextShadow,
+                attached)
             : CreateReferenceTextStyle(
                 settings,
                 palette.ReferenceText,
                 palette.ReferenceTextOutline,
-                palette.ReferenceTextShadow);
+                palette.ReferenceTextShadow,
+                attached);
     }
 
-    public static TextRenderStyle GetSplitTextStyle(AppSettings settings, UiPalette palette)
+    public static TextRenderStyle GetSplitTextStyle(AppSettings settings, UiPalette palette, bool attached = false)
     {
         return new TextRenderStyle(
             palette.SplitText,
             palette.SplitTextOutline,
             palette.SplitTextShadow,
-            settings.TextEffects.TimeShadowPercent,
-            settings.TextEffects.TimeOutlineThicknessPercent);
+            attached ? settings.TextEffects.AttachedTimeShadowPercent : settings.TextEffects.TimeShadowPercent,
+            attached ? settings.TextEffects.AttachedTimeOutlineThicknessPercent : settings.TextEffects.TimeOutlineThicknessPercent);
     }
 
     public static TextRenderStyle GetDeltaTextStyle(
         AppSettings settings,
         SplitComparison comparison,
-        UiPalette palette)
+        UiPalette palette,
+        bool attached = false)
     {
         bool ahead = comparison.Delta is TimeSpan delta && delta < TimeSpan.Zero;
         return ahead
@@ -361,12 +371,14 @@ internal static class OverlayTextStyles
                 settings,
                 palette.DeltaAheadText,
                 palette.DeltaAheadTextOutline,
-                palette.DeltaAheadTextShadow)
+                palette.DeltaAheadTextShadow,
+                attached)
             : CreateDeltaTextStyle(
                 settings,
                 palette.DeltaBehindText,
                 palette.DeltaBehindTextOutline,
-                palette.DeltaBehindTextShadow);
+                palette.DeltaBehindTextShadow,
+                attached);
     }
 
     public static TextRenderStyle GetTimerTextStyle(
@@ -445,8 +457,8 @@ internal static class OverlayTextStyles
                 milliseconds);
         }
 
-        if (currentSplitIndex < statuses.Count &&
-            settings.TryGetReferenceSplit(statuses[currentSplitIndex].Definition, out TimeSpan currentReference))
+        if (TryGetTimerComparisonDefinition(settings, statuses, currentSplitIndex, out SplitDefinition comparisonDefinition) &&
+            settings.TryGetReferenceSplit(comparisonDefinition, out TimeSpan currentReference))
         {
             if (settings.EnableTimerGradientColor)
             {
@@ -469,6 +481,46 @@ internal static class OverlayTextStyles
         }
 
         return CreateTimerTextStyle(settings, palette.TimerText, palette.TimerTextOutline, palette.TimerTextShadow, milliseconds);
+    }
+
+    private static bool TryGetTimerComparisonDefinition(
+        AppSettings settings,
+        IReadOnlyList<SplitStatusSnapshot> statuses,
+        int currentSplitIndex,
+        out SplitDefinition definition)
+    {
+        definition = null!;
+        if (currentSplitIndex < 0 || currentSplitIndex >= statuses.Count)
+        {
+            return false;
+        }
+
+        SplitDefinition current = statuses[currentSplitIndex].Definition;
+        if (settings.AttachedGroupsAffectTimerComparison || !current.IsAttached)
+        {
+            definition = current;
+            return true;
+        }
+
+        for (int i = currentSplitIndex; i < statuses.Count; i++)
+        {
+            if (!statuses[i].Definition.IsAttached)
+            {
+                definition = statuses[i].Definition;
+                return true;
+            }
+        }
+
+        for (int i = currentSplitIndex - 1; i >= 0; i--)
+        {
+            if (!statuses[i].Definition.IsAttached)
+            {
+                definition = statuses[i].Definition;
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static TextRenderStyle GetTimerGradientTextStyle(
@@ -512,28 +564,30 @@ internal static class OverlayTextStyles
         AppSettings settings,
         Color fill,
         Color outline,
-        Color shadow)
+        Color shadow,
+        bool attached = false)
     {
         return new TextRenderStyle(
             fill,
             outline,
             shadow,
-            settings.TextEffects.TimeShadowPercent,
-            settings.TextEffects.TimeOutlineThicknessPercent);
+            attached ? settings.TextEffects.AttachedTimeShadowPercent : settings.TextEffects.TimeShadowPercent,
+            attached ? settings.TextEffects.AttachedTimeOutlineThicknessPercent : settings.TextEffects.TimeOutlineThicknessPercent);
     }
 
     private static TextRenderStyle CreateDeltaTextStyle(
         AppSettings settings,
         Color fill,
         Color outline,
-        Color shadow)
+        Color shadow,
+        bool attached = false)
     {
         return new TextRenderStyle(
             fill,
             outline,
             shadow,
-            settings.TextEffects.DeltaShadowPercent,
-            settings.TextEffects.DeltaOutlineThicknessPercent);
+            attached ? settings.TextEffects.AttachedDeltaShadowPercent : settings.TextEffects.DeltaShadowPercent,
+            attached ? settings.TextEffects.AttachedDeltaOutlineThicknessPercent : settings.TextEffects.DeltaOutlineThicknessPercent);
     }
 
     private static TextRenderStyle CreateTimerTextStyle(

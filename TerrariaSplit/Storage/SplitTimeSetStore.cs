@@ -12,8 +12,6 @@ internal static class SplitTimeSetStore
 
     public static string PersonalBestSegmentDirectory => RuntimeDataPaths.PersonalBestSegmentsDirectory;
 
-    private static string DefaultReferenceDirectory => Path.Combine(AppContext.BaseDirectory, "Assets", "ReferenceTimes");
-
     public static void EnsureDirectories()
     {
         Directory.CreateDirectory(ReferenceDirectory);
@@ -26,7 +24,7 @@ internal static class SplitTimeSetStore
     {
         List<ReferenceSplitSet> sets = LoadSets(ReferenceDirectory);
         return sets.Count == 0 || AreReferenceSetsEmpty(sets)
-            ? LoadDefaultReferenceSets()
+            ? LoadAndSaveDefaultReferenceSets()
             : sets;
     }
 
@@ -99,12 +97,35 @@ internal static class SplitTimeSetStore
         return LoadSets(directory, newestFirst: false, maxCount: null);
     }
 
-    private static List<ReferenceSplitSet> LoadDefaultReferenceSets()
+    private static List<ReferenceSplitSet> LoadAndSaveDefaultReferenceSets()
     {
-        List<ReferenceSplitSet> sets = LoadSets(DefaultReferenceDirectory);
-        return sets.Count == 0
-            ? new List<ReferenceSplitSet> { AppSettings.CreateReferenceSet("WR") }
-            : sets;
+        ReferenceSplitSet set = LoadEmbeddedDefaultReferenceSet();
+        SaveSet(ReferenceDirectory, $"{SanitizeFileName(set.Name)}.json", set);
+        return new List<ReferenceSplitSet> { set };
+    }
+
+    private static ReferenceSplitSet LoadEmbeddedDefaultReferenceSet()
+    {
+        try
+        {
+            ReferenceSplitSet? set = System.Text.Json.JsonSerializer.Deserialize<ReferenceSplitSet>(
+                EmbeddedDefaults.ReferenceTimesWrJson,
+                JsonFileStore.JsonOptions);
+            if (set is not null)
+            {
+                set.Name = string.IsNullOrWhiteSpace(set.Name) ? "WR" : set.Name.Trim();
+                set.Splits = new Dictionary<string, string>(
+                    set.Splits ?? new Dictionary<string, string>(),
+                    StringComparer.OrdinalIgnoreCase);
+                return set;
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error(ex, "Failed to load embedded default WR reference times.");
+        }
+
+        return AppSettings.CreateReferenceSet("WR");
     }
 
     private static bool AreReferenceSetsEmpty(IEnumerable<ReferenceSplitSet> sets)

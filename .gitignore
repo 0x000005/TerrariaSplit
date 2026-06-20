@@ -33,8 +33,11 @@ promo-animation/
 .codex-build/
 .codex-build-check/
 .codex-build-inspect/
+.codex-*/
+.codex_*/
 .codex-dotnet/
 .codex-memory-probe/
+.codex-test/
 .codex-test-build/
 .codex-test-check/
 .codex-verify/
@@ -47,7 +50,10 @@ promo-animation/
 **/.codex-build/
 **/.codex-build-check/
 **/.codex-build-inspect/
+**/.codex-*/
+**/.codex_*/
 **/.codex-memory-probe/
+**/.codex-test/
 **/.codex-test-build/
 **/.codex-test-check/
 **/.codex-verify/

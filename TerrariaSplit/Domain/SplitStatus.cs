@@ -98,16 +98,7 @@ internal sealed class SplitStatus
             return;
         }
 
-        string[] merged = CompletedFactKeys
-            .Concat(satisfiedFactKeys)
-            .Where(key => !string.IsNullOrWhiteSpace(key))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-        if (merged.Length != CompletedFactKeys.Count ||
-            !merged.SequenceEqual(CompletedFactKeys, StringComparer.OrdinalIgnoreCase))
-        {
-            CompletedFactKeys = merged;
-        }
+        MergeCompletedFactKeys(satisfiedFactKeys);
 
         foreach (string factKey in satisfiedFactKeys)
         {
@@ -132,7 +123,7 @@ internal sealed class SplitStatus
         }
 
         Time = elapsed;
-        CompletedFactKeys = Definition.GetMatchedFactKeys(facts).ToArray();
+        MergeCompletedFactKeys(factCompletionTimes.Keys.Concat(Definition.GetMatchedFactKeys(facts)));
         return new SplitRecord(index, Definition.Id, elapsed);
     }
 
@@ -144,6 +135,20 @@ internal sealed class SplitStatus
             {
                 factCompletionTimes.TryAdd(factKey, elapsed);
             }
+        }
+    }
+
+    private void MergeCompletedFactKeys(IEnumerable<string> factKeys)
+    {
+        string[] merged = CompletedFactKeys
+            .Concat(factKeys)
+            .Where(key => !string.IsNullOrWhiteSpace(key))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (merged.Length != CompletedFactKeys.Count ||
+            !merged.SequenceEqual(CompletedFactKeys, StringComparer.OrdinalIgnoreCase))
+        {
+            CompletedFactKeys = merged;
         }
     }
 }

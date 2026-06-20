@@ -20,6 +20,7 @@ internal sealed class AppSettings
     public bool ExpandSplitDetails { get; set; }
     public bool CollapseSplitDetailsOnCompletion { get; set; } = true;
     public bool AutoHideAttachedGroups { get; set; } = true;
+    public bool AttachedGroupsAffectTimerComparison { get; set; } = true;
     public List<ReferenceSplitSet> ReferenceSplitSets { get; set; } = new();
     public string ActiveReferenceSplitSet { get; set; } = "WR";
     public bool UsePersonalBestAsReferenceTime { get; set; }

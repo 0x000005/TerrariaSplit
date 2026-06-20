@@ -132,13 +132,13 @@ internal sealed class AnimationSettingsPage : SettingsPageBase
 
     private void AddIconLightingSection(TableLayoutPanel parent)
     {
-        TableLayoutPanel iconSection = Factory.CreateSection("Light icons when BOSS defeated");
+        TableLayoutPanel iconSection = Factory.CreateSection("Light icons when current stage completed");
         TableLayoutPanel iconGrid = Factory.CreateTwoColumnGrid(280f);
         Factory.AddSettingRow(iconGrid, "Enabled", enableDefeatedBossIconLightingBox);
         Factory.AddSettingRow(iconGrid, "Unlit grayscale %", undefeatedIconGrayscaleBox);
         Factory.AddSettingRow(iconGrid, "Unlit brightness %", undefeatedIconBrightnessBox);
-        Factory.AddSettingRow(iconGrid, "Current boss grayscale weaken %", currentBossIconGrayscaleWeakenBox);
-        Factory.AddSettingRow(iconGrid, "Current boss brightness boost %", currentBossIconBrightnessBoostBox);
+        Factory.AddSettingRow(iconGrid, "Current stage icon grayscale weaken %", currentBossIconGrayscaleWeakenBox);
+        Factory.AddSettingRow(iconGrid, "Current stage icon brightness boost %", currentBossIconBrightnessBoostBox);
         SettingsUiFactory.AddSectionControl(iconSection, iconGrid);
         SettingsUiFactory.AddSection(parent, iconSection);
     }
@@ -180,7 +180,7 @@ internal sealed class AnimationSettingsPage : SettingsPageBase
 
     private void AddSplitCompletionSection(TableLayoutPanel parent)
     {
-        TableLayoutPanel section = Factory.CreateSection("BOSS defeat animation");
+        TableLayoutPanel section = Factory.CreateSection("Main stage completion animation");
         TableLayoutPanel optionGrid = Factory.CreateTwoColumnGrid(280f);
         Factory.AddSettingRow(optionGrid, "Enabled", showSplitCompletionAnimationBox);
         Factory.AddSettingRow(optionGrid, "Animation duration seconds", splitCompletionAnimationDurationBox);
@@ -258,8 +258,8 @@ internal sealed class AnimationSettingsPage : SettingsPageBase
             SettingsUiFactory.ClearGrid(animationComparisonGrid);
             SettingsUiFactory.ClearGrid(animationOutlineGrid);
             animationOutlineControls.Clear();
-            Factory.AddHeaderRow(animationComparisonGrid, "BOSS Group", "Cumulative time", "Segment time");
-            Factory.AddHeaderRow(animationOutlineGrid, "BOSS Group", "Cumulative time", "Segment time");
+            Factory.AddHeaderRow(animationComparisonGrid, "Group", "Cumulative time", "Segment time");
+            Factory.AddHeaderRow(animationOutlineGrid, "Group", "Cumulative time", "Segment time");
             foreach (RouteGroup group in groups)
             {
                 var splitComparisonBox = CreateComparisonCheckBox(GetAnimationOutlineSetting(Draft.SplitCompletionSplitComparisons, group.Key));
@@ -703,7 +703,7 @@ internal sealed class AnimationSettingsPage : SettingsPageBase
         {
             SettingsUiFactory.ClearGrid(segmentBestDeltaHighlightGrid);
             segmentBestDeltaHighlightControls.Clear();
-            Factory.AddHeaderRow(segmentBestDeltaHighlightGrid, "BOSS Group", "Effect");
+            Factory.AddHeaderRow(segmentBestDeltaHighlightGrid, "Group", "Effect");
             foreach (RouteGroup group in groups)
             {
                 ThemedDropDownList styleBox = CreateSegmentBestDeltaHighlightStyleBox(GetSegmentBestDeltaHighlightStyle(group.Key));

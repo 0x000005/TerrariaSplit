@@ -10,32 +10,68 @@ internal static class SettingsSerializer
         return JsonFileStore.Read<AppSettings>(path, description);
     }
 
+    public static AppSettings? ReadSettingsFromJson(string json, string description)
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<AppSettings>(json, JsonFileStore.JsonOptions);
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error(ex, $"Failed to read {description}.");
+            return default;
+        }
+    }
+
     public static void WriteSettings(string path, AppSettings settings)
     {
         JsonFileStore.Write(path, settings, "settings");
     }
 
-    public static AppSettings? ReadSettingsWithDefaults(string path, string defaultsPath, string description)
+    public static AppSettings? ReadSettingsWithDefaults(
+        string path,
+        AppSettings defaults,
+        string description,
+        out bool shouldWriteDefaults)
     {
+        shouldWriteDefaults = false;
         try
         {
-            JsonObject? merged = ReadJsonObject(defaultsPath);
+            JsonObject? merged = JsonSerializer.SerializeToNode(defaults, JsonFileStore.JsonOptions) as JsonObject;
             if (merged is null)
             {
-                return ReadSettings(path, description);
+                shouldWriteDefaults = true;
+                return Clone(defaults);
             }
 
-            if (File.Exists(path) && ReadJsonObject(path) is JsonObject overrides)
+            if (!File.Exists(path))
             {
-                MergeJsonObject(merged, overrides);
+                shouldWriteDefaults = true;
+                return merged.Deserialize<AppSettings>(JsonFileStore.JsonOptions);
             }
 
-            return merged.Deserialize<AppSettings>(JsonFileStore.JsonOptions);
+            JsonObject? overrides = ReadJsonObject(path);
+            if (overrides is null)
+            {
+                shouldWriteDefaults = true;
+                return merged.Deserialize<AppSettings>(JsonFileStore.JsonOptions);
+            }
+
+            MergeJsonObject(merged, overrides);
+            AppSettings? settings = merged.Deserialize<AppSettings>(JsonFileStore.JsonOptions);
+            if (settings is null)
+            {
+                shouldWriteDefaults = true;
+                return Clone(defaults);
+            }
+
+            return settings;
         }
         catch (Exception ex)
         {
             AppLogger.Error(ex, $"Failed to read {description} with defaults: {path}");
-            return default;
+            shouldWriteDefaults = true;
+            return Clone(defaults);
         }
     }
 
@@ -71,12 +107,20 @@ internal static class SettingsSerializer
 
     private static JsonObject? ReadJsonObject(string path)
     {
-        if (!File.Exists(path))
+        try
         {
+            if (!File.Exists(path))
+            {
+                return null;
+            }
+
+            return JsonNode.Parse(File.ReadAllText(path)) as JsonObject;
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error(ex, $"Failed to read settings JSON object: {path}");
             return null;
         }
-
-        return JsonNode.Parse(File.ReadAllText(path)) as JsonObject;
     }
 
     private static void MergeJsonObject(JsonObject target, JsonObject overrides)

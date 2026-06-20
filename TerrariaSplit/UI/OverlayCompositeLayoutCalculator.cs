@@ -164,7 +164,12 @@ internal static class OverlayCompositeLayoutCalculator
         float dpiMultiplier = SystemDpiScale.Value * DefaultDpi / 72f;
         float timeSize = OverlayFontCache.GetColumnFontSize(settings.Columns.Time, scaleFactor);
         float deltaSize = OverlayFontCache.GetColumnFontSize(settings.Columns.Delta, scaleFactor);
-        return Math.Max(1, (int)Math.Ceiling(Math.Max(timeSize, deltaSize) * dpiMultiplier));
+        float attachedTimeSize = OverlayFontCache.GetColumnFontSize(settings.Columns.AttachedTime, scaleFactor);
+        float attachedDeltaSize = OverlayFontCache.GetColumnFontSize(settings.Columns.AttachedDelta, scaleFactor);
+        float maxSize = Math.Max(
+            Math.Max(timeSize, deltaSize),
+            Math.Max(attachedTimeSize, attachedDeltaSize));
+        return Math.Max(1, (int)Math.Ceiling(maxSize * dpiMultiplier));
     }
 
     private static int GetTimerTextEffectBleed(AppSettings settings, int maxFontPixels)
@@ -191,7 +196,17 @@ internal static class OverlayCompositeLayoutCalculator
             fontPixels,
             settings.TextEffects.DeltaShadowPercent,
             settings.TextEffects.DeltaOutlineThicknessPercent);
-        return Math.Max(timeBleed, deltaBleed);
+        int attachedTimeBleed = EstimateTextEffectBleed(
+            fontPixels,
+            settings.TextEffects.AttachedTimeShadowPercent,
+            settings.TextEffects.AttachedTimeOutlineThicknessPercent);
+        int attachedDeltaBleed = EstimateTextEffectBleed(
+            fontPixels,
+            settings.TextEffects.AttachedDeltaShadowPercent,
+            settings.TextEffects.AttachedDeltaOutlineThicknessPercent);
+        return Math.Max(
+            Math.Max(timeBleed, deltaBleed),
+            Math.Max(attachedTimeBleed, attachedDeltaBleed));
     }
 
     private static int EstimateTextEffectBleed(int fontPixels, int shadowPercent, int outlineThicknessPercent)

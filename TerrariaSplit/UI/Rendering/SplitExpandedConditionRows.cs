@@ -24,14 +24,16 @@ internal static class SplitExpandedConditionRows
             .GetFactConditions()
             .ToList();
         int requiredCount = Math.Clamp(status.Definition.Condition.GetRequiredCount(), 1, facts.Count);
-        return facts
+        List<SplitExpandedConditionRow> rows = facts
             .Select((fact, index) => CreateRow(settings, status, fact, index))
             .OrderBy(row => row.CompletionTime.HasValue ? 0 : 1)
             .ThenBy(row => row.CompletionTime ?? TimeSpan.MaxValue)
             .ThenBy(row => row.ReferenceTime ?? TimeSpan.MaxValue)
             .ThenBy(row => row.ConditionIndex)
-            .Take(requiredCount)
-            .ToArray();
+            .ToList();
+        int completedCount = rows.Count(row => row.CompletionTime.HasValue);
+        int visibleCount = Math.Clamp(completedCount + 1, 1, requiredCount);
+        return rows.Take(visibleCount).ToArray();
     }
 
     public static bool ShouldExpand(
@@ -119,9 +121,19 @@ internal static class SplitExpandedConditionRows
             TryGetReferenceTime(settings, status.Definition.Id, conditionIndex, out TimeSpan referenceTime)
                 ? referenceTime
                 : null,
-            status.TryGetFactCompletionTime(fact.FactKey, out TimeSpan completionTime)
-                ? completionTime
-                : null);
+            GetCompletionSortTime(status, fact.FactKey));
+    }
+
+    private static TimeSpan? GetCompletionSortTime(SplitStatusSnapshot status, string factKey)
+    {
+        if (status.TryGetFactCompletionTime(factKey, out TimeSpan completionTime))
+        {
+            return completionTime;
+        }
+
+        return status.CompletedFactKeys.Contains(factKey, StringComparer.OrdinalIgnoreCase)
+            ? TimeSpan.Zero
+            : null;
     }
 
     private static bool TryGetReferenceTime(

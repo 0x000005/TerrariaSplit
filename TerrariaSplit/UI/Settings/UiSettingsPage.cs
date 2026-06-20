@@ -18,6 +18,13 @@ internal sealed class UiSettingsPage : SettingsPageBase
     private readonly TextBox deltaOpacityBox = new();
     private readonly TextBox deltaShadowBox = new();
     private readonly TextBox deltaOutlineThicknessBox = new();
+    private readonly TextBox attachedIconOpacityBox = new();
+    private readonly TextBox attachedTimeOpacityBox = new();
+    private readonly TextBox attachedTimeShadowBox = new();
+    private readonly TextBox attachedTimeOutlineThicknessBox = new();
+    private readonly TextBox attachedDeltaOpacityBox = new();
+    private readonly TextBox attachedDeltaShadowBox = new();
+    private readonly TextBox attachedDeltaOutlineThicknessBox = new();
     private readonly TextBox timerOpacityBox = new();
     private readonly TextBox timerShadowBox = new();
     private readonly TextBox timerOutlineThicknessBox = new();
@@ -42,6 +49,20 @@ internal sealed class UiSettingsPage : SettingsPageBase
     internal TextBox DeltaShadowBox => deltaShadowBox;
 
     internal TextBox DeltaOutlineThicknessBox => deltaOutlineThicknessBox;
+
+    internal TextBox AttachedIconOpacityBox => attachedIconOpacityBox;
+
+    internal TextBox AttachedTimeOpacityBox => attachedTimeOpacityBox;
+
+    internal TextBox AttachedTimeShadowBox => attachedTimeShadowBox;
+
+    internal TextBox AttachedTimeOutlineThicknessBox => attachedTimeOutlineThicknessBox;
+
+    internal TextBox AttachedDeltaOpacityBox => attachedDeltaOpacityBox;
+
+    internal TextBox AttachedDeltaShadowBox => attachedDeltaShadowBox;
+
+    internal TextBox AttachedDeltaOutlineThicknessBox => attachedDeltaOutlineThicknessBox;
 
     internal TextBox TimerOpacityBox => timerOpacityBox;
 
@@ -71,6 +92,28 @@ internal sealed class UiSettingsPage : SettingsPageBase
         throw new InvalidOperationException($"Font family control not found for {key}.");
     }
 
+    internal TextBox GetColumnWidthBoxForTests(string key)
+    {
+        return GetColumnControlsForTests(key).Width;
+    }
+
+    internal TextBox GetColumnFontSizeBoxForTests(string key)
+    {
+        return GetColumnControlsForTests(key).FontSize;
+    }
+
+    internal CheckBox? GetColumnBoldBoxForTests(string key)
+    {
+        return GetColumnControlsForTests(key).Bold;
+    }
+
+    private ColumnControls GetColumnControlsForTests(string key)
+    {
+        return columnControls.TryGetValue(key, out ColumnControls? controls)
+            ? controls
+            : throw new InvalidOperationException($"Column controls not found for {key}.");
+    }
+
     protected override Control BuildPage(SettingsPageContext context)
     {
         return context.BuildScrollPage(content =>
@@ -85,6 +128,9 @@ internal sealed class UiSettingsPage : SettingsPageBase
         ApplyColumnSettings("Icon", settings.Columns.Icon);
         ApplyColumnSettings("Time", settings.Columns.Time);
         ApplyColumnSettings("Delta", settings.Columns.Delta);
+        ApplyColumnSettings("AttachedIcon", settings.Columns.AttachedIcon);
+        ApplyColumnSettings("AttachedTime", settings.Columns.AttachedTime);
+        ApplyColumnSettings("AttachedDelta", settings.Columns.AttachedDelta);
         ApplyFontSettings("Timer", settings.Columns.Timer);
         ApplyFontSettings("TimerMilliseconds", settings.Columns.TimerMilliseconds);
 
@@ -99,6 +145,13 @@ internal sealed class UiSettingsPage : SettingsPageBase
         settings.TextEffects.DeltaOpacityPercent = SettingsValueParser.ParseIntBox(deltaOpacityBox, 100, 0, 100);
         settings.TextEffects.DeltaShadowPercent = SettingsValueParser.ParseIntBox(deltaShadowBox, 0, 0, 100);
         settings.TextEffects.DeltaOutlineThicknessPercent = SettingsValueParser.ParseIntBox(deltaOutlineThicknessBox, 0, 0, 200);
+        settings.TextEffects.AttachedIconOpacityPercent = SettingsValueParser.ParseIntBox(attachedIconOpacityBox, 100, 0, 100);
+        settings.TextEffects.AttachedTimeOpacityPercent = SettingsValueParser.ParseIntBox(attachedTimeOpacityBox, 100, 0, 100);
+        settings.TextEffects.AttachedTimeShadowPercent = SettingsValueParser.ParseIntBox(attachedTimeShadowBox, 0, 0, 100);
+        settings.TextEffects.AttachedTimeOutlineThicknessPercent = SettingsValueParser.ParseIntBox(attachedTimeOutlineThicknessBox, 0, 0, 200);
+        settings.TextEffects.AttachedDeltaOpacityPercent = SettingsValueParser.ParseIntBox(attachedDeltaOpacityBox, 100, 0, 100);
+        settings.TextEffects.AttachedDeltaShadowPercent = SettingsValueParser.ParseIntBox(attachedDeltaShadowBox, 0, 0, 100);
+        settings.TextEffects.AttachedDeltaOutlineThicknessPercent = SettingsValueParser.ParseIntBox(attachedDeltaOutlineThicknessBox, 0, 0, 200);
         settings.TextEffects.TimerOpacityPercent = SettingsValueParser.ParseIntBox(timerOpacityBox, 100, 0, 100);
         settings.TextEffects.TimerShadowPercent = SettingsValueParser.ParseIntBox(timerShadowBox, 0, 0, 100);
         settings.TextEffects.TimerOutlineThicknessPercent = SettingsValueParser.ParseIntBox(timerOutlineThicknessBox, 0, 0, 200);
@@ -155,6 +208,37 @@ internal sealed class UiSettingsPage : SettingsPageBase
             Draft.TextEffects.DeltaShadowPercent,
             deltaOutlineThicknessBox,
             Draft.TextEffects.DeltaOutlineThicknessPercent);
+        AddColumnSettingsRow(
+            grid,
+            "Icon (attached)",
+            "AttachedIcon",
+            Draft.Columns.AttachedIcon,
+            opacityBox: attachedIconOpacityBox,
+            opacityPercent: Draft.TextEffects.AttachedIconOpacityPercent,
+            showFontFamily: false,
+            showBold: false);
+        AddColumnSettingsRow(
+            grid,
+            "Time (attached)",
+            "AttachedTime",
+            Draft.Columns.AttachedTime,
+            attachedTimeOpacityBox,
+            Draft.TextEffects.AttachedTimeOpacityPercent,
+            attachedTimeShadowBox,
+            Draft.TextEffects.AttachedTimeShadowPercent,
+            attachedTimeOutlineThicknessBox,
+            Draft.TextEffects.AttachedTimeOutlineThicknessPercent);
+        AddColumnSettingsRow(
+            grid,
+            "Delta (attached)",
+            "AttachedDelta",
+            Draft.Columns.AttachedDelta,
+            attachedDeltaOpacityBox,
+            Draft.TextEffects.AttachedDeltaOpacityPercent,
+            attachedDeltaShadowBox,
+            Draft.TextEffects.AttachedDeltaShadowPercent,
+            attachedDeltaOutlineThicknessBox,
+            Draft.TextEffects.AttachedDeltaOutlineThicknessPercent);
 
         TableLayoutPanel optionsGrid = Factory.CreateTwoColumnGrid(280f);
         Factory.AddSettingRow(optionsGrid, "Dynamic delta time units", enableDynamicDeltaTimeUnitsBox);

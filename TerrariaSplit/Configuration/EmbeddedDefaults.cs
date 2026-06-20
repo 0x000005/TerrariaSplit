@@ -1,3 +1,8 @@
+namespace TerrariaSplit;
+
+internal static class EmbeddedDefaults
+{
+    public const string SettingsJson = """
 {
   "PauseResumeKey": "F12",
   "ResetKey": "F6",
@@ -1177,4 +1182,32 @@
   "UndefeatedIconBrightnessPercent": 40,
   "CurrentBossIconGrayscaleWeakenPercent": 0,
   "CurrentBossIconBrightnessBoostPercent": 0
+}
+""";
+
+    public const string ReferenceTimesWrJson = """
+{
+  "Name": "WR",
+  "Splits": {
+    "condition:split:biome-underworld:complete": "10:25.00",
+    "condition:split:boss-skeletron:boss-skeletron-defeated-istrue-1": "13:42.00",
+    "condition:split:boss-wall-of-flesh:boss-wall-of-flesh-defeated-istrue-1": "16:13.00",
+    "condition:split:item-525:complete": "22:20.00",
+    "condition:split:boss-destroyer:boss-destroyer-defeated-istrue-1": "29:41.00",
+    "condition:split:boss-destroyer:boss-twins-defeated-istrue-1": "32:07.00",
+    "condition:split:boss-destroyer:boss-skeletron-prime-defeated-istrue-1": "31:22.00",
+    "condition:split:boss-plantera:boss-plantera-defeated-istrue-1": "35:14.00",
+    "condition:split:boss-golem:boss-golem-defeated-istrue-1": "37:01.00",
+    "condition:split:boss-lunatic-cultist:boss-lunatic-cultist-defeated-istrue-1": "38:52.00",
+    "condition:split:boss-moon-lord:boss-moon-lord-defeated-istrue-1": "48:14.53",
+    "condition:split:item-3601:complete": "46:53.70",
+    "condition:split:item-3459:complete": "41:44.22",
+    "condition:split:item-520:complete": "23:52.00",
+    "condition:split:biome-aether:complete": "26:20.00",
+    "condition:split:biome-jungle:complete": "3:11.00",
+    "condition:split:item-167:complete": "6:50.00",
+    "condition:split:item-857:complete": "0:51.00"
+  }
+}
+""";
 }

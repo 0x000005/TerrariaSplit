@@ -133,6 +133,9 @@ internal static class SettingsNormalizer
         columns.Icon ??= defaults.Icon;
         columns.Time ??= defaults.Time;
         columns.Delta ??= defaults.Delta;
+        columns.AttachedIcon ??= defaults.AttachedIcon;
+        columns.AttachedTime ??= defaults.AttachedTime;
+        columns.AttachedDelta ??= defaults.AttachedDelta;
         columns.Timer ??= defaults.Timer;
         columns.TimerMilliseconds ??= defaults.TimerMilliseconds;
         columns.ScalePercent = Math.Clamp(columns.ScalePercent, 25, 300);
@@ -140,6 +143,9 @@ internal static class SettingsNormalizer
         NormalizeColumn(columns.Icon, defaults.Icon);
         NormalizeColumn(columns.Time, defaults.Time);
         NormalizeColumn(columns.Delta, defaults.Delta);
+        NormalizeColumn(columns.AttachedIcon, defaults.AttachedIcon);
+        NormalizeColumn(columns.AttachedTime, defaults.AttachedTime);
+        NormalizeColumn(columns.AttachedDelta, defaults.AttachedDelta);
         NormalizeColumn(columns.Timer, defaults.Timer);
         NormalizeColumn(columns.TimerMilliseconds, defaults.TimerMilliseconds);
     }
@@ -172,6 +178,13 @@ internal static class SettingsNormalizer
         effects.DeltaOpacityPercent = ClampPercent(effects.DeltaOpacityPercent);
         effects.DeltaShadowPercent = ClampPercent(effects.DeltaShadowPercent);
         effects.DeltaOutlineThicknessPercent = ClampOutlinePercent(effects.DeltaOutlineThicknessPercent);
+        effects.AttachedIconOpacityPercent = ClampPercent(effects.AttachedIconOpacityPercent);
+        effects.AttachedTimeOpacityPercent = ClampPercent(effects.AttachedTimeOpacityPercent);
+        effects.AttachedTimeShadowPercent = ClampPercent(effects.AttachedTimeShadowPercent);
+        effects.AttachedTimeOutlineThicknessPercent = ClampOutlinePercent(effects.AttachedTimeOutlineThicknessPercent);
+        effects.AttachedDeltaOpacityPercent = ClampPercent(effects.AttachedDeltaOpacityPercent);
+        effects.AttachedDeltaShadowPercent = ClampPercent(effects.AttachedDeltaShadowPercent);
+        effects.AttachedDeltaOutlineThicknessPercent = ClampOutlinePercent(effects.AttachedDeltaOutlineThicknessPercent);
         effects.TimerOpacityPercent = ClampPercent(effects.TimerOpacityPercent);
         effects.TimerShadowPercent = ClampPercent(effects.TimerShadowPercent);
         effects.TimerOutlineThicknessPercent = ClampOutlinePercent(effects.TimerOutlineThicknessPercent);
@@ -314,7 +327,9 @@ internal static class SettingsNormalizer
                 entry.ExpandDetails = false;
             }
 
-            entry.Condition = NormalizeCondition((entry.Condition ?? SplitCondition.All([])).ToFlatGroup());
+            entry.Condition = NormalizeCondition(entry.Condition ?? SplitCondition.All([]));
+            entry.UseAdvancedConditionEditor = entry.UseAdvancedConditionEditor ||
+                RequiresAdvancedConditionEditor(entry.Condition);
 
             entry.Id = CreateUniqueRouteEntryId(entry, normalized.Count + 1, seenIds);
             entry.DisplayName = string.IsNullOrWhiteSpace(entry.DisplayName)
@@ -355,6 +370,24 @@ internal static class SettingsNormalizer
         }
 
         settings.SplitRoute = normalized;
+    }
+
+    private static bool RequiresAdvancedConditionEditor(SplitCondition condition)
+    {
+        string kind = SplitConditionKind.Normalize(condition.Kind);
+        if (kind == SplitConditionKind.Fact)
+        {
+            return false;
+        }
+
+        if (kind != SplitConditionKind.All &&
+            kind != SplitConditionKind.Any &&
+            kind != SplitConditionKind.AtLeast)
+        {
+            return true;
+        }
+
+        return condition.Children.Any(child => SplitConditionKind.Normalize(child.Kind) != SplitConditionKind.Fact);
     }
 
     private static void NormalizeIconOverride(SplitRouteEntry entry, IReadOnlyCollection<string> conditionTargetIds)
@@ -450,21 +483,39 @@ internal static class SettingsNormalizer
 
     private static SplitCondition NormalizeCondition(SplitCondition condition)
     {
-        SplitCondition flat = condition.ToFlatGroup();
-        var facts = new List<SplitCondition>();
-        foreach (SplitCondition fact in flat.GetFactConditions())
+        condition.Normalize();
+        return NormalizeConditionNode(condition);
+    }
+
+    private static SplitCondition NormalizeConditionNode(SplitCondition condition)
+    {
+        string kind = SplitConditionKind.Normalize(condition.Kind);
+        if (kind == SplitConditionKind.Fact)
         {
+            SplitCondition fact = condition.Clone();
             fact.Normalize();
             if (SplitCatalog.TryParseItemOwnedCountFactKey(fact.FactKey, out int itemId))
             {
                 fact.FactKey = SplitCatalog.CreateItemEverOwnedFactKey(itemId);
             }
 
-            facts.Add(fact);
+            return fact;
         }
 
-        int requiredCount = Math.Clamp(flat.GetRequiredCount(), 1, Math.Max(1, facts.Count));
-        return SplitCondition.AtLeast(facts, requiredCount);
+        List<SplitCondition> children = (condition.Children ?? [])
+            .Select(NormalizeConditionNode)
+            .ToList();
+        if (kind == SplitConditionKind.All)
+        {
+            return SplitCondition.All(children);
+        }
+
+        int requiredCount = kind == SplitConditionKind.Any
+            ? 1
+            : condition.Value;
+        return SplitCondition.AtLeast(
+            children,
+            Math.Clamp(requiredCount, 1, Math.Max(1, children.Count)));
     }
 
     private static void RemoveUnknownCumulativeKeys(AppSettings settings, HashSet<string> conditionRowKeys)

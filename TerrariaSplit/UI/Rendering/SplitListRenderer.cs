@@ -160,13 +160,16 @@ internal static class SplitListRenderer
         return baseOpacity * depthOpacity;
     }
 
-    public static ColumnRects GetColumnRects(AppSettings settings, Rectangle rect)
+    public static ColumnRects GetColumnRects(AppSettings settings, Rectangle rect, bool attached = false)
     {
         Span<ColumnWidth> visibleColumns = stackalloc ColumnWidth[3];
         int columnCount = 0;
-        AddColumn(visibleColumns, ref columnCount, SplitColumn.Icon, settings.Columns.Icon);
-        AddColumn(visibleColumns, ref columnCount, SplitColumn.Time, settings.Columns.Time);
-        AddColumn(visibleColumns, ref columnCount, SplitColumn.Delta, settings.Columns.Delta);
+        UiColumnSettings iconSettings = GetIconColumnSettings(settings, attached);
+        UiColumnSettings timeSettings = GetTimeColumnSettings(settings, attached);
+        UiColumnSettings deltaSettings = GetDeltaColumnSettings(settings, attached);
+        AddColumn(visibleColumns, ref columnCount, SplitColumn.Icon, iconSettings);
+        AddColumn(visibleColumns, ref columnCount, SplitColumn.Time, timeSettings);
+        AddColumn(visibleColumns, ref columnCount, SplitColumn.Delta, deltaSettings);
 
         int requestedWidth = 0;
         for (int i = 0; i < columnCount; i++)
@@ -209,6 +212,21 @@ internal static class SplitListRenderer
         return new ColumnRects(icon, time, delta);
     }
 
+    public static UiColumnSettings GetIconColumnSettings(AppSettings settings, bool attached)
+    {
+        return attached ? settings.Columns.AttachedIcon : settings.Columns.Icon;
+    }
+
+    public static UiColumnSettings GetTimeColumnSettings(AppSettings settings, bool attached)
+    {
+        return attached ? settings.Columns.AttachedTime : settings.Columns.Time;
+    }
+
+    public static UiColumnSettings GetDeltaColumnSettings(AppSettings settings, bool attached)
+    {
+        return attached ? settings.Columns.AttachedDelta : settings.Columns.Delta;
+    }
+
     private static void DrawSplitRow(
         Graphics graphics,
         OverlayRenderContext context,
@@ -228,7 +246,11 @@ internal static class SplitListRenderer
             return;
         }
 
-        ColumnRects columns = GetColumnRects(context.Settings, rect);
+        bool attached = status.Definition.IsAttached;
+        UiColumnSettings iconSettings = GetIconColumnSettings(context.Settings, attached);
+        UiColumnSettings timeSettings = GetTimeColumnSettings(context.Settings, attached);
+        UiColumnSettings deltaSettings = GetDeltaColumnSettings(context.Settings, attached);
+        ColumnRects columns = GetColumnRects(context.Settings, rect, attached);
 
         if (columns.Icon is Rectangle iconColumnRect)
         {
@@ -241,7 +263,8 @@ internal static class SplitListRenderer
                     resources,
                     iconRect,
                     status,
-                    opacity * OverlayTextStyles.GetIconOpacity(context.Settings),
+                    iconSettings,
+                    opacity * OverlayTextStyles.GetIconOpacity(context.Settings, attached),
                     wheelScale,
                     context.Settings.EnableDefeatedBossIconLighting &&
                         statusIndex == context.CurrentSplitIndex);
@@ -272,17 +295,17 @@ internal static class SplitListRenderer
                         ? "--"
                         : SplitRenderData.FormatReferenceTime(context.Settings, status.Definition);
             TextRenderStyle timeStyle = showSplitTime || showSkippedTime || showExpandedTime
-                ? OverlayTextStyles.GetSplitTextStyle(context.Settings, context.Palette)
-                : OverlayTextStyles.GetReferenceTextStyle(context.Settings, context.Palette, isCurrent);
+                ? OverlayTextStyles.GetSplitTextStyle(context.Settings, context.Palette, attached)
+                : OverlayTextStyles.GetReferenceTextStyle(context.Settings, context.Palette, isCurrent, attached);
 
             TextEffectRenderer.DrawStyledText(
                 graphics,
                 timeText,
-                resources.Fonts.GetColumnFont(context.Settings.Columns.Time, context.ScaleFactor, sizeScale: wheelScale),
+                resources.Fonts.GetColumnFont(timeSettings, context.ScaleFactor, sizeScale: wheelScale),
                 timeStyle,
                 timeRect,
                 ContentAlignment.MiddleRight,
-                opacity * OverlayTextStyles.GetTimeTextOpacity(context.Settings),
+                opacity * OverlayTextStyles.GetTimeTextOpacity(context.Settings, attached),
                 supersampleEffects: false);
         }
 
@@ -305,7 +328,8 @@ internal static class SplitListRenderer
             TextRenderStyle deltaStyle = OverlayTextStyles.GetDeltaTextStyle(
                 context.Settings,
                 comparison,
-                context.Palette);
+                context.Palette,
+                attached);
             if (TryGetSegmentBestDeltaHighlight(context, statusIndex, out SegmentBestDeltaHighlight highlight))
             {
                 double seconds = (context.NowUtc - highlight.StartedAtUtc).TotalSeconds;
@@ -315,11 +339,11 @@ internal static class SplitListRenderer
             TextEffectRenderer.DrawStyledText(
                 graphics,
                 SplitRenderData.FormatSplitDelta(context.Settings, comparison),
-                resources.Fonts.GetColumnFont(context.Settings.Columns.Delta, context.ScaleFactor, sizeScale: wheelScale),
+                resources.Fonts.GetColumnFont(deltaSettings, context.ScaleFactor, sizeScale: wheelScale),
                 deltaStyle with { Fill = deltaColor },
                 deltaRect,
                 ContentAlignment.MiddleLeft,
-                opacity * OverlayTextStyles.GetDeltaTextOpacity(context.Settings),
+                opacity * OverlayTextStyles.GetDeltaTextOpacity(context.Settings, attached),
                 supersampleEffects: false);
         }
     }
@@ -388,6 +412,7 @@ internal static class SplitListRenderer
         OverlayRenderResources resources,
         Rectangle rect,
         SplitStatusSnapshot status,
+        UiColumnSettings iconSettings,
         float opacity = 1f,
         float sizeScale = 1f,
         bool brighten = false)
@@ -406,7 +431,7 @@ internal static class SplitListRenderer
             IconPair icon = resources.BossIcons.Load(definition, definition.IconFileNames[iconIndex], context.Settings);
             bool lit = IsIconLit(context, status, definition, iconIndex);
             int singleIconSize = Math.Min(
-                Math.Min(Math.Max(12, context.ScaleInt((int)Math.Round(context.Settings.Columns.Icon.FontSize * sizeScale))), rect.Height),
+                Math.Min(Math.Max(12, context.ScaleInt((int)Math.Round(iconSettings.FontSize * sizeScale))), rect.Height),
                 rect.Width);
             var iconRect = new Rectangle(
                 rect.Right - singleIconSize,
@@ -420,7 +445,7 @@ internal static class SplitListRenderer
 
         int iconGap = context.ScaleInt(6);
         int size = Math.Min(
-            Math.Min(Math.Max(12, context.ScaleInt((int)Math.Round(context.Settings.Columns.Icon.FontSize * sizeScale))), rect.Height),
+            Math.Min(Math.Max(12, context.ScaleInt((int)Math.Round(iconSettings.FontSize * sizeScale))), rect.Height),
             Math.Max(12, (rect.Width - Math.Max(0, count - 1) * iconGap) / count));
         int totalWidth = count * size + (count - 1) * iconGap;
         int startX = rect.Right - totalWidth;
@@ -470,15 +495,56 @@ internal static class SplitListRenderer
         }
 
         int[] satisfiedOrder = satisfied
-            .OrderBy(item => item.CompletionTime ?? TimeSpan.MaxValue)
+            .OrderBy(item => GetIconCompletionSortTime(item.CompletionTime, item.CompletionOrder))
             .ThenBy(item => item.CompletionOrder)
             .ThenBy(item => item.Index)
             .Select(item => item.Index)
             .ToArray();
-        int requiredCount = Math.Clamp(definition.Condition.GetRequiredCount(), 1, count);
-        return satisfiedOrder.Length >= requiredCount
+        if (!ShouldHidePendingIcons(context, status, definition))
+        {
+            return satisfiedOrder.Concat(pending).ToArray();
+        }
+
+        return satisfiedOrder.Length > 0
             ? satisfiedOrder
-            : satisfiedOrder.Concat(pending).ToArray();
+            : Enumerable.Range(0, count).ToArray();
+    }
+
+    private static bool ShouldHidePendingIcons(
+        OverlayRenderContext context,
+        SplitStatusSnapshot status,
+        SplitDefinition definition)
+    {
+        if (status.IsCompleted)
+        {
+            return true;
+        }
+
+        if (status.IsSkipped)
+        {
+            return status.CompletedFactKeys.Count > 0 ||
+                status.FactCompletionTimes?.Count is > 0;
+        }
+
+        if (context.TimerPhase == SplitTimerPhase.NotStarted)
+        {
+            return false;
+        }
+
+        return EvaluateConditionWithItemFactFallback(definition.Condition, context.Snapshot.Facts) ==
+            SplitConditionResult.True;
+    }
+
+    private static TimeSpan GetIconCompletionSortTime(TimeSpan? completionTime, int completionOrder)
+    {
+        if (completionTime is TimeSpan time)
+        {
+            return time;
+        }
+
+        return completionOrder < int.MaxValue
+            ? TimeSpan.Zero
+            : TimeSpan.MaxValue;
     }
 
     private static bool IsIconLit(
@@ -510,7 +576,7 @@ internal static class SplitListRenderer
             }
 
             return displayDefinition.IconLightingConditions
-                .Any(condition => condition.Evaluate(context.Snapshot.Facts) == SplitConditionResult.True);
+                .Any(condition => IsIconLightingConditionSatisfied(context, condition));
         }
 
         if (status.IsCompleted &&
@@ -521,6 +587,46 @@ internal static class SplitListRenderer
         }
 
         return IsIconSatisfied(context, status, displayDefinition, iconIndex, out _);
+    }
+
+    private static bool IsIconLightingConditionSatisfied(
+        OverlayRenderContext context,
+        SplitCondition condition)
+    {
+        return EvaluateConditionWithItemFactFallback(condition, context.Snapshot.Facts) == SplitConditionResult.True;
+    }
+
+    private static SplitConditionResult EvaluateConditionWithItemFactFallback(
+        SplitCondition condition,
+        TerrariaGameFacts facts)
+    {
+        SplitConditionResult result = condition.Evaluate(facts);
+        if (result == SplitConditionResult.True)
+        {
+            return result;
+        }
+
+        SplitCondition fallback = condition.Clone();
+        return RewriteEverOwnedItemFactsToCurrentOwned(fallback)
+            ? fallback.Evaluate(facts)
+            : result;
+    }
+
+    private static bool RewriteEverOwnedItemFactsToCurrentOwned(SplitCondition condition)
+    {
+        bool changed = false;
+        if (SplitCatalog.TryParseItemEverOwnedFactKey(condition.FactKey, out int itemId))
+        {
+            condition.FactKey = SplitCatalog.CreateItemFactKey(itemId);
+            changed = true;
+        }
+
+        foreach (SplitCondition child in condition.Children)
+        {
+            changed |= RewriteEverOwnedItemFactsToCurrentOwned(child);
+        }
+
+        return changed;
     }
 
     private static bool IsIconSatisfied(
@@ -537,12 +643,13 @@ internal static class SplitListRenderer
             return true;
         }
 
-        if (!TryGetIconFactKey(displayDefinition, iconIndex, out string factKey))
+        if (!TryGetIconFactKeys(displayDefinition, iconIndex, out string[] factKeys))
         {
             return false;
         }
 
-        if (status.CompletedFactKeys.Contains(factKey, StringComparer.OrdinalIgnoreCase))
+        if (status.CompletedFactKeys.Any(completedFactKey =>
+            factKeys.Contains(completedFactKey, StringComparer.OrdinalIgnoreCase)))
         {
             return true;
         }
@@ -552,15 +659,15 @@ internal static class SplitListRenderer
             return false;
         }
 
-        return IsFactSatisfied(context.Snapshot.Facts, factKey, displayDefinition.IconKeys[iconIndex]);
+        return factKeys.Any(factKey => IsFactSatisfied(context.Snapshot.Facts, factKey, displayDefinition.IconKeys[iconIndex]));
     }
 
-    private static bool TryGetIconFactKey(
+    private static bool TryGetIconFactKeys(
         SplitDefinition displayDefinition,
         int iconIndex,
-        out string factKey)
+        out string[] factKeys)
     {
-        factKey = string.Empty;
+        factKeys = [];
         if (iconIndex < 0 || iconIndex >= displayDefinition.IconKeys.Count)
         {
             return false;
@@ -571,8 +678,25 @@ internal static class SplitListRenderer
             return false;
         }
 
-        factKey = target.FactKey;
-        return !string.IsNullOrWhiteSpace(factKey);
+        factKeys = GetEquivalentItemFactKeys(target.FactKey)
+            .Where(key => !string.IsNullOrWhiteSpace(key))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        return factKeys.Length > 0;
+    }
+
+    private static IEnumerable<string> GetEquivalentItemFactKeys(string factKey)
+    {
+        if (!string.IsNullOrWhiteSpace(factKey))
+        {
+            yield return factKey;
+        }
+
+        if (SplitCatalog.TryParseItemFactKey(factKey, out int itemId))
+        {
+            yield return SplitCatalog.CreateItemFactKey(itemId);
+            yield return SplitCatalog.CreateItemEverOwnedFactKey(itemId);
+        }
     }
 
     private static int GetIconCompletionOrder(
@@ -580,20 +704,25 @@ internal static class SplitListRenderer
         SplitDefinition displayDefinition,
         int iconIndex)
     {
-        if (!TryGetIconFactKey(displayDefinition, iconIndex, out string factKey))
+        if (!TryGetIconFactKeys(displayDefinition, iconIndex, out string[] factKeys))
         {
             return int.MaxValue;
         }
 
-        for (int i = 0; i < status.CompletedFactKeys.Count; i++)
+        int order = int.MaxValue;
+        foreach (string factKey in factKeys)
         {
-            if (string.Equals(status.CompletedFactKeys[i], factKey, StringComparison.OrdinalIgnoreCase))
+            for (int i = 0; i < status.CompletedFactKeys.Count; i++)
             {
-                return i;
+                if (string.Equals(status.CompletedFactKeys[i], factKey, StringComparison.OrdinalIgnoreCase))
+                {
+                    order = Math.Min(order, i);
+                    break;
+                }
             }
         }
 
-        return int.MaxValue;
+        return order;
     }
 
     private static bool IsFactSatisfied(
@@ -623,10 +752,23 @@ internal static class SplitListRenderer
         out TimeSpan time)
     {
         time = TimeSpan.Zero;
-        return iconIndex >= 0 &&
-            iconIndex < displayDefinition.IconKeys.Count &&
-            SplitCatalog.TryGetTarget(displayDefinition.IconKeys[iconIndex], out SplitTargetDefinition target) &&
-            status.TryGetFactCompletionTime(target.FactKey, out time);
+        if (!TryGetIconFactKeys(displayDefinition, iconIndex, out string[] factKeys))
+        {
+            return false;
+        }
+
+        bool found = false;
+        foreach (string factKey in factKeys)
+        {
+            if (status.TryGetFactCompletionTime(factKey, out TimeSpan candidate) &&
+                (!found || candidate < time))
+            {
+                time = candidate;
+                found = true;
+            }
+        }
+
+        return found;
     }
 
     private static bool TryGetSegmentBestDeltaHighlight(

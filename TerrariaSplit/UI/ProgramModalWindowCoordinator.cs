@@ -33,6 +33,11 @@ internal sealed class ProgramModalWindowCoordinator
         layerController.ApplyWindowState();
     }
 
+    public IDisposable DeferWindowStateUpdates()
+    {
+        return layerController.DeferWindowStateUpdates();
+    }
+
     public bool ActivateCurrentModal()
     {
         return layerController.ActivateCurrentModal();

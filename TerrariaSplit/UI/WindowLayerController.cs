@@ -10,6 +10,8 @@ internal sealed class WindowLayerController
     private readonly List<ModalWindowRegistration> modalWindows = new();
     private bool alwaysOnTop;
     private bool mainInteractionBlocked;
+    private int windowStateUpdateDeferralDepth;
+    private bool windowStateUpdatePending;
 
     public WindowLayerController(
         Form statusWindow,
@@ -33,6 +35,12 @@ internal sealed class WindowLayerController
         return registration;
     }
 
+    public IDisposable DeferWindowStateUpdates()
+    {
+        windowStateUpdateDeferralDepth++;
+        return new WindowStateUpdateDeferral(this);
+    }
+
     public void SetAlwaysOnTop(bool topMost)
     {
         alwaysOnTop = topMost;
@@ -41,6 +49,12 @@ internal sealed class WindowLayerController
 
     public void ApplyWindowState()
     {
+        if (windowStateUpdateDeferralDepth > 0)
+        {
+            windowStateUpdatePending = true;
+            return;
+        }
+
         if (statusWindow.IsDisposed || statusWindow.Disposing)
         {
             return;
@@ -218,6 +232,45 @@ internal sealed class WindowLayerController
         }
 
         ApplyWindowState();
+    }
+
+    private void EndWindowStateUpdateDeferral()
+    {
+        if (windowStateUpdateDeferralDepth <= 0)
+        {
+            return;
+        }
+
+        windowStateUpdateDeferralDepth--;
+        if (windowStateUpdateDeferralDepth > 0 || !windowStateUpdatePending)
+        {
+            return;
+        }
+
+        windowStateUpdatePending = false;
+        ApplyWindowState();
+    }
+
+    private sealed class WindowStateUpdateDeferral : IDisposable
+    {
+        private WindowLayerController? owner;
+
+        public WindowStateUpdateDeferral(WindowLayerController owner)
+        {
+            this.owner = owner;
+        }
+
+        public void Dispose()
+        {
+            WindowLayerController? controller = owner;
+            if (controller is null)
+            {
+                return;
+            }
+
+            owner = null;
+            controller.EndWindowStateUpdateDeferral();
+        }
     }
 
     private sealed class ModalWindowRegistration : IDisposable

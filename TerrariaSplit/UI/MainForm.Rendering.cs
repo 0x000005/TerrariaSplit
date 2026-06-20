@@ -48,13 +48,17 @@ internal sealed partial class MainForm : Form
         int index = currentSplitIndex;
         if (index < 0 ||
             index >= splitStatuses.Count ||
-            timerPhase == SplitTimerPhase.NotStarted ||
-            !settings.Columns.Delta.Show)
+            timerPhase == SplitTimerPhase.NotStarted)
         {
             return new StatusOverlayDynamicKey(index, string.Empty, 0);
         }
 
         SplitStatusSnapshot status = splitStatuses[index];
+        if (!SplitListRenderer.GetDeltaColumnSettings(settings, status.Definition.IsAttached).Show)
+        {
+            return new StatusOverlayDynamicKey(index, string.Empty, 0);
+        }
+
         SplitComparison comparison = SplitRenderData.GetSplitComparison(
             settings,
             timerPhase,
@@ -174,7 +178,7 @@ internal sealed partial class MainForm : Form
         }
 
         SplitStatusSnapshot status = splitStatuses[rowIndex];
-        ColumnRects columns = SplitListRenderer.GetColumnRects(settings, rowRect);
+        ColumnRects columns = SplitListRenderer.GetColumnRects(settings, rowRect, status.Definition.IsAttached);
 
         if (columns.Time is Rectangle timeRect && timeRect.Contains(point) && status.IsCompleted)
         {
