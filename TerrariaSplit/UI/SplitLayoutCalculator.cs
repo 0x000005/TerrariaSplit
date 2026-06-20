@@ -33,6 +33,11 @@ internal static class SplitLayoutCalculator
         }
 
         int timerY = content.Y + statusCount * rowHeight + Math.Max(0, statusCount - 1) * rowGap + scaleInt(2);
+        if (timerY + timerHeight > content.Bottom)
+        {
+            return false;
+        }
+
         layout = new SplitLayout(
             new Rectangle(content.X + scaleInt(2), content.Y, content.Width - scaleInt(4), rowHeight),
             new Rectangle(content.X, timerY, content.Width, timerHeight),
@@ -56,11 +61,34 @@ internal static class SplitLayoutCalculator
         return Math.Clamp((int)Math.Round(720 * scale), 420, 2160);
     }
 
+    public static int GetMinimumWindowHeightForRows(AppSettings settings, int statusCount, int baseRowGap)
+    {
+        int rows = Math.Max(1, Math.Max(statusCount, SplitCompletionAnimationRenderer.ReservedRowCount));
+        int margin = ScaleInt(settings, 12);
+        int rowHeight = ScaleInt(settings, 42);
+        int rowGap = ScaleInt(settings, baseRowGap);
+        int timerHeight = ScaleInt(settings, 110);
+        int timerGap = ScaleInt(settings, 2);
+        int height =
+            margin * 2 +
+            rows * rowHeight +
+            Math.Max(0, rows - 1) * rowGap +
+            timerGap +
+            timerHeight;
+        return Math.Max(GetMinimumWindowSize(settings).Height, height);
+    }
+
     public static Size GetMinimumWindowSize(AppSettings settings)
     {
         float scale = Math.Clamp(settings.Columns.ScalePercent, 25, 300) / 100f;
         return new Size(
             Math.Clamp((int)Math.Round(300 * scale), 220, 1800),
             Math.Clamp((int)Math.Round(420 * scale), 260, 1600));
+    }
+
+    private static int ScaleInt(AppSettings settings, int value)
+    {
+        float scale = Math.Clamp(settings.Columns.ScalePercent, 25, 300) / 100f;
+        return Math.Max(1, (int)Math.Round(value * scale, MidpointRounding.AwayFromZero));
     }
 }

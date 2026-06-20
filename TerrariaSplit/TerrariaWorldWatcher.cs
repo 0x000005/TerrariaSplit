@@ -64,6 +64,7 @@ internal sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
                 process?.Dispose();
                 process = null;
                 memory = null;
+                resolver.SetProcess(null);
                 resolver.Reset();
                 worldCreationSeedReader.Reset();
                 previousGameMenu = null;
@@ -80,7 +81,7 @@ internal sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
                 null,
                 false,
                 null,
-                TerrariaBossStates.Unknown,
+                TerrariaGameFacts.Unknown,
                 TerrariaWorldGenerationState.Unknown,
                 false,
                 status);
@@ -94,7 +95,7 @@ internal sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
                 process.Id,
                 false,
                 previousGameMenu,
-                TerrariaBossStates.Unknown,
+                TerrariaGameFacts.Unknown,
                 TerrariaWorldGenerationState.Unknown,
                 false,
                 status);
@@ -120,13 +121,13 @@ internal sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
                 process.Id,
                 false,
                 null,
-                TerrariaBossStates.Unknown,
+                TerrariaGameFacts.Unknown,
                 TerrariaWorldGenerationState.Unknown,
                 false,
                 status);
         }
 
-        TerrariaBossStates bossStates = resolver.ReadBossStates(memory);
+        TerrariaGameFacts facts = resolver.ReadGameFacts(memory);
         TerrariaWorldGenerationState worldGeneration = resolver.ReadWorldGenerationState(memory);
 
         bool enteredWorld = !awaitingInitialMenuObservation
@@ -145,7 +146,7 @@ internal sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
             process.Id,
             true,
             isGameMenu,
-            bossStates,
+            facts,
             worldGeneration,
             enteredWorld,
             status);
@@ -153,6 +154,7 @@ internal sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
 
     public void Dispose()
     {
+        resolver.SetProcess(null);
         process?.Dispose();
     }
 
@@ -202,6 +204,7 @@ internal sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
         process?.Dispose();
         process = null;
         memory = null;
+        resolver.SetProcess(null);
         resolver.Reset();
         worldCreationSeedReader.Reset();
         previousGameMenu = null;
@@ -220,6 +223,7 @@ internal sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
         {
             memory = new ProcessMemoryReader(candidate);
             process = candidate;
+            resolver.SetProcess(candidate);
             nextProcessLookupUtc = DateTime.MinValue;
             nextScanUtc = DateTime.MinValue;
             diagnosticStage = "scanning for signature";
@@ -228,6 +232,7 @@ internal sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
         catch (Win32Exception ex)
         {
             candidate.Dispose();
+            resolver.SetProcess(null);
             diagnosticStage = "cannot read process";
             status = $"cannot read Terraria process: {ex.Message}";
             nextProcessLookupUtc = DateTime.UtcNow + processLookupInterval;
@@ -235,6 +240,7 @@ internal sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
         catch (InvalidOperationException ex)
         {
             candidate.Dispose();
+            resolver.SetProcess(null);
             diagnosticStage = "cannot attach process";
             status = $"cannot attach to Terraria process: {ex.Message}";
             nextProcessLookupUtc = DateTime.UtcNow + processLookupInterval;

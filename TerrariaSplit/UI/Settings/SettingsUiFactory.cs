@@ -101,6 +101,16 @@ internal sealed class SettingsUiFactory
 
     public Label CreateRowLabel(string text)
     {
+        return CreateRowLabelCore(localize(text));
+    }
+
+    public Label CreateRawRowLabel(string text)
+    {
+        return CreateRowLabelCore(text);
+    }
+
+    private static Label CreateRowLabelCore(string text)
+    {
         Label label = new()
         {
             AutoEllipsis = true,
@@ -108,7 +118,7 @@ internal sealed class SettingsUiFactory
             Dock = DockStyle.Fill,
             ForeColor = UiTheme.Text,
             Margin = new Padding(0, 8, 14, 8),
-            Text = localize(text),
+            Text = text,
             TextAlign = ContentAlignment.MiddleLeft
         };
         AttachOverflowToolTip(label);
@@ -219,7 +229,7 @@ internal sealed class SettingsUiFactory
             Margin = Padding.Empty,
             Multiline = true,
             ReadOnly = true,
-            ScrollBars = ScrollBars.Vertical,
+            ScrollBars = ScrollBars.None,
             ShortcutsEnabled = true,
             TabStop = false,
             WordWrap = false
@@ -337,25 +347,21 @@ internal sealed class SettingsUiFactory
     {
         var textBox = CreateTextBox(string.Empty);
         textBox.Text = TimeText.FormatSplit(TimeSpan.FromSeconds(Math.Clamp(valueSeconds, minimumSeconds, maximumSeconds)));
-        textBox.PlaceholderText = "m:ss or h:mm:ss";
+        textBox.PlaceholderText = localize("m:ss or h:mm:ss");
         return textBox;
     }
 
-    public ComboBox CreateComboBox()
+    public ThemedDropDownList CreateComboBox()
     {
-        var comboBox = new ComboBox
+        return new ThemedDropDownList
         {
             Dock = DockStyle.Fill
         };
-        UiTheme.StyleComboBox(comboBox);
-        return comboBox;
     }
 
-    public ComboBox CreateDropDownList()
+    public ThemedDropDownList CreateDropDownList()
     {
-        ComboBox comboBox = CreateComboBox();
-        comboBox.DropDownStyle = ComboBoxStyle.DropDownList;
-        return comboBox;
+        return CreateComboBox();
     }
 
     public Panel CreateCenteredCell(Control control, int width)
@@ -401,6 +407,13 @@ internal sealed class SettingsUiFactory
     {
         int row = AddGridRow(grid);
         grid.Controls.Add(CreateRowLabel(label), 0, row);
+        grid.Controls.Add(control, 1, row);
+    }
+
+    public void AddRawSettingRow(TableLayoutPanel grid, string label, Control control)
+    {
+        int row = AddGridRow(grid);
+        grid.Controls.Add(CreateRawRowLabel(label), 0, row);
         grid.Controls.Add(control, 1, row);
     }
 

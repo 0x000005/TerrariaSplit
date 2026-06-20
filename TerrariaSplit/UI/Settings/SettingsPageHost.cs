@@ -131,7 +131,7 @@ internal sealed class SettingsPageHost
         ApplyIfCreated(SettingsPageId.General, target);
         ApplyIfCreated(SettingsPageId.Automation, target);
         ApplyIfCreated(SettingsPageId.Data, target);
-        ApplyIfCreated(SettingsPageId.Boss, target);
+        ApplyIfCreated(SettingsPageId.Splits, target);
         AppSettingsStore.Normalize(target);
         ApplyIfCreated(SettingsPageId.Effects, target);
         AppSettingsStore.Normalize(target);

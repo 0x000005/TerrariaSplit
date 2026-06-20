@@ -250,7 +250,7 @@ internal sealed class DebugSettingsPage : SettingsPageBase
             page.SuspendLayout();
             try
             {
-                bool bossFlagsReady = HasAnyBossState(snapshot.BossStates);
+                bool bossFlagsReady = HasAnyBossState(snapshot.Facts);
 
                 SetValue(
                     lastUpdatedValue,
@@ -323,15 +323,15 @@ internal sealed class DebugSettingsPage : SettingsPageBase
                 SetValue(clickFocusDelayValue, autoCreate.ClickFocusDelayMilliseconds.ToString(CultureInfo.InvariantCulture));
                 SetValue(inputPressDurationValue, autoCreate.InputPressDurationMilliseconds.ToString(CultureInfo.InvariantCulture));
 
-                SetBossState(skeletronValue, snapshot.BossStates.Skeletron, owner);
-                SetBossState(wallOfFleshValue, snapshot.BossStates.WallOfFlesh, owner);
-                SetBossState(destroyerValue, snapshot.BossStates.Destroyer, owner);
-                SetBossState(twinsValue, snapshot.BossStates.Twins, owner);
-                SetBossState(skeletronPrimeValue, snapshot.BossStates.SkeletronPrime, owner);
-                SetBossState(planteraValue, snapshot.BossStates.Plantera, owner);
-                SetBossState(golemValue, snapshot.BossStates.Golem, owner);
-                SetBossState(lunaticCultistValue, snapshot.BossStates.LunaticCultist, owner);
-                SetBossState(moonLordValue, snapshot.BossStates.MoonLord, owner);
+                SetBossState(skeletronValue, GetBossFact(snapshot.Facts, SplitCatalog.Skeletron), owner);
+                SetBossState(wallOfFleshValue, GetBossFact(snapshot.Facts, SplitCatalog.WallOfFlesh), owner);
+                SetBossState(destroyerValue, GetBossFact(snapshot.Facts, SplitCatalog.Destroyer), owner);
+                SetBossState(twinsValue, GetBossFact(snapshot.Facts, SplitCatalog.Twins), owner);
+                SetBossState(skeletronPrimeValue, GetBossFact(snapshot.Facts, SplitCatalog.SkeletronPrime), owner);
+                SetBossState(planteraValue, GetBossFact(snapshot.Facts, SplitCatalog.Plantera), owner);
+                SetBossState(golemValue, GetBossFact(snapshot.Facts, SplitCatalog.Golem), owner);
+                SetBossState(lunaticCultistValue, GetBossFact(snapshot.Facts, SplitCatalog.LunaticCultist), owner);
+                SetBossState(moonLordValue, GetBossFact(snapshot.Facts, SplitCatalog.MoonLord), owner);
 
                 SetValue(
                     currentPassValue,
@@ -500,7 +500,7 @@ internal sealed class DebugSettingsPage : SettingsPageBase
     {
         var lines = new List<string>();
         TerrariaWatchSnapshot snapshot = debugSnapshot.WatchSnapshot;
-        bool bossFlagsReady = HasAnyBossState(snapshot.BossStates);
+        bool bossFlagsReady = HasAnyBossState(snapshot.Facts);
 
         AppendReportSection(
             lines,
@@ -596,15 +596,15 @@ internal sealed class DebugSettingsPage : SettingsPageBase
             owner,
             "Boss Progress",
             [
-                ("Skeletron", FormatOptionalBool(snapshot.BossStates.Skeletron, owner)),
-                ("Wall of Flesh", FormatOptionalBool(snapshot.BossStates.WallOfFlesh, owner)),
-                ("Destroyer", FormatOptionalBool(snapshot.BossStates.Destroyer, owner)),
-                ("The Twins", FormatOptionalBool(snapshot.BossStates.Twins, owner)),
-                ("Skeletron Prime", FormatOptionalBool(snapshot.BossStates.SkeletronPrime, owner)),
-                ("Plantera", FormatOptionalBool(snapshot.BossStates.Plantera, owner)),
-                ("Golem", FormatOptionalBool(snapshot.BossStates.Golem, owner)),
-                ("Lunatic Cultist", FormatOptionalBool(snapshot.BossStates.LunaticCultist, owner)),
-                ("Moon Lord", FormatOptionalBool(snapshot.BossStates.MoonLord, owner))
+                ("Skeletron", FormatOptionalBool(GetBossFact(snapshot.Facts, SplitCatalog.Skeletron), owner)),
+                ("Wall of Flesh", FormatOptionalBool(GetBossFact(snapshot.Facts, SplitCatalog.WallOfFlesh), owner)),
+                ("Destroyer", FormatOptionalBool(GetBossFact(snapshot.Facts, SplitCatalog.Destroyer), owner)),
+                ("The Twins", FormatOptionalBool(GetBossFact(snapshot.Facts, SplitCatalog.Twins), owner)),
+                ("Skeletron Prime", FormatOptionalBool(GetBossFact(snapshot.Facts, SplitCatalog.SkeletronPrime), owner)),
+                ("Plantera", FormatOptionalBool(GetBossFact(snapshot.Facts, SplitCatalog.Plantera), owner)),
+                ("Golem", FormatOptionalBool(GetBossFact(snapshot.Facts, SplitCatalog.Golem), owner)),
+                ("Lunatic Cultist", FormatOptionalBool(GetBossFact(snapshot.Facts, SplitCatalog.LunaticCultist), owner)),
+                ("Moon Lord", FormatOptionalBool(GetBossFact(snapshot.Facts, SplitCatalog.MoonLord), owner))
             ]);
 
         AppendReportSection(
@@ -846,17 +846,17 @@ internal sealed class DebugSettingsPage : SettingsPageBase
         return true;
     }
 
-    private static bool HasAnyBossState(TerrariaBossStates states)
+    private static bool HasAnyBossState(TerrariaGameFacts facts)
     {
-        return states.Skeletron.HasValue ||
-            states.WallOfFlesh.HasValue ||
-            states.Destroyer.HasValue ||
-            states.Twins.HasValue ||
-            states.SkeletronPrime.HasValue ||
-            states.Plantera.HasValue ||
-            states.Golem.HasValue ||
-            states.LunaticCultist.HasValue ||
-            states.MoonLord.HasValue;
+        return SplitCatalog.BossFacts.Any(boss =>
+            facts.Get(boss.FactKey).Kind != FactValueKind.Unknown);
+    }
+
+    private static bool? GetBossFact(TerrariaGameFacts facts, string bossTargetId)
+    {
+        return SplitCatalog.TryGetBossFact(bossTargetId, out BossFactDescriptor descriptor)
+            ? facts.Get(descriptor.FactKey).AsBoolean()
+            : null;
     }
 
     private static string FormatGameState(bool? isGameMenu)

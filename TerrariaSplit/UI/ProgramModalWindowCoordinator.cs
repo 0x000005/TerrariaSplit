@@ -4,6 +4,7 @@ namespace TerrariaSplit;
 
 internal sealed class ProgramModalWindowCoordinator
 {
+    private readonly Form mainWindow;
     private readonly WindowLayerController layerController;
 
     public ProgramModalWindowCoordinator(
@@ -11,6 +12,7 @@ internal sealed class ProgramModalWindowCoordinator
         Action<bool> applyTimerInteractionBlocked,
         Func<IntPtr> getTimerWindowHandle)
     {
+        this.mainWindow = mainWindow;
         layerController = new WindowLayerController(
             mainWindow,
             applyTimerInteractionBlocked,
@@ -82,7 +84,7 @@ internal sealed class ProgramModalWindowCoordinator
 
         try
         {
-            return form.ShowDialog();
+            return form.ShowDialog(mainWindow);
         }
         finally
         {

@@ -106,13 +106,14 @@ internal sealed class OverlayFontCache : IDisposable
     {
         float size = GetColumnFontSize(columnSettings, scaleFactor, sizeScale);
         bool bold = forceBold || columnSettings.Bold;
-        var key = new FontKey(size, bold);
+        string familyName = UiFontSettings.NormalizeFamilyName(columnSettings.FontFamily);
+        var key = new FontKey(familyName, size, bold);
         if (cache.TryGetValue(key, out Font? font))
         {
             return font;
         }
 
-        font = new Font(UiTheme.FontFamilyName, size, bold ? FontStyle.Bold : FontStyle.Regular);
+        font = UiFontSettings.CreateFont(familyName, size, bold ? FontStyle.Bold : FontStyle.Regular);
         cache[key] = font;
         return font;
     }
@@ -135,5 +136,5 @@ internal sealed class OverlayFontCache : IDisposable
         cache.Clear();
     }
 
-    private readonly record struct FontKey(float Size, bool Bold);
+    private readonly record struct FontKey(string FamilyName, float Size, bool Bold);
 }

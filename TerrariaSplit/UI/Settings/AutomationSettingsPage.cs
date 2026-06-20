@@ -13,10 +13,10 @@ internal sealed class AutomationSettingsPage : SettingsPageBase
 
     private readonly TextBox autoCreatePlayerNameBox = new();
     private readonly TextBox autoCreatePlayerTemplateCodeBox = new();
-    private readonly ComboBox autoCreatePlayerDifficultyBox = new();
-    private readonly ComboBox autoCreateWorldSizeBox = new();
-    private readonly ComboBox autoCreateWorldDifficultyBox = new();
-    private readonly ComboBox autoCreateWorldEvilBox = new();
+    private readonly ThemedDropDownList autoCreatePlayerDifficultyBox = new();
+    private readonly ThemedDropDownList autoCreateWorldSizeBox = new();
+    private readonly ThemedDropDownList autoCreateWorldDifficultyBox = new();
+    private readonly ThemedDropDownList autoCreateWorldEvilBox = new();
     private readonly TextBox autoCreateSecretSeedsBox = new();
     private readonly CheckBox autoCreateZenithStarCatchBox = new();
     private readonly ThemedSlider autoCreateZenithStarCatchSpeedBar = new();
@@ -142,7 +142,7 @@ internal sealed class AutomationSettingsPage : SettingsPageBase
         autoCreatePlayerTemplateCodeBox.Dock = DockStyle.Fill;
         autoCreatePlayerTemplateCodeBox.Multiline = true;
         autoCreatePlayerTemplateCodeBox.AcceptsReturn = true;
-        autoCreatePlayerTemplateCodeBox.ScrollBars = ScrollBars.Vertical;
+        autoCreatePlayerTemplateCodeBox.ScrollBars = ScrollBars.None;
         autoCreatePlayerTemplateCodeBox.Height = autoCreatePlayerTemplateCodeBox.Font.Height * 10 + 14;
         autoCreatePlayerTemplateCodeBox.Text = Draft.AutoCreate.PlayerTemplateCode;
         autoCreatePlayerTemplateCodeBox.PlaceholderText = Context.Localize("Empty = default character");
@@ -748,10 +748,9 @@ internal sealed class AutomationSettingsPage : SettingsPageBase
         SettingsUiFactory.AddSection(parent, timingSection);
     }
 
-    private void ConfigureOptionBox(ComboBox comboBox, IEnumerable<string> options, string selected)
+    private void ConfigureOptionBox(ThemedDropDownList comboBox, IEnumerable<string> options, string selected)
     {
         comboBox.Dock = DockStyle.Fill;
-        UiTheme.StyleComboBox(comboBox);
         comboBox.Items.Clear();
 
         foreach (string option in options)
@@ -768,7 +767,7 @@ internal sealed class AutomationSettingsPage : SettingsPageBase
         }
     }
 
-    private static string GetSelectedOption(ComboBox comboBox, string fallback)
+    private static string GetSelectedOption(ThemedDropDownList comboBox, string fallback)
     {
         return comboBox.SelectedItem switch
         {

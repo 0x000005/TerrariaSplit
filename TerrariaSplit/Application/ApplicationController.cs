@@ -100,13 +100,13 @@ internal sealed class ApplicationController
     {
         this.confirmPersonalBestUpdate = confirmPersonalBestUpdate;
         Settings = settings;
-        Definitions = BossSplitDefinitions.Build(settings);
+        Definitions = SplitCatalog.Build(settings);
         ViewState = ApplicationViewState.FromDefinitions(settings, Definitions);
     }
 
     public AppSettings Settings { get; private set; }
 
-    public IReadOnlyList<BossSplitDefinition> Definitions { get; private set; }
+    public IReadOnlyList<SplitDefinition> Definitions { get; private set; }
 
     public ApplicationViewState ViewState { get; private set; }
 
@@ -257,9 +257,14 @@ internal sealed class ApplicationController
     {
         AppSettings previousSettings = AppSettingsStore.Clone(Settings);
         AppSettings nextSettings = AppSettingsStore.Clone(appliedSettings);
-        runLifecycle.Reset(nextSettings, ViewState.DisplayStatuses, recordStats: true, confirmPersonalBestUpdate);
+        runLifecycle.Reset(
+            Settings,
+            nextSettings,
+            ViewState.DisplayStatuses,
+            recordStats: true,
+            confirmPersonalBestUpdate);
         Settings = nextSettings;
-        Definitions = BossSplitDefinitions.Build(Settings);
+        Definitions = SplitCatalog.Build(Settings);
         ViewState = ApplicationViewState.FromDefinitions(Settings, Definitions);
 
         effects.Add(ApplicationEffect.SaveSettings(Settings));
@@ -315,11 +320,15 @@ internal static class RunEventProcessor
                     effects.Add(ApplicationEffect.Split(
                         ApplicationEffectKind.TrackSegmentBestDeltaHighlight,
                         runEvent.SplitIndex));
-                    effects.Add(settings.ShowSplitCompletionAnimation
-                        ? ApplicationEffect.Split(
-                            ApplicationEffectKind.StartSplitCompletionAnimation,
-                            runEvent.SplitIndex)
-                        : ApplicationEffect.Simple(ApplicationEffectKind.ClearSplitCompletionAnimation));
+                    if (!IsAttachedSplit(viewState, runEvent.SplitIndex))
+                    {
+                        effects.Add(settings.ShowSplitCompletionAnimation
+                            ? ApplicationEffect.Split(
+                                ApplicationEffectKind.StartSplitCompletionAnimation,
+                                runEvent.SplitIndex)
+                            : ApplicationEffect.Simple(ApplicationEffectKind.ClearSplitCompletionAnimation));
+                    }
+
                     effects.Add(ApplicationEffect.PlaySound(
                         SoundFeedbackService.GetSplitSoundPath(settings, viewState.DisplayStatuses, runEvent.SplitIndex)));
                     break;
@@ -338,5 +347,12 @@ internal static class RunEventProcessor
         }
 
         return effects;
+    }
+
+    private static bool IsAttachedSplit(ApplicationViewState viewState, int splitIndex)
+    {
+        return splitIndex >= 0 &&
+            splitIndex < viewState.DisplayStatuses.Count &&
+            viewState.DisplayStatuses[splitIndex].Definition.IsAttached;
     }
 }

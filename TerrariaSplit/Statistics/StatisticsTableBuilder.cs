@@ -15,92 +15,129 @@ internal static class StatisticsTableBuilder
         ReferenceSplitSet referenceTimeSet,
         Dictionary<string, string> personalSplits)
     {
-        IReadOnlyDictionary<string, BossUnitDefinition> units = BossSplitDefinitions.Units.ToDictionary(
-            unit => unit.Id,
-            StringComparer.OrdinalIgnoreCase);
-        var route = settings.Route
-            .Select((entry, index) => new IndexedRouteEntry(entry, index))
-            .Where(entry => units.ContainsKey(entry.Entry.BossId))
-            .OrderBy(entry => entry.Entry.Segment)
-            .ThenBy(entry => entry.Index)
-            .ToList();
-
+        IReadOnlyList<SplitConditionDataRow> conditionRows = SplitConditionDataRows.Build(settings);
         var rows = new List<StatisticsTableRow>();
-        TimeSpan previousReferenceGroupSplit = TimeSpan.Zero;
-        TimeSpan previousPersonalGroupSplit = TimeSpan.Zero;
-        foreach (IGrouping<int, IndexedRouteEntry> routeGroup in route.GroupBy(entry => GetSegmentGroup(entry.Entry)))
+        TimeSpan previousReferenceSplit = TimeSpan.Zero;
+        TimeSpan previousPersonalSplit = TimeSpan.Zero;
+        Dictionary<string, RouteGroup> mainGroupsByEntryId = SplitRouteGroups.Build(settings)
+            .SelectMany(group => group.Entries.Select(entry => (entry.Id, group)))
+            .ToDictionary(item => item.Id, item => item.group, StringComparer.OrdinalIgnoreCase);
+
+        foreach (SplitRouteEntry entry in settings.SplitRoute)
         {
-            List<IndexedRouteEntry> entries = routeGroup.ToList();
-            string bestSegmentText = GetValue(settings.PersonalBestSegmentTimes, GetGroupKey(entries));
-            string referenceSegmentText = FormatGroupSegment(entries, referenceTimeSet.Splits, previousReferenceGroupSplit);
-            string personalSegmentText = FormatGroupSegment(entries, personalSplits, previousPersonalGroupSplit);
-
-            if (TryGetGroupMaxSplit(entries, referenceTimeSet.Splits, enabledOnly: true, out TimeSpan referenceGroupMaxSplit))
+            if (!entry.Enabled || string.IsNullOrWhiteSpace(entry.Id))
             {
-                previousReferenceGroupSplit = referenceGroupMaxSplit;
+                continue;
             }
 
-            if (TryGetGroupMaxSplit(entries, personalSplits, enabledOnly: true, out TimeSpan personalGroupMaxSplit))
+            if (entry.IsAttached)
             {
-                previousPersonalGroupSplit = personalGroupMaxSplit;
+                AddAttachedRows(
+                    rows,
+                    conditionRows,
+                    referenceTimeSet,
+                    personalSplits,
+                    settings,
+                    entry);
+                continue;
             }
 
-            int visibleRowsInGroup = entries.Count(entry => entry.Entry.Enabled);
-            for (int i = 0; i < entries.Count; i++)
+            if (!mainGroupsByEntryId.TryGetValue(entry.Id, out RouteGroup? group))
             {
-                BossRouteEntry entry = entries[i].Entry;
-                if (!entry.Enabled)
-                {
-                    continue;
-                }
+                continue;
+            }
 
-                BossUnitDefinition unit = units[entry.BossId];
+            string referenceSegmentText = FormatSegment(
+                settings,
+                referenceTimeSet.Splits,
+                group,
+                ref previousReferenceSplit);
+            string personalSegmentText = FormatSegment(
+                settings,
+                personalSplits,
+                group,
+                ref previousPersonalSplit);
+
+            List<SplitConditionDataRow> groupConditionRows = group.Entries
+                .SelectMany(entry => conditionRows.Where(row =>
+                    string.Equals(row.SplitId, entry.Id, StringComparison.OrdinalIgnoreCase)))
+                .ToList();
+            for (int i = 0; i < groupConditionRows.Count; i++)
+            {
+                SplitConditionDataRow conditionRow = groupConditionRows[i];
                 rows.Add(new StatisticsTableRow(
-                    unit,
-                    FormatReference(referenceTimeSet, unit),
-                    GetValue(personalSplits, unit.Id),
+                    conditionRow,
+                    GetValue(referenceTimeSet.Splits, conditionRow.Key),
+                    GetConditionOrSplitValue(personalSplits, conditionRow),
                     referenceSegmentText,
                     personalSegmentText,
-                    GetValue(settings.PersonalBestTimes, unit.Id),
-                    bestSegmentText,
-                    visibleRowsInGroup,
-                    entries.Take(i).Count(entry => entry.Entry.Enabled)));
+                    GetValue(settings.PersonalBestTimes, conditionRow.Key),
+                    GetValue(settings.PersonalBestSegmentTimes, group.Key),
+                    groupConditionRows.Count,
+                    i));
             }
         }
 
         return rows;
     }
 
-    private static string FormatGroupSegment(
-        IReadOnlyList<IndexedRouteEntry> group,
-        Dictionary<string, string> values,
-        TimeSpan previousGroupSplit)
+    private static void AddAttachedRows(
+        List<StatisticsTableRow> rows,
+        IReadOnlyList<SplitConditionDataRow> conditionRows,
+        ReferenceSplitSet referenceTimeSet,
+        Dictionary<string, string> personalSplits,
+        AppSettings settings,
+        SplitRouteEntry entry)
     {
-        if (TryGetGroupMaxSplit(group, values, enabledOnly: true, out TimeSpan groupMaxSplit))
+        List<SplitConditionDataRow> attachedRows = conditionRows
+            .Where(row => string.Equals(row.SplitId, entry.Id, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        for (int i = 0; i < attachedRows.Count; i++)
         {
-            return TimeText.FormatRecord(groupMaxSplit - previousGroupSplit);
+            SplitConditionDataRow conditionRow = attachedRows[i];
+            rows.Add(new StatisticsTableRow(
+                conditionRow,
+                GetValue(referenceTimeSet.Splits, conditionRow.Key),
+                GetConditionOrSplitValue(personalSplits, conditionRow),
+                "--",
+                "--",
+                GetValue(settings.PersonalBestTimes, conditionRow.Key),
+                "--",
+                attachedRows.Count,
+                i));
         }
-
-        return "--";
     }
 
-    private static bool TryGetGroupMaxSplit(
-        IReadOnlyList<IndexedRouteEntry> group,
+    private static string FormatSegment(
+        AppSettings settings,
         Dictionary<string, string> values,
-        bool enabledOnly,
+        RouteGroup group,
+        ref TimeSpan previousSplit)
+    {
+        if (!TryGetGroupTime(settings, values, group, out TimeSpan split))
+        {
+            return "--";
+        }
+
+        TimeSpan segment = split - previousSplit;
+        previousSplit = split;
+        return segment >= TimeSpan.Zero
+            ? TimeText.FormatRecord(segment)
+            : "--";
+    }
+
+    private static bool TryGetGroupTime(
+        AppSettings settings,
+        Dictionary<string, string> values,
+        RouteGroup group,
         out TimeSpan split)
     {
         split = TimeSpan.Zero;
         bool found = false;
-        foreach (IndexedRouteEntry entry in group)
+        foreach (SplitRouteEntry entry in group.Entries)
         {
-            if (enabledOnly && !entry.Entry.Enabled)
-            {
-                continue;
-            }
-
-            if (values.TryGetValue(entry.Entry.BossId, out string? value) &&
-                TimeText.TryParse(value, out TimeSpan candidate) &&
+            if ((SplitConditionDataRows.TryGetSplitTime(settings, values, entry.Id, out TimeSpan candidate) ||
+                    TryGetTime(values, entry.Id, out candidate)) &&
                 (!found || candidate > split))
             {
                 split = candidate;
@@ -111,14 +148,11 @@ internal static class StatisticsTableBuilder
         return found;
     }
 
-    private static string FormatReference(ReferenceSplitSet referenceTimeSet, BossUnitDefinition unit)
+    private static bool TryGetTime(Dictionary<string, string> values, string splitId, out TimeSpan split)
     {
-        string referenceText = referenceTimeSet.Splits.TryGetValue(unit.Id, out string? value)
-            ? value
-            : string.Empty;
-        return TimeText.TryParse(referenceText, out TimeSpan reference)
-            ? TimeText.FormatRecord(reference)
-            : "--";
+        split = TimeSpan.Zero;
+        return values.TryGetValue(splitId, out string? value) &&
+            TimeText.TryParse(value, out split);
     }
 
     private static string GetValue(Dictionary<string, string> values, string id)
@@ -128,17 +162,13 @@ internal static class StatisticsTableBuilder
             : "--";
     }
 
-    private static int GetSegmentGroup(BossRouteEntry entry)
+    private static string GetConditionOrSplitValue(
+        Dictionary<string, string> values,
+        SplitConditionDataRow conditionRow)
     {
-        return Math.Max(1, (int)Math.Truncate(entry.Segment));
+        string value = GetValue(values, conditionRow.Key);
+        return value != "--"
+            ? value
+            : GetValue(values, conditionRow.SplitId);
     }
-
-    private static string GetGroupKey(IReadOnlyList<IndexedRouteEntry> entries)
-    {
-        return string.Join("+", entries
-            .Where(entry => entry.Entry.Enabled)
-            .Select(entry => entry.Entry.BossId));
-    }
-
-    private sealed record IndexedRouteEntry(BossRouteEntry Entry, int Index);
 }

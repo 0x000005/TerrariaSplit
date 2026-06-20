@@ -7,14 +7,16 @@ internal sealed class OverlayBoundsController
     private readonly int baseRowGap;
     private AppSettings settings;
     private int statusCount;
+    private int visibleStatusCount;
     private Rectangle compositeBounds;
     private OverlayCompositeLayout currentLayout;
 
-    public OverlayBoundsController(int baseRowGap, AppSettings settings, int statusCount)
+    public OverlayBoundsController(int baseRowGap, AppSettings settings, int statusCount, int visibleStatusCount)
     {
         this.baseRowGap = baseRowGap;
         this.settings = settings;
         this.statusCount = statusCount;
+        this.visibleStatusCount = visibleStatusCount;
     }
 
     public bool IsInitialized { get; private set; }
@@ -30,10 +32,11 @@ internal sealed class OverlayBoundsController
         ApplyCompositeBounds(initialCompositeBounds);
     }
 
-    public void UpdateContext(AppSettings settings, int statusCount)
+    public void UpdateContext(AppSettings settings, int statusCount, int visibleStatusCount)
     {
         this.settings = settings;
         this.statusCount = statusCount;
+        this.visibleStatusCount = visibleStatusCount;
         if (IsInitialized)
         {
             ApplyCompositeBounds(compositeBounds);
@@ -57,7 +60,13 @@ internal sealed class OverlayBoundsController
     public void ApplyCompositeBounds(Rectangle bounds)
     {
         Rectangle normalizedBounds = Normalize(bounds);
-        if (!OverlayCompositeLayoutCalculator.TryCreate(normalizedBounds, settings, statusCount, baseRowGap, out OverlayCompositeLayout layout))
+        if (!OverlayCompositeLayoutCalculator.TryCreate(
+                normalizedBounds,
+                settings,
+                statusCount,
+                visibleStatusCount,
+                baseRowGap,
+                out OverlayCompositeLayout layout))
         {
             return;
         }
@@ -91,8 +100,19 @@ internal sealed class OverlayBoundsController
     private Rectangle Normalize(Rectangle bounds)
     {
         Size minimum = SplitLayoutCalculator.GetMinimumWindowSize(settings);
+        int rowMinimumHeight = SplitLayoutCalculator.GetMinimumWindowHeightForRows(
+            settings,
+            Math.Max(statusCount, visibleStatusCount),
+            baseRowGap);
         int width = Math.Max(bounds.Width, minimum.Width);
-        int height = Math.Max(bounds.Height, minimum.Height);
+        int height = Math.Max(bounds.Height, Math.Max(minimum.Height, rowMinimumHeight));
+        height = OverlayCompositeLayoutCalculator.GetFittingHeight(
+            width,
+            height,
+            settings,
+            statusCount,
+            visibleStatusCount,
+            baseRowGap);
         return new Rectangle(bounds.X, bounds.Y, width, height);
     }
 

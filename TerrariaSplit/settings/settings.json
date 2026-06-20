@@ -4,68 +4,522 @@
   "MouseClickThroughKey": "F9",
   "CreateWorldKey": "F7",
   "PracticeWorldKey": "F8",
-  "ShowMouseClickThroughIndicator": false,
+  "ShowMouseClickThroughIndicator": true,
   "Language": "\u4E2D\u6587",
   "AlwaysOnTop": true,
-  "PracticeMode": true,
-  "Route": [
+  "PracticeMode": false,
+  "SplitRoute": [
     {
-      "BossId": "Skeletron",
+      "Id": "split:item-857",
       "Enabled": true,
-      "Segment": 1
+      "DisplayName": "\u91D1\u5B57\u5854",
+      "Condition": {
+        "Kind": "AtLeast",
+        "Children": [
+          {
+            "Kind": "Fact",
+            "Children": [],
+            "FactKey": "item:857:ever-owned-count",
+            "Comparison": "AtLeast",
+            "Value": 1
+          },
+          {
+            "Kind": "Fact",
+            "Children": [],
+            "FactKey": "item:934:ever-owned-count",
+            "Comparison": "AtLeast",
+            "Value": 1
+          }
+        ],
+        "FactKey": "",
+        "Comparison": "IsTrue",
+        "Value": 1
+      },
+      "IconTargetIds": [
+        "item:857",
+        "item:934"
+      ],
+      "IconOverride": {
+        "Source": "All",
+        "TargetId": "",
+        "FilePath": ""
+      },
+      "IsAttached": true
     },
     {
-      "BossId": "WallOfFlesh",
+      "Id": "split:biome-jungle",
       "Enabled": true,
-      "Segment": 2
+      "DisplayName": "\u4E1B\u6797",
+      "Condition": {
+        "Kind": "AtLeast",
+        "Children": [
+          {
+            "Kind": "Fact",
+            "Children": [],
+            "FactKey": "biome:jungle:active",
+            "Comparison": "IsTrue",
+            "Value": 1
+          }
+        ],
+        "FactKey": "",
+        "Comparison": "IsTrue",
+        "Value": 1
+      },
+      "IconTargetIds": [
+        "biome:jungle"
+      ],
+      "IconOverride": {
+        "Source": "All",
+        "TargetId": "",
+        "FilePath": ""
+      },
+      "IsAttached": true
     },
     {
-      "BossId": "Destroyer",
+      "Id": "split:biome-underworld",
       "Enabled": true,
-      "Segment": 3.1
+      "DisplayName": "\u5730\u72F1",
+      "Condition": {
+        "Kind": "AtLeast",
+        "Children": [
+          {
+            "Kind": "Fact",
+            "Children": [],
+            "FactKey": "biome:underworld:active",
+            "Comparison": "IsTrue",
+            "Value": 1
+          }
+        ],
+        "FactKey": "",
+        "Comparison": "IsTrue",
+        "Value": 1
+      },
+      "IconTargetIds": [
+        "biome:underworld"
+      ],
+      "IconOverride": {
+        "Source": "All",
+        "TargetId": "",
+        "FilePath": ""
+      },
+      "IsAttached": true
     },
     {
-      "BossId": "SkeletronPrime",
+      "Id": "split:boss-skeletron",
       "Enabled": true,
-      "Segment": 3.2
+      "DisplayName": "\u9AB7\u9AC5\u738B",
+      "Condition": {
+        "Kind": "AtLeast",
+        "Children": [
+          {
+            "Kind": "Fact",
+            "Children": [],
+            "FactKey": "boss:skeletron:defeated",
+            "Comparison": "IsTrue",
+            "Value": 1
+          }
+        ],
+        "FactKey": "",
+        "Comparison": "IsTrue",
+        "Value": 1
+      },
+      "IconTargetIds": [
+        "boss:skeletron"
+      ],
+      "IconOverride": {
+        "Source": "All",
+        "TargetId": "",
+        "FilePath": ""
+      },
+      "IsAttached": false
     },
     {
-      "BossId": "Twins",
+      "Id": "split:boss-wall-of-flesh",
       "Enabled": true,
-      "Segment": 3.3
+      "DisplayName": "\u8840\u8089\u5899",
+      "Condition": {
+        "Kind": "AtLeast",
+        "Children": [
+          {
+            "Kind": "Fact",
+            "Children": [],
+            "FactKey": "boss:wall-of-flesh:defeated",
+            "Comparison": "IsTrue",
+            "Value": 1
+          }
+        ],
+        "FactKey": "",
+        "Comparison": "IsTrue",
+        "Value": 1
+      },
+      "IconTargetIds": [
+        "boss:wall-of-flesh"
+      ],
+      "IconOverride": {
+        "Source": "All",
+        "TargetId": "",
+        "FilePath": ""
+      },
+      "IsAttached": false
     },
     {
-      "BossId": "Plantera",
+      "Id": "split:item-525",
       "Enabled": true,
-      "Segment": 4
+      "DisplayName": "\u4E8C\u7EA7\u7827",
+      "Condition": {
+        "Kind": "AtLeast",
+        "Children": [
+          {
+            "Kind": "Fact",
+            "Children": [],
+            "FactKey": "item:525:ever-owned-count",
+            "Comparison": "AtLeast",
+            "Value": 1
+          },
+          {
+            "Kind": "Fact",
+            "Children": [],
+            "FactKey": "item:1220:ever-owned-count",
+            "Comparison": "AtLeast",
+            "Value": 1
+          },
+          {
+            "Kind": "Fact",
+            "Children": [],
+            "FactKey": "item:1105:ever-owned-count",
+            "Comparison": "AtLeast",
+            "Value": 48
+          },
+          {
+            "Kind": "Fact",
+            "Children": [],
+            "FactKey": "item:365:ever-owned-count",
+            "Comparison": "AtLeast",
+            "Value": 40
+          }
+        ],
+        "FactKey": "",
+        "Comparison": "IsTrue",
+        "Value": 1
+      },
+      "IconTargetIds": [
+        "item:525",
+        "item:1220",
+        "item:1105",
+        "item:365"
+      ],
+      "IconOverride": {
+        "Source": "Target",
+        "TargetId": "item:525",
+        "FilePath": ""
+      },
+      "IsAttached": true
     },
     {
-      "BossId": "Golem",
+      "Id": "split:item-520",
       "Enabled": true,
-      "Segment": 5
+      "DisplayName": "\u53EC\u5524\u7269\u51C6\u5907",
+      "Condition": {
+        "Kind": "AtLeast",
+        "Children": [
+          {
+            "Kind": "Fact",
+            "Children": [],
+            "FactKey": "item:43:ever-owned-count",
+            "Comparison": "AtLeast",
+            "Value": 1
+          },
+          {
+            "Kind": "Fact",
+            "Children": [],
+            "FactKey": "item:520:ever-owned-count",
+            "Comparison": "AtLeast",
+            "Value": 9
+          },
+          {
+            "Kind": "Fact",
+            "Children": [],
+            "FactKey": "item:521:ever-owned-count",
+            "Comparison": "AtLeast",
+            "Value": 9
+          },
+          {
+            "Kind": "Fact",
+            "Children": [],
+            "FactKey": "item:1330:ever-owned-count",
+            "Comparison": "AtLeast",
+            "Value": 6
+          }
+        ],
+        "FactKey": "",
+        "Comparison": "IsTrue",
+        "Value": 4
+      },
+      "IconTargetIds": [
+        "item:43",
+        "item:520",
+        "item:521",
+        "item:1330"
+      ],
+      "IconOverride": {
+        "Source": "Target",
+        "TargetId": "item:520",
+        "FilePath": ""
+      },
+      "IsAttached": true
     },
     {
-      "BossId": "LunaticCultist",
+      "Id": "split:biome-aether",
       "Enabled": true,
-      "Segment": 6
+      "DisplayName": "\u4EE5\u592A",
+      "Condition": {
+        "Kind": "AtLeast",
+        "Children": [
+          {
+            "Kind": "Fact",
+            "Children": [],
+            "FactKey": "biome:aether:active",
+            "Comparison": "IsTrue",
+            "Value": 1
+          }
+        ],
+        "FactKey": "",
+        "Comparison": "IsTrue",
+        "Value": 1
+      },
+      "IconTargetIds": [
+        "biome:aether"
+      ],
+      "IconOverride": {
+        "Source": "All",
+        "TargetId": "",
+        "FilePath": ""
+      },
+      "IsAttached": true
     },
     {
-      "BossId": "MoonLord",
+      "Id": "split:boss-destroyer",
       "Enabled": true,
-      "Segment": 7
+      "DisplayName": "\u4E09\u738B",
+      "Condition": {
+        "Kind": "AtLeast",
+        "Children": [
+          {
+            "Kind": "Fact",
+            "Children": [],
+            "FactKey": "boss:destroyer:defeated",
+            "Comparison": "IsTrue",
+            "Value": 1
+          },
+          {
+            "Kind": "Fact",
+            "Children": [],
+            "FactKey": "boss:twins:defeated",
+            "Comparison": "IsTrue",
+            "Value": 1
+          },
+          {
+            "Kind": "Fact",
+            "Children": [],
+            "FactKey": "boss:skeletron-prime:defeated",
+            "Comparison": "IsTrue",
+            "Value": 1
+          }
+        ],
+        "FactKey": "",
+        "Comparison": "IsTrue",
+        "Value": 3
+      },
+      "IconTargetIds": [
+        "boss:destroyer",
+        "boss:twins",
+        "boss:skeletron-prime"
+      ],
+      "IconOverride": {
+        "Source": "All",
+        "TargetId": "",
+        "FilePath": ""
+      },
+      "IsAttached": false
+    },
+    {
+      "Id": "split:boss-plantera",
+      "Enabled": true,
+      "DisplayName": "\u4E16\u7EAA\u4E4B\u82B1",
+      "Condition": {
+        "Kind": "AtLeast",
+        "Children": [
+          {
+            "Kind": "Fact",
+            "Children": [],
+            "FactKey": "boss:plantera:defeated",
+            "Comparison": "IsTrue",
+            "Value": 1
+          }
+        ],
+        "FactKey": "",
+        "Comparison": "IsTrue",
+        "Value": 1
+      },
+      "IconTargetIds": [
+        "boss:plantera"
+      ],
+      "IconOverride": {
+        "Source": "All",
+        "TargetId": "",
+        "FilePath": ""
+      },
+      "IsAttached": false
+    },
+    {
+      "Id": "split:boss-golem",
+      "Enabled": true,
+      "DisplayName": "\u77F3\u5DE8\u4EBA",
+      "Condition": {
+        "Kind": "AtLeast",
+        "Children": [
+          {
+            "Kind": "Fact",
+            "Children": [],
+            "FactKey": "boss:golem:defeated",
+            "Comparison": "IsTrue",
+            "Value": 1
+          }
+        ],
+        "FactKey": "",
+        "Comparison": "IsTrue",
+        "Value": 1
+      },
+      "IconTargetIds": [
+        "boss:golem"
+      ],
+      "IconOverride": {
+        "Source": "All",
+        "TargetId": "",
+        "FilePath": ""
+      },
+      "IsAttached": false
+    },
+    {
+      "Id": "split:boss-lunatic-cultist",
+      "Enabled": true,
+      "DisplayName": "\u62DC\u6708\u6559\u90AA\u6559\u5F92",
+      "Condition": {
+        "Kind": "AtLeast",
+        "Children": [
+          {
+            "Kind": "Fact",
+            "Children": [],
+            "FactKey": "boss:lunatic-cultist:defeated",
+            "Comparison": "IsTrue",
+            "Value": 1
+          }
+        ],
+        "FactKey": "",
+        "Comparison": "IsTrue",
+        "Value": 1
+      },
+      "IconTargetIds": [
+        "boss:lunatic-cultist"
+      ],
+      "IconOverride": {
+        "Source": "All",
+        "TargetId": "",
+        "FilePath": ""
+      },
+      "IsAttached": false
+    },
+    {
+      "Id": "split:item-3459",
+      "Enabled": true,
+      "DisplayName": "\u661F\u5C18\u788E\u7247",
+      "Condition": {
+        "Kind": "AtLeast",
+        "Children": [
+          {
+            "Kind": "Fact",
+            "Children": [],
+            "FactKey": "item:3459:ever-owned-count",
+            "Comparison": "AtLeast",
+            "Value": 1
+          }
+        ],
+        "FactKey": "",
+        "Comparison": "IsTrue",
+        "Value": 1
+      },
+      "IconTargetIds": [
+        "item:3459"
+      ],
+      "IconOverride": {
+        "Source": "All",
+        "TargetId": "",
+        "FilePath": ""
+      },
+      "IsAttached": true
+    },
+    {
+      "Id": "split:item-3601",
+      "Enabled": true,
+      "DisplayName": "\u5929\u754C\u7B26",
+      "Condition": {
+        "Kind": "AtLeast",
+        "Children": [
+          {
+            "Kind": "Fact",
+            "Children": [],
+            "FactKey": "item:3601:ever-owned-count",
+            "Comparison": "AtLeast",
+            "Value": 1
+          }
+        ],
+        "FactKey": "",
+        "Comparison": "IsTrue",
+        "Value": 1
+      },
+      "IconTargetIds": [
+        "item:3601"
+      ],
+      "IconOverride": {
+        "Source": "All",
+        "TargetId": "",
+        "FilePath": ""
+      },
+      "IsAttached": true
+    },
+    {
+      "Id": "split:boss-moon-lord",
+      "Enabled": true,
+      "DisplayName": "\u6708\u4EAE\u9886\u4E3B",
+      "Condition": {
+        "Kind": "AtLeast",
+        "Children": [
+          {
+            "Kind": "Fact",
+            "Children": [],
+            "FactKey": "boss:moon-lord:defeated",
+            "Comparison": "IsTrue",
+            "Value": 1
+          }
+        ],
+        "FactKey": "",
+        "Comparison": "IsTrue",
+        "Value": 1
+      },
+      "IconTargetIds": [
+        "boss:moon-lord"
+      ],
+      "IconOverride": {
+        "Source": "All",
+        "TargetId": "",
+        "FilePath": ""
+      },
+      "IsAttached": false
     }
   ],
-  "BossIconPaths": {
-    "Skeletron": "",
-    "WallOfFlesh": "",
-    "Destroyer": "",
-    "SkeletronPrime": "",
-    "Twins": "",
-    "Plantera": "",
-    "Golem": "",
-    "LunaticCultist": "",
-    "MoonLord": ""
-  },
+  "ExpandSplitDetails": false,
+  "CollapseSplitDetailsOnCompletion": true,
+  "AutoHideAttachedGroups": true,
   "ReferenceSplitSets": [],
   "ActiveReferenceSplitSet": "WR",
   "UsePersonalBestAsReferenceTime": false,
@@ -74,65 +528,73 @@
   "PersonalBestSegmentSets": [],
   "ActivePersonalBestSegmentSet": "Personal",
   "PersonalBestTimes": {
-    "Skeletron": "",
-    "WallOfFlesh": "",
-    "Destroyer": "",
-    "SkeletronPrime": "",
-    "Twins": "",
-    "Plantera": "",
-    "Golem": "",
-    "LunaticCultist": "",
-    "MoonLord": ""
+    "condition:split:biome-underworld:complete": "",
+    "condition:split:boss-skeletron:boss-skeletron-defeated-istrue-1": "",
+    "condition:split:boss-wall-of-flesh:boss-wall-of-flesh-defeated-istrue-1": "",
+    "condition:split:item-525:complete": "",
+    "condition:split:boss-destroyer:boss-destroyer-defeated-istrue-1": "",
+    "condition:split:boss-destroyer:boss-twins-defeated-istrue-1": "",
+    "condition:split:boss-destroyer:boss-skeletron-prime-defeated-istrue-1": "",
+    "condition:split:boss-plantera:boss-plantera-defeated-istrue-1": "",
+    "condition:split:boss-golem:boss-golem-defeated-istrue-1": "",
+    "condition:split:boss-lunatic-cultist:boss-lunatic-cultist-defeated-istrue-1": "",
+    "condition:split:boss-moon-lord:boss-moon-lord-defeated-istrue-1": "",
+    "condition:split:item-3601:complete": "",
+    "condition:split:item-3459:complete": "",
+    "condition:split:item-520:complete": "",
+    "condition:split:biome-aether:complete": "",
+    "condition:split:biome-jungle:complete": "",
+    "condition:split:item-857:complete": ""
   },
   "PersonalBestSegmentTimes": {
-    "Skeletron": "",
-    "WallOfFlesh": "",
-    "Destroyer\u002BSkeletronPrime\u002BTwins": "",
-    "Plantera": "",
-    "Golem": "",
-    "LunaticCultist": "",
-    "MoonLord": ""
+    "split:boss-skeletron": "",
+    "split:boss-wall-of-flesh": "",
+    "split:boss-destroyer": "",
+    "split:boss-plantera": "",
+    "split:boss-golem": "",
+    "split:boss-lunatic-cultist": "",
+    "split:boss-moon-lord": ""
   },
   "AutoUpdatePersonalBestData": true,
   "AskBeforeUpdatingPersonalBestData": true,
   "ShowSplitCompletionAnimation": true,
-  "SplitCompletionAnimationDurationSeconds": 7,
+  "SplitCompletionAnimationDurationSeconds": 6,
   "SplitCompletionOutlineThicknessPercent": 40,
   "SplitCompletionSplitComparisons": {
-    "Destroyer\u002BSkeletronPrime\u002BTwins": true,
-    "Skeletron": true,
-    "WallOfFlesh": true,
-    "Plantera": true,
-    "Golem": true,
-    "LunaticCultist": true,
-    "MoonLord": true
+    "split:boss-skeletron": true,
+    "split:boss-wall-of-flesh": true,
+    "split:boss-destroyer": true,
+    "split:boss-plantera": true,
+    "split:boss-golem": true,
+    "split:boss-lunatic-cultist": true,
+    "split:boss-moon-lord": true
   },
   "SplitCompletionSegmentComparisons": {
-    "Skeletron": false,
-    "WallOfFlesh": false,
-    "Destroyer\u002BSkeletronPrime\u002BTwins": false,
-    "Plantera": false,
-    "Golem": false,
-    "LunaticCultist": false,
-    "MoonLord": false
+    "split:boss-skeletron": true,
+    "split:boss-wall-of-flesh": true,
+    "split:boss-destroyer": true,
+    "split:boss-plantera": true,
+    "split:boss-golem": true,
+    "split:boss-lunatic-cultist": true,
+    "split:boss-moon-lord": true
   },
   "SplitCompletionOutlineSplitStyles": {
-    "Destroyer\u002BSkeletronPrime\u002BTwins": "Rainbow",
-    "LunaticCultist": "Rainbow",
-    "MoonLord": "Rainbow",
-    "WallOfFlesh": "Gold",
-    "Skeletron": "Gold",
-    "Plantera": "Rainbow",
-    "Golem": "Rainbow"
+    "split:boss-skeletron": "Gold",
+    "split:boss-wall-of-flesh": "Gold",
+    "split:boss-destroyer": "Rainbow",
+    "split:boss-plantera": "Rainbow",
+    "split:boss-golem": "Rainbow",
+    "split:boss-lunatic-cultist": "Rainbow",
+    "split:boss-moon-lord": "Rainbow"
   },
   "SplitCompletionOutlineSegmentStyles": {
-    "Destroyer\u002BSkeletronPrime\u002BTwins": "Aurora",
-    "LunaticCultist": "Aurora",
-    "MoonLord": "Aurora",
-    "WallOfFlesh": "Aurora",
-    "Skeletron": "Aurora",
-    "Plantera": "Aurora",
-    "Golem": "Aurora"
+    "split:boss-skeletron": "Aurora",
+    "split:boss-wall-of-flesh": "Aurora",
+    "split:boss-destroyer": "Aurora",
+    "split:boss-plantera": "Aurora",
+    "split:boss-golem": "Aurora",
+    "split:boss-lunatic-cultist": "Aurora",
+    "split:boss-moon-lord": "Aurora"
   },
   "ShowCurrentSplitHighlight": false,
   "CurrentSplitHighlightScalePercent": 112,
@@ -146,15 +608,15 @@
   "DeltaGradientThresholdSeconds": 120,
   "DeltaGradientCurve": "SoftStep",
   "ShowSegmentBestDeltaHighlight": true,
-    "SegmentBestDeltaHighlightStyles": {
-        "Destroyer\u002BSkeletronPrime\u002BTwins": "Aurora",
-        "LunaticCultist": "Aurora",
-        "MoonLord": "Aurora",
-        "WallOfFlesh": "Aurora",
-        "Skeletron": "Aurora",
-        "Plantera": "Aurora",
-        "Golem": "Aurora"
-    },
+  "SegmentBestDeltaHighlightStyles": {
+    "split:boss-skeletron": "Aurora",
+    "split:boss-wall-of-flesh": "Aurora",
+    "split:boss-destroyer": "Aurora",
+    "split:boss-plantera": "Aurora",
+    "split:boss-golem": "Aurora",
+    "split:boss-lunatic-cultist": "Aurora",
+    "split:boss-moon-lord": "Aurora"
+  },
   "Colors": {
     "ReferenceText": "#E2E2E2",
     "ReferenceTextOutline": "#101010",
@@ -213,31 +675,36 @@
     "Icon": {
       "Show": true,
       "Width": 240,
+      "FontFamily": "Segoe UI",
       "FontSize": 55,
       "Bold": false
     },
     "Time": {
       "Show": true,
       "Width": 180,
-      "FontSize": 13.5,
+      "FontFamily": "Segoe UI",
+      "FontSize": 24,
       "Bold": true
     },
     "Delta": {
       "Show": true,
       "Width": 150,
-      "FontSize": 13.5,
+      "FontFamily": "Segoe UI",
+      "FontSize": 24,
       "Bold": true
     },
     "Timer": {
       "Show": true,
       "Width": 0,
-      "FontSize": 36,
+      "FontFamily": "Segoe UI",
+      "FontSize": 44,
       "Bold": true
     },
     "TimerMilliseconds": {
       "Show": true,
       "Width": 0,
-      "FontSize": 24,
+      "FontFamily": "Segoe UI",
+      "FontSize": 30,
       "Bold": true
     },
     "TimerOffsetX": 165,

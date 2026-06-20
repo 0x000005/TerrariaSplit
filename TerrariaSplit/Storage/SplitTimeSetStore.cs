@@ -4,15 +4,23 @@ internal static class SplitTimeSetStore
 {
     private const int MaxLastRunSetsToLoad = 100;
 
-    public static string ReferenceDirectory => Path.Combine(AppContext.BaseDirectory, "reference-times");
+    public static string ReferenceDirectory => RuntimeDataPaths.ReferenceTimesDirectory;
 
-    public static string LastRunDirectory => Path.Combine(AppContext.BaseDirectory, "last-times");
+    public static string LastRunDirectory => RuntimeDataPaths.LastRunTimesDirectory;
 
-    public static string PersonalBestTimeDirectory => Path.Combine(AppContext.BaseDirectory, "personal-best-times");
+    public static string PersonalBestTimeDirectory => RuntimeDataPaths.PersonalBestTimesDirectory;
 
-    public static string PersonalBestSegmentDirectory => Path.Combine(AppContext.BaseDirectory, "personal-best-segments");
+    public static string PersonalBestSegmentDirectory => RuntimeDataPaths.PersonalBestSegmentsDirectory;
 
     private static string DefaultReferenceDirectory => Path.Combine(AppContext.BaseDirectory, "Assets", "ReferenceTimes");
+
+    public static void EnsureDirectories()
+    {
+        Directory.CreateDirectory(ReferenceDirectory);
+        Directory.CreateDirectory(LastRunDirectory);
+        Directory.CreateDirectory(PersonalBestTimeDirectory);
+        Directory.CreateDirectory(PersonalBestSegmentDirectory);
+    }
 
     public static List<ReferenceSplitSet> LoadReferenceSets()
     {

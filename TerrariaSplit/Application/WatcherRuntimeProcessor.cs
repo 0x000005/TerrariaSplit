@@ -3,7 +3,7 @@ namespace TerrariaSplit;
 internal sealed class WatcherRuntimeProcessor
 {
     private readonly SplitTimer timer = new();
-    private readonly BossSplitTracker splitTracker = new();
+    private readonly SplitTracker splitTracker = new();
     private readonly PendingMenuActionScheduler pendingMenuActions = new();
     private readonly TimerController timerController;
     private RuntimeRunSnapshot? lastCapturedSnapshot;
@@ -17,7 +17,7 @@ internal sealed class WatcherRuntimeProcessor
             pendingMenuGraceDuration);
     }
 
-    public void SetDefinitions(IReadOnlyList<BossSplitDefinition> definitions)
+    public void SetDefinitions(IReadOnlyList<SplitDefinition> definitions)
     {
         splitTracker.SetDefinitions(definitions);
         timer.Reset();
@@ -124,7 +124,7 @@ internal sealed class WatcherRuntimeProcessor
             return false;
         }
 
-        IReadOnlyList<BossSplitStatus> statuses = splitTracker.Statuses;
+        IReadOnlyList<SplitStatus> statuses = splitTracker.Statuses;
         IReadOnlyList<SplitStatusSnapshot> copies = snapshot.Statuses;
         if (copies.Count != statuses.Count)
         {
@@ -133,11 +133,38 @@ internal sealed class WatcherRuntimeProcessor
 
         for (int i = 0; i < statuses.Count; i++)
         {
-            BossSplitStatus status = statuses[i];
+            SplitStatus status = statuses[i];
             SplitStatusSnapshot copy = copies[i];
             if (!ReferenceEquals(copy.Definition, status.Definition) ||
                 copy.Time != status.Time ||
-                copy.IsSkipped != status.IsSkipped)
+                copy.IsSkipped != status.IsSkipped ||
+                !copy.CompletedFactKeys.SequenceEqual(status.CompletedFactKeys, StringComparer.OrdinalIgnoreCase) ||
+                !FactCompletionTimesMatch(copy.FactCompletionTimes, status.FactCompletionTimes))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool FactCompletionTimesMatch(
+        IReadOnlyDictionary<string, TimeSpan>? copy,
+        IReadOnlyDictionary<string, TimeSpan> status)
+    {
+        if ((copy?.Count ?? 0) != status.Count)
+        {
+            return false;
+        }
+
+        if (copy is null)
+        {
+            return status.Count == 0;
+        }
+
+        foreach ((string factKey, TimeSpan time) in status)
+        {
+            if (!copy.TryGetValue(factKey, out TimeSpan copyTime) || copyTime != time)
             {
                 return false;
             }

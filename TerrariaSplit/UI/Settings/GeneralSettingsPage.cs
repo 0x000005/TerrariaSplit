@@ -10,7 +10,7 @@ internal sealed class GeneralSettingsPage : SettingsPageBase
     private readonly SettingsHotkeyTextBox createWorldKeyBox = new();
     private readonly SettingsHotkeyTextBox practiceWorldKeyBox = new();
     private readonly CheckBox showMouseClickThroughIndicatorBox = new();
-    private readonly ComboBox languageBox = new();
+    private readonly ThemedDropDownList languageBox = new();
     private readonly CheckBox alwaysOnTopBox = new();
     private readonly CheckBox practiceModeBox = new();
     private readonly TextBox globalScaleBox = new();
@@ -52,7 +52,6 @@ internal sealed class GeneralSettingsPage : SettingsPageBase
         ConfigureCheckBox(alwaysOnTopBox, Draft.AlwaysOnTop);
         ConfigureCheckBox(practiceModeBox, Draft.PracticeMode);
 
-        UiTheme.StyleComboBox(languageBox);
         languageBox.Dock = DockStyle.Fill;
         languageBox.Items.Add(LanguageNames.English);
         languageBox.Items.Add(LanguageNames.Chinese);

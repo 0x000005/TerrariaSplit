@@ -7,13 +7,17 @@ namespace TerrariaSplit;
 internal sealed class ThemedSlider : Control
 {
     private const int PreferredHeight = 36;
-    private const int TrackHeight = 6;
-    private const int ThumbRadius = 8;
+    private const int FrameHeight = 30;
+    private const int TrackHeight = 8;
+    private const int ThumbWidth = 14;
+    private const int ThumbHeight = 24;
+    private const int CornerRadius = 3;
 
     private int minimum;
     private int maximum = 100;
     private int value;
     private bool dragging;
+    private bool hover;
 
     public ThemedSlider()
     {
@@ -101,21 +105,45 @@ internal sealed class ThemedSlider : Control
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
         e.Graphics.Clear(BackColor);
 
-        Rectangle track = GetTrackBounds();
-        Rectangle fill = track;
-        fill.Width = Math.Max(0, ThumbCenterX - track.Left);
+        Rectangle frame = GetFrameBounds();
+        Rectangle track = GetTrackBounds(frame);
+        int thumbCenterX = ThumbCenterX;
+        Rectangle fill = Rectangle.FromLTRB(track.Left, track.Top, Math.Clamp(thumbCenterX, track.Left, track.Right), track.Bottom);
 
-        Color baseTrackColor = Enabled ? UiTheme.Field : UiTheme.SurfaceRaised;
-        Color fillTrackColor = Enabled ? UiTheme.Accent : UiTheme.Border;
-        Color thumbColor = Enabled ? UiTheme.Accent : UiTheme.Border;
-        Color outlineColor = Enabled ? UiTheme.AccentHover : UiTheme.Border;
+        Color frameColor = Enabled ? UiTheme.Field : UiTheme.SurfaceRaised;
+        Color frameBorderColor = Enabled
+            ? Focused || dragging
+                ? UiTheme.Accent
+                : hover
+                    ? UiTheme.AccentHover
+                    : UiTheme.Border
+            : UiTheme.Border;
+        Color baseTrackColor = Enabled ? UiTheme.SurfaceRaised : UiTheme.Field;
+        Color fillTrackColor = Enabled
+            ? dragging
+                ? UiTheme.AccentDown
+                : hover
+                    ? UiTheme.AccentHover
+                    : UiTheme.Accent
+            : UiTheme.Border;
+        Color thumbColor = Enabled ? UiTheme.SurfaceRaised : UiTheme.Field;
+        Color thumbBorderColor = Enabled
+            ? dragging || Focused
+                ? UiTheme.AccentHover
+                : UiTheme.Accent
+            : UiTheme.Border;
 
+        using (var frameBrush = new SolidBrush(frameColor))
+        using (var framePen = new Pen(frameBorderColor, 1f))
         using (var trackBrush = new SolidBrush(baseTrackColor))
         using (var fillBrush = new SolidBrush(fillTrackColor))
-        using (var outlinePen = new Pen(outlineColor, 1.5f))
         using (var thumbBrush = new SolidBrush(thumbColor))
-        using (var focusPen = new Pen(Color.FromArgb(120, UiTheme.Accent), 1f))
+        using (var thumbPen = new Pen(thumbBorderColor, 1.5f))
+        using (var focusPen = new Pen(Color.FromArgb(150, UiTheme.AccentHover), 1f))
         {
+            FillRoundedRectangle(e.Graphics, frameBrush, frame, CornerRadius);
+            DrawRoundedRectangle(e.Graphics, framePen, frame, CornerRadius);
+
             FillRoundedRectangle(e.Graphics, trackBrush, track, TrackHeight / 2);
             if (fill.Width > 0)
             {
@@ -123,13 +151,13 @@ internal sealed class ThemedSlider : Control
             }
 
             Rectangle thumb = GetThumbBounds();
-            e.Graphics.FillEllipse(thumbBrush, thumb);
-            e.Graphics.DrawEllipse(outlinePen, thumb);
+            FillRoundedRectangle(e.Graphics, thumbBrush, thumb, CornerRadius);
+            DrawRoundedRectangle(e.Graphics, thumbPen, thumb, CornerRadius);
 
             if (Focused)
             {
-                Rectangle focus = Rectangle.Inflate(thumb, 3, 3);
-                e.Graphics.DrawEllipse(focusPen, focus);
+                Rectangle focus = Rectangle.Inflate(frame, 2, 2);
+                DrawRoundedRectangle(e.Graphics, focusPen, focus, CornerRadius + 2);
             }
         }
     }
@@ -146,6 +174,7 @@ internal sealed class ThemedSlider : Control
         dragging = true;
         Capture = true;
         SetValueFromClientX(e.X);
+        Invalidate();
     }
 
     protected override void OnMouseMove(MouseEventArgs e)
@@ -169,6 +198,21 @@ internal sealed class ThemedSlider : Control
 
         dragging = false;
         Capture = false;
+        Invalidate();
+    }
+
+    protected override void OnMouseEnter(EventArgs e)
+    {
+        base.OnMouseEnter(e);
+        hover = true;
+        Invalidate();
+    }
+
+    protected override void OnMouseLeave(EventArgs e)
+    {
+        base.OnMouseLeave(e);
+        hover = false;
+        Invalidate();
     }
 
     protected override void OnKeyDown(KeyEventArgs e)
@@ -218,26 +262,42 @@ internal sealed class ThemedSlider : Control
         Invalidate();
     }
 
-    private Rectangle GetTrackBounds()
+    protected override void OnEnabledChanged(EventArgs e)
     {
-        int left = ThumbRadius;
-        int width = Math.Max(0, ClientSize.Width - ThumbRadius * 2);
-        int top = Math.Max(0, (ClientSize.Height - TrackHeight) / 2);
-        return new Rectangle(left, top, width, TrackHeight);
+        base.OnEnabledChanged(e);
+        Invalidate();
+    }
+
+    private Rectangle GetFrameBounds()
+    {
+        int height = Math.Min(FrameHeight, Math.Max(1, ClientSize.Height - 2));
+        return new Rectangle(
+            0,
+            Math.Max(0, (ClientSize.Height - height) / 2),
+            Math.Max(0, ClientSize.Width - 1),
+            height);
+    }
+
+    private static Rectangle GetTrackBounds(Rectangle frame)
+    {
+        int left = frame.Left + ThumbWidth / 2 + 8;
+        int right = frame.Right - ThumbWidth / 2 - 8;
+        int top = frame.Top + Math.Max(0, (frame.Height - TrackHeight) / 2);
+        return Rectangle.FromLTRB(left, top, Math.Max(left, right), top + TrackHeight);
     }
 
     private Rectangle GetThumbBounds()
     {
         int centerX = ThumbCenterX;
         int centerY = Math.Max(0, ClientSize.Height / 2);
-        return new Rectangle(centerX - ThumbRadius, centerY - ThumbRadius, ThumbRadius * 2, ThumbRadius * 2);
+        return new Rectangle(centerX - ThumbWidth / 2, centerY - ThumbHeight / 2, ThumbWidth, ThumbHeight);
     }
 
     private int ThumbCenterX
     {
         get
         {
-            Rectangle track = GetTrackBounds();
+            Rectangle track = GetTrackBounds(GetFrameBounds());
             if (maximum == minimum || track.Width <= 0)
             {
                 return track.Left;
@@ -250,7 +310,7 @@ internal sealed class ThemedSlider : Control
 
     private void SetValueFromClientX(int clientX)
     {
-        Rectangle track = GetTrackBounds();
+        Rectangle track = GetTrackBounds(GetFrameBounds());
         if (maximum == minimum || track.Width <= 0)
         {
             Value = minimum;
@@ -283,5 +343,29 @@ internal sealed class ThemedSlider : Control
         path.AddArc(bounds.Left, bounds.Bottom - diameter, diameter, diameter, 90, 90);
         path.CloseFigure();
         graphics.FillPath(brush, path);
+    }
+
+    private static void DrawRoundedRectangle(Graphics graphics, Pen pen, Rectangle bounds, int radius)
+    {
+        if (bounds.Width <= 0 || bounds.Height <= 0)
+        {
+            return;
+        }
+
+        Rectangle adjusted = new(bounds.X, bounds.Y, Math.Max(0, bounds.Width - 1), Math.Max(0, bounds.Height - 1));
+        if (radius <= 0)
+        {
+            graphics.DrawRectangle(pen, adjusted);
+            return;
+        }
+
+        int diameter = radius * 2;
+        using var path = new GraphicsPath();
+        path.AddArc(adjusted.Left, adjusted.Top, diameter, diameter, 180, 90);
+        path.AddArc(adjusted.Right - diameter, adjusted.Top, diameter, diameter, 270, 90);
+        path.AddArc(adjusted.Right - diameter, adjusted.Bottom - diameter, diameter, diameter, 0, 90);
+        path.AddArc(adjusted.Left, adjusted.Bottom - diameter, diameter, diameter, 90, 90);
+        path.CloseFigure();
+        graphics.DrawPath(pen, path);
     }
 }

@@ -151,7 +151,15 @@ internal sealed partial class SettingsForm : Form
 
     internal void ApplyForTests()
     {
-        ApplyToSettings();
+        if (!TryApplyToSettings(showError: false, out string message))
+        {
+            throw new SettingsApplyFailedException(message);
+        }
+    }
+
+    internal bool TryApplyForTests(out string message)
+    {
+        return TryApplyToSettings(showError: false, out message);
     }
 
     private void BuildLayout()
@@ -268,7 +276,7 @@ internal sealed partial class SettingsForm : Form
             GetRuntimeDebugSnapshot,
             pagePanel);
         pageHost.Register("General", new GeneralSettingsPage());
-        pageHost.Register("BOSS", new BossSettingsPage());
+        pageHost.Register("Route", new SplitSettingsPage());
         pageHost.Register("Data", new DataSettingsPage());
         pageHost.Register("UI", new UiSettingsPage());
         pageHost.Register("Effects", new AnimationSettingsPage());
@@ -300,7 +308,11 @@ internal sealed partial class SettingsForm : Form
         Button okButton = uiFactory.CreateButton("OK", accent: true, minimumWidth: 150);
         okButton.Click += (_, _) =>
         {
-            ApplyToSettings();
+            if (!TryApplyToSettings(showError: true, out _))
+            {
+                return;
+            }
+
             DialogResult = DialogResult.OK;
             Close();
         };
@@ -323,14 +335,38 @@ internal sealed partial class SettingsForm : Form
         return footer;
     }
 
-    private void ApplyToSettings()
+    private bool TryApplyToSettings(bool showError, out string message)
     {
-        PageHost.ApplyToSettings();
+        message = string.Empty;
+        try
+        {
+            PageHost.ApplyToSettings();
+            return true;
+        }
+        catch (SettingsApplyFailedException ex)
+        {
+            message = ex.Message;
+            if (showError)
+            {
+                MessageBox.Show(
+                    this,
+                    ex.Message,
+                    Localize("TerrariaSplit Settings"),
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+            }
+
+            return false;
+        }
     }
 
     private void ApplyAndNotify()
     {
-        ApplyToSettings();
+        if (!TryApplyToSettings(showError: true, out _))
+        {
+            return;
+        }
+
         Applied?.Invoke(this, EventArgs.Empty);
     }
 

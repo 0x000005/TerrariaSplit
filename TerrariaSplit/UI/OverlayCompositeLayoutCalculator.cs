@@ -11,6 +11,7 @@ internal static class OverlayCompositeLayoutCalculator
         Rectangle compositeBounds,
         AppSettings settings,
         int statusCount,
+        int visibleStatusCount,
         int baseRowGap,
         out OverlayCompositeLayout layout)
     {
@@ -20,30 +21,118 @@ internal static class OverlayCompositeLayoutCalculator
             return false;
         }
 
+        int animationRowCount = SplitCompletionAnimationRenderer.ReservedRowCount;
+        statusCount = Math.Max(animationRowCount, Math.Max(statusCount, visibleStatusCount));
+        visibleStatusCount = Math.Clamp(Math.Max(visibleStatusCount, animationRowCount), 1, statusCount);
         var localBounds = new Rectangle(0, 0, compositeBounds.Width, compositeBounds.Height);
         if (!SplitLayoutCalculator.TryCreate(localBounds, statusCount, baseRowGap, value => OverlayRenderContext.ScaleInt(settings, value), out SplitLayout splitLayout))
         {
             return false;
         }
 
-        Rectangle timerTextBounds = TimerRenderer.GetTimerTextBounds(settings, splitLayout.TimerRect);
+        SplitLayout visibleLayout = OffsetRowsFromBottom(splitLayout, statusCount - visibleStatusCount);
+
+        Rectangle timerTextBounds = TimerRenderer.GetTimerTextBounds(settings, visibleLayout.TimerRect);
         int maxFontHeight = GetTimerMaxFontPixelHeight(settings);
         int effectBleed = GetTimerTextEffectBleed(settings, maxFontHeight);
         int verticalBleed = Math.Max(
             OverlayRenderContext.ScaleInt(settings, 28),
             maxFontHeight + OverlayRenderContext.ScaleInt(settings, 12) + effectBleed);
-        int timerTop = Math.Min(splitLayout.TimerRect.Top, timerTextBounds.Top - verticalBleed);
-        int timerBottom = Math.Max(splitLayout.TimerRect.Bottom, timerTextBounds.Bottom + verticalBleed);
+        int timerBottomBleed = verticalBleed + Math.Max(
+            OverlayRenderContext.ScaleInt(settings, 10),
+            maxFontHeight / 8);
+        int timerTop = Math.Min(visibleLayout.TimerRect.Top, timerTextBounds.Top - verticalBleed);
+        int requestedTimerBottom = Math.Max(visibleLayout.TimerRect.Bottom, timerTextBounds.Bottom + timerBottomBleed);
+        if (requestedTimerBottom > compositeBounds.Height)
+        {
+            return false;
+        }
+
         timerTop = Math.Clamp(timerTop, 0, compositeBounds.Height - 1);
-        timerBottom = Math.Clamp(timerBottom, timerTop + 1, compositeBounds.Height);
-        int statusBottom = GetStatusBottom(settings, splitLayout, statusCount, compositeBounds.Height);
+        int timerBottom = Math.Clamp(requestedTimerBottom, timerTop + 1, compositeBounds.Height);
+        int statusBottom = GetStatusBottom(settings, visibleLayout, visibleStatusCount, compositeBounds.Height);
 
         layout = new OverlayCompositeLayout(
             compositeBounds,
-            splitLayout,
+            visibleLayout,
             new Rectangle(0, 0, compositeBounds.Width, statusBottom),
             new Rectangle(0, timerTop, compositeBounds.Width, timerBottom - timerTop));
         return true;
+    }
+
+    public static bool TryCreate(
+        Rectangle compositeBounds,
+        AppSettings settings,
+        int statusCount,
+        int baseRowGap,
+        out OverlayCompositeLayout layout)
+    {
+        return TryCreate(compositeBounds, settings, statusCount, statusCount, baseRowGap, out layout);
+    }
+
+    public static int GetFittingHeight(
+        int width,
+        int initialHeight,
+        AppSettings settings,
+        int statusCount,
+        int visibleStatusCount,
+        int baseRowGap)
+    {
+        int height = Math.Max(1, initialHeight);
+        if (CanCreate(height))
+        {
+            return height;
+        }
+
+        int step = Math.Max(OverlayRenderContext.ScaleInt(settings, 24), 8);
+        int high = height;
+        while (high < 10000)
+        {
+            high = Math.Min(10000, high + step);
+            if (CanCreate(high))
+            {
+                break;
+            }
+        }
+
+        if (!CanCreate(high))
+        {
+            return height;
+        }
+
+        int low = height;
+        while (low + 1 < high)
+        {
+            int middle = low + (high - low) / 2;
+            if (CanCreate(middle))
+            {
+                high = middle;
+            }
+            else
+            {
+                low = middle;
+            }
+        }
+
+        return high;
+
+        bool CanCreate(int candidateHeight)
+        {
+            return TryCreate(
+                new Rectangle(0, 0, width, candidateHeight),
+                settings,
+                statusCount,
+                visibleStatusCount,
+                baseRowGap,
+                out _);
+        }
+    }
+
+    private static SplitLayout OffsetRowsFromBottom(SplitLayout layout, int rowOffset)
+    {
+        return rowOffset <= 0
+            ? layout
+            : new SplitLayout(layout.GetRowRect(rowOffset), layout.TimerRect, layout.RowGap);
     }
 
     private static int GetStatusBottom(AppSettings settings, SplitLayout splitLayout, int statusCount, int compositeHeight)

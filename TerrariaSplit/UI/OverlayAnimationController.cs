@@ -49,12 +49,12 @@ internal sealed class OverlayAnimationController
         if (completedIndex < 0 ||
             completedIndex >= statuses.Count ||
             !settings.ShowSegmentBestDeltaHighlight ||
-            !SplitRenderData.TryGetCompletedSegmentTime(statuses, completedIndex, out TimeSpan segmentTime))
+            !SplitRenderData.TryGetCompletedSegmentTime(settings, statuses, completedIndex, out TimeSpan segmentTime))
         {
             return;
         }
 
-        BossSplitDefinition definition = statuses[completedIndex].Definition;
+        SplitDefinition definition = statuses[completedIndex].Definition;
         if (!SplitRenderData.TryGetPersonalBestSegment(settings, definition, out TimeSpan personalBestSegment) ||
             segmentTime >= personalBestSegment)
         {
@@ -63,7 +63,7 @@ internal sealed class OverlayAnimationController
 
         string style = SplitRenderData.GetSegmentBestDeltaHighlightStyle(
             settings,
-            SplitRenderData.GetSplitCompletionGroupKey(definition));
+            SplitRenderData.GetSplitCompletionGroupKey(settings, definition));
         if (SegmentBestDeltaHighlightStyles.Normalize(style) == SegmentBestDeltaHighlightStyles.None)
         {
             return;

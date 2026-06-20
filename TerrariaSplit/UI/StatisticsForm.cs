@@ -210,7 +210,7 @@ internal sealed class StatisticsForm : Form
                 row.ReferenceSegmentText,
                 row.PersonalSegmentText,
                 row.PersonalBestSegmentText);
-            grid.Rows[rowIndex].HeaderCell.Value = Localizer.Get(row.Unit.DisplayName, settings);
+            grid.Rows[rowIndex].HeaderCell.Value = row.DisplayName;
             grid.Rows[rowIndex].Tag = row;
         }
 

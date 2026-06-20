@@ -1,0 +1,67 @@
+<Project>
+  <PropertyGroup>
+    <TerrariaSplitMemoryProbeProject>$(MSBuildThisFileDirectory)..\..\TerrariaSplit.MemoryProbe\TerrariaSplit.MemoryProbe.csproj</TerrariaSplitMemoryProbeProject>
+    <TerrariaSplitMemoryProbeProjectDirectory>$(MSBuildThisFileDirectory)..\..\TerrariaSplit.MemoryProbe\</TerrariaSplitMemoryProbeProjectDirectory>
+    <TerrariaSplitMemoryProbeTargetFramework>net10.0-windows</TerrariaSplitMemoryProbeTargetFramework>
+    <TerrariaSplitMemoryProbeRuntimeIdentifier>win-x86</TerrariaSplitMemoryProbeRuntimeIdentifier>
+    <TerrariaSplitMemoryProbePlatformTarget>x86</TerrariaSplitMemoryProbePlatformTarget>
+    <TerrariaSplitMemoryProbeOutputSubdirectory>TerrariaSplit.MemoryProbe\</TerrariaSplitMemoryProbeOutputSubdirectory>
+    <TerrariaSplitMemoryProbeBaseIntermediateOutputPath>$(TerrariaSplitMemoryProbeProjectDirectory)obj\TerrariaSplit.MemoryProbe\obj\</TerrariaSplitMemoryProbeBaseIntermediateOutputPath>
+    <TerrariaSplitMemoryProbeBaseOutputPath>$(TerrariaSplitMemoryProbeProjectDirectory)obj\TerrariaSplit.MemoryProbe\bin\</TerrariaSplitMemoryProbeBaseOutputPath>
+    <TerrariaSplitMemoryProbeBuildOutputDirectory>$(TerrariaSplitMemoryProbeBaseOutputPath)$(Configuration)\$(TerrariaSplitMemoryProbeTargetFramework)\$(TerrariaSplitMemoryProbeRuntimeIdentifier)\</TerrariaSplitMemoryProbeBuildOutputDirectory>
+    <TerrariaSplitMemoryProbePublishOutputDirectory>$(TerrariaSplitMemoryProbeProjectDirectory)obj\TerrariaSplit.MemoryProbe\publish\$(Configuration)\$(TerrariaSplitMemoryProbeRuntimeIdentifier)\</TerrariaSplitMemoryProbePublishOutputDirectory>
+    <TerrariaSplitMemoryProbeCommonProperties>Configuration=$(Configuration);TargetFramework=$(TerrariaSplitMemoryProbeTargetFramework);RuntimeIdentifier=$(TerrariaSplitMemoryProbeRuntimeIdentifier);PlatformTarget=$(TerrariaSplitMemoryProbePlatformTarget);BaseIntermediateOutputPath=$(TerrariaSplitMemoryProbeBaseIntermediateOutputPath);BaseOutputPath=$(TerrariaSplitMemoryProbeBaseOutputPath)</TerrariaSplitMemoryProbeCommonProperties>
+    <TerrariaSplitMemoryProbeBuildProperties>$(TerrariaSplitMemoryProbeCommonProperties);SelfContained=false;PublishSelfContained=false;PublishSingleFile=false;IncludeNativeLibrariesForSelfExtract=false;PublishTrimmed=false</TerrariaSplitMemoryProbeBuildProperties>
+    <TerrariaSplitMemoryProbePublishProperties>$(TerrariaSplitMemoryProbeCommonProperties);SelfContained=true;PublishSelfContained=true;PublishSingleFile=true;IncludeNativeLibrariesForSelfExtract=true;PublishTrimmed=false;DebugType=none;DebugSymbols=false</TerrariaSplitMemoryProbePublishProperties>
+  </PropertyGroup>
+
+  <Target Name="TerrariaSplitBuildMemoryProbe"
+          BeforeTargets="Build"
+          Condition="'$(DesignTimeBuild)' != 'true' and '$(TerrariaSplitSkipMemoryProbe)' != 'true'">
+    <MSBuild Projects="$(TerrariaSplitMemoryProbeProject)"
+             Targets="Restore;Build"
+             Properties="$(TerrariaSplitMemoryProbeBuildProperties)" />
+  </Target>
+
+  <Target Name="TerrariaSplitCopyMemoryProbeToOutput"
+          AfterTargets="Build"
+          Condition="'$(DesignTimeBuild)' != 'true' and '$(TerrariaSplitSkipMemoryProbe)' != 'true'">
+    <ItemGroup>
+      <TerrariaSplitMemoryProbeBuiltFile Include="$(TerrariaSplitMemoryProbeBuildOutputDirectory)**\*.*" />
+    </ItemGroup>
+
+    <Copy SourceFiles="@(TerrariaSplitMemoryProbeBuiltFile)"
+          DestinationFiles="@(TerrariaSplitMemoryProbeBuiltFile->'$(TargetDir)$(TerrariaSplitMemoryProbeOutputSubdirectory)%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="TerrariaSplitPublishMemoryProbe"
+          BeforeTargets="ComputeFilesToPublish"
+          Condition="'$(DesignTimeBuild)' != 'true' and '$(TerrariaSplitSkipMemoryProbe)' != 'true'">
+    <RemoveDir Directories="$(TerrariaSplitMemoryProbePublishOutputDirectory)" />
+
+    <MSBuild Projects="$(TerrariaSplitMemoryProbeProject)"
+             Targets="Restore;Publish"
+             Properties="$(TerrariaSplitMemoryProbePublishProperties);PublishDir=$(TerrariaSplitMemoryProbePublishOutputDirectory)" />
+
+    <ItemGroup>
+      <TerrariaSplitMemoryProbePublishedFile Include="$(TerrariaSplitMemoryProbePublishOutputDirectory)TerrariaSplit.MemoryProbe.exe" />
+      <ResolvedFileToPublish Include="@(TerrariaSplitMemoryProbePublishedFile)">
+        <RelativePath>%(Filename)%(Extension)</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </ResolvedFileToPublish>
+    </ItemGroup>
+  </Target>
+
+  <Target Name="TerrariaSplitCopyMemoryProbeToPublishDirectory"
+          AfterTargets="Publish"
+          Condition="'$(DesignTimeBuild)' != 'true' and '$(TerrariaSplitSkipMemoryProbe)' != 'true' and '$(PublishDir)' != ''">
+    <ItemGroup>
+      <TerrariaSplitMemoryProbePublishedFile Include="$(TerrariaSplitMemoryProbePublishOutputDirectory)TerrariaSplit.MemoryProbe.exe" />
+    </ItemGroup>
+
+    <Copy SourceFiles="@(TerrariaSplitMemoryProbePublishedFile)"
+          DestinationFiles="@(TerrariaSplitMemoryProbePublishedFile->'$(PublishDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
+</Project>

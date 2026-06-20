@@ -91,7 +91,7 @@ TerrariaSplit also includes options for modern display setups:
 
 TerrariaSplit stores configuration under the application directory:
 
-On first launch, if no valid configuration exists under `settings/`, TerrariaSplit generates one from the bundled default template.
+On first launch, if no valid configuration exists under `Settings/`, TerrariaSplit generates one from the bundled default template.
 
 ## Notes
 

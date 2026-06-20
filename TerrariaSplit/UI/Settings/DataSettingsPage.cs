@@ -4,11 +4,11 @@ namespace TerrariaSplit;
 
 internal sealed class DataSettingsPage : SettingsPageBase
 {
-    private readonly ComboBox referenceSetBox = new();
+    private readonly ThemedDropDownList referenceSetBox = new();
     private readonly TextBox newReferenceSetNameBox = new();
     private readonly CheckBox usePersonalBestAsReferenceTimeBox = new();
-    private readonly ComboBox personalBestTimeSetBox = new();
-    private readonly ComboBox personalBestSegmentSetBox = new();
+    private readonly ThemedDropDownList personalBestTimeSetBox = new();
+    private readonly ThemedDropDownList personalBestSegmentSetBox = new();
     private readonly CheckBox autoUpdatePersonalBestDataBox = new();
     private readonly CheckBox askBeforeUpdatingPersonalBestDataBox = new();
     private readonly Dictionary<string, TextBox> splitTextBoxes = new(StringComparer.OrdinalIgnoreCase);
@@ -29,7 +29,7 @@ internal sealed class DataSettingsPage : SettingsPageBase
 
     internal CheckBox UsePersonalBestAsReferenceTimeBox => usePersonalBestAsReferenceTimeBox;
 
-    internal ComboBox ReferenceSetBox => referenceSetBox;
+    internal ThemedDropDownList ReferenceSetBox => referenceSetBox;
 
     internal TextBox NewReferenceSetNameBox => newReferenceSetNameBox;
 
@@ -162,8 +162,8 @@ internal sealed class DataSettingsPage : SettingsPageBase
             return;
         }
 
-        List<BossRouteEntry> entries = GetRouteOrderedEntries().ToList();
-        string signature = string.Join('\u001F', entries.Select(entry => entry.BossId));
+        List<SplitConditionDataRow> rows = GetCumulativeRows().ToList();
+        string signature = string.Join('\u001F', rows.Select(row => row.Key));
         if (referenceDataSignature == signature && splitTextBoxes.Count > 0)
         {
             LoadReferenceTextBoxes();
@@ -176,17 +176,12 @@ internal sealed class DataSettingsPage : SettingsPageBase
         {
             SettingsUiFactory.ClearGrid(referenceDataGrid);
             splitTextBoxes.Clear();
-            foreach (BossRouteEntry entry in entries)
+            foreach (SplitConditionDataRow row in rows)
             {
-                if (!BossSplitDefinitions.TryGetUnit(entry.BossId, out BossUnitDefinition unit))
-                {
-                    continue;
-                }
-
-                TextBox textBox = Factory.CreateTextBox(GetDisplayedReferenceTimeText(unit.Id));
-                textBox.PlaceholderText = "m:ss or h:mm:ss";
-                splitTextBoxes[unit.Id] = textBox;
-                Factory.AddSettingRow(referenceDataGrid, Context.Localize(unit.DisplayName), textBox);
+                TextBox textBox = Factory.CreateTextBox(GetDisplayedReferenceTimeText(row.Key));
+                textBox.PlaceholderText = Context.Localize("m:ss or h:mm:ss");
+                splitTextBoxes[row.Key] = textBox;
+                Factory.AddRawSettingRow(referenceDataGrid, row.DisplayName, textBox);
             }
 
             referenceDataSignature = signature;
@@ -205,15 +200,15 @@ internal sealed class DataSettingsPage : SettingsPageBase
             return;
         }
 
-        List<BossRouteEntry> entries = GetRouteOrderedEntries().ToList();
-        string signature = string.Join('\u001F', entries.Select(entry => entry.BossId));
+        List<SplitConditionDataRow> rows = GetCumulativeRows().ToList();
+        string signature = string.Join('\u001F', rows.Select(row => row.Key));
         if (personalBestTimeGridSignature == signature && personalBestTimeTextBoxes.Count > 0)
         {
-            foreach (BossRouteEntry entry in entries)
+            foreach (SplitConditionDataRow row in rows)
             {
-                if (personalBestTimeTextBoxes.TryGetValue(entry.BossId, out TextBox? textBox))
+                if (personalBestTimeTextBoxes.TryGetValue(row.Key, out TextBox? textBox))
                 {
-                    textBox.Text = Draft.GetPersonalBestTimeText(entry.BossId);
+                    textBox.Text = Draft.GetPersonalBestTimeText(row.Key);
                 }
             }
 
@@ -225,18 +220,13 @@ internal sealed class DataSettingsPage : SettingsPageBase
         {
             SettingsUiFactory.ClearGrid(personalBestTimeGrid);
             personalBestTimeTextBoxes.Clear();
-            foreach (BossRouteEntry entry in entries)
+            foreach (SplitConditionDataRow row in rows)
             {
-                if (!BossSplitDefinitions.TryGetUnit(entry.BossId, out BossUnitDefinition unit))
-                {
-                    continue;
-                }
-
-                TextBox textBox = Factory.CreateTextBox(Draft.GetPersonalBestTimeText(unit.Id));
-                textBox.PlaceholderText = "m:ss or h:mm:ss";
+                TextBox textBox = Factory.CreateTextBox(Draft.GetPersonalBestTimeText(row.Key));
+                textBox.PlaceholderText = Context.Localize("m:ss or h:mm:ss");
                 textBox.TextChanged += (_, _) => RefreshReferenceDataFromPersonalBest();
-                personalBestTimeTextBoxes[unit.Id] = textBox;
-                Factory.AddSettingRow(personalBestTimeGrid, Context.Localize(unit.DisplayName), textBox);
+                personalBestTimeTextBoxes[row.Key] = textBox;
+                Factory.AddRawSettingRow(personalBestTimeGrid, row.DisplayName, textBox);
             }
 
             personalBestTimeGridSignature = signature;
@@ -254,7 +244,7 @@ internal sealed class DataSettingsPage : SettingsPageBase
             return;
         }
 
-        List<RouteGroup> groups = BossRouteGroups.Build(Draft).ToList();
+        List<RouteGroup> groups = SplitRouteGroups.Build(Draft).ToList();
         string signature = string.Join('\u001F', groups.Select(group => group.Key));
         if (personalBestSegmentGridSignature == signature && personalBestSegmentTextBoxes.Count > 0)
         {
@@ -277,9 +267,9 @@ internal sealed class DataSettingsPage : SettingsPageBase
             foreach (RouteGroup group in groups)
             {
                 TextBox textBox = Factory.CreateTextBox(Draft.GetPersonalBestSegmentText(group.Key));
-                textBox.PlaceholderText = "m:ss or h:mm:ss";
+                textBox.PlaceholderText = Context.Localize("m:ss or h:mm:ss");
                 personalBestSegmentTextBoxes[group.Key] = textBox;
-                Factory.AddSettingRow(personalBestSegmentGrid, BossRouteGroups.GetGroupDisplayName(group, Draft), textBox);
+                Factory.AddRawSettingRow(personalBestSegmentGrid, GetRawGroupDisplayName(group), textBox);
             }
 
             personalBestSegmentGridSignature = signature;
@@ -293,7 +283,6 @@ internal sealed class DataSettingsPage : SettingsPageBase
     private void ConfigureReferenceSetBox()
     {
         referenceSetBox.Dock = DockStyle.Fill;
-        UiTheme.StyleComboBox(referenceSetBox);
         PopulateReferenceSetBox();
         referenceSetBox.SelectedIndexChanged += (_, _) => SwitchReferenceSet();
     }
@@ -336,13 +325,12 @@ internal sealed class DataSettingsPage : SettingsPageBase
     }
 
     private static void ConfigurePersonalSetBox(
-        ComboBox comboBox,
+        ThemedDropDownList comboBox,
         IEnumerable<ReferenceSplitSet> sets,
         string activeName,
         EventHandler selectionChanged)
     {
         comboBox.Dock = DockStyle.Fill;
-        UiTheme.StyleComboBox(comboBox);
         comboBox.Items.Clear();
 
         foreach (ReferenceSplitSet set in sets)
@@ -411,7 +399,9 @@ internal sealed class DataSettingsPage : SettingsPageBase
             return;
         }
 
-        Draft.ReferenceSplitSets.Add(AppSettings.CreateReferenceSet(name));
+        Draft.ReferenceSplitSets.Add(AppSettings.CreateReferenceSet(
+            name,
+            keys: GetCumulativeRows().Select(row => row.Key)));
         referenceSetBox.Items.Add(name);
         referenceSetBox.SelectedItem = name;
         newReferenceSetNameBox.Clear();
@@ -563,14 +553,16 @@ internal sealed class DataSettingsPage : SettingsPageBase
             : Draft.GetPersonalBestTimeText(name);
     }
 
-    private IEnumerable<BossRouteEntry> GetRouteOrderedEntries()
+    private IEnumerable<SplitConditionDataRow> GetCumulativeRows()
     {
-        return Draft.Route
-            .Select((entry, index) => new { Entry = entry, Index = index })
-            .OrderBy(item => item.Entry.Segment)
-            .ThenBy(item => item.Index)
-            .Select(item => item.Entry)
-            .ToList();
+        return SplitConditionDataRows.Build(Draft);
+    }
+
+    private static string GetRawGroupDisplayName(RouteGroup group)
+    {
+        return string.IsNullOrWhiteSpace(group.DisplayName)
+            ? group.Key
+            : group.DisplayName;
     }
 
     private static void ConfigureCheckBox(CheckBox checkBox, bool selected)

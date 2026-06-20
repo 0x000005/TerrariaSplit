@@ -69,7 +69,7 @@ internal sealed class TerrariaMonitorCoordinator : IDisposable
             null,
             false,
             null,
-            TerrariaBossStates.Unknown,
+            TerrariaGameFacts.Unknown,
             TerrariaWorldGenerationState.Unknown,
             false,
             "waiting for Terraria.exe");
@@ -146,7 +146,7 @@ internal sealed class TerrariaMonitorCoordinator : IDisposable
         lastUiScalePatchLogKey = null;
     }
 
-    public long SetRuntimeDefinitions(IReadOnlyList<BossSplitDefinition> definitions)
+    public long SetRuntimeDefinitions(IReadOnlyList<SplitDefinition> definitions)
     {
         return SubmitRuntimeCommand(RuntimeCommand.SetDefinitions(definitions));
     }
@@ -343,7 +343,7 @@ internal sealed class TerrariaMonitorCoordinator : IDisposable
                 null,
                 false,
                 null,
-                TerrariaBossStates.Unknown,
+                TerrariaGameFacts.Unknown,
                 TerrariaWorldGenerationState.Unknown,
                 false,
                 $"watcher poll failed: {ex.Message}");

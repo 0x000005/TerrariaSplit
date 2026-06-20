@@ -16,8 +16,10 @@ internal sealed class AppSettings
     public string Language { get; set; } = "English";
     public bool AlwaysOnTop { get; set; }
     public bool PracticeMode { get; set; } = true;
-    public List<BossRouteEntry> Route { get; set; } = new();
-    public Dictionary<string, string> BossIconPaths { get; set; } = new();
+    public List<SplitRouteEntry> SplitRoute { get; set; } = new();
+    public bool ExpandSplitDetails { get; set; }
+    public bool CollapseSplitDetailsOnCompletion { get; set; } = true;
+    public bool AutoHideAttachedGroups { get; set; } = true;
     public List<ReferenceSplitSet> ReferenceSplitSets { get; set; } = new();
     public string ActiveReferenceSplitSet { get; set; } = "WR";
     public bool UsePersonalBestAsReferenceTime { get; set; }
@@ -77,32 +79,9 @@ internal sealed class AppSettings
     [JsonIgnore]
     public Keys PracticeWorldKeys => ParseKey(PracticeWorldKey, Keys.F8);
 
-    public bool TryGetReferenceSplit(BossSplitDefinition definition, out TimeSpan split)
+    public bool TryGetReferenceSplit(SplitDefinition definition, out TimeSpan split)
     {
-        split = TimeSpan.Zero;
-        bool anyFound = false;
-        TimeSpan maxSplit = TimeSpan.Zero;
-        var splits = GetActiveReferenceSet().Splits;
-
-        foreach (string bossId in definition.BossIds)
-        {
-            if (splits.TryGetValue(bossId, out string? value) && TimeText.TryParse(value, out TimeSpan s))
-            {
-                if (!anyFound || s > maxSplit)
-                {
-                    maxSplit = s;
-                }
-                anyFound = true;
-            }
-        }
-
-        if (anyFound)
-        {
-            split = maxSplit;
-            return true;
-        }
-
-        return false;
+        return SplitConditionDataRows.TryGetSplitTime(this, GetActiveReferenceSet().Splits, definition, out split);
     }
 
     public string GetReferenceText(string name)
@@ -118,16 +97,6 @@ internal sealed class AppSettings
     public string GetPersonalBestSegmentText(string name)
     {
         return PersonalBestSegmentTimes.TryGetValue(name, out string? value) ? value : string.Empty;
-    }
-
-    public string GetBossIconPath(string name)
-    {
-        return BossIconPaths.TryGetValue(name, out string? value) ? value : string.Empty;
-    }
-
-    public void SetBossIconPath(string name, string value)
-    {
-        BossIconPaths[name] = value;
     }
 
     public void SetReferenceText(string name, string value)
@@ -177,7 +146,7 @@ internal sealed class AppSettings
 
         if (ReferenceSplitSets.Count == 0)
         {
-            ReferenceSplitSets.Add(CreateReferenceSet("WR"));
+            ReferenceSplitSets.Add(CreateReferenceSet("WR", keys: SplitConditionDataRows.Build(this).Select(row => row.Key)));
         }
 
         ActiveReferenceSplitSet = ReferenceSplitSets[0].Name;
@@ -186,7 +155,7 @@ internal sealed class AppSettings
 
     public ReferenceSplitSet CreatePersonalBestReferenceSet()
     {
-        return CreateReferenceSet(PersonalBestReferenceSetName, PersonalBestTimes);
+        return CreateReferenceSet(PersonalBestReferenceSetName, PersonalBestTimes, SplitConditionDataRows.Build(this).Select(row => row.Key));
     }
 
     public ReferenceSplitSet GetActivePersonalBestTimeSet()
@@ -269,16 +238,19 @@ internal sealed class AppSettings
         return sets[0];
     }
 
-    public static ReferenceSplitSet CreateReferenceSet(string name, Dictionary<string, string>? values = null)
+    public static ReferenceSplitSet CreateReferenceSet(
+        string name,
+        Dictionary<string, string>? values = null,
+        IEnumerable<string>? keys = null)
     {
         var set = new ReferenceSplitSet
         {
             Name = string.IsNullOrWhiteSpace(name) ? "Reference" : name.Trim()
         };
 
-        foreach (BossUnitDefinition unit in BossSplitDefinitions.Units)
+        IEnumerable<string> splitKeys = keys ?? SplitConditionDataRows.Build(SplitCatalog.CreateDefaultRoute()).Select(row => row.Key);
+        foreach (string key in splitKeys.Where(key => !string.IsNullOrWhiteSpace(key)).Distinct(StringComparer.OrdinalIgnoreCase))
         {
-            string key = unit.Id;
             string value = values is not null && values.TryGetValue(key, out string? existingValue)
                 ? existingValue
                 : string.Empty;

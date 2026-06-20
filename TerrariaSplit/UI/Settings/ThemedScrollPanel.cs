@@ -8,7 +8,9 @@ internal sealed class ThemedScrollPanel : Panel
     private const int EmGetLineCount = 0x00BA;
     private const int EmGetFirstVisibleLine = 0x00CE;
     private const int EmLineScroll = 0x00B6;
-    private const int ScrollBarWidth = 12;
+    private const int WheelDelta = 120;
+    private const int ScrollBarGutterWidth = 34;
+    private const int ScrollBarTrackWidth = 12;
     private const int ScrollStep = 40;
     private int scrollOffset;
     private bool draggingThumb;
@@ -120,21 +122,36 @@ internal sealed class ThemedScrollPanel : Panel
     protected override void OnPaint(PaintEventArgs e)
     {
         base.OnPaint(e);
+        e.Graphics.Clear(BackColor);
+
+        Rectangle gutter = GetGutterBounds();
+        if (gutter.Width > 0 && gutter.Height > 0)
+        {
+            using var gutterBrush = new SolidBrush(UiTheme.Surface);
+            e.Graphics.FillRectangle(gutterBrush, gutter);
+        }
+
         Rectangle track = GetTrackBounds();
         if (track.Width <= 0 || track.Height <= 0)
         {
             return;
         }
 
-        using (var trackBrush = new SolidBrush(UiTheme.Field))
+        using (var trackBrush = new SolidBrush(Color.FromArgb(24, 30, 34)))
+        using (var separatorPen = new Pen(UiTheme.Border))
         {
             e.Graphics.FillRectangle(trackBrush, track);
+            if (gutter.Width > 0 && gutter.Left > 0)
+            {
+                e.Graphics.DrawLine(separatorPen, gutter.Left, gutter.Top, gutter.Left, gutter.Bottom);
+            }
         }
 
         Rectangle thumb = GetThumbBounds();
         if (thumb.Width > 0 && thumb.Height > 0)
         {
-            using var thumbBrush = new SolidBrush(UiTheme.SurfaceRaised);
+            Color thumbColor = draggingThumb ? UiTheme.AccentDown : UiTheme.SurfaceRaised;
+            using var thumbBrush = new SolidBrush(thumbColor);
             e.Graphics.FillRectangle(thumbBrush, thumb);
         }
     }
@@ -164,6 +181,9 @@ internal sealed class ThemedScrollPanel : Panel
         TextBoxWheelRouter? textBoxWheelRouter = control is TextBox textBox && ShouldRouteTextBoxMouseWheel(textBox)
             ? new TextBoxWheelRouter(this, textBox)
             : null;
+        ListBoxWheelRouter? listBoxWheelRouter = textBoxWheelRouter is null && control is ListBox listBox
+            ? new ListBoxWheelRouter(this, listBox)
+            : null;
         ControlEventHandler controlAdded = (_, e) =>
         {
             if (e.Control is not null)
@@ -185,13 +205,14 @@ internal sealed class ThemedScrollPanel : Panel
 
         attachedContentHandlers[control] = new AttachedContentHandlers(
             sizeChanged,
-            textBoxWheelRouter is null ? mouseWheel : null,
+            textBoxWheelRouter is null && listBoxWheelRouter is null ? mouseWheel : null,
             controlAdded,
             controlRemoved,
-            textBoxWheelRouter);
+            textBoxWheelRouter,
+            listBoxWheelRouter);
 
         control.SizeChanged += sizeChanged;
-        if (textBoxWheelRouter is null)
+        if (textBoxWheelRouter is null && listBoxWheelRouter is null)
         {
             control.MouseWheel += mouseWheel;
         }
@@ -226,6 +247,7 @@ internal sealed class ThemedScrollPanel : Panel
         control.ControlAdded -= handlers.ControlAdded;
         control.ControlRemoved -= handlers.ControlRemoved;
         handlers.TextBoxWheelRouter?.Dispose();
+        handlers.ListBoxWheelRouter?.Dispose();
     }
 
     private void ScrollBy(int delta)
@@ -266,7 +288,7 @@ internal sealed class ThemedScrollPanel : Panel
         }
 
         Control content = Controls[0];
-        int availableWidth = Math.Max(0, ClientSize.Width - Padding.Horizontal - ScrollBarWidth - 10);
+        int availableWidth = Math.Max(0, ClientSize.Width - Padding.Left - Padding.Right - ScrollBarGutterWidth);
         Size preferredSize = content.GetPreferredSize(new Size(availableWidth, 0));
         int preferredHeight = Math.Max(0, preferredSize.Height);
         if (content.Width != availableWidth || content.Height != preferredHeight)
@@ -303,12 +325,23 @@ internal sealed class ThemedScrollPanel : Panel
         return Math.Max(0, content.Height - visibleHeight);
     }
 
-    private Rectangle GetTrackBounds()
+    private Rectangle GetGutterBounds()
     {
         return new Rectangle(
-            ClientSize.Width - Padding.Right - ScrollBarWidth,
+            Math.Max(0, ClientSize.Width - ScrollBarGutterWidth),
+            0,
+            Math.Min(ScrollBarGutterWidth, ClientSize.Width),
+            ClientSize.Height);
+    }
+
+    private Rectangle GetTrackBounds()
+    {
+        Rectangle gutter = GetGutterBounds();
+        int width = Math.Min(ScrollBarTrackWidth, gutter.Width);
+        return new Rectangle(
+            gutter.Left + Math.Max(0, (gutter.Width - width) / 2),
             Padding.Top,
-            ScrollBarWidth,
+            width,
             Math.Max(0, ClientSize.Height - Padding.Vertical));
     }
 
@@ -367,10 +400,17 @@ internal sealed class ThemedScrollPanel : Panel
         }
     }
 
+    private void RouteListBoxMouseWheel(ListBox listBox, int delta)
+    {
+        if (!TryScrollListBox(listBox, delta))
+        {
+            ScrollBy(delta);
+        }
+    }
+
     private static bool ShouldRouteTextBoxMouseWheel(TextBox textBox)
     {
-        return textBox.Multiline &&
-            (textBox.ScrollBars == ScrollBars.Vertical || textBox.ScrollBars == ScrollBars.Both);
+        return textBox.Multiline;
     }
 
     private static bool TryScrollTextBox(TextBox textBox, int delta)
@@ -419,12 +459,47 @@ internal sealed class ThemedScrollPanel : Panel
         return newFirstVisibleLine != firstVisibleLine;
     }
 
+    private static bool TryScrollListBox(ListBox listBox, int delta)
+    {
+        if (delta == 0 || listBox.Items.Count == 0 || listBox.ItemHeight <= 0)
+        {
+            return false;
+        }
+
+        int visibleItemCount = Math.Max(1, listBox.ClientSize.Height / listBox.ItemHeight);
+        int maxTopIndex = Math.Max(0, listBox.Items.Count - visibleItemCount);
+        if (maxTopIndex <= 0)
+        {
+            return false;
+        }
+
+        int currentTopIndex = Math.Clamp(listBox.TopIndex, 0, maxTopIndex);
+        int wheelLines = SystemInformation.MouseWheelScrollLines;
+        int lineStep = wheelLines <= 0 || wheelLines >= int.MaxValue
+            ? visibleItemCount
+            : wheelLines;
+        int wheelNotches = Math.Max(1, Math.Abs(delta) / WheelDelta);
+        int signedStep = Math.Max(1, lineStep * wheelNotches);
+        int nextTopIndex = delta > 0
+            ? currentTopIndex - signedStep
+            : currentTopIndex + signedStep;
+        nextTopIndex = Math.Clamp(nextTopIndex, 0, maxTopIndex);
+        if (nextTopIndex == currentTopIndex)
+        {
+            return false;
+        }
+
+        listBox.TopIndex = nextTopIndex;
+        return listBox.TopIndex != currentTopIndex;
+    }
+
     private sealed record AttachedContentHandlers(
         EventHandler SizeChanged,
         MouseEventHandler? MouseWheel,
         ControlEventHandler ControlAdded,
         ControlEventHandler ControlRemoved,
-        TextBoxWheelRouter? TextBoxWheelRouter);
+        TextBoxWheelRouter? TextBoxWheelRouter,
+        ListBoxWheelRouter? ListBoxWheelRouter);
 
     private sealed class TextBoxWheelRouter : NativeWindow, IDisposable
     {
@@ -465,6 +540,53 @@ internal sealed class ThemedScrollPanel : Panel
         private void HandleCreated(object? sender, EventArgs e)
         {
             AssignHandle(textBox.Handle);
+        }
+
+        private void HandleDestroyed(object? sender, EventArgs e)
+        {
+            ReleaseHandle();
+        }
+    }
+
+    private sealed class ListBoxWheelRouter : NativeWindow, IDisposable
+    {
+        private readonly ThemedScrollPanel owner;
+        private readonly ListBox listBox;
+
+        public ListBoxWheelRouter(ThemedScrollPanel owner, ListBox listBox)
+        {
+            this.owner = owner;
+            this.listBox = listBox;
+            listBox.HandleCreated += HandleCreated;
+            listBox.HandleDestroyed += HandleDestroyed;
+            if (listBox.IsHandleCreated)
+            {
+                AssignHandle(listBox.Handle);
+            }
+        }
+
+        public void Dispose()
+        {
+            listBox.HandleCreated -= HandleCreated;
+            listBox.HandleDestroyed -= HandleDestroyed;
+            ReleaseHandle();
+        }
+
+        protected override void WndProc(ref Message m)
+        {
+            if (m.Msg == WmMouseWheel)
+            {
+                int delta = (short)((m.WParam.ToInt64() >> 16) & 0xffff);
+                owner.RouteListBoxMouseWheel(listBox, delta);
+                return;
+            }
+
+            base.WndProc(ref m);
+        }
+
+        private void HandleCreated(object? sender, EventArgs e)
+        {
+            AssignHandle(listBox.Handle);
         }
 
         private void HandleDestroyed(object? sender, EventArgs e)

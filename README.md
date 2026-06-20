@@ -93,9 +93,9 @@ TerrariaSplit 也考虑了不同显示设备上的可用性：
 
 ## 配置文件
 
-TerrariaSplit 使用程序目录下的 `settings/` 文件夹保存配置。
+TerrariaSplit 使用程序目录下的 `Settings/` 文件夹保存配置。
 
-首次运行时，如果 `settings/` 下没有有效配置，程序会从内置模板生成默认配置。
+首次运行时，如果 `Settings/` 下没有有效配置，程序会从内置模板生成默认配置。
 
 
 ## 注意事项

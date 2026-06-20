@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk"
+         TreatAsLocalProperty="RuntimeIdentifier;PlatformTarget;SelfContained;PublishSelfContained;PublishSingleFile;IncludeNativeLibrariesForSelfExtract">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RuntimeIdentifier>win-x86</RuntimeIdentifier>
+    <PlatformTarget>x86</PlatformTarget>
+    <SelfContained Condition="'$(SelfContained)' == ''">false</SelfContained>
+    <PublishSelfContained Condition="'$(PublishSelfContained)' == ''">$(SelfContained)</PublishSelfContained>
+    <PublishSingleFile Condition="'$(PublishSingleFile)' == ''">false</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract Condition="'$(IncludeNativeLibrariesForSelfExtract)' == ''">false</IncludeNativeLibrariesForSelfExtract>
+    <PublishTrimmed Condition="'$(PublishTrimmed)' == ''">false</PublishTrimmed>
+    <IsPackable>false</IsPackable>
+    <DefaultItemExcludes>$(DefaultItemExcludes);bin\**;obj\**;.build-check\**;.check\**;.verify\**;.codex-build-check\**;.codex-memory-probe\**;.codex-verify\**;.codex-build\**;.codex_bin\**;.codex_obj\**</DefaultItemExcludes>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Diagnostics.Runtime" Version="3.1.512801" />
+  </ItemGroup>
+
+</Project>

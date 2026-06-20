@@ -24,6 +24,7 @@ internal sealed partial class MainForm : Form
             timerPhase,
             elapsed,
             layout,
+            Math.Max(GetCurrentLayoutRowCount(), SplitCompletionAnimationRenderer.ReservedRowCount),
             mouseClickThrough,
             overlayAnimations.SplitCompletionAnimation,
             overlayAnimations.SegmentBestDeltaHighlights,
@@ -94,13 +95,13 @@ internal sealed partial class MainForm : Form
 
         void AddRow(int row)
         {
-            if (row < 0 || row >= splitStatuses.Count)
+            if (!SplitDisplayRows.TryGetRowIndex(settings, splitStatuses, row, out int visualRow))
             {
                 return;
             }
 
             Rectangle rect = Rectangle.Inflate(
-                compositeLayout.ToStatusLocal(layout.GetRowRect(row)),
+                compositeLayout.ToStatusLocal(layout.GetRowRect(visualRow)),
                 bleed,
                 bleed);
             region = region is Rectangle existing ? Rectangle.Union(existing, rect) : rect;
@@ -151,12 +152,12 @@ internal sealed partial class MainForm : Form
             : null;
         Point compositePoint = compositeLayout?.MapStatusPointToComposite(point) ?? point;
 
-        for (int i = 0; i < statuses.Count; i++)
+        foreach (SplitDisplayRow row in SplitDisplayRows.Build(settings, statuses))
         {
-            Rectangle currentRowRect = layout.GetRowRect(i);
+            Rectangle currentRowRect = layout.GetRowRect(row.RowIndex);
             if (currentRowRect.Contains(compositePoint))
             {
-                rowIndex = i;
+                rowIndex = row.StatusIndex;
                 rowRect = compositeLayout?.ToStatusLocal(currentRowRect) ?? currentRowRect;
                 return true;
             }
@@ -241,7 +242,7 @@ internal sealed partial class MainForm : Form
 
         if (!SplitLayoutCalculator.TryCreate(
                 ClientRectangle,
-                splitStatuses.Count,
+                GetCurrentLayoutRowCount(),
                 RowGap,
                 value => OverlayRenderContext.ScaleInt(settings, value),
                 out layout))
@@ -257,14 +258,35 @@ internal sealed partial class MainForm : Form
         return OverlayRenderContext.ScaleInt(settings, value);
     }
 
+    private int GetCurrentLayoutRowCount()
+    {
+        return SplitDisplayRows.GetRequiredRowCount(settings, splitStatuses);
+    }
+
+    private int GetCurrentReservedLayoutRowCount()
+    {
+        return SplitDisplayRows.GetReservedRowCount(settings, splitStatuses);
+    }
+
+    private static int GetLayoutRowCount(AppSettings settings)
+    {
+        SplitStatusSnapshot[] statuses = SplitCatalog.Build(settings)
+            .Select(SplitStatusSnapshot.FromDefinition)
+            .ToArray();
+        return SplitDisplayRows.GetReservedRowCount(settings, statuses);
+    }
+
     private void StartSplitCompletionAnimation(int completedIndex)
     {
         overlayAnimations.StartSplitCompletionAnimation(settings, splitStatuses, completedIndex);
+        UpdateStatusPaintSchedulerState();
+        QueueStatusOverlayRender();
     }
 
     private void TrackSegmentBestDeltaHighlight(int completedIndex)
     {
         overlayAnimations.TrackSegmentBestDeltaHighlight(settings, splitStatuses, completedIndex);
+        QueueStatusOverlayRender();
     }
 
 }

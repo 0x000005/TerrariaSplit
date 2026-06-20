@@ -6,18 +6,18 @@ namespace TerrariaSplit;
 internal sealed class AdvancedSettingsPage : SettingsPageBase
 {
     private readonly CheckBox enableTerrariaUiScalePatchBox = new();
-    private readonly ComboBox readyWatcherPollHzBox = new();
-    private readonly ComboBox readyUiControlHzBox = new();
-    private readonly ComboBox runningStatusPaintHzBox = new();
-    private readonly ComboBox timerOverlayRefreshHzBox = new();
+    private readonly ThemedDropDownList readyWatcherPollHzBox = new();
+    private readonly ThemedDropDownList readyUiControlHzBox = new();
+    private readonly ThemedDropDownList runningStatusPaintHzBox = new();
+    private readonly ThemedDropDownList timerOverlayRefreshHzBox = new();
 
     public override SettingsPageId Id => SettingsPageId.Advanced;
 
     internal CheckBox EnableTerrariaUiScalePatchBox => enableTerrariaUiScalePatchBox;
-    internal ComboBox ReadyWatcherPollHzBox => readyWatcherPollHzBox;
-    internal ComboBox ReadyUiControlHzBox => readyUiControlHzBox;
-    internal ComboBox RunningStatusPaintHzBox => runningStatusPaintHzBox;
-    internal ComboBox TimerOverlayRefreshHzBox => timerOverlayRefreshHzBox;
+    internal ThemedDropDownList ReadyWatcherPollHzBox => readyWatcherPollHzBox;
+    internal ThemedDropDownList ReadyUiControlHzBox => readyUiControlHzBox;
+    internal ThemedDropDownList RunningStatusPaintHzBox => runningStatusPaintHzBox;
+    internal ThemedDropDownList TimerOverlayRefreshHzBox => timerOverlayRefreshHzBox;
 
     protected override Control BuildPage(SettingsPageContext context)
     {
@@ -104,7 +104,7 @@ internal sealed class AdvancedSettingsPage : SettingsPageBase
         UiTheme.StyleCheckBox(checkBox);
     }
 
-    private static void ConfigureFrequencyBox(ComboBox comboBox, IReadOnlyList<int> options, int selected)
+    private static void ConfigureFrequencyBox(ThemedDropDownList comboBox, IReadOnlyList<int> options, int selected)
     {
         comboBox.Items.Clear();
         foreach (int hz in options)
@@ -121,11 +121,9 @@ internal sealed class AdvancedSettingsPage : SettingsPageBase
         }
 
         comboBox.Dock = DockStyle.Fill;
-        comboBox.DropDownStyle = ComboBoxStyle.DropDownList;
-        UiTheme.StyleComboBox(comboBox);
     }
 
-    private static int GetSelectedFrequency(ComboBox comboBox, int fallback)
+    private static int GetSelectedFrequency(ThemedDropDownList comboBox, int fallback)
     {
         return comboBox.SelectedItem is FrequencyOption option ? option.Hz : fallback;
     }

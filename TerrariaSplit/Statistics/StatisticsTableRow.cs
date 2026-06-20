@@ -1,7 +1,7 @@
 namespace TerrariaSplit;
 
 internal sealed record StatisticsTableRow(
-    BossUnitDefinition Unit,
+    SplitConditionDataRow ConditionRow,
     string ReferenceTimeText,
     string PersonalTimeText,
     string ReferenceSegmentText,
@@ -9,4 +9,7 @@ internal sealed record StatisticsTableRow(
     string PersonalBestText,
     string PersonalBestSegmentText,
     int GroupRowCount,
-    int GroupOffset);
+    int GroupOffset)
+{
+    public string DisplayName => ConditionRow.DisplayName;
+}

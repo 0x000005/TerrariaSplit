@@ -1,19 +1,34 @@
 namespace TerrariaSplit;
 
 internal sealed record SplitStatusSnapshot(
-    BossSplitDefinition Definition,
+    SplitDefinition Definition,
     TimeSpan? Time,
-    bool IsSkipped)
+    bool IsSkipped,
+    IReadOnlyList<string> CompletedFactKeys,
+    IReadOnlyDictionary<string, TimeSpan>? FactCompletionTimes = null)
 {
     public bool IsCompleted => Time.HasValue;
 
-    public static SplitStatusSnapshot FromStatus(BossSplitStatus status)
+    public bool TryGetFactCompletionTime(string factKey, out TimeSpan time)
     {
-        return new SplitStatusSnapshot(status.Definition, status.Time, status.IsSkipped);
+        time = TimeSpan.Zero;
+        return !string.IsNullOrWhiteSpace(factKey) &&
+            FactCompletionTimes is not null &&
+            FactCompletionTimes.TryGetValue(factKey, out time);
     }
 
-    public static SplitStatusSnapshot FromDefinition(BossSplitDefinition definition)
+    public static SplitStatusSnapshot FromStatus(SplitStatus status)
     {
-        return new SplitStatusSnapshot(definition, null, IsSkipped: false);
+        return new SplitStatusSnapshot(
+            status.Definition,
+            status.Time,
+            status.IsSkipped,
+            status.CompletedFactKeys.ToArray(),
+            new Dictionary<string, TimeSpan>(status.FactCompletionTimes, StringComparer.OrdinalIgnoreCase));
+    }
+
+    public static SplitStatusSnapshot FromDefinition(SplitDefinition definition)
+    {
+        return new SplitStatusSnapshot(definition, null, IsSkipped: false, CompletedFactKeys: []);
     }
 }

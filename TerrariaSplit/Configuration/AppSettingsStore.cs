@@ -6,7 +6,7 @@ internal static class AppSettingsStore
     private const string ActiveSettingsFileName = "active-profile.txt";
     private static string activeSettingsPath = Path.Combine(SettingsDirectory, DefaultSettingsFileName);
 
-    public static string SettingsDirectory => Path.Combine(AppContext.BaseDirectory, "settings");
+    public static string SettingsDirectory => RuntimeDataPaths.SettingsDirectory;
 
     private static string DefaultSettingsTemplatePath => AppSettingsDefaults.TemplatePath;
 

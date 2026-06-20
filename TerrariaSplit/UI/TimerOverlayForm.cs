@@ -9,7 +9,7 @@ internal sealed class TimerOverlayForm : Form
 {
     private static readonly TimeSpan DefaultRefreshInterval = TimeSpan.FromMilliseconds(16);
     private static readonly TerrariaWatchSnapshot UnknownSnapshot =
-        new(false, null, false, null, TerrariaBossStates.Unknown, TerrariaWorldGenerationState.Unknown, false, string.Empty);
+        new(false, null, false, null, TerrariaGameFacts.Unknown, TerrariaWorldGenerationState.Unknown, false, string.Empty);
     private static readonly Dictionary<int, SegmentBestDeltaHighlight> EmptySegmentBestDeltaHighlights = new();
     private const string MainTimerWindowTitle = "TerrariaSplit - Main Timer";
     private const int ResizeBorder = 8;
@@ -481,6 +481,7 @@ internal sealed class TimerOverlayForm : Form
                 currentState.TimerState.Phase,
                 timerElapsed,
                 layout.Layout,
+                1,
                 currentState.MouseClickThrough,
                 null,
                 EmptySegmentBestDeltaHighlights,

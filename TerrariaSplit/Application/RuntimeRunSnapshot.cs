@@ -30,7 +30,7 @@ internal sealed record RuntimeRunSnapshot(
 
     public static RuntimeRunSnapshot FromState(
         SplitTimerState timerState,
-        BossSplitTracker tracker,
+        SplitTracker tracker,
         long observedTimestamp)
     {
         SplitStatusSnapshot[] statusCopies = tracker.Statuses
@@ -51,6 +51,16 @@ internal sealed record RuntimeRunSnapshot(
         {
             hash.Add(status.Time);
             hash.Add(status.IsSkipped);
+            foreach (string factKey in status.CompletedFactKeys)
+            {
+                hash.Add(factKey, StringComparer.OrdinalIgnoreCase);
+            }
+
+            foreach ((string factKey, TimeSpan time) in status.FactCompletionTimes ?? new Dictionary<string, TimeSpan>())
+            {
+                hash.Add(factKey, StringComparer.OrdinalIgnoreCase);
+                hash.Add(time);
+            }
         }
 
         return hash.ToHashCode();
@@ -77,7 +87,7 @@ internal sealed record RuntimeCommand
 
     public RuntimeCommandKind Kind { get; }
 
-    public IReadOnlyList<BossSplitDefinition> Definitions { get; private init; } = [];
+    public IReadOnlyList<SplitDefinition> Definitions { get; private init; } = [];
 
     public MenuActionKind MenuAction { get; private init; }
 
@@ -87,7 +97,7 @@ internal sealed record RuntimeCommand
 
     public TimeSpan? Time { get; private init; }
 
-    public static RuntimeCommand SetDefinitions(IReadOnlyList<BossSplitDefinition> definitions)
+    public static RuntimeCommand SetDefinitions(IReadOnlyList<SplitDefinition> definitions)
     {
         return new RuntimeCommand(RuntimeCommandKind.SetDefinitions)
         {

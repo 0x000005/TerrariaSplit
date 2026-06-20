@@ -44,7 +44,7 @@ internal sealed class SettingsDialogService
         {
             CheckFileExists = true,
             Filter = "Images|*.png;*.jpg;*.jpeg;*.bmp;*.gif|All files|*.*",
-            Title = localize("Choose BOSS Icon")
+            Title = localize("Choose icon")
         };
 
         if (dialog.ShowDialog(owner) != DialogResult.OK)

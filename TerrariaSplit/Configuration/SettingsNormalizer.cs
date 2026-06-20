@@ -5,8 +5,7 @@ internal static class SettingsNormalizer
     public static void Normalize(AppSettings settings)
     {
         AppSettings defaults = AppSettingsDefaults.Create();
-        settings.Route ??= new List<BossRouteEntry>();
-        settings.BossIconPaths ??= new Dictionary<string, string>();
+        settings.SplitRoute ??= new List<SplitRouteEntry>();
         settings.ReferenceSplitSets ??= new List<ReferenceSplitSet>();
         settings.PersonalBestTimeSets ??= new List<ReferenceSplitSet>();
         settings.PersonalBestSegmentSets ??= new List<ReferenceSplitSet>();
@@ -39,21 +38,32 @@ internal static class SettingsNormalizer
         NormalizeRoute(settings);
         NormalizeColumnSettings(settings.Columns, defaults.Columns);
         NormalizeTextEffects(settings.TextEffects);
-        RemoveUnknownBossUnitKeys(settings);
 
-        foreach (BossUnitDefinition unit in BossSplitDefinitions.Units)
+        IReadOnlyList<SplitConditionDataRow> conditionRows = SplitConditionDataRows.Build(settings);
+        HashSet<string> conditionRowKeys = conditionRows
+            .Select(row => row.Key)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        RemoveUnknownCumulativeKeys(settings, conditionRowKeys);
+
+        foreach (string key in conditionRowKeys)
         {
-            settings.BossIconPaths.TryAdd(unit.Id, string.Empty);
-            settings.PersonalBestTimes.TryAdd(unit.Id, string.Empty);
+            settings.PersonalBestTimes.TryAdd(key, string.Empty);
         }
 
-        foreach (RouteGroup group in BossRouteGroups.Build(settings))
+        foreach (RouteGroup group in SplitRouteGroups.Build(settings))
         {
             settings.PersonalBestSegmentTimes.TryAdd(group.Key, string.Empty);
             settings.SplitCompletionSplitComparisons.TryAdd(group.Key, true);
             settings.SplitCompletionSegmentComparisons.TryAdd(group.Key, true);
-            settings.SplitCompletionOutlineSplitStyles[group.Key] = GetNormalizedOutlineStyle(settings.SplitCompletionOutlineSplitStyles, group.Key);
-            settings.SplitCompletionOutlineSegmentStyles[group.Key] = GetNormalizedOutlineStyle(settings.SplitCompletionOutlineSegmentStyles, group.Key);
+            settings.SplitCompletionOutlineSplitStyles[group.Key] = GetNormalizedOutlineStyle(
+                settings.SplitCompletionOutlineSplitStyles,
+                group.Key,
+                SplitCompletionOutlineStyles.Rainbow);
+            settings.SplitCompletionOutlineSegmentStyles[group.Key] = GetNormalizedOutlineStyle(
+                settings.SplitCompletionOutlineSegmentStyles,
+                group.Key,
+                SplitCompletionOutlineStyles.Aurora);
             settings.SegmentBestDeltaHighlightStyles[group.Key] = GetNormalizedDeltaHighlightStyle(settings.SegmentBestDeltaHighlightStyles, group.Key);
         }
 
@@ -136,6 +146,12 @@ internal static class SettingsNormalizer
 
     private static void NormalizeColumn(UiColumnSettings column, UiColumnSettings defaults)
     {
+        column.FontFamily = UiFontSettings.NormalizeFamilyName(column.FontFamily);
+        if (string.IsNullOrWhiteSpace(column.FontFamily))
+        {
+            column.FontFamily = defaults.FontFamily;
+        }
+
         if (column.Width <= 0)
         {
             column.Width = defaults.Width;
@@ -178,17 +194,23 @@ internal static class SettingsNormalizer
     {
         if (settings.ReferenceSplitSets.Count == 0)
         {
-            settings.ReferenceSplitSets.Add(AppSettings.CreateReferenceSet("WR"));
+            settings.ReferenceSplitSets.Add(AppSettings.CreateReferenceSet(
+                "WR",
+                keys: SplitConditionDataRows.Build(settings).Select(row => row.Key)));
         }
 
+        HashSet<string> conditionRowKeys = SplitConditionDataRows.Build(settings)
+            .Select(row => row.Key)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach (ReferenceSplitSet set in settings.ReferenceSplitSets)
         {
             set.Name = string.IsNullOrWhiteSpace(set.Name) ? "Reference" : set.Name.Trim();
             set.Splits ??= new Dictionary<string, string>();
+            RemoveKeysExcept(set.Splits, conditionRowKeys);
 
-            foreach (BossUnitDefinition unit in BossSplitDefinitions.Units)
+            foreach (string key in conditionRowKeys)
             {
-                set.Splits.TryAdd(unit.Id, string.Empty);
+                set.Splits.TryAdd(key, string.Empty);
             }
         }
 
@@ -207,7 +229,7 @@ internal static class SettingsNormalizer
         NormalizePersonalSets(
             settings.PersonalBestTimeSets,
             "Personal",
-            validKeys: BossSplitDefinitions.Units.Select(unit => unit.Id),
+            validKeys: SplitConditionDataRows.Build(settings).Select(row => row.Key),
             activeName: settings.ActivePersonalBestTimeSet,
             setActiveName: value => settings.ActivePersonalBestTimeSet = value);
     }
@@ -217,7 +239,7 @@ internal static class SettingsNormalizer
         NormalizePersonalSets(
             settings.PersonalBestSegmentSets,
             "Personal",
-            validKeys: BossRouteGroups.Build(settings).Select(group => group.Key),
+            validKeys: SplitRouteGroups.Build(settings).Select(group => group.Key),
             activeName: settings.ActivePersonalBestSegmentSet,
             setActiveName: value => settings.ActivePersonalBestSegmentSet = value);
     }
@@ -271,55 +293,193 @@ internal static class SettingsNormalizer
 
     private static void NormalizeRoute(AppSettings settings)
     {
-        List<BossRouteEntry> defaults = BossSplitDefinitions.CreateDefaultRoute();
-        if (settings.Route.Count == 0)
+        if (settings.SplitRoute.Count == 0)
         {
-            settings.Route = defaults;
+            settings.SplitRoute = SplitCatalog.CreateDefaultRoute();
             return;
         }
 
-        Dictionary<string, BossRouteEntry> existing = settings.Route
-            .Where(entry => !string.IsNullOrWhiteSpace(entry.BossId))
-            .GroupBy(entry => entry.BossId, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
-
-        var normalized = new List<BossRouteEntry>();
-        foreach (BossRouteEntry defaultEntry in defaults)
+        var normalized = new List<SplitRouteEntry>();
+        HashSet<string> seenIds = new(StringComparer.OrdinalIgnoreCase);
+        foreach (SplitRouteEntry entry in settings.SplitRoute)
         {
-            if (!existing.TryGetValue(defaultEntry.BossId, out BossRouteEntry? entry))
+            if (entry is null)
             {
-                normalized.Add(defaultEntry);
                 continue;
             }
 
-            normalized.Add(new BossRouteEntry
+            if (entry.ExpandDetails)
             {
-                BossId = defaultEntry.BossId,
-                Enabled = entry.Enabled,
-                Segment = Math.Clamp(entry.Segment, 1m, 99m)
-            });
+                settings.ExpandSplitDetails = true;
+                entry.ExpandDetails = false;
+            }
+
+            entry.Condition = NormalizeCondition((entry.Condition ?? SplitCondition.All([])).ToFlatGroup());
+
+            entry.Id = CreateUniqueRouteEntryId(entry, normalized.Count + 1, seenIds);
+            entry.DisplayName = string.IsNullOrWhiteSpace(entry.DisplayName)
+                ? CreateRouteEntryDisplayName(entry, normalized.Count + 1)
+                : entry.DisplayName.Trim();
+            List<string> inferredTargetIds = SplitCatalog.InferTargetIds(entry.Condition)
+                .Where(targetId => SplitCatalog.TryGetTarget(targetId, out _))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            entry.IconTargetIds = inferredTargetIds;
+            NormalizeIconOverride(entry, inferredTargetIds);
+            normalized.Add(entry);
         }
 
-        settings.Route = normalized;
+        if (normalized.Count == 0)
+        {
+            normalized = SplitCatalog.CreateDefaultRoute();
+        }
+
+        bool hasFollowingEnabledAnchor = false;
+        for (int i = normalized.Count - 1; i >= 0; i--)
+        {
+            SplitRouteEntry entry = normalized[i];
+            if (!entry.Enabled)
+            {
+                continue;
+            }
+
+            if (entry.IsAttached && !hasFollowingEnabledAnchor)
+            {
+                entry.IsAttached = false;
+            }
+
+            if (!entry.IsAttached)
+            {
+                hasFollowingEnabledAnchor = true;
+            }
+        }
+
+        settings.SplitRoute = normalized;
     }
 
-    private static void RemoveUnknownBossUnitKeys(AppSettings settings)
+    private static void NormalizeIconOverride(SplitRouteEntry entry, IReadOnlyCollection<string> conditionTargetIds)
     {
-        HashSet<string> validBossIds = BossSplitDefinitions.Units
-            .Select(unit => unit.Id)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        RemoveKeysExcept(settings.BossIconPaths, validBossIds);
-        RemoveKeysExcept(settings.PersonalBestTimes, validBossIds);
+        entry.IconOverride ??= new SplitIconOverride();
+        entry.IconOverride.Source = SplitIconOverrideSource.Normalize(entry.IconOverride.Source);
+        entry.IconOverride.TargetId = entry.IconOverride.TargetId?.Trim() ?? string.Empty;
+        entry.IconOverride.FilePath = entry.IconOverride.FilePath?.Trim() ?? string.Empty;
+
+        if (entry.IconOverride.Source == SplitIconOverrideSource.Target)
+        {
+            if (!conditionTargetIds.Contains(entry.IconOverride.TargetId, StringComparer.OrdinalIgnoreCase))
+            {
+                ClearIconOverride(entry.IconOverride);
+                return;
+            }
+
+            entry.IconOverride.FilePath = string.Empty;
+            return;
+        }
+
+        if (entry.IconOverride.Source == SplitIconOverrideSource.CustomFile)
+        {
+            entry.IconOverride.TargetId = string.Empty;
+            if (string.IsNullOrWhiteSpace(entry.IconOverride.FilePath))
+            {
+                ClearIconOverride(entry.IconOverride);
+            }
+
+            return;
+        }
+
+        ClearIconOverride(entry.IconOverride);
+    }
+
+    private static void ClearIconOverride(SplitIconOverride iconOverride)
+    {
+        iconOverride.Source = SplitIconOverrideSource.All;
+        iconOverride.TargetId = string.Empty;
+        iconOverride.FilePath = string.Empty;
+    }
+
+    private static string CreateUniqueRouteEntryId(SplitRouteEntry entry, int index, HashSet<string> seenIds)
+    {
+        string baseId = string.IsNullOrWhiteSpace(entry.Id)
+            ? CreateRouteEntryId(entry, index)
+            : entry.Id.Trim();
+        if (string.IsNullOrWhiteSpace(baseId))
+        {
+            baseId = $"split:custom-{index}";
+        }
+
+        string id = baseId;
+        int suffix = index;
+        while (!seenIds.Add(id))
+        {
+            id = $"{baseId}-{suffix}";
+            suffix++;
+        }
+
+        return id;
+    }
+
+    private static string CreateRouteEntryId(SplitRouteEntry entry, int index)
+    {
+        string factKey = entry.Condition.GetFactKeys().FirstOrDefault() ?? string.Empty;
+        string suffix = string.IsNullOrWhiteSpace(factKey)
+            ? $"custom-{index}"
+            : new string(factKey
+                .Select(ch => char.IsLetterOrDigit(ch) ? char.ToLowerInvariant(ch) : '-')
+                .ToArray()).Trim('-');
+        return string.IsNullOrWhiteSpace(suffix) ? $"split:custom-{index}" : $"split:{suffix}";
+    }
+
+    private static string CreateRouteEntryDisplayName(SplitRouteEntry entry, int index)
+    {
+        List<string> targetNames = entry.Condition
+            .GetFactKeys()
+            .Select(factKey => SplitCatalog.TryGetTargetByFactKey(factKey, out SplitTargetDefinition target)
+                ? target.DisplayName
+                : string.Empty)
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return targetNames.Count switch
+        {
+            1 => targetNames[0],
+            > 1 => string.Join(" + ", targetNames),
+            _ => $"Split {index}"
+        };
+    }
+
+    private static SplitCondition NormalizeCondition(SplitCondition condition)
+    {
+        SplitCondition flat = condition.ToFlatGroup();
+        var facts = new List<SplitCondition>();
+        foreach (SplitCondition fact in flat.GetFactConditions())
+        {
+            fact.Normalize();
+            if (SplitCatalog.TryParseItemOwnedCountFactKey(fact.FactKey, out int itemId))
+            {
+                fact.FactKey = SplitCatalog.CreateItemEverOwnedFactKey(itemId);
+            }
+
+            facts.Add(fact);
+        }
+
+        int requiredCount = Math.Clamp(flat.GetRequiredCount(), 1, Math.Max(1, facts.Count));
+        return SplitCondition.AtLeast(facts, requiredCount);
+    }
+
+    private static void RemoveUnknownCumulativeKeys(AppSettings settings, HashSet<string> conditionRowKeys)
+    {
+        RemoveKeysExcept(settings.PersonalBestTimes, conditionRowKeys);
 
         foreach (ReferenceSplitSet set in settings.ReferenceSplitSets)
         {
-            RemoveKeysExcept(set.Splits, validBossIds);
+            RemoveKeysExcept(set.Splits, conditionRowKeys);
         }
     }
 
     private static void RemoveUnknownRouteGroupKeys(AppSettings settings)
     {
-        HashSet<string> validGroupKeys = BossRouteGroups.Build(settings)
+        HashSet<string> validGroupKeys = SplitRouteGroups.Build(settings)
             .Select(group => group.Key)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         RemoveKeysExcept(settings.PersonalBestSegmentTimes, validGroupKeys);
@@ -337,11 +497,11 @@ internal static class SettingsNormalizer
             : SegmentBestDeltaHighlightStyles.Aurora;
     }
 
-    private static string GetNormalizedOutlineStyle(Dictionary<string, string> styles, string key)
+    private static string GetNormalizedOutlineStyle(Dictionary<string, string> styles, string key, string defaultStyle)
     {
         return styles.TryGetValue(key, out string? existing)
             ? SplitCompletionOutlineStyles.Normalize(existing)
-            : SplitCompletionOutlineStyles.Rainbow;
+            : defaultStyle;
     }
 
     private static void RemoveKeysExcept<TValue>(Dictionary<string, TValue> values, HashSet<string> allowedKeys)

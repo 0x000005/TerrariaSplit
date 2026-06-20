@@ -4,7 +4,7 @@ internal static class SplitSoundSelector
 {
     public static string GetPath(
         UiSoundSettings sounds,
-        BossSplitDefinition definition,
+        SplitDefinition definition,
         TimeSpan splitTime,
         TimeSpan? referenceSplit,
         TimeSpan? segmentTime,
@@ -24,11 +24,11 @@ internal static class SplitSoundSelector
 
     public static string GetPath(
         UiSoundSettings sounds,
-        BossSplitDefinition definition,
+        SplitDefinition definition,
         bool cumulativeFasterThanReference,
         bool segmentFasterThanPersonalBest)
     {
-        if (BossSplitDefinitions.IsMoonLordSplit(definition))
+        if (SplitCatalog.IsMoonLordSplit(definition))
         {
             string moonLordPath = (cumulativeFasterThanReference, segmentFasterThanPersonalBest) switch
             {

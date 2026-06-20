@@ -12,7 +12,7 @@ internal static class RunStatsStore
 
     public static void RecordRun(IReadOnlyList<SplitStatusSnapshot> statuses)
     {
-        if (!HasCompletedSkeletron(statuses))
+        if (!statuses.Any(status => status.Time is not null))
         {
             return;
         }
@@ -29,22 +29,9 @@ internal static class RunStatsStore
             }
 
             lastCompleted = status;
-            foreach (string bossId in status.Definition.BossIds)
-            {
-                stats.LastRunSplits[bossId] = TimeText.FormatRecord(splitTime);
-            }
+            stats.LastRunSplits[status.Definition.Id] = TimeText.FormatRecord(splitTime);
         }
 
         SplitTimeSetStore.SaveLastRun(stats.LastRunSplits, lastCompleted?.Definition.DisplayName, lastCompleted?.Time);
-    }
-
-    private static bool HasCompletedSkeletron(IReadOnlyList<SplitStatusSnapshot> statuses)
-    {
-        return statuses.Any(status =>
-            status.Time is not null &&
-            status.Definition.BossIds.Any(bossId => string.Equals(
-                bossId,
-                BossSplitDefinitions.Skeletron,
-                StringComparison.OrdinalIgnoreCase)));
     }
 }

@@ -14,11 +14,11 @@ internal static class SoundFeedbackService
             return string.Empty;
         }
 
-        BossSplitDefinition definition = statuses[completedIndex].Definition;
+        SplitDefinition definition = statuses[completedIndex].Definition;
         TimeSpan? referenceSplit = settings.TryGetReferenceSplit(definition, out TimeSpan configuredReferenceSplit)
             ? configuredReferenceSplit
             : null;
-        TimeSpan? segmentTime = SplitRenderData.TryGetCompletedSegmentTime(statuses, completedIndex, out TimeSpan completedSegmentTime)
+        TimeSpan? segmentTime = SplitRenderData.TryGetCompletedSegmentTime(settings, statuses, completedIndex, out TimeSpan completedSegmentTime)
             ? completedSegmentTime
             : null;
         TimeSpan? personalBestSegment = SplitRenderData.TryGetPersonalBestSegment(settings, definition, out TimeSpan configuredPersonalBestSegment)

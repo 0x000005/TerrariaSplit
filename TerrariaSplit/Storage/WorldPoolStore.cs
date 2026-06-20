@@ -7,7 +7,7 @@ namespace TerrariaSplit;
 // Terraria's Worlds folder instead of replaying a seed through the UI.
 internal sealed class WorldPoolStore
 {
-    private static readonly string RootDirectory = Path.Combine(AppContext.BaseDirectory, "world-pool");
+    private static readonly string RootDirectory = RuntimeDataPaths.WorldPoolDirectory;
     private static readonly string FilePath = Path.Combine(RootDirectory, "world-pool.json");
     private static readonly string WorldDirectory = Path.Combine(RootDirectory, "worlds");
 

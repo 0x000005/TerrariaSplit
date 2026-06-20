@@ -12,7 +12,7 @@ internal readonly record struct RuntimeDebugSnapshot(
             null,
             false,
             null,
-            TerrariaBossStates.Unknown,
+            TerrariaGameFacts.Unknown,
             TerrariaWorldGenerationState.Unknown,
             false,
             "waiting for Terraria.exe"),

@@ -8,14 +8,27 @@ internal sealed class RunFinalizer
         bool runStatsRecorded,
         Func<string, bool> confirmPersonalBestUpdates)
     {
-        PendingPersonalBestUpdates updates = BuildPendingPersonalBestUpdates(settings, statuses);
-        if (updates.HasUpdates && settings.AutoUpdatePersonalBestData)
+        Finalize(settings, settings, statuses, runStatsRecorded, confirmPersonalBestUpdates);
+    }
+
+    public void Finalize(
+        AppSettings routeSettings,
+        AppSettings updateTargetSettings,
+        IReadOnlyList<SplitStatusSnapshot> statuses,
+        bool runStatsRecorded,
+        Func<string, bool> confirmPersonalBestUpdates)
+    {
+        PendingPersonalBestUpdates updates = BuildPendingPersonalBestUpdates(
+            routeSettings,
+            updateTargetSettings,
+            statuses);
+        if (updates.HasUpdates && updateTargetSettings.AutoUpdatePersonalBestData)
         {
-            bool shouldUpdate = !settings.AskBeforeUpdatingPersonalBestData ||
-                confirmPersonalBestUpdates(BuildPersonalBestUpdatePromptText(updates, settings));
+            bool shouldUpdate = !updateTargetSettings.AskBeforeUpdatingPersonalBestData ||
+                confirmPersonalBestUpdates(BuildPersonalBestUpdatePromptText(updates, updateTargetSettings));
             if (shouldUpdate)
             {
-                ApplyPendingPersonalBestUpdates(settings, updates);
+                ApplyPendingPersonalBestUpdates(updateTargetSettings, updates);
             }
         }
 
@@ -63,93 +76,154 @@ internal sealed class RunFinalizer
     }
 
     private static PendingPersonalBestUpdates BuildPendingPersonalBestUpdates(
-        AppSettings settings,
+        AppSettings routeSettings,
+        AppSettings baselineSettings,
         IReadOnlyList<SplitStatusSnapshot> statuses)
     {
         var segmentUpdates = new Dictionary<string, PendingPersonalBestSegmentUpdate>(StringComparer.OrdinalIgnoreCase);
-        for (int i = 0; i < statuses.Count; i++)
-        {
-            AddPendingSegmentBestUpdate(settings, statuses, i, segmentUpdates);
-        }
+        AddPendingSegmentBestUpdates(routeSettings, baselineSettings, statuses, segmentUpdates);
 
-        PendingPersonalBestTimeUpdate? timeUpdate = BuildPendingTimeBestUpdate(settings, statuses);
+        PendingPersonalBestTimeUpdate? timeUpdate = BuildPendingTimeBestUpdate(
+            routeSettings,
+            baselineSettings,
+            statuses);
         return new PendingPersonalBestUpdates(segmentUpdates, timeUpdate);
     }
 
-    private static void AddPendingSegmentBestUpdate(
-        AppSettings settings,
+    private static void AddPendingSegmentBestUpdates(
+        AppSettings routeSettings,
+        AppSettings baselineSettings,
         IReadOnlyList<SplitStatusSnapshot> statuses,
-        int completedIndex,
         Dictionary<string, PendingPersonalBestSegmentUpdate> segmentUpdates)
     {
-        if (completedIndex < 0 ||
-            completedIndex >= statuses.Count ||
-            statuses[completedIndex].Time is not TimeSpan splitTime)
+        Dictionary<string, SplitStatusSnapshot> statusById = statuses
+            .ToDictionary(status => status.Definition.Id, StringComparer.OrdinalIgnoreCase);
+        List<RouteGroup> groups = SplitRouteGroups.Build(routeSettings);
+        if (!TryGetSegmentBestCompletionLimit(groups, statusById, out int lastCompletedGroupIndex))
         {
             return;
         }
 
-        if (completedIndex > 0 && (statuses.Count == 0 || statuses[0].Time is null))
+        TimeSpan previousGroupSplitTime = TimeSpan.Zero;
+        for (int groupIndex = 0; groupIndex <= lastCompletedGroupIndex; groupIndex++)
         {
-            return;
-        }
-
-        TimeSpan previousSplitTime = TimeSpan.Zero;
-        for (int i = completedIndex - 1; i >= 0; i--)
-        {
-            if (statuses[i].Time is TimeSpan previousTime)
+            RouteGroup group = groups[groupIndex];
+            if (!TryGetCompleteGroupSplitTime(group, statusById, out TimeSpan groupSplitTime))
             {
-                previousSplitTime = previousTime;
-                break;
+                continue;
+            }
+
+            TimeSpan segmentTime = groupSplitTime - previousGroupSplitTime;
+            previousGroupSplitTime = groupSplitTime;
+            if (segmentTime < TimeSpan.Zero)
+            {
+                continue;
+            }
+
+            if (baselineSettings.PersonalBestSegmentTimes.TryGetValue(group.Key, out string? existingText) &&
+                TimeText.TryParse(existingText, out TimeSpan existingSegment) &&
+                existingSegment <= segmentTime)
+            {
+                continue;
+            }
+
+            segmentUpdates[group.Key] = new PendingPersonalBestSegmentUpdate(
+                group.Key,
+                SplitRouteGroups.GetGroupDisplayName(group, routeSettings),
+                existingText ?? string.Empty,
+                TimeText.FormatRecord(segmentTime),
+                segmentTime);
+        }
+    }
+
+    private static bool TryGetSegmentBestCompletionLimit(
+        IReadOnlyList<RouteGroup> groups,
+        Dictionary<string, SplitStatusSnapshot> statusById,
+        out int lastCompletedGroupIndex)
+    {
+        lastCompletedGroupIndex = -1;
+        for (int i = 0; i < groups.Count; i++)
+        {
+            if (TryGetCompleteGroupSplitTime(groups[i], statusById, out _))
+            {
+                lastCompletedGroupIndex = i;
             }
         }
 
-        TimeSpan segmentTime = splitTime - previousSplitTime;
-        if (segmentTime < TimeSpan.Zero)
+        if (lastCompletedGroupIndex < 0)
         {
-            return;
+            return false;
         }
 
-        string groupKey = GetSplitCompletionGroupKey(statuses[completedIndex].Definition);
-        if (segmentUpdates.TryGetValue(groupKey, out PendingPersonalBestSegmentUpdate? pendingSegment) &&
-            pendingSegment.NewTime <= segmentTime)
+        for (int i = 0; i <= lastCompletedGroupIndex; i++)
         {
-            return;
+            RouteGroup group = groups[i];
+            foreach (SplitRouteEntry entry in group.Entries)
+            {
+                if (!statusById.TryGetValue(entry.Id, out SplitStatusSnapshot? status) ||
+                    status.IsSkipped ||
+                    status.Time is null)
+                {
+                    return false;
+                }
+            }
         }
 
-        if (settings.PersonalBestSegmentTimes.TryGetValue(groupKey, out string? existingText) &&
-            TimeText.TryParse(existingText, out TimeSpan existingSegment) &&
-            existingSegment <= segmentTime)
+        return true;
+    }
+
+    private static bool TryGetCompleteGroupSplitTime(
+        RouteGroup group,
+        Dictionary<string, SplitStatusSnapshot> statusById,
+        out TimeSpan splitTime)
+    {
+        splitTime = TimeSpan.Zero;
+        bool found = false;
+        foreach (SplitRouteEntry entry in group.Entries)
         {
-            return;
+            if (!statusById.TryGetValue(entry.Id, out SplitStatusSnapshot? status) ||
+                status.Time is not TimeSpan candidate)
+            {
+                return false;
+            }
+
+            if (!found || candidate > splitTime)
+            {
+                splitTime = candidate;
+                found = true;
+            }
         }
 
-        segmentUpdates[groupKey] = new PendingPersonalBestSegmentUpdate(
-            groupKey,
-            statuses[completedIndex].Definition.DisplayName,
-            existingText ?? string.Empty,
-            TimeText.FormatRecord(segmentTime),
-            segmentTime);
+        return found;
     }
 
     private static PendingPersonalBestTimeUpdate? BuildPendingTimeBestUpdate(
-        AppSettings settings,
+        AppSettings routeSettings,
+        AppSettings baselineSettings,
         IReadOnlyList<SplitStatusSnapshot> statuses)
     {
-        if (statuses.Count == 0 || statuses.Any(status => status.Time is null || status.IsSkipped))
+        if (!IsCumulativePersonalBestEligible(statuses))
         {
             return null;
         }
 
         SplitStatusSnapshot? moonLordStatus = statuses.FirstOrDefault(status =>
-            BossSplitDefinitions.IsMoonLordSplit(status.Definition));
+            !status.Definition.IsAttached &&
+            SplitCatalog.IsMoonLordSplit(status.Definition));
         if (moonLordStatus?.Time is not TimeSpan moonLordTime)
         {
             return null;
         }
 
-        if (settings.PersonalBestTimes.TryGetValue(BossSplitDefinitions.MoonLord, out string? existingMoonLordText) &&
-            TimeText.TryParse(existingMoonLordText, out TimeSpan existingMoonLordTime) &&
+        bool hasExistingMoonLordTime = SplitConditionDataRows.TryGetSplitTime(
+            routeSettings,
+            baselineSettings.PersonalBestTimes,
+            moonLordStatus.Definition,
+            out TimeSpan existingMoonLordTime);
+        string existingMoonLordText = hasExistingMoonLordTime
+            ? TimeText.FormatRecord(existingMoonLordTime)
+            : string.Empty;
+        if (hasExistingMoonLordTime &&
             existingMoonLordTime <= moonLordTime)
         {
             return null;
@@ -157,13 +231,35 @@ internal sealed class RunFinalizer
 
         return new PendingPersonalBestTimeUpdate(
             moonLordStatus.Definition.DisplayName,
-            existingMoonLordText ?? string.Empty,
+            existingMoonLordText,
             TimeText.FormatRecord(moonLordTime),
             moonLordTime,
-            BuildCompletedSplitValues(statuses));
+            BuildCompletedSplitValues(routeSettings, statuses));
     }
 
-    private static Dictionary<string, string> BuildCompletedSplitValues(IReadOnlyList<SplitStatusSnapshot> statuses)
+    private static bool IsCumulativePersonalBestEligible(IReadOnlyList<SplitStatusSnapshot> statuses)
+    {
+        bool hasMainSplit = false;
+        foreach (SplitStatusSnapshot status in statuses)
+        {
+            if (status.Definition.IsAttached)
+            {
+                continue;
+            }
+
+            hasMainSplit = true;
+            if (status.IsSkipped || status.Time is null)
+            {
+                return false;
+            }
+        }
+
+        return hasMainSplit;
+    }
+
+    private static Dictionary<string, string> BuildCompletedSplitValues(
+        AppSettings settings,
+        IReadOnlyList<SplitStatusSnapshot> statuses)
     {
         var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (SplitStatusSnapshot status in statuses)
@@ -174,13 +270,52 @@ internal sealed class RunFinalizer
             }
 
             string formatted = TimeText.FormatRecord(splitTime);
-            foreach (string bossId in status.Definition.BossIds)
+            IReadOnlyList<SplitConditionDataRow> rows = SplitConditionDataRows
+                .ForSplit(settings, status.Definition.Id)
+                .ToList();
+
+            if (status.Definition.IsAttached)
             {
-                values[bossId] = formatted;
+                if (TryGetAttachedCompletedSplitRow(status, rows, out SplitConditionDataRow attachedRow))
+                {
+                    values[attachedRow.Key] = formatted;
+                }
+
+                continue;
+            }
+
+            foreach (SplitConditionDataRow row in rows)
+            {
+                if (status.TryGetFactCompletionTime(row.Condition.FactKey, out TimeSpan factTime))
+                {
+                    values[row.Key] = TimeText.FormatRecord(factTime);
+                    continue;
+                }
+
+                if (status.CompletedFactKeys.Count == 0 ||
+                    status.CompletedFactKeys.Contains(row.Condition.FactKey, StringComparer.OrdinalIgnoreCase))
+                {
+                    values[row.Key] = formatted;
+                }
             }
         }
 
         return values;
+    }
+
+    private static bool TryGetAttachedCompletedSplitRow(
+        SplitStatusSnapshot status,
+        IReadOnlyList<SplitConditionDataRow> rows,
+        out SplitConditionDataRow row)
+    {
+        row = default!;
+        if (rows.Count == 0)
+        {
+            return false;
+        }
+
+        row = rows[0];
+        return true;
     }
 
     private static string BuildPersonalBestUpdatePromptText(PendingPersonalBestUpdates updates, AppSettings settings)
@@ -203,11 +338,6 @@ internal sealed class RunFinalizer
     {
         string oldText = string.IsNullOrWhiteSpace(previousTimeText) ? Localizer.Get("None", settings) : previousTimeText;
         return $"{oldText} -> {newTimeText}";
-    }
-
-    private static string GetSplitCompletionGroupKey(BossSplitDefinition definition)
-    {
-        return string.Join("+", definition.BossIds);
     }
 
     private static (string BossName, string PreviousTimeText, string NewTimeText) BuildSnapshotLabel(

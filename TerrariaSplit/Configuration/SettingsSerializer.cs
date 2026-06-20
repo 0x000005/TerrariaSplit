@@ -56,11 +56,10 @@ internal static class SettingsSerializer
             }
 
             JsonElement root = document.RootElement;
-            return root.TryGetProperty(nameof(AppSettings.Route), out _) ||
+            return root.TryGetProperty(nameof(AppSettings.SplitRoute), out _) ||
                 root.TryGetProperty(nameof(AppSettings.Columns), out _) ||
                 root.TryGetProperty(nameof(AppSettings.Colors), out _) ||
                 root.TryGetProperty(nameof(AppSettings.ReferenceSplitSets), out _) ||
-                root.TryGetProperty(nameof(AppSettings.BossIconPaths), out _) ||
                 root.TryGetProperty(nameof(AppSettings.ShowSplitCompletionAnimation), out _);
         }
         catch (Exception ex)

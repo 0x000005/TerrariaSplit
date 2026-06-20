@@ -3,7 +3,7 @@ namespace TerrariaSplit;
 internal enum SettingsPageId
 {
     General,
-    Boss,
+    Splits,
     Data,
     Ui,
     Effects,

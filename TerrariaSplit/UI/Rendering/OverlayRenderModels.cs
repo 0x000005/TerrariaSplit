@@ -11,6 +11,7 @@ internal sealed record OverlayRenderContext(
     SplitTimerPhase TimerPhase,
     TimeSpan TimerElapsed,
     SplitLayout Layout,
+    int VisibleStatusRowCount,
     bool MouseClickThrough,
     SplitCompletionAnimation? SplitCompletionAnimation,
     IReadOnlyDictionary<int, SegmentBestDeltaHighlight> SegmentBestDeltaHighlights,
@@ -67,7 +68,7 @@ internal readonly record struct SplitComparison(TimeSpan? Delta, bool ShowDelta)
 internal readonly record struct SegmentBestDeltaHighlight(string Style, DateTime StartedAtUtc);
 
 internal sealed record SplitCompletionAnimation(
-    BossSplitDefinition Definition,
+    SplitDefinition Definition,
     TimeSpan SegmentTime,
     TimeSpan SplitTime,
     SplitComparison ReferenceSplitComparison,

@@ -7,23 +7,18 @@ internal sealed class BossIconCache : IDisposable
 {
     private readonly Dictionary<string, IconPair> cache = new(StringComparer.OrdinalIgnoreCase);
 
-    public IconPair Load(BossSplitDefinition definition, string fileName, AppSettings settings)
+    public IconPair Load(SplitDefinition definition, string fileName, AppSettings settings)
     {
         string iconKey = GetIconKey(definition, fileName);
-        string customPath = settings.GetBossIconPath(iconKey);
-        string cacheKey = string.IsNullOrWhiteSpace(customPath)
-            ? $"asset:{fileName}"
-            : $"file:{customPath}";
+        string path = ResolveIconPath(fileName, iconKey);
+        string cacheKey = $"icon:{path}";
 
         if (cache.TryGetValue(cacheKey, out IconPair? iconPair))
         {
             return iconPair;
         }
 
-        string path = !string.IsNullOrWhiteSpace(customPath)
-            ? customPath
-            : Path.Combine(AppContext.BaseDirectory, "Assets", "BossIcons", fileName);
-        Bitmap lit = File.Exists(path) ? new Bitmap(path) : CreatePlaceholderIcon();
+        Bitmap lit = File.Exists(path) ? LoadIconBitmap(path, iconKey) : CreatePlaceholderIcon();
         Bitmap undefeated = CreateBossChecklistUndefeatedIcon(
             lit,
             settings.UndefeatedIconGrayscalePercent,
@@ -35,6 +30,40 @@ internal sealed class BossIconCache : IDisposable
         iconPair = new IconPair(lit, undefeated, current);
         cache[cacheKey] = iconPair;
         return iconPair;
+    }
+
+    private static Bitmap LoadIconBitmap(string path, string iconKey)
+    {
+        using var source = new Bitmap(path);
+        return TryCreateItemAnimationFrame(source, iconKey, out Bitmap? frame)
+            ? frame
+            : new Bitmap(source);
+    }
+
+    private static bool TryCreateItemAnimationFrame(Bitmap source, string iconKey, out Bitmap frame)
+    {
+        frame = null!;
+        if (!SplitCatalog.TryParseItemTargetId(iconKey, out int itemId) ||
+            !ItemIconAnimationCatalog.TryGetAnimation(itemId, out ItemIconAnimation animation) ||
+            animation.FrameCount <= 1)
+        {
+            return false;
+        }
+
+        int frameHeight = source.Height / animation.FrameCount;
+        int trimmedFrameHeight = frameHeight - 2;
+        if (frameHeight <= 2 ||
+            trimmedFrameHeight <= 0 ||
+            source.Height < animation.FrameCount ||
+            source.Height % animation.FrameCount != 0)
+        {
+            return false;
+        }
+
+        frame = source.Clone(
+            new Rectangle(0, 0, source.Width, trimmedFrameHeight),
+            PixelFormat.Format32bppArgb);
+        return true;
     }
 
     public void Clear()
@@ -52,7 +81,7 @@ internal sealed class BossIconCache : IDisposable
         Clear();
     }
 
-    private static string GetIconKey(BossSplitDefinition definition, string fileName)
+    private static string GetIconKey(SplitDefinition definition, string fileName)
     {
         int index = definition.IconFileNames
             .Select((value, itemIndex) => new { value, itemIndex })
@@ -60,7 +89,33 @@ internal sealed class BossIconCache : IDisposable
             ?.itemIndex ?? -1;
         return index >= 0 && index < definition.IconKeys.Count
             ? definition.IconKeys[index]
-            : definition.Name;
+            : definition.Id;
+    }
+
+    private static string ResolveIconPath(string fileName, string iconKey)
+    {
+        if (!string.IsNullOrWhiteSpace(fileName) && File.Exists(fileName))
+        {
+            return fileName;
+        }
+
+        string bossIconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "BossIcons", fileName);
+        if (File.Exists(bossIconPath))
+        {
+            return bossIconPath;
+        }
+
+        if (SplitCatalog.TryGetReferenceIconFileName(iconKey, out string referenceFileName))
+        {
+            string targetIconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "TargetIcons", referenceFileName);
+            if (File.Exists(targetIconPath))
+            {
+                return targetIconPath;
+            }
+        }
+
+        string directTargetIconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "TargetIcons", fileName);
+        return File.Exists(directTargetIconPath) ? directTargetIconPath : bossIconPath;
     }
 
     private static Bitmap CreateBossChecklistUndefeatedIcon(

@@ -4,6 +4,7 @@ internal static class SplitSetLoader
 {
     public static void LoadInto(AppSettings settings)
     {
+        SplitTimeSetStore.EnsureDirectories();
         settings.ReferenceSplitSets = SplitTimeSetStore.LoadReferenceSets();
         LoadPersonalBestTimeSets(settings);
         LoadPersonalBestSegmentSets(settings);
@@ -23,7 +24,7 @@ internal static class SplitSetLoader
 
         settings.PersonalBestTimeSets = new List<ReferenceSplitSet>
         {
-            CreateSet("Personal", BossSplitDefinitions.Units.Select(unit => unit.Id))
+            CreateSet("Personal", SplitConditionDataRows.Build(settings).Select(row => row.Key))
         };
         SplitTimeSetStore.SavePersonalBestTimeSets(settings.PersonalBestTimeSets);
     }
@@ -39,7 +40,7 @@ internal static class SplitSetLoader
 
         settings.PersonalBestSegmentSets = new List<ReferenceSplitSet>
         {
-            CreateSet("Personal", BossRouteGroups.Build(settings).Select(group => group.Key))
+            CreateSet("Personal", SplitRouteGroups.Build(settings).Select(group => group.Key))
         };
         SplitTimeSetStore.SavePersonalBestSegmentSets(settings.PersonalBestSegmentSets);
     }

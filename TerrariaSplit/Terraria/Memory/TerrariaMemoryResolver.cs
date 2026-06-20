@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 
 namespace TerrariaSplit;
@@ -14,6 +15,9 @@ internal sealed class TerrariaMemoryResolver
     private const int X86GenPassNameFieldOffset = 0xC;
 
     private readonly TerrariaMemoryProfile profile;
+    private readonly BossFlagAddressResolver bossFlagAddressResolver = new();
+    private readonly TerrariaClrMemoryResolver clrMemoryResolver = new();
+    private readonly TerrariaGameFactReader factReader = new();
     private IntPtr updateTimeAddress;
     private IntPtr gameMenuAddress;
     private IntPtr gameMenuSecondaryAddress;
@@ -56,8 +60,14 @@ internal sealed class TerrariaMemoryResolver
         currentGenerationProgressAddress != IntPtr.Zero &&
         currentControllerAddress != IntPtr.Zero;
 
+    public void SetProcess(Process? process)
+    {
+        clrMemoryResolver.SetProcess(process);
+    }
+
     public void Reset()
     {
+        clrMemoryResolver.Reset();
         updateTimeAddress = IntPtr.Zero;
         gameMenuAddress = IntPtr.Zero;
         gameMenuSecondaryAddress = IntPtr.Zero;
@@ -198,33 +208,46 @@ internal sealed class TerrariaMemoryResolver
         return true;
     }
 
-    public TerrariaBossStates ReadBossStates(IProcessMemoryReader memory)
+    public TerrariaGameFacts ReadGameFacts(IProcessMemoryReader memory)
     {
-        bool? wallOfFlesh = ReadHardmodeFlag(memory);
-        if (!TryReadBossFlagBlock(memory, out byte[] bossFlags, out int minimumBossFlagOffset))
+        TerrariaMemoryContext context = CreateContext(memory);
+        TerrariaGameFacts facts = factReader.Read(memory, context);
+        if (context.BossFlags is not null &&
+            !facts.Values.Any(value => value.Key.StartsWith("boss:", StringComparison.OrdinalIgnoreCase) &&
+                value.Value.Kind != FactValueKind.Unknown))
         {
-            return new TerrariaBossStates(
-                null,
-                wallOfFlesh,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null);
+            bossFlagsBaseAddress = IntPtr.Zero;
         }
 
-        return new TerrariaBossStates(
-            ReadBossFlag(bossFlags, minimumBossFlagOffset, profile.SkeletronDefeatedFlagOffset),
-            wallOfFlesh,
-            ReadBossFlag(bossFlags, minimumBossFlagOffset, profile.DestroyerDefeatedFlagOffset),
-            ReadBossFlag(bossFlags, minimumBossFlagOffset, profile.TwinsDefeatedFlagOffset),
-            ReadBossFlag(bossFlags, minimumBossFlagOffset, profile.SkeletronPrimeDefeatedFlagOffset),
-            ReadBossFlag(bossFlags, minimumBossFlagOffset, profile.PlanteraDefeatedFlagOffset),
-            ReadBossFlag(bossFlags, minimumBossFlagOffset, profile.GolemDefeatedFlagOffset),
-            ReadBossFlag(bossFlags, minimumBossFlagOffset, profile.LunaticCultistDefeatedFlagOffset),
-            ReadBossFlag(bossFlags, minimumBossFlagOffset, profile.MoonLordDefeatedFlagOffset));
+        if (context.HardmodeAddress != IntPtr.Zero &&
+            facts.Get(SplitCatalog.BossFacts.First(boss => boss.AddressKind == BossFactAddressKind.Hardmode).FactKey).Kind == FactValueKind.Unknown)
+        {
+            hardmodeAddress = IntPtr.Zero;
+        }
+
+        return facts;
+    }
+
+    private TerrariaMemoryContext CreateContext(IProcessMemoryReader memory)
+    {
+        TerrariaItemMemoryLayout? itemLayout = clrMemoryResolver.TryGetItemLayout(memory, out TerrariaItemMemoryLayout resolvedItemLayout)
+            ? resolvedItemLayout
+            : null;
+        TerrariaNpcMemoryLayout? npcLayout = clrMemoryResolver.TryGetNpcLayout(memory, out TerrariaNpcMemoryLayout resolvedNpcLayout)
+            ? resolvedNpcLayout
+            : null;
+        TerrariaBiomeMemoryLayout? biomeLayout = clrMemoryResolver.TryGetBiomeLayout(memory, out TerrariaBiomeMemoryLayout resolvedBiomeLayout)
+            ? resolvedBiomeLayout
+            : null;
+
+        return new TerrariaMemoryContext(
+            bossFlagsBaseAddress == IntPtr.Zero ? null : new BossFlagMemoryBlock(bossFlagsBaseAddress),
+            hardmodeAddress,
+            LocalPlayerAddress: IntPtr.Zero,
+            itemLayout,
+            npcLayout,
+            biomeLayout,
+            memory.Is64Bit);
     }
 
     public TerrariaWorldGenerationState ReadWorldGenerationState(IProcessMemoryReader memory)
@@ -376,47 +399,23 @@ internal sealed class TerrariaMemoryResolver
         }
     }
 
-    private bool TryResolveBossAddresses(IProcessMemoryReader memory, IntPtr resolvedUpdateTimeAddress)
-    {
-        IntPtr bossFlagsPointerLocation = IntPtr.Add(resolvedUpdateTimeAddress, profile.BossFlagsPointerOffset);
-        if (!memory.TryReadPointer(bossFlagsPointerLocation, out IntPtr resolvedBossFlagsBaseAddress))
-        {
-            return false;
-        }
-
-        IntPtr hardmodePointerLocation = IntPtr.Add(resolvedUpdateTimeAddress, profile.HardmodePointerOffset);
-        if (!memory.TryReadPointer(hardmodePointerLocation, out IntPtr resolvedHardmodeAddress))
-        {
-            return false;
-        }
-
-        if (!memory.TryReadBool(IntPtr.Add(resolvedBossFlagsBaseAddress, profile.SkeletronDefeatedFlagOffset), out _))
-        {
-            return false;
-        }
-
-        if (!memory.TryReadBool(resolvedHardmodeAddress, out _))
-        {
-            return false;
-        }
-
-        bossFlagsBaseAddress = resolvedBossFlagsBaseAddress;
-        hardmodeAddress = resolvedHardmodeAddress;
-        return true;
-    }
-
     private bool TryResolveBossAddressesWithFallbacks(IProcessMemoryReader memory, IntPtr? resolvedUpdateTimeAddress)
     {
-        if (resolvedUpdateTimeAddress.HasValue &&
-            TryResolveBossAddresses(memory, resolvedUpdateTimeAddress.Value))
+        if (bossFlagAddressResolver.TryResolve(
+            memory,
+            profile,
+            resolvedUpdateTimeAddress,
+            out BossFlagAddressResolution resolution,
+            out SignatureScanDiagnostics? scanDiagnostics))
         {
-            usingBossProgressionFallback = false;
-            return true;
-        }
+            bossFlagsBaseAddress = resolution.BossFlags.BaseAddress;
+            hardmodeAddress = resolution.HardmodeAddress;
+            usingBossProgressionFallback = resolution.UsedProgressionFallback;
+            if (scanDiagnostics is not null)
+            {
+                LastSignatureScan = scanDiagnostics;
+            }
 
-        if (TryResolveBossAddressesFromProgressionFallback(memory, out _))
-        {
-            usingBossProgressionFallback = true;
             return true;
         }
 
@@ -424,59 +423,6 @@ internal sealed class TerrariaMemoryResolver
         hardmodeAddress = IntPtr.Zero;
         usingBossProgressionFallback = false;
         return false;
-    }
-
-    private bool TryResolveBossAddressesFromProgressionFallback(IProcessMemoryReader memory, out IntPtr fallbackAnchorAddress)
-    {
-        fallbackAnchorAddress = SignatureScanner.Scan(
-            memory,
-            profile.BossProgressionFallbackSignature,
-            profile.SignatureScanScopeLabel,
-            out SignatureScanDiagnostics fallbackScanDiagnostics);
-        LastSignatureScan = fallbackScanDiagnostics;
-        return fallbackAnchorAddress != IntPtr.Zero &&
-            TryResolveBossAddressesFromProgressionFallback(memory, fallbackAnchorAddress);
-    }
-
-    private bool TryResolveBossAddressesFromProgressionFallback(IProcessMemoryReader memory, IntPtr fallbackAnchorAddress)
-    {
-        IntPtr skeletronInlineAddressLocation = IntPtr.Add(
-            fallbackAnchorAddress,
-            profile.BossProgressionFallbackSkeletronInlineAddressOffset);
-        if (!memory.TryReadPointer(skeletronInlineAddressLocation, out IntPtr resolvedSkeletronAddress))
-        {
-            return false;
-        }
-
-        IntPtr hardmodeInlineAddressLocation = IntPtr.Add(
-            fallbackAnchorAddress,
-            profile.BossProgressionFallbackHardmodeInlineAddressOffset);
-        if (!memory.TryReadPointer(hardmodeInlineAddressLocation, out IntPtr resolvedHardmodeAddress))
-        {
-            return false;
-        }
-
-        IntPtr resolvedBossFlagsBaseAddress = IntPtr.Add(
-            resolvedSkeletronAddress,
-            -profile.SkeletronDefeatedFlagOffset);
-        if (!memory.TryReadBool(resolvedSkeletronAddress, out _))
-        {
-            return false;
-        }
-
-        if (!memory.TryReadBool(resolvedHardmodeAddress, out _))
-        {
-            return false;
-        }
-
-        if (!memory.TryReadBool(IntPtr.Add(resolvedBossFlagsBaseAddress, profile.MoonLordDefeatedFlagOffset), out _))
-        {
-            return false;
-        }
-
-        bossFlagsBaseAddress = resolvedBossFlagsBaseAddress;
-        hardmodeAddress = resolvedHardmodeAddress;
-        return true;
     }
 
     private bool TryResolveGameMenuFromUpdateTime(
@@ -528,11 +474,19 @@ internal sealed class TerrariaMemoryResolver
         out bool isGameMenu)
     {
         isGameMenu = false;
-        if (!TryResolveBossAddressesFromProgressionFallback(memory, out _))
+        if (!bossFlagAddressResolver.TryResolveFromProgressionFallback(
+            memory,
+            profile,
+            out BossFlagAddressResolution resolution,
+            out _,
+            out SignatureScanDiagnostics? scanDiagnostics))
         {
             return false;
         }
 
+        LastSignatureScan = scanDiagnostics;
+        bossFlagsBaseAddress = resolution.BossFlags.BaseAddress;
+        hardmodeAddress = resolution.HardmodeAddress;
         IntPtr resolvedGameMenuAddress = IntPtr.Add(
             hardmodeAddress,
             profile.BossProgressionFallbackGameMenuFromHardmodeOffset);
@@ -548,67 +502,6 @@ internal sealed class TerrariaMemoryResolver
         return true;
     }
 
-    private bool TryReadBossFlagBlock(
-        IProcessMemoryReader memory,
-        out byte[] bytes,
-        out int minimumOffset)
-    {
-        bytes = null!;
-        minimumOffset = 0;
-
-        if (bossFlagsBaseAddress == IntPtr.Zero)
-        {
-            return false;
-        }
-
-        int[] offsets =
-        [
-            profile.SkeletronDefeatedFlagOffset,
-            profile.DestroyerDefeatedFlagOffset,
-            profile.TwinsDefeatedFlagOffset,
-            profile.SkeletronPrimeDefeatedFlagOffset,
-            profile.PlanteraDefeatedFlagOffset,
-            profile.GolemDefeatedFlagOffset,
-            profile.LunaticCultistDefeatedFlagOffset,
-            profile.MoonLordDefeatedFlagOffset
-        ];
-        minimumOffset = offsets.Min();
-        int maximumOffset = offsets.Max();
-        int length = maximumOffset - minimumOffset + 1;
-
-        if (memory.TryReadBytes(IntPtr.Add(bossFlagsBaseAddress, minimumOffset), length, out byte[]? readBytes))
-        {
-            bytes = readBytes;
-            return true;
-        }
-
-        bossFlagsBaseAddress = IntPtr.Zero;
-        return false;
-    }
-
-    private static bool? ReadBossFlag(byte[] bytes, int minimumOffset, int offset)
-    {
-        int index = offset - minimumOffset;
-        return index >= 0 && index < bytes.Length
-            ? bytes[index] != 0
-            : null;
-    }
-
-    private bool? ReadHardmodeFlag(IProcessMemoryReader memory)
-    {
-        if (hardmodeAddress == IntPtr.Zero)
-        {
-            return null;
-        }
-
-        if (memory.TryReadBool(hardmodeAddress, out bool value))
-        {
-            return value;
-        }
-
-        hardmodeAddress = IntPtr.Zero;
-        return null;
-    }
 
     private static bool TryReadObjectSlot(IProcessMemoryReader memory, ref IntPtr slotAddress, out IntPtr objectAddress)
     {

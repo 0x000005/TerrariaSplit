@@ -17,7 +17,7 @@ internal sealed class AnimationSettingsPage : SettingsPageBase
     private readonly CheckBox enableCurrentDeltaGradientColorBox = new();
     private readonly CheckBox enableTimerGradientColorBox = new();
     private readonly TextBox deltaGradientThresholdBox = new();
-    private readonly ComboBox deltaGradientCurveBox = new();
+    private readonly ThemedDropDownList deltaGradientCurveBox = new();
     private readonly CheckBox showSegmentBestDeltaHighlightBox = new();
     private readonly CheckBox enableDefeatedBossIconLightingBox = new();
     private readonly TextBox splitCompletionAnimationDurationBox = new();
@@ -43,6 +43,10 @@ internal sealed class AnimationSettingsPage : SettingsPageBase
     public override SettingsPageId Id => SettingsPageId.Effects;
 
     internal CheckBox EnableCurrentDeltaGradientColorBox => enableCurrentDeltaGradientColorBox;
+
+    internal IReadOnlyCollection<string> AnimationOutlineKeysForTests => animationOutlineControls.Keys.ToList();
+
+    internal IReadOnlyCollection<string> SegmentBestDeltaHighlightKeysForTests => segmentBestDeltaHighlightControls.Keys.ToList();
 
     protected override Control BuildPage(SettingsPageContext context)
     {
@@ -227,7 +231,7 @@ internal sealed class AnimationSettingsPage : SettingsPageBase
             return;
         }
 
-        List<RouteGroup> groups = BossRouteGroups.Build(Draft).ToList();
+        List<RouteGroup> groups = SplitRouteGroups.Build(Draft).ToList();
         string signature = string.Join('\u001F', groups.Select(group => group.Key));
         if (animationGridSignature == signature && animationOutlineControls.Count > 0)
         {
@@ -260,18 +264,18 @@ internal sealed class AnimationSettingsPage : SettingsPageBase
             {
                 var splitComparisonBox = CreateComparisonCheckBox(GetAnimationOutlineSetting(Draft.SplitCompletionSplitComparisons, group.Key));
                 var segmentComparisonBox = CreateComparisonCheckBox(GetAnimationOutlineSetting(Draft.SplitCompletionSegmentComparisons, group.Key));
-                ComboBox splitTimeBox = CreateOutlineStyleBox(GetAnimationOutlineStyle(Draft.SplitCompletionOutlineSplitStyles, group.Key));
-                ComboBox segmentTimeBox = CreateOutlineStyleBox(GetAnimationOutlineStyle(Draft.SplitCompletionOutlineSegmentStyles, group.Key));
+                ThemedDropDownList splitTimeBox = CreateOutlineStyleBox(GetAnimationOutlineStyle(Draft.SplitCompletionOutlineSplitStyles, group.Key));
+                ThemedDropDownList segmentTimeBox = CreateOutlineStyleBox(GetAnimationOutlineStyle(Draft.SplitCompletionOutlineSegmentStyles, group.Key));
 
                 animationOutlineControls[group.Key] = new AnimationOutlineControls(splitComparisonBox, segmentComparisonBox, splitTimeBox, segmentTimeBox);
 
                 int comparisonRow = Factory.AddGridRow(animationComparisonGrid);
-                animationComparisonGrid.Controls.Add(Factory.CreateRowLabel(BossRouteGroups.GetGroupDisplayName(group, Draft)), 0, comparisonRow);
+                animationComparisonGrid.Controls.Add(Factory.CreateRowLabel(SplitRouteGroups.GetGroupDisplayName(group, Draft)), 0, comparisonRow);
                 animationComparisonGrid.Controls.Add(splitComparisonBox, 1, comparisonRow);
                 animationComparisonGrid.Controls.Add(segmentComparisonBox, 2, comparisonRow);
 
                 int outlineRow = Factory.AddGridRow(animationOutlineGrid);
-                animationOutlineGrid.Controls.Add(Factory.CreateRowLabel(BossRouteGroups.GetGroupDisplayName(group, Draft)), 0, outlineRow);
+                animationOutlineGrid.Controls.Add(Factory.CreateRowLabel(SplitRouteGroups.GetGroupDisplayName(group, Draft)), 0, outlineRow);
                 animationOutlineGrid.Controls.Add(splitTimeBox, 1, outlineRow);
                 animationOutlineGrid.Controls.Add(segmentTimeBox, 2, outlineRow);
             }
@@ -299,9 +303,9 @@ internal sealed class AnimationSettingsPage : SettingsPageBase
             : SplitCompletionOutlineStyles.Rainbow;
     }
 
-    private ComboBox CreateOutlineStyleBox(string selectedStyle)
+    private ThemedDropDownList CreateOutlineStyleBox(string selectedStyle)
     {
-        ComboBox comboBox = Factory.CreateDropDownList();
+        ThemedDropDownList comboBox = Factory.CreateDropDownList();
         foreach (string style in SplitCompletionOutlineStyles.Ids)
         {
             comboBox.Items.Add(new OutlineStyleOption(style, Context.Localize(SplitCompletionOutlineStyles.GetDisplayName(style))));
@@ -316,14 +320,14 @@ internal sealed class AnimationSettingsPage : SettingsPageBase
         return comboBox;
     }
 
-    private static string GetSelectedOutlineStyle(ComboBox comboBox)
+    private static string GetSelectedOutlineStyle(ThemedDropDownList comboBox)
     {
         return comboBox.SelectedItem is OutlineStyleOption option
             ? option.Id
             : SplitCompletionOutlineStyles.None;
     }
 
-    private static void SetOutlineStyle(ComboBox comboBox, string style)
+    private static void SetOutlineStyle(ThemedDropDownList comboBox, string style)
     {
         string normalized = SplitCompletionOutlineStyles.Normalize(style);
         for (int i = 0; i < comboBox.Items.Count; i++)
@@ -693,7 +697,7 @@ internal sealed class AnimationSettingsPage : SettingsPageBase
             return;
         }
 
-        List<RouteGroup> groups = BossRouteGroups.Build(Draft).ToList();
+        List<RouteGroup> groups = SplitRouteGroups.Build(Draft).ToList();
         segmentBestDeltaHighlightGrid.SuspendLayout();
         try
         {
@@ -702,10 +706,10 @@ internal sealed class AnimationSettingsPage : SettingsPageBase
             Factory.AddHeaderRow(segmentBestDeltaHighlightGrid, "BOSS Group", "Effect");
             foreach (RouteGroup group in groups)
             {
-                ComboBox styleBox = CreateSegmentBestDeltaHighlightStyleBox(GetSegmentBestDeltaHighlightStyle(group.Key));
+                ThemedDropDownList styleBox = CreateSegmentBestDeltaHighlightStyleBox(GetSegmentBestDeltaHighlightStyle(group.Key));
                 segmentBestDeltaHighlightControls[group.Key] = new SegmentBestDeltaHighlightControls(styleBox);
                 int row = Factory.AddGridRow(segmentBestDeltaHighlightGrid);
-                segmentBestDeltaHighlightGrid.Controls.Add(Factory.CreateRowLabel(BossRouteGroups.GetGroupDisplayName(group, Draft)), 0, row);
+                segmentBestDeltaHighlightGrid.Controls.Add(Factory.CreateRowLabel(SplitRouteGroups.GetGroupDisplayName(group, Draft)), 0, row);
                 segmentBestDeltaHighlightGrid.Controls.Add(styleBox, 1, row);
             }
         }
@@ -724,9 +728,9 @@ internal sealed class AnimationSettingsPage : SettingsPageBase
             : SegmentBestDeltaHighlightStyles.Aurora;
     }
 
-    private ComboBox CreateSegmentBestDeltaHighlightStyleBox(string selectedStyle)
+    private ThemedDropDownList CreateSegmentBestDeltaHighlightStyleBox(string selectedStyle)
     {
-        ComboBox comboBox = Factory.CreateDropDownList();
+        ThemedDropDownList comboBox = Factory.CreateDropDownList();
         foreach (string style in SegmentBestDeltaHighlightStyles.Ids)
         {
             comboBox.Items.Add(new EffectStyleOption(style, Context.Localize(SegmentBestDeltaHighlightStyles.GetDisplayName(style))));
@@ -741,14 +745,14 @@ internal sealed class AnimationSettingsPage : SettingsPageBase
         return comboBox;
     }
 
-    private static string GetSelectedEffectStyle(ComboBox comboBox)
+    private static string GetSelectedEffectStyle(ThemedDropDownList comboBox)
     {
         return comboBox.SelectedItem is EffectStyleOption option
             ? option.Id
             : SegmentBestDeltaHighlightStyles.None;
     }
 
-    private static void SetEffectStyle(ComboBox comboBox, string style)
+    private static void SetEffectStyle(ThemedDropDownList comboBox, string style)
     {
         string normalized = SegmentBestDeltaHighlightStyles.Normalize(style);
         for (int i = 0; i < comboBox.Items.Count; i++)
@@ -767,8 +771,6 @@ internal sealed class AnimationSettingsPage : SettingsPageBase
     private void ConfigureDeltaGradientCurveBox()
     {
         deltaGradientCurveBox.Dock = DockStyle.Fill;
-        deltaGradientCurveBox.DropDownStyle = ComboBoxStyle.DropDownList;
-        UiTheme.StyleComboBox(deltaGradientCurveBox);
         deltaGradientCurveBox.Items.Clear();
 
         foreach (string curve in DeltaGradientCurves.Ids)
@@ -780,14 +782,14 @@ internal sealed class AnimationSettingsPage : SettingsPageBase
         deltaGradientCurveBox.SelectedIndexChanged += (_, _) => InvalidateDeltaGradientPreview();
     }
 
-    private static string GetSelectedDeltaGradientCurve(ComboBox comboBox)
+    private static string GetSelectedDeltaGradientCurve(ThemedDropDownList comboBox)
     {
         return comboBox.SelectedItem is EffectStyleOption option
             ? option.Id
             : DeltaGradientCurves.SoftStep;
     }
 
-    private static void SetDeltaGradientCurve(ComboBox comboBox, string curve)
+    private static void SetDeltaGradientCurve(ThemedDropDownList comboBox, string curve)
     {
         string normalized = DeltaGradientCurves.Normalize(curve);
         for (int i = 0; i < comboBox.Items.Count; i++)
@@ -882,8 +884,8 @@ internal sealed class AnimationSettingsPage : SettingsPageBase
     private sealed record AnimationOutlineControls(
         CheckBox SplitComparison,
         CheckBox SegmentComparison,
-        ComboBox SplitTime,
-        ComboBox SegmentTime);
+        ThemedDropDownList SplitTime,
+        ThemedDropDownList SegmentTime);
 
-    private sealed record SegmentBestDeltaHighlightControls(ComboBox Style);
+    private sealed record SegmentBestDeltaHighlightControls(ThemedDropDownList Style);
 }

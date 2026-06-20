@@ -66,12 +66,13 @@ internal sealed partial class MainForm : Form
     private UiPalette palette;
     private readonly Action dispatchedControlTick;
     private readonly Action dispatchedStatusPaintTick;
+    private readonly bool registerGlobalHotkeys;
     private bool statusOverlayContentDirty = true;
     private StatusOverlayDynamicKey? lastStatusOverlayDynamicKey;
     private Rectangle? statusOverlayPartialClipBounds;
     private TerrariaWatcherDiagnostics watcherDiagnostics = TerrariaWatcherDiagnosticsDefaults.Empty;
     private TerrariaWatchSnapshot snapshot =
-        new(false, null, false, null, TerrariaBossStates.Unknown, TerrariaWorldGenerationState.Unknown, false, "waiting for Terraria.exe");
+        new(false, null, false, null, TerrariaGameFacts.Unknown, TerrariaWorldGenerationState.Unknown, false, "waiting for Terraria.exe");
     private AppSettings settings => applicationController.Settings;
 
     private ApplicationViewState viewState => applicationController.ViewState;
@@ -86,8 +87,9 @@ internal sealed partial class MainForm : Form
 
     private TimeSpan timerElapsed => viewState.ElapsedNow();
 
-    public MainForm()
+    public MainForm(bool registerGlobalHotkeys = true)
     {
+        this.registerGlobalHotkeys = registerGlobalHotkeys;
         dispatchedControlTick = DispatchedControlTick;
         dispatchedStatusPaintTick = DispatchedStatusPaintTick;
         worldAutomation = new TerrariaWorldAutomation(worldPoolStore);
@@ -110,7 +112,11 @@ internal sealed partial class MainForm : Form
                 return true;
             },
             elapsed => performance.RecordStatusPaint(elapsed));
-        overlayBoundsController = new OverlayBoundsController(RowGap, settings, splitStatuses.Count);
+        overlayBoundsController = new OverlayBoundsController(
+            RowGap,
+            settings,
+            GetCurrentReservedLayoutRowCount(),
+            GetCurrentLayoutRowCount());
         overlayBoundsController.LayoutChanged += ApplyOverlayLayout;
         timerOverlayHost = new TimerOverlayWindowHost(
             callback => BeginInvoke(callback),
@@ -137,7 +143,7 @@ internal sealed partial class MainForm : Form
             soundPlayer.Play,
             ToggleMouseClickThrough,
             overlayAnimations.Clear,
-            overlayAnimations.ClearSplitCompletionAnimation,
+            ClearSplitCompletionAnimation,
             TrackSegmentBestDeltaHighlight,
             StartSplitCompletionAnimation,
             AppSettingsStore.Save,
@@ -149,7 +155,10 @@ internal sealed partial class MainForm : Form
             ApplyLoadedSettings,
             RefreshTimerOverlaySettingsSnapshot,
             RefreshRuntimeUi);
-        overlayBoundsController.UpdateContext(settings, splitStatuses.Count);
+        overlayBoundsController.UpdateContext(
+            settings,
+            GetCurrentReservedLayoutRowCount(),
+            GetCurrentLayoutRowCount());
         AcceptRuntimeCommandSequence(monitorCoordinator.SetRuntimeDefinitions(applicationController.Definitions));
         Text = SegmentTimerWindowTitle;
         modalWindows.SetAlwaysOnTop(settings.AlwaysOnTop);
@@ -229,6 +238,11 @@ internal sealed partial class MainForm : Form
     protected override void OnShown(EventArgs e)
     {
         base.OnShown(e);
+        if (overlayWindowsInitialized)
+        {
+            ApplyOverlayLayout(overlayBoundsController.CurrentLayout);
+        }
+
         worldPoolFillService.UpdateSettings(settings);
         QueueStatusOverlayRender();
     }
@@ -739,6 +753,7 @@ internal sealed partial class MainForm : Form
 
         if (update.InvalidateAll)
         {
+            MarkStatusOverlayStaticContentDirty();
             RefreshRuntimeUi();
             Invalidate();
         }
@@ -759,11 +774,12 @@ internal sealed partial class MainForm : Form
         if (settings.ShowEarlyDeltaTime &&
             currentSplitIndex >= 0 &&
             currentSplitIndex < splitStatuses.Count &&
+            SplitDisplayRows.TryGetRowIndex(settings, splitStatuses, currentSplitIndex, out int visualRowIndex) &&
             TryGetLayout(out SplitLayout layout))
         {
             Rectangle rowRect = overlayWindowsInitialized
-                ? overlayBoundsController.CurrentLayout.ToStatusLocal(layout.GetRowRect(currentSplitIndex))
-                : layout.GetRowRect(currentSplitIndex);
+                ? overlayBoundsController.CurrentLayout.ToStatusLocal(layout.GetRowRect(visualRowIndex))
+                : layout.GetRowRect(visualRowIndex);
             Invalidate(Rectangle.Inflate(rowRect, ScaleInt(6), ScaleInt(6)));
             return;
         }
@@ -803,6 +819,23 @@ internal sealed partial class MainForm : Form
 
     private bool ShowPersonalBestUpdateConfirmation(string promptText)
     {
+        if (InvokeRequired)
+        {
+            try
+            {
+                object? result = Invoke(new Func<bool>(() => ShowPersonalBestUpdateConfirmation(promptText)));
+                return result is bool value && value;
+            }
+            catch (ObjectDisposedException)
+            {
+                return false;
+            }
+            catch (InvalidOperationException)
+            {
+                return false;
+            }
+        }
+
         bool wasClickThrough = mouseClickThrough;
         if (wasClickThrough)
         {
@@ -852,9 +885,16 @@ internal sealed partial class MainForm : Form
 
     private string FormatBossSummary()
     {
-        return $"Skl:{FormatFlag(snapshot.BossStates.Skeletron)} " +
-            $"WoF:{FormatFlag(snapshot.BossStates.WallOfFlesh)} " +
-            $"ML:{FormatFlag(snapshot.BossStates.MoonLord)}";
+        return $"Skl:{FormatFlag(GetBossFact(SplitCatalog.Skeletron))} " +
+            $"WoF:{FormatFlag(GetBossFact(SplitCatalog.WallOfFlesh))} " +
+            $"ML:{FormatFlag(GetBossFact(SplitCatalog.MoonLord))}";
+    }
+
+    private bool? GetBossFact(string bossTargetId)
+    {
+        return SplitCatalog.TryGetBossFact(bossTargetId, out BossFactDescriptor descriptor)
+            ? snapshot.Facts.Get(descriptor.FactKey).AsBoolean()
+            : null;
     }
 
     private static string FormatFlag(bool? value)
@@ -933,12 +973,17 @@ internal sealed partial class MainForm : Form
 
     private void ApplyLoadedSettings(AppSettings? previousSettings = null, int splitCount = -1)
     {
+        MarkStatusOverlayStaticContentDirty();
         Rectangle? referenceCompositeBounds = overlayWindowsInitialized
             ? overlayBoundsController.CompositeBounds
             : pendingInitialCompositeBounds;
+        int visibleRowCount = GetCurrentLayoutRowCount();
+        int resolvedRowCount = splitCount >= 0
+            ? Math.Max(GetCurrentReservedLayoutRowCount(), splitCount)
+            : GetCurrentReservedLayoutRowCount();
         palette = UiPalette.From(settings.Colors);
         RefreshTimerOverlaySettingsSnapshot();
-        overlayBoundsController.UpdateContext(settings, splitCount >= 0 ? splitCount : splitStatuses.Count);
+        overlayBoundsController.UpdateContext(settings, resolvedRowCount, visibleRowCount);
         UpdateEffectiveOverlayTopMost();
         if (IsHandleCreated && !settingsFormOpen)
         {
@@ -946,7 +991,7 @@ internal sealed partial class MainForm : Form
         }
 
         ApplyLayeredOverlayWindowStyle();
-        ApplyLayoutBounds(useDefaultSize: false, previousSettings, referenceCompositeBounds);
+        ApplyLayoutBounds(useDefaultSize: false, previousSettings, referenceCompositeBounds, resolvedRowCount);
         UpdateContextMenu();
         ClearIconCache();
         UpdateConfiguredRefreshIntervals();
@@ -959,16 +1004,27 @@ internal sealed partial class MainForm : Form
     private void ApplyLayoutBounds(
         bool useDefaultSize,
         AppSettings? previousSettings = null,
-        Rectangle? referenceCompositeBoundsOverride = null)
+        Rectangle? referenceCompositeBoundsOverride = null,
+        int splitCount = -1)
     {
-        Size minimumCompositeSize = SplitLayoutCalculator.GetMinimumWindowSize(settings);
-        Size minimumStatusSize = GetStatusWindowMinimumSize(minimumCompositeSize);
+        int rowCount = splitCount >= 0 ? splitCount : GetCurrentReservedLayoutRowCount();
+        int visibleRowCount = GetCurrentLayoutRowCount();
+        Size minimumCompositeSize = GetCompositeMinimumSize(rowCount, visibleRowCount);
+        Size minimumStatusSize = GetStatusWindowMinimumSize(minimumCompositeSize, rowCount, visibleRowCount);
         Rectangle targetCompositeBounds;
         if (useDefaultSize)
         {
+            int defaultWidth = Math.Max(minimumCompositeSize.Width, SplitLayoutCalculator.GetDefaultWindowWidth(settings));
+            int defaultHeight = Math.Max(minimumCompositeSize.Height, SplitLayoutCalculator.GetDefaultWindowHeight(settings));
+            defaultHeight = AdjustRuntimeHeightForSplitCount(
+                defaultHeight,
+                GetDefaultLayoutRowCount(),
+                rowCount,
+                defaultWidth);
+            defaultHeight = GetFittingCompositeHeight(defaultWidth, defaultHeight, rowCount, visibleRowCount);
             Size defaultCompositeSize = new(
-                Math.Max(minimumCompositeSize.Width, SplitLayoutCalculator.GetDefaultWindowWidth(settings)),
-                Math.Max(minimumCompositeSize.Height, SplitLayoutCalculator.GetDefaultWindowHeight(settings)));
+                defaultWidth,
+                defaultHeight);
             if (!overlayWindowsInitialized &&
                 !IsHandleCreated &&
                 TryGetInitialOverlayLayout(defaultCompositeSize, out targetCompositeBounds, out OverlayCompositeLayout initialLayout))
@@ -976,7 +1032,8 @@ internal sealed partial class MainForm : Form
                 pendingInitialCompositeBounds = targetCompositeBounds;
                 MinimumSize = minimumStatusSize;
                 StartPosition = FormStartPosition.Manual;
-                Bounds = initialLayout.StatusScreenBounds;
+                Location = initialLayout.StatusScreenBounds.Location;
+                ClientSize = initialLayout.StatusScreenBounds.Size;
                 return;
             }
 
@@ -984,9 +1041,13 @@ internal sealed partial class MainForm : Form
         }
         else
         {
-            Size targetSize = GetRuntimeLayoutSize(previousSettings, referenceCompositeBoundsOverride?.Size);
+            Size targetSize = GetRuntimeLayoutSize(
+                previousSettings,
+                rowCount,
+                referenceCompositeBoundsOverride?.Size);
             int width = Math.Max(targetSize.Width, minimumCompositeSize.Width);
             int height = Math.Max(targetSize.Height, minimumCompositeSize.Height);
+            height = GetFittingCompositeHeight(width, height, rowCount, visibleRowCount);
             Rectangle referenceBounds = referenceCompositeBoundsOverride ?? (overlayWindowsInitialized
                 ? overlayBoundsController.CompositeBounds
                 : pendingInitialCompositeBounds ?? Bounds);
@@ -1008,12 +1069,37 @@ internal sealed partial class MainForm : Form
         pendingInitialCompositeBounds = targetCompositeBounds;
     }
 
-    private Size GetStatusWindowMinimumSize(Size minimumCompositeSize)
+    private Size GetCompositeMinimumSize(int rowCount, int visibleRowCount)
+    {
+        Size minimum = SplitLayoutCalculator.GetMinimumWindowSize(settings);
+        minimum.Height = Math.Max(
+            minimum.Height,
+            SplitLayoutCalculator.GetMinimumWindowHeightForRows(
+                settings,
+                Math.Max(rowCount, visibleRowCount),
+                RowGap));
+        minimum.Height = GetFittingCompositeHeight(minimum.Width, minimum.Height, rowCount, visibleRowCount);
+        return minimum;
+    }
+
+    private int GetFittingCompositeHeight(int width, int height, int rowCount, int visibleRowCount)
+    {
+        return OverlayCompositeLayoutCalculator.GetFittingHeight(
+            width,
+            height,
+            settings,
+            rowCount,
+            visibleRowCount,
+            RowGap);
+    }
+
+    private Size GetStatusWindowMinimumSize(Size minimumCompositeSize, int rowCount, int visibleRowCount)
     {
         if (OverlayCompositeLayoutCalculator.TryCreate(
                 new Rectangle(Point.Empty, minimumCompositeSize),
                 settings,
-                splitStatuses.Count,
+                rowCount,
+                visibleRowCount,
                 RowGap,
                 out OverlayCompositeLayout minimumLayout))
         {
@@ -1035,12 +1121,16 @@ internal sealed partial class MainForm : Form
         return OverlayCompositeLayoutCalculator.TryCreate(
             compositeBounds,
             settings,
-            splitStatuses.Count,
+            GetCurrentReservedLayoutRowCount(),
+            GetCurrentLayoutRowCount(),
             RowGap,
             out layout);
     }
 
-    private Size GetRuntimeLayoutSize(AppSettings? previousSettings, Size? currentCompositeSizeOverride = null)
+    private Size GetRuntimeLayoutSize(
+        AppSettings? previousSettings,
+        int currentSplitCount,
+        Size? currentCompositeSizeOverride = null)
     {
         Size currentSize = currentCompositeSizeOverride ?? (overlayWindowsInitialized
             ? overlayBoundsController.CompositeBounds.Size
@@ -1067,12 +1157,81 @@ internal sealed partial class MainForm : Form
         int currentDefaultWidth = SplitLayoutCalculator.GetDefaultWindowWidth(settings);
         width += currentDefaultWidth - scaledPreviousDefaultWidth;
 
+        int previousSplitCount = GetLayoutRowCount(previousSettings);
+        height = AdjustRuntimeHeightForSplitCount(height, previousSplitCount, currentSplitCount, width);
+
         return new Size(Math.Max(1, width), Math.Max(1, height));
+    }
+
+    private int AdjustRuntimeHeightForSplitCount(
+        int currentHeight,
+        int previousSplitCount,
+        int currentSplitCount,
+        int currentWidth)
+    {
+        int splitDelta = currentSplitCount - previousSplitCount;
+        if (splitDelta <= 0)
+        {
+            return currentHeight;
+        }
+
+        if (!SplitLayoutCalculator.TryCreate(
+                new Rectangle(0, 0, currentWidth, currentHeight),
+                Math.Max(1, previousSplitCount),
+                RowGap,
+                value => OverlayRenderContext.ScaleInt(settings, value),
+                out SplitLayout previousLayout))
+        {
+            return currentHeight;
+        }
+
+        int targetRowHeight = previousLayout.FirstRowRect.Height;
+        int rowStep = Math.Max(1, targetRowHeight + previousLayout.RowGap);
+        int low = currentHeight;
+        int high = Math.Max(low + 1, currentHeight + splitDelta * rowStep);
+        while (!CanKeepRuntimeRowHeight(currentWidth, high, currentSplitCount, targetRowHeight) &&
+            high < 10000)
+        {
+            high = Math.Min(10000, high + rowStep);
+        }
+
+        while (low + 1 < high)
+        {
+            int middle = low + (high - low) / 2;
+            if (CanKeepRuntimeRowHeight(currentWidth, middle, currentSplitCount, targetRowHeight))
+            {
+                high = middle;
+            }
+            else
+            {
+                low = middle;
+            }
+        }
+
+        return CanKeepRuntimeRowHeight(currentWidth, high, currentSplitCount, targetRowHeight)
+            ? high
+            : currentHeight;
+    }
+
+    private bool CanKeepRuntimeRowHeight(int width, int height, int splitCount, int targetRowHeight)
+    {
+        return SplitLayoutCalculator.TryCreate(
+                new Rectangle(0, 0, width, height),
+                Math.Max(1, splitCount),
+                RowGap,
+                value => OverlayRenderContext.ScaleInt(settings, value),
+                out SplitLayout layout) &&
+            layout.FirstRowRect.Height >= targetRowHeight;
     }
 
     private static int ScaleRuntimeDimension(int value, float ratio)
     {
         return Math.Max(1, (int)Math.Round(value * ratio, MidpointRounding.AwayFromZero));
+    }
+
+    private static int GetDefaultLayoutRowCount()
+    {
+        return GetLayoutRowCount(AppSettingsDefaults.Create());
     }
 
     private void ApplyLayeredOverlayWindowStyle()
@@ -1118,9 +1277,14 @@ internal sealed partial class MainForm : Form
         suppressStatusBoundsFeedback = true;
         try
         {
-            if (Bounds != layout.StatusScreenBounds)
+            if (Location != layout.StatusScreenBounds.Location)
             {
-                Bounds = layout.StatusScreenBounds;
+                Location = layout.StatusScreenBounds.Location;
+            }
+
+            if (ClientSize != layout.StatusScreenBounds.Size)
+            {
+                ClientSize = layout.StatusScreenBounds.Size;
             }
         }
         finally
@@ -1145,6 +1309,12 @@ internal sealed partial class MainForm : Form
         overlayWindowController.QueueRender();
     }
 
+    private void MarkStatusOverlayStaticContentDirty()
+    {
+        statusOverlayContentDirty = true;
+        lastStatusOverlayDynamicKey = null;
+    }
+
     private void RenderInitialStatusOverlay()
     {
         if (!overlayWindowsInitialized || overlayWindowInitializationInProgress)
@@ -1165,7 +1335,7 @@ internal sealed partial class MainForm : Form
             return;
         }
 
-        overlayBoundsController.HandleStatusResize(Bounds);
+        overlayBoundsController.HandleStatusResize(new Rectangle(Location, ClientSize));
     }
 
     private void PublishTimerOverlaySnapshot(bool force = false)
@@ -1320,6 +1490,13 @@ internal sealed partial class MainForm : Form
         InvalidateRuntimeRenderRegion();
     }
 
+    private void ClearSplitCompletionAnimation()
+    {
+        overlayAnimations.ClearSplitCompletionAnimation();
+        UpdateStatusPaintSchedulerState();
+        QueueStatusOverlayRender();
+    }
+
     private void TogglePyramidFilter()
     {
         ExecuteAppCommand(AppCommand.TogglePyramidFilter());
@@ -1395,6 +1572,13 @@ internal sealed partial class MainForm : Form
 
     private void RegisterConfiguredHotkeys()
     {
+        if (!registerGlobalHotkeys)
+        {
+            hotkeyManager.Dispose();
+            lastHotkeyWarningText = null;
+            return;
+        }
+
         IReadOnlyList<HotkeyRegistrationWarning> warnings = hotkeyManager.RegisterConfiguredHotkeys(Handle, settings);
         ShowHotkeyRegistrationWarnings(warnings);
     }

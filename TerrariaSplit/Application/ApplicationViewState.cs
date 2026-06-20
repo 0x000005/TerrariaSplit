@@ -25,12 +25,12 @@ internal sealed record ApplicationViewState(
 
     public static ApplicationViewState FromSettings(AppSettings settings)
     {
-        return FromDefinitions(settings, BossSplitDefinitions.Build(settings));
+        return FromDefinitions(settings, SplitCatalog.Build(settings));
     }
 
     public static ApplicationViewState FromDefinitions(
         AppSettings settings,
-        IReadOnlyList<BossSplitDefinition> definitions)
+        IReadOnlyList<SplitDefinition> definitions)
     {
         SplitStatusSnapshot[] statuses = definitions
             .Select(SplitStatusSnapshot.FromDefinition)
@@ -71,6 +71,16 @@ internal sealed record ApplicationViewState(
         {
             hash.Add(status.Time);
             hash.Add(status.IsSkipped);
+            foreach (string factKey in status.CompletedFactKeys)
+            {
+                hash.Add(factKey, StringComparer.OrdinalIgnoreCase);
+            }
+
+            foreach ((string factKey, TimeSpan time) in status.FactCompletionTimes ?? new Dictionary<string, TimeSpan>())
+            {
+                hash.Add(factKey, StringComparer.OrdinalIgnoreCase);
+                hash.Add(time);
+            }
         }
 
         return hash.ToHashCode();

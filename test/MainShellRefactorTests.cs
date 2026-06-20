@@ -32,6 +32,10 @@ internal static class MainShellRefactorTests
         yield return ("HotkeyWarningDialog uses plain dialog content", HotkeyWarningDialogUsesPlainDialogContent);
         yield return ("SettingsUiFactory keeps two-column editor column fixed width", SettingsUiFactoryKeepsTwoColumnEditorColumnFixedWidth);
         yield return ("SettingsUiFactory row labels ellipsize clipped text", SettingsUiFactoryRowLabelsEllipsizeClippedText);
+        yield return ("SettingsUiFactory hides native multiline scrollbars", SettingsUiFactoryHidesNativeMultilineScrollbars);
+        yield return ("ThemedScrollPanel routes list wheel to inner list until boundary", ThemedScrollPanelRoutesListWheelToInnerListUntilBoundary);
+        yield return ("FontFamilySelector uses themed drop-down list", FontFamilySelectorUsesThemedDropDownList);
+        yield return ("Settings form uses themed drop-down lists", SettingsFormUsesThemedDropDownLists);
     }
 
     private static void TerrariaMonitorCoordinatorPreservesWatcherIntervalPolicy()
@@ -39,12 +43,12 @@ internal static class MainShellRefactorTests
         TestAssert.Equal(
             TimeSpan.FromSeconds(1),
             TerrariaMonitorCoordinator.GetNextWatcherPollInterval(
-                new TerrariaWatchSnapshot(false, null, false, null, TerrariaBossStates.Unknown, TerrariaWorldGenerationState.Unknown, false, "waiting"),
+                new TerrariaWatchSnapshot(false, null, false, null, TerrariaGameFacts.Unknown, TerrariaWorldGenerationState.Unknown, false, "waiting"),
                 SplitTimerPhase.NotStarted));
         TestAssert.Equal(
             TimeSpan.FromMilliseconds(250),
             TerrariaMonitorCoordinator.GetNextWatcherPollInterval(
-                new TerrariaWatchSnapshot(true, 123, false, true, TerrariaBossStates.Unknown, TerrariaWorldGenerationState.Unknown, false, "not ready"),
+                new TerrariaWatchSnapshot(true, 123, false, true, TerrariaGameFacts.Unknown, TerrariaWorldGenerationState.Unknown, false, "not ready"),
                 SplitTimerPhase.NotStarted));
         TestAssert.Equal(
             TimeSpan.FromMilliseconds(5),
@@ -137,7 +141,7 @@ internal static class MainShellRefactorTests
         [
             TestSnapshots.Terraria(
                 isGameMenu: false,
-                bossStates: TerrariaBossStates.Unknown,
+                bossStates: TerrariaGameFacts.Unknown,
                 enteredWorld: true),
             TestSnapshots.Terraria(
                 isGameMenu: false,
@@ -232,7 +236,7 @@ internal static class MainShellRefactorTests
             null,
             false,
             null,
-            TerrariaBossStates.Unknown,
+            TerrariaGameFacts.Unknown,
             TerrariaWorldGenerationState.Unknown,
             false,
             "waiting"));
@@ -265,7 +269,7 @@ internal static class MainShellRefactorTests
             null,
             false,
             null,
-            TerrariaBossStates.Unknown,
+            TerrariaGameFacts.Unknown,
             TerrariaWorldGenerationState.Unknown,
             false,
             "waiting"));
@@ -613,6 +617,104 @@ internal static class MainShellRefactorTests
         });
     }
 
+    private static void SettingsUiFactoryHidesNativeMultilineScrollbars()
+    {
+        RunSta(() =>
+        {
+            var factory = new SettingsUiFactory(static key => key);
+            using TextBox textBox = factory.CreateMultilineValueBox(120);
+
+            TestAssert.Equal(true, textBox.Multiline);
+            TestAssert.Equal(ScrollBars.None, textBox.ScrollBars);
+        });
+    }
+
+    private static void ThemedScrollPanelRoutesListWheelToInnerListUntilBoundary()
+    {
+        RunSta(() =>
+        {
+            using var panel = new ThemedScrollPanel
+            {
+                Size = new Size(260, 180),
+                Padding = new Padding(8)
+            };
+            using var content = new Panel
+            {
+                Size = new Size(220, 360)
+            };
+            using var listBox = new ListBox
+            {
+                Height = 80,
+                IntegralHeight = false,
+                ItemHeight = 16,
+                Width = 180
+            };
+            for (int i = 0; i < 20; i++)
+            {
+                listBox.Items.Add(i.ToString());
+            }
+
+            content.Controls.Add(listBox);
+            panel.Controls.Add(content);
+            _ = panel.Handle;
+            _ = listBox.Handle;
+
+            int initialTopIndex = listBox.TopIndex;
+            NativeMethods.SendMessage(listBox.Handle, 0x020A, MakeMouseWheelWParam(-120), IntPtr.Zero);
+            TestAssert.Equal(true, listBox.TopIndex > initialTopIndex);
+
+            int visibleItemCount = Math.Max(1, listBox.ClientSize.Height / Math.Max(1, listBox.ItemHeight));
+            int maxTopIndex = Math.Max(0, listBox.Items.Count - visibleItemCount);
+            listBox.TopIndex = maxTopIndex;
+            int bottomTopIndex = listBox.TopIndex;
+            NativeMethods.SendMessage(listBox.Handle, 0x020A, MakeMouseWheelWParam(-120), IntPtr.Zero);
+            TestAssert.Equal(bottomTopIndex, listBox.TopIndex);
+        });
+    }
+
+    private static IntPtr MakeMouseWheelWParam(int delta)
+    {
+        return new IntPtr(unchecked((int)((uint)(ushort)delta << 16)));
+    }
+
+    private static void FontFamilySelectorUsesThemedDropDownList()
+    {
+        RunSta(() =>
+        {
+            var factory = new SettingsUiFactory(static key => key);
+            using ThemedDropDownList dropDown = factory.CreateDropDownList();
+            using var selector = new FontFamilySelector();
+
+            dropDown.Items.Add("Soft");
+            dropDown.Items.Add("Sharp");
+            dropDown.SelectedIndex = 1;
+            Control dropDownControl = dropDown;
+            Control selectorControl = selector;
+
+            TestAssert.Equal("Sharp", dropDown.SelectedItem);
+            TestAssert.Equal(false, dropDownControl is ComboBox);
+            TestAssert.Equal(true, selectorControl is ThemedDropDownList);
+            TestAssert.Equal(false, selectorControl is ComboBox);
+            TestAssert.Equal(true, selector.Items.Count > 0);
+        });
+    }
+
+    private static void SettingsFormUsesThemedDropDownLists()
+    {
+        RunSta(() =>
+        {
+            using var form = new SettingsForm(new AppSettings());
+            foreach (SettingsPageHost.PageEntry page in form.PageHost.Pages)
+            {
+                form.PageHost.Select(page.Id);
+            }
+
+            Control[] controls = EnumerateControls(form).ToArray();
+            TestAssert.Equal(false, controls.OfType<ComboBox>().Any());
+            TestAssert.Equal(true, controls.OfType<ThemedDropDownList>().Any());
+        });
+    }
+
     private static void RunSta(Action action)
     {
         Exception? failure = null;
@@ -767,31 +869,26 @@ internal static class MainShellRefactorTests
         }
     }
 
-    private static IReadOnlyList<BossSplitDefinition> CreateSingleBossDefinitions()
+    private static IReadOnlyList<SplitDefinition> CreateSingleBossDefinitions()
     {
         return
         [
-            new BossSplitDefinition(
-                BossSplitDefinitions.Skeletron,
+            new SplitDefinition(
+                "split:skeletron",
                 "Skeletron",
-                [BossFlag.Skeletron],
+                SplitCatalog.CreateBossFactCondition(SplitCatalog.Skeletron),
                 Array.Empty<string>(),
                 Array.Empty<string>(),
-                [BossSplitDefinitions.Skeletron])
+                [SplitCatalog.Skeletron])
         ];
     }
 
-    private static TerrariaBossStates CreateSkeletronState(bool defeated)
+    private static TerrariaGameFacts CreateSkeletronState(bool defeated)
     {
-        return new TerrariaBossStates(
-            defeated,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null);
+        TerrariaGameFacts.Builder builder = TerrariaGameFacts.CreateBuilder();
+        builder.SetBoolean(
+            SplitCatalog.BossFacts.First(boss => boss.TargetId == SplitCatalog.Skeletron).FactKey,
+            defeated);
+        return builder.Build();
     }
 }

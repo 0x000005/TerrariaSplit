@@ -1,12 +1,11 @@
 # Pyramid Pre-Screen Maintenance Notes
 
-本文记录筛塔预筛当前用到的测试工具、模拟链路、已包含优化和后续优化方向。这里的结论以主工程集成版为准：
+本文记录筛塔预筛当前用到的测试工具、模拟链路、已包含优化和后续优化方向。
 
 ```text
 TerrariaSplit/Terraria/WorldGeneration/Simulation
 ```
 
-外层 `WorldGenSim/` 历史项目已移除。继续调筛塔时，主工程内的模拟器是唯一维护入口。
 
 ## 当前目标范围
 
@@ -20,7 +19,7 @@ TerrariaSplit/Terraria/WorldGeneration/Simulation
 最新大集测试口径使用：
 
 ```text
-D:\Worlds
+D:\OneDrive - huzhaoran\Creative\Terraria\Worlds
 ```
 
 注意：`itemMismatch` 按误放行处理，等价于 FP 风险。
@@ -287,7 +286,7 @@ TerrariaSplit/Terraria/Automation/TerrariaWorldFilePyramidScanner.cs
 
 ## 当前已知大集状态
 
-在 `D:\Worlds` 上，按“Crimson 三项行为变更不保留”后的测试结果：
+在 `D:\OneDrive - huzhaoran\Creative\Terraria\Worlds` 上，按“Crimson 三项行为变更不保留”后的测试结果：
 
 ```text
 supported=875

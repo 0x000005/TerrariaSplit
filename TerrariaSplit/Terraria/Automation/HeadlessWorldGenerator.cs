@@ -11,7 +11,7 @@ namespace TerrariaSplit;
 // folder is never touched.
 internal sealed class HeadlessWorldGenerator : IDisposable
 {
-    private static readonly string ScratchDirectory = Path.Combine(AppContext.BaseDirectory, "world-pool", "scratch");
+    private static readonly string ScratchDirectory = RuntimeDataPaths.WorldPoolScratchDirectory;
     private static readonly string ServerPidPath = Path.Combine(ScratchDirectory, "server.pid");
     private const string GenerationMutexName = @"Local\TerrariaSplit.WorldPool.HeadlessWorldGenerator";
     private const string WorldFileStem = "tspool";

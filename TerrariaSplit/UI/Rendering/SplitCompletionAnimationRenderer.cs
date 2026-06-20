@@ -5,6 +5,7 @@ namespace TerrariaSplit;
 
 internal static class SplitCompletionAnimationRenderer
 {
+    public const int ReservedRowCount = 7;
     private static readonly TimeSpan SplitCompletionFadeDuration = TimeSpan.FromSeconds(0.45);
     private static readonly TimeSpan SplitCompletionDeltaIntroGap = TimeSpan.FromSeconds(0.06);
     private const float SplitCompletionLabelFontRatio = 0.58f;
@@ -143,9 +144,7 @@ internal static class SplitCompletionAnimationRenderer
             return;
         }
 
-        Rectangle firstRow = context.Layout.GetRowRect(0);
-        Rectangle lastRow = context.Layout.GetRowRect(context.Statuses.Count - 1);
-        var listBounds = new Rectangle(firstRow.X, firstRow.Y, firstRow.Width, lastRow.Bottom - firstRow.Top);
+        Rectangle listBounds = GetAnimationBounds(context);
         if (listBounds.Width <= 0 || listBounds.Height <= 0)
         {
             return;
@@ -154,6 +153,18 @@ internal static class SplitCompletionAnimationRenderer
         float centerX = GetCenterX(graphics, context, resources, context.Layout.TimerRect, listBounds);
         DrawIcon(graphics, context, resources, listBounds, centerX, animation, elapsed, opacity);
         DrawTimes(graphics, context, resources, listBounds, centerX, animation, elapsed, opacity);
+    }
+
+    public static Rectangle GetAnimationBounds(OverlayRenderContext context)
+    {
+        Rectangle firstVisibleRow = context.Layout.GetRowRect(0);
+        int visibleRowCount = Math.Max(ReservedRowCount, context.VisibleStatusRowCount);
+        Rectangle lastVisibleRow = context.Layout.GetRowRect(visibleRowCount - 1);
+        int animationHeight = firstVisibleRow.Height * ReservedRowCount +
+            context.Layout.RowGap * Math.Max(0, ReservedRowCount - 1);
+        int visibleCenterY = firstVisibleRow.Top + (lastVisibleRow.Bottom - firstVisibleRow.Top) / 2;
+        int animationTop = visibleCenterY - animationHeight / 2;
+        return new Rectangle(firstVisibleRow.X, animationTop, firstVisibleRow.Width, animationHeight);
     }
 
     private static TimeSpan GetFadeDuration(TimeSpan duration)
@@ -297,14 +308,15 @@ internal static class SplitCompletionAnimationRenderer
             segmentDelta,
             splitValue,
             splitDelta,
-            context.ScaleFactor);
+            context.ScaleFactor,
+            context.Settings.Columns.Timer.FontFamily);
         float labelSize = valueSize * SplitCompletionLabelFontRatio;
         float deltaSize = valueSize * SplitCompletionDeltaFontRatio;
         TimeSpan animationDuration = GetAnimationDuration(context.Settings);
 
-        using var labelFont = OverlayTextMetrics.CreatePixelFont(labelSize, FontStyle.Bold);
-        using var valueFont = OverlayTextMetrics.CreatePixelFont(valueSize, FontStyle.Bold);
-        using var deltaFont = OverlayTextMetrics.CreatePixelFont(deltaSize, FontStyle.Bold);
+        using var labelFont = OverlayTextMetrics.CreatePixelFont(labelSize, FontStyle.Bold, context.Settings.Columns.Timer.FontFamily);
+        using var valueFont = OverlayTextMetrics.CreatePixelFont(valueSize, FontStyle.Bold, context.Settings.Columns.Timer.FontFamily);
+        using var deltaFont = OverlayTextMetrics.CreatePixelFont(deltaSize, FontStyle.Bold, context.Settings.Columns.Timer.FontFamily);
 
         int labelHeight = Math.Max(1, (int)Math.Ceiling(labelFont.GetHeight(graphics)));
         int valueHeight = Math.Max(1, (int)Math.Ceiling(valueFont.GetHeight(graphics)) + context.ScaleInt(2));
@@ -398,7 +410,8 @@ internal static class SplitCompletionAnimationRenderer
         string firstDelta,
         string secondValue,
         string secondDelta,
-        float scale)
+        float scale,
+        string fontFamily)
     {
         if (availableLeftWidth <= 0f || availableRightWidth <= 0f || availableHeight <= 0)
         {
@@ -419,7 +432,8 @@ internal static class SplitCompletionAnimationRenderer
                 firstValue,
                 firstDelta,
                 secondValue,
-                secondDelta))
+                secondDelta,
+                fontFamily))
             {
                 low = mid;
             }
@@ -441,11 +455,12 @@ internal static class SplitCompletionAnimationRenderer
         string firstValue,
         string firstDelta,
         string secondValue,
-        string secondDelta)
+        string secondDelta,
+        string fontFamily)
     {
-        using var labelFont = OverlayTextMetrics.CreatePixelFont(valueSize * SplitCompletionLabelFontRatio, FontStyle.Bold);
-        using var valueFont = OverlayTextMetrics.CreatePixelFont(valueSize, FontStyle.Bold);
-        using var deltaFont = OverlayTextMetrics.CreatePixelFont(valueSize * SplitCompletionDeltaFontRatio, FontStyle.Bold);
+        using var labelFont = OverlayTextMetrics.CreatePixelFont(valueSize * SplitCompletionLabelFontRatio, FontStyle.Bold, fontFamily);
+        using var valueFont = OverlayTextMetrics.CreatePixelFont(valueSize, FontStyle.Bold, fontFamily);
+        using var deltaFont = OverlayTextMetrics.CreatePixelFont(valueSize * SplitCompletionDeltaFontRatio, FontStyle.Bold, fontFamily);
         using var format = new StringFormat(StringFormat.GenericTypographic)
         {
             FormatFlags = StringFormatFlags.NoWrap

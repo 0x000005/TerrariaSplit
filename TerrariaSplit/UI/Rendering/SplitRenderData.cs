@@ -4,7 +4,82 @@ namespace TerrariaSplit;
 
 internal static class SplitRenderData
 {
-    public static string FormatReferenceTime(AppSettings settings, BossSplitDefinition definition)
+    public static SplitDefinition GetDisplayDefinition(SplitStatusSnapshot status)
+    {
+        return GetDisplayDefinition(status, facts: null);
+    }
+
+    public static SplitDefinition GetDisplayDefinition(SplitStatusSnapshot status, TerrariaGameFacts? facts)
+    {
+        if (status.Definition.IconLightingConditions.Count > 0)
+        {
+            return status.Definition;
+        }
+
+        IReadOnlyList<string> visibleFactKeys = GetVisibleIconFactKeys(status, facts);
+        if (visibleFactKeys.Count == 0)
+        {
+            return status.Definition;
+        }
+
+        HashSet<string> visibleTargetIds = visibleFactKeys
+            .Select(factKey => SplitCatalog.TryGetTargetByFactKey(factKey, out SplitTargetDefinition target)
+                ? target.Id
+                : string.Empty)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (visibleTargetIds.Count == 0)
+        {
+            return status.Definition;
+        }
+
+        var iconFileNames = new List<string>();
+        var iconKeys = new List<string>();
+        int count = Math.Min(status.Definition.IconFileNames.Count, status.Definition.IconKeys.Count);
+        for (int i = 0; i < count; i++)
+        {
+            string iconKey = status.Definition.IconKeys[i];
+            if (!visibleTargetIds.Contains(iconKey))
+            {
+                continue;
+            }
+
+            iconKeys.Add(iconKey);
+            iconFileNames.Add(status.Definition.IconFileNames[i]);
+        }
+
+        if (iconKeys.Count == 0)
+        {
+            return status.Definition;
+        }
+
+        return status.Definition with
+        {
+            IconFileNames = iconFileNames,
+            IconKeys = iconKeys,
+            TargetIds = iconKeys
+        };
+    }
+
+    private static IReadOnlyList<string> GetVisibleIconFactKeys(SplitStatusSnapshot status, TerrariaGameFacts? facts)
+    {
+        if ((status.IsCompleted || status.IsSkipped) && status.CompletedFactKeys.Count > 0)
+        {
+            return status.CompletedFactKeys;
+        }
+
+        string kind = SplitConditionKind.Normalize(status.Definition.Condition.Kind);
+        if (facts is not null &&
+            kind is SplitConditionKind.Any or SplitConditionKind.AtLeast &&
+            status.Definition.Condition.Evaluate(facts) == SplitConditionResult.True)
+        {
+            return status.Definition.Condition.GetSatisfiedFactKeys(facts);
+        }
+
+        return [];
+    }
+
+    public static string FormatReferenceTime(AppSettings settings, SplitDefinition definition)
     {
         return settings.TryGetReferenceSplit(definition, out TimeSpan split)
             ? TimeText.FormatSplit(split)
@@ -48,7 +123,7 @@ internal static class SplitRenderData
 
     public static SplitComparison GetReferenceSplitComparison(
         AppSettings settings,
-        BossSplitDefinition definition,
+        SplitDefinition definition,
         TimeSpan splitTime)
     {
         if (!settings.TryGetReferenceSplit(definition, out TimeSpan referenceSplit))
@@ -61,7 +136,7 @@ internal static class SplitRenderData
 
     public static SplitComparison GetPersonalBestSegmentComparison(
         AppSettings settings,
-        BossSplitDefinition definition,
+        SplitDefinition definition,
         TimeSpan segmentTime)
     {
         if (!TryGetPersonalBestSegment(settings, definition, out TimeSpan personalBestSegment))
@@ -74,20 +149,13 @@ internal static class SplitRenderData
 
     public static bool TryGetPersonalBestSegment(
         AppSettings settings,
-        BossSplitDefinition definition,
+        SplitDefinition definition,
         out TimeSpan segment)
     {
         segment = TimeSpan.Zero;
-        string groupKey = GetSplitCompletionGroupKey(definition);
+        string groupKey = GetSplitCompletionGroupKey(settings, definition);
         if (settings.PersonalBestSegmentTimes.TryGetValue(groupKey, out string? value) &&
             TimeText.TryParse(value, out TimeSpan parsed))
-        {
-            segment = parsed;
-            return true;
-        }
-
-        if (settings.PersonalBestSegmentTimes.TryGetValue(definition.Name, out value) &&
-            TimeText.TryParse(value, out parsed))
         {
             segment = parsed;
             return true;
@@ -97,6 +165,7 @@ internal static class SplitRenderData
     }
 
     public static bool TryGetCompletedSegmentTime(
+        AppSettings settings,
         IReadOnlyList<SplitStatusSnapshot> statuses,
         int completedIndex,
         out TimeSpan segmentTime)
@@ -104,7 +173,55 @@ internal static class SplitRenderData
         segmentTime = TimeSpan.Zero;
         if (completedIndex < 0 ||
             completedIndex >= statuses.Count ||
-            statuses[completedIndex].Time is not TimeSpan splitTime)
+            statuses[completedIndex].Time is not TimeSpan)
+        {
+            return false;
+        }
+
+        Dictionary<string, SplitStatusSnapshot> statusById = statuses
+            .ToDictionary(status => status.Definition.Id, StringComparer.OrdinalIgnoreCase);
+        List<RouteGroup> groups = SplitRouteGroups.Build(settings);
+        int groupIndex = groups.FindIndex(group =>
+            group.Entries.Any(entry => string.Equals(
+                entry.Id,
+                statuses[completedIndex].Definition.Id,
+                StringComparison.OrdinalIgnoreCase)));
+        if (groupIndex < 0)
+        {
+            return TryGetAdjacentSegmentTime(statuses, completedIndex, out segmentTime);
+        }
+
+        if (!TryGetGroupSplitTime(groups[groupIndex], statusById, out TimeSpan groupSplitTime))
+        {
+            return false;
+        }
+
+        TimeSpan previousGroupSplitTime = TimeSpan.Zero;
+        for (int i = groupIndex - 1; i >= 0; i--)
+        {
+            if (TryGetGroupSplitTime(groups[i], statusById, out TimeSpan previousTime))
+            {
+                previousGroupSplitTime = previousTime;
+                break;
+            }
+        }
+
+        segmentTime = groupSplitTime - previousGroupSplitTime;
+        if (segmentTime < TimeSpan.Zero)
+        {
+            segmentTime = TimeSpan.Zero;
+        }
+
+        return true;
+    }
+
+    private static bool TryGetAdjacentSegmentTime(
+        IReadOnlyList<SplitStatusSnapshot> statuses,
+        int completedIndex,
+        out TimeSpan segmentTime)
+    {
+        segmentTime = TimeSpan.Zero;
+        if (statuses[completedIndex].Time is not TimeSpan splitTime)
         {
             return false;
         }
@@ -128,9 +245,32 @@ internal static class SplitRenderData
         return true;
     }
 
-    public static string GetSplitCompletionGroupKey(BossSplitDefinition definition)
+    private static bool TryGetGroupSplitTime(
+        RouteGroup group,
+        Dictionary<string, SplitStatusSnapshot> statusById,
+        out TimeSpan splitTime)
     {
-        return string.Join("+", definition.BossIds);
+        splitTime = TimeSpan.Zero;
+        bool found = false;
+        foreach (SplitRouteEntry entry in group.Entries)
+        {
+            if (statusById.TryGetValue(entry.Id, out SplitStatusSnapshot? status) &&
+                status.Time is TimeSpan candidate &&
+                (!found || candidate > splitTime))
+            {
+                splitTime = candidate;
+                found = true;
+            }
+        }
+
+        return found;
+    }
+
+    public static string GetSplitCompletionGroupKey(AppSettings settings, SplitDefinition definition)
+    {
+        return SplitRouteGroups.TryGetGroupKey(settings, definition.Id, out string groupKey)
+            ? groupKey
+            : definition.Id;
     }
 
     public static string GetSplitCompletionOutlineStyle(Dictionary<string, string> values, string groupKey)
@@ -428,7 +568,7 @@ internal static class OverlayTextStyles
         SplitStatusSnapshot? match = statuses.FirstOrDefault(status =>
             !status.IsSkipped &&
             status.Time is not null &&
-            BossSplitDefinitions.IsMoonLordSplit(status.Definition));
+            SplitCatalog.IsMoonLordSplit(status.Definition));
         if (match?.Time is TimeSpan time)
         {
             moonLordStatus = match;

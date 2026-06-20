@@ -16,9 +16,24 @@ internal sealed class RunLifecycleController
         bool recordStats,
         Func<string, bool> confirmPersonalBestUpdate)
     {
+        Reset(settings, settings, statuses, recordStats, confirmPersonalBestUpdate);
+    }
+
+    public void Reset(
+        AppSettings routeSettings,
+        AppSettings updateTargetSettings,
+        IReadOnlyList<SplitStatusSnapshot> statuses,
+        bool recordStats,
+        Func<string, bool> confirmPersonalBestUpdate)
+    {
         if (recordStats)
         {
-            runFinalizer.Finalize(settings, statuses, runStatsRecorded, confirmPersonalBestUpdate);
+            runFinalizer.Finalize(
+                routeSettings,
+                updateTargetSettings,
+                statuses,
+                runStatsRecorded,
+                confirmPersonalBestUpdate);
             runStatsRecorded = true;
         }
 

@@ -5,13 +5,13 @@ namespace TerrariaSplit;
 internal sealed class TimerController
 {
     private readonly SplitTimer runTimer;
-    private readonly BossSplitTracker splitTracker;
+    private readonly SplitTracker splitTracker;
     private readonly PendingMenuActionScheduler pendingMenuActions;
     private readonly TimeSpan pendingMenuGraceDuration;
 
     public TimerController(
         SplitTimer runTimer,
-        BossSplitTracker splitTracker,
+        SplitTracker splitTracker,
         PendingMenuActionScheduler pendingMenuActions,
         TimeSpan pendingMenuGraceDuration)
     {
@@ -48,10 +48,10 @@ internal sealed class TimerController
 
         if (runTimer.Phase == SplitTimerPhase.Running)
         {
-            BossSplitRecord? split = splitTracker.Update(snapshot, runTimer.ElapsedAt(observedTimestamp));
+            SplitRecord? split = splitTracker.Update(snapshot, runTimer.ElapsedAt(observedTimestamp));
             if (split is not null)
             {
-                completedSplitIndex = splitTracker.CurrentIndex - 1;
+                completedSplitIndex = split.Value.Index;
                 if (splitTracker.CurrentIndex >= splitTracker.Statuses.Count)
                 {
                     runCompleted = true;

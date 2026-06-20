@@ -15,17 +15,19 @@ internal static class SplitCompletionAnimationFactory
             return null;
         }
 
-        if (!SplitRenderData.TryGetCompletedSegmentTime(statuses, completedIndex, out TimeSpan segmentTime))
+        if (!SplitRenderData.TryGetCompletedSegmentTime(settings, statuses, completedIndex, out TimeSpan segmentTime))
         {
             return null;
         }
 
-        BossSplitDefinition definition = statuses[completedIndex].Definition;
-        string groupKey = SplitRenderData.GetSplitCompletionGroupKey(definition);
+        SplitStatusSnapshot status = statuses[completedIndex];
+        SplitDefinition definition = status.Definition;
+        SplitDefinition displayDefinition = SplitRenderData.GetDisplayDefinition(status);
+        string groupKey = SplitRenderData.GetSplitCompletionGroupKey(settings, definition);
         string segmentBestDeltaHighlightStyle = SplitRenderData.GetSegmentBestDeltaHighlightStyle(settings, groupKey);
 
         return new SplitCompletionAnimation(
-            definition,
+            displayDefinition,
             segmentTime,
             splitTime,
             SplitRenderData.GetReferenceSplitComparison(settings, definition, splitTime),

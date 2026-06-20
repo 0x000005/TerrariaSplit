@@ -20,6 +20,7 @@ internal sealed class SettingsDialogHost : IDisposable
     private IntPtr formHandle;
     private bool started;
     private bool disposed;
+    private bool applyInProgress;
 
     public SettingsDialogHost(
         AppSettings initialSettings,
@@ -149,11 +150,7 @@ internal sealed class SettingsDialogHost : IDisposable
 
         dialog.StartPosition = FormStartPosition.Manual;
         dialog.Location = ResolveStartLocation(dialog.Size);
-        dialog.Applied += (_, _) =>
-        {
-            AppSettings applied = AppSettingsStore.Clone(dialog.Result);
-            DispatchToOwner(() => appliedCallback(applied));
-        };
+        dialog.Applied += (_, _) => ApplySettingsFromDialog(dialog);
 
         DialogResult dialogResult = DialogResult.Cancel;
         AppSettings resultSettings = AppSettingsStore.Clone(dialog.Result);
@@ -192,9 +189,15 @@ internal sealed class SettingsDialogHost : IDisposable
 
     private void DispatchToOwner(Action action)
     {
+        _ = TryDispatchToOwner(action);
+    }
+
+    private bool TryDispatchToOwner(Action action)
+    {
         try
         {
             dispatchToOwner(action);
+            return true;
         }
         catch (ObjectDisposedException)
         {
@@ -202,7 +205,45 @@ internal sealed class SettingsDialogHost : IDisposable
         catch (InvalidOperationException)
         {
         }
+
+        return false;
     }
+
+    private void ApplySettingsFromDialog(SettingsForm dialog)
+    {
+        lock (sync)
+        {
+            if (disposed || applyInProgress)
+            {
+                return;
+            }
+
+            applyInProgress = true;
+        }
+
+        AppSettings applied = AppSettingsStore.Clone(dialog.Result);
+        if (!TryDispatchToOwner(() =>
+        {
+            try
+            {
+                appliedCallback(applied);
+            }
+            finally
+            {
+                lock (sync)
+                {
+                    applyInProgress = false;
+                }
+            }
+        }))
+        {
+            lock (sync)
+            {
+                applyInProgress = false;
+            }
+        }
+    }
+
 }
 
 internal readonly record struct SettingsDialogResult(

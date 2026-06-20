@@ -226,9 +226,10 @@ internal static class TextEffectRenderer
 
     public static void DrawImage(Graphics graphics, Image image, Rectangle bounds, float opacity, float brighten = 0f)
     {
+        Rectangle drawBounds = GetAspectFitBounds(image, bounds);
         if (opacity >= 0.99f && brighten <= 0.001f)
         {
-            graphics.DrawImage(image, bounds);
+            graphics.DrawImage(image, drawBounds);
             return;
         }
 
@@ -247,13 +248,35 @@ internal static class TextEffectRenderer
         attributes.SetColorMatrix(matrix, ColorMatrixFlag.Default, ColorAdjustType.Bitmap);
         graphics.DrawImage(
             image,
-            bounds,
+            drawBounds,
             0,
             0,
             image.Width,
             image.Height,
             GraphicsUnit.Pixel,
             attributes);
+    }
+
+    internal static Rectangle GetAspectFitBounds(Image image, Rectangle bounds)
+    {
+        if (image.Width <= 0 ||
+            image.Height <= 0 ||
+            bounds.Width <= 0 ||
+            bounds.Height <= 0)
+        {
+            return Rectangle.Empty;
+        }
+
+        float scale = Math.Min(
+            bounds.Width / (float)image.Width,
+            bounds.Height / (float)image.Height);
+        int width = Math.Max(1, (int)Math.Round(image.Width * scale));
+        int height = Math.Max(1, (int)Math.Round(image.Height * scale));
+        return new Rectangle(
+            bounds.X + (bounds.Width - width) / 2,
+            bounds.Y + (bounds.Height - height) / 2,
+            width,
+            height);
     }
 
     public static GraphicsPath CreateTextPath(Graphics graphics, string text, Font font, float x, float y, StringFormat format)

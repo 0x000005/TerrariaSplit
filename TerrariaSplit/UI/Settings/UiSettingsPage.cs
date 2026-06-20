@@ -55,6 +55,22 @@ internal sealed class UiSettingsPage : SettingsPageBase
 
     internal TextBox TimerMillisecondsOutlineThicknessBox => timerMillisecondsOutlineThicknessBox;
 
+    internal FontFamilySelector GetFontFamilySelectorForTests(string key)
+    {
+        if (columnControls.TryGetValue(key, out ColumnControls? columnControlsValue) &&
+            columnControlsValue.FontFamily is not null)
+        {
+            return columnControlsValue.FontFamily;
+        }
+
+        if (fontControls.TryGetValue(key, out FontControls? fontControlsValue))
+        {
+            return fontControlsValue.FontFamily;
+        }
+
+        throw new InvalidOperationException($"Font family control not found for {key}.");
+    }
+
     protected override Control BuildPage(SettingsPageContext context)
     {
         return context.BuildScrollPage(content =>
@@ -100,13 +116,14 @@ internal sealed class UiSettingsPage : SettingsPageBase
             SettingsUiFactory.ColumnStylePercent(100f),
             SettingsUiFactory.ColumnStyleAbsolute(92f),
             SettingsUiFactory.ColumnStyleAbsolute(118f),
+            SettingsUiFactory.ColumnStyleAbsolute(220f),
             SettingsUiFactory.ColumnStyleAbsolute(132f),
             SettingsUiFactory.ColumnStyleAbsolute(92f),
             SettingsUiFactory.ColumnStyleAbsolute(152f),
             SettingsUiFactory.ColumnStyleAbsolute(152f),
             SettingsUiFactory.ColumnStyleAbsolute(172f));
 
-        Factory.AddHeaderRow(grid, ContentAlignment.MiddleLeft, "Column", "Show", "Width", "Font", "Bold", "Opacity %", "Shadow %", "Outline %");
+        Factory.AddHeaderRow(grid, ContentAlignment.MiddleLeft, "Column", "Show", "Width", "Font family", "Size", "Bold", "Opacity %", "Shadow %", "Outline %");
         AddColumnSettingsRow(
             grid,
             "Icon",
@@ -114,6 +131,7 @@ internal sealed class UiSettingsPage : SettingsPageBase
             Draft.Columns.Icon,
             opacityBox: iconOpacityBox,
             opacityPercent: Draft.TextEffects.IconOpacityPercent,
+            showFontFamily: false,
             showBold: false);
         AddColumnSettingsRow(
             grid,
@@ -157,14 +175,19 @@ internal sealed class UiSettingsPage : SettingsPageBase
         int shadowPercent = 0,
         TextBox? outlineThicknessBox = null,
         int outlineThicknessPercent = 0,
+        bool showFontFamily = true,
         bool showBold = true)
     {
         var showBox = CreateCenteredCheckBox(value.Show);
         TextBox widthBox = Factory.CreateNumberBox(value.Width, 1, 1000);
+        FontFamilySelector? fontFamilyBox = showFontFamily ? CreateFontFamilyBox(value.FontFamily) : null;
         TextBox fontBox = Factory.CreateDecimalBox(value.FontSize, 6, 96);
         Control opacityControl = CreateEffectCell(opacityBox, opacityPercent, 100);
         Control shadowControl = CreateEffectCell(shadowBox, shadowPercent, 100);
         Control outlineThicknessControl = CreateEffectCell(outlineThicknessBox, outlineThicknessPercent, 200);
+        Control fontFamilyControl = fontFamilyBox is null
+            ? CreateEmptySettingsCell()
+            : Factory.CreateCenteredCell(fontFamilyBox, 210);
 
         CheckBox? boldBox = null;
         Control boldControl = CreateEmptySettingsCell();
@@ -174,17 +197,18 @@ internal sealed class UiSettingsPage : SettingsPageBase
             boldControl = Factory.CreateCenteredCell(boldBox, 28);
         }
 
-        columnControls[key] = new ColumnControls(showBox, widthBox, fontBox, boldBox);
+        columnControls[key] = new ColumnControls(showBox, widthBox, fontFamilyBox, fontBox, boldBox);
 
         int row = Factory.AddGridRow(grid);
         grid.Controls.Add(Factory.CreateRowLabel(label), 0, row);
         grid.Controls.Add(Factory.CreateCenteredCell(showBox, 28), 1, row);
         grid.Controls.Add(Factory.CreateCenteredCell(widthBox, 86), 2, row);
-        grid.Controls.Add(Factory.CreateCenteredCell(fontBox, 92), 3, row);
-        grid.Controls.Add(boldControl, 4, row);
-        grid.Controls.Add(opacityControl, 5, row);
-        grid.Controls.Add(shadowControl, 6, row);
-        grid.Controls.Add(outlineThicknessControl, 7, row);
+        grid.Controls.Add(fontFamilyControl, 3, row);
+        grid.Controls.Add(Factory.CreateCenteredCell(fontBox, 92), 4, row);
+        grid.Controls.Add(boldControl, 5, row);
+        grid.Controls.Add(opacityControl, 6, row);
+        grid.Controls.Add(shadowControl, 7, row);
+        grid.Controls.Add(outlineThicknessControl, 8, row);
     }
 
     private void AddTimerSettingsSection(TableLayoutPanel parent)
@@ -193,13 +217,14 @@ internal sealed class UiSettingsPage : SettingsPageBase
         TableLayoutPanel grid = Factory.CreateGrid(
             SettingsUiFactory.ColumnStylePercent(100f),
             SettingsUiFactory.ColumnStyleAbsolute(92f),
+            SettingsUiFactory.ColumnStyleAbsolute(220f),
             SettingsUiFactory.ColumnStyleAbsolute(132f),
             SettingsUiFactory.ColumnStyleAbsolute(92f),
             SettingsUiFactory.ColumnStyleAbsolute(152f),
             SettingsUiFactory.ColumnStyleAbsolute(152f),
             SettingsUiFactory.ColumnStyleAbsolute(172f));
 
-        Factory.AddHeaderRow(grid, ContentAlignment.MiddleLeft, "Section", "Show", "Font", "Bold", "Opacity %", "Shadow %", "Outline %");
+        Factory.AddHeaderRow(grid, ContentAlignment.MiddleLeft, "Section", "Show", "Font family", "Size", "Bold", "Opacity %", "Shadow %", "Outline %");
         AddFontSettingsRow(
             grid,
             "Before decimal",
@@ -247,21 +272,30 @@ internal sealed class UiSettingsPage : SettingsPageBase
         int outlineThicknessPercent)
     {
         var showBox = CreateCenteredCheckBox(value.Show);
+        FontFamilySelector fontFamilyBox = CreateFontFamilyBox(value.FontFamily);
         TextBox fontBox = Factory.CreateDecimalBox(value.FontSize, 6, 96);
         Control opacityControl = CreateEffectCell(opacityBox, opacityPercent, 100);
         Control shadowControl = CreateEffectCell(shadowBox, shadowPercent, 100);
         Control outlineThicknessControl = CreateEffectCell(outlineThicknessBox, outlineThicknessPercent, 200);
         var boldBox = CreateCenteredCheckBox(value.Bold);
 
-        fontControls[key] = new FontControls(showBox, fontBox, boldBox);
+        fontControls[key] = new FontControls(showBox, fontFamilyBox, fontBox, boldBox);
         int row = Factory.AddGridRow(grid);
         grid.Controls.Add(Factory.CreateRowLabel(label), 0, row);
         grid.Controls.Add(Factory.CreateCenteredCell(showBox, 28), 1, row);
-        grid.Controls.Add(Factory.CreateCenteredCell(fontBox, 92), 2, row);
-        grid.Controls.Add(Factory.CreateCenteredCell(boldBox, 28), 3, row);
-        grid.Controls.Add(opacityControl, 4, row);
-        grid.Controls.Add(shadowControl, 5, row);
-        grid.Controls.Add(outlineThicknessControl, 6, row);
+        grid.Controls.Add(Factory.CreateCenteredCell(fontFamilyBox, 210), 2, row);
+        grid.Controls.Add(Factory.CreateCenteredCell(fontBox, 92), 3, row);
+        grid.Controls.Add(Factory.CreateCenteredCell(boldBox, 28), 4, row);
+        grid.Controls.Add(opacityControl, 5, row);
+        grid.Controls.Add(shadowControl, 6, row);
+        grid.Controls.Add(outlineThicknessControl, 7, row);
+    }
+
+    private FontFamilySelector CreateFontFamilyBox(string familyName)
+    {
+        var selector = new FontFamilySelector();
+        selector.SetSelectedFontFamily(familyName);
+        return selector;
     }
 
     private Control CreateEffectCell(TextBox? textBox, int value, int maximum)
@@ -322,6 +356,11 @@ internal sealed class UiSettingsPage : SettingsPageBase
 
         target.Show = controls.Show.Checked;
         target.Width = SettingsValueParser.ParseIntBox(controls.Width, target.Width, 1, 1000);
+        if (controls.FontFamily is not null)
+        {
+            target.FontFamily = GetSelectedFontFamily(controls.FontFamily, target.FontFamily);
+        }
+
         target.FontSize = SettingsValueParser.ParseFloatBox(controls.FontSize, target.FontSize, 6f, 96f);
         if (controls.Bold is not null)
         {
@@ -337,11 +376,18 @@ internal sealed class UiSettingsPage : SettingsPageBase
         }
 
         target.Show = controls.Show.Checked;
+        target.FontFamily = GetSelectedFontFamily(controls.FontFamily, target.FontFamily);
         target.FontSize = SettingsValueParser.ParseFloatBox(controls.FontSize, target.FontSize, 6f, 96f);
         target.Bold = controls.Bold.Checked;
     }
 
-    private sealed record ColumnControls(CheckBox Show, TextBox Width, TextBox FontSize, CheckBox? Bold);
+    private static string GetSelectedFontFamily(FontFamilySelector selector, string fallback)
+    {
+        string selected = selector.SelectedFontFamily;
+        return UiFontSettings.NormalizeFamilyName(string.IsNullOrWhiteSpace(selected) ? fallback : selected);
+    }
 
-    private sealed record FontControls(CheckBox Show, TextBox FontSize, CheckBox Bold);
+    private sealed record ColumnControls(CheckBox Show, TextBox Width, FontFamilySelector? FontFamily, TextBox FontSize, CheckBox? Bold);
+
+    private sealed record FontControls(CheckBox Show, FontFamilySelector FontFamily, TextBox FontSize, CheckBox Bold);
 }
