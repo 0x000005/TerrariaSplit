@@ -1199,7 +1199,7 @@ internal static class EmbeddedDefaults
     "condition:split:boss-plantera:boss-plantera-defeated-istrue-1": "35:14.00",
     "condition:split:boss-golem:boss-golem-defeated-istrue-1": "37:01.00",
     "condition:split:boss-lunatic-cultist:boss-lunatic-cultist-defeated-istrue-1": "38:52.00",
-    "condition:split:boss-moon-lord:boss-moon-lord-defeated-istrue-1": "48:14.53",
+    "condition:split:boss-moon-lord:boss-moon-lord-defeated-istrue-1": "48:12.63",
     "condition:split:item-3601:complete": "46:53.70",
     "condition:split:item-3459:complete": "41:44.22",
     "condition:split:item-520:complete": "23:52.00",

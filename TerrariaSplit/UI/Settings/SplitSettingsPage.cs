@@ -229,7 +229,7 @@ internal sealed class SplitSettingsPage : SettingsPageBase
 
     private void AddExpansionSection(TableLayoutPanel parent)
     {
-        TableLayoutPanel section = Factory.CreateSection("Split details");
+        TableLayoutPanel section = Factory.CreateSection("Main groups");
         TableLayoutPanel grid = Factory.CreateTwoColumnGrid(280f);
 
         expandSplitDetailsBox = Factory.CreateCheckBox(Draft.ExpandSplitDetails);
@@ -281,7 +281,7 @@ internal sealed class SplitSettingsPage : SettingsPageBase
         };
 
         targetSearchBox = Factory.CreateTextBox(string.Empty);
-        targetSearchBox.PlaceholderText = Context.Localize("Search target name / id");
+        targetSearchBox.PlaceholderText = Context.Localize("Name / Id");
         targetSearchBox.TextChanged += (_, _) => RefreshTargetList();
         TableLayoutPanel targetSettingsGrid = CreateTopSettingsGrid();
         Factory.AddSettingRow(targetSettingsGrid, "Type", targetKindBox);
@@ -1223,7 +1223,7 @@ internal sealed class SplitSettingsPage : SettingsPageBase
         Color color)
     {
         string name = item.ToString();
-        string marker = Context.Localize("Attached group marker");
+        string marker = Context.Localize("Attached group");
         using Font markerFont = new(itemFont.FontFamily, Math.Max(6f, itemFont.Size - 1f), itemFont.Style);
         const TextFormatFlags markerFlags = TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding;
         Size markerSize = TextRenderer.MeasureText(
