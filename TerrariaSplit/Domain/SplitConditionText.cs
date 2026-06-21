@@ -84,7 +84,7 @@ internal static class SplitConditionText
         string targetText = condition.FactKey;
         if (SplitCatalog.TryGetTargetByFactKey(condition.FactKey, out SplitTargetDefinition target))
         {
-            targetText = FormatTargetToken(target);
+            targetText = SplitTargetTokenFormatter.Format(target);
         }
 
         targetText = QuoteIfNeeded(targetText);
@@ -435,7 +435,7 @@ internal static class SplitConditionText
 
         foreach (string id in TerrariaBiomeCatalog.ById.Keys)
         {
-            if (string.Equals(ToPascalToken(id), query, StringComparison.OrdinalIgnoreCase) ||
+            if (string.Equals(SplitTargetTokenFormatter.ToPascalToken(id), query, StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(id.Replace("-", string.Empty, StringComparison.Ordinal), normalized, StringComparison.OrdinalIgnoreCase))
             {
                 biomeId = id;
@@ -445,37 +445,6 @@ internal static class SplitConditionText
 
         return false;
     }
-
-    private static string FormatTargetToken(SplitTargetDefinition target)
-    {
-        if (target.Kind == SplitTargetKind.Item && SplitCatalog.TryParseItemTargetId(target.Id, out int itemId))
-        {
-            return $"Item:{itemId.ToString(CultureInfo.InvariantCulture)}";
-        }
-
-        if (target.Kind == SplitTargetKind.Npc && SplitCatalog.TryParseNpcTargetId(target.Id, out int npcId))
-        {
-            return $"NPC:{npcId.ToString(CultureInfo.InvariantCulture)}";
-        }
-
-        if (target.Kind == SplitTargetKind.Biome && SplitCatalog.TryParseBiomeTargetId(target.Id, out string biomeId))
-        {
-            return $"Biome:{ToPascalToken(biomeId)}";
-        }
-
-        return target.Id.StartsWith("boss:", StringComparison.OrdinalIgnoreCase)
-            ? $"Boss:{target.Id["boss:".Length..]}"
-            : target.Id;
-    }
-
-    private static string ToPascalToken(string value)
-    {
-        string[] parts = value.Split('-', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        return string.Concat(parts.Select(part => part.Length == 0
-            ? part
-            : char.ToUpperInvariant(part[0]) + part[1..].ToLowerInvariant()));
-    }
-
     private static List<Token> Tokenize(string text)
     {
         var tokens = new List<Token>();
