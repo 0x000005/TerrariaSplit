@@ -3179,44 +3179,57 @@ static void TestSettingsFormKeepsWorldPoolIndependentFromPyramidFilter()
 
 static void TestDebugSequenceUsesPooledWorldPath()
 {
-    RunSta(() =>
+    var settings = new AppSettings
     {
-        var settings = new AppSettings
+        Automation =
         {
-            Automation =
+            AutoCreate = new AutoCreateWorldSettings
             {
-                AutoCreate = new AutoCreateWorldSettings
-                {
-                    WorldSize = AutoCreateWorldSize.Small,
-                    WorldDifficulty = AutoCreateWorldDifficulty.Expert,
-                    WorldEvil = AutoCreateWorldEvil.Crimson,
-                    SpecialSeeds = AutoCreateSpecialWorldSeed.ForTheWorthy,
-                    EnablePyramidFilter = false,
-                    EnableWorldPool = true
-                }
+                WorldSize = AutoCreateWorldSize.Small,
+                WorldDifficulty = AutoCreateWorldDifficulty.Expert,
+                WorldEvil = AutoCreateWorldEvil.Crimson,
+                SpecialSeeds = AutoCreateSpecialWorldSeed.ForTheWorthy,
+                EnablePyramidFilter = false,
+                EnableWorldPool = true
             }
-        };
-        using var form = new SettingsForm(settings, worldPoolCountProvider: _ => 1);
-        TerrariaMenuGeometry geometry = TerrariaMenuGeometry.From(new Size(900, 900));
-        MethodInfo method = typeof(DebugSettingsPage).GetMethod(
-                "BuildAutoCreateSequenceText",
-                BindingFlags.Static | BindingFlags.NonPublic)
-            ?? throw new InvalidOperationException("Missing debug sequence builder.");
-        string sequence = (string)(method.Invoke(null, [settings.Automation.AutoCreate, geometry, 0, form])
-            ?? throw new InvalidOperationException("Debug sequence builder returned null."));
+        }
+    };
+    var window = new TerrariaWindowSnapshot(
+        HasProcess: false,
+        ProcessId: null,
+        ProcessStartTime: null,
+        IsResponding: false,
+        HasWindow: false,
+        WindowHandle: IntPtr.Zero,
+        WindowTitle: string.Empty,
+        IsVisible: false,
+        IsMinimized: false,
+        IsMaximized: false,
+        IsForeground: false,
+        WindowBounds: null,
+        ClientSize: new Size(900, 900),
+        Status: string.Empty);
+    DebugSettingsSnapshot snapshot = DebugSettingsSnapshotBuilder.Build(
+        window,
+        RuntimeDebugSnapshot.Empty,
+        new TerrariaSaveInventorySnapshot(0, 0, 0, 0),
+        settings.Automation.AutoCreate,
+        settings.Advanced,
+        static () => 1,
+        static key => key);
+    string sequence = snapshot.Automation.AutoCreateSequence;
 
-        AssertEqual(true, sequence.Contains("Install pooled world", StringComparison.Ordinal));
-        AssertEqual(true, sequence.Contains("Stop at world select", StringComparison.Ordinal));
-        AssertEqual(false, sequence.Contains("New World", StringComparison.Ordinal));
-        AssertEqual(false, sequence.Contains("Advanced Seed", StringComparison.Ordinal));
-        AssertEqual(false, sequence.Contains("Create World", StringComparison.Ordinal));
-        AssertEqual(false, sequence.Contains("World size", StringComparison.Ordinal));
-        AssertEqual(false, sequence.Contains("World difficulty", StringComparison.Ordinal));
-        AssertEqual(false, sequence.Contains("World evil", StringComparison.Ordinal));
-        AssertEqual(false, sequence.Contains("Special seeds", StringComparison.Ordinal));
-        AssertEqual(false, sequence.Contains("Randomize Visible Seed", StringComparison.Ordinal));
-        AssertEqual(false, sequence.Contains("Filter pyramid", StringComparison.Ordinal));
-    });
+    AssertEqual(true, sequence.Contains("Install pooled world", StringComparison.Ordinal));
+    AssertEqual(true, sequence.Contains("Stop at world select", StringComparison.Ordinal));
+    AssertEqual(false, sequence.Contains("New World", StringComparison.Ordinal));
+    AssertEqual(false, sequence.Contains("Advanced Seed", StringComparison.Ordinal));
+    AssertEqual(false, sequence.Contains("Create World", StringComparison.Ordinal));
+    AssertEqual(false, sequence.Contains("World size", StringComparison.Ordinal));
+    AssertEqual(false, sequence.Contains("World difficulty", StringComparison.Ordinal));
+    AssertEqual(false, sequence.Contains("World evil", StringComparison.Ordinal));
+    AssertEqual(false, sequence.Contains("Special seeds", StringComparison.Ordinal));
+    AssertEqual(false, sequence.Contains("Randomize Visible Seed", StringComparison.Ordinal));
+    AssertEqual(false, sequence.Contains("Filter pyramid", StringComparison.Ordinal));
 }
 
 static void TestSettingsFormAppliesTimerStartSound()
