@@ -4,6 +4,7 @@ internal static class SettingsNormalizer
 {
     public static void Normalize(AppSettings settings)
     {
+        SettingsMigrator.Migrate(settings);
         AppSettings defaults = AppSettingsDefaults.Create();
         settings.SplitRoute ??= new List<SplitRouteEntry>();
         settings.ReferenceSplitSets ??= new List<ReferenceSplitSet>();
@@ -319,12 +320,6 @@ internal static class SettingsNormalizer
             if (entry is null)
             {
                 continue;
-            }
-
-            if (entry.ExpandDetails)
-            {
-                settings.ExpandSplitDetails = true;
-                entry.ExpandDetails = false;
             }
 
             entry.Condition = NormalizeCondition(entry.Condition ?? SplitCondition.All([]));
