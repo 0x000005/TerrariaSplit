@@ -1,4 +1,4 @@
-namespace TerrariaSplit.Domain;
+namespace TerrariaSplit.Configuration;
 
 internal sealed record SplitConditionDataRow(
     string Key,
