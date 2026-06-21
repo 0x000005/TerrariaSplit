@@ -207,7 +207,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
         routeEntries.Insert(insertionIndex, entry);
         loadedRouteEntryIndex = -1;
         routeDirty = true;
-        NormalizeAttachedRouteFlags();
+        routeDraft.NormalizeAttachedRouteFlags();
         RefreshRouteList();
         routeList.SelectedIndex = insertionIndex;
     }

@@ -120,7 +120,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
             return;
         }
 
-        if (!CanUseBasicConditionEditor(GetCurrentCondition()))
+        if (!SplitConditionEditorMode.CanUseBasicEditor(GetCurrentCondition()))
         {
             advancedConditionError = Context.Localize("Advanced condition cannot be converted to basic editor without losing structure.");
             ShowAdvancedConditionWarning(advancedConditionError);
@@ -272,24 +272,6 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
         targetSearchBox.Enabled = true;
         targetList.Enabled = true;
         LoadSelectedConditionSettings();
-    }
-
-    private static bool CanUseBasicConditionEditor(SplitCondition condition)
-    {
-        string kind = SplitConditionKind.Normalize(condition.Kind);
-        if (kind == SplitConditionKind.Fact)
-        {
-            return true;
-        }
-
-        if (kind != SplitConditionKind.All &&
-            kind != SplitConditionKind.Any &&
-            kind != SplitConditionKind.AtLeast)
-        {
-            return false;
-        }
-
-        return condition.Children.All(child => SplitConditionKind.Normalize(child.Kind) == SplitConditionKind.Fact);
     }
 
     private void LoadSelectedConditionSettings()

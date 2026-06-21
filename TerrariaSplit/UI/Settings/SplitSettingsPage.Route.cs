@@ -191,29 +191,6 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
         return true;
     }
 
-    private void NormalizeAttachedRouteFlags()
-    {
-        bool hasFollowingEnabledAnchor = false;
-        for (int i = routeEntries.Count - 1; i >= 0; i--)
-        {
-            SplitRouteEntry entry = routeEntries[i];
-            if (!entry.Enabled)
-            {
-                continue;
-            }
-
-            if (entry.IsAttached && !hasFollowingEnabledAnchor)
-            {
-                entry.IsAttached = false;
-            }
-
-            if (!entry.IsAttached)
-            {
-                hasFollowingEnabledAnchor = true;
-            }
-        }
-    }
-
     private void UpdateSelectedAttachedAvailability()
     {
         if (splitAttachedBox is null ||
@@ -223,7 +200,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
             return;
         }
 
-        bool canAttach = CanEntryAttachToFollowingAnchor(loadedRouteEntryIndex);
+        bool canAttach = routeDraft.CanEntryAttachToFollowingAnchor(loadedRouteEntryIndex);
         bool previousUpdating = updatingUi;
         updatingUi = true;
         try
@@ -235,24 +212,6 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
         {
             updatingUi = previousUpdating;
         }
-    }
-
-    private bool CanEntryAttachToFollowingAnchor(int index)
-    {
-        if (index < 0 || index >= routeEntries.Count || !routeEntries[index].Enabled)
-        {
-            return false;
-        }
-
-        for (int i = index + 1; i < routeEntries.Count; i++)
-        {
-            if (routeEntries[i].Enabled)
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private void MarkSelectedEntryDirty()
@@ -268,7 +227,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
             return;
         }
 
-        NormalizeAttachedRouteFlags();
+        routeDraft.NormalizeAttachedRouteFlags();
         UpdateSelectedAttachedAvailability();
         RefreshRouteList();
     }
@@ -291,7 +250,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
             IconTargetIds = [],
             UseAdvancedConditionEditor = false
         });
-        NormalizeAttachedRouteFlags();
+        routeDraft.NormalizeAttachedRouteFlags();
         routeDirty = true;
         RefreshRouteList();
         routeList.SelectedIndex = routeEntries.Count - 1;
@@ -324,7 +283,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
 
         routeDirty = true;
         statusLabel.Text = string.Empty;
-        NormalizeAttachedRouteFlags();
+        routeDraft.NormalizeAttachedRouteFlags();
         RefreshRouteList();
         routeList.SelectedIndex = routeEntries.Count - 1;
     }
@@ -340,7 +299,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
         routeEntries.RemoveAt(index);
         loadedRouteEntryIndex = -1;
         routeDirty = true;
-        NormalizeAttachedRouteFlags();
+        routeDraft.NormalizeAttachedRouteFlags();
         RefreshRouteList();
         if (routeList.Items.Count > 0)
         {

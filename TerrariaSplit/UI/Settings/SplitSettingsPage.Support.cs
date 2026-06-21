@@ -6,57 +6,14 @@ namespace TerrariaSplit.UI.Settings;
 
 internal sealed partial class SplitSettingsPage : SettingsPageBase
 {
-    private void EnsureRouteEntryIds()
-    {
-        HashSet<string> seenIds = new(StringComparer.OrdinalIgnoreCase);
-        for (int i = 0; i < routeEntries.Count; i++)
-        {
-            SplitRouteEntry entry = routeEntries[i];
-            string baseId = string.IsNullOrWhiteSpace(entry.Id)
-                ? SplitSettingsRouteIdFactory.CreateSplitId(entry, i + 1)
-                : entry.Id.Trim();
-            entry.Id = SplitSettingsRouteIdFactory.CreateUniqueSplitId(baseId, seenIds, i + 1);
-        }
-    }
-
     private string CreateUniqueSplitId(string preferredId)
     {
-        HashSet<string> seenIds = routeEntries
-            .Select(entry => entry.Id.Trim())
-            .Where(id => !string.IsNullOrWhiteSpace(id))
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        return SplitSettingsRouteIdFactory.CreateUniqueSplitId(preferredId, seenIds, routeEntries.Count + 1);
+        return routeDraft.CreateUniqueSplitId(preferredId);
     }
 
     private bool TryValidateRoute(out string message)
     {
-        return SplitSettingsRouteValidator.TryValidate(routeEntries, Context.Localize, out message);
-    }
-
-    private static SplitRouteEntry CloneEntry(SplitRouteEntry entry)
-    {
-        return new SplitRouteEntry
-        {
-            Id = entry.Id,
-            Enabled = entry.Enabled,
-            IsAttached = entry.IsAttached,
-            DisplayName = entry.DisplayName,
-            Condition = (entry.Condition ?? SplitCondition.All([])).Clone(),
-            IconTargetIds = entry.IconTargetIds?.ToList() ?? new List<string>(),
-            IconOverride = CloneIconOverride(entry.IconOverride),
-            UseAdvancedConditionEditor = entry.UseAdvancedConditionEditor ||
-                !CanUseBasicConditionEditor(entry.Condition ?? SplitCondition.All([]))
-        };
-    }
-
-    private static SplitIconOverride CloneIconOverride(SplitIconOverride? iconOverride)
-    {
-        return new SplitIconOverride
-        {
-            Source = SplitIconOverrideSource.Normalize(iconOverride?.Source),
-            TargetId = iconOverride?.TargetId ?? string.Empty,
-            FilePath = iconOverride?.FilePath ?? string.Empty
-        };
+        return routeDraft.TryValidate(Context.Localize, out message);
     }
 
     private sealed record TargetListItem(SplitTargetDefinition Target, string DisplayText)

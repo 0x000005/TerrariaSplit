@@ -10,7 +10,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
     private const int TopSettingsRowsHeight = 174;
     private const int MaxTargetSearchResults = 500;
 
-    private readonly List<SplitRouteEntry> routeEntries = new();
+    private readonly SplitRouteDraft routeDraft = new();
     private ListBox targetList = null!;
     private ThemedDropDownList targetKindBox = null!;
     private TextBox targetSearchBox = null!;
@@ -48,6 +48,8 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
     private Point routeDragStartPoint;
     private int conditionDragIndex = -1;
     private Point conditionDragStartPoint;
+
+    private List<SplitRouteEntry> routeEntries => routeDraft.Entries;
 
     public override SettingsPageId Id => SettingsPageId.Splits;
 
@@ -97,12 +99,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
 
     protected override Control BuildPage(SettingsPageContext context)
     {
-        routeEntries.Clear();
-        routeEntries.AddRange(Draft.Route.SplitRoute.Select(CloneEntry));
-        if (routeEntries.Count == 0)
-        {
-            routeEntries.AddRange(SplitCatalog.CreateDefaultRoute().Select(CloneEntry));
-        }
+        routeDraft.LoadFrom(Draft.Route);
 
         Control page = context.BuildScrollPage(content =>
         {
@@ -128,11 +125,11 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
             throw new SettingsApplyFailedException(advancedConditionError);
         }
 
-        EnsureRouteEntryIds();
-        NormalizeAttachedRouteFlags();
+        routeDraft.EnsureEntryIds();
+        routeDraft.NormalizeAttachedRouteFlags();
         if (TryValidateRoute(out string validationMessage))
         {
-            settings.Route.SplitRoute = routeEntries.Select(CloneEntry).ToList();
+            settings.Route.SplitRoute = routeDraft.CreateSnapshot();
             bool expansionChanged = SaveExpansionSettings(settings);
 
             AppSettingsStore.Normalize(settings);
@@ -158,13 +155,13 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
             return;
         }
 
-        EnsureRouteEntryIds();
-        NormalizeAttachedRouteFlags();
+        routeDraft.EnsureEntryIds();
+        routeDraft.NormalizeAttachedRouteFlags();
         bool expansionChanged = SaveExpansionSettings(Draft);
         string validationMessage = string.Empty;
         if (routeDirty && TryValidateRoute(out validationMessage))
         {
-            Draft.Route.SplitRoute = routeEntries.Select(CloneEntry).ToList();
+            Draft.Route.SplitRoute = routeDraft.CreateSnapshot();
             AppSettingsStore.Normalize(Draft);
             Context.NotifyModelChanged(SettingsModelChange.RouteChanged);
             statusLabel.Text = string.Empty;
