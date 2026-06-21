@@ -97,53 +97,49 @@ internal sealed class ApplicationController
         var effects = new List<ApplicationEffect>();
         bool invalidateAll = false;
 
-        switch (command.Kind)
+        switch (command)
         {
-            case AppCommandKind.TogglePause:
+            case TogglePauseCommand:
                 if (ViewState.TimerPhase != SplitTimerPhase.NotStarted)
                 {
                     effects.Add(new SubmitRuntimeCommandEffect(RuntimeCommand.TogglePause()));
                 }
                 break;
-            case AppCommandKind.ResetRun:
-                AddResetEffects(effects, command.RecordStats, command.PlayResetSound);
+            case ResetRunCommand reset:
+                AddResetEffects(effects, reset.RecordStats, reset.PlayResetSound);
                 invalidateAll = true;
                 break;
-            case AppCommandKind.ToggleMouseClickThrough:
+            case ToggleMouseClickThroughCommand:
                 effects.Add(new ToggleMouseClickThroughEffect());
                 invalidateAll = true;
                 break;
-            case AppCommandKind.TogglePyramidFilter:
+            case TogglePyramidFilterCommand:
                 TogglePyramidFilter(effects);
                 invalidateAll = true;
                 break;
-            case AppCommandKind.QueueMenuAction:
+            case QueueMenuActionCommand queueMenuAction:
                 effects.Add(new SubmitRuntimeCommandEffect(
-                    RuntimeCommand.QueueMenuAction(command.MenuAction, command.RequestedAtUtc)));
+                    RuntimeCommand.QueueMenuAction(queueMenuAction.Action, queueMenuAction.RequestedAtUtc)));
                 break;
-            case AppCommandKind.CancelCreateWorld:
+            case CancelCreateWorldCommand:
                 effects.Add(new CancelCreateWorldAutomationEffect());
                 break;
-            case AppCommandKind.CancelEnterWorld:
+            case CancelEnterWorldCommand:
                 effects.Add(new CancelEnterWorldAutomationEffect());
                 break;
-            case AppCommandKind.EditPracticeSplitTime:
+            case EditPracticeSplitTimeCommand editSplitTime:
                 effects.Add(new SubmitRuntimeCommandEffect(
-                    RuntimeCommand.SetPracticeSplitTime(command.SplitIndex, command.Time)));
+                    RuntimeCommand.SetPracticeSplitTime(editSplitTime.SplitIndex, editSplitTime.Time)));
                 break;
-            case AppCommandKind.EditPracticeTotalTime:
-                if (command.Time is TimeSpan time)
-                {
-                    effects.Add(new SubmitRuntimeCommandEffect(RuntimeCommand.SetPracticeTotalTime(time)));
-                }
+            case EditPracticeTotalTimeCommand editTotalTime:
+                effects.Add(new SubmitRuntimeCommandEffect(RuntimeCommand.SetPracticeTotalTime(editTotalTime.Time)));
                 break;
-            case AppCommandKind.ApplySettings:
-                if (command.Settings is AppSettings nextSettings)
-                {
-                    ApplySettings(nextSettings, effects);
-                    invalidateAll = true;
-                }
+            case ApplySettingsCommand applySettings:
+                ApplySettings(applySettings.Settings, effects);
+                invalidateAll = true;
                 break;
+            default:
+                throw new NotSupportedException($"Unsupported application command {command.GetType().Name}.");
         }
 
         return new ApplicationUpdate(effects, invalidateAll);

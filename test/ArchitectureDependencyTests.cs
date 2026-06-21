@@ -18,6 +18,7 @@ internal static class ArchitectureDependencyTests
         yield return ("Architecture keeps Application project free of Terraria and Storage", ApplicationProjectDoesNotReferenceTerrariaOrStorage);
         yield return ("Architecture has repository build safety props", RepositoryBuildSafetyPropsExist);
         yield return ("Architecture uses typed application effects", ApplicationEffectsAreTypedRecords);
+        yield return ("Architecture uses typed application commands", ApplicationCommandsAreTypedRecords);
         yield return ("Architecture keeps AppSettings section-only", AppSettingsHasNoCompatibilityFacade);
         yield return ("Architecture has no root namespace source files", RootNamespaceIsEmpty);
         yield return ("Architecture static dependency debt does not grow", StaticDependencyDebtDoesNotGrow);
@@ -186,6 +187,14 @@ internal static class ArchitectureDependencyTests
             Path.Combine("TerrariaSplit", "Application"),
             new Regex(@"\bApplicationEffectKind\b|ApplicationEffect\.", RegexOptions.Compiled),
             "Application effects must be expressed as concrete typed records, not Kind/factory combinations.");
+    }
+
+    private static void ApplicationCommandsAreTypedRecords()
+    {
+        AssertNoMatches(
+            Path.Combine("TerrariaSplit", "Application"),
+            new Regex(@"\bAppCommandKind\b", RegexOptions.Compiled),
+            "Application commands must be expressed as concrete typed records, not Kind/factory combinations.");
     }
 
     private static void AppSettingsHasNoCompatibilityFacade()

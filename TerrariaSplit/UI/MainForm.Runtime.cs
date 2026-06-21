@@ -209,7 +209,7 @@ internal sealed partial class MainForm : Form
     private void ExecuteAppCommand(AppCommand command)
     {
         ApplicationUpdate update = applicationController.HandleCommand(command);
-        if (command.Kind == AppCommandKind.ApplySettings)
+        if (command is ApplySettingsCommand)
         {
             ApplySettingsApplicationUpdate(update);
             return;

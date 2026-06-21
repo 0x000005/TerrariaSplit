@@ -35,7 +35,7 @@ internal static class HotkeyTests
             createWorldRunning: false,
             enterWorldRunning: false,
             out AppCommand pauseCommand));
-        TestAssert.Equal(AppCommandKind.TogglePause, pauseCommand.Kind);
+        TestAssert.Equal(true, pauseCommand is TogglePauseCommand);
 
         TestAssert.Equal(true, HotkeyCommandMapper.TryMap(
             HotkeyAction.MouseClickThrough,
@@ -43,7 +43,7 @@ internal static class HotkeyTests
             createWorldRunning: false,
             enterWorldRunning: false,
             out AppCommand clickThroughCommand));
-        TestAssert.Equal(AppCommandKind.ToggleMouseClickThrough, clickThroughCommand.Kind);
+        TestAssert.Equal(true, clickThroughCommand is ToggleMouseClickThroughCommand);
 
         TestAssert.Equal(true, HotkeyCommandMapper.TryMap(
             HotkeyAction.Reset,
@@ -51,8 +51,8 @@ internal static class HotkeyTests
             createWorldRunning: false,
             enterWorldRunning: false,
             out AppCommand resetCommand));
-        TestAssert.Equal(AppCommandKind.QueueMenuAction, resetCommand.Kind);
-        TestAssert.Equal(MenuActionKind.Reset, resetCommand.MenuAction);
+        var resetMenuCommand = (QueueMenuActionCommand)resetCommand;
+        TestAssert.Equal(MenuActionKind.Reset, resetMenuCommand.Action);
 
         TestAssert.Equal(true, HotkeyCommandMapper.TryMap(
             HotkeyAction.CreateWorld,
@@ -60,8 +60,8 @@ internal static class HotkeyTests
             createWorldRunning: false,
             enterWorldRunning: false,
             out AppCommand createWorldCommand));
-        TestAssert.Equal(AppCommandKind.QueueMenuAction, createWorldCommand.Kind);
-        TestAssert.Equal(MenuActionKind.CreateWorld, createWorldCommand.MenuAction);
+        var createWorldMenuCommand = (QueueMenuActionCommand)createWorldCommand;
+        TestAssert.Equal(MenuActionKind.CreateWorld, createWorldMenuCommand.Action);
 
         TestAssert.Equal(true, HotkeyCommandMapper.TryMap(
             HotkeyAction.PracticeWorld,
@@ -69,8 +69,8 @@ internal static class HotkeyTests
             createWorldRunning: false,
             enterWorldRunning: false,
             out AppCommand practiceWorldCommand));
-        TestAssert.Equal(AppCommandKind.QueueMenuAction, practiceWorldCommand.Kind);
-        TestAssert.Equal(MenuActionKind.PracticeWorld, practiceWorldCommand.MenuAction);
+        var practiceWorldMenuCommand = (QueueMenuActionCommand)practiceWorldCommand;
+        TestAssert.Equal(MenuActionKind.PracticeWorld, practiceWorldMenuCommand.Action);
 
         TestAssert.Equal(true, HotkeyCommandMapper.TryMap(
             HotkeyAction.CreateWorld,
@@ -78,7 +78,7 @@ internal static class HotkeyTests
             createWorldRunning: true,
             enterWorldRunning: false,
             out AppCommand cancelCreateCommand));
-        TestAssert.Equal(AppCommandKind.CancelCreateWorld, cancelCreateCommand.Kind);
+        TestAssert.Equal(true, cancelCreateCommand is CancelCreateWorldCommand);
 
         TestAssert.Equal(false, HotkeyCommandMapper.TryMap(
             HotkeyAction.Reset,
@@ -93,7 +93,7 @@ internal static class HotkeyTests
             createWorldRunning: false,
             enterWorldRunning: true,
             out AppCommand cancelEnterCommand));
-        TestAssert.Equal(AppCommandKind.CancelEnterWorld, cancelEnterCommand.Kind);
+        TestAssert.Equal(true, cancelEnterCommand is CancelEnterWorldCommand);
     }
 
     private static void ApplicationControllerMapsInputCommandsToEffects()
