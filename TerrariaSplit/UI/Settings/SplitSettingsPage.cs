@@ -98,7 +98,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
     protected override Control BuildPage(SettingsPageContext context)
     {
         routeEntries.Clear();
-        routeEntries.AddRange(Draft.SplitRoute.Select(CloneEntry));
+        routeEntries.AddRange(Draft.Route.SplitRoute.Select(CloneEntry));
         if (routeEntries.Count == 0)
         {
             routeEntries.AddRange(SplitCatalog.CreateDefaultRoute().Select(CloneEntry));
@@ -132,7 +132,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
         NormalizeAttachedRouteFlags();
         if (TryValidateRoute(out string validationMessage))
         {
-            settings.SplitRoute = routeEntries.Select(CloneEntry).ToList();
+            settings.Route.SplitRoute = routeEntries.Select(CloneEntry).ToList();
             bool expansionChanged = SaveExpansionSettings(settings);
 
             AppSettingsStore.Normalize(settings);
@@ -164,7 +164,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
         string validationMessage = string.Empty;
         if (routeDirty && TryValidateRoute(out validationMessage))
         {
-            Draft.SplitRoute = routeEntries.Select(CloneEntry).ToList();
+            Draft.Route.SplitRoute = routeEntries.Select(CloneEntry).ToList();
             AppSettingsStore.Normalize(Draft);
             Context.NotifyModelChanged(SettingsModelChange.RouteChanged);
             statusLabel.Text = string.Empty;
@@ -197,14 +197,14 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
         bool collapse = collapseSplitDetailsOnCompletionBox?.Checked != false;
         bool autoHideAttachedGroups = autoHideAttachedGroupsBox?.Checked != false;
         bool attachedGroupsAffectTimerComparison = attachedGroupsAffectTimerComparisonBox?.Checked != false;
-        bool changed = settings.ExpandSplitDetails != expand ||
-            settings.CollapseSplitDetailsOnCompletion != collapse ||
-            settings.AutoHideAttachedGroups != autoHideAttachedGroups ||
-            settings.AttachedGroupsAffectTimerComparison != attachedGroupsAffectTimerComparison;
-        settings.ExpandSplitDetails = expand;
-        settings.CollapseSplitDetailsOnCompletion = collapse;
-        settings.AutoHideAttachedGroups = autoHideAttachedGroups;
-        settings.AttachedGroupsAffectTimerComparison = attachedGroupsAffectTimerComparison;
+        bool changed = settings.Route.ExpandSplitDetails != expand ||
+            settings.Route.CollapseSplitDetailsOnCompletion != collapse ||
+            settings.Route.AutoHideAttachedGroups != autoHideAttachedGroups ||
+            settings.Route.AttachedGroupsAffectTimerComparison != attachedGroupsAffectTimerComparison;
+        settings.Route.ExpandSplitDetails = expand;
+        settings.Route.CollapseSplitDetailsOnCompletion = collapse;
+        settings.Route.AutoHideAttachedGroups = autoHideAttachedGroups;
+        settings.Route.AttachedGroupsAffectTimerComparison = attachedGroupsAffectTimerComparison;
         return changed;
     }
 

@@ -23,7 +23,7 @@ internal sealed class ColorSettingsPage : SettingsPageBase
 
     private void BuildSections(TableLayoutPanel parent)
     {
-        Draft.Colors ??= new UiColorSettings();
+        Draft.Overlay.Colors ??= new UiColorSettings();
 
         TableLayoutPanel textSection = Factory.CreateSection("UI Colors");
         TableLayoutPanel textGrid = Factory.CreateGrid(
@@ -39,11 +39,11 @@ internal sealed class ColorSettingsPage : SettingsPageBase
                 textGrid,
                 descriptor.Label,
                 descriptor.TextKey,
-                descriptor.GetText(Draft.Colors),
+                descriptor.GetText(Draft.Overlay.Colors),
                 descriptor.OutlineKey,
-                descriptor.GetOutline(Draft.Colors),
+                descriptor.GetOutline(Draft.Overlay.Colors),
                 descriptor.ShadowKey,
-                descriptor.GetShadow(Draft.Colors));
+                descriptor.GetShadow(Draft.Overlay.Colors));
         }
 
         SettingsUiFactory.AddSectionControl(textSection, textGrid);
@@ -61,7 +61,7 @@ internal sealed class ColorSettingsPage : SettingsPageBase
                 animationGrid,
                 descriptor.Label,
                 descriptor.Key,
-                descriptor.GetValue(Draft.Colors));
+                descriptor.GetValue(Draft.Overlay.Colors));
         }
 
         SettingsUiFactory.AddSectionControl(animationSection, animationGrid);
@@ -141,25 +141,25 @@ internal sealed class ColorSettingsPage : SettingsPageBase
 
     private void SyncDraftColor(string key, string colorText)
     {
-        Draft.Colors ??= new UiColorSettings();
+        Draft.Overlay.Colors ??= new UiColorSettings();
         string normalized = ColorText.Format(ColorText.Parse(colorText, Color.White));
         foreach (TextColorDescriptor descriptor in SettingsDescriptors.TextColors)
         {
             if (descriptor.TextKey == key)
             {
-                descriptor.SetText(Draft.Colors, normalized);
+                descriptor.SetText(Draft.Overlay.Colors, normalized);
                 return;
             }
 
             if (descriptor.OutlineKey == key)
             {
-                descriptor.SetOutline(Draft.Colors, normalized);
+                descriptor.SetOutline(Draft.Overlay.Colors, normalized);
                 return;
             }
 
             if (descriptor.ShadowKey == key)
             {
-                descriptor.SetShadow(Draft.Colors, normalized);
+                descriptor.SetShadow(Draft.Overlay.Colors, normalized);
                 return;
             }
         }
@@ -168,7 +168,7 @@ internal sealed class ColorSettingsPage : SettingsPageBase
         {
             if (descriptor.Key == key)
             {
-                descriptor.SetValue(Draft.Colors, normalized);
+                descriptor.SetValue(Draft.Overlay.Colors, normalized);
                 return;
             }
         }

@@ -101,7 +101,7 @@ internal static class SplitListRenderer
         OverlayRenderContext context,
         IReadOnlyList<SplitDisplayRow> rows)
     {
-        return context.Settings.ShowCurrentSplitHighlight &&
+        return context.Settings.Overlay.ShowCurrentSplitHighlight &&
             context.TimerPhase != SplitTimerPhase.NotStarted &&
             context.CurrentSplitIndex >= 0 &&
             context.CurrentSplitIndex < context.Statuses.Count
@@ -116,7 +116,7 @@ internal static class SplitListRenderer
             return 1f;
         }
 
-        float maximumScale = Math.Clamp(settings.CurrentSplitHighlightScalePercent, 100, 140) / 100f;
+        float maximumScale = Math.Clamp(settings.Overlay.CurrentSplitHighlightScalePercent, 100, 140) / 100f;
         float lift = maximumScale - 1f;
         if (lift <= 0.001f)
         {
@@ -146,7 +146,7 @@ internal static class SplitListRenderer
             return baseOpacity;
         }
 
-        float strength = Math.Clamp(settings.CurrentSplitDepthStrengthPercent * 2f, 0f, 100f) / 100f;
+        float strength = Math.Clamp(settings.Overlay.CurrentSplitDepthStrengthPercent * 2f, 0f, 100f) / 100f;
         int distance = Math.Abs(rowIndex - focusIndex);
         float depthLoss = distance switch
         {
@@ -214,17 +214,17 @@ internal static class SplitListRenderer
 
     public static UiColumnSettings GetIconColumnSettings(AppSettings settings, bool attached)
     {
-        return attached ? settings.Columns.AttachedIcon : settings.Columns.Icon;
+        return attached ? settings.Overlay.Columns.AttachedIcon : settings.Overlay.Columns.Icon;
     }
 
     public static UiColumnSettings GetTimeColumnSettings(AppSettings settings, bool attached)
     {
-        return attached ? settings.Columns.AttachedTime : settings.Columns.Time;
+        return attached ? settings.Overlay.Columns.AttachedTime : settings.Overlay.Columns.Time;
     }
 
     public static UiColumnSettings GetDeltaColumnSettings(AppSettings settings, bool attached)
     {
-        return attached ? settings.Columns.AttachedDelta : settings.Columns.Delta;
+        return attached ? settings.Overlay.Columns.AttachedDelta : settings.Overlay.Columns.Delta;
     }
 
     private static void DrawSplitRow(
@@ -266,7 +266,7 @@ internal static class SplitListRenderer
                     iconSettings,
                     opacity * OverlayTextStyles.GetIconOpacity(context.Settings, attached),
                     wheelScale,
-                    context.Settings.EnableDefeatedBossIconLighting &&
+                    context.Settings.Overlay.EnableDefeatedBossIconLighting &&
                         statusIndex == context.CurrentSplitIndex);
             }
         }
@@ -312,13 +312,13 @@ internal static class SplitListRenderer
         if (columns.Delta is Rectangle deltaRect)
         {
             bool enableDeltaGradient = status.Time is TimeSpan
-                ? context.Settings.EnableDeltaGradientColor
-                : context.Settings.EnableCurrentDeltaGradientColor;
+                ? context.Settings.Overlay.EnableDeltaGradientColor
+                : context.Settings.Overlay.EnableCurrentDeltaGradientColor;
             if (expandedRow is SplitExpandedConditionRow expandedDelta)
             {
                 enableDeltaGradient = expandedDelta.CompletionTime.HasValue
-                    ? context.Settings.EnableDeltaGradientColor
-                    : context.Settings.EnableCurrentDeltaGradientColor;
+                    ? context.Settings.Overlay.EnableDeltaGradientColor
+                    : context.Settings.Overlay.EnableCurrentDeltaGradientColor;
             }
             Color deltaColor = OverlayColorMath.GetDeltaComparisonColor(
                 context.Settings,
@@ -553,7 +553,7 @@ internal static class SplitListRenderer
         SplitDefinition displayDefinition,
         int iconIndex)
     {
-        if (!context.Settings.EnableDefeatedBossIconLighting)
+        if (!context.Settings.Overlay.EnableDefeatedBossIconLighting)
         {
             return true;
         }
@@ -776,7 +776,7 @@ internal static class SplitListRenderer
         int statusIndex,
         out SegmentBestDeltaHighlight highlight)
     {
-        if (context.Settings.ShowSegmentBestDeltaHighlight &&
+        if (context.Settings.Overlay.ShowSegmentBestDeltaHighlight &&
             context.SegmentBestDeltaHighlights.TryGetValue(statusIndex, out highlight) &&
             statusIndex >= 0 &&
             statusIndex < context.Statuses.Count &&

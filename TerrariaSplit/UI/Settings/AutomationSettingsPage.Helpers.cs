@@ -8,7 +8,7 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
 {
     private TableLayoutPanel CreateSpecialSeedSelector()
     {
-        var selectedSeeds = AutoCreateSpecialWorldSeed.ParseList(Draft.AutoCreate.SpecialSeeds)
+        var selectedSeeds = AutoCreateSpecialWorldSeed.ParseList(Draft.Automation.AutoCreate.SpecialSeeds)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         autoCreateSpecialSeedBoxes.Clear();
 
@@ -52,7 +52,7 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
 
     private TableLayoutPanel CreatePyramidItemSelector()
     {
-        var selectedItems = AutoCreatePyramidFilterItem.FromMask(Draft.AutoCreate.PyramidFilterItemMask)
+        var selectedItems = AutoCreatePyramidFilterItem.FromMask(Draft.Automation.AutoCreate.PyramidFilterItemMask)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         autoCreatePyramidItemBoxes.Clear();
 
@@ -115,7 +115,7 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
             panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f / columnCount));
         }
 
-        string selectedStopStage = AutoCreateZenithStarCatchStage.Normalize(Draft.AutoCreate.ZenithStarCatchStopStage);
+        string selectedStopStage = AutoCreateZenithStarCatchStage.Normalize(Draft.Automation.AutoCreate.ZenithStarCatchStopStage);
         for (int index = 0; index < AutoCreateZenithStarCatchStage.All.Length; index++)
         {
             string stage = AutoCreateZenithStarCatchStage.All[index];

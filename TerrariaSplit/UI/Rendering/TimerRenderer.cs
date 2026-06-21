@@ -11,7 +11,7 @@ internal static class TimerRenderer
         OverlayRenderContext context,
         OverlayRenderResources resources)
     {
-        if (!context.Settings.Columns.Timer.Show && !context.Settings.Columns.TimerMilliseconds.Show)
+        if (!context.Settings.Overlay.Columns.Timer.Show && !context.Settings.Overlay.Columns.TimerMilliseconds.Show)
         {
             return;
         }
@@ -38,7 +38,7 @@ internal static class TimerRenderer
                 context.Palette,
                 milliseconds: true),
             timeRect);
-        if (context.Settings.ShowMouseClickThroughIndicator && !context.MouseClickThrough)
+        if (context.Settings.General.ShowMouseClickThroughIndicator && !context.MouseClickThrough)
         {
             DrawMouseClickThroughIndicator(graphics, timeRect, timerTextLayout);
         }
@@ -51,8 +51,8 @@ internal static class TimerRenderer
 
     public static Rectangle GetTimerTextBounds(AppSettings settings, Rectangle rect)
     {
-        int offsetX = OverlayRenderContext.ScaleInt(settings, settings.Columns.TimerOffsetX);
-        int offsetY = OverlayRenderContext.ScaleInt(settings, settings.Columns.TimerOffsetY);
+        int offsetX = OverlayRenderContext.ScaleInt(settings, settings.Overlay.Columns.TimerOffsetX);
+        int offsetY = OverlayRenderContext.ScaleInt(settings, settings.Overlay.Columns.TimerOffsetY);
         return new Rectangle(
             rect.X + OverlayRenderContext.ScaleInt(settings, 4) + offsetX,
             rect.Y - OverlayRenderContext.ScaleInt(settings, 4) + offsetY,
@@ -66,28 +66,28 @@ internal static class TimerRenderer
         OverlayRenderResources resources,
         Rectangle bounds)
     {
-        if (!context.Settings.Columns.Timer.Show && !context.Settings.Columns.TimerMilliseconds.Show)
+        if (!context.Settings.Overlay.Columns.Timer.Show && !context.Settings.Overlay.Columns.TimerMilliseconds.Show)
         {
             return bounds.Width;
         }
 
         string mainText = SplitTimerFormatter.FormatWithoutMilliseconds(context.TimerElapsed);
         string millisecondsText = SplitTimerFormatter.FormatMilliseconds(context.TimerElapsed);
-        Font mainFont = resources.Fonts.GetColumnFont(context.Settings.Columns.Timer, context.ScaleFactor);
-        Font millisecondsFont = resources.Fonts.GetColumnFont(context.Settings.Columns.TimerMilliseconds, context.ScaleFactor);
+        Font mainFont = resources.Fonts.GetColumnFont(context.Settings.Overlay.Columns.Timer, context.ScaleFactor);
+        Font millisecondsFont = resources.Fonts.GetColumnFont(context.Settings.Overlay.Columns.TimerMilliseconds, context.ScaleFactor);
 
-        SizeF millisecondsSize = context.Settings.Columns.TimerMilliseconds.Show
+        SizeF millisecondsSize = context.Settings.Overlay.Columns.TimerMilliseconds.Show
             ? resources.MeasureTimerText(graphics, millisecondsText, millisecondsFont, bounds.Size)
             : SizeF.Empty;
-        SizeF mainSize = context.Settings.Columns.Timer.Show
+        SizeF mainSize = context.Settings.Overlay.Columns.Timer.Show
             ? resources.MeasureTimerText(graphics, mainText, mainFont, bounds.Size)
             : SizeF.Empty;
 
-        float gap = context.Settings.Columns.Timer.Show && context.Settings.Columns.TimerMilliseconds.Show
+        float gap = context.Settings.Overlay.Columns.Timer.Show && context.Settings.Overlay.Columns.TimerMilliseconds.Show
             ? context.ScaleInt(2)
             : 0f;
-        return (context.Settings.Columns.Timer.Show ? mainSize.Width : 0f) + gap +
-            (context.Settings.Columns.TimerMilliseconds.Show ? millisecondsSize.Width : 0f);
+        return (context.Settings.Overlay.Columns.Timer.Show ? mainSize.Width : 0f) + gap +
+            (context.Settings.Overlay.Columns.TimerMilliseconds.Show ? millisecondsSize.Width : 0f);
     }
 
     private static TimerTextLayout DrawTimerText(
@@ -98,27 +98,27 @@ internal static class TimerRenderer
         TextRenderStyle millisecondsStyle,
         Rectangle bounds)
     {
-        if (!context.Settings.Columns.Timer.Show && !context.Settings.Columns.TimerMilliseconds.Show)
+        if (!context.Settings.Overlay.Columns.Timer.Show && !context.Settings.Overlay.Columns.TimerMilliseconds.Show)
         {
             return TimerTextLayout.Empty;
         }
 
         string mainText = SplitTimerFormatter.FormatWithoutMilliseconds(context.TimerElapsed);
         string millisecondsText = SplitTimerFormatter.FormatMilliseconds(context.TimerElapsed);
-        Font mainFont = resources.Fonts.GetColumnFont(context.Settings.Columns.Timer, context.ScaleFactor);
-        Font millisecondsFont = resources.Fonts.GetColumnFont(context.Settings.Columns.TimerMilliseconds, context.ScaleFactor);
+        Font mainFont = resources.Fonts.GetColumnFont(context.Settings.Overlay.Columns.Timer, context.ScaleFactor);
+        Font millisecondsFont = resources.Fonts.GetColumnFont(context.Settings.Overlay.Columns.TimerMilliseconds, context.ScaleFactor);
         float mainOpacity = OverlayTextStyles.GetTimerTextOpacity(context.Settings, milliseconds: false);
         float millisecondsOpacity = OverlayTextStyles.GetTimerTextOpacity(context.Settings, milliseconds: true);
 
         StringFormat format = resources.TypographicFormat;
-        SizeF millisecondsSize = context.Settings.Columns.TimerMilliseconds.Show
+        SizeF millisecondsSize = context.Settings.Overlay.Columns.TimerMilliseconds.Show
             ? resources.MeasureTimerText(graphics, millisecondsText, millisecondsFont, bounds.Size)
             : SizeF.Empty;
-        SizeF mainSize = context.Settings.Columns.Timer.Show
+        SizeF mainSize = context.Settings.Overlay.Columns.Timer.Show
             ? resources.MeasureTimerText(graphics, mainText, mainFont, bounds.Size)
             : SizeF.Empty;
 
-        float gap = context.Settings.Columns.Timer.Show && context.Settings.Columns.TimerMilliseconds.Show
+        float gap = context.Settings.Overlay.Columns.Timer.Show && context.Settings.Overlay.Columns.TimerMilliseconds.Show
             ? context.ScaleInt(2)
             : 0f;
         FontMetrics mainMetrics = resources.GetFontMetrics(graphics, mainFont);
@@ -131,20 +131,20 @@ internal static class TimerRenderer
 
         float mainX = bounds.Left;
         float mainY = baselineY - mainMetrics.Ascent;
-        float millisecondsX = mainX + (context.Settings.Columns.Timer.Show ? mainSize.Width : 0f) + gap;
+        float millisecondsX = mainX + (context.Settings.Overlay.Columns.Timer.Show ? mainSize.Width : 0f) + gap;
         float millisecondsY = baselineY - millisecondsMetrics.Ascent;
 
         // Timer strings only contain digit-class glyphs, so the cached per-font
         // digit bounds reproduce the live text's vertical visual extent without
         // building a GraphicsPath per frame.
-        (float mainTopOffset, float mainVisualHeight) = context.Settings.Columns.Timer.Show
+        (float mainTopOffset, float mainVisualHeight) = context.Settings.Overlay.Columns.Timer.Show
             ? resources.GetTimerDigitsVisualBounds(graphics, mainFont)
             : (0f, 0f);
-        (float millisecondsTopOffset, float millisecondsVisualHeight) = context.Settings.Columns.TimerMilliseconds.Show
+        (float millisecondsTopOffset, float millisecondsVisualHeight) = context.Settings.Overlay.Columns.TimerMilliseconds.Show
             ? resources.GetTimerDigitsVisualBounds(graphics, millisecondsFont)
             : (0f, 0f);
 
-        if (context.Settings.Columns.Timer.Show)
+        if (context.Settings.Overlay.Columns.Timer.Show)
         {
             TextEffectRenderer.DrawStyledString(
                 graphics,
@@ -158,7 +158,7 @@ internal static class TimerRenderer
                 supersampleEffects: false);
         }
 
-        if (context.Settings.Columns.TimerMilliseconds.Show)
+        if (context.Settings.Overlay.Columns.TimerMilliseconds.Show)
         {
             TextEffectRenderer.DrawStyledString(
                 graphics,
@@ -172,24 +172,24 @@ internal static class TimerRenderer
                 supersampleEffects: false);
         }
 
-        float groupWidth = (context.Settings.Columns.Timer.Show ? mainSize.Width : 0f) + gap +
-            (context.Settings.Columns.TimerMilliseconds.Show ? millisecondsSize.Width : 0f);
+        float groupWidth = (context.Settings.Overlay.Columns.Timer.Show ? mainSize.Width : 0f) + gap +
+            (context.Settings.Overlay.Columns.TimerMilliseconds.Show ? millisecondsSize.Width : 0f);
         float mainHeight = mainMetrics.Ascent + mainMetrics.Descent;
-        float anchorTop = context.Settings.Columns.Timer.Show && mainVisualHeight > 0f
+        float anchorTop = context.Settings.Overlay.Columns.Timer.Show && mainVisualHeight > 0f
             ? mainY + mainTopOffset
-            : context.Settings.Columns.TimerMilliseconds.Show && millisecondsVisualHeight > 0f
+            : context.Settings.Overlay.Columns.TimerMilliseconds.Show && millisecondsVisualHeight > 0f
                 ? millisecondsY + millisecondsTopOffset
-                : context.Settings.Columns.Timer.Show ? mainY : groupY;
-        float anchorHeight = context.Settings.Columns.Timer.Show && mainVisualHeight > 0f
+                : context.Settings.Overlay.Columns.Timer.Show ? mainY : groupY;
+        float anchorHeight = context.Settings.Overlay.Columns.Timer.Show && mainVisualHeight > 0f
             ? mainVisualHeight
-            : context.Settings.Columns.TimerMilliseconds.Show && millisecondsVisualHeight > 0f
+            : context.Settings.Overlay.Columns.TimerMilliseconds.Show && millisecondsVisualHeight > 0f
                 ? millisecondsVisualHeight
-                : context.Settings.Columns.Timer.Show ? mainHeight : groupHeight;
+                : context.Settings.Overlay.Columns.Timer.Show ? mainHeight : groupHeight;
         return new TimerTextLayout(
             mainX + groupWidth,
             anchorTop,
             anchorHeight,
-            context.Settings.Columns.Timer.Show ? mainOpacity : millisecondsOpacity);
+            context.Settings.Overlay.Columns.Timer.Show ? mainOpacity : millisecondsOpacity);
     }
 
     private static void DrawMouseClickThroughIndicator(

@@ -29,15 +29,15 @@ internal sealed class GeneralSettingsPage : SettingsPageBase
     public override void Apply(AppSettings settings)
     {
         settings.General.Language = languageBox.SelectedItem as string ?? LanguageNames.English;
-        settings.PauseResumeKey = pauseKeyBox.Hotkey.ToString();
-        settings.ResetKey = resetKeyBox.Hotkey.ToString();
-        settings.MouseClickThroughKey = mouseClickThroughKeyBox.Hotkey.ToString();
-        settings.CreateWorldKey = createWorldKeyBox.Hotkey.ToString();
-        settings.PracticeWorldKey = practiceWorldKeyBox.Hotkey.ToString();
-        settings.ShowMouseClickThroughIndicator = showMouseClickThroughIndicatorBox.Checked;
-        settings.Columns.ScalePercent = SettingsValueParser.ParseIntBox(globalScaleBox, 100, 25, 300);
-        settings.AlwaysOnTop = alwaysOnTopBox.Checked;
-        settings.PracticeMode = practiceModeBox.Checked;
+        settings.Hotkeys.PauseResumeKey = pauseKeyBox.Hotkey.ToString();
+        settings.Hotkeys.ResetKey = resetKeyBox.Hotkey.ToString();
+        settings.Hotkeys.MouseClickThroughKey = mouseClickThroughKeyBox.Hotkey.ToString();
+        settings.Hotkeys.CreateWorldKey = createWorldKeyBox.Hotkey.ToString();
+        settings.Hotkeys.PracticeWorldKey = practiceWorldKeyBox.Hotkey.ToString();
+        settings.General.ShowMouseClickThroughIndicator = showMouseClickThroughIndicatorBox.Checked;
+        settings.Overlay.Columns.ScalePercent = SettingsValueParser.ParseIntBox(globalScaleBox, 100, 25, 300);
+        settings.General.AlwaysOnTop = alwaysOnTopBox.Checked;
+        settings.General.PracticeMode = practiceModeBox.Checked;
     }
 
     private void BuildSections(TableLayoutPanel parent)
@@ -48,9 +48,9 @@ internal sealed class GeneralSettingsPage : SettingsPageBase
         ConfigureHotkeyBox(createWorldKeyBox, Draft.GetCreateWorldKeys());
         ConfigureHotkeyBox(practiceWorldKeyBox, Draft.GetPracticeWorldKeys());
 
-        ConfigureCheckBox(showMouseClickThroughIndicatorBox, Draft.ShowMouseClickThroughIndicator);
-        ConfigureCheckBox(alwaysOnTopBox, Draft.AlwaysOnTop);
-        ConfigureCheckBox(practiceModeBox, Draft.PracticeMode);
+        ConfigureCheckBox(showMouseClickThroughIndicatorBox, Draft.General.ShowMouseClickThroughIndicator);
+        ConfigureCheckBox(alwaysOnTopBox, Draft.General.AlwaysOnTop);
+        ConfigureCheckBox(practiceModeBox, Draft.General.PracticeMode);
 
         languageBox.Dock = DockStyle.Fill;
         languageBox.Items.Add(LanguageNames.English);
@@ -59,7 +59,7 @@ internal sealed class GeneralSettingsPage : SettingsPageBase
 
         UiTheme.StyleTextBox(globalScaleBox);
         globalScaleBox.Dock = DockStyle.Fill;
-        globalScaleBox.Text = Math.Clamp(Draft.Columns.ScalePercent, 25, 300).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        globalScaleBox.Text = Math.Clamp(Draft.Overlay.Columns.ScalePercent, 25, 300).ToString(System.Globalization.CultureInfo.InvariantCulture);
 
         TableLayoutPanel commonSection = Factory.CreateSection("Common");
         TableLayoutPanel commonGrid = Factory.CreateTwoColumnGrid(280f);

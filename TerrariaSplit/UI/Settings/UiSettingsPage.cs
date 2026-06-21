@@ -125,44 +125,44 @@ internal sealed class UiSettingsPage : SettingsPageBase
 
     public override void Apply(AppSettings settings)
     {
-        ApplyColumnSettings("Icon", settings.Columns.Icon);
-        ApplyColumnSettings("Time", settings.Columns.Time);
-        ApplyColumnSettings("Delta", settings.Columns.Delta);
-        ApplyColumnSettings("AttachedIcon", settings.Columns.AttachedIcon);
-        ApplyColumnSettings("AttachedTime", settings.Columns.AttachedTime);
-        ApplyColumnSettings("AttachedDelta", settings.Columns.AttachedDelta);
-        ApplyFontSettings("Timer", settings.Columns.Timer);
-        ApplyFontSettings("TimerMilliseconds", settings.Columns.TimerMilliseconds);
+        ApplyColumnSettings("Icon", settings.Overlay.Columns.Icon);
+        ApplyColumnSettings("Time", settings.Overlay.Columns.Time);
+        ApplyColumnSettings("Delta", settings.Overlay.Columns.Delta);
+        ApplyColumnSettings("AttachedIcon", settings.Overlay.Columns.AttachedIcon);
+        ApplyColumnSettings("AttachedTime", settings.Overlay.Columns.AttachedTime);
+        ApplyColumnSettings("AttachedDelta", settings.Overlay.Columns.AttachedDelta);
+        ApplyFontSettings("Timer", settings.Overlay.Columns.Timer);
+        ApplyFontSettings("TimerMilliseconds", settings.Overlay.Columns.TimerMilliseconds);
 
-        settings.EnableDynamicDeltaTimeUnits = enableDynamicDeltaTimeUnitsBox.Checked;
-        settings.Columns.TimerOffsetX = SettingsValueParser.ParseIntBox(timerOffsetXBox, 0, -2000, 2000);
-        settings.Columns.TimerOffsetY = SettingsValueParser.ParseIntBox(timerOffsetYBox, 0, -2000, 2000);
-        settings.TextEffects ??= new UiTextEffectSettings();
-        settings.TextEffects.IconOpacityPercent = SettingsValueParser.ParseIntBox(iconOpacityBox, 100, 0, 100);
-        settings.TextEffects.TimeOpacityPercent = SettingsValueParser.ParseIntBox(timeOpacityBox, 100, 0, 100);
-        settings.TextEffects.TimeShadowPercent = SettingsValueParser.ParseIntBox(timeShadowBox, 0, 0, 100);
-        settings.TextEffects.TimeOutlineThicknessPercent = SettingsValueParser.ParseIntBox(timeOutlineThicknessBox, 0, 0, 200);
-        settings.TextEffects.DeltaOpacityPercent = SettingsValueParser.ParseIntBox(deltaOpacityBox, 100, 0, 100);
-        settings.TextEffects.DeltaShadowPercent = SettingsValueParser.ParseIntBox(deltaShadowBox, 0, 0, 100);
-        settings.TextEffects.DeltaOutlineThicknessPercent = SettingsValueParser.ParseIntBox(deltaOutlineThicknessBox, 0, 0, 200);
-        settings.TextEffects.AttachedIconOpacityPercent = SettingsValueParser.ParseIntBox(attachedIconOpacityBox, 100, 0, 100);
-        settings.TextEffects.AttachedTimeOpacityPercent = SettingsValueParser.ParseIntBox(attachedTimeOpacityBox, 100, 0, 100);
-        settings.TextEffects.AttachedTimeShadowPercent = SettingsValueParser.ParseIntBox(attachedTimeShadowBox, 0, 0, 100);
-        settings.TextEffects.AttachedTimeOutlineThicknessPercent = SettingsValueParser.ParseIntBox(attachedTimeOutlineThicknessBox, 0, 0, 200);
-        settings.TextEffects.AttachedDeltaOpacityPercent = SettingsValueParser.ParseIntBox(attachedDeltaOpacityBox, 100, 0, 100);
-        settings.TextEffects.AttachedDeltaShadowPercent = SettingsValueParser.ParseIntBox(attachedDeltaShadowBox, 0, 0, 100);
-        settings.TextEffects.AttachedDeltaOutlineThicknessPercent = SettingsValueParser.ParseIntBox(attachedDeltaOutlineThicknessBox, 0, 0, 200);
-        settings.TextEffects.TimerOpacityPercent = SettingsValueParser.ParseIntBox(timerOpacityBox, 100, 0, 100);
-        settings.TextEffects.TimerShadowPercent = SettingsValueParser.ParseIntBox(timerShadowBox, 0, 0, 100);
-        settings.TextEffects.TimerOutlineThicknessPercent = SettingsValueParser.ParseIntBox(timerOutlineThicknessBox, 0, 0, 200);
-        settings.TextEffects.TimerMillisecondsOpacityPercent = SettingsValueParser.ParseIntBox(timerMillisecondsOpacityBox, 100, 0, 100);
-        settings.TextEffects.TimerMillisecondsShadowPercent = SettingsValueParser.ParseIntBox(timerMillisecondsShadowBox, 0, 0, 100);
-        settings.TextEffects.TimerMillisecondsOutlineThicknessPercent = SettingsValueParser.ParseIntBox(timerMillisecondsOutlineThicknessBox, 0, 0, 200);
+        settings.Overlay.EnableDynamicDeltaTimeUnits = enableDynamicDeltaTimeUnitsBox.Checked;
+        settings.Overlay.Columns.TimerOffsetX = SettingsValueParser.ParseIntBox(timerOffsetXBox, 0, -2000, 2000);
+        settings.Overlay.Columns.TimerOffsetY = SettingsValueParser.ParseIntBox(timerOffsetYBox, 0, -2000, 2000);
+        settings.Overlay.TextEffects ??= new UiTextEffectSettings();
+        settings.Overlay.TextEffects.IconOpacityPercent = SettingsValueParser.ParseIntBox(iconOpacityBox, 100, 0, 100);
+        settings.Overlay.TextEffects.TimeOpacityPercent = SettingsValueParser.ParseIntBox(timeOpacityBox, 100, 0, 100);
+        settings.Overlay.TextEffects.TimeShadowPercent = SettingsValueParser.ParseIntBox(timeShadowBox, 0, 0, 100);
+        settings.Overlay.TextEffects.TimeOutlineThicknessPercent = SettingsValueParser.ParseIntBox(timeOutlineThicknessBox, 0, 0, 200);
+        settings.Overlay.TextEffects.DeltaOpacityPercent = SettingsValueParser.ParseIntBox(deltaOpacityBox, 100, 0, 100);
+        settings.Overlay.TextEffects.DeltaShadowPercent = SettingsValueParser.ParseIntBox(deltaShadowBox, 0, 0, 100);
+        settings.Overlay.TextEffects.DeltaOutlineThicknessPercent = SettingsValueParser.ParseIntBox(deltaOutlineThicknessBox, 0, 0, 200);
+        settings.Overlay.TextEffects.AttachedIconOpacityPercent = SettingsValueParser.ParseIntBox(attachedIconOpacityBox, 100, 0, 100);
+        settings.Overlay.TextEffects.AttachedTimeOpacityPercent = SettingsValueParser.ParseIntBox(attachedTimeOpacityBox, 100, 0, 100);
+        settings.Overlay.TextEffects.AttachedTimeShadowPercent = SettingsValueParser.ParseIntBox(attachedTimeShadowBox, 0, 0, 100);
+        settings.Overlay.TextEffects.AttachedTimeOutlineThicknessPercent = SettingsValueParser.ParseIntBox(attachedTimeOutlineThicknessBox, 0, 0, 200);
+        settings.Overlay.TextEffects.AttachedDeltaOpacityPercent = SettingsValueParser.ParseIntBox(attachedDeltaOpacityBox, 100, 0, 100);
+        settings.Overlay.TextEffects.AttachedDeltaShadowPercent = SettingsValueParser.ParseIntBox(attachedDeltaShadowBox, 0, 0, 100);
+        settings.Overlay.TextEffects.AttachedDeltaOutlineThicknessPercent = SettingsValueParser.ParseIntBox(attachedDeltaOutlineThicknessBox, 0, 0, 200);
+        settings.Overlay.TextEffects.TimerOpacityPercent = SettingsValueParser.ParseIntBox(timerOpacityBox, 100, 0, 100);
+        settings.Overlay.TextEffects.TimerShadowPercent = SettingsValueParser.ParseIntBox(timerShadowBox, 0, 0, 100);
+        settings.Overlay.TextEffects.TimerOutlineThicknessPercent = SettingsValueParser.ParseIntBox(timerOutlineThicknessBox, 0, 0, 200);
+        settings.Overlay.TextEffects.TimerMillisecondsOpacityPercent = SettingsValueParser.ParseIntBox(timerMillisecondsOpacityBox, 100, 0, 100);
+        settings.Overlay.TextEffects.TimerMillisecondsShadowPercent = SettingsValueParser.ParseIntBox(timerMillisecondsShadowBox, 0, 0, 100);
+        settings.Overlay.TextEffects.TimerMillisecondsOutlineThicknessPercent = SettingsValueParser.ParseIntBox(timerMillisecondsOutlineThicknessBox, 0, 0, 200);
     }
 
     private void AddColumnSettingsSection(TableLayoutPanel parent)
     {
-        ConfigureCheckBox(enableDynamicDeltaTimeUnitsBox, Draft.EnableDynamicDeltaTimeUnits);
+        ConfigureCheckBox(enableDynamicDeltaTimeUnitsBox, Draft.Overlay.EnableDynamicDeltaTimeUnits);
 
         TableLayoutPanel section = Factory.CreateSection("Split display");
         TableLayoutPanel grid = Factory.CreateGrid(
@@ -181,64 +181,64 @@ internal sealed class UiSettingsPage : SettingsPageBase
             grid,
             "Icon",
             "Icon",
-            Draft.Columns.Icon,
+            Draft.Overlay.Columns.Icon,
             opacityBox: iconOpacityBox,
-            opacityPercent: Draft.TextEffects.IconOpacityPercent,
+            opacityPercent: Draft.Overlay.TextEffects.IconOpacityPercent,
             showFontFamily: false,
             showBold: false);
         AddColumnSettingsRow(
             grid,
             "Time",
             "Time",
-            Draft.Columns.Time,
+            Draft.Overlay.Columns.Time,
             timeOpacityBox,
-            Draft.TextEffects.TimeOpacityPercent,
+            Draft.Overlay.TextEffects.TimeOpacityPercent,
             timeShadowBox,
-            Draft.TextEffects.TimeShadowPercent,
+            Draft.Overlay.TextEffects.TimeShadowPercent,
             timeOutlineThicknessBox,
-            Draft.TextEffects.TimeOutlineThicknessPercent);
+            Draft.Overlay.TextEffects.TimeOutlineThicknessPercent);
         AddColumnSettingsRow(
             grid,
             "Delta",
             "Delta",
-            Draft.Columns.Delta,
+            Draft.Overlay.Columns.Delta,
             deltaOpacityBox,
-            Draft.TextEffects.DeltaOpacityPercent,
+            Draft.Overlay.TextEffects.DeltaOpacityPercent,
             deltaShadowBox,
-            Draft.TextEffects.DeltaShadowPercent,
+            Draft.Overlay.TextEffects.DeltaShadowPercent,
             deltaOutlineThicknessBox,
-            Draft.TextEffects.DeltaOutlineThicknessPercent);
+            Draft.Overlay.TextEffects.DeltaOutlineThicknessPercent);
         AddColumnSettingsRow(
             grid,
             "Icon (attached)",
             "AttachedIcon",
-            Draft.Columns.AttachedIcon,
+            Draft.Overlay.Columns.AttachedIcon,
             opacityBox: attachedIconOpacityBox,
-            opacityPercent: Draft.TextEffects.AttachedIconOpacityPercent,
+            opacityPercent: Draft.Overlay.TextEffects.AttachedIconOpacityPercent,
             showFontFamily: false,
             showBold: false);
         AddColumnSettingsRow(
             grid,
             "Time (attached)",
             "AttachedTime",
-            Draft.Columns.AttachedTime,
+            Draft.Overlay.Columns.AttachedTime,
             attachedTimeOpacityBox,
-            Draft.TextEffects.AttachedTimeOpacityPercent,
+            Draft.Overlay.TextEffects.AttachedTimeOpacityPercent,
             attachedTimeShadowBox,
-            Draft.TextEffects.AttachedTimeShadowPercent,
+            Draft.Overlay.TextEffects.AttachedTimeShadowPercent,
             attachedTimeOutlineThicknessBox,
-            Draft.TextEffects.AttachedTimeOutlineThicknessPercent);
+            Draft.Overlay.TextEffects.AttachedTimeOutlineThicknessPercent);
         AddColumnSettingsRow(
             grid,
             "Delta (attached)",
             "AttachedDelta",
-            Draft.Columns.AttachedDelta,
+            Draft.Overlay.Columns.AttachedDelta,
             attachedDeltaOpacityBox,
-            Draft.TextEffects.AttachedDeltaOpacityPercent,
+            Draft.Overlay.TextEffects.AttachedDeltaOpacityPercent,
             attachedDeltaShadowBox,
-            Draft.TextEffects.AttachedDeltaShadowPercent,
+            Draft.Overlay.TextEffects.AttachedDeltaShadowPercent,
             attachedDeltaOutlineThicknessBox,
-            Draft.TextEffects.AttachedDeltaOutlineThicknessPercent);
+            Draft.Overlay.TextEffects.AttachedDeltaOutlineThicknessPercent);
 
         TableLayoutPanel optionsGrid = Factory.CreateTwoColumnGrid(280f);
         Factory.AddSettingRow(optionsGrid, "Dynamic delta time units", enableDynamicDeltaTimeUnitsBox);
@@ -313,27 +313,27 @@ internal sealed class UiSettingsPage : SettingsPageBase
             grid,
             "Before decimal",
             "Timer",
-            Draft.Columns.Timer,
+            Draft.Overlay.Columns.Timer,
             timerOpacityBox,
-            Draft.TextEffects.TimerOpacityPercent,
+            Draft.Overlay.TextEffects.TimerOpacityPercent,
             timerShadowBox,
-            Draft.TextEffects.TimerShadowPercent,
+            Draft.Overlay.TextEffects.TimerShadowPercent,
             timerOutlineThicknessBox,
-            Draft.TextEffects.TimerOutlineThicknessPercent);
+            Draft.Overlay.TextEffects.TimerOutlineThicknessPercent);
         AddFontSettingsRow(
             grid,
             "After decimal",
             "TimerMilliseconds",
-            Draft.Columns.TimerMilliseconds,
+            Draft.Overlay.Columns.TimerMilliseconds,
             timerMillisecondsOpacityBox,
-            Draft.TextEffects.TimerMillisecondsOpacityPercent,
+            Draft.Overlay.TextEffects.TimerMillisecondsOpacityPercent,
             timerMillisecondsShadowBox,
-            Draft.TextEffects.TimerMillisecondsShadowPercent,
+            Draft.Overlay.TextEffects.TimerMillisecondsShadowPercent,
             timerMillisecondsOutlineThicknessBox,
-            Draft.TextEffects.TimerMillisecondsOutlineThicknessPercent);
+            Draft.Overlay.TextEffects.TimerMillisecondsOutlineThicknessPercent);
 
-        ConfigureNumberBox(timerOffsetXBox, Draft.Columns.TimerOffsetX, -2000, 2000);
-        ConfigureNumberBox(timerOffsetYBox, Draft.Columns.TimerOffsetY, -2000, 2000);
+        ConfigureNumberBox(timerOffsetXBox, Draft.Overlay.Columns.TimerOffsetX, -2000, 2000);
+        ConfigureNumberBox(timerOffsetYBox, Draft.Overlay.Columns.TimerOffsetY, -2000, 2000);
         TableLayoutPanel offsetGrid = Factory.CreateTwoColumnGrid(280f);
         Factory.AddSettingRow(offsetGrid, "Offset X", timerOffsetXBox);
         Factory.AddSettingRow(offsetGrid, "Offset Y", timerOffsetYBox);

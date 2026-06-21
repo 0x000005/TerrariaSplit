@@ -16,6 +16,7 @@ internal static class ArchitectureDependencyTests
         yield return ("Architecture keeps Storage free of outer layers", StorageDoesNotReferenceOuterLayers);
         yield return ("Architecture keeps UI settings pages from starting automation", UiSettingsDoesNotStartAutomation);
         yield return ("Architecture uses typed application effects", ApplicationEffectsAreTypedRecords);
+        yield return ("Architecture keeps AppSettings section-only", AppSettingsHasNoCompatibilityFacade);
         yield return ("Architecture has no root namespace source files", RootNamespaceIsEmpty);
         yield return ("Architecture static dependency debt does not grow", StaticDependencyDebtDoesNotGrow);
     }
@@ -95,6 +96,19 @@ internal static class ArchitectureDependencyTests
             Path.Combine("TerrariaSplit", "Application"),
             new Regex(@"\bApplicationEffectKind\b|ApplicationEffect\.", RegexOptions.Compiled),
             "Application effects must be expressed as concrete typed records, not Kind/factory combinations.");
+    }
+
+    private static void AppSettingsHasNoCompatibilityFacade()
+    {
+        string root = FindRepositoryRoot();
+        string path = Path.Combine(root, "TerrariaSplit", "Configuration", "AppSettings.cs");
+        string appSettingsClass = File.ReadAllText(path)
+            .Split("internal sealed class GeneralSettings", StringSplitOptions.None)[0];
+
+        if (appSettingsClass.Contains("[JsonIgnore]", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("AppSettings must expose persisted sections only; legacy facade properties belong in migrations.");
+        }
     }
 
     private static void AssertNoMatches(string relativeDirectory, Regex pattern, string message)

@@ -30,11 +30,11 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
         TableLayoutPanel section = Factory.CreateSection("Main groups");
         TableLayoutPanel grid = Factory.CreateTwoColumnGrid(280f);
 
-        expandSplitDetailsBox = Factory.CreateCheckBox(Draft.ExpandSplitDetails);
+        expandSplitDetailsBox = Factory.CreateCheckBox(Draft.Route.ExpandSplitDetails);
         expandSplitDetailsBox.CheckedChanged += (_, _) => UpdateCollapseSplitDetailsAvailability();
         Factory.AddSettingRow(grid, "Expand multi-condition groups", expandSplitDetailsBox);
 
-        collapseSplitDetailsOnCompletionBox = Factory.CreateCheckBox(Draft.CollapseSplitDetailsOnCompletion);
+        collapseSplitDetailsOnCompletionBox = Factory.CreateCheckBox(Draft.Route.CollapseSplitDetailsOnCompletion);
         Factory.AddSettingRow(grid, "Collapse after completion", collapseSplitDetailsOnCompletionBox);
 
         SettingsUiFactory.AddSectionControl(section, grid);
@@ -47,10 +47,10 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
         TableLayoutPanel section = Factory.CreateSection("Attached groups");
         TableLayoutPanel grid = Factory.CreateTwoColumnGrid(280f);
 
-        autoHideAttachedGroupsBox = Factory.CreateCheckBox(Draft.AutoHideAttachedGroups);
+        autoHideAttachedGroupsBox = Factory.CreateCheckBox(Draft.Route.AutoHideAttachedGroups);
         Factory.AddSettingRow(grid, "Auto hide attached groups", autoHideAttachedGroupsBox);
 
-        attachedGroupsAffectTimerComparisonBox = Factory.CreateCheckBox(Draft.AttachedGroupsAffectTimerComparison);
+        attachedGroupsAffectTimerComparisonBox = Factory.CreateCheckBox(Draft.Route.AttachedGroupsAffectTimerComparison);
         Factory.AddSettingRow(grid, "Attached groups affect main timer comparison", attachedGroupsAffectTimerComparisonBox);
 
         SettingsUiFactory.AddSectionControl(section, grid);

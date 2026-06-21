@@ -22,7 +22,7 @@ internal sealed class SoundSettingsPage : SettingsPageBase
 
     private void BuildSections(TableLayoutPanel parent)
     {
-        Draft.Sounds ??= new UiSoundSettings();
+        Draft.Overlay.Sounds ??= new UiSoundSettings();
 
         TableLayoutPanel section = Factory.CreateSection("Sounds");
         TableLayoutPanel grid = Factory.CreateGrid(
@@ -37,7 +37,7 @@ internal sealed class SoundSettingsPage : SettingsPageBase
                 grid,
                 descriptor.Label,
                 descriptor.Key,
-                descriptor.GetValue(Draft.Sounds));
+                descriptor.GetValue(Draft.Overlay.Sounds));
         }
 
         SettingsUiFactory.AddSectionControl(section, grid);

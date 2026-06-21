@@ -314,7 +314,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
         routeEntries.Add(new SplitRouteEntry
         {
             Id = CreateUniqueSplitId(SplitSettingsRouteIdFactory.CreateSplitId(target)),
-            DisplayName = SplitTargetDisplayNames.GetTargetName(target, Draft.Language),
+            DisplayName = SplitTargetDisplayNames.GetTargetName(target, Draft.General.Language),
             Enabled = true,
             IsAttached = false,
             Condition = condition,

@@ -47,11 +47,11 @@ internal static class SplitLayoutCalculator
 
     public static int GetDefaultWindowWidth(AppSettings settings)
     {
-        float scale = Math.Clamp(settings.Columns.ScalePercent, 25, 300) / 100f;
+        float scale = Math.Clamp(settings.Overlay.Columns.ScalePercent, 25, 300) / 100f;
         int columnsWidth = 0;
-        columnsWidth += GetMaximumColumnWidth(settings.Columns.Icon, settings.Columns.AttachedIcon, scale);
-        columnsWidth += GetMaximumColumnWidth(settings.Columns.Time, settings.Columns.AttachedTime, scale);
-        columnsWidth += GetMaximumColumnWidth(settings.Columns.Delta, settings.Columns.AttachedDelta, scale);
+        columnsWidth += GetMaximumColumnWidth(settings.Overlay.Columns.Icon, settings.Overlay.Columns.AttachedIcon, scale);
+        columnsWidth += GetMaximumColumnWidth(settings.Overlay.Columns.Time, settings.Overlay.Columns.AttachedTime, scale);
+        columnsWidth += GetMaximumColumnWidth(settings.Overlay.Columns.Delta, settings.Overlay.Columns.AttachedDelta, scale);
         return Math.Clamp(columnsWidth + (int)Math.Round(28 * scale), 300, 2400);
     }
 
@@ -64,7 +64,7 @@ internal static class SplitLayoutCalculator
 
     public static int GetDefaultWindowHeight(AppSettings settings)
     {
-        float scale = Math.Clamp(settings.Columns.ScalePercent, 25, 300) / 100f;
+        float scale = Math.Clamp(settings.Overlay.Columns.ScalePercent, 25, 300) / 100f;
         return Math.Clamp((int)Math.Round(720 * scale), 420, 2160);
     }
 
@@ -87,7 +87,7 @@ internal static class SplitLayoutCalculator
 
     public static Size GetMinimumWindowSize(AppSettings settings)
     {
-        float scale = Math.Clamp(settings.Columns.ScalePercent, 25, 300) / 100f;
+        float scale = Math.Clamp(settings.Overlay.Columns.ScalePercent, 25, 300) / 100f;
         return new Size(
             Math.Clamp((int)Math.Round(300 * scale), 220, 1800),
             Math.Clamp((int)Math.Round(420 * scale), 260, 1600));
@@ -95,7 +95,7 @@ internal static class SplitLayoutCalculator
 
     private static int ScaleInt(AppSettings settings, int value)
     {
-        float scale = Math.Clamp(settings.Columns.ScalePercent, 25, 300) / 100f;
+        float scale = Math.Clamp(settings.Overlay.Columns.ScalePercent, 25, 300) / 100f;
         return Math.Max(1, (int)Math.Round(value * scale, MidpointRounding.AwayFromZero));
     }
 }

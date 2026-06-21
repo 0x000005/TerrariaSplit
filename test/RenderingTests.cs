@@ -145,19 +145,19 @@ internal static class RenderingTests
     private static void OverlayFontCacheKeepsMainTimerFontIndependentFromMillisecondsVisibility()
     {
         var settings = new AppSettings();
-        settings.Columns.ScalePercent = 150;
-        settings.Columns.Timer.FontSize = 38;
-        settings.Columns.Timer.Show = true;
-        settings.Columns.TimerMilliseconds.FontSize = 12;
-        settings.Columns.TimerMilliseconds.Show = true;
+        settings.Overlay.Columns.ScalePercent = 150;
+        settings.Overlay.Columns.Timer.FontSize = 38;
+        settings.Overlay.Columns.Timer.Show = true;
+        settings.Overlay.Columns.TimerMilliseconds.FontSize = 12;
+        settings.Overlay.Columns.TimerMilliseconds.Show = true;
 
         float withMilliseconds = OverlayFontCache.GetColumnFontSize(
-            settings.Columns.Timer,
+            settings.Overlay.Columns.Timer,
             OverlayRenderContext.GetScaleFactor(settings));
 
-        settings.Columns.TimerMilliseconds.Show = false;
+        settings.Overlay.Columns.TimerMilliseconds.Show = false;
         float withoutMilliseconds = OverlayFontCache.GetColumnFontSize(
-            settings.Columns.Timer,
+            settings.Overlay.Columns.Timer,
             OverlayRenderContext.GetScaleFactor(settings));
 
         TestAssert.Equal(withMilliseconds, withoutMilliseconds);
@@ -477,7 +477,7 @@ internal static class RenderingTests
         TestAssert.Equal(new SplitDisplayRow(4, 4), hiddenBeforePreviousCompletionRows[2]);
         TestAssert.Equal(new SplitDisplayRow(5, 5), hiddenBeforePreviousCompletionRows[3]);
 
-        var showAllAttachedSettings = new AppSettings { AutoHideAttachedGroups = false };
+        var showAllAttachedSettings = new AppSettings { Route = { AutoHideAttachedGroups = false } };
         IReadOnlyList<SplitDisplayRow> showAllBeforePreviousCompletionRows =
             SplitDisplayRows.Build(showAllAttachedSettings, hiddenBeforePreviousCompletion);
         TestAssert.Equal(6, showAllBeforePreviousCompletionRows.Count);
@@ -577,9 +577,9 @@ internal static class RenderingTests
             ["target:a", "target:b", "target:c"]);
         AppSettings settings = CreateExpandedRowsSettings(expanded, condition);
         IReadOnlyList<SplitConditionDataRow> conditionRows = SplitConditionDataRows.ForSplit(settings, expanded.Id).ToList();
-        settings.ReferenceSplitSets[0].Splits[conditionRows[0].Key] = "00:30.00";
-        settings.ReferenceSplitSets[0].Splits[conditionRows[1].Key] = "00:20.00";
-        settings.ReferenceSplitSets[0].Splits[conditionRows[2].Key] = "00:40.00";
+        settings.Comparison.ReferenceSplitSets[0].Splits[conditionRows[0].Key] = "00:30.00";
+        settings.Comparison.ReferenceSplitSets[0].Splits[conditionRows[1].Key] = "00:20.00";
+        settings.Comparison.ReferenceSplitSets[0].Splits[conditionRows[2].Key] = "00:40.00";
 
         SplitStatusSnapshot previousCompleted = new(previous, TimeSpan.FromSeconds(1), IsSkipped: false, CompletedFactKeys: []);
         SplitStatusSnapshot expandedPending = new(expanded, null, IsSkipped: false, CompletedFactKeys: []);
@@ -617,7 +617,7 @@ internal static class RenderingTests
         TestAssert.Equal(TimeSpan.FromSeconds(5), completedExpandedRows[0].CompletionTime);
         TestAssert.Equal(TimeSpan.FromSeconds(40), completedExpandedRows[0].ReferenceTime);
 
-        settings.CollapseSplitDetailsOnCompletion = false;
+        settings.Route.CollapseSplitDetailsOnCompletion = false;
         SplitStatusSnapshot completedKeyWithoutFactTime = expandedPending with
         {
             Time = TimeSpan.FromSeconds(25),
@@ -628,7 +628,7 @@ internal static class RenderingTests
             SplitExpandedConditionRows.Build(settings, [previousCompleted, completedKeyWithoutFactTime], statusIndex: 1);
         TestAssert.Equal(0, completedKeyRows[0].ConditionIndex);
         TestAssert.Equal(TimeSpan.Zero, completedKeyRows[0].CompletionTime);
-        settings.CollapseSplitDetailsOnCompletion = true;
+        settings.Route.CollapseSplitDetailsOnCompletion = true;
 
         var blocked = new[]
         {
@@ -667,7 +667,7 @@ internal static class RenderingTests
         var completed = new[] { previousCompleted, expandedCompleted };
         TestAssert.Equal(2, SplitDisplayRows.Build(settings, completed).Count);
 
-        settings.CollapseSplitDetailsOnCompletion = false;
+        settings.Route.CollapseSplitDetailsOnCompletion = false;
         TestAssert.Equal(3, SplitDisplayRows.Build(settings, completed).Count);
 
         var attached = expanded with { IsAttached = true };
@@ -824,11 +824,8 @@ internal static class RenderingTests
 
     private static void SplitListRendererPreservesCurrentSplitDepthCurve()
     {
-        var settings = new AppSettings
-        {
-            CurrentSplitHighlightScalePercent = 130,
-            CurrentSplitDepthStrengthPercent = 50
-        };
+        var settings = new AppSettings { Overlay = { CurrentSplitHighlightScalePercent = 130,
+            CurrentSplitDepthStrengthPercent = 50 } };
 
         Nearly(1.30f, SplitListRenderer.GetCurrentSplitDepthScale(settings, rowIndex: 2, focusIndex: 2));
         Nearly(1.174f, SplitListRenderer.GetCurrentSplitDepthScale(settings, rowIndex: 1, focusIndex: 2));
@@ -859,10 +856,10 @@ internal static class RenderingTests
             null,
             IsSkipped: false,
             CompletedFactKeys: []);
-        var settings = new AppSettings { EnableDefeatedBossIconLighting = true };
+        var settings = new AppSettings { Overlay = { EnableDefeatedBossIconLighting = true } };
         var context = new OverlayRenderContext(
             settings,
-            UiPalette.From(settings.Colors),
+            UiPalette.From(settings.Overlay.Colors),
             TestSnapshots.Terraria(
                 isGameMenu: false,
                 bossStates: CreateFacts((guideFactKey, true))),
@@ -951,10 +948,10 @@ internal static class RenderingTests
             {
                 [everOwnedFactKey] = TimeSpan.FromSeconds(4)
             });
-        var settings = new AppSettings { EnableDefeatedBossIconLighting = true };
+        var settings = new AppSettings { Overlay = { EnableDefeatedBossIconLighting = true } };
         var context = new OverlayRenderContext(
             settings,
-            UiPalette.From(settings.Colors),
+            UiPalette.From(settings.Overlay.Colors),
             TestSnapshots.Terraria(
                 isGameMenu: false,
                 bossStates: CreateFacts((currentItemFactKey, 0))),
@@ -996,27 +993,33 @@ internal static class RenderingTests
         string everOwnedFactKey = SplitCatalog.CreateItemEverOwnedFactKey(itemId);
         var settings = new AppSettings
         {
-            EnableDefeatedBossIconLighting = true,
-            SplitRoute =
-            [
-                new SplitRouteEntry
-                {
-                    Id = "split:item-520",
-                    DisplayName = "Summon Prep",
-                    Enabled = true,
-                    Condition = SplitCondition.All(
-                    [
-                        SplitCatalog.CreateItemEverOwnedCondition(43, 1),
-                        SplitCatalog.CreateItemEverOwnedCondition(itemId, 9)
-                    ]),
-                    IconTargetIds = [otherItemTargetId, itemTargetId],
-                    IconOverride = new SplitIconOverride
+            Overlay =
+            {
+                EnableDefeatedBossIconLighting = true
+            },
+            Route =
+            {
+                SplitRoute =
+                [
+                    new SplitRouteEntry
                     {
-                        Source = SplitIconOverrideSource.Target,
-                        TargetId = itemTargetId
+                        Id = "split:item-520",
+                        DisplayName = "Summon Prep",
+                        Enabled = true,
+                        Condition = SplitCondition.All(
+                        [
+                            SplitCatalog.CreateItemEverOwnedCondition(43, 1),
+                            SplitCatalog.CreateItemEverOwnedCondition(itemId, 9)
+                        ]),
+                        IconTargetIds = [otherItemTargetId, itemTargetId],
+                        IconOverride = new SplitIconOverride
+                        {
+                            Source = SplitIconOverrideSource.Target,
+                            TargetId = itemTargetId
+                        }
                     }
-                }
-            ]
+                ]
+            }
         };
         SettingsNormalizer.Normalize(settings);
         SplitDefinition definition = SplitCatalog.Build(settings).Single();
@@ -1029,7 +1032,7 @@ internal static class RenderingTests
             CompletedFactKeys: []);
         var context = new OverlayRenderContext(
             settings,
-            UiPalette.From(settings.Colors),
+            UiPalette.From(settings.Overlay.Colors),
             TestSnapshots.Terraria(
                 isGameMenu: false,
                 bossStates: CreateFacts((currentItemFactKey, 9))),
@@ -1093,19 +1096,25 @@ internal static class RenderingTests
     {
         var settings = new AppSettings
         {
-            ShowEarlyDeltaTime = true,
-            EarlyDeltaTimeSeconds = 3600,
-            SplitRoute =
-            [
-                new SplitRouteEntry
-                {
-                    Id = "split:skeletron",
-                    DisplayName = "Skeletron",
-                    Enabled = true,
-                    Condition = SplitCatalog.CreateBossFactCondition(SplitCatalog.Skeletron),
-                    IconTargetIds = [SplitCatalog.Skeletron]
-                }
-            ]
+            Overlay =
+            {
+                ShowEarlyDeltaTime = true,
+                EarlyDeltaTimeSeconds = 3600
+            },
+            Route =
+            {
+                SplitRoute =
+                [
+                    new SplitRouteEntry
+                    {
+                        Id = "split:skeletron",
+                        DisplayName = "Skeletron",
+                        Enabled = true,
+                        Condition = SplitCatalog.CreateBossFactCondition(SplitCatalog.Skeletron),
+                        IconTargetIds = [SplitCatalog.Skeletron]
+                    }
+                ]
+            }
         };
         SettingsNormalizer.Normalize(settings);
         var definition = new SplitDefinition(
@@ -1134,7 +1143,7 @@ internal static class RenderingTests
             throw new InvalidOperationException("Could not create split layout for partial render test.");
         }
 
-        UiPalette palette = UiPalette.From(settings.Colors);
+        UiPalette palette = UiPalette.From(settings.Overlay.Colors);
         var nowUtc = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
         OverlayRenderContext CreateContext(TimeSpan elapsed) => new(
             settings,
@@ -1172,17 +1181,20 @@ internal static class RenderingTests
         SplitCondition wallOfFlesh = SplitCatalog.CreateBossFactCondition(SplitCatalog.WallOfFlesh);
         var settings = new AppSettings
         {
-            SplitRoute =
-            [
-                new SplitRouteEntry
-                {
-                    Id = definition.Id,
-                    DisplayName = definition.DisplayName,
-                    Enabled = true,
-                    Condition = definition.Condition,
-                    IconTargetIds = definition.TargetIds.ToList()
-                }
-            ]
+            Route =
+            {
+                SplitRoute =
+                [
+                    new SplitRouteEntry
+                    {
+                        Id = definition.Id,
+                        DisplayName = definition.DisplayName,
+                        Enabled = true,
+                        Condition = definition.Condition,
+                        IconTargetIds = definition.TargetIds.ToList()
+                    }
+                ]
+            }
         };
         SettingsNormalizer.Normalize(settings);
         var statuses = new[]
@@ -1209,24 +1221,30 @@ internal static class RenderingTests
     {
         var settings = new AppSettings
         {
-            SplitRoute =
-            [
-                new SplitRouteEntry
-                {
-                    Id = "split:skeletron",
-                    DisplayName = "Skeletron",
-                    Enabled = true,
-                    Condition = SplitCatalog.CreateBossFactCondition(SplitCatalog.Skeletron),
-                    IconTargetIds = [SplitCatalog.Skeletron]
-                }
-            ],
-            PersonalBestSegmentTimes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            Route =
             {
-                ["split:skeletron"] = "13:30.00"
+                SplitRoute =
+                [
+                    new SplitRouteEntry
+                    {
+                        Id = "split:skeletron",
+                        DisplayName = "Skeletron",
+                        Enabled = true,
+                        Condition = SplitCatalog.CreateBossFactCondition(SplitCatalog.Skeletron),
+                        IconTargetIds = [SplitCatalog.Skeletron]
+                    }
+                ]
+            },
+            Comparison =
+            {
+                PersonalBestSegmentTimes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["split:skeletron"] = "13:30.00"
+                }
             }
         };
         SettingsNormalizer.Normalize(settings);
-        settings.ReferenceSplitSets =
+        settings.Comparison.ReferenceSplitSets =
         [
             AppSettings.CreateReferenceSet("WR", new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
@@ -1419,7 +1437,7 @@ internal static class RenderingTests
 
         var context = new OverlayRenderContext(
             settings,
-            UiPalette.From(settings.Colors),
+            UiPalette.From(settings.Overlay.Colors),
             TestSnapshots.Terraria(isGameMenu: false),
             statuses,
             CurrentSplitIndex: 4,
@@ -1445,24 +1463,27 @@ internal static class RenderingTests
     {
         var settings = new AppSettings
         {
-            TextEffects = new UiTextEffectSettings
+            Overlay =
             {
-                IconOpacityPercent = 15,
-                TimeOpacityPercent = 16,
-                TimeShadowPercent = 11,
-                TimeOutlineThicknessPercent = 12,
-                DeltaOpacityPercent = 26,
-                DeltaShadowPercent = 21,
-                DeltaOutlineThicknessPercent = 22,
-                TimerOpacityPercent = 36,
-                TimerShadowPercent = 31,
-                TimerOutlineThicknessPercent = 32,
-                TimerMillisecondsOpacityPercent = 46,
-                TimerMillisecondsShadowPercent = 41,
-                TimerMillisecondsOutlineThicknessPercent = 42
+                TextEffects = new UiTextEffectSettings
+                {
+                    IconOpacityPercent = 15,
+                    TimeOpacityPercent = 16,
+                    TimeShadowPercent = 11,
+                    TimeOutlineThicknessPercent = 12,
+                    DeltaOpacityPercent = 26,
+                    DeltaShadowPercent = 21,
+                    DeltaOutlineThicknessPercent = 22,
+                    TimerOpacityPercent = 36,
+                    TimerShadowPercent = 31,
+                    TimerOutlineThicknessPercent = 32,
+                    TimerMillisecondsOpacityPercent = 46,
+                    TimerMillisecondsShadowPercent = 41,
+                    TimerMillisecondsOutlineThicknessPercent = 42
+                }
             }
         };
-        UiPalette palette = UiPalette.From(settings.Colors);
+        UiPalette palette = UiPalette.From(settings.Overlay.Colors);
 
         TextRenderStyle split = OverlayTextStyles.GetSplitTextStyle(settings, palette);
         TextRenderStyle delta = OverlayTextStyles.GetDeltaTextStyle(settings, new SplitComparison(TimeSpan.FromSeconds(-1), true), palette);
@@ -1502,44 +1523,53 @@ internal static class RenderingTests
     {
         var settings = new AppSettings
         {
-            ActiveReferenceSplitSet = "WR",
-            EnableTimerGradientColor = false,
-            ShowEarlyDeltaTime = true,
-            EarlyDeltaTimeSeconds = 3600,
-            SplitRoute =
-            [
-                new SplitRouteEntry
-                {
-                    Id = "split:attached",
-                    DisplayName = "Attached",
-                    Enabled = true,
-                    Condition = SplitCondition.Fact("fact:attached"),
-                    IsAttached = true
-                },
-                new SplitRouteEntry
-                {
-                    Id = "split:main",
-                    DisplayName = "Main",
-                    Enabled = true,
-                    Condition = SplitCondition.Fact("fact:main")
-                }
-            ],
-            ReferenceSplitSets =
-            [
-                new ReferenceSplitSet
-                {
-                    Name = "WR",
-                    Splits = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                }
-            ],
-            Colors = new UiColorSettings
+            Comparison =
             {
-                TimerAheadText = "#112233",
-                TimerAheadTextOutline = "#000000",
-                TimerAheadTextShadow = "#000000",
-                TimerBehindText = "#445566",
-                TimerBehindTextOutline = "#000000",
-                TimerBehindTextShadow = "#000000"
+                ActiveReferenceSplitSet = "WR",
+                ReferenceSplitSets =
+                [
+                    new ReferenceSplitSet
+                    {
+                        Name = "WR",
+                        Splits = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                    }
+                ]
+            },
+            Overlay =
+            {
+                EnableTimerGradientColor = false,
+                ShowEarlyDeltaTime = true,
+                EarlyDeltaTimeSeconds = 3600,
+                Colors = new UiColorSettings
+                {
+                    TimerAheadText = "#112233",
+                    TimerAheadTextOutline = "#000000",
+                    TimerAheadTextShadow = "#000000",
+                    TimerBehindText = "#445566",
+                    TimerBehindTextOutline = "#000000",
+                    TimerBehindTextShadow = "#000000"
+                }
+            },
+            Route =
+            {
+                SplitRoute =
+                [
+                    new SplitRouteEntry
+                    {
+                        Id = "split:attached",
+                        DisplayName = "Attached",
+                        Enabled = true,
+                        Condition = SplitCondition.Fact("fact:attached"),
+                        IsAttached = true
+                    },
+                    new SplitRouteEntry
+                    {
+                        Id = "split:main",
+                        DisplayName = "Main",
+                        Enabled = true,
+                        Condition = SplitCondition.Fact("fact:main")
+                    }
+                ]
             }
         };
         SettingsNormalizer.Normalize(settings);
@@ -1548,9 +1578,9 @@ internal static class RenderingTests
         IReadOnlyList<SplitStatusSnapshot> statuses = SplitCatalog.Build(settings)
             .Select(SplitStatusSnapshot.FromDefinition)
             .ToArray();
-        UiPalette palette = UiPalette.From(settings.Colors);
+        UiPalette palette = UiPalette.From(settings.Overlay.Colors);
 
-        settings.AttachedGroupsAffectTimerComparison = true;
+        settings.Route.AttachedGroupsAffectTimerComparison = true;
         TextRenderStyle attachedComparison = OverlayTextStyles.GetTimerTextStyle(
             settings,
             statuses,
@@ -1560,7 +1590,7 @@ internal static class RenderingTests
             palette,
             milliseconds: false);
 
-        settings.AttachedGroupsAffectTimerComparison = false;
+        settings.Route.AttachedGroupsAffectTimerComparison = false;
         TextRenderStyle mainComparison = OverlayTextStyles.GetTimerTextStyle(
             settings,
             statuses,
@@ -1605,27 +1635,33 @@ internal static class RenderingTests
     {
         return new AppSettings
         {
-            ActiveReferenceSplitSet = "WR",
-            ExpandSplitDetails = true,
-            CollapseSplitDetailsOnCompletion = true,
-            SplitRoute =
-            [
-                new SplitRouteEntry
-                {
-                    Id = definition.Id,
-                    DisplayName = definition.DisplayName,
-                    Condition = condition.Clone(),
-                    IconTargetIds = definition.TargetIds.ToList()
-                }
-            ],
-            ReferenceSplitSets =
-            [
-                new ReferenceSplitSet
-                {
-                    Name = "WR",
-                    Splits = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                }
-            ]
+            Comparison =
+            {
+                ActiveReferenceSplitSet = "WR",
+                ReferenceSplitSets =
+                [
+                    new ReferenceSplitSet
+                    {
+                        Name = "WR",
+                        Splits = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                    }
+                ]
+            },
+            Route =
+            {
+                ExpandSplitDetails = true,
+                CollapseSplitDetailsOnCompletion = true,
+                SplitRoute =
+                [
+                    new SplitRouteEntry
+                    {
+                        Id = definition.Id,
+                        DisplayName = definition.DisplayName,
+                        Condition = condition.Clone(),
+                        IconTargetIds = definition.TargetIds.ToList()
+                    }
+                ]
+            }
         };
     }
 

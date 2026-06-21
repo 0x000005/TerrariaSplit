@@ -258,7 +258,7 @@ static void TestRuntimePerformancePaintDiagnostics()
 
 static void TestRunEventProcessorSuppressesAttachedSplitCompletionAnimation()
 {
-    var settings = new AppSettings { ShowSplitCompletionAnimation = true };
+    var settings = new AppSettings { Overlay = { ShowSplitCompletionAnimation = true } };
     var normal = new SplitDefinition(
         "split:normal",
         "Normal",
@@ -318,46 +318,49 @@ static void TestSplitRouteGroups()
 {
     var settings = new AppSettings
     {
-        SplitRoute =
-        [
-            new SplitRouteEntry
-            {
-                Id = "split:skeletron",
-                DisplayName = "Skeletron",
-                Enabled = true,
-                Condition = SplitCatalog.CreateBossFactCondition(SplitCatalog.Skeletron),
-                IconTargetIds = [SplitCatalog.Skeletron]
-            },
-            new SplitRouteEntry
-            {
-                Id = "split:wall-of-flesh",
-                DisplayName = "Wall of Flesh",
-                Enabled = false,
-                Condition = SplitCatalog.CreateBossFactCondition(SplitCatalog.WallOfFlesh),
-                IconTargetIds = [SplitCatalog.WallOfFlesh]
-            },
-            new SplitRouteEntry
-            {
-                Id = "split:mechanical",
-                DisplayName = "Mechanical",
-                Enabled = true,
-                Condition = SplitCondition.Any(
-                [
-                    SplitCatalog.CreateBossFactCondition(SplitCatalog.Destroyer),
-                    SplitCatalog.CreateBossFactCondition(SplitCatalog.Twins)
-                ]),
-                IconTargetIds = [SplitCatalog.Destroyer, SplitCatalog.Twins]
-            },
-            new SplitRouteEntry
-            {
-                Id = "split:attached",
-                DisplayName = "Attached",
-                Enabled = true,
-                IsAttached = true,
-                Condition = SplitCatalog.CreateItemEverOwnedCondition(50, 1),
-                IconTargetIds = [SplitCatalog.CreateItemTargetId(50)]
-            }
-        ]
+        Route =
+        {
+            SplitRoute =
+            [
+                new SplitRouteEntry
+                {
+                    Id = "split:skeletron",
+                    DisplayName = "Skeletron",
+                    Enabled = true,
+                    Condition = SplitCatalog.CreateBossFactCondition(SplitCatalog.Skeletron),
+                    IconTargetIds = [SplitCatalog.Skeletron]
+                },
+                new SplitRouteEntry
+                {
+                    Id = "split:wall-of-flesh",
+                    DisplayName = "Wall of Flesh",
+                    Enabled = false,
+                    Condition = SplitCatalog.CreateBossFactCondition(SplitCatalog.WallOfFlesh),
+                    IconTargetIds = [SplitCatalog.WallOfFlesh]
+                },
+                new SplitRouteEntry
+                {
+                    Id = "split:mechanical",
+                    DisplayName = "Mechanical",
+                    Enabled = true,
+                    Condition = SplitCondition.Any(
+                    [
+                        SplitCatalog.CreateBossFactCondition(SplitCatalog.Destroyer),
+                        SplitCatalog.CreateBossFactCondition(SplitCatalog.Twins)
+                    ]),
+                    IconTargetIds = [SplitCatalog.Destroyer, SplitCatalog.Twins]
+                },
+                new SplitRouteEntry
+                {
+                    Id = "split:attached",
+                    DisplayName = "Attached",
+                    Enabled = true,
+                    IsAttached = true,
+                    Condition = SplitCatalog.CreateItemEverOwnedCondition(50, 1),
+                    IconTargetIds = [SplitCatalog.CreateItemTargetId(50)]
+                }
+            ]
+        }
     };
 
     List<RouteGroup> groups = SplitRouteGroups.Build(settings);
@@ -368,15 +371,11 @@ static void TestSplitRouteGroups()
 
 static void TestRunFinalizerSimplifiedPersonalBestEligibility()
 {
-    var settings = new AppSettings
-    {
-        SplitRoute =
-        [
+    var settings = new AppSettings { Route = { SplitRoute = [
             CreateBossRouteEntryForTest("split:skeletron", "Skeletron", SplitCatalog.Skeletron),
             CreateBossRouteEntryForTest("split:wall-of-flesh", "Wall of Flesh", SplitCatalog.WallOfFlesh),
             CreateBossRouteEntryForTest("split:moon-lord", "Moon Lord", SplitCatalog.MoonLord)
-        ]
-    };
+        ] } };
     SettingsNormalizer.Normalize(settings);
     SplitDefinition[] definitions = SplitCatalog.Build(settings).ToArray();
 
@@ -404,20 +403,23 @@ static void TestRunFinalizerSimplifiedPersonalBestEligibility()
     SplitCondition attachedItem51 = SplitCatalog.CreateItemEverOwnedCondition(51, 1);
     var attachedSettings = new AppSettings
     {
-        SplitRoute =
-        [
-            CreateBossRouteEntryForTest("split:skeletron", "Skeletron", SplitCatalog.Skeletron),
-            new SplitRouteEntry
-            {
-                Id = "split:attached-item",
-                DisplayName = "Attached",
-                Enabled = true,
-                IsAttached = true,
-                Condition = SplitCondition.AtLeast([attachedItem50, attachedItem51], 1),
-                IconTargetIds = [SplitCatalog.CreateItemTargetId(50), SplitCatalog.CreateItemTargetId(51)]
-            },
-            CreateBossRouteEntryForTest("split:moon-lord", "Moon Lord", SplitCatalog.MoonLord)
-        ]
+        Route =
+        {
+            SplitRoute =
+            [
+                CreateBossRouteEntryForTest("split:skeletron", "Skeletron", SplitCatalog.Skeletron),
+                new SplitRouteEntry
+                {
+                    Id = "split:attached-item",
+                    DisplayName = "Attached",
+                    Enabled = true,
+                    IsAttached = true,
+                    Condition = SplitCondition.AtLeast([attachedItem50, attachedItem51], 1),
+                    IconTargetIds = [SplitCatalog.CreateItemTargetId(50), SplitCatalog.CreateItemTargetId(51)]
+                },
+                CreateBossRouteEntryForTest("split:moon-lord", "Moon Lord", SplitCatalog.MoonLord)
+            ]
+        }
     };
     SettingsNormalizer.Normalize(attachedSettings);
     SplitDefinition[] attachedDefinitions = SplitCatalog.Build(attachedSettings).ToArray();
@@ -557,17 +559,20 @@ static void TestSplitCatalogPreservesNestedSplitConditions()
     ]);
     var settings = new AppSettings
     {
-        SplitRoute =
-        [
-            new SplitRouteEntry
-            {
-                Id = "split:nested",
-                DisplayName = "Nested",
-                Enabled = true,
-                Condition = condition,
-                IconTargetIds = [SplitCatalog.Skeletron, SplitCatalog.Destroyer, SplitCatalog.Twins, SplitCatalog.SkeletronPrime]
-            }
-        ]
+        Route =
+        {
+            SplitRoute =
+            [
+                new SplitRouteEntry
+                {
+                    Id = "split:nested",
+                    DisplayName = "Nested",
+                    Enabled = true,
+                    Condition = condition,
+                    IconTargetIds = [SplitCatalog.Skeletron, SplitCatalog.Destroyer, SplitCatalog.Twins, SplitCatalog.SkeletronPrime]
+                }
+            ]
+        }
     };
 
     SplitDefinition definition = SplitCatalog.Build(settings).Single();
@@ -579,7 +584,7 @@ static void TestSplitCatalogPreservesNestedSplitConditions()
 
 static void TestSplitConditionDataRows()
 {
-    var settings = new AppSettings { SplitRoute = SplitCatalog.CreateDefaultRoute() };
+    var settings = new AppSettings { Route = { SplitRoute = SplitCatalog.CreateDefaultRoute() } };
     SettingsNormalizer.Normalize(settings);
 
     IReadOnlyList<SplitConditionDataRow> rows = SplitConditionDataRows.Build(settings);
@@ -624,17 +629,20 @@ static void TestSplitConditionDataRowsCalculatesNestedReferenceCompletionTime()
     ]);
     var settings = new AppSettings
     {
-        SplitRoute =
-        [
-            new SplitRouteEntry
-            {
-                Id = "split:nested",
-                DisplayName = "Nested",
-                Enabled = true,
-                Condition = condition,
-                IconTargetIds = [SplitCatalog.Skeletron, SplitCatalog.Destroyer, SplitCatalog.Twins, SplitCatalog.SkeletronPrime]
-            }
-        ]
+        Route =
+        {
+            SplitRoute =
+            [
+                new SplitRouteEntry
+                {
+                    Id = "split:nested",
+                    DisplayName = "Nested",
+                    Enabled = true,
+                    Condition = condition,
+                    IconTargetIds = [SplitCatalog.Skeletron, SplitCatalog.Destroyer, SplitCatalog.Twins, SplitCatalog.SkeletronPrime]
+                }
+            ]
+        }
     };
     IReadOnlyList<SplitConditionDataRow> rows = SplitConditionDataRows.Build(settings);
     var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -660,46 +668,49 @@ static void TestSplitConditionDataRowsAggregatesAtLeastTimes()
 {
     var settings = new AppSettings
     {
-        SplitRoute =
-        [
-            new SplitRouteEntry
-            {
-                Id = "split:all",
-                DisplayName = "All",
-                Enabled = true,
-                Condition = SplitCondition.All(
-                [
-                    SplitCatalog.CreateBossFactCondition(SplitCatalog.Skeletron),
-                    SplitCatalog.CreateBossFactCondition(SplitCatalog.WallOfFlesh)
-                ]),
-                IconTargetIds = [SplitCatalog.Skeletron, SplitCatalog.WallOfFlesh]
-            },
-            new SplitRouteEntry
-            {
-                Id = "split:any",
-                DisplayName = "Any",
-                Enabled = true,
-                Condition = SplitCondition.Any(
-                [
-                    SplitCatalog.CreateBossFactCondition(SplitCatalog.Destroyer),
-                    SplitCatalog.CreateBossFactCondition(SplitCatalog.Twins)
-                ]),
-                IconTargetIds = [SplitCatalog.Destroyer, SplitCatalog.Twins]
-            },
-            new SplitRouteEntry
-            {
-                Id = "split:at-least",
-                DisplayName = "AtLeast",
-                Enabled = true,
-                Condition = SplitCondition.AtLeast(
-                [
-                    SplitCatalog.CreateBossFactCondition(SplitCatalog.Skeletron),
-                    SplitCatalog.CreateBossFactCondition(SplitCatalog.Destroyer),
-                    SplitCatalog.CreateBossFactCondition(SplitCatalog.Twins)
-                ], 2),
-                IconTargetIds = [SplitCatalog.Skeletron, SplitCatalog.Destroyer, SplitCatalog.Twins]
-            }
-        ]
+        Route =
+        {
+            SplitRoute =
+            [
+                new SplitRouteEntry
+                {
+                    Id = "split:all",
+                    DisplayName = "All",
+                    Enabled = true,
+                    Condition = SplitCondition.All(
+                    [
+                        SplitCatalog.CreateBossFactCondition(SplitCatalog.Skeletron),
+                        SplitCatalog.CreateBossFactCondition(SplitCatalog.WallOfFlesh)
+                    ]),
+                    IconTargetIds = [SplitCatalog.Skeletron, SplitCatalog.WallOfFlesh]
+                },
+                new SplitRouteEntry
+                {
+                    Id = "split:any",
+                    DisplayName = "Any",
+                    Enabled = true,
+                    Condition = SplitCondition.Any(
+                    [
+                        SplitCatalog.CreateBossFactCondition(SplitCatalog.Destroyer),
+                        SplitCatalog.CreateBossFactCondition(SplitCatalog.Twins)
+                    ]),
+                    IconTargetIds = [SplitCatalog.Destroyer, SplitCatalog.Twins]
+                },
+                new SplitRouteEntry
+                {
+                    Id = "split:at-least",
+                    DisplayName = "AtLeast",
+                    Enabled = true,
+                    Condition = SplitCondition.AtLeast(
+                    [
+                        SplitCatalog.CreateBossFactCondition(SplitCatalog.Skeletron),
+                        SplitCatalog.CreateBossFactCondition(SplitCatalog.Destroyer),
+                        SplitCatalog.CreateBossFactCondition(SplitCatalog.Twins)
+                    ], 2),
+                    IconTargetIds = [SplitCatalog.Skeletron, SplitCatalog.Destroyer, SplitCatalog.Twins]
+                }
+            ]
+        }
     };
     SettingsNormalizer.Normalize(settings);
     IReadOnlyList<SplitConditionDataRow> rows = SplitConditionDataRows.Build(settings);
@@ -754,26 +765,29 @@ static void TestSplitCatalogBuildsSplitIconOverrides()
 {
     var settings = new AppSettings
     {
-        SplitRoute =
-        [
-            new SplitRouteEntry
-            {
-                Id = "split:any-boss",
-                DisplayName = "Any Boss",
-                Enabled = true,
-                Condition = SplitCondition.Any(
-                [
-                    SplitCatalog.CreateBossFactCondition(SplitCatalog.Skeletron),
-                    SplitCatalog.CreateBossFactCondition(SplitCatalog.WallOfFlesh)
-                ]),
-                IconTargetIds = [SplitCatalog.Skeletron, SplitCatalog.WallOfFlesh],
-                IconOverride = new SplitIconOverride
+        Route =
+        {
+            SplitRoute =
+            [
+                new SplitRouteEntry
                 {
-                    Source = SplitIconOverrideSource.Target,
-                    TargetId = SplitCatalog.WallOfFlesh
+                    Id = "split:any-boss",
+                    DisplayName = "Any Boss",
+                    Enabled = true,
+                    Condition = SplitCondition.Any(
+                    [
+                        SplitCatalog.CreateBossFactCondition(SplitCatalog.Skeletron),
+                        SplitCatalog.CreateBossFactCondition(SplitCatalog.WallOfFlesh)
+                    ]),
+                    IconTargetIds = [SplitCatalog.Skeletron, SplitCatalog.WallOfFlesh],
+                    IconOverride = new SplitIconOverride
+                    {
+                        Source = SplitIconOverrideSource.Target,
+                        TargetId = SplitCatalog.WallOfFlesh
+                    }
                 }
-            }
-        ]
+            ]
+        }
     };
 
     SettingsNormalizer.Normalize(settings);
@@ -805,37 +819,43 @@ static void TestStatisticsTableExpandsConditionRowsAndKeepsRouteSegments()
     SplitCondition destroyer = SplitCatalog.CreateBossFactCondition(SplitCatalog.Destroyer);
     var settings = new AppSettings
     {
-        SplitRoute =
-        [
-            CreateTestRouteEntry("split:a", "A", SplitCatalog.Skeletron),
-            new SplitRouteEntry
-            {
-                Id = "split:attached",
-                DisplayName = "Attached",
-                Enabled = true,
-                IsAttached = true,
-                Condition = SplitCondition.AtLeast(
-                [
-                    SplitCatalog.CreateItemEverOwnedCondition(50, 1),
-                    SplitCatalog.CreateItemEverOwnedCondition(51, 1)
-                ], 1),
-                IconTargetIds = [SplitCatalog.CreateItemTargetId(50), SplitCatalog.CreateItemTargetId(51)]
-            },
-            new SplitRouteEntry
-            {
-                Id = "split:b",
-                DisplayName = "B",
-                Enabled = true,
-                Condition = SplitCondition.All([wallOfFlesh, destroyer]),
-                IconTargetIds = [SplitCatalog.WallOfFlesh, SplitCatalog.Destroyer]
-            },
-            CreateTestRouteEntry("split:c", "C", SplitCatalog.MoonLord)
-        ],
-        PersonalBestSegmentTimes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        Route =
         {
-            ["split:a"] = "0:09.00",
-            ["split:b"] = "0:05.00",
-            ["split:c"] = "0:05.00"
+            SplitRoute =
+            [
+                CreateTestRouteEntry("split:a", "A", SplitCatalog.Skeletron),
+                new SplitRouteEntry
+                {
+                    Id = "split:attached",
+                    DisplayName = "Attached",
+                    Enabled = true,
+                    IsAttached = true,
+                    Condition = SplitCondition.AtLeast(
+                    [
+                        SplitCatalog.CreateItemEverOwnedCondition(50, 1),
+                        SplitCatalog.CreateItemEverOwnedCondition(51, 1)
+                    ], 1),
+                    IconTargetIds = [SplitCatalog.CreateItemTargetId(50), SplitCatalog.CreateItemTargetId(51)]
+                },
+                new SplitRouteEntry
+                {
+                    Id = "split:b",
+                    DisplayName = "B",
+                    Enabled = true,
+                    Condition = SplitCondition.All([wallOfFlesh, destroyer]),
+                    IconTargetIds = [SplitCatalog.WallOfFlesh, SplitCatalog.Destroyer]
+                },
+                CreateTestRouteEntry("split:c", "C", SplitCatalog.MoonLord)
+            ]
+        },
+        Comparison =
+        {
+            PersonalBestSegmentTimes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["split:a"] = "0:09.00",
+                ["split:b"] = "0:05.00",
+                ["split:c"] = "0:05.00"
+            }
         }
     };
     IReadOnlyList<SplitConditionDataRow> conditionRows = SplitConditionDataRows.Build(settings);
@@ -844,7 +864,7 @@ static void TestStatisticsTableExpandsConditionRowsAndKeepsRouteSegments()
     string bWallOfFleshKey = CumulativeKey(conditionRows, "split:b", wallOfFlesh.FactKey);
     string bDestroyerKey = CumulativeKey(conditionRows, "split:b", destroyer.FactKey);
     string cCumulativeKey = CumulativeKey(conditionRows, "split:c", SplitCatalog.CreateBossFactCondition(SplitCatalog.MoonLord).FactKey);
-    settings.PersonalBestTimes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    settings.Comparison.PersonalBestTimes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
     {
         [aCumulativeKey] = "0:09.00",
         [attachedCumulativeKey] = "0:10.00",
@@ -945,55 +965,55 @@ static void TestTerrariaMenuGeometry()
 
 static void TestLocalizer()
 {
-    AssertEqual("Crimson", Localizer.Get("Crimson", new AppSettings { Language = "English" }));
-    AssertEqual("\u7329\u7EA2", Localizer.Get("Crimson", new AppSettings { Language = "\u4E2D\u6587" }));
-    AssertEqual("\u7D2F\u79EF", Localizer.Get("Cumulative", new AppSettings { Language = "\u4E2D\u6587" }));
-    AssertEqual("\u5206\u6BB5", Localizer.Get("Segment", new AppSettings { Language = "\u4E2D\u6587" }));
-    AssertEqual("\u4E0D\u900F\u660E\u5EA6 %", Localizer.Get("Opacity %", new AppSettings { Language = "\u4E2D\u6587" }));
-    AssertEqual("\u542F\u7528", Localizer.Get("Enabled", new AppSettings { Language = "\u4E2D\u6587" }));
-    AssertEqual("\u7B49\u5F85\u9644\u52A0\u5185\u5B58", Localizer.Get("Waiting for attached memory", new AppSettings { Language = "\u4E2D\u6587" }));
-    AssertEqual("\u7B49\u5F85\u8BA1\u65F6\u5F00\u59CB", Localizer.Get("Waiting for timer start", new AppSettings { Language = "\u4E2D\u6587" }));
-    AssertEqual("\u5355\u6BB5\u65F6\u95F4", Localizer.Get("Segment time", new AppSettings { Language = "\u4E2D\u6587" }));
-    AssertEqual("\u7D2F\u79EF\u65F6\u95F4", Localizer.Get("Cumulative time", new AppSettings { Language = "\u4E2D\u6587" }));
-    AssertEqual("\u53C2\u8003\u65F6\u95F4\uFF08\u672A\u6765\u9636\u6BB5\uFF09", Localizer.Get("Reference time (future stage)", new AppSettings { Language = "\u4E2D\u6587" }));
-    AssertEqual("\u53C2\u8003\u65F6\u95F4\uFF08\u5F53\u524D\u9636\u6BB5\uFF09", Localizer.Get("Reference time (current stage)", new AppSettings { Language = "\u4E2D\u6587" }));
-    AssertEqual("\u7D2F\u79EF\u65F6\u95F4\uFF08\u5DF2\u5B8C\u6210\u9636\u6BB5\uFF09", Localizer.Get("Cumulative time (completed stage)", new AppSettings { Language = "\u4E2D\u6587" }));
-    AssertEqual("\u4E3B\u8BA1\u65F6\u5668\uFF08\u603B\u6210\u7EE9\u5FEB\uFF09", Localizer.Get("Main timer (total fast)", new AppSettings { Language = "\u4E2D\u6587" }));
-    AssertEqual("\u5355\u6BB5\u65F6\u95F4\u63D0\u793A\u6587\u672C", Localizer.Get("Segment time hint text", new AppSettings { Language = "\u4E2D\u6587" }));
-    AssertEqual("\u7D2F\u79EF\u65F6\u95F4\u63D0\u793A\u6587\u672C", Localizer.Get("Cumulative time hint text", new AppSettings { Language = "\u4E2D\u6587" }));
-    AssertEqual("\u5206\u6BB5\u70B9\uFF1A\u7D2F\u79EF\u65F6\u95F4\u5FEB\u4E8E\u53C2\u8003\uFF0C\u5355\u6BB5\u65F6\u95F4\u5FEB\u4E8E PB", Localizer.Get("Stage reached: cumulative faster, segment faster", new AppSettings { Language = "\u4E2D\u6587" }));
-    AssertEqual("\u4EBA\u7269\u9009\u9879", Localizer.Get("Player options", new AppSettings { Language = "\u4E2D\u6587" }));
-    AssertEqual("\u4E16\u754C\u9009\u9879", Localizer.Get("World options", new AppSettings { Language = "\u4E2D\u6587" }));
-    AssertEqual("\u5929\u9876\u63A5\u661F", Localizer.Get("Zenith star catch", new AppSettings { Language = "\u4E2D\u6587" }));
-    AssertEqual("\u7B5B\u9009\u91D1\u5B57\u5854", Localizer.Get("Pyramid filter", new AppSettings { Language = "\u4E2D\u6587" }));
-    AssertEqual("\u6307\u5B9A\u7269\u54C1", Localizer.Get("Required pyramid items", new AppSettings { Language = "\u4E2D\u6587" }));
-    AssertEqual("\u7B5B\u9009\u5931\u8D25\u8FD4\u56DE\u4E3B\u9875\u91CD\u65B0\u521B\u5EFA", Localizer.Get("Return to main menu on filter failure", new AppSettings { Language = "\u4E2D\u6587" }));
-    AssertEqual("\u6C99\u66B4\u74F6", Localizer.Get("Sandstorm in a Bottle", new AppSettings { Language = "\u4E2D\u6587" }));
-    AssertEqual("\u98DE\u6BEF", Localizer.Get("Flying Carpet", new AppSettings { Language = "\u4E2D\u6587" }));
-    AssertEqual("\u6CD5\u8001\u5957", Localizer.Get("Pharaoh set", new AppSettings { Language = "\u4E2D\u6587" }));
-    AssertEqual("\u540E\u53F0\u5EFA\u56FE", Localizer.Get("Background world generation", new AppSettings { Language = "\u4E2D\u6587" }));
-    AssertEqual("\u540E\u53F0\u9884\u5EFA\u4E16\u754C\u6C60", Localizer.Get("Background world pool", new AppSettings { Language = "\u4E2D\u6587" }));
-    AssertEqual("\u4E16\u754C\u6C60\u4E2A\u6570", Localizer.Get("World pool size", new AppSettings { Language = "\u4E2D\u6587" }));
-    AssertEqual("\u5B89\u88C5\u4E16\u754C\u6C60\u4E16\u754C", Localizer.Get("Install pooled world", new AppSettings { Language = "\u4E2D\u6587" }));
-    AssertEqual("\u505C\u5728\u4E16\u754C\u9009\u62E9\u754C\u9762", Localizer.Get("Stop at world select", new AppSettings { Language = "\u4E2D\u6587" }));
-    AssertEqual("\u53C2\u8003\u65F6\u95F4", Localizer.Get("Reference Data", new AppSettings { Language = "\u4E2D\u6587" }));
-    AssertEqual("\u4F7F\u7528 PB \u4F5C\u4E3A\u53C2\u8003\u65F6\u95F4", Localizer.Get("Use PB as reference time", new AppSettings { Language = "\u4E2D\u6587" }));
-    AssertEqual("\u5F53\u524D\u53C2\u8003\u7EC4", Localizer.Get("Active group", new AppSettings { Language = "\u4E2D\u6587" }));
-    AssertEqual("\u4E2A\u4EBA\u6700\u4F73\u66F4\u65B0", Localizer.Get("Personal Data", new AppSettings { Language = "\u4E2D\u6587" }));
-    AssertEqual("\u4E2A\u4EBA\u6700\u4F73\u7D2F\u8BA1", Localizer.Get("Personal Cumulative Best", new AppSettings { Language = "\u4E2D\u6587" }));
-    AssertEqual("\u4E2A\u4EBA\u6700\u4F73\u5355\u6BB5", Localizer.Get("Personal segment best", new AppSettings { Language = "\u4E2D\u6587" }));
-    AssertEqual("\u5F53\u524D\u6570\u636E\u6587\u4EF6", Localizer.Get("Active file", new AppSettings { Language = "\u4E2D\u6587" }));
-    AssertEqual("m:ss \u6216 h:mm:ss", Localizer.Get("m:ss or h:mm:ss", new AppSettings { Language = "\u4E2D\u6587" }));
-    AssertEqual("\u975E\u9644\u5C5E\u7EC4", Localizer.Get("Main groups", new AppSettings { Language = "\u4E2D\u6587" }));
-    AssertEqual("\u9644\u5C5E\u7EC4", Localizer.Get("Attached groups", new AppSettings { Language = "\u4E2D\u6587" }));
-    AssertEqual("\u9644\u5C5E\u7EC4", Localizer.Get("Attached group marker", new AppSettings { Language = "\u4E2D\u6587" }));
-    AssertEqual("\u81EA\u52A8\u9690\u85CF\u9644\u5C5E\u7EC4", Localizer.Get("Auto hide attached groups", new AppSettings { Language = "\u4E2D\u6587" }));
-    AssertEqual("\u9644\u5C5E\u7EC4\u53C2\u4E0E\u4E3B\u8BA1\u65F6\u5668\u5FEB\u6162\u5224\u5B9A", Localizer.Get("Attached groups affect main timer comparison", new AppSettings { Language = "\u4E2D\u6587" }));
-    AssertEqual("\u5B8C\u6210\u5F53\u524D\u9636\u6BB5\u65F6\u70B9\u4EAE\u56FE\u6807", Localizer.Get("Light icons when current stage completed", new AppSettings { Language = "\u4E2D\u6587" }));
-    AssertEqual("\u4E3B\u9636\u6BB5\u5B8C\u6210\u52A8\u753B", Localizer.Get("Main stage completion animation", new AppSettings { Language = "\u4E2D\u6587" }));
-    AssertEqual("\u7EC4", Localizer.Get("BOSS Group", new AppSettings { Language = "\u4E2D\u6587" }));
-    AssertEqual("\u5F53\u524D\u9636\u6BB5\u56FE\u6807\u7070\u5EA6\u989D\u5916\u524A\u5F31 %", Localizer.Get("Current stage icon grayscale weaken %", new AppSettings { Language = "\u4E2D\u6587" }));
-    AssertEqual("\u5F53\u524D\u9636\u6BB5\u56FE\u6807\u4EAE\u5EA6\u989D\u5916\u589E\u5F3A %", Localizer.Get("Current stage icon brightness boost %", new AppSettings { Language = "\u4E2D\u6587" }));
+    AssertEqual("Crimson", Localizer.Get("Crimson", new AppSettings { General = { Language = "English" } }));
+    AssertEqual("\u7329\u7EA2", Localizer.Get("Crimson", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u7D2F\u79EF", Localizer.Get("Cumulative", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u5206\u6BB5", Localizer.Get("Segment", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u4E0D\u900F\u660E\u5EA6 %", Localizer.Get("Opacity %", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u542F\u7528", Localizer.Get("Enabled", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u7B49\u5F85\u9644\u52A0\u5185\u5B58", Localizer.Get("Waiting for attached memory", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u7B49\u5F85\u8BA1\u65F6\u5F00\u59CB", Localizer.Get("Waiting for timer start", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u5355\u6BB5\u65F6\u95F4", Localizer.Get("Segment time", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u7D2F\u79EF\u65F6\u95F4", Localizer.Get("Cumulative time", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u53C2\u8003\u65F6\u95F4\uFF08\u672A\u6765\u9636\u6BB5\uFF09", Localizer.Get("Reference time (future stage)", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u53C2\u8003\u65F6\u95F4\uFF08\u5F53\u524D\u9636\u6BB5\uFF09", Localizer.Get("Reference time (current stage)", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u7D2F\u79EF\u65F6\u95F4\uFF08\u5DF2\u5B8C\u6210\u9636\u6BB5\uFF09", Localizer.Get("Cumulative time (completed stage)", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u4E3B\u8BA1\u65F6\u5668\uFF08\u603B\u6210\u7EE9\u5FEB\uFF09", Localizer.Get("Main timer (total fast)", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u5355\u6BB5\u65F6\u95F4\u63D0\u793A\u6587\u672C", Localizer.Get("Segment time hint text", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u7D2F\u79EF\u65F6\u95F4\u63D0\u793A\u6587\u672C", Localizer.Get("Cumulative time hint text", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u5206\u6BB5\u70B9\uFF1A\u7D2F\u79EF\u65F6\u95F4\u5FEB\u4E8E\u53C2\u8003\uFF0C\u5355\u6BB5\u65F6\u95F4\u5FEB\u4E8E PB", Localizer.Get("Stage reached: cumulative faster, segment faster", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u4EBA\u7269\u9009\u9879", Localizer.Get("Player options", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u4E16\u754C\u9009\u9879", Localizer.Get("World options", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u5929\u9876\u63A5\u661F", Localizer.Get("Zenith star catch", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u7B5B\u9009\u91D1\u5B57\u5854", Localizer.Get("Pyramid filter", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u6307\u5B9A\u7269\u54C1", Localizer.Get("Required pyramid items", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u7B5B\u9009\u5931\u8D25\u8FD4\u56DE\u4E3B\u9875\u91CD\u65B0\u521B\u5EFA", Localizer.Get("Return to main menu on filter failure", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u6C99\u66B4\u74F6", Localizer.Get("Sandstorm in a Bottle", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u98DE\u6BEF", Localizer.Get("Flying Carpet", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u6CD5\u8001\u5957", Localizer.Get("Pharaoh set", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u540E\u53F0\u5EFA\u56FE", Localizer.Get("Background world generation", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u540E\u53F0\u9884\u5EFA\u4E16\u754C\u6C60", Localizer.Get("Background world pool", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u4E16\u754C\u6C60\u4E2A\u6570", Localizer.Get("World pool size", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u5B89\u88C5\u4E16\u754C\u6C60\u4E16\u754C", Localizer.Get("Install pooled world", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u505C\u5728\u4E16\u754C\u9009\u62E9\u754C\u9762", Localizer.Get("Stop at world select", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u53C2\u8003\u65F6\u95F4", Localizer.Get("Reference Data", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u4F7F\u7528 PB \u4F5C\u4E3A\u53C2\u8003\u65F6\u95F4", Localizer.Get("Use PB as reference time", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u5F53\u524D\u53C2\u8003\u7EC4", Localizer.Get("Active group", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u4E2A\u4EBA\u6700\u4F73\u66F4\u65B0", Localizer.Get("Personal Data", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u4E2A\u4EBA\u6700\u4F73\u7D2F\u8BA1", Localizer.Get("Personal Cumulative Best", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u4E2A\u4EBA\u6700\u4F73\u5355\u6BB5", Localizer.Get("Personal segment best", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u5F53\u524D\u6570\u636E\u6587\u4EF6", Localizer.Get("Active file", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("m:ss \u6216 h:mm:ss", Localizer.Get("m:ss or h:mm:ss", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u975E\u9644\u5C5E\u7EC4", Localizer.Get("Main groups", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u9644\u5C5E\u7EC4", Localizer.Get("Attached groups", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u9644\u5C5E\u7EC4", Localizer.Get("Attached group marker", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u81EA\u52A8\u9690\u85CF\u9644\u5C5E\u7EC4", Localizer.Get("Auto hide attached groups", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u9644\u5C5E\u7EC4\u53C2\u4E0E\u4E3B\u8BA1\u65F6\u5668\u5FEB\u6162\u5224\u5B9A", Localizer.Get("Attached groups affect main timer comparison", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u5B8C\u6210\u5F53\u524D\u9636\u6BB5\u65F6\u70B9\u4EAE\u56FE\u6807", Localizer.Get("Light icons when current stage completed", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u4E3B\u9636\u6BB5\u5B8C\u6210\u52A8\u753B", Localizer.Get("Main stage completion animation", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u7EC4", Localizer.Get("BOSS Group", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u5F53\u524D\u9636\u6BB5\u56FE\u6807\u7070\u5EA6\u989D\u5916\u524A\u5F31 %", Localizer.Get("Current stage icon grayscale weaken %", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u5F53\u524D\u9636\u6BB5\u56FE\u6807\u4EAE\u5EA6\u989D\u5916\u589E\u5F3A %", Localizer.Get("Current stage icon brightness boost %", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
 }
 
 static void TestJsonFileStoreWritesAtomically()
@@ -1004,11 +1024,11 @@ static void TestJsonFileStoreWritesAtomically()
 
     try
     {
-        var settings = new AppSettings { Language = "\u4E2D\u6587" };
+        var settings = new AppSettings { General = { Language = "\u4E2D\u6587" } };
         AssertEqual(true, JsonFileStore.Write(settingsPath, settings, "test settings"));
 
         AppSettings? loaded = JsonFileStore.Read<AppSettings>(settingsPath, "test settings");
-        AssertEqual("\u4E2D\u6587", loaded?.Language);
+        AssertEqual("\u4E2D\u6587", loaded?.General.Language);
 
         AssertEqual(true, JsonFileStore.WriteText(activeProfilePath, "profile.json", "test active settings profile"));
         AssertEqual("profile.json", File.ReadAllText(activeProfilePath));
@@ -1067,19 +1087,19 @@ static void TestLegacyFlatSettingsJsonMigratesToSections()
     AssertEqual(true, root.TryGetProperty(nameof(AppSettings.Comparison), out _));
     AssertEqual(true, root.TryGetProperty(nameof(AppSettings.Overlay), out _));
     AssertEqual(true, root.TryGetProperty(nameof(AppSettings.Automation), out _));
-    AssertEqual(false, root.TryGetProperty(nameof(AppSettings.Language), out _));
-    AssertEqual(false, root.TryGetProperty(nameof(AppSettings.PauseResumeKey), out _));
-    AssertEqual(false, root.TryGetProperty(nameof(AppSettings.SplitRoute), out _));
-    AssertEqual(false, root.TryGetProperty(nameof(AppSettings.AutoCreate), out _));
+    AssertEqual(false, root.TryGetProperty("Language", out _));
+    AssertEqual(false, root.TryGetProperty("PauseResumeKey", out _));
+    AssertEqual(false, root.TryGetProperty("SplitRoute", out _));
+    AssertEqual(false, root.TryGetProperty("AutoCreate", out _));
 }
 
 static void TestDefaultAttachedSplitDisplayMatchesPrimaryDisplay()
 {
     AppSettings settings = AppSettingsDefaults.Create();
 
-    AssertColumnMatches(settings.Columns.Icon, settings.Columns.AttachedIcon);
-    AssertColumnMatches(settings.Columns.Time, settings.Columns.AttachedTime);
-    AssertColumnMatches(settings.Columns.Delta, settings.Columns.AttachedDelta);
+    AssertColumnMatches(settings.Overlay.Columns.Icon, settings.Overlay.Columns.AttachedIcon);
+    AssertColumnMatches(settings.Overlay.Columns.Time, settings.Overlay.Columns.AttachedTime);
+    AssertColumnMatches(settings.Overlay.Columns.Delta, settings.Overlay.Columns.AttachedDelta);
 }
 
 static void AssertColumnMatches(UiColumnSettings expected, UiColumnSettings actual)
@@ -1141,13 +1161,13 @@ static void TestAppSettingsStoreWritesEmbeddedDefaultsWhenSettingsFileIsInvalid(
         AppSettings loaded = AppSettingsStore.Load("settings.json");
         AppSettings defaults = AppSettingsDefaults.Create();
 
-        AssertEqual(defaults.Language, loaded.Language);
-        AssertEqual(defaults.SplitRoute.Count, loaded.SplitRoute.Count);
+        AssertEqual(defaults.General.Language, loaded.General.Language);
+        AssertEqual(defaults.Route.SplitRoute.Count, loaded.Route.SplitRoute.Count);
         AssertEqual(true, File.Exists(settingsPath));
 
         AppSettings? saved = SettingsSerializer.ReadSettings(settingsPath, "saved settings");
-        AssertEqual(defaults.Language, saved?.Language);
-        AssertEqual(defaults.SplitRoute.Count, saved?.SplitRoute.Count);
+        AssertEqual(defaults.General.Language, saved?.General.Language);
+        AssertEqual(defaults.Route.SplitRoute.Count, saved?.Route.SplitRoute.Count);
     }
     finally
     {
@@ -1215,7 +1235,7 @@ static void TestAppSettingsStoreSaveDoesNotMutateSourceSettings()
 
         AppSettings settings = AppSettingsDefaults.Create();
         SettingsNormalizer.Normalize(settings);
-        settings.ReferenceSplitSets =
+        settings.Comparison.ReferenceSplitSets =
         [
             new ReferenceSplitSet
             {
@@ -1226,7 +1246,7 @@ static void TestAppSettingsStoreSaveDoesNotMutateSourceSettings()
                 }
             }
         ];
-        settings.PersonalBestTimeSets =
+        settings.Comparison.PersonalBestTimeSets =
         [
             new ReferenceSplitSet
             {
@@ -1237,7 +1257,7 @@ static void TestAppSettingsStoreSaveDoesNotMutateSourceSettings()
                 }
             }
         ];
-        settings.PersonalBestSegmentSets =
+        settings.Comparison.PersonalBestSegmentSets =
         [
             new ReferenceSplitSet
             {
@@ -1248,30 +1268,30 @@ static void TestAppSettingsStoreSaveDoesNotMutateSourceSettings()
                 }
             }
         ];
-        settings.ActiveReferenceSplitSet = "Custom Reference";
-        settings.ActivePersonalBestTimeSet = "Race PB";
-        settings.ActivePersonalBestSegmentSet = "Race Segments";
+        settings.Comparison.ActiveReferenceSplitSet = "Custom Reference";
+        settings.Comparison.ActivePersonalBestTimeSet = "Race PB";
+        settings.Comparison.ActivePersonalBestSegmentSet = "Race Segments";
 
-        List<ReferenceSplitSet> referenceSets = settings.ReferenceSplitSets;
-        List<ReferenceSplitSet> personalBestTimeSets = settings.PersonalBestTimeSets;
-        List<ReferenceSplitSet> personalBestSegmentSets = settings.PersonalBestSegmentSets;
+        List<ReferenceSplitSet> referenceSets = settings.Comparison.ReferenceSplitSets;
+        List<ReferenceSplitSet> personalBestTimeSets = settings.Comparison.PersonalBestTimeSets;
+        List<ReferenceSplitSet> personalBestSegmentSets = settings.Comparison.PersonalBestSegmentSets;
         string beforeJson = JsonSerializer.Serialize(settings, JsonFileStore.JsonOptions);
 
         AppSettingsStore.Save(settings);
 
         string afterJson = JsonSerializer.Serialize(settings, JsonFileStore.JsonOptions);
         AssertEqual(beforeJson, afterJson);
-        AssertEqual(true, ReferenceEquals(referenceSets, settings.ReferenceSplitSets));
-        AssertEqual(true, ReferenceEquals(personalBestTimeSets, settings.PersonalBestTimeSets));
-        AssertEqual(true, ReferenceEquals(personalBestSegmentSets, settings.PersonalBestSegmentSets));
+        AssertEqual(true, ReferenceEquals(referenceSets, settings.Comparison.ReferenceSplitSets));
+        AssertEqual(true, ReferenceEquals(personalBestTimeSets, settings.Comparison.PersonalBestTimeSets));
+        AssertEqual(true, ReferenceEquals(personalBestSegmentSets, settings.Comparison.PersonalBestSegmentSets));
 
         AppSettings persisted = SettingsSerializer.ReadSettings(
             Path.Combine(settingsDirectory, profileName),
             "saved mutation test settings")
             ?? throw new InvalidOperationException("Saved mutation test settings could not be read.");
-        AssertEqual(0, persisted.ReferenceSplitSets.Count);
-        AssertEqual(0, persisted.PersonalBestTimeSets.Count);
-        AssertEqual(0, persisted.PersonalBestSegmentSets.Count);
+        AssertEqual(0, persisted.Comparison.ReferenceSplitSets.Count);
+        AssertEqual(0, persisted.Comparison.PersonalBestTimeSets.Count);
+        AssertEqual(0, persisted.Comparison.PersonalBestSegmentSets.Count);
     }
     finally
     {
@@ -1381,16 +1401,22 @@ static void TestWorldPoolSignatureStartsWithTerrariaVersion()
 {
     var settings = new AppSettings
     {
-        Language = LanguageNames.Chinese,
-        AutoCreate = new AutoCreateWorldSettings
+        General =
         {
-            WorldSize = AutoCreateWorldSize.Small,
-            WorldDifficulty = AutoCreateWorldDifficulty.Expert,
-            WorldEvil = AutoCreateWorldEvil.Crimson,
-            SpecialSeeds = "For the Worthy|No Traps",
-            SecretSeeds = "mole people|waterpark",
-            EnablePyramidFilter = true,
-            PyramidFilterItemMask = AutoCreatePyramidFilterItem.SandstormInABottleMask | AutoCreatePyramidFilterItem.PharaohSetMask
+            Language = LanguageNames.Chinese
+        },
+        Automation =
+        {
+            AutoCreate = new AutoCreateWorldSettings
+            {
+                WorldSize = AutoCreateWorldSize.Small,
+                WorldDifficulty = AutoCreateWorldDifficulty.Expert,
+                WorldEvil = AutoCreateWorldEvil.Crimson,
+                SpecialSeeds = "For the Worthy|No Traps",
+                SecretSeeds = "mole people|waterpark",
+                EnablePyramidFilter = true,
+                PyramidFilterItemMask = AutoCreatePyramidFilterItem.SandstormInABottleMask | AutoCreatePyramidFilterItem.PharaohSetMask
+            }
         }
     };
 
@@ -1398,12 +1424,12 @@ static void TestWorldPoolSignatureStartsWithTerrariaVersion()
 
     AssertEqual("1.4.5.6|Small|Expert|Crimson|For the Worthy,No Traps|mole people,waterpark|pyramid=1|pyramidItems=5|name=zh-Hans", signature);
 
-    settings.Language = LanguageNames.English;
+    settings.General.Language = LanguageNames.English;
     AssertEqual(
         "1.4.5.6|Small|Expert|Crimson|For the Worthy,No Traps|mole people,waterpark|pyramid=1|pyramidItems=5|name=en-US",
         WorldPoolSignature.From(settings));
 
-    settings.AutoCreate.PyramidFilterItemMask = 0;
+    settings.Automation.AutoCreate.PyramidFilterItemMask = 0;
     AssertEqual(
         "1.4.5.6|Small|Expert|Crimson|For the Worthy,No Traps|mole people,waterpark|pyramid=1|pyramidItems=7|name=en-US",
         WorldPoolSignature.From(settings));
@@ -1490,41 +1516,44 @@ static void TestSettingsNormalize()
 {
     var settings = new AppSettings
     {
-        AutoCreate = new AutoCreateWorldSettings
+        Automation =
         {
-            ShortActionDelayMilliseconds = -1,
-            MenuActionDelayMilliseconds = 6000,
-            PyramidFilterPostDelayMilliseconds = 6000,
-            WindowActivationDelayMilliseconds = 6000,
-            ClickFocusDelayMilliseconds = -10,
-            InputPressDurationMilliseconds = 0,
-            SpecialSeeds = "  for the worthy | get fixed boi | skyblock  ",
-            SecretSeeds = "  mole people | waterpark  ",
-            EnableZenithStarCatch = true,
-            ZenithStarCatchStopStage = "not a real stage",
-            ZenithStarCatchSpeedSliderValue = 9999,
-            EnablePyramidFilter = true,
-            PyramidFilterItemMask = AutoCreatePyramidFilterItem.AllMask | 8
+            AutoCreate = new AutoCreateWorldSettings
+            {
+                ShortActionDelayMilliseconds = -1,
+                MenuActionDelayMilliseconds = 6000,
+                PyramidFilterPostDelayMilliseconds = 6000,
+                WindowActivationDelayMilliseconds = 6000,
+                ClickFocusDelayMilliseconds = -10,
+                InputPressDurationMilliseconds = 0,
+                SpecialSeeds = "  for the worthy | get fixed boi | skyblock  ",
+                SecretSeeds = "  mole people | waterpark  ",
+                EnableZenithStarCatch = true,
+                ZenithStarCatchStopStage = "not a real stage",
+                ZenithStarCatchSpeedSliderValue = 9999,
+                EnablePyramidFilter = true,
+                PyramidFilterItemMask = AutoCreatePyramidFilterItem.AllMask | 8
+            }
         }
     };
 
     SettingsNormalizer.Normalize(settings);
-    AssertEqual(0, settings.AutoCreate.ShortActionDelayMilliseconds);
-    AssertEqual(5000, settings.AutoCreate.MenuActionDelayMilliseconds);
-    AssertEqual(5000, settings.AutoCreate.PyramidFilterPostDelayMilliseconds);
-    AssertEqual(5000, settings.AutoCreate.WindowActivationDelayMilliseconds);
-    AssertEqual(0, settings.AutoCreate.ClickFocusDelayMilliseconds);
-    AssertEqual(1, settings.AutoCreate.InputPressDurationMilliseconds);
-    AssertEqual("Zenith|Skyblock", settings.AutoCreate.SpecialSeeds);
-    AssertEqual("mole people | waterpark", settings.AutoCreate.SecretSeeds);
-    AssertEqual(true, settings.AutoCreate.EnableZenithStarCatch);
-    AssertEqual(AutoCreateZenithStarCatchStage.Pots, settings.AutoCreate.ZenithStarCatchStopStage);
-    AssertEqual(AutoCreateZenithStarCatchSpeed.MaximumSliderValue, settings.AutoCreate.ZenithStarCatchSpeedSliderValue);
-    AssertEqual(true, settings.AutoCreate.EnablePyramidFilter);
-    AssertEqual(AutoCreatePyramidFilterItem.AllMask, settings.AutoCreate.PyramidFilterItemMask);
-    AssertEqual(true, settings.SplitCompletionOutlineSplitStyles.Values.All(style =>
+    AssertEqual(0, settings.Automation.AutoCreate.ShortActionDelayMilliseconds);
+    AssertEqual(5000, settings.Automation.AutoCreate.MenuActionDelayMilliseconds);
+    AssertEqual(5000, settings.Automation.AutoCreate.PyramidFilterPostDelayMilliseconds);
+    AssertEqual(5000, settings.Automation.AutoCreate.WindowActivationDelayMilliseconds);
+    AssertEqual(0, settings.Automation.AutoCreate.ClickFocusDelayMilliseconds);
+    AssertEqual(1, settings.Automation.AutoCreate.InputPressDurationMilliseconds);
+    AssertEqual("Zenith|Skyblock", settings.Automation.AutoCreate.SpecialSeeds);
+    AssertEqual("mole people | waterpark", settings.Automation.AutoCreate.SecretSeeds);
+    AssertEqual(true, settings.Automation.AutoCreate.EnableZenithStarCatch);
+    AssertEqual(AutoCreateZenithStarCatchStage.Pots, settings.Automation.AutoCreate.ZenithStarCatchStopStage);
+    AssertEqual(AutoCreateZenithStarCatchSpeed.MaximumSliderValue, settings.Automation.AutoCreate.ZenithStarCatchSpeedSliderValue);
+    AssertEqual(true, settings.Automation.AutoCreate.EnablePyramidFilter);
+    AssertEqual(AutoCreatePyramidFilterItem.AllMask, settings.Automation.AutoCreate.PyramidFilterItemMask);
+    AssertEqual(true, settings.Overlay.SplitCompletionOutlineSplitStyles.Values.All(style =>
         style == SplitCompletionOutlineStyles.Rainbow));
-    AssertEqual(true, settings.SplitCompletionOutlineSegmentStyles.Values.All(style =>
+    AssertEqual(true, settings.Overlay.SplitCompletionOutlineSegmentStyles.Values.All(style =>
         style == SplitCompletionOutlineStyles.Aurora));
     AssertEqual(
         AutoCreatePyramidFilterItem.FlyingCarpetMask | AutoCreatePyramidFilterItem.SandstormInABottleMask,
@@ -1603,66 +1632,72 @@ static void TestSettingsNormalizeTextEffects()
 {
     var settings = new AppSettings
     {
-        TextEffects = new UiTextEffectSettings
+        Overlay =
         {
-            IconOpacityPercent = -1,
-            TimeOpacityPercent = 101,
-            TimeShadowPercent = -1,
-            TimeOutlineThicknessPercent = 101,
-            DeltaOpacityPercent = 900,
-            DeltaShadowPercent = -99,
-            DeltaOutlineThicknessPercent = 900,
-            TimerOpacityPercent = -1,
-            TimerShadowPercent = -1,
-            TimerOutlineThicknessPercent = 101,
-            TimerMillisecondsOpacityPercent = 142,
-            TimerMillisecondsShadowPercent = 42,
-            TimerMillisecondsOutlineThicknessPercent = 77
+            TextEffects = new UiTextEffectSettings
+            {
+                IconOpacityPercent = -1,
+                TimeOpacityPercent = 101,
+                TimeShadowPercent = -1,
+                TimeOutlineThicknessPercent = 101,
+                DeltaOpacityPercent = 900,
+                DeltaShadowPercent = -99,
+                DeltaOutlineThicknessPercent = 900,
+                TimerOpacityPercent = -1,
+                TimerShadowPercent = -1,
+                TimerOutlineThicknessPercent = 101,
+                TimerMillisecondsOpacityPercent = 142,
+                TimerMillisecondsShadowPercent = 42,
+                TimerMillisecondsOutlineThicknessPercent = 77
+            }
         }
     };
 
     SettingsNormalizer.Normalize(settings);
-    AssertEqual(0, settings.TextEffects.IconOpacityPercent);
-    AssertEqual(100, settings.TextEffects.TimeOpacityPercent);
-    AssertEqual(0, settings.TextEffects.TimeShadowPercent);
-    AssertEqual(101, settings.TextEffects.TimeOutlineThicknessPercent);
-    AssertEqual(100, settings.TextEffects.DeltaOpacityPercent);
-    AssertEqual(0, settings.TextEffects.DeltaShadowPercent);
-    AssertEqual(200, settings.TextEffects.DeltaOutlineThicknessPercent);
-    AssertEqual(0, settings.TextEffects.TimerOpacityPercent);
-    AssertEqual(0, settings.TextEffects.TimerShadowPercent);
-    AssertEqual(101, settings.TextEffects.TimerOutlineThicknessPercent);
-    AssertEqual(100, settings.TextEffects.TimerMillisecondsOpacityPercent);
-    AssertEqual(42, settings.TextEffects.TimerMillisecondsShadowPercent);
-    AssertEqual(77, settings.TextEffects.TimerMillisecondsOutlineThicknessPercent);
+    AssertEqual(0, settings.Overlay.TextEffects.IconOpacityPercent);
+    AssertEqual(100, settings.Overlay.TextEffects.TimeOpacityPercent);
+    AssertEqual(0, settings.Overlay.TextEffects.TimeShadowPercent);
+    AssertEqual(101, settings.Overlay.TextEffects.TimeOutlineThicknessPercent);
+    AssertEqual(100, settings.Overlay.TextEffects.DeltaOpacityPercent);
+    AssertEqual(0, settings.Overlay.TextEffects.DeltaShadowPercent);
+    AssertEqual(200, settings.Overlay.TextEffects.DeltaOutlineThicknessPercent);
+    AssertEqual(0, settings.Overlay.TextEffects.TimerOpacityPercent);
+    AssertEqual(0, settings.Overlay.TextEffects.TimerShadowPercent);
+    AssertEqual(101, settings.Overlay.TextEffects.TimerOutlineThicknessPercent);
+    AssertEqual(100, settings.Overlay.TextEffects.TimerMillisecondsOpacityPercent);
+    AssertEqual(42, settings.Overlay.TextEffects.TimerMillisecondsShadowPercent);
+    AssertEqual(77, settings.Overlay.TextEffects.TimerMillisecondsOutlineThicknessPercent);
 
-    settings.TextEffects = null!;
+    settings.Overlay.TextEffects = null!;
     SettingsNormalizer.Normalize(settings);
-    AssertEqual(100, settings.TextEffects.TimeOpacityPercent);
-    AssertEqual(0, settings.TextEffects.TimerShadowPercent);
+    AssertEqual(100, settings.Overlay.TextEffects.TimeOpacityPercent);
+    AssertEqual(0, settings.Overlay.TextEffects.TimerShadowPercent);
 }
 
 static void TestSettingsNormalizeDerivesSplitIconsFromConditions()
 {
     var settings = new AppSettings
     {
-        SplitRoute =
-        [
-            new SplitRouteEntry
-            {
-                Id = "split:stale-icon",
-                DisplayName = "Stale Icon",
-                Enabled = true,
-                Condition = SplitCatalog.CreateBossFactCondition(SplitCatalog.Skeletron),
-                IconTargetIds = [SplitCatalog.MoonLord]
-            }
-        ]
+        Route =
+        {
+            SplitRoute =
+            [
+                new SplitRouteEntry
+                {
+                    Id = "split:stale-icon",
+                    DisplayName = "Stale Icon",
+                    Enabled = true,
+                    Condition = SplitCatalog.CreateBossFactCondition(SplitCatalog.Skeletron),
+                    IconTargetIds = [SplitCatalog.MoonLord]
+                }
+            ]
+        }
     };
 
     SettingsNormalizer.Normalize(settings);
     SplitDefinition definition = SplitCatalog.Build(settings).Single();
 
-    AssertEqual(SplitCatalog.Skeletron, settings.SplitRoute.Single().IconTargetIds.Single());
+    AssertEqual(SplitCatalog.Skeletron, settings.Route.SplitRoute.Single().IconTargetIds.Single());
     AssertEqual(SplitCatalog.Skeletron, definition.IconKeys.Single());
     AssertEqual(SplitCatalog.Skeletron, definition.TargetIds.Single());
 }
@@ -1670,15 +1705,15 @@ static void TestSettingsNormalizeDerivesSplitIconsFromConditions()
 static void TestSettingsNormalizeUiFontFamilies()
 {
     var settings = new AppSettings();
-    settings.Columns.Time.FontFamily = $"  {UiFontSettings.DefaultFamilyName.ToUpperInvariant()}  ";
-    settings.Columns.Delta.FontFamily = "Definitely Missing TerrariaSplit Font";
-    settings.Columns.Timer.FontFamily = string.Empty;
+    settings.Overlay.Columns.Time.FontFamily = $"  {UiFontSettings.DefaultFamilyName.ToUpperInvariant()}  ";
+    settings.Overlay.Columns.Delta.FontFamily = "Definitely Missing TerrariaSplit Font";
+    settings.Overlay.Columns.Timer.FontFamily = string.Empty;
 
     SettingsNormalizer.Normalize(settings);
 
-    AssertEqual(UiFontSettings.DefaultFamilyName, settings.Columns.Time.FontFamily);
-    AssertEqual(UiFontSettings.DefaultFamilyName, settings.Columns.Delta.FontFamily);
-    AssertEqual(UiFontSettings.DefaultFamilyName, settings.Columns.Timer.FontFamily);
+    AssertEqual(UiFontSettings.DefaultFamilyName, settings.Overlay.Columns.Time.FontFamily);
+    AssertEqual(UiFontSettings.DefaultFamilyName, settings.Overlay.Columns.Delta.FontFamily);
+    AssertEqual(UiFontSettings.DefaultFamilyName, settings.Overlay.Columns.Timer.FontFamily);
     AssertEqual(true, UiFontSettings.GetInstalledFamilyNames().Count > 0);
 }
 
@@ -1686,52 +1721,55 @@ static void TestSettingsNormalizerAssignsInternalSplitIds()
 {
     var settings = new AppSettings
     {
-        SplitRoute =
-        [
-            new SplitRouteEntry
-            {
-                DisplayName = string.Empty,
-                Enabled = true,
-                Condition = SplitCatalog.CreateBossFactCondition(SplitCatalog.Skeletron),
-                IconTargetIds = [SplitCatalog.Skeletron]
-            },
-            new SplitRouteEntry
-            {
-                DisplayName = string.Empty,
-                Enabled = true,
-                Condition = SplitCatalog.CreateBossFactCondition(SplitCatalog.Skeletron),
-                IconTargetIds = [SplitCatalog.Skeletron]
-            },
-            new SplitRouteEntry
-            {
-                Id = "split:fixed",
-                DisplayName = "Fixed",
-                Enabled = true,
-                Condition = SplitCatalog.CreateBossFactCondition(SplitCatalog.WallOfFlesh),
-                IconTargetIds = [SplitCatalog.WallOfFlesh]
-            },
-            new SplitRouteEntry
-            {
-                Id = "split:fixed",
-                DisplayName = "Duplicate",
-                Enabled = true,
-                Condition = SplitCatalog.CreateBossFactCondition(SplitCatalog.MoonLord),
-                IconTargetIds = [SplitCatalog.MoonLord]
-            }
-        ]
+        Route =
+        {
+            SplitRoute =
+            [
+                new SplitRouteEntry
+                {
+                    DisplayName = string.Empty,
+                    Enabled = true,
+                    Condition = SplitCatalog.CreateBossFactCondition(SplitCatalog.Skeletron),
+                    IconTargetIds = [SplitCatalog.Skeletron]
+                },
+                new SplitRouteEntry
+                {
+                    DisplayName = string.Empty,
+                    Enabled = true,
+                    Condition = SplitCatalog.CreateBossFactCondition(SplitCatalog.Skeletron),
+                    IconTargetIds = [SplitCatalog.Skeletron]
+                },
+                new SplitRouteEntry
+                {
+                    Id = "split:fixed",
+                    DisplayName = "Fixed",
+                    Enabled = true,
+                    Condition = SplitCatalog.CreateBossFactCondition(SplitCatalog.WallOfFlesh),
+                    IconTargetIds = [SplitCatalog.WallOfFlesh]
+                },
+                new SplitRouteEntry
+                {
+                    Id = "split:fixed",
+                    DisplayName = "Duplicate",
+                    Enabled = true,
+                    Condition = SplitCatalog.CreateBossFactCondition(SplitCatalog.MoonLord),
+                    IconTargetIds = [SplitCatalog.MoonLord]
+                }
+            ]
+        }
     };
 
     SettingsNormalizer.Normalize(settings);
 
-    AssertEqual(4, settings.SplitRoute.Count);
+    AssertEqual(4, settings.Route.SplitRoute.Count);
     AssertEqual(
-        settings.SplitRoute.Count,
-        settings.SplitRoute.Select(entry => entry.Id).Distinct(StringComparer.OrdinalIgnoreCase).Count());
-    AssertEqual("Skeletron", settings.SplitRoute[0].DisplayName);
-    AssertEqual("Skeletron", settings.SplitRoute[1].DisplayName);
-    AssertEqual("split:fixed", settings.SplitRoute[2].Id);
-    AssertEqual(false, settings.SplitRoute.Any(entry => string.IsNullOrWhiteSpace(entry.Id)));
-    AssertEqual(false, settings.SplitRoute.Any(entry => entry.DisplayName.StartsWith("split:", StringComparison.OrdinalIgnoreCase)));
+        settings.Route.SplitRoute.Count,
+        settings.Route.SplitRoute.Select(entry => entry.Id).Distinct(StringComparer.OrdinalIgnoreCase).Count());
+    AssertEqual("Skeletron", settings.Route.SplitRoute[0].DisplayName);
+    AssertEqual("Skeletron", settings.Route.SplitRoute[1].DisplayName);
+    AssertEqual("split:fixed", settings.Route.SplitRoute[2].Id);
+    AssertEqual(false, settings.Route.SplitRoute.Any(entry => string.IsNullOrWhiteSpace(entry.Id)));
+    AssertEqual(false, settings.Route.SplitRoute.Any(entry => entry.DisplayName.StartsWith("split:", StringComparison.OrdinalIgnoreCase)));
 }
 
 static void TestHotkeyValidatorRejectsReservedKeys()
@@ -1757,14 +1795,11 @@ static void TestHotkeyValidatorAcceptsModifierChords()
 
 static void TestAppSettingsInvalidHotkeyFallback()
 {
-    var settings = new AppSettings
-    {
-        PauseResumeKey = Keys.ControlKey.ToString(),
+    var settings = new AppSettings { Hotkeys = { PauseResumeKey = Keys.ControlKey.ToString(),
         ResetKey = Keys.LShiftKey.ToString(),
         MouseClickThroughKey = Keys.RMenu.ToString(),
         CreateWorldKey = Keys.LWin.ToString(),
-        PracticeWorldKey = Keys.LWin.ToString()
-    };
+        PracticeWorldKey = Keys.LWin.ToString() } };
 
     AssertEqual(Keys.F12, settings.GetPauseResumeKeys());
     AssertEqual(Keys.F6, settings.GetResetKeys());
@@ -1775,14 +1810,11 @@ static void TestAppSettingsInvalidHotkeyFallback()
 
 static void TestAppSettingsParsesModifierHotkeys()
 {
-    var settings = new AppSettings
-    {
-        PauseResumeKey = (Keys.Control | Keys.F12).ToString(),
+    var settings = new AppSettings { Hotkeys = { PauseResumeKey = (Keys.Control | Keys.F12).ToString(),
         ResetKey = (Keys.Alt | Keys.F6).ToString(),
         MouseClickThroughKey = (Keys.Shift | Keys.F9).ToString(),
         CreateWorldKey = (Keys.Control | Keys.Alt | Keys.F7).ToString(),
-        PracticeWorldKey = (Keys.Control | Keys.Shift | Keys.F8).ToString()
-    };
+        PracticeWorldKey = (Keys.Control | Keys.Shift | Keys.F8).ToString() } };
 
     AssertEqual(Keys.Control | Keys.F12, settings.GetPauseResumeKeys());
     AssertEqual(Keys.Alt | Keys.F6, settings.GetResetKeys());
@@ -1793,21 +1825,18 @@ static void TestAppSettingsParsesModifierHotkeys()
 
 static void TestAppSettingsUsesPersonalBestAsReferenceTime()
 {
-    var settings = new AppSettings
-    {
-        UsePersonalBestAsReferenceTime = true
-    };
+    var settings = new AppSettings { Comparison = { UsePersonalBestAsReferenceTime = true } };
     SettingsNormalizer.Normalize(settings);
     const string skeletronSplitId = "split:boss-skeletron";
     string skeletronKey = SingleCumulativeKey(settings, skeletronSplitId);
-    settings.ReferenceSplitSets =
+    settings.Comparison.ReferenceSplitSets =
     [
         AppSettings.CreateReferenceSet("WR", new Dictionary<string, string>
         {
             [skeletronKey] = "01:00"
         }, SplitConditionDataRows.Build(settings).Select(row => row.Key))
     ];
-    settings.PersonalBestTimes[skeletronKey] = "00:30";
+    settings.Comparison.PersonalBestTimes[skeletronKey] = "00:30";
 
     SplitDefinition definition = SplitCatalog.Build(settings).Single(item => item.Id == skeletronSplitId);
 
@@ -1838,7 +1867,7 @@ static void TestAppSettingsStorePreservesActiveExternalSplitSetNames()
         DeleteDirectoryIfExists(personalBestTimeDirectory);
         DeleteDirectoryIfExists(personalBestSegmentDirectory);
 
-        var routeSettings = new AppSettings { SplitRoute = SplitCatalog.CreateDefaultRoute() };
+        var routeSettings = new AppSettings { Route = { SplitRoute = SplitCatalog.CreateDefaultRoute() } };
         SettingsNormalizer.Normalize(routeSettings);
         IEnumerable<string> cumulativeKeys = SplitConditionDataRows.Build(routeSettings).Select(row => row.Key);
         SplitTimeSetStore.SaveReferenceSets(
@@ -1863,18 +1892,15 @@ static void TestAppSettingsStorePreservesActiveExternalSplitSetNames()
         string profileName = "active-external-sets.json";
         string settingsPath = Path.Combine(settingsDirectory, profileName);
         Directory.CreateDirectory(settingsDirectory);
-        SettingsSerializer.WriteSettings(settingsPath, new AppSettings
-        {
-            ActiveReferenceSplitSet = "Custom Reference",
+        SettingsSerializer.WriteSettings(settingsPath, new AppSettings { Comparison = { ActiveReferenceSplitSet = "Custom Reference",
             ActivePersonalBestTimeSet = "Race PB",
-            ActivePersonalBestSegmentSet = "Race Segments"
-        });
+            ActivePersonalBestSegmentSet = "Race Segments" } });
 
         AppSettings loaded = AppSettingsStore.Load(profileName);
 
-        AssertEqual("Custom Reference", loaded.ActiveReferenceSplitSet);
-        AssertEqual("Race PB", loaded.ActivePersonalBestTimeSet);
-        AssertEqual("Race Segments", loaded.ActivePersonalBestSegmentSet);
+        AssertEqual("Custom Reference", loaded.Comparison.ActiveReferenceSplitSet);
+        AssertEqual("Race PB", loaded.Comparison.ActivePersonalBestTimeSet);
+        AssertEqual("Race Segments", loaded.Comparison.ActivePersonalBestSegmentSet);
     }
     finally
     {
@@ -1935,7 +1961,7 @@ static void TestSettingsFormAppliesGlobalScaleFromGeneralPage()
 
         form.ApplyForTests();
 
-        AssertEqual(175, form.Result.Columns.ScalePercent);
+        AssertEqual(175, form.Result.Overlay.Columns.ScalePercent);
     });
 }
 
@@ -1956,13 +1982,13 @@ static void TestSettingsFormAppliesDynamicDeltaUnitsFromUiPage()
 {
     RunSta(() =>
     {
-        using var form = new SettingsForm(new AppSettings { EnableDynamicDeltaTimeUnits = true });
+        using var form = new SettingsForm(new AppSettings { Overlay = { EnableDynamicDeltaTimeUnits = true } });
         UiSettingsPage page = form.PageHost.GetOrCreatePage<UiSettingsPage>(SettingsPageId.Ui);
         page.EnableDynamicDeltaTimeUnitsBox.Checked = false;
 
         form.ApplyForTests();
 
-        AssertEqual(false, form.Result.EnableDynamicDeltaTimeUnits);
+        AssertEqual(false, form.Result.Overlay.EnableDynamicDeltaTimeUnits);
     });
 }
 
@@ -1988,19 +2014,19 @@ static void TestSettingsFormAppliesTextEffectsFromUiPage()
 
         form.ApplyForTests();
 
-        AssertEqual(55, form.Result.TextEffects.IconOpacityPercent);
-        AssertEqual(65, form.Result.TextEffects.TimeOpacityPercent);
-        AssertEqual(25, form.Result.TextEffects.TimeShadowPercent);
-        AssertEqual(30, form.Result.TextEffects.TimeOutlineThicknessPercent);
-        AssertEqual(75, form.Result.TextEffects.DeltaOpacityPercent);
-        AssertEqual(35, form.Result.TextEffects.DeltaShadowPercent);
-        AssertEqual(40, form.Result.TextEffects.DeltaOutlineThicknessPercent);
-        AssertEqual(85, form.Result.TextEffects.TimerOpacityPercent);
-        AssertEqual(25, form.Result.TextEffects.TimerShadowPercent);
-        AssertEqual(30, form.Result.TextEffects.TimerOutlineThicknessPercent);
-        AssertEqual(95, form.Result.TextEffects.TimerMillisecondsOpacityPercent);
-        AssertEqual(45, form.Result.TextEffects.TimerMillisecondsShadowPercent);
-        AssertEqual(50, form.Result.TextEffects.TimerMillisecondsOutlineThicknessPercent);
+        AssertEqual(55, form.Result.Overlay.TextEffects.IconOpacityPercent);
+        AssertEqual(65, form.Result.Overlay.TextEffects.TimeOpacityPercent);
+        AssertEqual(25, form.Result.Overlay.TextEffects.TimeShadowPercent);
+        AssertEqual(30, form.Result.Overlay.TextEffects.TimeOutlineThicknessPercent);
+        AssertEqual(75, form.Result.Overlay.TextEffects.DeltaOpacityPercent);
+        AssertEqual(35, form.Result.Overlay.TextEffects.DeltaShadowPercent);
+        AssertEqual(40, form.Result.Overlay.TextEffects.DeltaOutlineThicknessPercent);
+        AssertEqual(85, form.Result.Overlay.TextEffects.TimerOpacityPercent);
+        AssertEqual(25, form.Result.Overlay.TextEffects.TimerShadowPercent);
+        AssertEqual(30, form.Result.Overlay.TextEffects.TimerOutlineThicknessPercent);
+        AssertEqual(95, form.Result.Overlay.TextEffects.TimerMillisecondsOpacityPercent);
+        AssertEqual(45, form.Result.Overlay.TextEffects.TimerMillisecondsShadowPercent);
+        AssertEqual(50, form.Result.Overlay.TextEffects.TimerMillisecondsOutlineThicknessPercent);
     });
 }
 
@@ -2011,7 +2037,7 @@ static void TestSettingsFormAppliesAttachedSplitDisplaySettings()
         AppSettings settings = AppSettingsDefaults.Create();
         using var form = new SettingsForm(settings);
         UiSettingsPage page = form.PageHost.GetOrCreatePage<UiSettingsPage>(SettingsPageId.Ui);
-        string selectedFamily = SelectInstalledFontFamilyForTest(settings.Columns.AttachedTime.FontFamily);
+        string selectedFamily = SelectInstalledFontFamilyForTest(settings.Overlay.Columns.AttachedTime.FontFamily);
 
         page.GetColumnWidthBoxForTests("AttachedIcon").Text = "212";
         page.GetColumnFontSizeBoxForTests("AttachedIcon").Text = "41";
@@ -2035,24 +2061,24 @@ static void TestSettingsFormAppliesAttachedSplitDisplaySettings()
 
         form.ApplyForTests();
 
-        AssertEqual(212, form.Result.Columns.AttachedIcon.Width);
-        AssertEqual(41f, form.Result.Columns.AttachedIcon.FontSize);
-        AssertEqual(false, form.Result.Columns.AttachedIcon.Bold);
-        AssertEqual(44, form.Result.TextEffects.AttachedIconOpacityPercent);
-        AssertEqual(122, form.Result.Columns.AttachedTime.Width);
-        AssertEqual(UiFontSettings.NormalizeFamilyName(selectedFamily), form.Result.Columns.AttachedTime.FontFamily);
-        AssertEqual(18.5f, form.Result.Columns.AttachedTime.FontSize);
-        AssertEqual(true, form.Result.Columns.AttachedTime.Bold);
-        AssertEqual(64, form.Result.TextEffects.AttachedTimeOpacityPercent);
-        AssertEqual(24, form.Result.TextEffects.AttachedTimeShadowPercent);
-        AssertEqual(34, form.Result.TextEffects.AttachedTimeOutlineThicknessPercent);
-        AssertEqual(132, form.Result.Columns.AttachedDelta.Width);
-        AssertEqual(UiFontSettings.NormalizeFamilyName(selectedFamily), form.Result.Columns.AttachedDelta.FontFamily);
-        AssertEqual(19.5f, form.Result.Columns.AttachedDelta.FontSize);
-        AssertEqual(false, form.Result.Columns.AttachedDelta.Bold);
-        AssertEqual(74, form.Result.TextEffects.AttachedDeltaOpacityPercent);
-        AssertEqual(32, form.Result.TextEffects.AttachedDeltaShadowPercent);
-        AssertEqual(42, form.Result.TextEffects.AttachedDeltaOutlineThicknessPercent);
+        AssertEqual(212, form.Result.Overlay.Columns.AttachedIcon.Width);
+        AssertEqual(41f, form.Result.Overlay.Columns.AttachedIcon.FontSize);
+        AssertEqual(false, form.Result.Overlay.Columns.AttachedIcon.Bold);
+        AssertEqual(44, form.Result.Overlay.TextEffects.AttachedIconOpacityPercent);
+        AssertEqual(122, form.Result.Overlay.Columns.AttachedTime.Width);
+        AssertEqual(UiFontSettings.NormalizeFamilyName(selectedFamily), form.Result.Overlay.Columns.AttachedTime.FontFamily);
+        AssertEqual(18.5f, form.Result.Overlay.Columns.AttachedTime.FontSize);
+        AssertEqual(true, form.Result.Overlay.Columns.AttachedTime.Bold);
+        AssertEqual(64, form.Result.Overlay.TextEffects.AttachedTimeOpacityPercent);
+        AssertEqual(24, form.Result.Overlay.TextEffects.AttachedTimeShadowPercent);
+        AssertEqual(34, form.Result.Overlay.TextEffects.AttachedTimeOutlineThicknessPercent);
+        AssertEqual(132, form.Result.Overlay.Columns.AttachedDelta.Width);
+        AssertEqual(UiFontSettings.NormalizeFamilyName(selectedFamily), form.Result.Overlay.Columns.AttachedDelta.FontFamily);
+        AssertEqual(19.5f, form.Result.Overlay.Columns.AttachedDelta.FontSize);
+        AssertEqual(false, form.Result.Overlay.Columns.AttachedDelta.Bold);
+        AssertEqual(74, form.Result.Overlay.TextEffects.AttachedDeltaOpacityPercent);
+        AssertEqual(32, form.Result.Overlay.TextEffects.AttachedDeltaShadowPercent);
+        AssertEqual(42, form.Result.Overlay.TextEffects.AttachedDeltaOutlineThicknessPercent);
     });
 }
 
@@ -2062,15 +2088,15 @@ static void TestSettingsFormAppliesUiFontFamilies()
     {
         using var form = new SettingsForm(new AppSettings());
         UiSettingsPage page = form.PageHost.GetOrCreatePage<UiSettingsPage>(SettingsPageId.Ui);
-        string selectedFamily = SelectInstalledFontFamilyForTest(form.Result.Columns.Time.FontFamily);
+        string selectedFamily = SelectInstalledFontFamilyForTest(form.Result.Overlay.Columns.Time.FontFamily);
 
         SetFontFamilySelectorValue(page.GetFontFamilySelectorForTests("Time"), selectedFamily);
         SetFontFamilySelectorValue(page.GetFontFamilySelectorForTests("Timer"), selectedFamily);
 
         form.ApplyForTests();
 
-        AssertEqual(UiFontSettings.NormalizeFamilyName(selectedFamily), form.Result.Columns.Time.FontFamily);
-        AssertEqual(UiFontSettings.NormalizeFamilyName(selectedFamily), form.Result.Columns.Timer.FontFamily);
+        AssertEqual(UiFontSettings.NormalizeFamilyName(selectedFamily), form.Result.Overlay.Columns.Time.FontFamily);
+        AssertEqual(UiFontSettings.NormalizeFamilyName(selectedFamily), form.Result.Overlay.Columns.Timer.FontFamily);
     });
 }
 
@@ -2091,9 +2117,9 @@ static void TestSettingsFormAppliesPracticeWorldSlots()
 
         form.ApplyForTests();
 
-        AssertEqual(Keys.F10.ToString(), form.Result.PracticeWorldKey);
-        AssertEqual(AutoCreateSpecialWorldSeed.ForTheWorthy, form.Result.AutoCreate.SpecialSeeds);
-        AssertEqual("mole people", form.Result.AutoCreate.SecretSeeds);
+        AssertEqual(Keys.F10.ToString(), form.Result.Hotkeys.PracticeWorldKey);
+        AssertEqual(AutoCreateSpecialWorldSeed.ForTheWorthy, form.Result.Automation.AutoCreate.SpecialSeeds);
+        AssertEqual("mole people", form.Result.Automation.AutoCreate.SecretSeeds);
         AssertEqual(PracticeWorldSettings.SlotCount, form.Result.PracticeWorlds.Slots.Count);
         AssertEqual("Plantera", form.Result.PracticeWorlds.Slots[0].Name);
         AssertEqual("C:\\practice\\player.plr", form.Result.PracticeWorlds.Slots[0].PlayerFilePath);
@@ -2107,37 +2133,40 @@ static void TestSettingsFormPreservesAdvancedSplitRoute()
     {
         var settings = new AppSettings
         {
-            SplitRoute =
-            [
-                new SplitRouteEntry
-                {
-                    Id = "split:custom-composite",
-                    DisplayName = "Custom Composite",
-                    Enabled = true,
-                    Condition = SplitCondition.All(
-                    [
-                        SplitCondition.Any(
+            Route =
+            {
+                SplitRoute =
+                [
+                    new SplitRouteEntry
+                    {
+                        Id = "split:custom-composite",
+                        DisplayName = "Custom Composite",
+                        Enabled = true,
+                        Condition = SplitCondition.All(
                         [
-                            SplitCatalog.CreateBossFactCondition(SplitCatalog.Destroyer),
-                            SplitCatalog.CreateBossFactCondition(SplitCatalog.Twins)
+                            SplitCondition.Any(
+                            [
+                                SplitCatalog.CreateBossFactCondition(SplitCatalog.Destroyer),
+                                SplitCatalog.CreateBossFactCondition(SplitCatalog.Twins)
+                            ]),
+                            SplitCondition.All(
+                            [
+                                SplitCatalog.CreateBossFactCondition(SplitCatalog.SkeletronPrime),
+                                SplitCatalog.CreateItemEverOwnedCondition(50, 3),
+                                SplitCatalog.CreateItemEverOwnedCondition(70, 1)
+                            ])
                         ]),
-                        SplitCondition.All(
+                        IconTargetIds =
                         [
-                            SplitCatalog.CreateBossFactCondition(SplitCatalog.SkeletronPrime),
-                            SplitCatalog.CreateItemEverOwnedCondition(50, 3),
-                            SplitCatalog.CreateItemEverOwnedCondition(70, 1)
-                        ])
-                    ]),
-                    IconTargetIds =
-                    [
-                        SplitCatalog.Destroyer,
-                        SplitCatalog.Twins,
-                        SplitCatalog.SkeletronPrime,
-                        SplitCatalog.CreateItemTargetId(50),
-                        SplitCatalog.CreateItemTargetId(70)
-                    ]
-                }
-            ]
+                            SplitCatalog.Destroyer,
+                            SplitCatalog.Twins,
+                            SplitCatalog.SkeletronPrime,
+                            SplitCatalog.CreateItemTargetId(50),
+                            SplitCatalog.CreateItemTargetId(70)
+                        ]
+                    }
+                ]
+            }
         };
 
         using var form = new SettingsForm(settings);
@@ -2145,7 +2174,7 @@ static void TestSettingsFormPreservesAdvancedSplitRoute()
 
         form.ApplyForTests();
 
-        SplitRouteEntry entry = form.Result.SplitRoute.Single();
+        SplitRouteEntry entry = form.Result.Route.SplitRoute.Single();
         AssertEqual("split:custom-composite", entry.Id);
         AssertEqual(5, entry.IconTargetIds.Count);
         AssertEqual(true, entry.UseAdvancedConditionEditor);
@@ -2177,38 +2206,41 @@ static void TestSettingsFormKeepsAdvancedConditionModePerGroup()
     {
         var settings = new AppSettings
         {
-            SplitRoute =
-            [
-                new SplitRouteEntry
-                {
-                    Id = "split:advanced",
-                    DisplayName = "Advanced",
-                    Enabled = true,
-                    UseAdvancedConditionEditor = true,
-                    Condition = SplitCondition.All(
-                    [
-                        SplitCatalog.CreateBossFactCondition(SplitCatalog.Skeletron),
-                        SplitCondition.AtLeast(
+            Route =
+            {
+                SplitRoute =
+                [
+                    new SplitRouteEntry
+                    {
+                        Id = "split:advanced",
+                        DisplayName = "Advanced",
+                        Enabled = true,
+                        UseAdvancedConditionEditor = true,
+                        Condition = SplitCondition.All(
                         [
-                            SplitCatalog.CreateBossFactCondition(SplitCatalog.Destroyer),
-                            SplitCatalog.CreateBossFactCondition(SplitCatalog.Twins)
-                        ], 1)
-                    ]),
-                    IconTargetIds = [SplitCatalog.Skeletron, SplitCatalog.Destroyer, SplitCatalog.Twins]
-                },
-                new SplitRouteEntry
-                {
-                    Id = "split:basic",
-                    DisplayName = "Basic",
-                    Enabled = true,
-                    UseAdvancedConditionEditor = false,
-                    Condition = SplitCondition.AtLeast(
-                    [
-                        SplitCatalog.CreateBossFactCondition(SplitCatalog.MoonLord)
-                    ], 1),
-                    IconTargetIds = [SplitCatalog.MoonLord]
-                }
-            ]
+                            SplitCatalog.CreateBossFactCondition(SplitCatalog.Skeletron),
+                            SplitCondition.AtLeast(
+                            [
+                                SplitCatalog.CreateBossFactCondition(SplitCatalog.Destroyer),
+                                SplitCatalog.CreateBossFactCondition(SplitCatalog.Twins)
+                            ], 1)
+                        ]),
+                        IconTargetIds = [SplitCatalog.Skeletron, SplitCatalog.Destroyer, SplitCatalog.Twins]
+                    },
+                    new SplitRouteEntry
+                    {
+                        Id = "split:basic",
+                        DisplayName = "Basic",
+                        Enabled = true,
+                        UseAdvancedConditionEditor = false,
+                        Condition = SplitCondition.AtLeast(
+                        [
+                            SplitCatalog.CreateBossFactCondition(SplitCatalog.MoonLord)
+                        ], 1),
+                        IconTargetIds = [SplitCatalog.MoonLord]
+                    }
+                ]
+            }
         };
 
         using var form = new SettingsForm(settings);
@@ -2243,12 +2275,12 @@ ALL(
 
         form.ApplyForTests();
 
-        SplitRouteEntry advanced = form.Result.SplitRoute[0];
+        SplitRouteEntry advanced = form.Result.Route.SplitRoute[0];
         AssertEqual(true, advanced.UseAdvancedConditionEditor);
         AssertEqual(SplitConditionKind.All, SplitConditionKind.Normalize(advanced.Condition.Kind));
         AssertEqual(SplitCatalog.CreateBossFactCondition(SplitCatalog.MoonLord).FactKey, advanced.Condition.Children[0].FactKey);
         AssertEqual(SplitConditionKind.AtLeast, SplitConditionKind.Normalize(advanced.Condition.Children[1].Kind));
-        AssertEqual(false, form.Result.SplitRoute[1].UseAdvancedConditionEditor);
+        AssertEqual(false, form.Result.Route.SplitRoute[1].UseAdvancedConditionEditor);
     });
 }
 
@@ -2258,26 +2290,29 @@ static void TestSettingsFormBlocksLossyAdvancedConditionDowngrade()
     {
         var settings = new AppSettings
         {
-            SplitRoute =
-            [
-                new SplitRouteEntry
-                {
-                    Id = "split:advanced",
-                    DisplayName = "Advanced",
-                    Enabled = true,
-                    UseAdvancedConditionEditor = true,
-                    Condition = SplitCondition.All(
-                    [
-                        SplitCatalog.CreateBossFactCondition(SplitCatalog.Skeletron),
-                        SplitCondition.AtLeast(
+            Route =
+            {
+                SplitRoute =
+                [
+                    new SplitRouteEntry
+                    {
+                        Id = "split:advanced",
+                        DisplayName = "Advanced",
+                        Enabled = true,
+                        UseAdvancedConditionEditor = true,
+                        Condition = SplitCondition.All(
                         [
-                            SplitCatalog.CreateBossFactCondition(SplitCatalog.Destroyer),
-                            SplitCatalog.CreateBossFactCondition(SplitCatalog.Twins)
-                        ], 1)
-                    ]),
-                    IconTargetIds = [SplitCatalog.Skeletron, SplitCatalog.Destroyer, SplitCatalog.Twins]
-                }
-            ]
+                            SplitCatalog.CreateBossFactCondition(SplitCatalog.Skeletron),
+                            SplitCondition.AtLeast(
+                            [
+                                SplitCatalog.CreateBossFactCondition(SplitCatalog.Destroyer),
+                                SplitCatalog.CreateBossFactCondition(SplitCatalog.Twins)
+                            ], 1)
+                        ]),
+                        IconTargetIds = [SplitCatalog.Skeletron, SplitCatalog.Destroyer, SplitCatalog.Twins]
+                    }
+                ]
+            }
         };
 
         var warnings = new List<(string Message, string Title, MessageBoxButtons Buttons, MessageBoxIcon Icon)>();
@@ -2300,8 +2335,8 @@ static void TestSettingsFormBlocksLossyAdvancedConditionDowngrade()
         AssertEqual(MessageBoxIcon.Warning, warnings[0].Icon);
 
         form.ApplyForTests();
-        AssertEqual(true, form.Result.SplitRoute.Single().UseAdvancedConditionEditor);
-        AssertEqual(SplitConditionKind.All, SplitConditionKind.Normalize(form.Result.SplitRoute.Single().Condition.Kind));
+        AssertEqual(true, form.Result.Route.SplitRoute.Single().UseAdvancedConditionEditor);
+        AssertEqual(SplitConditionKind.All, SplitConditionKind.Normalize(form.Result.Route.SplitRoute.Single().Condition.Kind));
     });
 }
 
@@ -2311,21 +2346,24 @@ static void TestSettingsFormAllowsEmptyAdvancedConditionDowngrade()
     {
         var settings = new AppSettings
         {
-            SplitRoute =
-            [
-                new SplitRouteEntry
-                {
-                    Id = "split:advanced",
-                    DisplayName = "Advanced",
-                    Enabled = true,
-                    UseAdvancedConditionEditor = true,
-                    Condition = SplitCondition.AtLeast(
-                    [
-                        SplitCatalog.CreateBossFactCondition(SplitCatalog.Skeletron)
-                    ], 1),
-                    IconTargetIds = [SplitCatalog.Skeletron]
-                }
-            ]
+            Route =
+            {
+                SplitRoute =
+                [
+                    new SplitRouteEntry
+                    {
+                        Id = "split:advanced",
+                        DisplayName = "Advanced",
+                        Enabled = true,
+                        UseAdvancedConditionEditor = true,
+                        Condition = SplitCondition.AtLeast(
+                        [
+                            SplitCatalog.CreateBossFactCondition(SplitCatalog.Skeletron)
+                        ], 1),
+                        IconTargetIds = [SplitCatalog.Skeletron]
+                    }
+                ]
+            }
         };
 
         using var form = new SettingsForm(settings);
@@ -2347,25 +2385,28 @@ static void TestSettingsFormSwitchesSplitConditionsWithoutOverwrite()
     {
         var settings = new AppSettings
         {
-            SplitRoute =
-            [
-                new SplitRouteEntry
-                {
-                    Id = "split:first",
-                    DisplayName = "First",
-                    Enabled = false,
-                    Condition = SplitCondition.All([SplitCatalog.CreateBossFactCondition(SplitCatalog.Skeletron)]),
-                    IconTargetIds = [SplitCatalog.Skeletron]
-                },
-                new SplitRouteEntry
-                {
-                    Id = "split:second",
-                    DisplayName = "Second",
-                    Enabled = true,
-                    Condition = SplitCondition.All([SplitCatalog.CreateBossFactCondition(SplitCatalog.MoonLord)]),
-                    IconTargetIds = [SplitCatalog.MoonLord]
-                }
-            ]
+            Route =
+            {
+                SplitRoute =
+                [
+                    new SplitRouteEntry
+                    {
+                        Id = "split:first",
+                        DisplayName = "First",
+                        Enabled = false,
+                        Condition = SplitCondition.All([SplitCatalog.CreateBossFactCondition(SplitCatalog.Skeletron)]),
+                        IconTargetIds = [SplitCatalog.Skeletron]
+                    },
+                    new SplitRouteEntry
+                    {
+                        Id = "split:second",
+                        DisplayName = "Second",
+                        Enabled = true,
+                        Condition = SplitCondition.All([SplitCatalog.CreateBossFactCondition(SplitCatalog.MoonLord)]),
+                        IconTargetIds = [SplitCatalog.MoonLord]
+                    }
+                ]
+            }
         };
 
         using var form = new SettingsForm(settings);
@@ -2384,10 +2425,10 @@ static void TestSettingsFormSwitchesSplitConditionsWithoutOverwrite()
 
         AssertEqual(
             SplitCatalog.CreateBossFactCondition(SplitCatalog.Skeletron).FactKey,
-            form.Result.SplitRoute[0].Condition.GetFactConditions().Single().FactKey);
+            form.Result.Route.SplitRoute[0].Condition.GetFactConditions().Single().FactKey);
         AssertEqual(
             SplitCatalog.CreateBossFactCondition(SplitCatalog.MoonLord).FactKey,
-            form.Result.SplitRoute[1].Condition.GetFactConditions().Single().FactKey);
+            form.Result.Route.SplitRoute[1].Condition.GetFactConditions().Single().FactKey);
     });
 }
 
@@ -2397,25 +2438,28 @@ static void TestSettingsFormSavesAttachedRouteFlags()
     {
         var settings = new AppSettings
         {
-            SplitRoute =
-            [
-                new SplitRouteEntry
-                {
-                    Id = "split:first",
-                    DisplayName = "First",
-                    Enabled = true,
-                    Condition = SplitCatalog.CreateBossFactCondition(SplitCatalog.Skeletron),
-                    IconTargetIds = [SplitCatalog.Skeletron]
-                },
-                new SplitRouteEntry
-                {
-                    Id = "split:second",
-                    DisplayName = "Second",
-                    Enabled = true,
-                    Condition = SplitCatalog.CreateBossFactCondition(SplitCatalog.MoonLord),
-                    IconTargetIds = [SplitCatalog.MoonLord]
-                }
-            ]
+            Route =
+            {
+                SplitRoute =
+                [
+                    new SplitRouteEntry
+                    {
+                        Id = "split:first",
+                        DisplayName = "First",
+                        Enabled = true,
+                        Condition = SplitCatalog.CreateBossFactCondition(SplitCatalog.Skeletron),
+                        IconTargetIds = [SplitCatalog.Skeletron]
+                    },
+                    new SplitRouteEntry
+                    {
+                        Id = "split:second",
+                        DisplayName = "Second",
+                        Enabled = true,
+                        Condition = SplitCatalog.CreateBossFactCondition(SplitCatalog.MoonLord),
+                        IconTargetIds = [SplitCatalog.MoonLord]
+                    }
+                ]
+            }
         };
 
         using var form = new SettingsForm(settings);
@@ -2430,8 +2474,8 @@ static void TestSettingsFormSavesAttachedRouteFlags()
 
         form.ApplyForTests();
 
-        AssertEqual(true, form.Result.SplitRoute[0].IsAttached);
-        AssertEqual(false, form.Result.SplitRoute[1].IsAttached);
+        AssertEqual(true, form.Result.Route.SplitRoute[0].IsAttached);
+        AssertEqual(false, form.Result.Route.SplitRoute[1].IsAttached);
     });
 }
 
@@ -2441,29 +2485,32 @@ static void TestSettingsFormSavesSplitIconOverride()
     {
         var settings = new AppSettings
         {
-            SplitRoute =
-            [
-                new SplitRouteEntry
-                {
-                    Id = "split:any-boss",
-                    DisplayName = "Any Boss",
-                    Enabled = true,
-                    Condition = SplitCondition.Any(
-                    [
-                        SplitCatalog.CreateBossFactCondition(SplitCatalog.Skeletron),
-                        SplitCatalog.CreateBossFactCondition(SplitCatalog.WallOfFlesh)
-                    ]),
-                    IconTargetIds = [SplitCatalog.Skeletron, SplitCatalog.WallOfFlesh]
-                },
-                new SplitRouteEntry
-                {
-                    Id = "split:custom-icon",
-                    DisplayName = "Custom Icon",
-                    Enabled = true,
-                    Condition = SplitCatalog.CreateBossFactCondition(SplitCatalog.MoonLord),
-                    IconTargetIds = [SplitCatalog.MoonLord]
-                }
-            ]
+            Route =
+            {
+                SplitRoute =
+                [
+                    new SplitRouteEntry
+                    {
+                        Id = "split:any-boss",
+                        DisplayName = "Any Boss",
+                        Enabled = true,
+                        Condition = SplitCondition.Any(
+                        [
+                            SplitCatalog.CreateBossFactCondition(SplitCatalog.Skeletron),
+                            SplitCatalog.CreateBossFactCondition(SplitCatalog.WallOfFlesh)
+                        ]),
+                        IconTargetIds = [SplitCatalog.Skeletron, SplitCatalog.WallOfFlesh]
+                    },
+                    new SplitRouteEntry
+                    {
+                        Id = "split:custom-icon",
+                        DisplayName = "Custom Icon",
+                        Enabled = true,
+                        Condition = SplitCatalog.CreateBossFactCondition(SplitCatalog.MoonLord),
+                        IconTargetIds = [SplitCatalog.MoonLord]
+                    }
+                ]
+            }
         };
 
         using var form = new SettingsForm(settings);
@@ -2476,12 +2523,12 @@ static void TestSettingsFormSavesSplitIconOverride()
 
         form.ApplyForTests();
 
-        SplitIconOverride targetOverride = form.Result.SplitRoute[0].IconOverride;
+        SplitIconOverride targetOverride = form.Result.Route.SplitRoute[0].IconOverride;
         AssertEqual(SplitIconOverrideSource.Target, targetOverride.Source);
         AssertEqual(SplitCatalog.WallOfFlesh, targetOverride.TargetId);
         AssertEqual(string.Empty, targetOverride.FilePath);
 
-        SplitIconOverride customOverride = form.Result.SplitRoute[1].IconOverride;
+        SplitIconOverride customOverride = form.Result.Route.SplitRoute[1].IconOverride;
         AssertEqual(SplitIconOverrideSource.CustomFile, customOverride.Source);
         AssertEqual(string.Empty, customOverride.TargetId);
         AssertEqual("icons\\custom.png", customOverride.FilePath);
@@ -2491,7 +2538,7 @@ static void TestSettingsFormSavesSplitIconOverride()
         AssertEqual("Wall of Flesh (Boss:wall-of-flesh)", reopenedPage.IconOverrideBoxForTests.SelectedItem?.ToString());
         reopened.ApplyForTests();
 
-        SplitIconOverride reopenedTargetOverride = reopened.Result.SplitRoute[0].IconOverride;
+        SplitIconOverride reopenedTargetOverride = reopened.Result.Route.SplitRoute[0].IconOverride;
         AssertEqual(SplitIconOverrideSource.Target, reopenedTargetOverride.Source);
         AssertEqual(SplitCatalog.WallOfFlesh, reopenedTargetOverride.TargetId);
 
@@ -2499,7 +2546,7 @@ static void TestSettingsFormSavesSplitIconOverride()
         AssertEqual("Custom image", reopenedPage.IconOverrideBoxForTests.SelectedItem?.ToString());
         reopened.ApplyForTests();
 
-        SplitIconOverride reopenedCustomOverride = reopened.Result.SplitRoute[1].IconOverride;
+        SplitIconOverride reopenedCustomOverride = reopened.Result.Route.SplitRoute[1].IconOverride;
         AssertEqual(SplitIconOverrideSource.CustomFile, reopenedCustomOverride.Source);
         AssertEqual("icons\\custom.png", reopenedCustomOverride.FilePath);
     });
@@ -2511,22 +2558,28 @@ static void TestSettingsFormSavesLocalizedSplitIconOverride()
     {
         var settings = new AppSettings
         {
-            Language = LanguageNames.Chinese,
-            SplitRoute =
-            [
-                new SplitRouteEntry
-                {
-                    Id = "split:any-boss",
-                    DisplayName = "Any Boss",
-                    Enabled = true,
-                    Condition = SplitCondition.Any(
-                    [
-                        SplitCatalog.CreateBossFactCondition(SplitCatalog.Skeletron),
-                        SplitCatalog.CreateBossFactCondition(SplitCatalog.WallOfFlesh)
-                    ]),
-                    IconTargetIds = [SplitCatalog.Skeletron, SplitCatalog.WallOfFlesh]
-                }
-            ]
+            General =
+            {
+                Language = LanguageNames.Chinese
+            },
+            Route =
+            {
+                SplitRoute =
+                [
+                    new SplitRouteEntry
+                    {
+                        Id = "split:any-boss",
+                        DisplayName = "Any Boss",
+                        Enabled = true,
+                        Condition = SplitCondition.Any(
+                        [
+                            SplitCatalog.CreateBossFactCondition(SplitCatalog.Skeletron),
+                            SplitCatalog.CreateBossFactCondition(SplitCatalog.WallOfFlesh)
+                        ]),
+                        IconTargetIds = [SplitCatalog.Skeletron, SplitCatalog.WallOfFlesh]
+                    }
+                ]
+            }
         };
 
         using var form = new SettingsForm(settings);
@@ -2535,7 +2588,7 @@ static void TestSettingsFormSavesLocalizedSplitIconOverride()
 
         form.ApplyForTests();
 
-        SplitIconOverride iconOverride = form.Result.SplitRoute.Single().IconOverride;
+        SplitIconOverride iconOverride = form.Result.Route.SplitRoute.Single().IconOverride;
         AssertEqual(SplitIconOverrideSource.Target, iconOverride.Source);
         AssertEqual(SplitCatalog.WallOfFlesh, iconOverride.TargetId);
 
@@ -2549,13 +2602,9 @@ static void TestSettingsFormRejectsInvalidSplitRouteApply()
 {
     RunSta(() =>
     {
-        var settings = new AppSettings
-        {
-            SplitRoute =
-            [
+        var settings = new AppSettings { Route = { SplitRoute = [
                 CreateTestRouteEntry("split:skeletron", "Skeletron", SplitCatalog.Skeletron)
-            ]
-        };
+            ] } };
 
         var warnings = new List<(string Message, string Title, MessageBoxButtons Buttons, MessageBoxIcon Icon)>();
         using var form = new SettingsForm(
@@ -2579,8 +2628,8 @@ static void TestSettingsFormRejectsInvalidSplitRouteApply()
         AssertEqual("TerrariaSplit Settings", warnings[0].Title);
         AssertEqual(MessageBoxButtons.OK, warnings[0].Buttons);
         AssertEqual(MessageBoxIcon.Warning, warnings[0].Icon);
-        AssertEqual("split:skeletron", form.Result.SplitRoute.Single().Id);
-        AssertEqual(SplitCatalog.CreateBossFactCondition(SplitCatalog.Skeletron).FactKey, form.Result.SplitRoute.Single().Condition.GetFactConditions().Single().FactKey);
+        AssertEqual("split:skeletron", form.Result.Route.SplitRoute.Single().Id);
+        AssertEqual(SplitCatalog.CreateBossFactCondition(SplitCatalog.Skeletron).FactKey, form.Result.Route.SplitRoute.Single().Condition.GetFactConditions().Single().FactKey);
     });
 }
 
@@ -2590,22 +2639,25 @@ static void TestSettingsFormEditsMatchModeFromDropdown()
     {
         var settings = new AppSettings
         {
-            SplitRoute =
-            [
-                new SplitRouteEntry
-                {
-                    Id = "split:mechanical",
-                    DisplayName = "Mechanical",
-                    Enabled = true,
-                    Condition = SplitCondition.All(
-                    [
-                        SplitCatalog.CreateBossFactCondition(SplitCatalog.Destroyer),
-                        SplitCatalog.CreateBossFactCondition(SplitCatalog.Twins),
-                        SplitCatalog.CreateBossFactCondition(SplitCatalog.SkeletronPrime)
-                    ]),
-                    IconTargetIds = [SplitCatalog.Destroyer, SplitCatalog.Twins, SplitCatalog.SkeletronPrime]
-                }
-            ]
+            Route =
+            {
+                SplitRoute =
+                [
+                    new SplitRouteEntry
+                    {
+                        Id = "split:mechanical",
+                        DisplayName = "Mechanical",
+                        Enabled = true,
+                        Condition = SplitCondition.All(
+                        [
+                            SplitCatalog.CreateBossFactCondition(SplitCatalog.Destroyer),
+                            SplitCatalog.CreateBossFactCondition(SplitCatalog.Twins),
+                            SplitCatalog.CreateBossFactCondition(SplitCatalog.SkeletronPrime)
+                        ]),
+                        IconTargetIds = [SplitCatalog.Destroyer, SplitCatalog.Twins, SplitCatalog.SkeletronPrime]
+                    }
+                ]
+            }
         };
 
         using var form = new SettingsForm(settings);
@@ -2619,7 +2671,7 @@ static void TestSettingsFormEditsMatchModeFromDropdown()
 
         form.ApplyForTests();
 
-        SplitCondition condition = form.Result.SplitRoute.Single().Condition;
+        SplitCondition condition = form.Result.Route.SplitRoute.Single().Condition;
         AssertEqual(SplitConditionKind.AtLeast, SplitConditionKind.Normalize(condition.Kind));
         AssertEqual(2, condition.Value);
         AssertEqual(3, condition.Children.Count);
@@ -2632,23 +2684,26 @@ static void TestSettingsFormDecrementsMatchModeWhenDeletingCondition()
     {
         var settings = new AppSettings
         {
-            SplitRoute =
-            [
-                new SplitRouteEntry
-                {
-                    Id = "split:bosses",
-                    DisplayName = "Bosses",
-                    Enabled = true,
-                    Condition = SplitCondition.AtLeast(
-                    [
-                        SplitCatalog.CreateBossFactCondition("boss:king-slime"),
-                        SplitCatalog.CreateBossFactCondition(SplitCatalog.Skeletron),
-                        SplitCatalog.CreateBossFactCondition(SplitCatalog.WallOfFlesh),
-                        SplitCatalog.CreateBossFactCondition(SplitCatalog.Destroyer)
-                    ], 3),
-                    IconTargetIds = ["boss:king-slime", SplitCatalog.Skeletron, SplitCatalog.WallOfFlesh, SplitCatalog.Destroyer]
-                }
-            ]
+            Route =
+            {
+                SplitRoute =
+                [
+                    new SplitRouteEntry
+                    {
+                        Id = "split:bosses",
+                        DisplayName = "Bosses",
+                        Enabled = true,
+                        Condition = SplitCondition.AtLeast(
+                        [
+                            SplitCatalog.CreateBossFactCondition("boss:king-slime"),
+                            SplitCatalog.CreateBossFactCondition(SplitCatalog.Skeletron),
+                            SplitCatalog.CreateBossFactCondition(SplitCatalog.WallOfFlesh),
+                            SplitCatalog.CreateBossFactCondition(SplitCatalog.Destroyer)
+                        ], 3),
+                        IconTargetIds = ["boss:king-slime", SplitCatalog.Skeletron, SplitCatalog.WallOfFlesh, SplitCatalog.Destroyer]
+                    }
+                ]
+            }
         };
 
         using var form = new SettingsForm(settings);
@@ -2661,7 +2716,7 @@ static void TestSettingsFormDecrementsMatchModeWhenDeletingCondition()
 
         form.ApplyForTests();
 
-        SplitCondition condition = form.Result.SplitRoute.Single().Condition;
+        SplitCondition condition = form.Result.Route.SplitRoute.Single().Condition;
         AssertEqual(SplitConditionKind.AtLeast, SplitConditionKind.Normalize(condition.Kind));
         AssertEqual(2, condition.Value);
         AssertEqual(3, condition.Children.Count);
@@ -2674,21 +2729,24 @@ static void TestSettingsFormEditsItemQuantityFromSelectedCondition()
     {
         var settings = new AppSettings
         {
-            SplitRoute =
-            [
-                new SplitRouteEntry
-                {
-                    Id = "split:mixed",
-                    DisplayName = "Mixed",
-                    Enabled = true,
-                    Condition = SplitCondition.All(
-                    [
-                        SplitCatalog.CreateBossFactCondition(SplitCatalog.Skeletron),
-                        SplitCatalog.CreateItemEverOwnedCondition(50, 2)
-                    ]),
-                    IconTargetIds = [SplitCatalog.Skeletron, SplitCatalog.CreateItemTargetId(50)]
-                }
-            ]
+            Route =
+            {
+                SplitRoute =
+                [
+                    new SplitRouteEntry
+                    {
+                        Id = "split:mixed",
+                        DisplayName = "Mixed",
+                        Enabled = true,
+                        Condition = SplitCondition.All(
+                        [
+                            SplitCatalog.CreateBossFactCondition(SplitCatalog.Skeletron),
+                            SplitCatalog.CreateItemEverOwnedCondition(50, 2)
+                        ]),
+                        IconTargetIds = [SplitCatalog.Skeletron, SplitCatalog.CreateItemTargetId(50)]
+                    }
+                ]
+            }
         };
 
         using var form = new SettingsForm(settings);
@@ -2708,7 +2766,7 @@ static void TestSettingsFormEditsItemQuantityFromSelectedCondition()
         page.ItemQuantityBoxForTests.Text = "5";
         form.ApplyForTests();
 
-        SplitCondition itemCondition = form.Result.SplitRoute.Single()
+        SplitCondition itemCondition = form.Result.Route.SplitRoute.Single()
             .Condition
             .GetFactConditions()
             .Single(condition => string.Equals(
@@ -2767,7 +2825,7 @@ static void TestSettingsFormSearchesNpcTargetsByName()
         InvokePrivate(page, "AddTargetToNewGroup");
         form.ApplyForTests();
 
-        SplitRouteEntry added = form.Result.SplitRoute.Last();
+        SplitRouteEntry added = form.Result.Route.SplitRoute.Last();
         AssertEqual(SplitCatalog.CreateNpcTargetId(17), added.IconTargetIds.Single());
         SplitCondition addedCondition = added.Condition.GetFactConditions().Single();
         AssertEqual(SplitCatalog.CreateNpcPresentFactKey(17), addedCondition.FactKey);
@@ -2778,13 +2836,9 @@ static void TestSettingsFormAddsSelectedTargetToNewGroup()
 {
     RunSta(() =>
     {
-        var settings = new AppSettings
-        {
-            SplitRoute =
-            [
+        var settings = new AppSettings { Route = { SplitRoute = [
                 CreateTestRouteEntry("split:skeletron", "Skeletron", SplitCatalog.Skeletron)
-            ]
-        };
+            ] } };
 
         using var form = new SettingsForm(settings);
         SplitSettingsPage page = form.PageHost.GetOrCreatePage<SplitSettingsPage>(SettingsPageId.Splits);
@@ -2805,7 +2859,7 @@ static void TestSettingsFormAddsSelectedTargetToNewGroup()
 
         form.ApplyForTests();
 
-        SplitRouteEntry added = form.Result.SplitRoute.Last();
+        SplitRouteEntry added = form.Result.Route.SplitRoute.Last();
         AssertEqual("Magic Mirror", added.DisplayName);
         AssertEqual(true, added.Enabled);
         AssertEqual(SplitCatalog.CreateItemTargetId(50), added.IconTargetIds.Single());
@@ -2822,22 +2876,28 @@ static void TestSettingsFormLocalizesTargetLibraryAndConditions()
     {
         var settings = new AppSettings
         {
-            Language = LanguageNames.Chinese,
-            SplitRoute =
-            [
-                new SplitRouteEntry
-                {
-                    Id = "split:custom-skeletron",
-                    DisplayName = "Skeletron",
-                    Enabled = true,
-                    Condition = SplitCondition.All(
-                    [
-                        SplitCatalog.CreateBossFactCondition(SplitCatalog.Skeletron),
-                        SplitCatalog.CreateItemEverOwnedCondition(50, 2)
-                    ]),
-                    IconTargetIds = [SplitCatalog.Skeletron, SplitCatalog.CreateItemTargetId(50)]
-                }
-            ]
+            General =
+            {
+                Language = LanguageNames.Chinese
+            },
+            Route =
+            {
+                SplitRoute =
+                [
+                    new SplitRouteEntry
+                    {
+                        Id = "split:custom-skeletron",
+                        DisplayName = "Skeletron",
+                        Enabled = true,
+                        Condition = SplitCondition.All(
+                        [
+                            SplitCatalog.CreateBossFactCondition(SplitCatalog.Skeletron),
+                            SplitCatalog.CreateItemEverOwnedCondition(50, 2)
+                        ]),
+                        IconTargetIds = [SplitCatalog.Skeletron, SplitCatalog.CreateItemTargetId(50)]
+                    }
+                ]
+            }
         };
 
         using var form = new SettingsForm(settings);
@@ -2876,19 +2936,15 @@ static void TestSettingsFormUpdatesEffectsRouteRowsDynamically()
 {
     RunSta(() =>
     {
-        using var form = new SettingsForm(new AppSettings
-        {
-            SplitRoute =
-            [
+        using var form = new SettingsForm(new AppSettings { Route = { SplitRoute = [
                 CreateTestRouteEntry("split:skeletron", "Skeletron", SplitCatalog.Skeletron)
-            ]
-        });
+            ] } });
         AnimationSettingsPage page = form.PageHost.GetOrCreatePage<AnimationSettingsPage>(SettingsPageId.Effects);
 
         AssertEqual(true, page.AnimationOutlineKeysForTests.Contains("split:skeletron", StringComparer.OrdinalIgnoreCase));
         AssertEqual(true, page.SegmentBestDeltaHighlightKeysForTests.Contains("split:skeletron", StringComparer.OrdinalIgnoreCase));
 
-        form.Result.SplitRoute =
+        form.Result.Route.SplitRoute =
         [
             CreateTestRouteEntry("split:moon-lord", "Moon Lord", SplitCatalog.MoonLord)
         ];
@@ -2972,7 +3028,7 @@ static void TestSettingsFormCollapsesZenithSpecialSeedDependencies()
 
         form.ApplyForTests();
 
-        AssertEqual("Zenith|Skyblock", form.Result.AutoCreate.SpecialSeeds);
+        AssertEqual("Zenith|Skyblock", form.Result.Automation.AutoCreate.SpecialSeeds);
     });
 }
 
@@ -2987,7 +3043,7 @@ static void TestSettingsFormSavesTheConstantSpecialSeed()
 
         form.ApplyForTests();
 
-        AssertEqual("Drunk|The Constant", form.Result.AutoCreate.SpecialSeeds);
+        AssertEqual("Drunk|The Constant", form.Result.Automation.AutoCreate.SpecialSeeds);
     });
 }
 
@@ -2997,11 +3053,14 @@ static void TestSettingsFormSavesPyramidItemFilter()
     {
         using var form = new SettingsForm(new AppSettings
         {
-            AutoCreate = new AutoCreateWorldSettings
+            Automation =
             {
-                EnablePyramidFilter = false,
-                PyramidFilterItemMask = AutoCreatePyramidFilterItem.FlyingCarpetMask,
-                ReturnToMainMenuOnFilterFailure = false
+                AutoCreate = new AutoCreateWorldSettings
+                {
+                    EnablePyramidFilter = false,
+                    PyramidFilterItemMask = AutoCreatePyramidFilterItem.FlyingCarpetMask,
+                    ReturnToMainMenuOnFilterFailure = false
+                }
             }
         });
         AutomationSettingsPage page = form.PageHost.GetOrCreatePage<AutomationSettingsPage>(SettingsPageId.Automation);
@@ -3020,11 +3079,11 @@ static void TestSettingsFormSavesPyramidItemFilter()
 
         form.ApplyForTests();
 
-        AssertEqual(true, form.Result.AutoCreate.EnablePyramidFilter);
-        AssertEqual(true, form.Result.AutoCreate.ReturnToMainMenuOnFilterFailure);
+        AssertEqual(true, form.Result.Automation.AutoCreate.EnablePyramidFilter);
+        AssertEqual(true, form.Result.Automation.AutoCreate.ReturnToMainMenuOnFilterFailure);
         AssertEqual(
             AutoCreatePyramidFilterItem.SandstormInABottleMask | AutoCreatePyramidFilterItem.PharaohSetMask,
-            form.Result.AutoCreate.PyramidFilterItemMask);
+            form.Result.Automation.AutoCreate.PyramidFilterItemMask);
     });
 }
 
@@ -3049,10 +3108,10 @@ static void TestSettingsFormAppliesZenithStarCatchOptions()
 
         form.ApplyForTests();
 
-        AssertEqual(true, form.Result.AutoCreate.EnableZenithStarCatch);
-        AssertEqual(AutoCreateZenithStarCatchStage.GemCaves, form.Result.AutoCreate.ZenithStarCatchStopStage);
-        AssertEqual(500, form.Result.AutoCreate.ZenithStarCatchSpeedSliderValue);
-        AssertEqual(true, form.Result.AutoCreate.EnablePyramidFilter);
+        AssertEqual(true, form.Result.Automation.AutoCreate.EnableZenithStarCatch);
+        AssertEqual(AutoCreateZenithStarCatchStage.GemCaves, form.Result.Automation.AutoCreate.ZenithStarCatchStopStage);
+        AssertEqual(500, form.Result.Automation.AutoCreate.ZenithStarCatchSpeedSliderValue);
+        AssertEqual(true, form.Result.Automation.AutoCreate.EnablePyramidFilter);
     });
 }
 
@@ -3062,10 +3121,13 @@ static void TestSettingsFormGatesZenithStarCatchBehindZenithSeed()
     {
         using var form = new SettingsForm(new AppSettings
         {
-            AutoCreate = new AutoCreateWorldSettings
+            Automation =
             {
-                EnableZenithStarCatch = true,
-                ZenithStarCatchStopStage = AutoCreateZenithStarCatchStage.Pots
+                AutoCreate = new AutoCreateWorldSettings
+                {
+                    EnableZenithStarCatch = true,
+                    ZenithStarCatchStopStage = AutoCreateZenithStarCatchStage.Pots
+                }
             }
         });
         AutomationSettingsPage page = form.PageHost.GetOrCreatePage<AutomationSettingsPage>(SettingsPageId.Automation);
@@ -3086,11 +3148,14 @@ static void TestSettingsFormKeepsWorldPoolIndependentFromPyramidFilter()
     {
         using var form = new SettingsForm(new AppSettings
         {
-            AutoCreate = new AutoCreateWorldSettings
+            Automation =
             {
-                EnablePyramidFilter = false,
-                EnableWorldPool = true,
-                WorldPoolTargetCount = 10
+                AutoCreate = new AutoCreateWorldSettings
+                {
+                    EnablePyramidFilter = false,
+                    EnableWorldPool = true,
+                    WorldPoolTargetCount = 10
+                }
             }
         });
         AutomationSettingsPage page = form.PageHost.GetOrCreatePage<AutomationSettingsPage>(SettingsPageId.Automation);
@@ -3118,14 +3183,17 @@ static void TestDebugSequenceUsesPooledWorldPath()
     {
         var settings = new AppSettings
         {
-            AutoCreate = new AutoCreateWorldSettings
+            Automation =
             {
-                WorldSize = AutoCreateWorldSize.Small,
-                WorldDifficulty = AutoCreateWorldDifficulty.Expert,
-                WorldEvil = AutoCreateWorldEvil.Crimson,
-                SpecialSeeds = AutoCreateSpecialWorldSeed.ForTheWorthy,
-                EnablePyramidFilter = false,
-                EnableWorldPool = true
+                AutoCreate = new AutoCreateWorldSettings
+                {
+                    WorldSize = AutoCreateWorldSize.Small,
+                    WorldDifficulty = AutoCreateWorldDifficulty.Expert,
+                    WorldEvil = AutoCreateWorldEvil.Crimson,
+                    SpecialSeeds = AutoCreateSpecialWorldSeed.ForTheWorthy,
+                    EnablePyramidFilter = false,
+                    EnableWorldPool = true
+                }
             }
         };
         using var form = new SettingsForm(settings, worldPoolCountProvider: _ => 1);
@@ -3134,7 +3202,7 @@ static void TestDebugSequenceUsesPooledWorldPath()
                 "BuildAutoCreateSequenceText",
                 BindingFlags.Static | BindingFlags.NonPublic)
             ?? throw new InvalidOperationException("Missing debug sequence builder.");
-        string sequence = (string)(method.Invoke(null, [settings.AutoCreate, geometry, 0, form])
+        string sequence = (string)(method.Invoke(null, [settings.Automation.AutoCreate, geometry, 0, form])
             ?? throw new InvalidOperationException("Debug sequence builder returned null."));
 
         AssertEqual(true, sequence.Contains("Install pooled world", StringComparison.Ordinal));
@@ -3161,7 +3229,7 @@ static void TestSettingsFormAppliesTimerStartSound()
 
         form.ApplyForTests();
 
-        AssertEqual("sounds\\timer-start.wav", form.Result.Sounds.EnterWorld);
+        AssertEqual("sounds\\timer-start.wav", form.Result.Overlay.Sounds.EnterWorld);
     });
 }
 
@@ -3779,7 +3847,7 @@ static void TestPyramidSeedPreScreenKeepsFirstPyramidChest()
 static void TestOverlayCompositeLayoutCalculator()
 {
     var settings = new AppSettings();
-    settings.Columns.TimerOffsetY = -180;
+    settings.Overlay.Columns.TimerOffsetY = -180;
     Rectangle compositeBounds = new(100, 200, 900, 700);
 
     AssertEqual(true, OverlayCompositeLayoutCalculator.TryCreate(
@@ -3825,7 +3893,7 @@ static void TestOverlayCompositeLayoutCalculator()
         out OverlayCompositeLayout animationReservedLayout));
     Rectangle animationBounds = SplitCompletionAnimationRenderer.GetAnimationBounds(new OverlayRenderContext(
         settings,
-        UiPalette.From(settings.Colors),
+        UiPalette.From(settings.Overlay.Colors),
         TestSnapshots.Terraria(isGameMenu: false),
         [],
         CurrentSplitIndex: -1,
@@ -4085,7 +4153,7 @@ static void TestSettingsFormAppliesResumeSound()
 
         form.ApplyForTests();
 
-        AssertEqual("sounds\\resume.wav", form.Result.Sounds.Resume);
+        AssertEqual("sounds\\resume.wav", form.Result.Overlay.Sounds.Resume);
     });
 }
 
@@ -4099,7 +4167,7 @@ static void TestSettingsFormAppliesMoonLordSplitSound()
 
         form.ApplyForTests();
 
-        AssertEqual("sounds\\moonlord-best.wav", form.Result.Sounds.MoonLordAheadReferenceAheadSegment);
+        AssertEqual("sounds\\moonlord-best.wav", form.Result.Overlay.Sounds.MoonLordAheadReferenceAheadSegment);
     });
 }
 
@@ -4107,13 +4175,10 @@ static void TestSettingsFormLocksReferenceControlsForPersonalBestReference()
 {
     RunSta(() =>
     {
-        var settings = new AppSettings
-        {
-            UsePersonalBestAsReferenceTime = true
-        };
+        var settings = new AppSettings { Comparison = { UsePersonalBestAsReferenceTime = true } };
         SettingsNormalizer.Normalize(settings);
         string skeletronKey = SingleCumulativeKey(settings, "split:boss-skeletron");
-        settings.PersonalBestTimes[skeletronKey] = "00:30";
+        settings.Comparison.PersonalBestTimes[skeletronKey] = "00:30";
 
         using var form = new SettingsForm(settings);
         DataSettingsPage page = form.PageHost.GetOrCreatePage<DataSettingsPage>(SettingsPageId.Data);
@@ -4144,14 +4209,14 @@ static void TestSettingsFormAppliesTextOutlineAndShadowColors()
 
         form.ApplyForTests();
 
-        AssertEqual("#112233", form.Result.Colors.ReferenceTextOutline);
-        AssertEqual("#445566", form.Result.Colors.ReferenceTextShadow);
-        AssertEqual("#778899", form.Result.Colors.TimerPausedTextOutline);
-        AssertEqual("#AABBCC", form.Result.Colors.TimerPausedTextShadow);
-        AssertEqual("#DDEEFF", form.Result.Colors.SplitCompletionSegmentLabelText);
-        AssertEqual("#FEDCBA", form.Result.Colors.SplitCompletionLabelText);
-        AssertEqual("#123ABC", form.Result.Colors.SplitCompletionSegmentTimeText);
-        AssertEqual("#456DEF", form.Result.Colors.SplitCompletionTimeText);
+        AssertEqual("#112233", form.Result.Overlay.Colors.ReferenceTextOutline);
+        AssertEqual("#445566", form.Result.Overlay.Colors.ReferenceTextShadow);
+        AssertEqual("#778899", form.Result.Overlay.Colors.TimerPausedTextOutline);
+        AssertEqual("#AABBCC", form.Result.Overlay.Colors.TimerPausedTextShadow);
+        AssertEqual("#DDEEFF", form.Result.Overlay.Colors.SplitCompletionSegmentLabelText);
+        AssertEqual("#FEDCBA", form.Result.Overlay.Colors.SplitCompletionLabelText);
+        AssertEqual("#123ABC", form.Result.Overlay.Colors.SplitCompletionSegmentTimeText);
+        AssertEqual("#456DEF", form.Result.Overlay.Colors.SplitCompletionTimeText);
     });
 }
 
@@ -4209,7 +4274,7 @@ static void TestMainFormPreservesSizeWhenApplyingNonLayoutSettings()
         boundsController.ApplyCompositeBounds(initialCompositeBounds);
 
         var settings = AppSettingsStore.Clone(previousSettings);
-        settings.Colors.TimerText = "#123456";
+        settings.Overlay.Colors.TimerText = "#123456";
         SetMainFormSettings(form, settings);
 
         InvokePrivate(form, "ApplyLoadedSettings", previousSettings, -1);
@@ -4229,7 +4294,7 @@ static void TestMainFormSettingsApplyRedrawsStaticStatusOverlayContent()
         SetPrivateField(form, "lastStatusOverlayDynamicKey", new StatusOverlayDynamicKey(0, string.Empty, 0));
 
         AppSettings nextSettings = GetMainFormSettings(form);
-        nextSettings.SplitRoute[0].Condition = SplitCondition.Any(
+        nextSettings.Route.SplitRoute[0].Condition = SplitCondition.Any(
         [
             SplitCatalog.CreateBossFactCondition(SplitCatalog.Skeletron),
             SplitCatalog.CreateBossFactCondition(SplitCatalog.WallOfFlesh)
@@ -4254,9 +4319,9 @@ static void TestMainFormSettingsApplyReloadsDefinitionsAndRecordsCurrentRun()
 
         AppSettings previousSettings = GetMainFormSettings(form);
         var nextSettings = AppSettingsStore.Clone(previousSettings);
-        nextSettings.AutoUpdatePersonalBestData = false;
-        nextSettings.AskBeforeUpdatingPersonalBestData = false;
-        nextSettings.AlwaysOnTop = !nextSettings.AlwaysOnTop;
+        nextSettings.Comparison.AutoUpdatePersonalBestData = false;
+        nextSettings.Comparison.AskBeforeUpdatingPersonalBestData = false;
+        nextSettings.General.AlwaysOnTop = !nextSettings.General.AlwaysOnTop;
 
         ApplicationController applicationController = GetPrivateField<ApplicationController>(form, "applicationController");
         var tracker = new SplitTracker();
@@ -4382,7 +4447,7 @@ static void TestMainFormScalesSizeWhenGlobalScaleChanges()
         _ = form.Handle;
         OverlayBoundsController boundsController = GetPrivateField<OverlayBoundsController>(form, "overlayBoundsController");
         var previousSettings = new AppSettings();
-        previousSettings.Columns.ScalePercent = 100;
+        previousSettings.Overlay.Columns.ScalePercent = 100;
         SetMainFormSettings(form, previousSettings);
         InvokePrivate(form, "ApplyLoadedSettings", (object?)null, -1);
         boundsController.ApplyCompositeBounds(new Rectangle(80, 90, 600, 500));
@@ -4390,7 +4455,7 @@ static void TestMainFormScalesSizeWhenGlobalScaleChanges()
         int previousRowHeight = boundsController.CurrentLayout.Layout.FirstRowRect.Height;
 
         var settings = AppSettingsStore.Clone(previousSettings);
-        settings.Columns.ScalePercent = 150;
+        settings.Overlay.Columns.ScalePercent = 150;
         SetMainFormSettings(form, settings);
 
         InvokePrivate(form, "ApplyLoadedSettings", previousSettings, -1);
@@ -4409,14 +4474,14 @@ static void TestMainFormAdjustsWidthWhenSplitColumnsChange()
         _ = form.Handle;
         OverlayBoundsController boundsController = GetPrivateField<OverlayBoundsController>(form, "overlayBoundsController");
         var previousSettings = new AppSettings();
-        previousSettings.Columns.ScalePercent = 100;
+        previousSettings.Overlay.Columns.ScalePercent = 100;
         SetMainFormSettings(form, previousSettings);
         InvokePrivate(form, "ApplyLoadedSettings", (object?)null, -1);
 
         boundsController.ApplyCompositeBounds(new Rectangle(80, 90, 600, 500));
         int previousRowHeight = boundsController.CurrentLayout.Layout.FirstRowRect.Height;
         var settings = AppSettingsStore.Clone(previousSettings);
-        settings.Columns.Time.Width += 100;
+        settings.Overlay.Columns.Time.Width += 100;
         SetMainFormSettings(form, settings);
 
         InvokePrivate(form, "ApplyLoadedSettings", previousSettings, -1);
@@ -4434,11 +4499,8 @@ static void TestMainFormGrowsHeightWhenSplitRouteGrows()
         using var form = new MainForm(registerGlobalHotkeys: false);
         _ = form.Handle;
         OverlayBoundsController boundsController = GetPrivateField<OverlayBoundsController>(form, "overlayBoundsController");
-        var previousSettings = new AppSettings
-        {
-            SplitRoute = SplitCatalog.CreateDefaultRoute()
-        };
-        previousSettings.Columns.ScalePercent = 100;
+        var previousSettings = new AppSettings { Route = { SplitRoute = SplitCatalog.CreateDefaultRoute() } };
+        previousSettings.Overlay.Columns.ScalePercent = 100;
         SetMainFormSettings(form, previousSettings);
         InvokePrivate(form, "ApplyLoadedSettings", (object?)null, -1);
 
@@ -4447,11 +4509,11 @@ static void TestMainFormGrowsHeightWhenSplitRouteGrows()
         int previousRowHeight = boundsController.CurrentLayout.Layout.FirstRowRect.Height;
 
         var settings = AppSettingsStore.Clone(previousSettings);
-        settings.SplitRoute.Add(CreateTestRouteEntry("split:extra-a", "Extra A", SplitCatalog.Skeletron));
-        settings.SplitRoute.Add(CreateTestRouteEntry("split:extra-b", "Extra B", SplitCatalog.MoonLord));
-        settings.SplitRoute.Add(CreateTestRouteEntry("split:extra-c", "Extra C", SplitCatalog.WallOfFlesh));
-        settings.SplitRoute.Add(CreateTestRouteEntry("split:extra-d", "Extra D", SplitCatalog.Destroyer));
-        settings.SplitRoute.Add(CreateTestRouteEntry("split:extra-e", "Extra E", SplitCatalog.Twins));
+        settings.Route.SplitRoute.Add(CreateTestRouteEntry("split:extra-a", "Extra A", SplitCatalog.Skeletron));
+        settings.Route.SplitRoute.Add(CreateTestRouteEntry("split:extra-b", "Extra B", SplitCatalog.MoonLord));
+        settings.Route.SplitRoute.Add(CreateTestRouteEntry("split:extra-c", "Extra C", SplitCatalog.WallOfFlesh));
+        settings.Route.SplitRoute.Add(CreateTestRouteEntry("split:extra-d", "Extra D", SplitCatalog.Destroyer));
+        settings.Route.SplitRoute.Add(CreateTestRouteEntry("split:extra-e", "Extra E", SplitCatalog.Twins));
         SetMainFormSettings(form, settings);
 
         InvokePrivate(form, "ApplyLoadedSettings", previousSettings, SplitCatalog.Build(settings).Count);
@@ -4465,20 +4527,17 @@ static void TestSettingsFormAppliesCurrentDeltaGradientOption()
 {
     RunSta(() =>
     {
-        using var form = new SettingsForm(new AppSettings
-        {
-            EnableDeltaGradientColor = false,
+        using var form = new SettingsForm(new AppSettings { Overlay = { EnableDeltaGradientColor = false,
             EnableCurrentDeltaGradientColor = true,
-            EnableTimerGradientColor = false
-        });
+            EnableTimerGradientColor = false } });
         AnimationSettingsPage page = form.PageHost.GetOrCreatePage<AnimationSettingsPage>(SettingsPageId.Effects);
         page.EnableCurrentDeltaGradientColorBox.Checked = false;
 
         form.ApplyForTests();
 
-        AssertEqual(false, form.Result.EnableDeltaGradientColor);
-        AssertEqual(false, form.Result.EnableCurrentDeltaGradientColor);
-        AssertEqual(false, form.Result.EnableTimerGradientColor);
+        AssertEqual(false, form.Result.Overlay.EnableDeltaGradientColor);
+        AssertEqual(false, form.Result.Overlay.EnableCurrentDeltaGradientColor);
+        AssertEqual(false, form.Result.Overlay.EnableTimerGradientColor);
     });
 }
 
@@ -4486,22 +4545,19 @@ static void TestSettingsFormKeepsUncreatedAnimationFieldsUnchanged()
 {
     RunSta(() =>
     {
-        var settings = new AppSettings
-        {
-            UndefeatedIconGrayscalePercent = 22,
+        var settings = new AppSettings { Overlay = { UndefeatedIconGrayscalePercent = 22,
             UndefeatedIconBrightnessPercent = 73,
             CurrentBossIconGrayscaleWeakenPercent = 11,
-            CurrentBossIconBrightnessBoostPercent = 64
-        };
+            CurrentBossIconBrightnessBoostPercent = 64 } };
         using var form = new SettingsForm(settings);
         form.PageHost.GetOrCreatePage<UiSettingsPage>(SettingsPageId.Ui);
 
         form.ApplyForTests();
 
-        AssertEqual(22, form.Result.UndefeatedIconGrayscalePercent);
-        AssertEqual(73, form.Result.UndefeatedIconBrightnessPercent);
-        AssertEqual(11, form.Result.CurrentBossIconGrayscaleWeakenPercent);
-        AssertEqual(64, form.Result.CurrentBossIconBrightnessBoostPercent);
+        AssertEqual(22, form.Result.Overlay.UndefeatedIconGrayscalePercent);
+        AssertEqual(73, form.Result.Overlay.UndefeatedIconBrightnessPercent);
+        AssertEqual(11, form.Result.Overlay.CurrentBossIconGrayscaleWeakenPercent);
+        AssertEqual(64, form.Result.Overlay.CurrentBossIconBrightnessBoostPercent);
     });
 }
 

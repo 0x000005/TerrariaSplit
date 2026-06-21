@@ -37,7 +37,7 @@ internal sealed class DataSettingsPage : SettingsPageBase
 
     protected override Control BuildPage(SettingsPageContext context)
     {
-        referenceSetsLoadedForEditing = !Draft.UsePersonalBestAsReferenceTime;
+        referenceSetsLoadedForEditing = !Draft.Comparison.UsePersonalBestAsReferenceTime;
         return context.BuildScrollPage(content =>
         {
             AddReferenceDataSection(content);
@@ -47,10 +47,10 @@ internal sealed class DataSettingsPage : SettingsPageBase
 
     public override void Apply(AppSettings settings)
     {
-        settings.UsePersonalBestAsReferenceTime = usePersonalBestAsReferenceTimeBox.Checked;
-        settings.AutoUpdatePersonalBestData = autoUpdatePersonalBestDataBox.Checked;
-        settings.AskBeforeUpdatingPersonalBestData = askBeforeUpdatingPersonalBestDataBox.Checked;
-        if (!settings.UsePersonalBestAsReferenceTime)
+        settings.Comparison.UsePersonalBestAsReferenceTime = usePersonalBestAsReferenceTimeBox.Checked;
+        settings.Comparison.AutoUpdatePersonalBestData = autoUpdatePersonalBestDataBox.Checked;
+        settings.Comparison.AskBeforeUpdatingPersonalBestData = askBeforeUpdatingPersonalBestDataBox.Checked;
+        if (!settings.Comparison.UsePersonalBestAsReferenceTime)
         {
             EnsureReferenceSetsLoadedForEditing();
             SaveReferenceTextBoxes();
@@ -58,17 +58,17 @@ internal sealed class DataSettingsPage : SettingsPageBase
 
         SavePersonalBestTextBoxes();
 
-        if (!settings.UsePersonalBestAsReferenceTime)
+        if (!settings.Comparison.UsePersonalBestAsReferenceTime)
         {
-            settings.ActiveReferenceSplitSet = referenceSetBox.SelectedItem is string selectedReferenceSet
+            settings.Comparison.ActiveReferenceSplitSet = referenceSetBox.SelectedItem is string selectedReferenceSet
                 ? selectedReferenceSet
                 : settings.GetActiveReferenceSet().Name;
         }
 
-        settings.ActivePersonalBestTimeSet = personalBestTimeSetBox.SelectedItem is string selectedPersonalBestTimeSet
+        settings.Comparison.ActivePersonalBestTimeSet = personalBestTimeSetBox.SelectedItem is string selectedPersonalBestTimeSet
             ? selectedPersonalBestTimeSet
             : settings.GetActivePersonalBestTimeSet().Name;
-        settings.ActivePersonalBestSegmentSet = personalBestSegmentSetBox.SelectedItem is string selectedPersonalBestSegmentSet
+        settings.Comparison.ActivePersonalBestSegmentSet = personalBestSegmentSetBox.SelectedItem is string selectedPersonalBestSegmentSet
             ? selectedPersonalBestSegmentSet
             : settings.GetActivePersonalBestSegmentSet().Name;
     }
@@ -89,7 +89,7 @@ internal sealed class DataSettingsPage : SettingsPageBase
     {
         TableLayoutPanel section = Factory.CreateSection("Reference Data");
 
-        ConfigureCheckBox(usePersonalBestAsReferenceTimeBox, Draft.UsePersonalBestAsReferenceTime);
+        ConfigureCheckBox(usePersonalBestAsReferenceTimeBox, Draft.Comparison.UsePersonalBestAsReferenceTime);
         usePersonalBestAsReferenceTimeBox.CheckedChanged += (_, _) => ToggleUsePersonalBestAsReferenceTime();
 
         TableLayoutPanel modeGrid = Factory.CreateTwoColumnGrid(280f);
@@ -125,8 +125,8 @@ internal sealed class DataSettingsPage : SettingsPageBase
 
     private void AddPersonalBestDataSection(TableLayoutPanel parent)
     {
-        ConfigureCheckBox(autoUpdatePersonalBestDataBox, Draft.AutoUpdatePersonalBestData);
-        ConfigureCheckBox(askBeforeUpdatingPersonalBestDataBox, Draft.AskBeforeUpdatingPersonalBestData);
+        ConfigureCheckBox(autoUpdatePersonalBestDataBox, Draft.Comparison.AutoUpdatePersonalBestData);
+        ConfigureCheckBox(askBeforeUpdatingPersonalBestDataBox, Draft.Comparison.AskBeforeUpdatingPersonalBestData);
         TableLayoutPanel autoUpdateSection = Factory.CreateSection("Personal Data");
         TableLayoutPanel autoUpdateGrid = Factory.CreateTwoColumnGrid(280f);
         Factory.AddSettingRow(autoUpdateGrid, "Auto update personal data", autoUpdatePersonalBestDataBox);
@@ -292,12 +292,12 @@ internal sealed class DataSettingsPage : SettingsPageBase
         updatingReferenceSetSelection = true;
         referenceSetBox.Items.Clear();
 
-        foreach (ReferenceSplitSet set in Draft.ReferenceSplitSets)
+        foreach (ReferenceSplitSet set in Draft.Comparison.ReferenceSplitSets)
         {
             referenceSetBox.Items.Add(set.Name);
         }
 
-        referenceSetBox.SelectedItem = Draft.ActiveReferenceSplitSet;
+        referenceSetBox.SelectedItem = Draft.Comparison.ActiveReferenceSplitSet;
         if (referenceSetBox.SelectedIndex < 0 && referenceSetBox.Items.Count > 0)
         {
             referenceSetBox.SelectedIndex = 0;
@@ -310,7 +310,7 @@ internal sealed class DataSettingsPage : SettingsPageBase
     {
         ConfigurePersonalSetBox(
             personalBestTimeSetBox,
-            Draft.PersonalBestTimeSets,
+            Draft.Comparison.PersonalBestTimeSets,
             Draft.GetActivePersonalBestTimeSet().Name,
             SwitchPersonalBestTimeSet);
     }
@@ -319,7 +319,7 @@ internal sealed class DataSettingsPage : SettingsPageBase
     {
         ConfigurePersonalSetBox(
             personalBestSegmentSetBox,
-            Draft.PersonalBestSegmentSets,
+            Draft.Comparison.PersonalBestSegmentSets,
             Draft.GetActivePersonalBestSegmentSet().Name,
             SwitchPersonalBestSegmentSet);
     }
@@ -344,7 +344,7 @@ internal sealed class DataSettingsPage : SettingsPageBase
 
     private void SwitchReferenceSet()
     {
-        if (updatingReferenceSetSelection || Draft.UsePersonalBestAsReferenceTime)
+        if (updatingReferenceSetSelection || Draft.Comparison.UsePersonalBestAsReferenceTime)
         {
             return;
         }
@@ -352,7 +352,7 @@ internal sealed class DataSettingsPage : SettingsPageBase
         SaveReferenceTextBoxes();
         if (referenceSetBox.SelectedItem is string selectedName)
         {
-            Draft.ActiveReferenceSplitSet = selectedName;
+            Draft.Comparison.ActiveReferenceSplitSet = selectedName;
         }
 
         LoadReferenceTextBoxes();
@@ -363,7 +363,7 @@ internal sealed class DataSettingsPage : SettingsPageBase
         SavePersonalBestTimeTextBoxes();
         if (personalBestTimeSetBox.SelectedItem is string selectedName)
         {
-            Draft.ActivePersonalBestTimeSet = selectedName;
+            Draft.Comparison.ActivePersonalBestTimeSet = selectedName;
             Draft.SyncPersonalBestTimesFromActiveSet();
         }
 
@@ -376,7 +376,7 @@ internal sealed class DataSettingsPage : SettingsPageBase
         SavePersonalBestSegmentTextBoxes();
         if (personalBestSegmentSetBox.SelectedItem is string selectedName)
         {
-            Draft.ActivePersonalBestSegmentSet = selectedName;
+            Draft.Comparison.ActivePersonalBestSegmentSet = selectedName;
             Draft.SyncPersonalBestSegmentsFromActiveSet();
         }
 
@@ -386,7 +386,7 @@ internal sealed class DataSettingsPage : SettingsPageBase
 
     private void AddReferenceSet()
     {
-        if (Draft.UsePersonalBestAsReferenceTime)
+        if (Draft.Comparison.UsePersonalBestAsReferenceTime)
         {
             return;
         }
@@ -394,12 +394,12 @@ internal sealed class DataSettingsPage : SettingsPageBase
         SaveReferenceTextBoxes();
         string name = newReferenceSetNameBox.Text.Trim();
         if (name.Length == 0 ||
-            Draft.ReferenceSplitSets.Any(set => string.Equals(set.Name, name, StringComparison.OrdinalIgnoreCase)))
+            Draft.Comparison.ReferenceSplitSets.Any(set => string.Equals(set.Name, name, StringComparison.OrdinalIgnoreCase)))
         {
             return;
         }
 
-        Draft.ReferenceSplitSets.Add(AppSettings.CreateReferenceSet(
+        Draft.Comparison.ReferenceSplitSets.Add(AppSettings.CreateReferenceSet(
             name,
             keys: GetCumulativeRows().Select(row => row.Key)));
         referenceSetBox.Items.Add(name);
@@ -409,7 +409,7 @@ internal sealed class DataSettingsPage : SettingsPageBase
 
     private void SaveReferenceTextBoxes()
     {
-        if (Draft.UsePersonalBestAsReferenceTime)
+        if (Draft.Comparison.UsePersonalBestAsReferenceTime)
         {
             return;
         }
@@ -485,12 +485,12 @@ internal sealed class DataSettingsPage : SettingsPageBase
     private void ToggleUsePersonalBestAsReferenceTime()
     {
         bool usePersonalBest = usePersonalBestAsReferenceTimeBox.Checked;
-        if (!Draft.UsePersonalBestAsReferenceTime && usePersonalBest)
+        if (!Draft.Comparison.UsePersonalBestAsReferenceTime && usePersonalBest)
         {
             SaveReferenceTextBoxes();
         }
 
-        Draft.UsePersonalBestAsReferenceTime = usePersonalBest;
+        Draft.Comparison.UsePersonalBestAsReferenceTime = usePersonalBest;
         if (!usePersonalBest)
         {
             EnsureReferenceSetsLoadedForEditing();
@@ -507,7 +507,7 @@ internal sealed class DataSettingsPage : SettingsPageBase
             return;
         }
 
-        Draft.ReferenceSplitSets = SplitTimeSetStore.LoadReferenceSets();
+        Draft.Comparison.ReferenceSplitSets = SplitTimeSetStore.LoadReferenceSets();
         referenceSetsLoadedForEditing = true;
         SettingsNormalizer.Normalize(Draft);
         PopulateReferenceSetBox();

@@ -111,7 +111,7 @@ internal static class HotkeyTests
         TestAssert.Equal(true, clickThroughUpdate.Effects.Single() is ToggleMouseClickThroughEffect);
 
         ApplicationUpdate pyramidFilterUpdate = controller.HandleCommand(AppCommand.TogglePyramidFilter());
-        TestAssert.Equal(true, controller.Settings.AutoCreate.EnablePyramidFilter);
+        TestAssert.Equal(true, controller.Settings.Automation.AutoCreate.EnablePyramidFilter);
         TestAssert.Equal(2, pyramidFilterUpdate.Effects.Count);
         TestAssert.Equal(true, pyramidFilterUpdate.Effects[0] is SaveSettingsEffect);
         TestAssert.Equal(true, pyramidFilterUpdate.Effects[1] is ApplySettingsToShellEffect);
@@ -129,9 +129,14 @@ internal static class HotkeyTests
     {
         var settings = new AppSettings
         {
-            AutoUpdatePersonalBestData = true,
-            AskBeforeUpdatingPersonalBestData = true,
-            SplitRoute =
+            Comparison =
+            {
+                AutoUpdatePersonalBestData = true,
+                AskBeforeUpdatingPersonalBestData = true
+            },
+            Route =
+            {
+                SplitRoute =
             [
                 new SplitRouteEntry
                 {
@@ -141,8 +146,9 @@ internal static class HotkeyTests
                     IconTargetIds = [SplitCatalog.Skeletron]
                 }
             ]
+            }
         };
-        settings.PersonalBestSegmentTimes["split:skeletron"] = "1:00.00";
+        settings.Comparison.PersonalBestSegmentTimes["split:skeletron"] = "1:00.00";
 
         int confirmCount = 0;
         var controller = new ApplicationController(settings, _ =>
@@ -172,12 +178,12 @@ internal static class HotkeyTests
             null));
 
         AppSettings nextSettings = AppSettingsStore.Clone(settings);
-        nextSettings.AlwaysOnTop = !nextSettings.AlwaysOnTop;
+        nextSettings.General.AlwaysOnTop = !nextSettings.General.AlwaysOnTop;
         ApplicationUpdate update = controller.HandleCommand(AppCommand.ApplySettings(nextSettings));
 
         TestAssert.Equal(1, confirmCount);
-        TestAssert.Equal("0:30.00", controller.Settings.PersonalBestSegmentTimes["split:skeletron"]);
-        TestAssert.Equal(nextSettings.AlwaysOnTop, controller.Settings.AlwaysOnTop);
+        TestAssert.Equal("0:30.00", controller.Settings.Comparison.PersonalBestSegmentTimes["split:skeletron"]);
+        TestAssert.Equal(nextSettings.General.AlwaysOnTop, controller.Settings.General.AlwaysOnTop);
         TestAssert.Equal(true, update.Effects.Any(effect => effect is SaveSettingsEffect));
         TestAssert.Equal(true, update.Effects.Any(effect =>
             effect is SubmitRuntimeCommandEffect submit &&

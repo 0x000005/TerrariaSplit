@@ -24,9 +24,9 @@ internal sealed class StatisticsForm : Form
     {
         this.settings = settings;
         stats = RunStatsStore.Load();
-        referenceTimeSets = settings.UsePersonalBestAsReferenceTime
+        referenceTimeSets = settings.Comparison.UsePersonalBestAsReferenceTime
             ? new List<ReferenceSplitSet> { settings.CreatePersonalBestReferenceSet() }
-            : settings.ReferenceSplitSets.ToList();
+            : settings.Comparison.ReferenceSplitSets.ToList();
         personalBestSets = SplitTimeSetStore.LoadLastRunSets();
 
         Text = Localizer.Get("Statistics", settings);
@@ -87,7 +87,7 @@ internal sealed class StatisticsForm : Form
         {
             referenceTimeBox.SelectedIndex = 0;
         }
-        referenceTimeBox.Enabled = !settings.UsePersonalBestAsReferenceTime;
+        referenceTimeBox.Enabled = !settings.Comparison.UsePersonalBestAsReferenceTime;
         referenceTimeBox.SelectedIndexChanged += (_, _) => RefreshRows();
         bar.Controls.Add(referenceTimeBox, 0, 1);
 

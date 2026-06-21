@@ -109,15 +109,15 @@ internal static class SplitRenderData
         }
 
         TimeSpan runningDelta = timerElapsed - referenceTime;
-        TimeSpan visibleDeltaDistance = TimeSpan.FromSeconds(settings.EarlyDeltaTimeSeconds);
-        bool showRunningDelta = settings.ShowEarlyDeltaTime && runningDelta >= -visibleDeltaDistance;
+        TimeSpan visibleDeltaDistance = TimeSpan.FromSeconds(settings.Overlay.EarlyDeltaTimeSeconds);
+        bool showRunningDelta = settings.Overlay.ShowEarlyDeltaTime && runningDelta >= -visibleDeltaDistance;
         return new SplitComparison(runningDelta, showRunningDelta);
     }
 
     public static string FormatSplitDelta(AppSettings settings, SplitComparison comparison)
     {
         return comparison.ShowDelta && comparison.Delta is TimeSpan delta
-            ? TimeText.FormatDelta(delta, settings.EnableDynamicDeltaTimeUnits)
+            ? TimeText.FormatDelta(delta, settings.Overlay.EnableDynamicDeltaTimeUnits)
             : string.Empty;
     }
 
@@ -178,17 +178,17 @@ internal static class SplitRenderData
 
     public static bool IsSplitCompletionSplitComparisonEnabled(AppSettings settings, string groupKey)
     {
-        return !settings.SplitCompletionSplitComparisons.TryGetValue(groupKey, out bool enabled) || enabled;
+        return !settings.Overlay.SplitCompletionSplitComparisons.TryGetValue(groupKey, out bool enabled) || enabled;
     }
 
     public static bool IsSplitCompletionSegmentComparisonEnabled(AppSettings settings, string groupKey)
     {
-        return !settings.SplitCompletionSegmentComparisons.TryGetValue(groupKey, out bool enabled) || enabled;
+        return !settings.Overlay.SplitCompletionSegmentComparisons.TryGetValue(groupKey, out bool enabled) || enabled;
     }
 
     public static string GetSegmentBestDeltaHighlightStyle(AppSettings settings, string groupKey)
     {
-        return settings.SegmentBestDeltaHighlightStyles.TryGetValue(groupKey, out string? style)
+        return settings.Overlay.SegmentBestDeltaHighlightStyles.TryGetValue(groupKey, out string? style)
             ? SegmentBestDeltaHighlightStyles.Normalize(style)
             : SegmentBestDeltaHighlightStyles.Aurora;
     }
@@ -199,29 +199,29 @@ internal static class OverlayTextStyles
     public static float GetIconOpacity(AppSettings settings, bool attached = false)
     {
         return GetOpacity(attached
-            ? settings.TextEffects.AttachedIconOpacityPercent
-            : settings.TextEffects.IconOpacityPercent);
+            ? settings.Overlay.TextEffects.AttachedIconOpacityPercent
+            : settings.Overlay.TextEffects.IconOpacityPercent);
     }
 
     public static float GetTimeTextOpacity(AppSettings settings, bool attached = false)
     {
         return GetOpacity(attached
-            ? settings.TextEffects.AttachedTimeOpacityPercent
-            : settings.TextEffects.TimeOpacityPercent);
+            ? settings.Overlay.TextEffects.AttachedTimeOpacityPercent
+            : settings.Overlay.TextEffects.TimeOpacityPercent);
     }
 
     public static float GetDeltaTextOpacity(AppSettings settings, bool attached = false)
     {
         return GetOpacity(attached
-            ? settings.TextEffects.AttachedDeltaOpacityPercent
-            : settings.TextEffects.DeltaOpacityPercent);
+            ? settings.Overlay.TextEffects.AttachedDeltaOpacityPercent
+            : settings.Overlay.TextEffects.DeltaOpacityPercent);
     }
 
     public static float GetTimerTextOpacity(AppSettings settings, bool milliseconds)
     {
         return GetOpacity(milliseconds
-            ? settings.TextEffects.TimerMillisecondsOpacityPercent
-            : settings.TextEffects.TimerOpacityPercent);
+            ? settings.Overlay.TextEffects.TimerMillisecondsOpacityPercent
+            : settings.Overlay.TextEffects.TimerOpacityPercent);
     }
 
     public static TextRenderStyle GetReferenceTextStyle(
@@ -251,8 +251,8 @@ internal static class OverlayTextStyles
             palette.SplitText,
             palette.SplitTextOutline,
             palette.SplitTextShadow,
-            attached ? settings.TextEffects.AttachedTimeShadowPercent : settings.TextEffects.TimeShadowPercent,
-            attached ? settings.TextEffects.AttachedTimeOutlineThicknessPercent : settings.TextEffects.TimeOutlineThicknessPercent);
+            attached ? settings.Overlay.TextEffects.AttachedTimeShadowPercent : settings.Overlay.TextEffects.TimeShadowPercent,
+            attached ? settings.Overlay.TextEffects.AttachedTimeOutlineThicknessPercent : settings.Overlay.TextEffects.TimeOutlineThicknessPercent);
     }
 
     public static TextRenderStyle GetDeltaTextStyle(
@@ -323,7 +323,7 @@ internal static class OverlayTextStyles
             }
 
             if (settings.TryGetReferenceSplit(statuses[^1].Definition, out finalReference) &&
-                settings.EnableTimerGradientColor)
+                settings.Overlay.EnableTimerGradientColor)
             {
                 return GetTimerGradientTextStyle(settings, finalTime - finalReference, palette, milliseconds);
             }
@@ -356,7 +356,7 @@ internal static class OverlayTextStyles
         if (TryGetTimerComparisonDefinition(settings, statuses, currentSplitIndex, out SplitDefinition comparisonDefinition) &&
             settings.TryGetReferenceSplit(comparisonDefinition, out TimeSpan currentReference))
         {
-            if (settings.EnableTimerGradientColor)
+            if (settings.Overlay.EnableTimerGradientColor)
             {
                 return GetTimerGradientTextStyle(settings, timerElapsed - currentReference, palette, milliseconds);
             }
@@ -392,7 +392,7 @@ internal static class OverlayTextStyles
         }
 
         SplitDefinition current = statuses[currentSplitIndex].Definition;
-        if (settings.AttachedGroupsAffectTimerComparison || !current.IsAttached)
+        if (settings.Route.AttachedGroupsAffectTimerComparison || !current.IsAttached)
         {
             definition = current;
             return true;
@@ -467,8 +467,8 @@ internal static class OverlayTextStyles
             fill,
             outline,
             shadow,
-            attached ? settings.TextEffects.AttachedTimeShadowPercent : settings.TextEffects.TimeShadowPercent,
-            attached ? settings.TextEffects.AttachedTimeOutlineThicknessPercent : settings.TextEffects.TimeOutlineThicknessPercent);
+            attached ? settings.Overlay.TextEffects.AttachedTimeShadowPercent : settings.Overlay.TextEffects.TimeShadowPercent,
+            attached ? settings.Overlay.TextEffects.AttachedTimeOutlineThicknessPercent : settings.Overlay.TextEffects.TimeOutlineThicknessPercent);
     }
 
     private static TextRenderStyle CreateDeltaTextStyle(
@@ -482,8 +482,8 @@ internal static class OverlayTextStyles
             fill,
             outline,
             shadow,
-            attached ? settings.TextEffects.AttachedDeltaShadowPercent : settings.TextEffects.DeltaShadowPercent,
-            attached ? settings.TextEffects.AttachedDeltaOutlineThicknessPercent : settings.TextEffects.DeltaOutlineThicknessPercent);
+            attached ? settings.Overlay.TextEffects.AttachedDeltaShadowPercent : settings.Overlay.TextEffects.DeltaShadowPercent,
+            attached ? settings.Overlay.TextEffects.AttachedDeltaOutlineThicknessPercent : settings.Overlay.TextEffects.DeltaOutlineThicknessPercent);
     }
 
     private static TextRenderStyle CreateTimerTextStyle(
@@ -498,11 +498,11 @@ internal static class OverlayTextStyles
             outline,
             shadow,
             milliseconds
-                ? settings.TextEffects.TimerMillisecondsShadowPercent
-                : settings.TextEffects.TimerShadowPercent,
+                ? settings.Overlay.TextEffects.TimerMillisecondsShadowPercent
+                : settings.Overlay.TextEffects.TimerShadowPercent,
             milliseconds
-                ? settings.TextEffects.TimerMillisecondsOutlineThicknessPercent
-                : settings.TextEffects.TimerOutlineThicknessPercent);
+                ? settings.Overlay.TextEffects.TimerMillisecondsOutlineThicknessPercent
+                : settings.Overlay.TextEffects.TimerOutlineThicknessPercent);
     }
 
     private static float GetOpacity(int opacityPercent)
@@ -556,7 +556,7 @@ internal static class OverlayColorMath
                 palette.DeltaBehindText);
         }
 
-        if (TimeText.IsDeltaDisplayedAsZero(delta.Value, settings.EnableDynamicDeltaTimeUnits))
+        if (TimeText.IsDeltaDisplayedAsZero(delta.Value, settings.Overlay.EnableDynamicDeltaTimeUnits))
         {
             return palette.DeltaBehindText;
         }
@@ -586,9 +586,9 @@ internal static class OverlayColorMath
             return baseColor;
         }
 
-        float thresholdSeconds = Math.Max(1, settings.DeltaGradientThresholdSeconds);
+        float thresholdSeconds = Math.Max(1, settings.Overlay.DeltaGradientThresholdSeconds);
         float magnitude = Math.Min(1f, (float)(Math.Abs(delta.TotalSeconds) / thresholdSeconds));
-        float amount = DeltaGradientCurves.Evaluate(settings.DeltaGradientCurve, magnitude);
+        float amount = DeltaGradientCurves.Evaluate(settings.Overlay.DeltaGradientCurve, magnitude);
         return delta < TimeSpan.Zero
             ? BlendColor(baseColor, aheadColor, amount)
             : BlendColor(baseColor, behindColor, amount);

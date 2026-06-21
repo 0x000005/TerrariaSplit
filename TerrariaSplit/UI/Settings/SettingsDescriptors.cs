@@ -117,30 +117,30 @@ internal static class SettingsBinder
 {
     public static void ApplyColors(AppSettings targetSettings, IReadOnlyDictionary<string, TextBox> colorTextBoxes)
     {
-        targetSettings.Colors ??= new UiColorSettings();
+        targetSettings.Overlay.Colors ??= new UiColorSettings();
 
         foreach (TextColorDescriptor descriptor in SettingsDescriptors.TextColors)
         {
-            ApplyColor(colorTextBoxes, descriptor.TextKey, value => descriptor.SetText(targetSettings.Colors, value));
-            ApplyColor(colorTextBoxes, descriptor.OutlineKey, value => descriptor.SetOutline(targetSettings.Colors, value));
-            ApplyColor(colorTextBoxes, descriptor.ShadowKey, value => descriptor.SetShadow(targetSettings.Colors, value));
+            ApplyColor(colorTextBoxes, descriptor.TextKey, value => descriptor.SetText(targetSettings.Overlay.Colors, value));
+            ApplyColor(colorTextBoxes, descriptor.OutlineKey, value => descriptor.SetOutline(targetSettings.Overlay.Colors, value));
+            ApplyColor(colorTextBoxes, descriptor.ShadowKey, value => descriptor.SetShadow(targetSettings.Overlay.Colors, value));
         }
 
         foreach (ColorDescriptor descriptor in SettingsDescriptors.AnimationColors)
         {
-            ApplyColor(colorTextBoxes, descriptor.Key, value => descriptor.SetValue(targetSettings.Colors, value));
+            ApplyColor(colorTextBoxes, descriptor.Key, value => descriptor.SetValue(targetSettings.Overlay.Colors, value));
         }
     }
 
     public static void ApplySounds(AppSettings targetSettings, IReadOnlyDictionary<string, TextBox> soundTextBoxes)
     {
-        targetSettings.Sounds ??= new UiSoundSettings();
+        targetSettings.Overlay.Sounds ??= new UiSoundSettings();
 
         foreach (SoundDescriptor descriptor in SettingsDescriptors.Sounds)
         {
             if (soundTextBoxes.TryGetValue(descriptor.Key, out TextBox? textBox))
             {
-                descriptor.SetValue(targetSettings.Sounds, textBox.Text.Trim());
+                descriptor.SetValue(targetSettings.Overlay.Sounds, textBox.Text.Trim());
             }
         }
     }

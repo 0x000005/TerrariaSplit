@@ -241,7 +241,7 @@ internal sealed partial class DebugSettingsPage : SettingsPageBase
             TerrariaWatchSnapshot snapshot = debugSnapshot.WatchSnapshot;
             TerrariaWatcherDiagnostics diagnostics = debugSnapshot.WatcherDiagnostics;
             TerrariaSaveInventorySnapshot inventory = latestInventory;
-            AutoCreateWorldSettings autoCreate = owner.Result.AutoCreate;
+            AutoCreateWorldSettings autoCreate = owner.Result.Automation.AutoCreate;
             latestWindow = window;
             latestSnapshot = snapshot;
             latestDiagnostics = diagnostics;
@@ -449,7 +449,7 @@ internal sealed partial class DebugSettingsPage : SettingsPageBase
 
             try
             {
-                Clipboard.SetText(BuildDiagnosticReport(latestWindow, debugSnapshot, latestDiagnostics, latestInventory, owner.Result.AutoCreate, owner));
+                Clipboard.SetText(BuildDiagnosticReport(latestWindow, debugSnapshot, latestDiagnostics, latestInventory, owner.Result.Automation.AutoCreate, owner));
             }
             catch (Exception ex)
             {

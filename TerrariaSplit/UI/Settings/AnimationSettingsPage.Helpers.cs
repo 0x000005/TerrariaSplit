@@ -24,10 +24,10 @@ internal sealed partial class AnimationSettingsPage : SettingsPageBase
                     continue;
                 }
 
-                controls.SplitComparison.Checked = GetAnimationOutlineSetting(Draft.SplitCompletionSplitComparisons, group.Key);
-                controls.SegmentComparison.Checked = GetAnimationOutlineSetting(Draft.SplitCompletionSegmentComparisons, group.Key);
-                SetOutlineStyle(controls.SplitTime, GetAnimationOutlineStyle(Draft.SplitCompletionOutlineSplitStyles, group.Key));
-                SetOutlineStyle(controls.SegmentTime, GetAnimationOutlineStyle(Draft.SplitCompletionOutlineSegmentStyles, group.Key));
+                controls.SplitComparison.Checked = GetAnimationOutlineSetting(Draft.Overlay.SplitCompletionSplitComparisons, group.Key);
+                controls.SegmentComparison.Checked = GetAnimationOutlineSetting(Draft.Overlay.SplitCompletionSegmentComparisons, group.Key);
+                SetOutlineStyle(controls.SplitTime, GetAnimationOutlineStyle(Draft.Overlay.SplitCompletionOutlineSplitStyles, group.Key));
+                SetOutlineStyle(controls.SegmentTime, GetAnimationOutlineStyle(Draft.Overlay.SplitCompletionOutlineSegmentStyles, group.Key));
             }
 
             return;
@@ -44,10 +44,10 @@ internal sealed partial class AnimationSettingsPage : SettingsPageBase
             Factory.AddHeaderRow(animationOutlineGrid, "Group", "Cumulative time", "Segment time");
             foreach (RouteGroup group in groups)
             {
-                var splitComparisonBox = CreateComparisonCheckBox(GetAnimationOutlineSetting(Draft.SplitCompletionSplitComparisons, group.Key));
-                var segmentComparisonBox = CreateComparisonCheckBox(GetAnimationOutlineSetting(Draft.SplitCompletionSegmentComparisons, group.Key));
-                ThemedDropDownList splitTimeBox = CreateOutlineStyleBox(GetAnimationOutlineStyle(Draft.SplitCompletionOutlineSplitStyles, group.Key));
-                ThemedDropDownList segmentTimeBox = CreateOutlineStyleBox(GetAnimationOutlineStyle(Draft.SplitCompletionOutlineSegmentStyles, group.Key));
+                var splitComparisonBox = CreateComparisonCheckBox(GetAnimationOutlineSetting(Draft.Overlay.SplitCompletionSplitComparisons, group.Key));
+                var segmentComparisonBox = CreateComparisonCheckBox(GetAnimationOutlineSetting(Draft.Overlay.SplitCompletionSegmentComparisons, group.Key));
+                ThemedDropDownList splitTimeBox = CreateOutlineStyleBox(GetAnimationOutlineStyle(Draft.Overlay.SplitCompletionOutlineSplitStyles, group.Key));
+                ThemedDropDownList segmentTimeBox = CreateOutlineStyleBox(GetAnimationOutlineStyle(Draft.Overlay.SplitCompletionOutlineSegmentStyles, group.Key));
 
                 animationOutlineControls[group.Key] = new AnimationOutlineControls(splitComparisonBox, segmentComparisonBox, splitTimeBox, segmentTimeBox);
 
@@ -229,18 +229,18 @@ internal sealed partial class AnimationSettingsPage : SettingsPageBase
     private (Color AheadColor, Color BaseColor, Color BehindColor, bool Enabled) GetPreviewDeltaGradientPalette()
     {
         return (
-            ColorText.Parse(Draft.Colors.DeltaAheadText, Color.FromArgb(114, 213, 114)),
-            ColorText.Parse(Draft.Colors.TimerText, Color.FromArgb(242, 242, 242)),
-            ColorText.Parse(Draft.Colors.DeltaBehindText, Color.FromArgb(240, 112, 112)),
+            ColorText.Parse(Draft.Overlay.Colors.DeltaAheadText, Color.FromArgb(114, 213, 114)),
+            ColorText.Parse(Draft.Overlay.Colors.TimerText, Color.FromArgb(242, 242, 242)),
+            ColorText.Parse(Draft.Overlay.Colors.DeltaBehindText, Color.FromArgb(240, 112, 112)),
             enableDeltaGradientColorBox.Checked || enableCurrentDeltaGradientColorBox.Checked);
     }
 
     private (Color AheadColor, Color BaseColor, Color BehindColor, bool Enabled) GetPreviewTimerGradientPalette()
     {
         return (
-            ColorText.Parse(Draft.Colors.TimerAheadText, Color.LightGreen),
-            ColorText.Parse(Draft.Colors.TimerText, Color.FromArgb(242, 242, 242)),
-            ColorText.Parse(Draft.Colors.TimerBehindText, Color.LightCoral),
+            ColorText.Parse(Draft.Overlay.Colors.TimerAheadText, Color.LightGreen),
+            ColorText.Parse(Draft.Overlay.Colors.TimerText, Color.FromArgb(242, 242, 242)),
+            ColorText.Parse(Draft.Overlay.Colors.TimerBehindText, Color.LightCoral),
             enableTimerGradientColorBox.Checked);
     }
 
@@ -339,8 +339,8 @@ internal sealed partial class AnimationSettingsPage : SettingsPageBase
         double seconds = Environment.TickCount64 / 1000.0;
         Color[] baseColors =
         {
-            ColorText.Parse(Draft.Colors.DeltaAheadText, Color.FromArgb(114, 213, 114)),
-            ColorText.Parse(Draft.Colors.DeltaBehindText, Color.FromArgb(240, 112, 112))
+            ColorText.Parse(Draft.Overlay.Colors.DeltaAheadText, Color.FromArgb(114, 213, 114)),
+            ColorText.Parse(Draft.Overlay.Colors.DeltaBehindText, Color.FromArgb(240, 112, 112))
         };
         string[] texts = { "-0:01.23", "+0:01.23" };
         int columns = texts.Length;
@@ -456,7 +456,7 @@ internal sealed partial class AnimationSettingsPage : SettingsPageBase
 
     private string GetSegmentBestDeltaHighlightStyle(string key)
     {
-        return Draft.SegmentBestDeltaHighlightStyles.TryGetValue(key, out string? style)
+        return Draft.Overlay.SegmentBestDeltaHighlightStyles.TryGetValue(key, out string? style)
             ? SegmentBestDeltaHighlightStyles.Normalize(style)
             : SegmentBestDeltaHighlightStyles.Aurora;
     }
@@ -511,7 +511,7 @@ internal sealed partial class AnimationSettingsPage : SettingsPageBase
             deltaGradientCurveBox.Items.Add(new EffectStyleOption(curve, Context.Localize(DeltaGradientCurves.GetDisplayName(curve))));
         }
 
-        SetDeltaGradientCurve(deltaGradientCurveBox, Draft.DeltaGradientCurve);
+        SetDeltaGradientCurve(deltaGradientCurveBox, Draft.Overlay.DeltaGradientCurve);
         deltaGradientCurveBox.SelectedIndexChanged += (_, _) => InvalidateDeltaGradientPreview();
     }
 
@@ -542,17 +542,17 @@ internal sealed partial class AnimationSettingsPage : SettingsPageBase
     {
         foreach ((string key, AnimationOutlineControls controls) in animationOutlineControls)
         {
-            Draft.SplitCompletionSplitComparisons[key] = controls.SplitComparison.Checked;
-            Draft.SplitCompletionSegmentComparisons[key] = controls.SegmentComparison.Checked;
+            Draft.Overlay.SplitCompletionSplitComparisons[key] = controls.SplitComparison.Checked;
+            Draft.Overlay.SplitCompletionSegmentComparisons[key] = controls.SegmentComparison.Checked;
             string splitStyle = GetSelectedOutlineStyle(controls.SplitTime);
             string segmentStyle = GetSelectedOutlineStyle(controls.SegmentTime);
-            Draft.SplitCompletionOutlineSplitStyles[key] = splitStyle;
-            Draft.SplitCompletionOutlineSegmentStyles[key] = segmentStyle;
+            Draft.Overlay.SplitCompletionOutlineSplitStyles[key] = splitStyle;
+            Draft.Overlay.SplitCompletionOutlineSegmentStyles[key] = segmentStyle;
         }
 
         foreach ((string key, SegmentBestDeltaHighlightControls controls) in segmentBestDeltaHighlightControls)
         {
-            Draft.SegmentBestDeltaHighlightStyles[key] = GetSelectedEffectStyle(controls.Style);
+            Draft.Overlay.SegmentBestDeltaHighlightStyles[key] = GetSelectedEffectStyle(controls.Style);
         }
     }
 

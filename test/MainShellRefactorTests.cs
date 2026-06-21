@@ -512,10 +512,16 @@ internal static class MainShellRefactorTests
             using var menu = new ContextMenuStrip();
             var settings = new AppSettings
             {
-                Language = "\u4E2D\u6587",
-                AutoCreate = new AutoCreateWorldSettings
+                General =
                 {
-                    EnablePyramidFilter = true
+                    Language = "\u4E2D\u6587"
+                },
+                Automation =
+                {
+                    AutoCreate = new AutoCreateWorldSettings
+                    {
+                        EnablePyramidFilter = true
+                    }
                 }
             };
 
@@ -545,13 +551,13 @@ internal static class MainShellRefactorTests
     {
         RunSta(() =>
         {
-            using var englishForm = new PracticeWorldSelectorForm(new AppSettings { Language = LanguageNames.English });
+            using var englishForm = new PracticeWorldSelectorForm(new AppSettings { General = { Language = LanguageNames.English } });
             TestAssert.Equal("Save Selector", englishForm.Text);
             TestAssert.Equal(
                 true,
                 EnumerateControls(englishForm).OfType<Label>().Any(label => label.Text == "Press ESC to exit"));
 
-            using var chineseForm = new PracticeWorldSelectorForm(new AppSettings { Language = "\u4E2D\u6587" });
+            using var chineseForm = new PracticeWorldSelectorForm(new AppSettings { General = { Language = "\u4E2D\u6587" } });
             TestAssert.Equal("\u5B58\u6863\u9009\u62E9", chineseForm.Text);
             TestAssert.Equal(
                 true,

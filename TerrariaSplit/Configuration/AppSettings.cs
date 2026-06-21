@@ -14,392 +14,6 @@ internal sealed class AppSettings
     public AutomationSettings Automation { get; set; } = new();
     public PracticeWorldSettings PracticeWorlds { get; set; } = new();
     public AdvancedSettings Advanced { get; set; } = new();
-
-    [JsonIgnore]
-    public string PauseResumeKey
-    {
-        get => (Hotkeys ??= new HotkeySettings()).PauseResumeKey;
-        set => (Hotkeys ??= new HotkeySettings()).PauseResumeKey = value;
-    }
-
-    [JsonIgnore]
-    public string ResetKey
-    {
-        get => (Hotkeys ??= new HotkeySettings()).ResetKey;
-        set => (Hotkeys ??= new HotkeySettings()).ResetKey = value;
-    }
-
-    [JsonIgnore]
-    public string MouseClickThroughKey
-    {
-        get => (Hotkeys ??= new HotkeySettings()).MouseClickThroughKey;
-        set => (Hotkeys ??= new HotkeySettings()).MouseClickThroughKey = value;
-    }
-
-    [JsonIgnore]
-    public string CreateWorldKey
-    {
-        get => (Hotkeys ??= new HotkeySettings()).CreateWorldKey;
-        set => (Hotkeys ??= new HotkeySettings()).CreateWorldKey = value;
-    }
-
-    [JsonIgnore]
-    public string PracticeWorldKey
-    {
-        get => (Hotkeys ??= new HotkeySettings()).PracticeWorldKey;
-        set => (Hotkeys ??= new HotkeySettings()).PracticeWorldKey = value;
-    }
-
-    [JsonIgnore]
-    public bool ShowMouseClickThroughIndicator
-    {
-        get => (General ??= new GeneralSettings()).ShowMouseClickThroughIndicator;
-        set => (General ??= new GeneralSettings()).ShowMouseClickThroughIndicator = value;
-    }
-
-    [JsonIgnore]
-    public string Language
-    {
-        get => (General ??= new GeneralSettings()).Language;
-        set => (General ??= new GeneralSettings()).Language = value;
-    }
-
-    [JsonIgnore]
-    public bool AlwaysOnTop
-    {
-        get => (General ??= new GeneralSettings()).AlwaysOnTop;
-        set => (General ??= new GeneralSettings()).AlwaysOnTop = value;
-    }
-
-    [JsonIgnore]
-    public bool PracticeMode
-    {
-        get => (General ??= new GeneralSettings()).PracticeMode;
-        set => (General ??= new GeneralSettings()).PracticeMode = value;
-    }
-
-    [JsonIgnore]
-    public List<SplitRouteEntry> SplitRoute
-    {
-        get => (Route ??= new RouteSettings()).SplitRoute;
-        set => (Route ??= new RouteSettings()).SplitRoute = value;
-    }
-
-    [JsonIgnore]
-    public bool ExpandSplitDetails
-    {
-        get => (Route ??= new RouteSettings()).ExpandSplitDetails;
-        set => (Route ??= new RouteSettings()).ExpandSplitDetails = value;
-    }
-
-    [JsonIgnore]
-    public bool CollapseSplitDetailsOnCompletion
-    {
-        get => (Route ??= new RouteSettings()).CollapseSplitDetailsOnCompletion;
-        set => (Route ??= new RouteSettings()).CollapseSplitDetailsOnCompletion = value;
-    }
-
-    [JsonIgnore]
-    public bool AutoHideAttachedGroups
-    {
-        get => (Route ??= new RouteSettings()).AutoHideAttachedGroups;
-        set => (Route ??= new RouteSettings()).AutoHideAttachedGroups = value;
-    }
-
-    [JsonIgnore]
-    public bool AttachedGroupsAffectTimerComparison
-    {
-        get => (Route ??= new RouteSettings()).AttachedGroupsAffectTimerComparison;
-        set => (Route ??= new RouteSettings()).AttachedGroupsAffectTimerComparison = value;
-    }
-
-    [JsonIgnore]
-    public List<ReferenceSplitSet> ReferenceSplitSets
-    {
-        get => (Comparison ??= new ComparisonSettings()).ReferenceSplitSets;
-        set => (Comparison ??= new ComparisonSettings()).ReferenceSplitSets = value;
-    }
-
-    [JsonIgnore]
-    public string ActiveReferenceSplitSet
-    {
-        get => (Comparison ??= new ComparisonSettings()).ActiveReferenceSplitSet;
-        set => (Comparison ??= new ComparisonSettings()).ActiveReferenceSplitSet = value;
-    }
-
-    [JsonIgnore]
-    public bool UsePersonalBestAsReferenceTime
-    {
-        get => (Comparison ??= new ComparisonSettings()).UsePersonalBestAsReferenceTime;
-        set => (Comparison ??= new ComparisonSettings()).UsePersonalBestAsReferenceTime = value;
-    }
-
-    [JsonIgnore]
-    public List<ReferenceSplitSet> PersonalBestTimeSets
-    {
-        get => (Comparison ??= new ComparisonSettings()).PersonalBestTimeSets;
-        set => (Comparison ??= new ComparisonSettings()).PersonalBestTimeSets = value;
-    }
-
-    [JsonIgnore]
-    public string ActivePersonalBestTimeSet
-    {
-        get => (Comparison ??= new ComparisonSettings()).ActivePersonalBestTimeSet;
-        set => (Comparison ??= new ComparisonSettings()).ActivePersonalBestTimeSet = value;
-    }
-
-    [JsonIgnore]
-    public List<ReferenceSplitSet> PersonalBestSegmentSets
-    {
-        get => (Comparison ??= new ComparisonSettings()).PersonalBestSegmentSets;
-        set => (Comparison ??= new ComparisonSettings()).PersonalBestSegmentSets = value;
-    }
-
-    [JsonIgnore]
-    public string ActivePersonalBestSegmentSet
-    {
-        get => (Comparison ??= new ComparisonSettings()).ActivePersonalBestSegmentSet;
-        set => (Comparison ??= new ComparisonSettings()).ActivePersonalBestSegmentSet = value;
-    }
-
-    [JsonIgnore]
-    public Dictionary<string, string> PersonalBestTimes
-    {
-        get => (Comparison ??= new ComparisonSettings()).PersonalBestTimes;
-        set => (Comparison ??= new ComparisonSettings()).PersonalBestTimes = value;
-    }
-
-    [JsonIgnore]
-    public Dictionary<string, string> PersonalBestSegmentTimes
-    {
-        get => (Comparison ??= new ComparisonSettings()).PersonalBestSegmentTimes;
-        set => (Comparison ??= new ComparisonSettings()).PersonalBestSegmentTimes = value;
-    }
-
-    [JsonIgnore]
-    public bool AutoUpdatePersonalBestData
-    {
-        get => (Comparison ??= new ComparisonSettings()).AutoUpdatePersonalBestData;
-        set => (Comparison ??= new ComparisonSettings()).AutoUpdatePersonalBestData = value;
-    }
-
-    [JsonIgnore]
-    public bool AskBeforeUpdatingPersonalBestData
-    {
-        get => (Comparison ??= new ComparisonSettings()).AskBeforeUpdatingPersonalBestData;
-        set => (Comparison ??= new ComparisonSettings()).AskBeforeUpdatingPersonalBestData = value;
-    }
-
-    [JsonIgnore]
-    public bool ShowSplitCompletionAnimation
-    {
-        get => (Overlay ??= new OverlaySettings()).ShowSplitCompletionAnimation;
-        set => (Overlay ??= new OverlaySettings()).ShowSplitCompletionAnimation = value;
-    }
-
-    [JsonIgnore]
-    public float SplitCompletionAnimationDurationSeconds
-    {
-        get => (Overlay ??= new OverlaySettings()).SplitCompletionAnimationDurationSeconds;
-        set => (Overlay ??= new OverlaySettings()).SplitCompletionAnimationDurationSeconds = value;
-    }
-
-    [JsonIgnore]
-    public int SplitCompletionOutlineThicknessPercent
-    {
-        get => (Overlay ??= new OverlaySettings()).SplitCompletionOutlineThicknessPercent;
-        set => (Overlay ??= new OverlaySettings()).SplitCompletionOutlineThicknessPercent = value;
-    }
-
-    [JsonIgnore]
-    public Dictionary<string, bool> SplitCompletionSplitComparisons
-    {
-        get => (Overlay ??= new OverlaySettings()).SplitCompletionSplitComparisons;
-        set => (Overlay ??= new OverlaySettings()).SplitCompletionSplitComparisons = value;
-    }
-
-    [JsonIgnore]
-    public Dictionary<string, bool> SplitCompletionSegmentComparisons
-    {
-        get => (Overlay ??= new OverlaySettings()).SplitCompletionSegmentComparisons;
-        set => (Overlay ??= new OverlaySettings()).SplitCompletionSegmentComparisons = value;
-    }
-
-    [JsonIgnore]
-    public Dictionary<string, string> SplitCompletionOutlineSplitStyles
-    {
-        get => (Overlay ??= new OverlaySettings()).SplitCompletionOutlineSplitStyles;
-        set => (Overlay ??= new OverlaySettings()).SplitCompletionOutlineSplitStyles = value;
-    }
-
-    [JsonIgnore]
-    public Dictionary<string, string> SplitCompletionOutlineSegmentStyles
-    {
-        get => (Overlay ??= new OverlaySettings()).SplitCompletionOutlineSegmentStyles;
-        set => (Overlay ??= new OverlaySettings()).SplitCompletionOutlineSegmentStyles = value;
-    }
-
-    [JsonIgnore]
-    public bool ShowCurrentSplitHighlight
-    {
-        get => (Overlay ??= new OverlaySettings()).ShowCurrentSplitHighlight;
-        set => (Overlay ??= new OverlaySettings()).ShowCurrentSplitHighlight = value;
-    }
-
-    [JsonIgnore]
-    public int CurrentSplitHighlightScalePercent
-    {
-        get => (Overlay ??= new OverlaySettings()).CurrentSplitHighlightScalePercent;
-        set => (Overlay ??= new OverlaySettings()).CurrentSplitHighlightScalePercent = value;
-    }
-
-    [JsonIgnore]
-    public int CurrentSplitDepthStrengthPercent
-    {
-        get => (Overlay ??= new OverlaySettings()).CurrentSplitDepthStrengthPercent;
-        set => (Overlay ??= new OverlaySettings()).CurrentSplitDepthStrengthPercent = value;
-    }
-
-    [JsonIgnore]
-    public bool ShowEarlyDeltaTime
-    {
-        get => (Overlay ??= new OverlaySettings()).ShowEarlyDeltaTime;
-        set => (Overlay ??= new OverlaySettings()).ShowEarlyDeltaTime = value;
-    }
-
-    [JsonIgnore]
-    public int EarlyDeltaTimeSeconds
-    {
-        get => (Overlay ??= new OverlaySettings()).EarlyDeltaTimeSeconds;
-        set => (Overlay ??= new OverlaySettings()).EarlyDeltaTimeSeconds = value;
-    }
-
-    [JsonIgnore]
-    public bool EnableDynamicDeltaTimeUnits
-    {
-        get => (Overlay ??= new OverlaySettings()).EnableDynamicDeltaTimeUnits;
-        set => (Overlay ??= new OverlaySettings()).EnableDynamicDeltaTimeUnits = value;
-    }
-
-    [JsonIgnore]
-    public bool EnableDeltaGradientColor
-    {
-        get => (Overlay ??= new OverlaySettings()).EnableDeltaGradientColor;
-        set => (Overlay ??= new OverlaySettings()).EnableDeltaGradientColor = value;
-    }
-
-    [JsonIgnore]
-    public bool EnableCurrentDeltaGradientColor
-    {
-        get => (Overlay ??= new OverlaySettings()).EnableCurrentDeltaGradientColor;
-        set => (Overlay ??= new OverlaySettings()).EnableCurrentDeltaGradientColor = value;
-    }
-
-    [JsonIgnore]
-    public bool EnableTimerGradientColor
-    {
-        get => (Overlay ??= new OverlaySettings()).EnableTimerGradientColor;
-        set => (Overlay ??= new OverlaySettings()).EnableTimerGradientColor = value;
-    }
-
-    [JsonIgnore]
-    public int DeltaGradientThresholdSeconds
-    {
-        get => (Overlay ??= new OverlaySettings()).DeltaGradientThresholdSeconds;
-        set => (Overlay ??= new OverlaySettings()).DeltaGradientThresholdSeconds = value;
-    }
-
-    [JsonIgnore]
-    public string DeltaGradientCurve
-    {
-        get => (Overlay ??= new OverlaySettings()).DeltaGradientCurve;
-        set => (Overlay ??= new OverlaySettings()).DeltaGradientCurve = value;
-    }
-
-    [JsonIgnore]
-    public bool ShowSegmentBestDeltaHighlight
-    {
-        get => (Overlay ??= new OverlaySettings()).ShowSegmentBestDeltaHighlight;
-        set => (Overlay ??= new OverlaySettings()).ShowSegmentBestDeltaHighlight = value;
-    }
-
-    [JsonIgnore]
-    public Dictionary<string, string> SegmentBestDeltaHighlightStyles
-    {
-        get => (Overlay ??= new OverlaySettings()).SegmentBestDeltaHighlightStyles;
-        set => (Overlay ??= new OverlaySettings()).SegmentBestDeltaHighlightStyles = value;
-    }
-
-    [JsonIgnore]
-    public UiColorSettings Colors
-    {
-        get => (Overlay ??= new OverlaySettings()).Colors;
-        set => (Overlay ??= new OverlaySettings()).Colors = value;
-    }
-
-    [JsonIgnore]
-    public UiSoundSettings Sounds
-    {
-        get => (Overlay ??= new OverlaySettings()).Sounds;
-        set => (Overlay ??= new OverlaySettings()).Sounds = value;
-    }
-
-    [JsonIgnore]
-    public UiColumnLayoutSettings Columns
-    {
-        get => (Overlay ??= new OverlaySettings()).Columns;
-        set => (Overlay ??= new OverlaySettings()).Columns = value;
-    }
-
-    [JsonIgnore]
-    public UiTextEffectSettings TextEffects
-    {
-        get => (Overlay ??= new OverlaySettings()).TextEffects;
-        set => (Overlay ??= new OverlaySettings()).TextEffects = value;
-    }
-
-    [JsonIgnore]
-    public AutoCreateWorldSettings AutoCreate
-    {
-        get => (Automation ??= new AutomationSettings()).AutoCreate;
-        set => (Automation ??= new AutomationSettings()).AutoCreate = value;
-    }
-
-    [JsonIgnore]
-    public bool EnableDefeatedBossIconLighting
-    {
-        get => (Overlay ??= new OverlaySettings()).EnableDefeatedBossIconLighting;
-        set => (Overlay ??= new OverlaySettings()).EnableDefeatedBossIconLighting = value;
-    }
-
-    [JsonIgnore]
-    public int UndefeatedIconGrayscalePercent
-    {
-        get => (Overlay ??= new OverlaySettings()).UndefeatedIconGrayscalePercent;
-        set => (Overlay ??= new OverlaySettings()).UndefeatedIconGrayscalePercent = value;
-    }
-
-    [JsonIgnore]
-    public int UndefeatedIconBrightnessPercent
-    {
-        get => (Overlay ??= new OverlaySettings()).UndefeatedIconBrightnessPercent;
-        set => (Overlay ??= new OverlaySettings()).UndefeatedIconBrightnessPercent = value;
-    }
-
-    [JsonIgnore]
-    public int CurrentBossIconGrayscaleWeakenPercent
-    {
-        get => (Overlay ??= new OverlaySettings()).CurrentBossIconGrayscaleWeakenPercent;
-        set => (Overlay ??= new OverlaySettings()).CurrentBossIconGrayscaleWeakenPercent = value;
-    }
-
-    [JsonIgnore]
-    public int CurrentBossIconBrightnessBoostPercent
-    {
-        get => (Overlay ??= new OverlaySettings()).CurrentBossIconBrightnessBoostPercent;
-        set => (Overlay ??= new OverlaySettings()).CurrentBossIconBrightnessBoostPercent = value;
-    }
-
     public bool TryGetReferenceSplit(SplitDefinition definition, out TimeSpan split)
     {
         return SplitConditionDataRows.TryGetSplitTime(this, GetActiveReferenceSet().Splits, definition, out split);
@@ -412,17 +26,17 @@ internal sealed class AppSettings
 
     public string GetPersonalBestTimeText(string name)
     {
-        return PersonalBestTimes.TryGetValue(name, out string? value) ? value : string.Empty;
+        return Comparison.PersonalBestTimes.TryGetValue(name, out string? value) ? value : string.Empty;
     }
 
     public string GetPersonalBestSegmentText(string name)
     {
-        return PersonalBestSegmentTimes.TryGetValue(name, out string? value) ? value : string.Empty;
+        return Comparison.PersonalBestSegmentTimes.TryGetValue(name, out string? value) ? value : string.Empty;
     }
 
     public void SetReferenceText(string name, string value)
     {
-        if (UsePersonalBestAsReferenceTime)
+        if (Comparison.UsePersonalBestAsReferenceTime)
         {
             return;
         }
@@ -432,76 +46,79 @@ internal sealed class AppSettings
 
     public void SetPersonalBestTimeText(string name, string value)
     {
-        PersonalBestTimes[name] = value;
+        Comparison.PersonalBestTimes[name] = value;
     }
 
     public void SetPersonalBestSegmentText(string name, string value)
     {
-        PersonalBestSegmentTimes[name] = value;
+        Comparison.PersonalBestSegmentTimes[name] = value;
     }
 
     public ReferenceSplitSet GetActiveReferenceSet()
     {
-        if (UsePersonalBestAsReferenceTime)
+        if (Comparison.UsePersonalBestAsReferenceTime)
         {
             return CreatePersonalBestReferenceSet();
         }
 
-        ReferenceSplitSet? activeSet = ReferenceSplitSets.FirstOrDefault(
-            set => string.Equals(set.Name, ActiveReferenceSplitSet, StringComparison.OrdinalIgnoreCase));
+        ReferenceSplitSet? activeSet = Comparison.ReferenceSplitSets.FirstOrDefault(
+            set => string.Equals(set.Name, Comparison.ActiveReferenceSplitSet, StringComparison.OrdinalIgnoreCase));
         if (activeSet is not null)
         {
             return activeSet;
         }
 
-        if (ReferenceSplitSets.Count == 0)
+        if (Comparison.ReferenceSplitSets.Count == 0)
         {
-            ReferenceSplitSets.Add(CreateReferenceSet("WR", keys: SplitConditionDataRows.Build(this).Select(row => row.Key)));
+            Comparison.ReferenceSplitSets.Add(CreateReferenceSet("WR", keys: SplitConditionDataRows.Build(this).Select(row => row.Key)));
         }
 
-        ActiveReferenceSplitSet = ReferenceSplitSets[0].Name;
-        return ReferenceSplitSets[0];
+        Comparison.ActiveReferenceSplitSet = Comparison.ReferenceSplitSets[0].Name;
+        return Comparison.ReferenceSplitSets[0];
     }
 
     public ReferenceSplitSet CreatePersonalBestReferenceSet()
     {
-        return CreateReferenceSet(PersonalBestReferenceSetName, PersonalBestTimes, SplitConditionDataRows.Build(this).Select(row => row.Key));
+        return CreateReferenceSet(
+            PersonalBestReferenceSetName,
+            Comparison.PersonalBestTimes,
+            SplitConditionDataRows.Build(this).Select(row => row.Key));
     }
 
     public ReferenceSplitSet GetActivePersonalBestTimeSet()
     {
         ReferenceSplitSet set = GetActivePersonalSet(
-            PersonalBestTimeSets,
-            ActivePersonalBestTimeSet,
+            Comparison.PersonalBestTimeSets,
+            Comparison.ActivePersonalBestTimeSet,
             "Personal",
-            PersonalBestTimes,
+            Comparison.PersonalBestTimes,
             out string activeName);
-        ActivePersonalBestTimeSet = activeName;
+        Comparison.ActivePersonalBestTimeSet = activeName;
         return set;
     }
 
     public ReferenceSplitSet GetActivePersonalBestSegmentSet()
     {
         ReferenceSplitSet set = GetActivePersonalSet(
-            PersonalBestSegmentSets,
-            ActivePersonalBestSegmentSet,
+            Comparison.PersonalBestSegmentSets,
+            Comparison.ActivePersonalBestSegmentSet,
             "Personal",
-            PersonalBestSegmentTimes,
+            Comparison.PersonalBestSegmentTimes,
             out string activeName);
-        ActivePersonalBestSegmentSet = activeName;
+        Comparison.ActivePersonalBestSegmentSet = activeName;
         return set;
     }
 
     public void SyncPersonalBestTimesFromActiveSet()
     {
-        PersonalBestTimes = new Dictionary<string, string>(
+        Comparison.PersonalBestTimes = new Dictionary<string, string>(
             GetActivePersonalBestTimeSet().Splits,
             StringComparer.OrdinalIgnoreCase);
     }
 
     public void SyncPersonalBestSegmentsFromActiveSet()
     {
-        PersonalBestSegmentTimes = new Dictionary<string, string>(
+        Comparison.PersonalBestSegmentTimes = new Dictionary<string, string>(
             GetActivePersonalBestSegmentSet().Splits,
             StringComparer.OrdinalIgnoreCase);
     }
@@ -509,14 +126,14 @@ internal sealed class AppSettings
     public void SyncActivePersonalBestTimeSetFromDictionary()
     {
         GetActivePersonalBestTimeSet().Splits = new Dictionary<string, string>(
-            PersonalBestTimes,
+            Comparison.PersonalBestTimes,
             StringComparer.OrdinalIgnoreCase);
     }
 
     public void SyncActivePersonalBestSegmentSetFromDictionary()
     {
         GetActivePersonalBestSegmentSet().Splits = new Dictionary<string, string>(
-            PersonalBestSegmentTimes,
+            Comparison.PersonalBestSegmentTimes,
             StringComparer.OrdinalIgnoreCase);
     }
 

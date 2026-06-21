@@ -9,12 +9,12 @@ internal static class SettingsMigrator
 
     private static void MigrateExpandedSplitDetails(AppSettings settings)
     {
-        if (settings.SplitRoute is null)
+        if (settings.Route.SplitRoute is null)
         {
             return;
         }
 
-        foreach (SplitRouteEntry entry in settings.SplitRoute)
+        foreach (SplitRouteEntry entry in settings.Route.SplitRoute)
         {
             if (!entry.ExpandDetails)
             {

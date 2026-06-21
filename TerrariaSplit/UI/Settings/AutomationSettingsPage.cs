@@ -58,62 +58,62 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
 
     public override void Apply(AppSettings settings)
     {
-        settings.AutoCreate.PlayerName = autoCreatePlayerNameBox.Text.Trim();
-        settings.AutoCreate.PlayerTemplateCode = autoCreatePlayerTemplateCodeBox.Text.Trim();
-        settings.AutoCreate.PlayerDifficulty = AutoCreatePlayerDifficulty.Normalize(
+        settings.Automation.AutoCreate.PlayerName = autoCreatePlayerNameBox.Text.Trim();
+        settings.Automation.AutoCreate.PlayerTemplateCode = autoCreatePlayerTemplateCodeBox.Text.Trim();
+        settings.Automation.AutoCreate.PlayerDifficulty = AutoCreatePlayerDifficulty.Normalize(
             GetSelectedOption(autoCreatePlayerDifficultyBox, AutoCreatePlayerDifficulty.Softcore));
-        settings.AutoCreate.WorldSize = AutoCreateWorldSize.Normalize(
+        settings.Automation.AutoCreate.WorldSize = AutoCreateWorldSize.Normalize(
             GetSelectedOption(autoCreateWorldSizeBox, AutoCreateWorldSize.Medium));
-        settings.AutoCreate.WorldDifficulty = AutoCreateWorldDifficulty.Normalize(
+        settings.Automation.AutoCreate.WorldDifficulty = AutoCreateWorldDifficulty.Normalize(
             GetSelectedOption(autoCreateWorldDifficultyBox, AutoCreateWorldDifficulty.Classic));
-        settings.AutoCreate.WorldEvil = AutoCreateWorldEvil.Normalize(
+        settings.Automation.AutoCreate.WorldEvil = AutoCreateWorldEvil.Normalize(
             GetSelectedOption(autoCreateWorldEvilBox, AutoCreateWorldEvil.Random));
         string selectedSpecialSeeds = string.Join(
             "|",
             AutoCreateSpecialWorldSeed.All.Where(seed =>
                 autoCreateSpecialSeedBoxes.TryGetValue(seed, out CheckBox? box) && box.Checked));
-        settings.AutoCreate.SpecialSeeds = string.Join("|", AutoCreateSpecialWorldSeed.ParseList(selectedSpecialSeeds));
-        settings.AutoCreate.SecretSeeds = autoCreateSecretSeedsBox.Text.Trim();
-        settings.AutoCreate.EnableZenithStarCatch = autoCreateZenithStarCatchBox.Checked;
-        settings.AutoCreate.ZenithStarCatchStopStage = GetSelectedZenithStarCatchStopStage();
-        settings.AutoCreate.ZenithStarCatchSpeedSliderValue = AutoCreateZenithStarCatchSpeed.NormalizeSliderValue(autoCreateZenithStarCatchSpeedBar.Value);
-        settings.AutoCreate.EnablePyramidFilter = autoCreatePyramidFilterBox.Checked;
-        settings.AutoCreate.ReturnToMainMenuOnFilterFailure = autoCreateReturnToMainMenuOnFilterFailureBox.Checked;
-        settings.AutoCreate.PyramidFilterItemMask = AutoCreatePyramidFilterItem.ToMask(
+        settings.Automation.AutoCreate.SpecialSeeds = string.Join("|", AutoCreateSpecialWorldSeed.ParseList(selectedSpecialSeeds));
+        settings.Automation.AutoCreate.SecretSeeds = autoCreateSecretSeedsBox.Text.Trim();
+        settings.Automation.AutoCreate.EnableZenithStarCatch = autoCreateZenithStarCatchBox.Checked;
+        settings.Automation.AutoCreate.ZenithStarCatchStopStage = GetSelectedZenithStarCatchStopStage();
+        settings.Automation.AutoCreate.ZenithStarCatchSpeedSliderValue = AutoCreateZenithStarCatchSpeed.NormalizeSliderValue(autoCreateZenithStarCatchSpeedBar.Value);
+        settings.Automation.AutoCreate.EnablePyramidFilter = autoCreatePyramidFilterBox.Checked;
+        settings.Automation.AutoCreate.ReturnToMainMenuOnFilterFailure = autoCreateReturnToMainMenuOnFilterFailureBox.Checked;
+        settings.Automation.AutoCreate.PyramidFilterItemMask = AutoCreatePyramidFilterItem.ToMask(
             AutoCreatePyramidFilterItem.All.Where(item =>
                 autoCreatePyramidItemBoxes.TryGetValue(item, out CheckBox? box) && box.Checked));
-        settings.AutoCreate.EnableWorldPool = autoCreateWorldPoolBox.Checked;
-        settings.AutoCreate.WorldPoolTargetCount = SettingsValueParser.ParseIntBox(
+        settings.Automation.AutoCreate.EnableWorldPool = autoCreateWorldPoolBox.Checked;
+        settings.Automation.AutoCreate.WorldPoolTargetCount = SettingsValueParser.ParseIntBox(
             autoCreateWorldPoolTargetBox,
             AppSettingsDefaults.AutoCreate.WorldPoolTargetCount,
             1,
             50);
-        settings.AutoCreate.ShortActionDelayMilliseconds = SettingsValueParser.ParseIntBox(
+        settings.Automation.AutoCreate.ShortActionDelayMilliseconds = SettingsValueParser.ParseIntBox(
             autoCreateShortActionDelayBox,
             AppSettingsDefaults.AutoCreate.ShortActionDelayMilliseconds,
             0,
             5000);
-        settings.AutoCreate.MenuActionDelayMilliseconds = SettingsValueParser.ParseIntBox(
+        settings.Automation.AutoCreate.MenuActionDelayMilliseconds = SettingsValueParser.ParseIntBox(
             autoCreateMenuActionDelayBox,
             AppSettingsDefaults.AutoCreate.MenuActionDelayMilliseconds,
             0,
             5000);
-        settings.AutoCreate.PyramidFilterPostDelayMilliseconds = SettingsValueParser.ParseIntBox(
+        settings.Automation.AutoCreate.PyramidFilterPostDelayMilliseconds = SettingsValueParser.ParseIntBox(
             autoCreatePyramidFilterPostDelayBox,
             AppSettingsDefaults.AutoCreate.PyramidFilterPostDelayMilliseconds,
             0,
             5000);
-        settings.AutoCreate.WindowActivationDelayMilliseconds = SettingsValueParser.ParseIntBox(
+        settings.Automation.AutoCreate.WindowActivationDelayMilliseconds = SettingsValueParser.ParseIntBox(
             autoCreateWindowActivationDelayBox,
             AppSettingsDefaults.AutoCreate.WindowActivationDelayMilliseconds,
             0,
             5000);
-        settings.AutoCreate.ClickFocusDelayMilliseconds = SettingsValueParser.ParseIntBox(
+        settings.Automation.AutoCreate.ClickFocusDelayMilliseconds = SettingsValueParser.ParseIntBox(
             autoCreateClickFocusDelayBox,
             AppSettingsDefaults.AutoCreate.ClickFocusDelayMilliseconds,
             0,
             5000);
-        settings.AutoCreate.InputPressDurationMilliseconds = SettingsValueParser.ParseIntBox(
+        settings.Automation.AutoCreate.InputPressDurationMilliseconds = SettingsValueParser.ParseIntBox(
             autoCreateInputPressDurationBox,
             AppSettingsDefaults.AutoCreate.InputPressDurationMilliseconds,
             1,
@@ -135,7 +135,7 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
     {
         UiTheme.StyleTextBox(autoCreatePlayerNameBox);
         autoCreatePlayerNameBox.Dock = DockStyle.Fill;
-        autoCreatePlayerNameBox.Text = Draft.AutoCreate.PlayerName;
+        autoCreatePlayerNameBox.Text = Draft.Automation.AutoCreate.PlayerName;
         autoCreatePlayerNameBox.PlaceholderText = Context.Localize("Empty = 1");
 
         UiTheme.StyleTextBox(autoCreatePlayerTemplateCodeBox);
@@ -144,32 +144,32 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
         autoCreatePlayerTemplateCodeBox.AcceptsReturn = true;
         autoCreatePlayerTemplateCodeBox.ScrollBars = ScrollBars.None;
         autoCreatePlayerTemplateCodeBox.Height = autoCreatePlayerTemplateCodeBox.Font.Height * 10 + 14;
-        autoCreatePlayerTemplateCodeBox.Text = Draft.AutoCreate.PlayerTemplateCode;
+        autoCreatePlayerTemplateCodeBox.Text = Draft.Automation.AutoCreate.PlayerTemplateCode;
         autoCreatePlayerTemplateCodeBox.PlaceholderText = Context.Localize("Empty = default character");
 
-        ConfigureOptionBox(autoCreatePlayerDifficultyBox, AutoCreatePlayerDifficulty.All, Draft.AutoCreate.PlayerDifficulty);
-        ConfigureOptionBox(autoCreateWorldSizeBox, AutoCreateWorldSize.All, Draft.AutoCreate.WorldSize);
-        ConfigureOptionBox(autoCreateWorldDifficultyBox, AutoCreateWorldDifficulty.All, Draft.AutoCreate.WorldDifficulty);
-        ConfigureOptionBox(autoCreateWorldEvilBox, AutoCreateWorldEvil.All, Draft.AutoCreate.WorldEvil);
-        ConfigureSeedListBox(autoCreateSecretSeedsBox, Draft.AutoCreate.SecretSeeds);
-        ConfigureCheckBox(autoCreateZenithStarCatchBox, Draft.AutoCreate.EnableZenithStarCatch);
+        ConfigureOptionBox(autoCreatePlayerDifficultyBox, AutoCreatePlayerDifficulty.All, Draft.Automation.AutoCreate.PlayerDifficulty);
+        ConfigureOptionBox(autoCreateWorldSizeBox, AutoCreateWorldSize.All, Draft.Automation.AutoCreate.WorldSize);
+        ConfigureOptionBox(autoCreateWorldDifficultyBox, AutoCreateWorldDifficulty.All, Draft.Automation.AutoCreate.WorldDifficulty);
+        ConfigureOptionBox(autoCreateWorldEvilBox, AutoCreateWorldEvil.All, Draft.Automation.AutoCreate.WorldEvil);
+        ConfigureSeedListBox(autoCreateSecretSeedsBox, Draft.Automation.AutoCreate.SecretSeeds);
+        ConfigureCheckBox(autoCreateZenithStarCatchBox, Draft.Automation.AutoCreate.EnableZenithStarCatch);
         autoCreateZenithStarCatchBox.CheckedChanged += (_, _) => UpdateZenithStarCatchAvailability();
-        ConfigureZenithStarCatchSpeedBar(autoCreateZenithStarCatchSpeedBar, Draft.AutoCreate.ZenithStarCatchSpeedSliderValue);
+        ConfigureZenithStarCatchSpeedBar(autoCreateZenithStarCatchSpeedBar, Draft.Automation.AutoCreate.ZenithStarCatchSpeedSliderValue);
         autoCreateZenithStarCatchSpeedBar.ValueChanged += (_, _) => UpdateZenithStarCatchSpeedLabel();
-        ConfigureCheckBox(autoCreatePyramidFilterBox, Draft.AutoCreate.EnablePyramidFilter);
+        ConfigureCheckBox(autoCreatePyramidFilterBox, Draft.Automation.AutoCreate.EnablePyramidFilter);
         autoCreatePyramidFilterBox.CheckedChanged += (_, _) => UpdatePyramidItemAvailability();
         ConfigureCheckBox(
             autoCreateReturnToMainMenuOnFilterFailureBox,
-            Draft.AutoCreate.ReturnToMainMenuOnFilterFailure);
-        ConfigureCheckBox(autoCreateWorldPoolBox, Draft.AutoCreate.EnableWorldPool);
+            Draft.Automation.AutoCreate.ReturnToMainMenuOnFilterFailure);
+        ConfigureCheckBox(autoCreateWorldPoolBox, Draft.Automation.AutoCreate.EnableWorldPool);
         autoCreateWorldPoolBox.CheckedChanged += (_, _) => UpdateWorldPoolAvailability();
-        ConfigureNumberBox(autoCreateWorldPoolTargetBox, Draft.AutoCreate.WorldPoolTargetCount, 1, 50);
-        ConfigureNumberBox(autoCreateShortActionDelayBox, Draft.AutoCreate.ShortActionDelayMilliseconds, 0, 5000);
-        ConfigureNumberBox(autoCreateMenuActionDelayBox, Draft.AutoCreate.MenuActionDelayMilliseconds, 0, 5000);
-        ConfigureNumberBox(autoCreatePyramidFilterPostDelayBox, Draft.AutoCreate.PyramidFilterPostDelayMilliseconds, 0, 5000);
-        ConfigureNumberBox(autoCreateWindowActivationDelayBox, Draft.AutoCreate.WindowActivationDelayMilliseconds, 0, 5000);
-        ConfigureNumberBox(autoCreateClickFocusDelayBox, Draft.AutoCreate.ClickFocusDelayMilliseconds, 0, 5000);
-        ConfigureNumberBox(autoCreateInputPressDurationBox, Draft.AutoCreate.InputPressDurationMilliseconds, 1, 5000);
+        ConfigureNumberBox(autoCreateWorldPoolTargetBox, Draft.Automation.AutoCreate.WorldPoolTargetCount, 1, 50);
+        ConfigureNumberBox(autoCreateShortActionDelayBox, Draft.Automation.AutoCreate.ShortActionDelayMilliseconds, 0, 5000);
+        ConfigureNumberBox(autoCreateMenuActionDelayBox, Draft.Automation.AutoCreate.MenuActionDelayMilliseconds, 0, 5000);
+        ConfigureNumberBox(autoCreatePyramidFilterPostDelayBox, Draft.Automation.AutoCreate.PyramidFilterPostDelayMilliseconds, 0, 5000);
+        ConfigureNumberBox(autoCreateWindowActivationDelayBox, Draft.Automation.AutoCreate.WindowActivationDelayMilliseconds, 0, 5000);
+        ConfigureNumberBox(autoCreateClickFocusDelayBox, Draft.Automation.AutoCreate.ClickFocusDelayMilliseconds, 0, 5000);
+        ConfigureNumberBox(autoCreateInputPressDurationBox, Draft.Automation.AutoCreate.InputPressDurationMilliseconds, 1, 5000);
         UpdateWorldPoolAvailability();
         UpdatePyramidItemAvailability();
 

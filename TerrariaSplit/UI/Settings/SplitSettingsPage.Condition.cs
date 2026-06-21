@@ -170,7 +170,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
             updatingConditionSettings = true;
             try
             {
-                advancedConditionBox.Text = SplitConditionText.Format(GetCurrentCondition(), Draft.Language);
+                advancedConditionBox.Text = SplitConditionText.Format(GetCurrentCondition(), Draft.General.Language);
             }
             finally
             {
@@ -232,7 +232,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
             return true;
         }
 
-        if (!SplitConditionText.TryParse(advancedConditionBox.Text, Draft.Language, out SplitCondition condition, out string errorMessage))
+        if (!SplitConditionText.TryParse(advancedConditionBox.Text, Draft.General.Language, out SplitCondition condition, out string errorMessage))
         {
             advancedConditionError = errorMessage;
             if (updateStatusOnFailure)
@@ -554,12 +554,12 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
             return $"Fact: {condition.FactKey}";
         }
 
-        return SplitTargetDisplayNames.FormatFact(condition, Draft.Language);
+        return SplitTargetDisplayNames.FormatFact(condition, Draft.General.Language);
     }
 
     private string FormatTargetListItem(SplitTargetDefinition target)
     {
-        return $"{SplitTargetDisplayNames.GetTargetName(target, Draft.Language)} ({SplitTargetTokenFormatter.Format(target)})";
+        return $"{SplitTargetDisplayNames.GetTargetName(target, Draft.General.Language)} ({SplitTargetTokenFormatter.Format(target)})";
     }
 
     private ConditionListItem CreateConditionListItem(SplitCondition condition)
