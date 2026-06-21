@@ -156,6 +156,7 @@ internal sealed partial class MainForm : Form
             GetRuntimeDiagnostics,
             GetRuntimeDebugSnapshot,
             GetWorldPoolCount,
+            settingsSnapshots,
             callback => BeginInvoke(callback),
             ApplySettings,
             () => AcceptRuntimeCommandSequence(monitorCoordinator.ClearPendingMenuActions()),

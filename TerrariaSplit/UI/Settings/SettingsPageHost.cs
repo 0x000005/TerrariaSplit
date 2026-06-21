@@ -8,6 +8,7 @@ internal sealed class SettingsPageHost
     private readonly AppSettings draft;
     private readonly SettingsUiFactory factory;
     private readonly SettingsDialogService dialogs;
+    private readonly ISettingsSnapshotFactory settingsSnapshots;
     private readonly Func<RuntimePerformanceDiagnostics> runtimeDiagnosticsProvider;
     private readonly Func<RuntimeDebugSnapshot> runtimeDebugSnapshotProvider;
     private readonly Panel pageHost;
@@ -19,6 +20,7 @@ internal sealed class SettingsPageHost
         AppSettings draft,
         SettingsUiFactory factory,
         SettingsDialogService dialogs,
+        ISettingsSnapshotFactory settingsSnapshots,
         Func<RuntimePerformanceDiagnostics> runtimeDiagnosticsProvider,
         Func<RuntimeDebugSnapshot> runtimeDebugSnapshotProvider,
         Panel pageHost)
@@ -27,6 +29,7 @@ internal sealed class SettingsPageHost
         this.draft = draft;
         this.factory = factory;
         this.dialogs = dialogs;
+        this.settingsSnapshots = settingsSnapshots;
         this.runtimeDiagnosticsProvider = runtimeDiagnosticsProvider;
         this.runtimeDebugSnapshotProvider = runtimeDebugSnapshotProvider;
         this.pageHost = pageHost;
@@ -121,7 +124,7 @@ internal sealed class SettingsPageHost
 
     public AppSettings CreateAppliedSnapshot()
     {
-        AppSettings snapshot = AppSettingsStore.Clone(draft);
+        AppSettings snapshot = settingsSnapshots.CreateSnapshot(draft);
         ApplyTo(snapshot);
         return snapshot;
     }
@@ -132,9 +135,9 @@ internal sealed class SettingsPageHost
         ApplyIfCreated(SettingsPageId.Automation, target);
         ApplyIfCreated(SettingsPageId.Data, target);
         ApplyIfCreated(SettingsPageId.Splits, target);
-        AppSettingsStore.Normalize(target);
+        SettingsNormalizer.Normalize(target);
         ApplyIfCreated(SettingsPageId.Effects, target);
-        AppSettingsStore.Normalize(target);
+        SettingsNormalizer.Normalize(target);
         ApplyIfCreated(SettingsPageId.Ui, target);
         ApplyIfCreated(SettingsPageId.Advanced, target);
         ApplyIfCreated(SettingsPageId.Colors, target);

@@ -9,6 +9,7 @@ internal sealed class SettingsDialogHost : IDisposable
     private readonly Func<RuntimePerformanceDiagnostics> runtimeDiagnosticsProvider;
     private readonly Func<RuntimeDebugSnapshot> runtimeDebugSnapshotProvider;
     private readonly Func<AppSettings, int> worldPoolCountProvider;
+    private readonly ISettingsSnapshotFactory settingsSnapshots;
     private readonly Action<Action> dispatchToOwner;
     private readonly Action<AppSettings> appliedCallback;
     private readonly Action<SettingsDialogResult> closedCallback;
@@ -28,13 +29,15 @@ internal sealed class SettingsDialogHost : IDisposable
         Func<RuntimePerformanceDiagnostics> runtimeDiagnosticsProvider,
         Func<RuntimeDebugSnapshot> runtimeDebugSnapshotProvider,
         Func<AppSettings, int> worldPoolCountProvider,
+        ISettingsSnapshotFactory settingsSnapshots,
         Action<Action> dispatchToOwner,
         Action<AppSettings> appliedCallback,
         Action<SettingsDialogResult> closedCallback,
         Action windowHandleChangedCallback,
         Rectangle ownerBounds)
     {
-        this.initialSettings = AppSettingsStore.Clone(initialSettings);
+        this.settingsSnapshots = settingsSnapshots;
+        this.initialSettings = settingsSnapshots.CreateSnapshot(initialSettings);
         this.runtimeDiagnosticsProvider = runtimeDiagnosticsProvider;
         this.runtimeDebugSnapshotProvider = runtimeDebugSnapshotProvider;
         this.worldPoolCountProvider = worldPoolCountProvider;
@@ -135,7 +138,8 @@ internal sealed class SettingsDialogHost : IDisposable
             runtimeDiagnosticsProvider,
             runtimeDebugSnapshotProvider,
             worldPoolCountProvider,
-            modalHandleChanged: UpdateActiveChildDialogHandle);
+            modalHandleChanged: UpdateActiveChildDialogHandle,
+            settingsSnapshots: settingsSnapshots);
         dialog.HandleCreated += (_, _) =>
         {
             lock (sync)
@@ -170,13 +174,13 @@ internal sealed class SettingsDialogHost : IDisposable
         dialog.Applied += (_, _) => ApplySettingsFromDialog(dialog);
 
         DialogResult dialogResult = DialogResult.Cancel;
-        AppSettings resultSettings = AppSettingsStore.Clone(dialog.Result);
+        AppSettings resultSettings = settingsSnapshots.CreateSnapshot(dialog.Result);
         dialog.FormClosed += (_, _) =>
         {
             dialogResult = dialog.DialogResult == DialogResult.None
                 ? DialogResult.Cancel
                 : dialog.DialogResult;
-            resultSettings = AppSettingsStore.Clone(dialog.Result);
+            resultSettings = settingsSnapshots.CreateSnapshot(dialog.Result);
         };
 
         System.Windows.Forms.Application.Run(dialog);
@@ -254,7 +258,7 @@ internal sealed class SettingsDialogHost : IDisposable
             applyInProgress = true;
         }
 
-        AppSettings applied = AppSettingsStore.Clone(dialog.Result);
+        AppSettings applied = settingsSnapshots.CreateSnapshot(dialog.Result);
         if (!TryDispatchToOwner(() =>
         {
             try

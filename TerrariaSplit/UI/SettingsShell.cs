@@ -9,6 +9,7 @@ internal sealed class SettingsShell : IDisposable
     private readonly Func<RuntimePerformanceDiagnostics> getRuntimeDiagnostics;
     private readonly Func<RuntimeDebugSnapshot> getRuntimeDebugSnapshot;
     private readonly Func<AppSettings, int> getWorldPoolCount;
+    private readonly ISettingsSnapshotFactory settingsSnapshots;
     private readonly Action<Action> dispatch;
     private readonly Action<AppSettings> applySettings;
     private readonly Action clearPendingMenuActions;
@@ -27,6 +28,7 @@ internal sealed class SettingsShell : IDisposable
         Func<RuntimePerformanceDiagnostics> getRuntimeDiagnostics,
         Func<RuntimeDebugSnapshot> getRuntimeDebugSnapshot,
         Func<AppSettings, int> getWorldPoolCount,
+        ISettingsSnapshotFactory settingsSnapshots,
         Action<Action> dispatch,
         Action<AppSettings> applySettings,
         Action clearPendingMenuActions,
@@ -40,6 +42,7 @@ internal sealed class SettingsShell : IDisposable
         this.getRuntimeDiagnostics = getRuntimeDiagnostics;
         this.getRuntimeDebugSnapshot = getRuntimeDebugSnapshot;
         this.getWorldPoolCount = getWorldPoolCount;
+        this.settingsSnapshots = settingsSnapshots;
         this.dispatch = dispatch;
         this.applySettings = applySettings;
         this.clearPendingMenuActions = clearPendingMenuActions;
@@ -71,6 +74,7 @@ internal sealed class SettingsShell : IDisposable
             getRuntimeDiagnostics,
             getRuntimeDebugSnapshot,
             getWorldPoolCount,
+            settingsSnapshots,
             dispatch,
             applySettings,
             Complete,

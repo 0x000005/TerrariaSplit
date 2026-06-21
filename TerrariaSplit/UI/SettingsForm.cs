@@ -19,6 +19,7 @@ internal sealed partial class SettingsForm : Form
     private readonly Func<RuntimePerformanceDiagnostics>? runtimeDiagnosticsProvider;
     private readonly Func<RuntimeDebugSnapshot>? runtimeDebugSnapshotProvider;
     private readonly Func<AppSettings, int>? worldPoolCountProvider;
+    private readonly ISettingsSnapshotFactory settingsSnapshots;
     private readonly SettingsUiFactory uiFactory;
     private readonly SettingsDialogService dialogService;
     private readonly ToolTip titleBarToolTip = new();
@@ -34,9 +35,11 @@ internal sealed partial class SettingsForm : Form
         Func<RuntimeDebugSnapshot>? runtimeDebugSnapshotProvider = null,
         Func<AppSettings, int>? worldPoolCountProvider = null,
         SettingsMessageBoxPresenter? messageBoxPresenter = null,
-        Action<IntPtr>? modalHandleChanged = null)
+        Action<IntPtr>? modalHandleChanged = null,
+        ISettingsSnapshotFactory? settingsSnapshots = null)
     {
-        settings = AppSettingsStore.Clone(currentSettings);
+        this.settingsSnapshots = settingsSnapshots ?? new StoredSettingsSnapshotFactory();
+        settings = this.settingsSnapshots.CreateSnapshot(currentSettings);
         this.runtimeDiagnosticsProvider = runtimeDiagnosticsProvider;
         this.runtimeDebugSnapshotProvider = runtimeDebugSnapshotProvider;
         this.worldPoolCountProvider = worldPoolCountProvider;
@@ -389,6 +392,7 @@ internal sealed partial class SettingsForm : Form
             settings,
             uiFactory,
             dialogService,
+            settingsSnapshots,
             GetRuntimeDiagnostics,
             GetRuntimeDebugSnapshot,
             pagePanel);

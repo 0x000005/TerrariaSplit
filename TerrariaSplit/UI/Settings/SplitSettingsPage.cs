@@ -115,7 +115,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
         {
             settings.Route.SplitRoute = routeDraft.CreateSnapshot();
 
-            AppSettingsStore.Normalize(settings);
+            SettingsNormalizer.Normalize(settings);
             statusLabel.Text = string.Empty;
             if (routeDirty)
             {
@@ -144,7 +144,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
         if (routeDirty && TryValidateRoute(out validationMessage))
         {
             Draft.Route.SplitRoute = routeDraft.CreateSnapshot();
-            AppSettingsStore.Normalize(Draft);
+            SettingsNormalizer.Normalize(Draft);
             Context.NotifyModelChanged(SettingsModelChange.RouteChanged);
             statusLabel.Text = string.Empty;
             routeDirty = false;

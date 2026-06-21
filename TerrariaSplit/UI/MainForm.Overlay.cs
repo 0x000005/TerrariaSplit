@@ -525,7 +525,7 @@ internal sealed partial class MainForm : Form
     private void RefreshTimerOverlaySettingsSnapshot()
     {
         timerOverlaySettingsRevision++;
-        timerOverlaySettingsSnapshot = AppSettingsStore.Clone(settings);
+        timerOverlaySettingsSnapshot = settingsSnapshots.CreateSnapshot(settings);
     }
 
     private void UpdateEffectiveOverlayTopMost()
