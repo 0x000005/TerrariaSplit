@@ -34,7 +34,9 @@ internal sealed partial class MainForm : Form
     private readonly ApplicationShellEffectExecutor effectExecutor;
     private readonly SettingsShell settingsShell;
     private readonly TerrariaMonitorCoordinator monitorCoordinator;
-    private readonly RuntimeShell runtimeShell = new();
+    private readonly RuntimeShell runtimeShell = new(
+        DefaultControlTickInterval,
+        RefreshRateSettings.ToInterval(AppSettingsDefaults.Advanced.RunningStatusPaintHz));
     private readonly OverlayWindowController overlayWindowController;
     private readonly OverlayBoundsController overlayBoundsController;
     private readonly TimerOverlayWindowHost timerOverlayHost;
@@ -42,19 +44,13 @@ internal sealed partial class MainForm : Form
     private readonly MainWindowModalInputRouter mainWindowModalInputRouter;
     private readonly WindowShell windowShell = new();
     private bool mouseClickThrough;
-    private int runtimeOverlayPaintSuspensionCount;
-    private bool runtimeControlSchedulerSuspended;
     private bool runtimeResourcesDisposed;
     private bool overlayWindowsInitialized;
     private bool overlayWindowInitializationInProgress;
     private bool statusBoundsFeedbackEnabled;
     private bool suppressStatusBoundsFeedback;
     private Rectangle? pendingInitialCompositeBounds;
-    private TimeSpan controlTickInterval = DefaultControlTickInterval;
-    private TimeSpan statusPaintInterval = RefreshRateSettings.ToInterval(AppSettingsDefaults.Advanced.RunningStatusPaintHz);
     private long timerOverlaySettingsRevision;
-    private int controlTickDispatchPending;
-    private int statusPaintDispatchPending;
     private int appliedOverlayReservedRowCount = -1;
     private int appliedOverlayVisibleRowCount = -1;
 
@@ -216,13 +212,13 @@ internal sealed partial class MainForm : Form
         controlScheduler = MainShellCompositionRoot.CreateControlScheduler(QueueControlTick);
         statusPaintScheduler = MainShellCompositionRoot.CreateStatusPaintScheduler(QueueStatusPaintTick);
 
-        controlTickInterval = ResolveControlTickInterval();
-        controlScheduler.Start(controlTickInterval);
+        runtimeShell.UpdateControlTickInterval(ResolveControlTickInterval());
+        controlScheduler.Start(runtimeShell.ControlTickInterval);
 
-        statusPaintInterval = ResolveRunningStatusPaintInterval();
+        runtimeShell.UpdateStatusPaintInterval(ResolveRunningStatusPaintInterval());
 
-        performance.ControlTickInterval = controlTickInterval;
-        performance.StatusPaintInterval = statusPaintInterval;
+        performance.ControlTickInterval = runtimeShell.ControlTickInterval;
+        performance.StatusPaintInterval = runtimeShell.StatusPaintInterval;
         performance.WatcherPollInterval = monitorCoordinator.WatcherPollInterval;
         performance.ProcessLookupInterval = monitorCoordinator.ProcessLookupInterval;
         monitorCoordinator.UpdateReadyWatcherPollInterval(ResolveReadyWatcherPollInterval());

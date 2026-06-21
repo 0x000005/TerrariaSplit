@@ -415,22 +415,20 @@ internal sealed partial class MainForm : Form
     private void UpdateConfiguredRefreshIntervals()
     {
         TimeSpan nextControlInterval = ResolveControlTickInterval();
-        if (controlTickInterval != nextControlInterval)
+        if (runtimeShell.UpdateControlTickInterval(nextControlInterval))
         {
-            controlTickInterval = nextControlInterval;
-            controlScheduler.UpdateInterval(controlTickInterval);
+            controlScheduler.UpdateInterval(runtimeShell.ControlTickInterval);
         }
 
-        performance.ControlTickInterval = controlTickInterval;
+        performance.ControlTickInterval = runtimeShell.ControlTickInterval;
 
         TimeSpan nextStatusPaintInterval = ResolveRunningStatusPaintInterval();
-        if (statusPaintInterval != nextStatusPaintInterval)
+        if (runtimeShell.UpdateStatusPaintInterval(nextStatusPaintInterval))
         {
-            statusPaintInterval = nextStatusPaintInterval;
-            statusPaintScheduler.UpdateInterval(statusPaintInterval);
+            statusPaintScheduler.UpdateInterval(runtimeShell.StatusPaintInterval);
         }
 
-        performance.StatusPaintInterval = statusPaintInterval;
+        performance.StatusPaintInterval = runtimeShell.StatusPaintInterval;
         monitorCoordinator.UpdateReadyWatcherPollInterval(ResolveReadyWatcherPollInterval());
     }
 

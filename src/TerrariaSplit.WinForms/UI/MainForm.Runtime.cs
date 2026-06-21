@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Threading;
 using System.Windows.Forms;
 
 namespace TerrariaSplit.UI;
@@ -30,7 +29,7 @@ internal sealed partial class MainForm : Form
             return;
         }
 
-        if (Interlocked.Exchange(ref controlTickDispatchPending, 1) == 1)
+        if (!runtimeShell.TryMarkControlTickDispatchPending())
         {
             return;
         }
@@ -41,11 +40,11 @@ internal sealed partial class MainForm : Form
         }
         catch (ObjectDisposedException)
         {
-            Interlocked.Exchange(ref controlTickDispatchPending, 0);
+            runtimeShell.ClearControlTickDispatchPending();
         }
         catch (InvalidOperationException)
         {
-            Interlocked.Exchange(ref controlTickDispatchPending, 0);
+            runtimeShell.ClearControlTickDispatchPending();
         }
     }
 
@@ -60,7 +59,7 @@ internal sealed partial class MainForm : Form
         }
         finally
         {
-            Interlocked.Exchange(ref controlTickDispatchPending, 0);
+            runtimeShell.ClearControlTickDispatchPending();
         }
     }
 
@@ -73,7 +72,7 @@ internal sealed partial class MainForm : Form
             return;
         }
 
-        if (Interlocked.Exchange(ref statusPaintDispatchPending, 1) == 1)
+        if (!runtimeShell.TryMarkStatusPaintDispatchPending())
         {
             performance.RecordStatusPaintDispatchSkipped();
             return;
@@ -85,11 +84,11 @@ internal sealed partial class MainForm : Form
         }
         catch (ObjectDisposedException)
         {
-            Interlocked.Exchange(ref statusPaintDispatchPending, 0);
+            runtimeShell.ClearStatusPaintDispatchPending();
         }
         catch (InvalidOperationException)
         {
-            Interlocked.Exchange(ref statusPaintDispatchPending, 0);
+            runtimeShell.ClearStatusPaintDispatchPending();
         }
     }
 
@@ -109,7 +108,7 @@ internal sealed partial class MainForm : Form
         }
         finally
         {
-            Interlocked.Exchange(ref statusPaintDispatchPending, 0);
+            runtimeShell.ClearStatusPaintDispatchPending();
         }
     }
 
@@ -168,11 +167,11 @@ internal sealed partial class MainForm : Form
     private void UpdateStatusPaintSchedulerState()
     {
         bool shouldRun = !windowShell.IsClosing &&
-            runtimeOverlayPaintSuspensionCount <= 0 &&
+            !runtimeShell.IsOverlayPaintSuspended &&
             (timerPhase == SplitTimerPhase.Running || overlayAnimations.SplitCompletionAnimation is not null);
         if (shouldRun && !statusPaintScheduler.IsRunning)
         {
-            statusPaintScheduler.Start(statusPaintInterval);
+            statusPaintScheduler.Start(runtimeShell.StatusPaintInterval);
         }
         else if (!shouldRun && statusPaintScheduler.IsRunning)
         {
@@ -389,12 +388,11 @@ internal sealed partial class MainForm : Form
 
     private T RunWithSuspendedRuntimeOverlayPaint<T>(Func<T> action)
     {
-        bool firstSuspension = runtimeOverlayPaintSuspensionCount == 0;
-        runtimeOverlayPaintSuspensionCount++;
-        if (firstSuspension)
+        RuntimeOverlayPaintSuspension suspension =
+            runtimeShell.BeginOverlayPaintSuspension(controlScheduler.IsRunning);
+        if (suspension.Started)
         {
-            runtimeControlSchedulerSuspended = controlScheduler.IsRunning;
-            if (runtimeControlSchedulerSuspended)
+            if (suspension.ShouldStopControlScheduler)
             {
                 controlScheduler.Stop();
             }
@@ -414,22 +412,21 @@ internal sealed partial class MainForm : Form
         }
         finally
         {
-            runtimeOverlayPaintSuspensionCount = Math.Max(0, runtimeOverlayPaintSuspensionCount - 1);
-            if (overlayWindowsInitialized && runtimeOverlayPaintSuspensionCount == 0)
+            RuntimeOverlayPaintResume resume =
+                runtimeShell.EndOverlayPaintSuspension(!windowShell.IsClosing);
+            if (overlayWindowsInitialized && resume.Completed)
             {
                 timerOverlayHost.ApplyPaintSuspended(false);
                 timerOverlayHost.RequestRender();
             }
 
-            if (runtimeOverlayPaintSuspensionCount == 0)
+            if (resume.Completed)
             {
                 monitorCoordinator.ApplyUiDispatchSuspended(false);
-                if (runtimeControlSchedulerSuspended && !windowShell.IsClosing)
+                if (resume.ShouldRestartControlScheduler)
                 {
-                    controlScheduler.Start(controlTickInterval);
+                    controlScheduler.Start(runtimeShell.ControlTickInterval);
                 }
-
-                runtimeControlSchedulerSuspended = false;
             }
 
             UpdateStatusPaintSchedulerState();

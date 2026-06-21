@@ -26,6 +26,8 @@ internal static class MainShellRefactorTests
         yield return ("WindowShell computes drag deltas", WindowShellComputesDragDeltas);
         yield return ("WindowShell drives close finalization state", WindowShellDrivesCloseFinalizationState);
         yield return ("RuntimeShell publishes watcher debug snapshot", RuntimeShellPublishesWatcherDebugSnapshot);
+        yield return ("RuntimeShell gates queued UI dispatch", RuntimeShellGatesQueuedUiDispatch);
+        yield return ("RuntimeShell tracks intervals and overlay paint suspension", RuntimeShellTracksIntervalsAndOverlayPaintSuspension);
         yield return ("ProgramModalWindowCoordinator registers modal forms through one gateway", ProgramModalWindowCoordinatorRegistersModalFormsThroughOneGateway);
         yield return ("ProgramModalWindowCoordinator enables only the current nested modal", ProgramModalWindowCoordinatorEnablesOnlyCurrentNestedModal);
         yield return ("MainWindowModalInputRouter redirects blocked main window activation", MainWindowModalInputRouterRedirectsBlockedMainWindowActivation);
@@ -442,7 +444,7 @@ internal static class MainShellRefactorTests
 
     private static void RuntimeShellPublishesWatcherDebugSnapshot()
     {
-        var shell = new RuntimeShell();
+        var shell = new RuntimeShell(TimeSpan.FromMilliseconds(5), TimeSpan.FromMilliseconds(16));
         TerrariaWatchSnapshot snapshot = TestSnapshots.Terraria(isGameMenu: true);
         TerrariaWatcherDiagnostics diagnostics = TerrariaWatcherDiagnosticsDefaults.Empty with
         {
@@ -471,6 +473,50 @@ internal static class MainShellRefactorTests
         TestAssert.Equal(diagnostics, debug.WatcherDiagnostics);
         TestAssert.Equal(RuntimePerformanceDiagnostics.Empty, debug.Performance);
         TestAssert.Equal(SplitTimerPhase.Running, debug.TimerPhase);
+    }
+
+    private static void RuntimeShellGatesQueuedUiDispatch()
+    {
+        var shell = new RuntimeShell(TimeSpan.FromMilliseconds(5), TimeSpan.FromMilliseconds(16));
+
+        TestAssert.Equal(true, shell.TryMarkControlTickDispatchPending());
+        TestAssert.Equal(false, shell.TryMarkControlTickDispatchPending());
+        shell.ClearControlTickDispatchPending();
+        TestAssert.Equal(true, shell.TryMarkControlTickDispatchPending());
+
+        TestAssert.Equal(true, shell.TryMarkStatusPaintDispatchPending());
+        TestAssert.Equal(false, shell.TryMarkStatusPaintDispatchPending());
+        shell.ClearStatusPaintDispatchPending();
+        TestAssert.Equal(true, shell.TryMarkStatusPaintDispatchPending());
+    }
+
+    private static void RuntimeShellTracksIntervalsAndOverlayPaintSuspension()
+    {
+        var shell = new RuntimeShell(TimeSpan.FromMilliseconds(5), TimeSpan.FromMilliseconds(16));
+
+        TestAssert.Equal(false, shell.UpdateControlTickInterval(TimeSpan.FromMilliseconds(5)));
+        TestAssert.Equal(true, shell.UpdateControlTickInterval(TimeSpan.FromMilliseconds(20)));
+        TestAssert.Equal(TimeSpan.FromMilliseconds(20), shell.ControlTickInterval);
+        TestAssert.Equal(false, shell.UpdateStatusPaintInterval(TimeSpan.FromMilliseconds(16)));
+        TestAssert.Equal(true, shell.UpdateStatusPaintInterval(TimeSpan.FromMilliseconds(33)));
+        TestAssert.Equal(TimeSpan.FromMilliseconds(33), shell.StatusPaintInterval);
+
+        RuntimeOverlayPaintSuspension first = shell.BeginOverlayPaintSuspension(controlSchedulerIsRunning: true);
+        TestAssert.Equal(new RuntimeOverlayPaintSuspension(true, true), first);
+        TestAssert.Equal(true, shell.IsOverlayPaintSuspended);
+
+        RuntimeOverlayPaintSuspension nested = shell.BeginOverlayPaintSuspension(controlSchedulerIsRunning: false);
+        TestAssert.Equal(new RuntimeOverlayPaintSuspension(false, false), nested);
+        RuntimeOverlayPaintResume nestedResume = shell.EndOverlayPaintSuspension(canRestartControlScheduler: true);
+        TestAssert.Equal(new RuntimeOverlayPaintResume(false, false), nestedResume);
+        TestAssert.Equal(true, shell.IsOverlayPaintSuspended);
+
+        RuntimeOverlayPaintResume finalResume = shell.EndOverlayPaintSuspension(canRestartControlScheduler: true);
+        TestAssert.Equal(new RuntimeOverlayPaintResume(true, true), finalResume);
+        TestAssert.Equal(false, shell.IsOverlayPaintSuspended);
+        TestAssert.Equal(
+            new RuntimeOverlayPaintResume(false, false),
+            shell.EndOverlayPaintSuspension(canRestartControlScheduler: true));
     }
 
     private static void WindowLayerControllerIgnoresModalActivationWhenNoModalIsRegistered()
