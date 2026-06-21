@@ -292,19 +292,6 @@ internal sealed class SplitTracker
         return -1;
     }
 
-    private int FindPreviousMainIndex(int startIndex)
-    {
-        for (int i = Math.Min(startIndex, statuses.Count - 1); i >= 0; i--)
-        {
-            if (!statuses[i].Definition.IsAttached)
-            {
-                return i;
-            }
-        }
-
-        return -1;
-    }
-
     private bool IsAttachedStageOpen(int index)
     {
         if (index < 0 || index >= statuses.Count || !statuses[index].Definition.IsAttached)
