@@ -31,9 +31,9 @@ internal static class SettingsSerializer
         }
     }
 
-    public static void WriteSettings(string path, AppSettings settings)
+    public static OperationResult WriteSettings(string path, AppSettings settings)
     {
-        JsonFileStore.Write(path, settings, "settings");
+        return JsonFileStore.TryWrite(path, settings, "settings");
     }
 
     public static AppSettings? ReadSettingsWithDefaults(

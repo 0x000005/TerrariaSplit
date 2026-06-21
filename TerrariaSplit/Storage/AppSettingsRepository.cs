@@ -74,19 +74,32 @@ internal sealed class AppSettingsRepository : ISettingsRepository
 
     public void Save(AppSettings settings)
     {
-        AppSettings snapshot = Clone(settings);
-        if (!snapshot.Comparison.UsePersonalBestAsReferenceTime)
-        {
-            SplitTimeSetStore.SaveReferenceSets(snapshot.Comparison.ReferenceSplitSets);
-        }
+        _ = TrySave(settings);
+    }
 
-        snapshot.SyncActivePersonalBestTimeSetFromDictionary();
-        snapshot.SyncActivePersonalBestSegmentSetFromDictionary();
-        SplitTimeSetStore.SavePersonalBestTimeSets(snapshot.Comparison.PersonalBestTimeSets);
-        SplitTimeSetStore.SavePersonalBestSegmentSets(snapshot.Comparison.PersonalBestSegmentSets);
-        string directory = Path.GetDirectoryName(SettingsPath)!;
-        Directory.CreateDirectory(directory);
-        SettingsSerializer.WriteSettings(SettingsPath, AppSettingsPersistenceProjection.Create(snapshot));
+    public OperationResult TrySave(AppSettings settings)
+    {
+        AppSettings snapshot = Clone(settings);
+        try
+        {
+            if (!snapshot.Comparison.UsePersonalBestAsReferenceTime)
+            {
+                SplitTimeSetStore.SaveReferenceSets(snapshot.Comparison.ReferenceSplitSets);
+            }
+
+            snapshot.SyncActivePersonalBestTimeSetFromDictionary();
+            snapshot.SyncActivePersonalBestSegmentSetFromDictionary();
+            SplitTimeSetStore.SavePersonalBestTimeSets(snapshot.Comparison.PersonalBestTimeSets);
+            SplitTimeSetStore.SavePersonalBestSegmentSets(snapshot.Comparison.PersonalBestSegmentSets);
+            string directory = Path.GetDirectoryName(SettingsPath)!;
+            Directory.CreateDirectory(directory);
+            return SettingsSerializer.WriteSettings(SettingsPath, AppSettingsPersistenceProjection.Create(snapshot));
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error(ex, $"Failed to save settings: {SettingsPath}");
+            return OperationResult.Failure("Failed to save settings.", ex);
+        }
     }
 
     public AppSettings Clone(AppSettings settings)

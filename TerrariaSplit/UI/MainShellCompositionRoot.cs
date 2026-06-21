@@ -151,6 +151,7 @@ internal static class MainShellCompositionRoot
         Action resetUiScalePatchState,
         Action refreshTimerOverlaySettings,
         Action refreshRuntimeUi,
+        Action<OperationResult> showSettingsSaveFailure,
         Action<AppSettings, int> applyLoadedSettings,
         AutomationShell automationShell)
     {
@@ -166,7 +167,7 @@ internal static class MainShellCompositionRoot
                 resetUiScalePatchState,
                 refreshTimerOverlaySettings,
                 refreshRuntimeUi),
-            new DelegateSettingsPort(AppSettingsStore.Save, applyLoadedSettings),
+            new DelegateSettingsPort(AppSettingsStore.TrySave, showSettingsSaveFailure, applyLoadedSettings),
             new DelegateAutomationPort(
                 automationShell.StartCreateWorld,
                 automationShell.ShowPracticeWorldSelector,

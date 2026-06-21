@@ -33,7 +33,9 @@ internal interface IOverlayPort
 
 internal interface ISettingsPort
 {
-    void Save(AppSettings settings);
+    OperationResult Save(AppSettings settings);
+
+    void ShowSaveFailure(OperationResult result);
 
     void ApplyToShell(AppSettings previousSettings, int splitCount);
 }
@@ -160,18 +162,28 @@ internal sealed class DelegateOverlayPort : IOverlayPort
 
 internal sealed class DelegateSettingsPort : ISettingsPort
 {
-    private readonly Action<AppSettings> save;
+    private readonly Func<AppSettings, OperationResult> save;
+    private readonly Action<OperationResult> showSaveFailure;
     private readonly Action<AppSettings, int> applyToShell;
 
-    public DelegateSettingsPort(Action<AppSettings> save, Action<AppSettings, int> applyToShell)
+    public DelegateSettingsPort(
+        Func<AppSettings, OperationResult> save,
+        Action<OperationResult> showSaveFailure,
+        Action<AppSettings, int> applyToShell)
     {
         this.save = save;
+        this.showSaveFailure = showSaveFailure;
         this.applyToShell = applyToShell;
     }
 
-    public void Save(AppSettings settings)
+    public OperationResult Save(AppSettings settings)
     {
-        save(settings);
+        return save(settings);
+    }
+
+    public void ShowSaveFailure(OperationResult result)
+    {
+        showSaveFailure(result);
     }
 
     public void ApplyToShell(AppSettings previousSettings, int splitCount)

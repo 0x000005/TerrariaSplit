@@ -62,7 +62,11 @@ internal sealed class ApplicationShellEffectExecutor
                 overlay.StartSplitCompletionAnimation(startSplit.SplitIndex);
                 break;
             case SaveSettingsEffect save:
-                settings.Save(save.Settings);
+                OperationResult saveResult = settings.Save(save.Settings);
+                if (saveResult.Failed)
+                {
+                    settings.ShowSaveFailure(saveResult);
+                }
                 break;
             case StartCreateWorldAutomationEffect:
                 automation.StartCreateWorld();
@@ -88,6 +92,8 @@ internal sealed class ApplicationShellEffectExecutor
             case RefreshRuntimeUiEffect:
                 overlay.RefreshRuntimeUi();
                 break;
+            default:
+                throw new NotSupportedException($"Unsupported application effect {effect.GetType().Name}.");
         }
     }
 }

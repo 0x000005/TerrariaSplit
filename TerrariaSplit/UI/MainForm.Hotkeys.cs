@@ -46,6 +46,15 @@ internal sealed partial class MainForm : Form
         modalWindows.ShowDialog(dialog);
     }
 
+    private void ShowSettingsSaveFailure(OperationResult result)
+    {
+        string message = string.IsNullOrWhiteSpace(result.Message)
+            ? Localizer.Get("Failed to save settings.", settings)
+            : result.Message;
+        using var dialog = new HotkeyWarningDialog(SegmentTimerWindowTitle, message);
+        modalWindows.ShowDialog(dialog);
+    }
+
     private string FormatHotkeyRegistrationWarning(HotkeyRegistrationWarning warning)
     {
         string actionName = Localizer.Get(GetHotkeyActionDisplayName(warning.Action), settings);

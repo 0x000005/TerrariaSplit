@@ -180,6 +180,7 @@ internal sealed partial class MainForm : Form
             monitorCoordinator.ResetUiScalePatchState,
             RefreshTimerOverlaySettingsSnapshot,
             RefreshRuntimeUi,
+            ShowSettingsSaveFailure,
             ApplyLoadedSettings,
             automationShell);
         overlayBoundsController.UpdateContext(

@@ -33,6 +33,11 @@ internal static class AppSettingsStore
         Repository.Save(settings);
     }
 
+    public static OperationResult TrySave(AppSettings settings)
+    {
+        return Repository.TrySave(settings);
+    }
+
     public static AppSettings Clone(AppSettings settings)
     {
         return Repository.Clone(settings);

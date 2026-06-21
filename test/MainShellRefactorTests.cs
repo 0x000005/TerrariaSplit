@@ -38,6 +38,8 @@ internal static class MainShellRefactorTests
         yield return ("ThemedScrollPanel routes list wheel to inner list until boundary", ThemedScrollPanelRoutesListWheelToInnerListUntilBoundary);
         yield return ("FontFamilySelector uses themed drop-down list", FontFamilySelectorUsesThemedDropDownList);
         yield return ("Settings form uses themed drop-down lists", SettingsFormUsesThemedDropDownLists);
+        yield return ("ApplicationShellEffectExecutor reports settings save failure", ApplicationShellEffectExecutorReportsSettingsSaveFailure);
+        yield return ("ApplicationShellEffectExecutor rejects unknown effects", ApplicationShellEffectExecutorRejectsUnknownEffects);
     }
 
     private static void TerrariaMonitorCoordinatorPreservesWatcherIntervalPolicy()
@@ -802,6 +804,37 @@ internal static class MainShellRefactorTests
         });
     }
 
+    private static void ApplicationShellEffectExecutorReportsSettingsSaveFailure()
+    {
+        var settingsPort = new RecordingSettingsPort
+        {
+            SaveResult = OperationResult.Failure("Could not save settings.")
+        };
+        ApplicationShellEffectExecutor executor = CreateEffectExecutor(settingsPort);
+
+        executor.Apply([new SaveSettingsEffect(new AppSettings())]);
+
+        TestAssert.Equal(1, settingsPort.SaveFailureCount);
+        TestAssert.Equal("Could not save settings.", settingsPort.LastSaveFailure.Message);
+    }
+
+    private static void ApplicationShellEffectExecutorRejectsUnknownEffects()
+    {
+        ApplicationShellEffectExecutor executor = CreateEffectExecutor(new RecordingSettingsPort());
+
+        bool threw = false;
+        try
+        {
+            executor.Apply([new UnknownApplicationEffect()]);
+        }
+        catch (NotSupportedException)
+        {
+            threw = true;
+        }
+
+        TestAssert.Equal(true, threw);
+    }
+
     private static void RunSta(Action action)
     {
         Exception? failure = null;
@@ -835,6 +868,114 @@ internal static class MainShellRefactorTests
             {
                 yield return descendant;
             }
+        }
+    }
+
+    private static ApplicationShellEffectExecutor CreateEffectExecutor(ISettingsPort settingsPort)
+    {
+        return new ApplicationShellEffectExecutor(
+            new NoopRuntimeCommandPort(),
+            new NoopSoundPort(),
+            new NoopOverlayPort(),
+            settingsPort,
+            new NoopAutomationPort());
+    }
+
+    private sealed record UnknownApplicationEffect : ApplicationEffect;
+
+    private sealed class NoopRuntimeCommandPort : IRuntimeCommandPort
+    {
+        public void Submit(RuntimeCommand command)
+        {
+        }
+    }
+
+    private sealed class NoopSoundPort : ISoundPort
+    {
+        public void StopAll()
+        {
+        }
+
+        public void Play(string path)
+        {
+        }
+    }
+
+    private sealed class NoopOverlayPort : IOverlayPort
+    {
+        public void ToggleMouseClickThrough()
+        {
+        }
+
+        public void ClearOverlayAnimation()
+        {
+        }
+
+        public void ClearSplitCompletionAnimation()
+        {
+        }
+
+        public void TrackSegmentBestDeltaHighlight(int splitIndex)
+        {
+        }
+
+        public void StartSplitCompletionAnimation(int splitIndex)
+        {
+        }
+
+        public void ResetUiScalePatchState()
+        {
+        }
+
+        public void RefreshTimerOverlaySettings()
+        {
+        }
+
+        public void RefreshRuntimeUi()
+        {
+        }
+    }
+
+    private sealed class RecordingSettingsPort : ISettingsPort
+    {
+        public OperationResult SaveResult { get; init; } = OperationResult.Success();
+
+        public int SaveFailureCount { get; private set; }
+
+        public OperationResult LastSaveFailure { get; private set; } = OperationResult.Success();
+
+        public OperationResult Save(AppSettings settings)
+        {
+            return SaveResult;
+        }
+
+        public void ShowSaveFailure(OperationResult result)
+        {
+            SaveFailureCount++;
+            LastSaveFailure = result;
+        }
+
+        public void ApplyToShell(AppSettings previousSettings, int splitCount)
+        {
+        }
+    }
+
+    private sealed class NoopAutomationPort : IAutomationPort
+    {
+        public void StartCreateWorld()
+        {
+        }
+
+        public void ShowPracticeWorldSelector()
+        {
+        }
+
+        public void CancelCreateWorld()
+        {
+        }
+
+        public void CancelEnterWorld()
+        {
         }
     }
 

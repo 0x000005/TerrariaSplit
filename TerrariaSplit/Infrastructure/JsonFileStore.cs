@@ -26,29 +26,39 @@ internal static class JsonFileStore
 
     public static bool Write<T>(string path, T value, string description)
     {
+        return TryWrite(path, value, description).Succeeded;
+    }
+
+    public static OperationResult TryWrite<T>(string path, T value, string description)
+    {
         try
         {
             WriteTextAtomically(path, JsonSerializer.Serialize(value, JsonOptions));
-            return true;
+            return OperationResult.Success();
         }
         catch (Exception ex)
         {
             AppLogger.Error(ex, $"Failed to write {description}: {path}");
-            return false;
+            return OperationResult.Failure($"Failed to save {description}.", ex);
         }
     }
 
     public static bool WriteText(string path, string value, string description)
     {
+        return TryWriteText(path, value, description).Succeeded;
+    }
+
+    public static OperationResult TryWriteText(string path, string value, string description)
+    {
         try
         {
             WriteTextAtomically(path, value);
-            return true;
+            return OperationResult.Success();
         }
         catch (Exception ex)
         {
             AppLogger.Error(ex, $"Failed to write {description}: {path}");
-            return false;
+            return OperationResult.Failure($"Failed to save {description}.", ex);
         }
     }
 
