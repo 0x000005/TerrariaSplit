@@ -1,4 +1,4 @@
-namespace TerrariaSplit.Terraria.Memory;
+namespace TerrariaSplit.Application;
 
 internal enum TerrariaWorldCreationSeedStatus
 {

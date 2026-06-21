@@ -1,4 +1,4 @@
-namespace TerrariaSplit.Terraria;
+namespace TerrariaSplit.Application;
 
 internal readonly record struct TerrariaWatchSnapshot(
     bool IsAttached,

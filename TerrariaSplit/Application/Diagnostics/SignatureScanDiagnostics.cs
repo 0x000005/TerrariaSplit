@@ -1,4 +1,4 @@
-namespace TerrariaSplit.Terraria.Memory;
+namespace TerrariaSplit.Application.Diagnostics;
 
 internal readonly record struct SignatureScanDiagnostics(
     string ScopeDescription,

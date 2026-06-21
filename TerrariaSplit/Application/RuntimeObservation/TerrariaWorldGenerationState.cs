@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace TerrariaSplit.Terraria;
+namespace TerrariaSplit.Application;
 
 internal readonly record struct TerrariaWorldGenerationState(
     string? CurrentPassName,

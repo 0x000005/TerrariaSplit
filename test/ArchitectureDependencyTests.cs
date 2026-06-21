@@ -15,6 +15,7 @@ internal static class ArchitectureDependencyTests
         yield return ("Architecture keeps Terraria free of UI shell references", TerrariaDoesNotReferenceUiShell);
         yield return ("Architecture keeps Storage free of outer layers", StorageDoesNotReferenceOuterLayers);
         yield return ("Architecture keeps UI settings pages from starting automation", UiSettingsDoesNotStartAutomation);
+        yield return ("Architecture keeps Application project free of Terraria and Storage", ApplicationProjectDoesNotReferenceTerrariaOrStorage);
         yield return ("Architecture has repository build safety props", RepositoryBuildSafetyPropsExist);
         yield return ("Architecture uses typed application effects", ApplicationEffectsAreTypedRecords);
         yield return ("Architecture keeps AppSettings section-only", AppSettingsHasNoCompatibilityFacade);
@@ -69,6 +70,28 @@ internal static class ArchitectureDependencyTests
                 @"TerrariaSplit\.UI|TerrariaSplit\.Application|TerrariaSplit\.Terraria",
                 RegexOptions.Compiled),
             "Storage must not reference UI, Application, or Terraria integration layers.");
+    }
+
+    private static void ApplicationProjectDoesNotReferenceTerrariaOrStorage()
+    {
+        string root = FindRepositoryRoot();
+        string projectPath = Path.Combine(root, "src", "TerrariaSplit.Application", "TerrariaSplit.Application.csproj");
+        string project = File.ReadAllText(projectPath);
+        string[] forbidden =
+        [
+            "TerrariaSplit.Storage",
+            "TerrariaSplit.Terraria"
+        ];
+        string[] offenders = forbidden
+            .Where(token => project.Contains(token, StringComparison.Ordinal))
+            .ToArray();
+        if (offenders.Length > 0)
+        {
+            throw new InvalidOperationException(
+                "Application project must not reference concrete Storage or Terraria projects:" +
+                Environment.NewLine +
+                string.Join(Environment.NewLine, offenders));
+        }
     }
 
     private static void RootNamespaceIsEmpty()
