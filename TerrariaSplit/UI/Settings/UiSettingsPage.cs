@@ -622,7 +622,7 @@ internal sealed class UiSettingsPage : SettingsPageBase
     private static string GetSelectedFontFamily(FontFamilySelector selector, string fallback)
     {
         string selected = selector.SelectedFontFamily;
-        return UiFontSettings.NormalizeFamilyName(string.IsNullOrWhiteSpace(selected) ? fallback : selected);
+        return UiFontFactory.Default.NormalizeFamilyName(string.IsNullOrWhiteSpace(selected) ? fallback : selected);
     }
 
     private sealed record ColumnControls(CheckBox Show, TextBox Width, FontFamilySelector? FontFamily, TextBox FontSize, CheckBox? Bold);

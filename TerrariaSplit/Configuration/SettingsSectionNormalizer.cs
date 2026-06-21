@@ -80,11 +80,12 @@ internal static class SettingsSectionNormalizer
 
     private static void NormalizeColumn(UiColumnSettings column, UiColumnSettings defaults)
     {
-        column.FontFamily = UiFontSettings.NormalizeFamilyName(column.FontFamily);
-        if (string.IsNullOrWhiteSpace(column.FontFamily))
-        {
-            column.FontFamily = defaults.FontFamily;
-        }
+        string fallbackFamily = string.IsNullOrWhiteSpace(defaults.FontFamily)
+            ? UiFontDefaults.DefaultFamilyName
+            : defaults.FontFamily.Trim();
+        column.FontFamily = string.IsNullOrWhiteSpace(column.FontFamily)
+            ? fallbackFamily
+            : column.FontFamily.Trim();
 
         if (column.Width <= 0)
         {

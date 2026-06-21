@@ -30,7 +30,7 @@ internal static class OverlayTextMetrics
 
     public static Font CreatePixelFont(float size, FontStyle style, string? familyName = null)
     {
-        return UiFontSettings.CreateFont(familyName, Math.Max(1f, size), style, GraphicsUnit.Pixel);
+        return UiFontFactory.Default.CreateFont(familyName, Math.Max(1f, size), style, GraphicsUnit.Pixel);
     }
 
     private static float GetFontPixelsPerEm(Graphics graphics, Font font)

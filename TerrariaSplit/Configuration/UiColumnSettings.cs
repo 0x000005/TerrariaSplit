@@ -4,7 +4,7 @@ internal sealed class UiColumnSettings
 {
     public bool Show { get; set; } = true;
     public int Width { get; set; }
-    public string FontFamily { get; set; } = UiFontSettings.DefaultFamilyName;
+    public string FontFamily { get; set; } = UiFontDefaults.DefaultFamilyName;
     public float FontSize { get; set; }
     public bool Bold { get; set; }
 }

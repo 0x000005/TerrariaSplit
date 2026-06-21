@@ -7,7 +7,7 @@ namespace TerrariaSplit.UI;
 
 internal static class UiTheme
 {
-    public const string FontFamilyName = UiFontSettings.DefaultFamilyName;
+    public const string FontFamilyName = UiFontDefaults.DefaultFamilyName;
 
     public static readonly Color Window = Color.FromArgb(18, 22, 25);
     public static readonly Color Surface = Color.FromArgb(28, 34, 38);
@@ -23,7 +23,7 @@ internal static class UiTheme
 
     public static Font FormFont(float size = 10f, FontStyle style = FontStyle.Regular)
     {
-        return UiFontSettings.CreateFont(FontFamilyName, size, style);
+        return UiFontFactory.Default.CreateFont(FontFamilyName, size, style);
     }
 
     public static void ConfigureForm(Form form, Size minimumSize)

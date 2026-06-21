@@ -16,6 +16,7 @@ internal static class ArchitectureDependencyTests
         yield return ("Architecture keeps Storage free of outer layers", StorageDoesNotReferenceOuterLayers);
         yield return ("Architecture keeps UI settings pages from starting automation", UiSettingsDoesNotStartAutomation);
         yield return ("Architecture keeps Application project free of Terraria and Storage", ApplicationProjectDoesNotReferenceTerrariaOrStorage);
+        yield return ("Architecture keeps Configuration platform neutral", ConfigurationProjectDoesNotUseWindowsFormsOrDrawing);
         yield return ("Architecture has repository build safety props", RepositoryBuildSafetyPropsExist);
         yield return ("Architecture uses typed application effects", ApplicationEffectsAreTypedRecords);
         yield return ("Architecture uses typed application commands", ApplicationCommandsAreTypedRecords);
@@ -93,6 +94,33 @@ internal static class ArchitectureDependencyTests
                 Environment.NewLine +
                 string.Join(Environment.NewLine, offenders));
         }
+    }
+
+    private static void ConfigurationProjectDoesNotUseWindowsFormsOrDrawing()
+    {
+        string root = FindRepositoryRoot();
+        string projectPath = Path.Combine(root, "src", "TerrariaSplit.Configuration", "TerrariaSplit.Configuration.csproj");
+        string project = File.ReadAllText(projectPath);
+        string[] forbiddenProjectTokens =
+        [
+            "net10.0-windows",
+            "UseWindowsForms"
+        ];
+        string[] projectOffenders = forbiddenProjectTokens
+            .Where(token => project.Contains(token, StringComparison.Ordinal))
+            .ToArray();
+        if (projectOffenders.Length > 0)
+        {
+            throw new InvalidOperationException(
+                "Configuration project must stay platform neutral:" +
+                Environment.NewLine +
+                string.Join(Environment.NewLine, projectOffenders));
+        }
+
+        AssertNoMatches(
+            Path.Combine("TerrariaSplit", "Configuration"),
+            new Regex(@"System\.Drawing|System\.Windows\.Forms|InstalledFontCollection", RegexOptions.Compiled),
+            "Configuration source must not reference UI or Windows font APIs.");
     }
 
     private static void RootNamespaceIsEmpty()

@@ -97,6 +97,17 @@ internal sealed class OverlayRenderResources : IDisposable
 internal sealed class OverlayFontCache : IDisposable
 {
     private readonly Dictionary<FontKey, Font> cache = new();
+    private readonly IUiFontFactory fontFactory;
+
+    public OverlayFontCache()
+        : this(UiFontFactory.Default)
+    {
+    }
+
+    internal OverlayFontCache(IUiFontFactory fontFactory)
+    {
+        this.fontFactory = fontFactory;
+    }
 
     public Font GetColumnFont(
         UiColumnSettings columnSettings,
@@ -106,14 +117,14 @@ internal sealed class OverlayFontCache : IDisposable
     {
         float size = GetColumnFontSize(columnSettings, scaleFactor, sizeScale);
         bool bold = forceBold || columnSettings.Bold;
-        string familyName = UiFontSettings.NormalizeFamilyName(columnSettings.FontFamily);
+        string familyName = fontFactory.NormalizeFamilyName(columnSettings.FontFamily);
         var key = new FontKey(familyName, size, bold);
         if (cache.TryGetValue(key, out Font? font))
         {
             return font;
         }
 
-        font = UiFontSettings.CreateFont(familyName, size, bold ? FontStyle.Bold : FontStyle.Regular);
+        font = fontFactory.CreateFont(familyName, size, bold ? FontStyle.Bold : FontStyle.Regular);
         cache[key] = font;
         return font;
     }

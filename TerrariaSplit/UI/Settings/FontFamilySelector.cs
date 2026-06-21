@@ -4,21 +4,21 @@ internal sealed class FontFamilySelector : ThemedDropDownList
 {
     public FontFamilySelector()
     {
-        foreach (string family in UiFontSettings.GetInstalledFamilyNames())
+        foreach (string family in UiFontFactory.Default.GetInstalledFamilyNames())
         {
             Items.Add(family);
         }
 
-        SetSelectedFontFamily(UiFontSettings.DefaultFamilyName);
+        SetSelectedFontFamily(UiFontDefaults.DefaultFamilyName);
     }
 
     public string SelectedFontFamily => SelectedItem is string family
         ? family
-        : UiFontSettings.DefaultFamilyName;
+        : UiFontDefaults.DefaultFamilyName;
 
     public void SetSelectedFontFamily(string familyName)
     {
-        string normalized = UiFontSettings.NormalizeFamilyName(familyName);
+        string normalized = UiFontFactory.Default.NormalizeFamilyName(familyName);
         SelectedItem = normalized;
         if (SelectedIndex < 0 && Items.Count > 0)
         {

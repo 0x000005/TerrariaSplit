@@ -1736,16 +1736,16 @@ static void TestSettingsNormalizeDerivesSplitIconsFromConditions()
 static void TestSettingsNormalizeUiFontFamilies()
 {
     var settings = new AppSettings();
-    settings.Overlay.Columns.Time.FontFamily = $"  {UiFontSettings.DefaultFamilyName.ToUpperInvariant()}  ";
-    settings.Overlay.Columns.Delta.FontFamily = "Definitely Missing TerrariaSplit Font";
+    string customMissingFamily = "Definitely Missing TerrariaSplit Font";
+    settings.Overlay.Columns.Time.FontFamily = $"  {UiFontDefaults.DefaultFamilyName.ToUpperInvariant()}  ";
+    settings.Overlay.Columns.Delta.FontFamily = $"  {customMissingFamily}  ";
     settings.Overlay.Columns.Timer.FontFamily = string.Empty;
 
     SettingsNormalizer.Normalize(settings);
 
-    AssertEqual(UiFontSettings.DefaultFamilyName, settings.Overlay.Columns.Time.FontFamily);
-    AssertEqual(UiFontSettings.DefaultFamilyName, settings.Overlay.Columns.Delta.FontFamily);
-    AssertEqual(UiFontSettings.DefaultFamilyName, settings.Overlay.Columns.Timer.FontFamily);
-    AssertEqual(true, UiFontSettings.GetInstalledFamilyNames().Count > 0);
+    AssertEqual(UiFontDefaults.DefaultFamilyName.ToUpperInvariant(), settings.Overlay.Columns.Time.FontFamily);
+    AssertEqual(customMissingFamily, settings.Overlay.Columns.Delta.FontFamily);
+    AssertEqual(UiFontDefaults.DefaultFamilyName, settings.Overlay.Columns.Timer.FontFamily);
 }
 
 static void TestSettingsNormalizerAssignsInternalSplitIds()
@@ -2109,14 +2109,14 @@ static void TestSettingsFormAppliesAttachedSplitDisplaySettings()
         AssertEqual(false, form.Result.Overlay.Columns.AttachedIcon.Bold);
         AssertEqual(44, form.Result.Overlay.TextEffects.AttachedIconOpacityPercent);
         AssertEqual(122, form.Result.Overlay.Columns.AttachedTime.Width);
-        AssertEqual(UiFontSettings.NormalizeFamilyName(selectedFamily), form.Result.Overlay.Columns.AttachedTime.FontFamily);
+        AssertEqual(UiFontFactory.Default.NormalizeFamilyName(selectedFamily), form.Result.Overlay.Columns.AttachedTime.FontFamily);
         AssertEqual(18.5f, form.Result.Overlay.Columns.AttachedTime.FontSize);
         AssertEqual(true, form.Result.Overlay.Columns.AttachedTime.Bold);
         AssertEqual(64, form.Result.Overlay.TextEffects.AttachedTimeOpacityPercent);
         AssertEqual(24, form.Result.Overlay.TextEffects.AttachedTimeShadowPercent);
         AssertEqual(34, form.Result.Overlay.TextEffects.AttachedTimeOutlineThicknessPercent);
         AssertEqual(132, form.Result.Overlay.Columns.AttachedDelta.Width);
-        AssertEqual(UiFontSettings.NormalizeFamilyName(selectedFamily), form.Result.Overlay.Columns.AttachedDelta.FontFamily);
+        AssertEqual(UiFontFactory.Default.NormalizeFamilyName(selectedFamily), form.Result.Overlay.Columns.AttachedDelta.FontFamily);
         AssertEqual(19.5f, form.Result.Overlay.Columns.AttachedDelta.FontSize);
         AssertEqual(false, form.Result.Overlay.Columns.AttachedDelta.Bold);
         AssertEqual(74, form.Result.Overlay.TextEffects.AttachedDeltaOpacityPercent);
@@ -2178,8 +2178,8 @@ static void TestSettingsFormAppliesUiFontFamilies()
 
         form.ApplyForTests();
 
-        AssertEqual(UiFontSettings.NormalizeFamilyName(selectedFamily), form.Result.Overlay.Columns.Time.FontFamily);
-        AssertEqual(UiFontSettings.NormalizeFamilyName(selectedFamily), form.Result.Overlay.Columns.Timer.FontFamily);
+        AssertEqual(UiFontFactory.Default.NormalizeFamilyName(selectedFamily), form.Result.Overlay.Columns.Time.FontFamily);
+        AssertEqual(UiFontFactory.Default.NormalizeFamilyName(selectedFamily), form.Result.Overlay.Columns.Timer.FontFamily);
     });
 }
 
@@ -4842,7 +4842,7 @@ static void PressHotkeyBoxKey(SettingsHotkeyTextBox textBox, Keys keyData)
 
 static void SetFontFamilySelectorValue(FontFamilySelector selector, string value)
 {
-    if (!UiFontSettings.GetInstalledFamilyNames().Contains(value, StringComparer.OrdinalIgnoreCase))
+    if (!UiFontFactory.Default.GetInstalledFamilyNames().Contains(value, StringComparer.OrdinalIgnoreCase))
     {
         throw new InvalidOperationException($"Font selector does not contain '{value}'.");
     }
@@ -4852,9 +4852,9 @@ static void SetFontFamilySelectorValue(FontFamilySelector selector, string value
 
 static string SelectInstalledFontFamilyForTest(string currentFamily)
 {
-    return UiFontSettings.GetInstalledFamilyNames()
+    return UiFontFactory.Default.GetInstalledFamilyNames()
         .FirstOrDefault(name => !string.Equals(name, currentFamily, StringComparison.OrdinalIgnoreCase))
-        ?? UiFontSettings.NormalizeFamilyName(currentFamily);
+        ?? UiFontFactory.Default.NormalizeFamilyName(currentFamily);
 }
 
 static void SetMainFormSettings(MainForm form, AppSettings settings)

@@ -168,7 +168,7 @@ internal static class RenderingTests
     private static void OverlayFontCacheHonorsConfiguredFontFamilies()
     {
         using var resources = new OverlayRenderResources();
-        using Font defaultProbe = UiFontSettings.CreateFont(UiFontSettings.DefaultFamilyName, 20f, FontStyle.Regular);
+        using Font defaultProbe = UiFontFactory.Default.CreateFont(UiFontDefaults.DefaultFamilyName, 20f, FontStyle.Regular);
         var missingSettings = new UiColumnSettings
         {
             FontFamily = "Definitely Missing TerrariaSplit Font",
@@ -186,7 +186,7 @@ internal static class RenderingTests
 
         var defaultSettings = new UiColumnSettings
         {
-            FontFamily = UiFontSettings.DefaultFamilyName,
+            FontFamily = UiFontDefaults.DefaultFamilyName,
             FontSize = 20f
         };
         var alternateSettings = new UiColumnSettings
@@ -203,14 +203,14 @@ internal static class RenderingTests
 
     private static string? FindRenderableAlternateFontFamily(string defaultRenderedFamily)
     {
-        foreach (string family in UiFontSettings.GetInstalledFamilyNames())
+        foreach (string family in UiFontFactory.Default.GetInstalledFamilyNames())
         {
             if (string.Equals(family, defaultRenderedFamily, StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
 
-            using Font probe = UiFontSettings.CreateFont(family, 20f, FontStyle.Regular);
+            using Font probe = UiFontFactory.Default.CreateFont(family, 20f, FontStyle.Regular);
             if (string.Equals(probe.FontFamily.Name, family, StringComparison.OrdinalIgnoreCase))
             {
                 return family;
