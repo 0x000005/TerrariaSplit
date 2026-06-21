@@ -16,7 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="..\..\TerrariaSplit\Configuration\Resources\*.json" Link="Configuration\Resources\%(Filename)%(Extension)" />
+    <EmbeddedResource Include="..\..\TerrariaSplit\Assets\Defaults\*.json" Link="Assets\Defaults\%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>
