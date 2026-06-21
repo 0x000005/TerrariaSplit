@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Globalization;
 
 namespace TerrariaSplit.Application;
 
@@ -15,27 +14,19 @@ internal sealed class TerrariaMonitorCoordinator : IDisposable
     private const int MaxWatcherCompletionsPerDispatch = 8;
 
     private readonly ITerrariaWorldWatcher watcher;
-    private readonly ITerrariaUiScalePatchApplier uiScalePatchApplier;
-    private readonly Action<Action> dispatch;
-    private readonly Func<DateTime> utcNowProvider;
-    private readonly Func<int, bool> isProcessStillRunning;
     private readonly Action<TimeSpan, long>? recordPoll;
-    private readonly Action<string> logInfo;
     private readonly Action<Exception, string> logError;
     private readonly WatcherCompletionDispatcher watcherCompletions;
+    private readonly UiScalePatchScheduler uiScalePatchScheduler;
     private readonly object lifecycleLock = new();
     private readonly AutoResetEvent watcherLoopSignal = new(false);
     private readonly WatcherRuntimeProcessor runtimeProcessor;
     private readonly RuntimeCommandSequencer runtimeCommands;
-    private DateTime nextUiScalePatchAttemptUtc = DateTime.MinValue;
-    private bool uiScalePatchInFlight;
     private int currentRunPhaseValue;
     private long readyWatcherPollIntervalTicks = WatcherRunningPollInterval.Ticks;
     private bool disposed;
     private CancellationTokenSource? watcherLoopCancellation;
     private Task? watcherLoopTask;
-    private int? uiScalePatchAppliedProcessId;
-    private string? lastUiScalePatchLogKey;
 
     public TerrariaMonitorCoordinator(
         ITerrariaWorldWatcher watcher,
@@ -50,13 +41,11 @@ internal sealed class TerrariaMonitorCoordinator : IDisposable
         Action<TimeSpan, long>? recordPoll = null)
     {
         this.watcher = watcher;
-        this.uiScalePatchApplier = uiScalePatchApplier;
-        this.dispatch = dispatch;
         logger ??= NullAppLogger.Instance;
-        this.logInfo = logInfo ?? logger.Info;
+        Action<string> infoLogger = logInfo ?? logger.Info;
         this.logError = logError ?? logger.Error;
-        this.utcNowProvider = utcNowProvider ?? (() => DateTime.UtcNow);
-        this.isProcessStillRunning = isProcessStillRunning ?? IsProcessStillRunning;
+        Func<DateTime> nowProvider = utcNowProvider ?? (() => DateTime.UtcNow);
+        Func<int, bool> processRunning = isProcessStillRunning ?? IsProcessStillRunning;
         this.recordPoll = recordPoll;
         runtimeProcessor = new WatcherRuntimeProcessor(RuntimePendingMenuGraceDuration);
         runtimeCommands = new RuntimeCommandSequencer(runtimeProcessor);
@@ -65,6 +54,13 @@ internal sealed class TerrariaMonitorCoordinator : IDisposable
             shouldYieldDispatch ?? (() => false),
             CompleteWatcherPoll,
             MaxWatcherCompletionsPerDispatch);
+        uiScalePatchScheduler = new UiScalePatchScheduler(
+            uiScalePatchApplier,
+            dispatch,
+            nowProvider,
+            processRunning,
+            infoLogger,
+            UiScalePatchRetryInterval);
         CurrentSnapshot = new TerrariaWatchSnapshot(
             false,
             null,
@@ -89,7 +85,11 @@ internal sealed class TerrariaMonitorCoordinator : IDisposable
 
     public event Action<WatcherPollNotification>? WatcherPollCompleted;
 
-    public event Action<TerrariaUiScalePatchResult>? UiScalePatchCompleted;
+    public event Action<TerrariaUiScalePatchResult>? UiScalePatchCompleted
+    {
+        add => uiScalePatchScheduler.Completed += value;
+        remove => uiScalePatchScheduler.Completed -= value;
+    }
 
     public void Tick(
         SplitTimerPhase runPhase,
@@ -102,7 +102,7 @@ internal sealed class TerrariaMonitorCoordinator : IDisposable
 
         UpdateRunPhase(runPhase);
         StartWatcherLoopIfNeeded();
-        ScheduleTerrariaUiScalePatch(patchEnabled);
+        uiScalePatchScheduler.Schedule(patchEnabled, CurrentSnapshot);
     }
 
     public void UpdateRunPhase(SplitTimerPhase runPhase)
@@ -136,9 +136,7 @@ internal sealed class TerrariaMonitorCoordinator : IDisposable
 
     public void ResetUiScalePatchState()
     {
-        nextUiScalePatchAttemptUtc = DateTime.MinValue;
-        uiScalePatchAppliedProcessId = null;
-        lastUiScalePatchLogKey = null;
+        uiScalePatchScheduler.Reset();
     }
 
     public long SetRuntimeDefinitions(IReadOnlyList<SplitDefinition> definitions)
@@ -174,6 +172,7 @@ internal sealed class TerrariaMonitorCoordinator : IDisposable
         {
             disposed = true;
             watcherCompletions.Dispose();
+            uiScalePatchScheduler.Dispose();
             cancellation = watcherLoopCancellation;
             loopTask = watcherLoopTask;
         }
@@ -410,99 +409,6 @@ internal sealed class TerrariaMonitorCoordinator : IDisposable
             completion.NextPollInterval,
             completion.ProcessLookupInterval,
             completion.Error));
-    }
-
-    private void ScheduleTerrariaUiScalePatch(bool patchEnabled)
-    {
-        if (!patchEnabled)
-        {
-            uiScalePatchAppliedProcessId = null;
-            return;
-        }
-
-        if (uiScalePatchAppliedProcessId is int appliedProcessId)
-        {
-            if (CurrentSnapshot.ProcessId == appliedProcessId ||
-                (!CurrentSnapshot.ProcessId.HasValue && isProcessStillRunning(appliedProcessId)))
-            {
-                return;
-            }
-
-            uiScalePatchAppliedProcessId = null;
-        }
-
-        if (uiScalePatchInFlight || utcNowProvider() < nextUiScalePatchAttemptUtc)
-        {
-            return;
-        }
-
-        uiScalePatchInFlight = true;
-        int? fallbackProcessId = CurrentSnapshot.ProcessId;
-        _ = Task.Run(uiScalePatchApplier.TryApply).ContinueWith(task =>
-        {
-            TerrariaUiScalePatchResult result = task.Status == TaskStatus.RanToCompletion
-                ? task.Result
-                : new TerrariaUiScalePatchResult(
-                    TerrariaUiScalePatchStatus.Failed,
-                    fallbackProcessId,
-                    task.Exception?.GetBaseException().Message ?? "Unexpected Terraria UI scale patch failure.");
-
-            if (disposed)
-            {
-                return;
-            }
-
-            try
-            {
-                dispatch(() => CompleteTerrariaUiScalePatch(result));
-            }
-            catch (ObjectDisposedException)
-            {
-                uiScalePatchInFlight = false;
-            }
-            catch (InvalidOperationException)
-            {
-                uiScalePatchInFlight = false;
-            }
-        }, TaskScheduler.Default);
-    }
-
-    private void CompleteTerrariaUiScalePatch(TerrariaUiScalePatchResult result)
-    {
-        uiScalePatchInFlight = false;
-        nextUiScalePatchAttemptUtc = utcNowProvider() + UiScalePatchRetryInterval;
-
-        if (result.Status == TerrariaUiScalePatchStatus.NoProcess)
-        {
-            uiScalePatchAppliedProcessId = null;
-            UiScalePatchCompleted?.Invoke(result);
-            return;
-        }
-
-        if (result.IsSuccess && result.ProcessId.HasValue)
-        {
-            uiScalePatchAppliedProcessId = result.ProcessId.Value;
-        }
-
-        LogTerrariaUiScalePatchResult(result);
-        UiScalePatchCompleted?.Invoke(result);
-    }
-
-    private void LogTerrariaUiScalePatchResult(TerrariaUiScalePatchResult result)
-    {
-        string logKey = string.Create(
-            CultureInfo.InvariantCulture,
-            $"{result.Status}:{result.ProcessId}:{result.Message}");
-        if (string.Equals(logKey, lastUiScalePatchLogKey, StringComparison.Ordinal))
-        {
-            return;
-        }
-
-        lastUiScalePatchLogKey = logKey;
-        string pid = result.ProcessId.HasValue
-            ? string.Create(CultureInfo.InvariantCulture, $"PID {result.ProcessId.Value}")
-            : "no PID";
-        logInfo($"Terraria UI scale enhancement {result.Status} for {pid}: {result.Message}");
     }
 
     private static bool IsProcessStillRunning(int processId)
