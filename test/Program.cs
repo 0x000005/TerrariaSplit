@@ -1631,11 +1631,11 @@ static void TestAppSettingsInvalidHotkeyFallback()
         PracticeWorldKey = Keys.LWin.ToString()
     };
 
-    AssertEqual(Keys.F12, settings.PauseResumeKeys);
-    AssertEqual(Keys.F6, settings.ResetKeys);
-    AssertEqual(Keys.F9, settings.MouseClickThroughKeys);
-    AssertEqual(Keys.F7, settings.CreateWorldKeys);
-    AssertEqual(Keys.F8, settings.PracticeWorldKeys);
+    AssertEqual(Keys.F12, settings.GetPauseResumeKeys());
+    AssertEqual(Keys.F6, settings.GetResetKeys());
+    AssertEqual(Keys.F9, settings.GetMouseClickThroughKeys());
+    AssertEqual(Keys.F7, settings.GetCreateWorldKeys());
+    AssertEqual(Keys.F8, settings.GetPracticeWorldKeys());
 }
 
 static void TestAppSettingsParsesModifierHotkeys()
@@ -1649,11 +1649,11 @@ static void TestAppSettingsParsesModifierHotkeys()
         PracticeWorldKey = (Keys.Control | Keys.Shift | Keys.F8).ToString()
     };
 
-    AssertEqual(Keys.Control | Keys.F12, settings.PauseResumeKeys);
-    AssertEqual(Keys.Alt | Keys.F6, settings.ResetKeys);
-    AssertEqual(Keys.Shift | Keys.F9, settings.MouseClickThroughKeys);
-    AssertEqual(Keys.Control | Keys.Alt | Keys.F7, settings.CreateWorldKeys);
-    AssertEqual(Keys.Control | Keys.Shift | Keys.F8, settings.PracticeWorldKeys);
+    AssertEqual(Keys.Control | Keys.F12, settings.GetPauseResumeKeys());
+    AssertEqual(Keys.Alt | Keys.F6, settings.GetResetKeys());
+    AssertEqual(Keys.Shift | Keys.F9, settings.GetMouseClickThroughKeys());
+    AssertEqual(Keys.Control | Keys.Alt | Keys.F7, settings.GetCreateWorldKeys());
+    AssertEqual(Keys.Control | Keys.Shift | Keys.F8, settings.GetPracticeWorldKeys());
 }
 
 static void TestAppSettingsUsesPersonalBestAsReferenceTime()

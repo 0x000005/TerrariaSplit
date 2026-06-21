@@ -33,11 +33,11 @@ internal sealed class GlobalHotkeyManager : IDisposable
 
         var warnings = new List<HotkeyRegistrationWarning>();
         HashSet<HotkeyChord> registeredChords = new();
-        RegisterAction(HotkeyAction.PauseResume, settings.PauseResumeKeys, registeredChords, warnings);
-        RegisterAction(HotkeyAction.Reset, settings.ResetKeys, registeredChords, warnings);
-        RegisterAction(HotkeyAction.MouseClickThrough, settings.MouseClickThroughKeys, registeredChords, warnings);
-        RegisterAction(HotkeyAction.CreateWorld, settings.CreateWorldKeys, registeredChords, warnings);
-        RegisterAction(HotkeyAction.PracticeWorld, settings.PracticeWorldKeys, registeredChords, warnings);
+        RegisterAction(HotkeyAction.PauseResume, settings.GetPauseResumeKeys(), registeredChords, warnings);
+        RegisterAction(HotkeyAction.Reset, settings.GetResetKeys(), registeredChords, warnings);
+        RegisterAction(HotkeyAction.MouseClickThrough, settings.GetMouseClickThroughKeys(), registeredChords, warnings);
+        RegisterAction(HotkeyAction.CreateWorld, settings.GetCreateWorldKeys(), registeredChords, warnings);
+        RegisterAction(HotkeyAction.PracticeWorld, settings.GetPracticeWorldKeys(), registeredChords, warnings);
         return warnings;
     }
 

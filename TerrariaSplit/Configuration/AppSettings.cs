@@ -1,4 +1,3 @@
-using System.Windows.Forms;
 using System.Text.Json.Serialization;
 
 namespace TerrariaSplit.Configuration;
@@ -7,11 +6,11 @@ internal sealed class AppSettings
 {
     public const string PersonalBestReferenceSetName = "PB";
 
-    public string PauseResumeKey { get; set; } = Keys.F12.ToString();
-    public string ResetKey { get; set; } = Keys.F6.ToString();
-    public string MouseClickThroughKey { get; set; } = Keys.F9.ToString();
-    public string CreateWorldKey { get; set; } = Keys.F7.ToString();
-    public string PracticeWorldKey { get; set; } = Keys.F8.ToString();
+    public string PauseResumeKey { get; set; } = "F12";
+    public string ResetKey { get; set; } = "F6";
+    public string MouseClickThroughKey { get; set; } = "F9";
+    public string CreateWorldKey { get; set; } = "F7";
+    public string PracticeWorldKey { get; set; } = "F8";
     public bool ShowMouseClickThroughIndicator { get; set; }
     public string Language { get; set; } = "English";
     public bool AlwaysOnTop { get; set; }
@@ -65,21 +64,6 @@ internal sealed class AppSettings
     public int CurrentBossIconGrayscaleWeakenPercent { get; set; } = 40;
     public int CurrentBossIconBrightnessBoostPercent { get; set; } = 35;
 
-    [JsonIgnore]
-    public Keys PauseResumeKeys => ParseKey(PauseResumeKey, Keys.F12);
-
-    [JsonIgnore]
-    public Keys ResetKeys => ParseKey(ResetKey, Keys.F6);
-
-    [JsonIgnore]
-    public Keys MouseClickThroughKeys => ParseKey(MouseClickThroughKey, Keys.F9);
-
-    [JsonIgnore]
-    public Keys CreateWorldKeys => ParseKey(CreateWorldKey, Keys.F7);
-
-    [JsonIgnore]
-    public Keys PracticeWorldKeys => ParseKey(PracticeWorldKey, Keys.F8);
-
     public bool TryGetReferenceSplit(SplitDefinition definition, out TimeSpan split)
     {
         return SplitConditionDataRows.TryGetSplitTime(this, GetActiveReferenceSet().Splits, definition, out split);
@@ -118,17 +102,6 @@ internal sealed class AppSettings
     public void SetPersonalBestSegmentText(string name, string value)
     {
         PersonalBestSegmentTimes[name] = value;
-    }
-
-    private static Keys ParseKey(string? value, Keys fallback)
-    {
-        if (Enum.TryParse(value, ignoreCase: true, out Keys key) &&
-            HotkeyKeyValidator.TryNormalize(key, out Keys normalizedKey))
-        {
-            return normalizedKey;
-        }
-
-        return fallback;
     }
 
     public ReferenceSplitSet GetActiveReferenceSet()

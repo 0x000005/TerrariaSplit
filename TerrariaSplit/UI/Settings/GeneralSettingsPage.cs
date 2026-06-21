@@ -42,11 +42,11 @@ internal sealed class GeneralSettingsPage : SettingsPageBase
 
     private void BuildSections(TableLayoutPanel parent)
     {
-        ConfigureHotkeyBox(pauseKeyBox, Draft.PauseResumeKeys);
-        ConfigureHotkeyBox(resetKeyBox, Draft.ResetKeys);
-        ConfigureHotkeyBox(mouseClickThroughKeyBox, Draft.MouseClickThroughKeys);
-        ConfigureHotkeyBox(createWorldKeyBox, Draft.CreateWorldKeys);
-        ConfigureHotkeyBox(practiceWorldKeyBox, Draft.PracticeWorldKeys);
+        ConfigureHotkeyBox(pauseKeyBox, Draft.GetPauseResumeKeys());
+        ConfigureHotkeyBox(resetKeyBox, Draft.GetResetKeys());
+        ConfigureHotkeyBox(mouseClickThroughKeyBox, Draft.GetMouseClickThroughKeys());
+        ConfigureHotkeyBox(createWorldKeyBox, Draft.GetCreateWorldKeys());
+        ConfigureHotkeyBox(practiceWorldKeyBox, Draft.GetPracticeWorldKeys());
 
         ConfigureCheckBox(showMouseClickThroughIndicatorBox, Draft.ShowMouseClickThroughIndicator);
         ConfigureCheckBox(alwaysOnTopBox, Draft.AlwaysOnTop);
