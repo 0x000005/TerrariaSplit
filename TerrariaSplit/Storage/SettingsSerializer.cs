@@ -33,7 +33,7 @@ internal static class SettingsSerializer
 
     public static OperationResult WriteSettings(string path, AppSettings settings)
     {
-        return JsonFileStore.TryWrite(path, settings, "settings");
+        return JsonFileStore.TryWrite(path, new SettingsDocument(settings), "settings");
     }
 
     public static AppSettings? ReadSettingsWithDefaults(
@@ -66,7 +66,8 @@ internal static class SettingsSerializer
             }
 
             SettingsJsonSectionMigrator.Migrate(overrides);
-            MergeJsonObject(merged, overrides);
+            JsonObject overrideSettings = GetSettingsPayload(overrides);
+            MergeJsonObject(merged, overrideSettings);
             AppSettings? settings = SettingsJsonSectionMigrator.Deserialize(merged, JsonFileStore.JsonOptions);
             if (settings is null)
             {
@@ -101,14 +102,18 @@ internal static class SettingsSerializer
             }
 
             JsonElement root = document.RootElement;
-            return root.TryGetProperty(nameof(AppSettings.Route), out _) ||
-                root.TryGetProperty(nameof(AppSettings.Overlay), out _) ||
-                root.TryGetProperty(nameof(AppSettings.Comparison), out _) ||
-                root.TryGetProperty(nameof(RouteSettings.SplitRoute), out _) ||
-                root.TryGetProperty(nameof(OverlaySettings.Columns), out _) ||
-                root.TryGetProperty(nameof(OverlaySettings.Colors), out _) ||
-                root.TryGetProperty(nameof(ComparisonSettings.ReferenceSplitSets), out _) ||
-                root.TryGetProperty(nameof(OverlaySettings.ShowSplitCompletionAnimation), out _);
+            JsonElement settingsRoot = root.TryGetProperty(nameof(SettingsDocument.Settings), out JsonElement settings) &&
+                settings.ValueKind == JsonValueKind.Object
+                ? settings
+                : root;
+            return settingsRoot.TryGetProperty(nameof(AppSettings.Route), out _) ||
+                settingsRoot.TryGetProperty(nameof(AppSettings.Overlay), out _) ||
+                settingsRoot.TryGetProperty(nameof(AppSettings.Comparison), out _) ||
+                settingsRoot.TryGetProperty(nameof(RouteSettings.SplitRoute), out _) ||
+                settingsRoot.TryGetProperty(nameof(OverlaySettings.Columns), out _) ||
+                settingsRoot.TryGetProperty(nameof(OverlaySettings.Colors), out _) ||
+                settingsRoot.TryGetProperty(nameof(ComparisonSettings.ReferenceSplitSets), out _) ||
+                settingsRoot.TryGetProperty(nameof(OverlaySettings.ShowSplitCompletionAnimation), out _);
         }
         catch (Exception ex)
         {
@@ -133,6 +138,13 @@ internal static class SettingsSerializer
             AppLogger.Error(ex, $"Failed to read settings JSON object: {path}");
             return null;
         }
+    }
+
+    private static JsonObject GetSettingsPayload(JsonObject root)
+    {
+        return root[nameof(SettingsDocument.Settings)] is JsonObject settings
+            ? settings
+            : root;
     }
 
     private static void MergeJsonObject(JsonObject target, JsonObject overrides)

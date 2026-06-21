@@ -21,6 +21,7 @@ internal static class ArchitectureDependencyTests
         yield return ("Architecture uses typed application effects", ApplicationEffectsAreTypedRecords);
         yield return ("Architecture uses typed application commands", ApplicationCommandsAreTypedRecords);
         yield return ("Architecture keeps AppSettings section-only", AppSettingsHasNoCompatibilityFacade);
+        yield return ("Architecture keeps settings normalization current-schema only", SettingsNormalizerDoesNotRunObjectMigrations);
         yield return ("Architecture has no root namespace source files", RootNamespaceIsEmpty);
         yield return ("Architecture static dependency debt does not grow", StaticDependencyDebtDoesNotGrow);
         yield return ("Architecture reports next phase transition debt", NextPhaseTransitionDebtReport);
@@ -236,6 +237,14 @@ internal static class ArchitectureDependencyTests
         {
             throw new InvalidOperationException("AppSettings must expose persisted sections only; legacy facade properties belong in migrations.");
         }
+    }
+
+    private static void SettingsNormalizerDoesNotRunObjectMigrations()
+    {
+        AssertNoMatches(
+            Path.Combine("TerrariaSplit", "Configuration", "SettingsNormalizer.cs"),
+            new Regex(@"\bSettingsMigrator\b|\.Migrate\(settings\)", RegexOptions.Compiled),
+            "SettingsNormalizer must only normalize the current schema; JSON/object compatibility belongs before normalization.");
     }
 
     private static void AssertNoMatches(string relativeDirectory, Regex pattern, string message)

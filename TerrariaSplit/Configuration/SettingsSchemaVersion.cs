@@ -2,5 +2,5 @@ namespace TerrariaSplit.Configuration;
 
 internal static class SettingsSchemaVersion
 {
-    public const int Current = 1;
+    public const int Current = 2;
 }

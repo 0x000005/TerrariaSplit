@@ -35,7 +35,7 @@ internal sealed class AppSettingsRepository : ISettingsRepository
     public AppSettings Load(string path)
     {
         activeSettingsPath = NormalizeSettingsPath(path);
-        SettingsDocument document = ReadSettingsDocument(SettingsPath);
+        LoadedSettingsDocument document = ReadSettingsDocument(SettingsPath);
         AppSettings settings = document.Settings;
         string activeReferenceSplitSet = settings.Comparison.ActiveReferenceSplitSet;
         string activePersonalBestTimeSet = settings.Comparison.ActivePersonalBestTimeSet;
@@ -114,7 +114,7 @@ internal sealed class AppSettingsRepository : ISettingsRepository
         SettingsNormalizer.Normalize(settings);
     }
 
-    private SettingsDocument ReadSettingsDocument(string path)
+    private LoadedSettingsDocument ReadSettingsDocument(string path)
     {
         AppSettings defaults = LoadDefaultSettingsTemplate();
         AppSettings settings = SettingsSerializer.ReadSettingsWithDefaults(
@@ -122,7 +122,7 @@ internal sealed class AppSettingsRepository : ISettingsRepository
             defaults,
             "settings",
             out bool shouldSaveDefaults) ?? defaults;
-        return new SettingsDocument(settings, path, shouldSaveDefaults);
+        return new LoadedSettingsDocument(settings, path, shouldSaveDefaults);
     }
 
     private static AppSettings LoadDefaultSettingsTemplate()

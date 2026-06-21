@@ -13,7 +13,7 @@ internal static class SettingsNormalizer
         settings.Automation ??= defaults.Automation;
         settings.PracticeWorlds ??= defaults.PracticeWorlds;
         settings.Advanced ??= defaults.Advanced;
-        SettingsMigrator.Migrate(settings);
+        settings.General.Language = LanguageNames.Normalize(settings.General.Language);
         settings.Route.SplitRoute ??= new List<SplitRouteEntry>();
         settings.Comparison.ReferenceSplitSets ??= new List<ReferenceSplitSet>();
         settings.Comparison.PersonalBestTimeSets ??= new List<ReferenceSplitSet>();

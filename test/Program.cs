@@ -44,6 +44,8 @@ var legacyTests = new (string Name, Action Test)[]
     ("JsonFileStore writes settings atomically", TestJsonFileStoreWritesAtomically),
     ("Default settings template covers serializable settings", TestDefaultSettingsTemplateCoversSerializableSettings),
     ("Legacy flat settings JSON migrates to sections", TestLegacyFlatSettingsJsonMigratesToSections),
+    ("SettingsSerializer writes schema document", TestSettingsSerializerWritesSchemaDocument),
+    ("Settings JSON migrates legacy document values", TestSettingsJsonMigratesLegacyDocumentValues),
     ("Default attached split display matches primary display", TestDefaultAttachedSplitDisplayMatchesPrimaryDisplay),
     ("Default reference times match default settings route", TestDefaultReferenceTimesMatchDefaultSettingsRoute),
     ("AppSettingsStore writes embedded defaults when settings file is invalid", TestAppSettingsStoreWritesEmbeddedDefaultsWhenSettingsFileIsInvalid),
@@ -1085,20 +1087,73 @@ static void TestLegacyFlatSettingsJsonMigratesToSections()
     AssertEqual(false, settings.Overlay.ShowSplitCompletionAnimation);
     AssertEqual(true, settings.Automation.AutoCreate.EnablePyramidFilter);
 
-    string persisted = JsonSerializer.Serialize(settings, JsonFileStore.JsonOptions);
+    string persisted = JsonSerializer.Serialize(new SettingsDocument(settings), JsonFileStore.JsonOptions);
     using JsonDocument document = JsonDocument.Parse(persisted);
     JsonElement root = document.RootElement;
+    JsonElement settingsRoot = root.GetProperty(nameof(SettingsDocument.Settings));
 
-    AssertEqual(true, root.TryGetProperty(nameof(AppSettings.General), out _));
-    AssertEqual(true, root.TryGetProperty(nameof(AppSettings.Hotkeys), out _));
-    AssertEqual(true, root.TryGetProperty(nameof(AppSettings.Route), out _));
-    AssertEqual(true, root.TryGetProperty(nameof(AppSettings.Comparison), out _));
-    AssertEqual(true, root.TryGetProperty(nameof(AppSettings.Overlay), out _));
-    AssertEqual(true, root.TryGetProperty(nameof(AppSettings.Automation), out _));
-    AssertEqual(false, root.TryGetProperty("Language", out _));
-    AssertEqual(false, root.TryGetProperty("PauseResumeKey", out _));
-    AssertEqual(false, root.TryGetProperty("SplitRoute", out _));
-    AssertEqual(false, root.TryGetProperty("AutoCreate", out _));
+    AssertEqual(SettingsSchemaVersion.Current, root.GetProperty(nameof(SettingsDocument.SchemaVersion)).GetInt32());
+    AssertEqual(true, settingsRoot.TryGetProperty(nameof(AppSettings.General), out _));
+    AssertEqual(true, settingsRoot.TryGetProperty(nameof(AppSettings.Hotkeys), out _));
+    AssertEqual(true, settingsRoot.TryGetProperty(nameof(AppSettings.Route), out _));
+    AssertEqual(true, settingsRoot.TryGetProperty(nameof(AppSettings.Comparison), out _));
+    AssertEqual(true, settingsRoot.TryGetProperty(nameof(AppSettings.Overlay), out _));
+    AssertEqual(true, settingsRoot.TryGetProperty(nameof(AppSettings.Automation), out _));
+    AssertEqual(false, settingsRoot.TryGetProperty("Language", out _));
+    AssertEqual(false, settingsRoot.TryGetProperty("PauseResumeKey", out _));
+    AssertEqual(false, settingsRoot.TryGetProperty("SplitRoute", out _));
+    AssertEqual(false, settingsRoot.TryGetProperty("AutoCreate", out _));
+}
+
+static void TestSettingsSerializerWritesSchemaDocument()
+{
+    string directory = Path.Combine(Path.GetTempPath(), "TerrariaSplit.Tests", "settings-document-" + Guid.NewGuid().ToString("N"));
+    string path = Path.Combine(directory, "settings.json");
+    try
+    {
+        OperationResult result = SettingsSerializer.WriteSettings(path, new AppSettings());
+        AssertEqual(true, result.Succeeded);
+
+        using JsonDocument document = JsonDocument.Parse(File.ReadAllText(path));
+        JsonElement root = document.RootElement;
+        AssertEqual(SettingsSchemaVersion.Current, root.GetProperty(nameof(SettingsDocument.SchemaVersion)).GetInt32());
+        AssertEqual(true, root.TryGetProperty(nameof(SettingsDocument.Settings), out JsonElement settings));
+        AssertEqual(true, settings.TryGetProperty(nameof(AppSettings.General), out _));
+        AssertEqual(false, root.TryGetProperty(nameof(AppSettings.General), out _));
+    }
+    finally
+    {
+        DeleteDirectoryIfExists(directory);
+    }
+}
+
+static void TestSettingsJsonMigratesLegacyDocumentValues()
+{
+    const string json = """
+    {
+      "SchemaVersion": 1,
+      "Settings": {
+        "General": {
+          "Language": "\u6D93\uE15F\u6783"
+        },
+        "Route": {
+          "SplitRoute": [
+            {
+              "Id": "legacy",
+              "ExpandDetails": true
+            }
+          ]
+        }
+      }
+    }
+    """;
+
+    AppSettings settings = SettingsSerializer.ReadSettingsFromJson(json, "legacy document settings")
+        ?? throw new InvalidOperationException("Legacy document settings could not be read.");
+
+    AssertEqual(LanguageNames.Chinese, settings.General.Language);
+    AssertEqual(true, settings.Route.ExpandSplitDetails);
+    AssertEqual(false, settings.Route.SplitRoute[0].ExpandDetails);
 }
 
 static void TestDefaultAttachedSplitDisplayMatchesPrimaryDisplay()
