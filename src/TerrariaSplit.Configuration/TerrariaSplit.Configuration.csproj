@@ -4,18 +4,11 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="..\..\TerrariaSplit\Configuration\**\*.cs" Link="Configuration\%(RecursiveDir)%(Filename)%(Extension)" />
-    <Compile Include="..\..\TerrariaSplit\Localization\**\*.cs" Link="Localization\%(RecursiveDir)%(Filename)%(Extension)" />
-    <Compile Include="GlobalUsings.cs" />
-    <Compile Include="Properties\AssemblyInfo.cs" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <EmbeddedResource Include="..\..\TerrariaSplit\Assets\Defaults\*.json" Link="Assets\Defaults\%(Filename)%(Extension)" />
+    <None Remove="Assets\Defaults\*.json" />
+    <EmbeddedResource Include="Assets\Defaults\*.json" />
   </ItemGroup>
 
   <ItemGroup>
