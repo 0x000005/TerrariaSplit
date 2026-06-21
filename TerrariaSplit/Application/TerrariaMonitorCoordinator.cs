@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Globalization;
 
@@ -20,11 +19,10 @@ internal sealed class TerrariaMonitorCoordinator : IDisposable
     private readonly Action<Action> dispatch;
     private readonly Func<DateTime> utcNowProvider;
     private readonly Func<int, bool> isProcessStillRunning;
-    private readonly Func<bool> shouldYieldDispatch;
     private readonly Action<TimeSpan, long>? recordPoll;
     private readonly Action<string> logInfo;
     private readonly Action<Exception, string> logError;
-    private readonly ConcurrentQueue<WatcherPollCompletion> pendingWatcherCompletions = new();
+    private readonly WatcherCompletionDispatcher watcherCompletions;
     private readonly object lifecycleLock = new();
     private readonly AutoResetEvent watcherLoopSignal = new(false);
     private readonly WatcherRuntimeProcessor runtimeProcessor;
@@ -33,8 +31,6 @@ internal sealed class TerrariaMonitorCoordinator : IDisposable
     private bool uiScalePatchInFlight;
     private int currentRunPhaseValue;
     private long readyWatcherPollIntervalTicks = WatcherRunningPollInterval.Ticks;
-    private int watcherDispatchPending;
-    private int uiDispatchSuspended;
     private bool disposed;
     private CancellationTokenSource? watcherLoopCancellation;
     private Task? watcherLoopTask;
@@ -61,10 +57,14 @@ internal sealed class TerrariaMonitorCoordinator : IDisposable
         this.logError = logError ?? logger.Error;
         this.utcNowProvider = utcNowProvider ?? (() => DateTime.UtcNow);
         this.isProcessStillRunning = isProcessStillRunning ?? IsProcessStillRunning;
-        this.shouldYieldDispatch = shouldYieldDispatch ?? (() => false);
         this.recordPoll = recordPoll;
         runtimeProcessor = new WatcherRuntimeProcessor(RuntimePendingMenuGraceDuration);
         runtimeCommands = new RuntimeCommandSequencer(runtimeProcessor);
+        watcherCompletions = new WatcherCompletionDispatcher(
+            dispatch,
+            shouldYieldDispatch ?? (() => false),
+            CompleteWatcherPoll,
+            MaxWatcherCompletionsPerDispatch);
         CurrentSnapshot = new TerrariaWatchSnapshot(
             false,
             null,
@@ -126,18 +126,12 @@ internal sealed class TerrariaMonitorCoordinator : IDisposable
 
     public void ApplyUiDispatchSuspended(bool suspended)
     {
-        int nextValue = suspended ? 1 : 0;
-        int previousValue = Interlocked.Exchange(ref uiDispatchSuspended, nextValue);
-        if (previousValue == nextValue)
+        if (!watcherCompletions.SetSuspended(suspended))
         {
             return;
         }
 
         watcherLoopSignal.Set();
-        if (!suspended && !pendingWatcherCompletions.IsEmpty)
-        {
-            RequestWatcherCompletionDispatch();
-        }
     }
 
     public void ResetUiScalePatchState()
@@ -179,6 +173,7 @@ internal sealed class TerrariaMonitorCoordinator : IDisposable
         lock (lifecycleLock)
         {
             disposed = true;
+            watcherCompletions.Dispose();
             cancellation = watcherLoopCancellation;
             loopTask = watcherLoopTask;
         }
@@ -255,7 +250,7 @@ internal sealed class TerrariaMonitorCoordinator : IDisposable
         var publishState = WatcherPublishState.Empty;
         while (!cancellationToken.IsCancellationRequested)
         {
-            if (IsUiDispatchSuspended())
+            if (watcherCompletions.IsSuspended)
             {
                 int suspendedWaitResult = WaitHandle.WaitAny(loopWaitHandles, WatcherScanPollInterval);
                 if (suspendedWaitResult == 0)
@@ -388,56 +383,7 @@ internal sealed class TerrariaMonitorCoordinator : IDisposable
 
     private void QueueWatcherCompletion(WatcherPollCompletion completion)
     {
-        pendingWatcherCompletions.Enqueue(completion);
-        RequestWatcherCompletionDispatch();
-    }
-
-    private void RequestWatcherCompletionDispatch()
-    {
-        if (disposed ||
-            IsUiDispatchSuspended() ||
-            Interlocked.Exchange(ref watcherDispatchPending, 1) == 1)
-        {
-            return;
-        }
-
-        try
-        {
-            dispatch(DrainWatcherCompletions);
-        }
-        catch (ObjectDisposedException)
-        {
-            Interlocked.Exchange(ref watcherDispatchPending, 0);
-        }
-        catch (InvalidOperationException)
-        {
-            Interlocked.Exchange(ref watcherDispatchPending, 0);
-        }
-    }
-
-    private void DrainWatcherCompletions()
-    {
-        Interlocked.Exchange(ref watcherDispatchPending, 0);
-        if (IsUiDispatchSuspended())
-        {
-            return;
-        }
-
-        int processedCount = 0;
-        while (pendingWatcherCompletions.TryDequeue(out WatcherPollCompletion completion))
-        {
-            CompleteWatcherPoll(completion);
-            processedCount++;
-            if (processedCount >= MaxWatcherCompletionsPerDispatch || shouldYieldDispatch())
-            {
-                break;
-            }
-        }
-
-        if (!pendingWatcherCompletions.IsEmpty)
-        {
-            RequestWatcherCompletionDispatch();
-        }
+        watcherCompletions.Queue(completion);
     }
 
     private void CompleteWatcherPoll(WatcherPollCompletion completion)
@@ -464,11 +410,6 @@ internal sealed class TerrariaMonitorCoordinator : IDisposable
             completion.NextPollInterval,
             completion.ProcessLookupInterval,
             completion.Error));
-    }
-
-    private bool IsUiDispatchSuspended()
-    {
-        return Volatile.Read(ref uiDispatchSuspended) != 0;
     }
 
     private void ScheduleTerrariaUiScalePatch(bool patchEnabled)
