@@ -4,15 +4,6 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
   </PropertyGroup>
-
-  <ItemGroup>
-    <Compile Include="..\..\TerrariaSplit\Infrastructure\*.cs" Link="Infrastructure\%(Filename)%(Extension)" />
-    <Compile Remove="..\..\TerrariaSplit\Infrastructure\LayeredWindowRenderTarget.cs" />
-    <Compile Remove="..\..\TerrariaSplit\Infrastructure\LayeredWindowUpdater.cs" />
-    <Compile Include="GlobalUsings.cs" />
-    <Compile Include="Properties\AssemblyInfo.cs" />
-  </ItemGroup>
 
 </Project>

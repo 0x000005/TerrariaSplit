@@ -5,16 +5,7 @@
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
   </PropertyGroup>
-
-  <ItemGroup>
-    <Compile Include="..\..\TerrariaSplit\Infrastructure\Windows\**\*.cs" Link="Infrastructure\Windows\%(RecursiveDir)%(Filename)%(Extension)" />
-    <Compile Include="..\..\TerrariaSplit\Infrastructure\LayeredWindowRenderTarget.cs" Link="Infrastructure\LayeredWindowRenderTarget.cs" />
-    <Compile Include="..\..\TerrariaSplit\Infrastructure\LayeredWindowUpdater.cs" Link="Infrastructure\LayeredWindowUpdater.cs" />
-    <Compile Include="GlobalUsings.cs" />
-    <Compile Include="Properties\AssemblyInfo.cs" />
-  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\TerrariaSplit.Infrastructure\TerrariaSplit.Infrastructure.csproj" />
