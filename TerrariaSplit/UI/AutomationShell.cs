@@ -90,9 +90,10 @@ internal sealed class AutomationShell : IDisposable
 
     private async void StartPracticeWorld(PracticeWorldSlot selectedSlot)
     {
-        if (!EnterWorldSaveInstaller.TryValidate(selectedSlot, out string validationMessage))
+        OperationResult validation = EnterWorldSaveInstaller.Validate(selectedSlot);
+        if (validation.Failed)
         {
-            logger.Info(validationMessage);
+            logger.Info(validation.Message);
             return;
         }
 

@@ -4,24 +4,35 @@ internal static class EnterWorldSaveInstaller
 {
     public static bool TryValidate(PracticeWorldSlot slot, out string message)
     {
+        OperationResult result = Validate(slot);
+        message = result.Message;
+        return result.Succeeded;
+    }
+
+    public static OperationResult Validate(PracticeWorldSlot slot)
+    {
         if (string.IsNullOrWhiteSpace(slot.Name))
         {
-            message = "Load world slot name is missing.";
-            return false;
+            return OperationResult.Failure("Load world slot name is missing.");
         }
 
         if (!IsValidSaveFile(slot.PlayerFilePath, ".plr") &&
             !IsValidSaveFile(slot.WorldFilePath, ".wld"))
         {
-            message = $"Load world slot has no valid player or world file: {slot.Name}";
-            return false;
+            return OperationResult.Failure($"Load world slot has no valid player or world file: {slot.Name}");
         }
 
-        message = string.Empty;
-        return true;
+        return OperationResult.Success();
     }
 
     public static bool TryInstall(PracticeWorldSlot slot, out string message)
+    {
+        OperationResult result = Install(slot);
+        message = result.Message;
+        return result.Succeeded;
+    }
+
+    public static OperationResult Install(PracticeWorldSlot slot)
     {
         try
         {
@@ -45,18 +56,15 @@ internal static class EnterWorldSaveInstaller
 
             if (!copiedAny)
             {
-                message = $"Load world slot has no valid player or world file: {slot.Name}";
-                return false;
+                return OperationResult.Failure($"Load world slot has no valid player or world file: {slot.Name}");
             }
 
-            message = string.Empty;
-            return true;
+            return OperationResult.Success();
         }
         catch (Exception ex)
         {
-            message = ex.Message;
             AppLogger.Error(ex, "Failed to install practice world save files.");
-            return false;
+            return OperationResult.Failure(ex.Message);
         }
     }
 

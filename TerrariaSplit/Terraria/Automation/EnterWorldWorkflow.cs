@@ -13,9 +13,10 @@ internal sealed class EnterWorldWorkflow : IDisposable
         try
         {
             ApplyTiming(settings.AutoCreate);
-            if (!EnterWorldSaveInstaller.TryValidate(slot, out string validationMessage))
+            OperationResult validation = EnterWorldSaveInstaller.Validate(slot);
+            if (validation.Failed)
             {
-                AppLogger.Info(validationMessage);
+                AppLogger.Info(validation.Message);
                 return;
             }
 
@@ -63,9 +64,10 @@ internal sealed class EnterWorldWorkflow : IDisposable
             "install practice save files",
             _ =>
             {
-                if (!EnterWorldSaveInstaller.TryInstall(slot, out string installMessage))
+                OperationResult install = EnterWorldSaveInstaller.Install(slot);
+                if (install.Failed)
                 {
-                    AppLogger.Info($"Enter world automation could not install save files: {installMessage}");
+                    AppLogger.Info($"Enter world automation could not install save files: {install.Message}");
                     return Task.FromResult(false);
                 }
 
