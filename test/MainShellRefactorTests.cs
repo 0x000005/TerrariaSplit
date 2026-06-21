@@ -25,6 +25,7 @@ internal static class MainShellRefactorTests
         yield return ("WindowLayerController ignores modal activation when no modal is registered", WindowLayerControllerIgnoresModalActivationWhenNoModalIsRegistered);
         yield return ("WindowShell computes drag deltas", WindowShellComputesDragDeltas);
         yield return ("WindowShell drives close finalization state", WindowShellDrivesCloseFinalizationState);
+        yield return ("RuntimeShell publishes watcher debug snapshot", RuntimeShellPublishesWatcherDebugSnapshot);
         yield return ("ProgramModalWindowCoordinator registers modal forms through one gateway", ProgramModalWindowCoordinatorRegistersModalFormsThroughOneGateway);
         yield return ("ProgramModalWindowCoordinator enables only the current nested modal", ProgramModalWindowCoordinatorEnablesOnlyCurrentNestedModal);
         yield return ("MainWindowModalInputRouter redirects blocked main window activation", MainWindowModalInputRouterRedirectsBlockedMainWindowActivation);
@@ -437,6 +438,39 @@ internal static class MainShellRefactorTests
         shell.MarkClosing();
 
         TestAssert.Equal(true, shell.IsClosing);
+    }
+
+    private static void RuntimeShellPublishesWatcherDebugSnapshot()
+    {
+        var shell = new RuntimeShell();
+        TerrariaWatchSnapshot snapshot = TestSnapshots.Terraria(isGameMenu: true);
+        TerrariaWatcherDiagnostics diagnostics = TerrariaWatcherDiagnosticsDefaults.Empty with
+        {
+            Stage = "ready"
+        };
+
+        shell.ApplyWatcherNotification(new WatcherPollNotification(
+            snapshot,
+            RuntimeDebugSnapshot.Empty.WatchSnapshot,
+            diagnostics,
+            RuntimeRunSnapshot.Empty,
+            [],
+            42,
+            TimeSpan.FromMilliseconds(2),
+            1234,
+            TimeSpan.FromMilliseconds(5),
+            TimeSpan.FromSeconds(1),
+            null));
+
+        RuntimeDebugSnapshot debug = shell.CreateDebugSnapshot(
+            RuntimePerformanceDiagnostics.Empty,
+            SplitTimerPhase.Running);
+
+        TestAssert.Equal(snapshot, shell.CurrentSnapshot);
+        TestAssert.Equal(snapshot, debug.WatchSnapshot);
+        TestAssert.Equal(diagnostics, debug.WatcherDiagnostics);
+        TestAssert.Equal(RuntimePerformanceDiagnostics.Empty, debug.Performance);
+        TestAssert.Equal(SplitTimerPhase.Running, debug.TimerPhase);
     }
 
     private static void WindowLayerControllerIgnoresModalActivationWhenNoModalIsRegistered()

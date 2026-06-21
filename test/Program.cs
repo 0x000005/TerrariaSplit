@@ -1525,11 +1525,16 @@ static void TestWorldPoolSignatureStartsWithTerrariaVersion()
 
 static void TestWorldPoolFileNameUsesTerrariaSplitTimestamp()
 {
+    string baseDirectory = Path.Combine(
+        Path.GetTempPath(),
+        "TerrariaSplit.Tests",
+        "world-pool-file-name-" + Guid.NewGuid().ToString("N"));
+    var store = new WorldPoolStore(new AppContextRuntimeDataPaths(baseDirectory));
     MethodInfo method = typeof(WorldPoolStore).GetMethod(
             "CreateWorldFileName",
-            BindingFlags.Static | BindingFlags.NonPublic)
+            BindingFlags.Instance | BindingFlags.NonPublic)
         ?? throw new InvalidOperationException("Missing world pool file name builder.");
-    string fileName = (string)(method.Invoke(null, [])
+    string fileName = (string)(method.Invoke(store, [])
         ?? throw new InvalidOperationException("World pool file name builder returned null."));
 
     AssertEqual(true, fileName.StartsWith("TerrariaSplit_", StringComparison.Ordinal));
@@ -2020,10 +2025,11 @@ static ReferenceSplitSet CreateSplitSet(string name, IEnumerable<string> keys, s
 static void TestInputModelStaticRegression()
 {
     string sourceRoot = FindSourceRoot();
-    string appSourceRoot = Path.Combine(sourceRoot, "TerrariaSplit");
-    foreach (string sourcePath in Directory.EnumerateFiles(appSourceRoot, "*.cs", SearchOption.AllDirectories))
+    string sourceTreeRoot = Path.Combine(sourceRoot, "src");
+    string appSourceRoot = Path.Combine(sourceRoot, "src", "TerrariaSplit.Application");
+    foreach (string sourcePath in Directory.EnumerateFiles(sourceTreeRoot, "*.cs", SearchOption.AllDirectories))
     {
-        string relativePath = Path.GetRelativePath(appSourceRoot, sourcePath);
+        string relativePath = Path.GetRelativePath(sourceTreeRoot, sourcePath);
         if (relativePath.StartsWith("bin" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
             relativePath.StartsWith("obj" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
         {

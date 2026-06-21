@@ -443,7 +443,7 @@ internal sealed partial class MainForm : Form
 
     private TimeSpan ResolveControlTickInterval()
     {
-        if (!snapshot.IsReady)
+        if (!runtimeShell.CurrentSnapshot.IsReady)
         {
             return DefaultControlTickInterval;
         }

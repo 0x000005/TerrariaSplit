@@ -34,13 +34,13 @@ internal sealed partial class MainForm : Form
     private readonly ApplicationShellEffectExecutor effectExecutor;
     private readonly SettingsShell settingsShell;
     private readonly TerrariaMonitorCoordinator monitorCoordinator;
+    private readonly RuntimeShell runtimeShell = new();
     private readonly OverlayWindowController overlayWindowController;
     private readonly OverlayBoundsController overlayBoundsController;
     private readonly TimerOverlayWindowHost timerOverlayHost;
     private readonly ProgramModalWindowCoordinator modalWindows;
     private readonly MainWindowModalInputRouter mainWindowModalInputRouter;
     private readonly WindowShell windowShell = new();
-    private readonly object runtimeDebugSnapshotLock = new();
     private bool mouseClickThrough;
     private int runtimeOverlayPaintSuspensionCount;
     private bool runtimeControlSchedulerSuspended;
@@ -65,9 +65,6 @@ internal sealed partial class MainForm : Form
     private bool statusOverlayContentDirty = true;
     private StatusOverlayDynamicKey? lastStatusOverlayDynamicKey;
     private Rectangle? statusOverlayPartialClipBounds;
-    private TerrariaWatcherDiagnostics watcherDiagnostics = TerrariaWatcherDiagnosticsDefaults.Empty;
-    private TerrariaWatchSnapshot snapshot =
-        new(false, null, false, null, TerrariaGameFacts.Unknown, TerrariaWorldGenerationState.Unknown, false, "waiting for Terraria.exe");
     private AppSettings settings => applicationController.Settings;
 
     private ApplicationViewState viewState => applicationController.ViewState;

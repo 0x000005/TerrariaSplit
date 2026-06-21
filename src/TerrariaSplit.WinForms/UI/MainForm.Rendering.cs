@@ -19,7 +19,7 @@ internal sealed partial class MainForm : Form
         var context = new OverlayRenderContext(
             settings,
             palette,
-            snapshot,
+            runtimeShell.CurrentSnapshot,
             splitStatuses,
             currentSplitIndex,
             timerPhase,

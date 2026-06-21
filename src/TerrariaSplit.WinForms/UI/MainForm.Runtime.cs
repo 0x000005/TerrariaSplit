@@ -187,11 +187,7 @@ internal sealed partial class MainForm : Form
         performance.WatcherPollInterval = notification.NextPollInterval;
         performance.ProcessLookupInterval = notification.ProcessLookupInterval;
 
-        lock (runtimeDebugSnapshotLock)
-        {
-            snapshot = notification.Snapshot;
-            watcherDiagnostics = notification.Diagnostics;
-        }
+        runtimeShell.ApplyWatcherNotification(notification);
         UpdateConfiguredRefreshIntervals();
         ApplicationUpdate update = applicationController.HandleWatcherNotification(notification);
         ApplyApplicationUpdate(update);
@@ -287,10 +283,7 @@ internal sealed partial class MainForm : Form
 
     internal RuntimeDebugSnapshot GetRuntimeDebugSnapshot()
     {
-        lock (runtimeDebugSnapshotLock)
-        {
-            return new RuntimeDebugSnapshot(snapshot, watcherDiagnostics, performance.Snapshot(), timerPhase);
-        }
+        return runtimeShell.CreateDebugSnapshot(performance.Snapshot(), timerPhase);
     }
 
     internal int GetWorldPoolCount(AppSettings settings)
