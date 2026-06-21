@@ -1,4 +1,4 @@
-namespace TerrariaSplit.Application;
+namespace TerrariaSplit.Terraria.Automation;
 
 // Background worker that keeps the world pool topped up. While world pooling is enabled,
 // it asks TerrariaServer.exe to generate worlds from program-built copied seeds and banks

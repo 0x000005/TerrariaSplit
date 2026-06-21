@@ -1,4 +1,4 @@
-namespace TerrariaSplit.Application;
+namespace TerrariaSplit.Terraria.Automation;
 
 internal sealed class AutomationRunner<TRequest> : IDisposable
 {
