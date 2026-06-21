@@ -30,7 +30,7 @@ internal static class ArchitectureDependencyTests
     private static void ApplicationDoesNotReferenceWinForms()
     {
         AssertNoMatches(
-            Path.Combine("TerrariaSplit", "Application"),
+            Path.Combine("src", "TerrariaSplit.Application", "Application"),
             WinFormsPattern,
             "Application must not reference WinForms.");
     }
@@ -38,7 +38,7 @@ internal static class ArchitectureDependencyTests
     private static void DomainDoesNotReferenceOuterLayers()
     {
         AssertNoMatches(
-            Path.Combine("TerrariaSplit", "Domain"),
+            Path.Combine("src", "TerrariaSplit.Domain", "Domain"),
             new Regex(
                 @"System\.Windows\.Forms|TerrariaSplit\.UI|TerrariaSplit\.Storage|TerrariaSplit\.Terraria|AppSettingsStore|AppLogger",
                 RegexOptions.Compiled),
@@ -48,7 +48,7 @@ internal static class ArchitectureDependencyTests
     private static void TerrariaDoesNotReferenceUiShell()
     {
         AssertNoMatches(
-            Path.Combine("TerrariaSplit", "Terraria"),
+            Path.Combine("src", "TerrariaSplit.Terraria", "Terraria"),
             new Regex(
                 @"MainForm|SettingsPage|SettingsForm|OverlayWindow|TimerOverlay|ApplicationShellEffectExecutor",
                 RegexOptions.Compiled),
@@ -58,7 +58,7 @@ internal static class ArchitectureDependencyTests
     private static void UiSettingsDoesNotStartAutomation()
     {
         AssertNoMatches(
-            Path.Combine("TerrariaSplit", "UI", "Settings"),
+            Path.Combine("src", "TerrariaSplit.WinForms", "UI", "Settings"),
             new Regex(
                 @"StartCreateWorld|StartEnterWorld|TerrariaWorldAutomation|TerrariaMonitorCoordinator|WorldPoolFillService|GlobalHotkeyManager",
                 RegexOptions.Compiled),
@@ -68,7 +68,7 @@ internal static class ArchitectureDependencyTests
     private static void StorageDoesNotReferenceOuterLayers()
     {
         AssertNoMatches(
-            Path.Combine("TerrariaSplit", "Storage"),
+            Path.Combine("src", "TerrariaSplit.Storage", "Storage"),
             new Regex(
                 @"TerrariaSplit\.UI|TerrariaSplit\.Application|TerrariaSplit\.Terraria",
                 RegexOptions.Compiled),
@@ -119,7 +119,7 @@ internal static class ArchitectureDependencyTests
         }
 
         AssertNoMatches(
-            Path.Combine("TerrariaSplit", "Configuration"),
+            Path.Combine("src", "TerrariaSplit.Configuration", "Configuration"),
             new Regex(@"System\.Drawing|System\.Windows\.Forms|InstalledFontCollection", RegexOptions.Compiled),
             "Configuration source must not reference UI or Windows font APIs.");
     }
@@ -127,7 +127,7 @@ internal static class ArchitectureDependencyTests
     private static void RootNamespaceIsEmpty()
     {
         AssertNoMatches(
-            "TerrariaSplit",
+            "src",
             new Regex(@"^namespace TerrariaSplit;$", RegexOptions.Compiled),
             "Root namespace source files must be moved into layer namespaces.");
     }
@@ -135,12 +135,12 @@ internal static class ArchitectureDependencyTests
     private static void StaticDependencyDebtDoesNotGrow()
     {
         AssertOnlyAllowedFilesReference(
-            Path.Combine("TerrariaSplit", "Application"),
+            Path.Combine("src", "TerrariaSplit.Application", "Application"),
             "AppSettingsStore",
             []);
 
         AssertOnlyAllowedFilesReference(
-            Path.Combine("TerrariaSplit", "Application"),
+            Path.Combine("src", "TerrariaSplit.Application", "Application"),
             "AppLogger",
             []);
     }
@@ -213,7 +213,7 @@ internal static class ArchitectureDependencyTests
     private static void ApplicationEffectsAreTypedRecords()
     {
         AssertNoMatches(
-            Path.Combine("TerrariaSplit", "Application"),
+            Path.Combine("src", "TerrariaSplit.Application", "Application"),
             new Regex(@"\bApplicationEffectKind\b|ApplicationEffect\.", RegexOptions.Compiled),
             "Application effects must be expressed as concrete typed records, not Kind/factory combinations.");
     }
@@ -221,7 +221,7 @@ internal static class ArchitectureDependencyTests
     private static void ApplicationCommandsAreTypedRecords()
     {
         AssertNoMatches(
-            Path.Combine("TerrariaSplit", "Application"),
+            Path.Combine("src", "TerrariaSplit.Application", "Application"),
             new Regex(@"\bAppCommandKind\b", RegexOptions.Compiled),
             "Application commands must be expressed as concrete typed records, not Kind/factory combinations.");
     }
@@ -229,7 +229,7 @@ internal static class ArchitectureDependencyTests
     private static void AppSettingsHasNoCompatibilityFacade()
     {
         string root = FindRepositoryRoot();
-        string path = Path.Combine(root, "TerrariaSplit", "Configuration", "AppSettings.cs");
+        string path = Path.Combine(root, "src", "TerrariaSplit.Configuration", "Configuration", "AppSettings.cs");
         string appSettingsClass = File.ReadAllText(path)
             .Split("internal sealed class GeneralSettings", StringSplitOptions.None)[0];
 
@@ -242,7 +242,7 @@ internal static class ArchitectureDependencyTests
     private static void SettingsNormalizerDoesNotRunObjectMigrations()
     {
         AssertNoMatches(
-            Path.Combine("TerrariaSplit", "Configuration", "SettingsNormalizer.cs"),
+            Path.Combine("src", "TerrariaSplit.Configuration", "Configuration"),
             new Regex(@"\bSettingsMigrator\b|\.Migrate\(settings\)", RegexOptions.Compiled),
             "SettingsNormalizer must only normalize the current schema; JSON/object compatibility belongs before normalization.");
     }
@@ -357,8 +357,7 @@ internal static class ArchitectureDependencyTests
 
     private static IEnumerable<string> EnumerateRuntimeSourceFiles(string root)
     {
-        return EnumerateSourceFiles(Path.Combine(root, "TerrariaSplit"))
-            .Concat(EnumerateSourceFiles(Path.Combine(root, "src")));
+        return EnumerateSourceFiles(Path.Combine(root, "src"));
     }
 
     private static string FormatSample(IReadOnlyList<string> values)
@@ -385,6 +384,11 @@ internal static class ArchitectureDependencyTests
 
     private static IEnumerable<string> EnumerateSourceFiles(string directory)
     {
+        if (!Directory.Exists(directory))
+        {
+            return [];
+        }
+
         return Directory.EnumerateFiles(directory, "*.cs", SearchOption.AllDirectories)
             .OrderBy(path => path, StringComparer.OrdinalIgnoreCase);
     }

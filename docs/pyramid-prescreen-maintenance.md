@@ -3,7 +3,7 @@
 本文记录筛塔预筛当前用到的测试工具、模拟链路、已包含优化和后续优化方向。
 
 ```text
-TerrariaSplit/Terraria/WorldGeneration/Simulation
+src/TerrariaSplit.Terraria/Terraria/WorldGeneration/Simulation
 ```
 
 
@@ -29,7 +29,7 @@ D:\OneDrive - huzhaoran\Creative\Terraria\Worlds
 预筛入口：
 
 ```text
-TerrariaSplit/Terraria/WorldGeneration/PyramidSeedPreScreen.cs
+src/TerrariaSplit.Terraria/Terraria/WorldGeneration/PyramidSeedPreScreen.cs
 ```
 
 运行顺序：
@@ -51,7 +51,7 @@ TerrariaSplit/Terraria/WorldGeneration/PyramidSeedPreScreen.cs
 官方普通小世界到 `Pyramids` 的 pass 顺序由：
 
 ```text
-TerrariaSplit/Terraria/WorldGeneration/Simulation/OfficialPassPlan.cs
+src/TerrariaSplit.Terraria/Terraria/WorldGeneration/Simulation/OfficialPassPlan.cs
 ```
 
 维护。当前 pass 总数为 41，其中：
@@ -279,7 +279,7 @@ test\OfficialProbe\bin\OfficialPyramidPassProbe.exe `
 指标工具使用：
 
 ```text
-TerrariaSplit/Terraria/Automation/TerrariaWorldFilePyramidScanner.cs
+src/TerrariaSplit.Terraria/Terraria/Automation/TerrariaWorldFilePyramidScanner.cs
 ```
 
 读取真实世界文件的 metadata、chest contents 和目标区域金字塔结果。它是评估真值来源，不是规则来源。

@@ -41,41 +41,41 @@ function Test-NoMatches {
 
 Test-NoMatches `
     -Title 'Domain -> outer layer references' `
-    -Path 'TerrariaSplit\Domain' `
+    -Path 'src\TerrariaSplit.Domain\Domain' `
     -Pattern 'System\.Windows\.Forms|TerrariaSplit\.UI|TerrariaSplit\.Storage|TerrariaSplit\.Terraria|\bAppSettingsStore\b|\bAppLogger\b'
 
 Test-NoMatches `
     -Title 'Application -> AppSettingsStore references' `
-    -Path 'TerrariaSplit\Application' `
+    -Path 'src\TerrariaSplit.Application\Application' `
     -Pattern '\bAppSettingsStore\b'
 
 Test-NoMatches `
     -Title 'Application -> AppLogger references' `
-    -Path 'TerrariaSplit\Application' `
+    -Path 'src\TerrariaSplit.Application\Application' `
     -Pattern '\bAppLogger\b'
 
 Test-NoMatches `
     -Title 'Application -> WinForms references' `
-    -Path 'TerrariaSplit\Application' `
+    -Path 'src\TerrariaSplit.Application\Application' `
     -Pattern 'System\.Windows\.Forms|\bForm\b|\bControl\b'
 
 Test-NoMatches `
     -Title 'Terraria -> UI shell references' `
-    -Path 'TerrariaSplit\Terraria' `
+    -Path 'src\TerrariaSplit.Terraria\Terraria' `
     -Pattern 'MainForm|SettingsPage|SettingsForm|OverlayWindow|TimerOverlay|ApplicationShellEffectExecutor'
 
 Test-NoMatches `
     -Title 'Storage -> outer layer references' `
-    -Path 'TerrariaSplit\Storage' `
+    -Path 'src\TerrariaSplit.Storage\Storage' `
     -Pattern 'TerrariaSplit\.UI|TerrariaSplit\.Application|TerrariaSplit\.Terraria'
 
 Test-NoMatches `
     -Title 'UI Settings -> shell side-effect starters' `
-    -Path 'TerrariaSplit\UI\Settings' `
+    -Path 'src\TerrariaSplit.WinForms\UI\Settings' `
     -Pattern 'StartCreateWorld|StartEnterWorld|TerrariaWorldAutomation|TerrariaMonitorCoordinator|WorldPoolFillService|GlobalHotkeyManager'
 
 Write-Section 'Root namespace files'
-$rootNamespaceMatches = Get-ChildItem -Path 'TerrariaSplit' -Recurse -Filter *.cs |
+$rootNamespaceMatches = Get-ChildItem -Path 'src' -Recurse -Filter *.cs |
     Select-String -Pattern '^namespace TerrariaSplit;$'
 
 if ($rootNamespaceMatches) {

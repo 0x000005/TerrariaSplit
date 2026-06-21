@@ -743,26 +743,28 @@ static void TestSplitConditionDataRowsAggregatesAtLeastTimes()
 
 static void TestSplitCatalogReferenceTargetIcons()
 {
+    string iconAssetsRoot = Path.Combine("src", "TerrariaSplit.WinForms", "Assets", "Icons");
+
     AssertEqual(true, SplitCatalog.TryGetReferenceIconFileName(SplitCatalog.CreateItemTargetId(50), out string itemIcon));
     AssertEqual("Item_50.png", itemIcon);
-    AssertEqual(true, File.Exists(Path.Combine("TerrariaSplit", "Assets", "Icons", "Items", itemIcon)));
+    AssertEqual(true, File.Exists(Path.Combine(iconAssetsRoot, "Items", itemIcon)));
 
     AssertEqual(true, SplitCatalog.TryGetReferenceIconFileName("boss:king-slime", out string bossIcon));
     AssertEqual("king-slime.png", bossIcon);
-    AssertEqual(true, File.Exists(Path.Combine("TerrariaSplit", "Assets", "Icons", "Bosses", bossIcon)));
+    AssertEqual(true, File.Exists(Path.Combine(iconAssetsRoot, "Bosses", bossIcon)));
 
     foreach (BossFactDescriptor boss in SplitCatalog.BossFacts)
     {
-        AssertEqual(true, File.Exists(Path.Combine("TerrariaSplit", "Assets", "Icons", "Bosses", boss.IconFileName)));
+        AssertEqual(true, File.Exists(Path.Combine(iconAssetsRoot, "Bosses", boss.IconFileName)));
     }
 
     AssertEqual(true, SplitCatalog.TryGetReferenceIconFileName(SplitCatalog.CreateNpcTargetId(17), out string npcIcon));
     AssertEqual("NPC_Head_2.png", npcIcon);
-    AssertEqual(true, File.Exists(Path.Combine("TerrariaSplit", "Assets", "Icons", "NPCs", npcIcon)));
+    AssertEqual(true, File.Exists(Path.Combine(iconAssetsRoot, "NPCs", npcIcon)));
 
     AssertEqual(true, SplitCatalog.TryGetReferenceIconFileName(SplitCatalog.CreateBiomeTargetId("aether"), out string biomeIcon));
     AssertEqual("biome-aether.png", biomeIcon);
-    AssertEqual(true, File.Exists(Path.Combine("TerrariaSplit", "Assets", "Icons", "Biomes", biomeIcon)));
+    AssertEqual(true, File.Exists(Path.Combine(iconAssetsRoot, "Biomes", biomeIcon)));
 }
 
 static void TestSplitCatalogBuildsSplitIconOverrides()
@@ -1425,7 +1427,7 @@ static void TestAppLoggerIsDisabledByDefault()
 static void TestMainPublishIsSingleFile()
 {
     string sourceRoot = FindSourceRoot();
-    XDocument project = XDocument.Load(Path.Combine(sourceRoot, "TerrariaSplit", "TerrariaSplit.csproj"));
+    XDocument project = XDocument.Load(Path.Combine(sourceRoot, "src", "TerrariaSplit.WinForms", "TerrariaSplit.WinForms.csproj"));
     XElement releaseProperties = project
         .Descendants()
         .Single(element =>
@@ -1448,7 +1450,7 @@ static void TestMainPublishIsSingleFile()
 static void TestMemoryProbePublishIsSelfContained()
 {
     string sourceRoot = FindSourceRoot();
-    XDocument targets = XDocument.Load(Path.Combine(sourceRoot, "TerrariaSplit", "Build", "MemoryProbe.targets"));
+    XDocument targets = XDocument.Load(Path.Combine(sourceRoot, "src", "TerrariaSplit.WinForms", "Build", "MemoryProbe.targets"));
     string commonProperties = targets
         .Descendants()
         .Single(element => element.Name.LocalName == "TerrariaSplitMemoryProbeCommonProperties")

@@ -7,7 +7,7 @@
   <Project Path="src/TerrariaSplit.Statistics/TerrariaSplit.Statistics.csproj" />
   <Project Path="src/TerrariaSplit.Terraria/TerrariaSplit.Terraria.csproj" />
   <Project Path="src/TerrariaSplit.Application/TerrariaSplit.Application.csproj" />
-  <Project Path="TerrariaSplit/TerrariaSplit.csproj" />
+  <Project Path="src/TerrariaSplit.WinForms/TerrariaSplit.WinForms.csproj" />
   <Project Path="TerrariaSplit.MemoryProbe/TerrariaSplit.MemoryProbe.csproj" />
   <Project Path="test/TerrariaSplit.Tests.csproj" />
 </Solution>

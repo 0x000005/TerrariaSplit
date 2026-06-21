@@ -19,7 +19,7 @@
     <ProjectReference Include="..\src\TerrariaSplit.Statistics\TerrariaSplit.Statistics.csproj" />
     <ProjectReference Include="..\src\TerrariaSplit.Storage\TerrariaSplit.Storage.csproj" />
     <ProjectReference Include="..\src\TerrariaSplit.Terraria\TerrariaSplit.Terraria.csproj" />
-    <ProjectReference Include="..\TerrariaSplit\TerrariaSplit.csproj" />
+    <ProjectReference Include="..\src\TerrariaSplit.WinForms\TerrariaSplit.WinForms.csproj" />
   </ItemGroup>
 
 </Project>
