@@ -24,7 +24,13 @@ internal sealed class GlobalHotkeyManager : IDisposable
     private const uint ModNoRepeat = 0x4000;
 
     private readonly Dictionary<int, HotkeyAction> actionsById = new();
+    private readonly IAppLogger logger;
     private IntPtr handle;
+
+    public GlobalHotkeyManager(IAppLogger? logger = null)
+    {
+        this.logger = logger ?? NullAppLogger.Instance;
+    }
 
     public IReadOnlyList<HotkeyRegistrationWarning> RegisterConfiguredHotkeys(IntPtr windowHandle, AppSettings settings)
     {
@@ -61,7 +67,7 @@ internal sealed class GlobalHotkeyManager : IDisposable
     {
         if (!TryCreateChord(keys, out HotkeyChord chord))
         {
-            AppLogger.Info($"Ignored invalid hotkey for {action}: {keys}.");
+            logger.Info($"Ignored invalid hotkey for {action}: {keys}.");
             warnings.Add(new HotkeyRegistrationWarning(
                 action,
                 keys,
@@ -72,7 +78,7 @@ internal sealed class GlobalHotkeyManager : IDisposable
 
         if (!registeredChords.Add(chord))
         {
-            AppLogger.Info($"Ignored duplicate hotkey for {action}: {keys}.");
+            logger.Info($"Ignored duplicate hotkey for {action}: {keys}.");
             warnings.Add(new HotkeyRegistrationWarning(
                 action,
                 keys,
@@ -90,7 +96,7 @@ internal sealed class GlobalHotkeyManager : IDisposable
 
         int error = Marshal.GetLastWin32Error();
         string detail = new Win32Exception(error).Message;
-        AppLogger.Info($"Failed to register hotkey for {action}: {keys}. {detail}");
+        logger.Info($"Failed to register hotkey for {action}: {keys}. {detail}");
         warnings.Add(new HotkeyRegistrationWarning(
             action,
             keys,

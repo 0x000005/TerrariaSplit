@@ -29,7 +29,7 @@ internal static class MainShellCompositionRoot
             new WorldPoolFillService(worldPoolStore, settingsSnapshots, logger, runtimeDataPaths),
             new MainFormContextMenuBuilder(),
             new SoundPlayerService(),
-            new GlobalHotkeyManager(),
+            new GlobalHotkeyManager(logger),
             new OverlayRenderResources(),
             new OverlayAnimationController(),
             new ContextMenuStrip(),
