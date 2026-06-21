@@ -16,6 +16,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="..\..\TerrariaSplit\Configuration\Resources\*.json" Link="Configuration\Resources\%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\TerrariaSplit.Domain\TerrariaSplit.Domain.csproj" />
   </ItemGroup>
 
