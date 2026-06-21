@@ -68,69 +68,60 @@ internal sealed class ApplicationShellEffectExecutor
 
     private void Apply(ApplicationEffect effect)
     {
-        switch (effect.Kind)
+        switch (effect)
         {
-            case ApplicationEffectKind.SubmitRuntimeCommand:
-                if (effect.RuntimeCommand is not null)
-                {
-                    submitRuntimeCommand(effect.RuntimeCommand);
-                }
+            case SubmitRuntimeCommandEffect submit:
+                submitRuntimeCommand(submit.Command);
                 break;
-            case ApplicationEffectKind.StopAllSounds:
+            case StopAllSoundsEffect:
                 stopAllSounds();
                 break;
-            case ApplicationEffectKind.PlaySound:
-                if (!string.IsNullOrWhiteSpace(effect.SoundPath))
+            case PlaySoundEffect play:
+                if (!string.IsNullOrWhiteSpace(play.Path))
                 {
-                    playSound(effect.SoundPath);
+                    playSound(play.Path);
                 }
                 break;
-            case ApplicationEffectKind.ToggleMouseClickThrough:
+            case ToggleMouseClickThroughEffect:
                 toggleMouseClickThrough();
                 break;
-            case ApplicationEffectKind.ClearOverlayAnimation:
+            case ClearOverlayAnimationEffect:
                 clearOverlayAnimation();
                 break;
-            case ApplicationEffectKind.ClearSplitCompletionAnimation:
+            case ClearSplitCompletionAnimationEffect:
                 clearSplitCompletionAnimation();
                 break;
-            case ApplicationEffectKind.TrackSegmentBestDeltaHighlight:
-                trackSegmentBestDeltaHighlight(effect.SplitIndex);
+            case TrackSegmentBestDeltaHighlightEffect track:
+                trackSegmentBestDeltaHighlight(track.SplitIndex);
                 break;
-            case ApplicationEffectKind.StartSplitCompletionAnimation:
-                startSplitCompletionAnimation(effect.SplitIndex);
+            case StartSplitCompletionAnimationEffect startSplit:
+                startSplitCompletionAnimation(startSplit.SplitIndex);
                 break;
-            case ApplicationEffectKind.SaveSettings:
-                if (effect.SettingsToSave is AppSettings settingsToSave)
-                {
-                    saveSettings(settingsToSave);
-                }
+            case SaveSettingsEffect save:
+                saveSettings(save.Settings);
                 break;
-            case ApplicationEffectKind.StartCreateWorldAutomation:
+            case StartCreateWorldAutomationEffect:
                 startCreateWorldAutomation();
                 break;
-            case ApplicationEffectKind.ShowPracticeWorldSelector:
+            case ShowPracticeWorldSelectorEffect:
                 showPracticeWorldSelector();
                 break;
-            case ApplicationEffectKind.CancelCreateWorldAutomation:
+            case CancelCreateWorldAutomationEffect:
                 cancelCreateWorldAutomation();
                 break;
-            case ApplicationEffectKind.CancelEnterWorldAutomation:
+            case CancelEnterWorldAutomationEffect:
                 cancelEnterWorldAutomation();
                 break;
-            case ApplicationEffectKind.ResetUiScalePatchState:
+            case ResetUiScalePatchStateEffect:
                 resetUiScalePatchState();
                 break;
-            case ApplicationEffectKind.ApplySettingsToShell:
-                if (effect.PreviousSettings is AppSettings previousSettings)
-                {
-                    applySettingsToShell(previousSettings, effect.SplitCount);
-                }
+            case ApplySettingsToShellEffect applySettings:
+                applySettingsToShell(applySettings.PreviousSettings, applySettings.SplitCount);
                 break;
-            case ApplicationEffectKind.RefreshTimerOverlaySettings:
+            case RefreshTimerOverlaySettingsEffect:
                 refreshTimerOverlaySettings();
                 break;
-            case ApplicationEffectKind.RefreshRuntimeUi:
+            case RefreshRuntimeUiEffect:
                 refreshRuntimeUi();
                 break;
         }

@@ -103,10 +103,10 @@ internal static class HotkeyTests
 
         ApplicationUpdate resetUpdate = controller.HandleCommand(
             AppCommand.QueueMenuAction(MenuActionKind.Reset, requestedAtUtc));
-        ApplicationEffect resetEffect = resetUpdate.Effects.Single();
+        var resetEffect = (SubmitRuntimeCommandEffect)resetUpdate.Effects.Single();
         TestAssert.Equal(ApplicationEffectKind.SubmitRuntimeCommand, resetEffect.Kind);
-        TestAssert.Equal(RuntimeCommandKind.QueueMenuAction, resetEffect.RuntimeCommand?.Kind);
-        TestAssert.Equal(MenuActionKind.Reset, resetEffect.RuntimeCommand?.MenuAction);
+        TestAssert.Equal(RuntimeCommandKind.QueueMenuAction, resetEffect.Command.Kind);
+        TestAssert.Equal(MenuActionKind.Reset, resetEffect.Command.MenuAction);
 
         ApplicationUpdate clickThroughUpdate = controller.HandleCommand(AppCommand.ToggleMouseClickThrough());
         TestAssert.Equal(ApplicationEffectKind.ToggleMouseClickThrough, clickThroughUpdate.Effects.Single().Kind);
@@ -180,8 +180,9 @@ internal static class HotkeyTests
         TestAssert.Equal("0:30.00", controller.Settings.PersonalBestSegmentTimes["split:skeletron"]);
         TestAssert.Equal(nextSettings.AlwaysOnTop, controller.Settings.AlwaysOnTop);
         TestAssert.Equal(true, update.Effects.Any(effect => effect.Kind == ApplicationEffectKind.SaveSettings));
-        TestAssert.Equal(true, update.Effects.Any(effect => effect.Kind == ApplicationEffectKind.SubmitRuntimeCommand &&
-            effect.RuntimeCommand?.Kind == RuntimeCommandKind.Reset));
+        TestAssert.Equal(true, update.Effects.Any(effect =>
+            effect is SubmitRuntimeCommandEffect submit &&
+            submit.Command.Kind == RuntimeCommandKind.Reset));
     }
 
     private static void TimerControllerConsumesQueuedMenuActionsOnlyOnMenu()

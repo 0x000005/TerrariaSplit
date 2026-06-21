@@ -21,70 +21,108 @@ internal enum ApplicationEffectKind
     RefreshRuntimeUi
 }
 
-internal sealed record ApplicationEffect
+internal abstract record ApplicationEffect(ApplicationEffectKind Kind)
 {
-    private ApplicationEffect(ApplicationEffectKind kind)
-    {
-        Kind = kind;
-    }
-
-    public ApplicationEffectKind Kind { get; }
-
-    public RuntimeCommand? RuntimeCommand { get; private init; }
-
-    public string? SoundPath { get; private init; }
-
-    public int SplitIndex { get; private init; } = -1;
-
-    public AppSettings? PreviousSettings { get; private init; }
-
-    public AppSettings? SettingsToSave { get; private init; }
-
-    public int SplitCount { get; private init; }
-
     public static ApplicationEffect SubmitRuntimeCommand(RuntimeCommand command)
     {
-        return new ApplicationEffect(ApplicationEffectKind.SubmitRuntimeCommand)
-        {
-            RuntimeCommand = command
-        };
+        return new SubmitRuntimeCommandEffect(command);
     }
 
-    public static ApplicationEffect Simple(ApplicationEffectKind kind) => new(kind);
+    public static ApplicationEffect Simple(ApplicationEffectKind kind)
+    {
+        return kind switch
+        {
+            ApplicationEffectKind.StopAllSounds => new StopAllSoundsEffect(),
+            ApplicationEffectKind.ToggleMouseClickThrough => new ToggleMouseClickThroughEffect(),
+            ApplicationEffectKind.ClearOverlayAnimation => new ClearOverlayAnimationEffect(),
+            ApplicationEffectKind.ClearSplitCompletionAnimation => new ClearSplitCompletionAnimationEffect(),
+            ApplicationEffectKind.StartCreateWorldAutomation => new StartCreateWorldAutomationEffect(),
+            ApplicationEffectKind.ShowPracticeWorldSelector => new ShowPracticeWorldSelectorEffect(),
+            ApplicationEffectKind.CancelCreateWorldAutomation => new CancelCreateWorldAutomationEffect(),
+            ApplicationEffectKind.CancelEnterWorldAutomation => new CancelEnterWorldAutomationEffect(),
+            ApplicationEffectKind.ResetUiScalePatchState => new ResetUiScalePatchStateEffect(),
+            ApplicationEffectKind.RefreshTimerOverlaySettings => new RefreshTimerOverlaySettingsEffect(),
+            ApplicationEffectKind.RefreshRuntimeUi => new RefreshRuntimeUiEffect(),
+            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Effect requires a payload.")
+        };
+    }
 
     public static ApplicationEffect PlaySound(string path)
     {
-        return new ApplicationEffect(ApplicationEffectKind.PlaySound)
-        {
-            SoundPath = path
-        };
+        return new PlaySoundEffect(path);
     }
 
     public static ApplicationEffect Split(ApplicationEffectKind kind, int splitIndex)
     {
-        return new ApplicationEffect(kind)
+        return kind switch
         {
-            SplitIndex = splitIndex
+            ApplicationEffectKind.TrackSegmentBestDeltaHighlight => new TrackSegmentBestDeltaHighlightEffect(splitIndex),
+            ApplicationEffectKind.StartSplitCompletionAnimation => new StartSplitCompletionAnimationEffect(splitIndex),
+            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Effect is not split-index based.")
         };
     }
 
     public static ApplicationEffect SaveSettings(AppSettings settings)
     {
-        return new ApplicationEffect(ApplicationEffectKind.SaveSettings)
-        {
-            SettingsToSave = settings
-        };
+        return new SaveSettingsEffect(settings);
     }
 
     public static ApplicationEffect ApplySettingsToShell(AppSettings previousSettings, int splitCount)
     {
-        return new ApplicationEffect(ApplicationEffectKind.ApplySettingsToShell)
-        {
-            PreviousSettings = previousSettings,
-            SplitCount = splitCount
-        };
+        return new ApplySettingsToShellEffect(previousSettings, splitCount);
     }
 }
+
+internal sealed record SubmitRuntimeCommandEffect(RuntimeCommand Command)
+    : ApplicationEffect(ApplicationEffectKind.SubmitRuntimeCommand);
+
+internal sealed record StopAllSoundsEffect()
+    : ApplicationEffect(ApplicationEffectKind.StopAllSounds);
+
+internal sealed record PlaySoundEffect(string Path)
+    : ApplicationEffect(ApplicationEffectKind.PlaySound);
+
+internal sealed record ToggleMouseClickThroughEffect()
+    : ApplicationEffect(ApplicationEffectKind.ToggleMouseClickThrough);
+
+internal sealed record ClearOverlayAnimationEffect()
+    : ApplicationEffect(ApplicationEffectKind.ClearOverlayAnimation);
+
+internal sealed record ClearSplitCompletionAnimationEffect()
+    : ApplicationEffect(ApplicationEffectKind.ClearSplitCompletionAnimation);
+
+internal sealed record TrackSegmentBestDeltaHighlightEffect(int SplitIndex)
+    : ApplicationEffect(ApplicationEffectKind.TrackSegmentBestDeltaHighlight);
+
+internal sealed record StartSplitCompletionAnimationEffect(int SplitIndex)
+    : ApplicationEffect(ApplicationEffectKind.StartSplitCompletionAnimation);
+
+internal sealed record SaveSettingsEffect(AppSettings Settings)
+    : ApplicationEffect(ApplicationEffectKind.SaveSettings);
+
+internal sealed record StartCreateWorldAutomationEffect()
+    : ApplicationEffect(ApplicationEffectKind.StartCreateWorldAutomation);
+
+internal sealed record ShowPracticeWorldSelectorEffect()
+    : ApplicationEffect(ApplicationEffectKind.ShowPracticeWorldSelector);
+
+internal sealed record CancelCreateWorldAutomationEffect()
+    : ApplicationEffect(ApplicationEffectKind.CancelCreateWorldAutomation);
+
+internal sealed record CancelEnterWorldAutomationEffect()
+    : ApplicationEffect(ApplicationEffectKind.CancelEnterWorldAutomation);
+
+internal sealed record ResetUiScalePatchStateEffect()
+    : ApplicationEffect(ApplicationEffectKind.ResetUiScalePatchState);
+
+internal sealed record ApplySettingsToShellEffect(AppSettings PreviousSettings, int SplitCount)
+    : ApplicationEffect(ApplicationEffectKind.ApplySettingsToShell);
+
+internal sealed record RefreshTimerOverlaySettingsEffect()
+    : ApplicationEffect(ApplicationEffectKind.RefreshTimerOverlaySettings);
+
+internal sealed record RefreshRuntimeUiEffect()
+    : ApplicationEffect(ApplicationEffectKind.RefreshRuntimeUi);
 
 internal sealed record ApplicationUpdate(
     IReadOnlyList<ApplicationEffect> Effects,
