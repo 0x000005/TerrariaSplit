@@ -8,36 +8,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
 {
     private void RefreshTargetList()
     {
-        if (targetList is null)
-        {
-            return;
-        }
-
-        string query = targetSearchBox?.Text.Trim() ?? string.Empty;
-        string targetKind = targetKindBox is null ? SplitTargetKind.Boss : GetSelectedTargetKind(targetKindBox);
-        targetList.BeginUpdate();
-        try
-        {
-            targetList.Items.Clear();
-            List<SplitTargetDefinition> targets = SplitTargetSearch.QueryTargets(query, targetKind)
-                .Take(MaxTargetSearchResults + 1)
-                .ToList();
-            if (targets.Count > MaxTargetSearchResults)
-            {
-                targetList.Items.Add(Context.Localize("Too many results"));
-                return;
-            }
-
-            foreach (SplitTargetDefinition target in targets)
-            {
-                targetList.Items.Add(new TargetListItem(target, FormatTargetListItem(target)));
-            }
-        }
-        finally
-        {
-            targetList.EndUpdate();
-        }
-
+        targetController.Refresh();
         LoadSelectedConditionSettings();
     }
 

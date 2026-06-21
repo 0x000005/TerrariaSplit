@@ -541,7 +541,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
 
     private string FormatTargetListItem(SplitTargetDefinition target)
     {
-        return $"{SplitTargetDisplayNames.GetTargetName(target, Draft.General.Language)} ({SplitTargetTokenFormatter.Format(target)})";
+        return SplitTargetListController.FormatTargetListItem(target, Draft.General.Language);
     }
 
     private ConditionListItem CreateConditionListItem(SplitCondition condition)
@@ -563,14 +563,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
 
     private bool TryGetSelectedTarget(out SplitTargetDefinition target)
     {
-        if (targetList.SelectedItem is TargetListItem selected)
-        {
-            target = selected.Target;
-            return true;
-        }
-
-        target = null!;
-        return false;
+        return targetController.TryGetSelectedTarget(out target);
     }
 
     private SplitCondition CreateFactCondition(SplitTargetDefinition target)

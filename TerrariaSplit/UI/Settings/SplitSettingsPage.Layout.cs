@@ -72,15 +72,10 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
         TableLayoutPanel panel = CreateColumnPanel();
         panel.Controls.Add(Factory.CreateSubsectionLabel("Candidates"), 0, panel.RowCount++);
 
-        targetKindBox = CreateTargetKindBox(SplitTargetKind.Boss);
-        targetKindBox.SelectedIndexChanged += (_, _) =>
-        {
-            RefreshTargetList();
-        };
+        targetKindBox = SplitTargetListController.CreateTargetKindBox(Factory, Context.Localize, SplitTargetKind.Boss);
 
         targetSearchBox = Factory.CreateTextBox(string.Empty);
         targetSearchBox.PlaceholderText = Context.Localize("Name / Id");
-        targetSearchBox.TextChanged += (_, _) => RefreshTargetList();
         TableLayoutPanel targetSettingsGrid = CreateTopSettingsGrid();
         Factory.AddSettingRow(targetSettingsGrid, "Type", targetKindBox);
         Factory.AddSettingRow(targetSettingsGrid, "Search", targetSearchBox);
@@ -89,6 +84,14 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
         targetList = CreateEditorListBox();
         targetList.DrawItem += DrawPlainListItem;
         AddFullWidth(panel, CreateEditorListFrame(targetList));
+        targetController = new SplitTargetListController(
+            targetList,
+            targetSearchBox,
+            targetKindBox,
+            () => Draft.General.Language,
+            Context.Localize);
+        targetKindBox.SelectedIndexChanged += (_, _) => RefreshTargetList();
+        targetSearchBox.TextChanged += (_, _) => RefreshTargetList();
 
         FlowLayoutPanel buttons = Factory.CreateActionBar();
         addTargetToSelectedGroupButton = Factory.CreateSmallButton("Add to selected group");
@@ -346,53 +349,6 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
         grid.ColumnStyles.Add(SettingsUiFactory.ColumnStylePercent(100f));
         grid.ColumnStyles.Add(SettingsUiFactory.ColumnStyleAbsolute(valueColumnWidth));
         return grid;
-    }
-
-    private ThemedDropDownList CreateTargetKindBox(string selectedKind)
-    {
-        ThemedDropDownList comboBox = Factory.CreateDropDownList();
-        comboBox.Items.Add(new TargetKindOption(SplitTargetKind.Boss, Context.Localize("Boss")));
-        comboBox.Items.Add(new TargetKindOption(SplitTargetKind.Item, Context.Localize("Item")));
-        comboBox.Items.Add(new TargetKindOption(SplitTargetKind.Npc, Context.Localize("NPC")));
-        comboBox.Items.Add(new TargetKindOption(SplitTargetKind.Biome, Context.Localize("Biome")));
-        SetTargetKind(comboBox, selectedKind);
-        return comboBox;
-    }
-
-    private static void SetTargetKind(ThemedDropDownList comboBox, string selectedKind)
-    {
-        string normalized = NormalizeTargetKind(selectedKind);
-        comboBox.SelectedItem = comboBox.Items
-            .Cast<TargetKindOption>()
-            .FirstOrDefault(option => string.Equals(option.Value, normalized, StringComparison.OrdinalIgnoreCase));
-        if (comboBox.SelectedIndex < 0)
-        {
-            comboBox.SelectedIndex = 0;
-        }
-    }
-
-    private static string GetSelectedTargetKind(ThemedDropDownList comboBox)
-    {
-        return comboBox.SelectedItem is TargetKindOption option
-            ? NormalizeTargetKind(option.Value)
-            : SplitTargetKind.Boss;
-    }
-
-    private static string NormalizeTargetKind(string? value)
-    {
-        if (string.Equals(value, SplitTargetKind.Item, StringComparison.OrdinalIgnoreCase))
-        {
-            return SplitTargetKind.Item;
-        }
-
-        if (string.Equals(value, SplitTargetKind.Npc, StringComparison.OrdinalIgnoreCase))
-        {
-            return SplitTargetKind.Npc;
-        }
-
-        return string.Equals(value, SplitTargetKind.Biome, StringComparison.OrdinalIgnoreCase)
-            ? SplitTargetKind.Biome
-            : SplitTargetKind.Boss;
     }
 
     private Control CreateMatchCountEditor()

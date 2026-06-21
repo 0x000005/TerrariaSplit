@@ -8,9 +8,9 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
 {
     private const int EditorListHeight = 468;
     private const int TopSettingsRowsHeight = 174;
-    private const int MaxTargetSearchResults = 500;
 
     private readonly SplitRouteDraft routeDraft = new();
+    private SplitTargetListController targetController = null!;
     private ListBox targetList = null!;
     private ThemedDropDownList targetKindBox = null!;
     private TextBox targetSearchBox = null!;

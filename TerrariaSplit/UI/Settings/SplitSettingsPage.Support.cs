@@ -16,14 +16,6 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
         return routeDraft.TryValidate(Context.Localize, out message);
     }
 
-    private sealed record TargetListItem(SplitTargetDefinition Target, string DisplayText)
-    {
-        public override string ToString()
-        {
-            return DisplayText;
-        }
-    }
-
     private sealed record RouteListItem(SplitRouteEntry Entry)
     {
         public override string ToString()
@@ -37,14 +29,6 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
         public override string ToString()
         {
             return DisplayText;
-        }
-    }
-
-    private sealed record TargetKindOption(string Value, string DisplayName)
-    {
-        public override string ToString()
-        {
-            return DisplayName;
         }
     }
 
