@@ -32,6 +32,7 @@ internal sealed partial class MainForm : Form
     private readonly RuntimePerformanceTracker performance = new();
     private readonly ApplicationController applicationController;
     private readonly ApplicationShellEffectExecutor effectExecutor;
+    private readonly SettingsShell settingsShell;
     private readonly TerrariaMonitorCoordinator monitorCoordinator;
     private readonly OverlayWindowController overlayWindowController;
     private readonly OverlayBoundsController overlayBoundsController;
@@ -44,15 +45,12 @@ internal sealed partial class MainForm : Form
     private Point dragStartCursor;
     private bool closeFinalizationPending;
     private bool closeFinalizationComplete;
-    private bool settingsFormOpen;
     private int runtimeOverlayPaintSuspensionCount;
     private bool runtimeControlSchedulerSuspended;
     private string? lastHotkeyWarningText;
     private bool closing;
     private bool runtimeResourcesDisposed;
     private string currentWindowText = string.Empty;
-    private IDisposable? settingsModalWindowRegistration;
-    private IDisposable? settingsChildModalWindowRegistration;
     private bool overlayWindowsInitialized;
     private bool overlayWindowInitializationInProgress;
     private bool statusBoundsFeedbackEnabled;
@@ -60,7 +58,6 @@ internal sealed partial class MainForm : Form
     private Rectangle? pendingInitialCompositeBounds;
     private TimeSpan controlTickInterval = DefaultControlTickInterval;
     private TimeSpan statusPaintInterval = RefreshRateSettings.ToInterval(AppSettingsDefaults.Advanced.RunningStatusPaintHz);
-    private SettingsDialogHost? settingsDialogHost;
     private long timerOverlaySettingsRevision;
     private int controlTickDispatchPending;
     private int statusPaintDispatchPending;
@@ -145,6 +142,19 @@ internal sealed partial class MainForm : Form
             modalWindows,
             contextMenu,
             () => dragging = false);
+        settingsShell = new SettingsShell(
+            () => settings,
+            GetRuntimeDiagnostics,
+            GetRuntimeDebugSnapshot,
+            GetWorldPoolCount,
+            callback => BeginInvoke(callback),
+            ApplySettings,
+            () => AcceptRuntimeCommandSequence(monitorCoordinator.ClearPendingMenuActions()),
+            hotkeyManager.Dispose,
+            RegisterConfiguredHotkeys,
+            () => IsHandleCreated,
+            modalWindows,
+            () => Bounds);
         timerOverlayHost.DragDeltaRequested += delta => overlayBoundsController.MoveBy(delta);
         timerOverlayHost.UserResizeBoundsChanged += bounds => overlayBoundsController.HandleTimerResize(bounds);
         timerOverlayHost.RightClickRequested += HandleTimerOverlayRightClickRequested;
@@ -239,7 +249,7 @@ internal sealed partial class MainForm : Form
         overlayWindowController.ApplyWindowStyle(mouseClickThrough);
         InitializeOverlayWindows();
         modalWindows.ApplyWindowState();
-        if (!settingsFormOpen)
+        if (!settingsShell.IsOpen)
         {
             RegisterConfiguredHotkeys();
         }
@@ -321,9 +331,9 @@ internal sealed partial class MainForm : Form
             contextMenu,
             settings,
             OpenStatistics,
-            OpenSettings,
+            settingsShell.Open,
             TogglePyramidFilter,
-            SwitchSettingsFile,
+            settingsShell.SwitchSettingsFile,
             Close);
     }
 
@@ -359,12 +369,7 @@ internal sealed partial class MainForm : Form
         monitorCoordinator.Dispose();
         worldPoolFillService.Dispose();
         worldAutomation.Dispose();
-        settingsDialogHost?.Dispose();
-        settingsDialogHost = null;
-        settingsChildModalWindowRegistration?.Dispose();
-        settingsChildModalWindowRegistration = null;
-        settingsModalWindowRegistration?.Dispose();
-        settingsModalWindowRegistration = null;
+        settingsShell.Dispose();
         timerOverlayHost.Dispose();
         overlayWindowController.Dispose();
         renderResources.Dispose();
@@ -895,71 +900,6 @@ internal sealed partial class MainForm : Form
         }
     }
 
-    private void OpenSettings()
-    {
-        if (settingsFormOpen)
-        {
-            modalWindows.ActivateCurrentModal();
-            return;
-        }
-
-        settingsFormOpen = true;
-        settingsChildModalWindowRegistration?.Dispose();
-        settingsChildModalWindowRegistration = null;
-        settingsModalWindowRegistration?.Dispose();
-        hotkeyManager.Dispose();
-        AcceptRuntimeCommandSequence(monitorCoordinator.ClearPendingMenuActions());
-        settingsDialogHost = new SettingsDialogHost(
-            settings,
-            GetRuntimeDiagnostics,
-            GetRuntimeDebugSnapshot,
-            GetWorldPoolCount,
-            callback => BeginInvoke(callback),
-            appliedSettings => ExecuteAppCommand(AppCommand.ApplySettings(appliedSettings)),
-            result =>
-            {
-                if (result.DialogResult == DialogResult.OK)
-                {
-                    ExecuteAppCommand(AppCommand.ApplySettings(result.Result));
-                }
-
-                settingsChildModalWindowRegistration?.Dispose();
-                settingsChildModalWindowRegistration = null;
-                settingsModalWindowRegistration?.Dispose();
-                settingsModalWindowRegistration = null;
-                settingsDialogHost = null;
-                settingsFormOpen = false;
-                if (IsHandleCreated)
-                {
-                    RegisterConfiguredHotkeys();
-                }
-            },
-            () =>
-            {
-                modalWindows.ApplyWindowState();
-            },
-            Bounds);
-        settingsModalWindowRegistration = modalWindows.RegisterModalWindow(
-            () => settingsDialogHost?.WindowHandle ?? IntPtr.Zero);
-        settingsChildModalWindowRegistration = modalWindows.RegisterModalWindow(
-            () => settingsDialogHost?.ChildDialogWindowHandle ?? IntPtr.Zero);
-        settingsDialogHost.Show();
-    }
-
-    private void SwitchSettingsFile(string path)
-    {
-        if (string.Equals(
-                Path.GetFullPath(path),
-                Path.GetFullPath(AppSettingsStore.SettingsPath),
-                StringComparison.OrdinalIgnoreCase))
-        {
-            return;
-        }
-
-        AppSettings nextSettings = AppSettingsStore.Load(path);
-        ExecuteAppCommand(AppCommand.ApplySettings(nextSettings));
-    }
-
     private void ApplySettings(AppSettings appliedSettings)
     {
         ExecuteAppCommand(AppCommand.ApplySettings(appliedSettings));
@@ -979,7 +919,7 @@ internal sealed partial class MainForm : Form
         RefreshTimerOverlaySettingsSnapshot();
         UpdateOverlayLayoutContext(resolvedRowCount, visibleRowCount, force: true);
         UpdateEffectiveOverlayTopMost();
-        if (IsHandleCreated && !settingsFormOpen)
+        if (IsHandleCreated && !settingsShell.IsOpen)
         {
             RegisterConfiguredHotkeys();
         }
