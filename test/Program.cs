@@ -147,6 +147,7 @@ var tests = legacyTests
     .Concat(LoadWorldValidationTests.All())
     .Concat(HighPrecisionSchedulerTests.All())
     .Concat(MainShellRefactorTests.All())
+    .Concat(ArchitectureDependencyTests.All())
     .Concat(RenderingTests.All())
     .Concat(WorldGenerationMemoryTests.All())
     .Concat(TerrariaMemoryResolverTests.All())
