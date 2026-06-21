@@ -889,51 +889,6 @@ internal sealed partial class MainForm : Form
         }
     }
 
-    private string FormatTimerPhase()
-    {
-        return timerPhase switch
-        {
-            SplitTimerPhase.NotStarted => "READY",
-            SplitTimerPhase.Running => "RUNNING",
-            SplitTimerPhase.Paused => "PAUSED",
-            _ => "UNKNOWN"
-        };
-    }
-
-    private string FormatWorldState()
-    {
-        return snapshot.IsGameMenu switch
-        {
-            true => "menu",
-            false => FormatBossSummary(),
-            null => "unknown"
-        };
-    }
-
-    private string FormatBossSummary()
-    {
-        return $"Skl:{FormatFlag(GetBossFact(SplitCatalog.Skeletron))} " +
-            $"WoF:{FormatFlag(GetBossFact(SplitCatalog.WallOfFlesh))} " +
-            $"ML:{FormatFlag(GetBossFact(SplitCatalog.MoonLord))}";
-    }
-
-    private bool? GetBossFact(string bossTargetId)
-    {
-        return SplitCatalog.TryGetBossFact(bossTargetId, out BossFactDescriptor descriptor)
-            ? snapshot.Facts.Get(descriptor.FactKey).AsBoolean()
-            : null;
-    }
-
-    private static string FormatFlag(bool? value)
-    {
-        return value switch
-        {
-            true => "down",
-            false => "up",
-            null => "?"
-        };
-    }
-
     private void OpenSettings()
     {
         if (settingsFormOpen)
@@ -1617,11 +1572,6 @@ internal sealed partial class MainForm : Form
         {
             AppLogger.Error(ex, "Unhandled practice world automation error.");
         }
-    }
-
-    private void ResetRunWithSound(bool recordStats = false)
-    {
-        ExecuteAppCommand(AppCommand.ResetRun(recordStats, playResetSound: true));
     }
 
     private void RegisterConfiguredHotkeys()
