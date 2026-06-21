@@ -104,26 +104,25 @@ internal static class HotkeyTests
         ApplicationUpdate resetUpdate = controller.HandleCommand(
             AppCommand.QueueMenuAction(MenuActionKind.Reset, requestedAtUtc));
         var resetEffect = (SubmitRuntimeCommandEffect)resetUpdate.Effects.Single();
-        TestAssert.Equal(ApplicationEffectKind.SubmitRuntimeCommand, resetEffect.Kind);
         TestAssert.Equal(RuntimeCommandKind.QueueMenuAction, resetEffect.Command.Kind);
         TestAssert.Equal(MenuActionKind.Reset, resetEffect.Command.MenuAction);
 
         ApplicationUpdate clickThroughUpdate = controller.HandleCommand(AppCommand.ToggleMouseClickThrough());
-        TestAssert.Equal(ApplicationEffectKind.ToggleMouseClickThrough, clickThroughUpdate.Effects.Single().Kind);
+        TestAssert.Equal(true, clickThroughUpdate.Effects.Single() is ToggleMouseClickThroughEffect);
 
         ApplicationUpdate pyramidFilterUpdate = controller.HandleCommand(AppCommand.TogglePyramidFilter());
         TestAssert.Equal(true, controller.Settings.AutoCreate.EnablePyramidFilter);
         TestAssert.Equal(2, pyramidFilterUpdate.Effects.Count);
-        TestAssert.Equal(ApplicationEffectKind.SaveSettings, pyramidFilterUpdate.Effects[0].Kind);
-        TestAssert.Equal(ApplicationEffectKind.ApplySettingsToShell, pyramidFilterUpdate.Effects[1].Kind);
+        TestAssert.Equal(true, pyramidFilterUpdate.Effects[0] is SaveSettingsEffect);
+        TestAssert.Equal(true, pyramidFilterUpdate.Effects[1] is ApplySettingsToShellEffect);
         TestAssert.Equal(false, pyramidFilterUpdate.Effects.Any(effect =>
-            effect.Kind == ApplicationEffectKind.SubmitRuntimeCommand));
+            effect is SubmitRuntimeCommandEffect));
 
         ApplicationUpdate cancelCreateUpdate = controller.HandleCommand(AppCommand.CancelCreateWorld());
-        TestAssert.Equal(ApplicationEffectKind.CancelCreateWorldAutomation, cancelCreateUpdate.Effects.Single().Kind);
+        TestAssert.Equal(true, cancelCreateUpdate.Effects.Single() is CancelCreateWorldAutomationEffect);
 
         ApplicationUpdate cancelEnterUpdate = controller.HandleCommand(AppCommand.CancelEnterWorld());
-        TestAssert.Equal(ApplicationEffectKind.CancelEnterWorldAutomation, cancelEnterUpdate.Effects.Single().Kind);
+        TestAssert.Equal(true, cancelEnterUpdate.Effects.Single() is CancelEnterWorldAutomationEffect);
     }
 
     private static void ApplicationControllerApplySettingsPreservesPendingPersonalBestUpdate()
@@ -179,7 +178,7 @@ internal static class HotkeyTests
         TestAssert.Equal(1, confirmCount);
         TestAssert.Equal("0:30.00", controller.Settings.PersonalBestSegmentTimes["split:skeletron"]);
         TestAssert.Equal(nextSettings.AlwaysOnTop, controller.Settings.AlwaysOnTop);
-        TestAssert.Equal(true, update.Effects.Any(effect => effect.Kind == ApplicationEffectKind.SaveSettings));
+        TestAssert.Equal(true, update.Effects.Any(effect => effect is SaveSettingsEffect));
         TestAssert.Equal(true, update.Effects.Any(effect =>
             effect is SubmitRuntimeCommandEffect submit &&
             submit.Command.Kind == RuntimeCommandKind.Reset));

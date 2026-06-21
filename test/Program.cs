@@ -294,9 +294,9 @@ static void TestRunEventProcessorSuppressesAttachedSplitCompletionAnimation()
         viewState,
         new RunLifecycleController(),
         _ => []);
-    AssertEqual(false, attachedEffects.Any(effect => effect.Kind == ApplicationEffectKind.StartSplitCompletionAnimation));
-    AssertEqual(false, attachedEffects.Any(effect => effect.Kind == ApplicationEffectKind.ClearSplitCompletionAnimation));
-    AssertEqual(true, attachedEffects.Any(effect => effect.Kind == ApplicationEffectKind.TrackSegmentBestDeltaHighlight));
+    AssertEqual(false, attachedEffects.Any(effect => effect is StartSplitCompletionAnimationEffect));
+    AssertEqual(false, attachedEffects.Any(effect => effect is ClearSplitCompletionAnimationEffect));
+    AssertEqual(true, attachedEffects.Any(effect => effect is TrackSegmentBestDeltaHighlightEffect));
 
     IReadOnlyList<ApplicationEffect> normalEffects = RunEventProcessor.Process(
         [new RunEvent(RunEventKind.SplitCompleted, SplitIndex: 0)],
@@ -304,7 +304,7 @@ static void TestRunEventProcessorSuppressesAttachedSplitCompletionAnimation()
         viewState,
         new RunLifecycleController(),
         _ => []);
-    AssertEqual(true, normalEffects.Any(effect => effect.Kind == ApplicationEffectKind.StartSplitCompletionAnimation));
+    AssertEqual(true, normalEffects.Any(effect => effect is StartSplitCompletionAnimationEffect));
 }
 
 static void TestSplitTimerPracticeClamp()

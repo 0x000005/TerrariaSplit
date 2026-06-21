@@ -15,6 +15,7 @@ internal static class ArchitectureDependencyTests
         yield return ("Architecture keeps Terraria free of UI shell references", TerrariaDoesNotReferenceUiShell);
         yield return ("Architecture keeps Storage free of outer layers", StorageDoesNotReferenceOuterLayers);
         yield return ("Architecture keeps UI settings pages from starting automation", UiSettingsDoesNotStartAutomation);
+        yield return ("Architecture uses typed application effects", ApplicationEffectsAreTypedRecords);
         yield return ("Architecture has no root namespace source files", RootNamespaceIsEmpty);
         yield return ("Architecture static dependency debt does not grow", StaticDependencyDebtDoesNotGrow);
     }
@@ -86,6 +87,14 @@ internal static class ArchitectureDependencyTests
             Path.Combine("TerrariaSplit", "Application"),
             "AppLogger",
             []);
+    }
+
+    private static void ApplicationEffectsAreTypedRecords()
+    {
+        AssertNoMatches(
+            Path.Combine("TerrariaSplit", "Application"),
+            new Regex(@"\bApplicationEffectKind\b|ApplicationEffect\.", RegexOptions.Compiled),
+            "Application effects must be expressed as concrete typed records, not Kind/factory combinations.");
     }
 
     private static void AssertNoMatches(string relativeDirectory, Regex pattern, string message)
