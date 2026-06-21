@@ -81,7 +81,7 @@ internal static class SplitRenderData
 
     public static string FormatReferenceTime(AppSettings settings, SplitDefinition definition)
     {
-        return settings.TryGetReferenceSplit(definition, out TimeSpan split)
+        return ReferenceSplitSetService.TryGetReferenceSplit(settings, definition, out TimeSpan split)
             ? TimeText.FormatSplit(split)
             : "--";
     }
@@ -93,7 +93,7 @@ internal static class SplitRenderData
         SplitStatusSnapshot status,
         bool isCurrent)
     {
-        if (!settings.TryGetReferenceSplit(status.Definition, out TimeSpan referenceTime))
+        if (!ReferenceSplitSetService.TryGetReferenceSplit(settings, status.Definition, out TimeSpan referenceTime))
         {
             return SplitComparison.Empty;
         }
@@ -126,7 +126,7 @@ internal static class SplitRenderData
         SplitDefinition definition,
         TimeSpan splitTime)
     {
-        if (!settings.TryGetReferenceSplit(definition, out TimeSpan referenceSplit))
+        if (!ReferenceSplitSetService.TryGetReferenceSplit(settings, definition, out TimeSpan referenceSplit))
         {
             return SplitComparison.Empty;
         }
@@ -292,7 +292,7 @@ internal static class OverlayTextStyles
         }
 
         if (TryGetCompletedMoonLordStatus(statuses, out SplitStatusSnapshot moonLordStatus, out TimeSpan moonLordTime) &&
-            settings.TryGetReferenceSplit(moonLordStatus.Definition, out TimeSpan moonLordReference))
+            ReferenceSplitSetService.TryGetReferenceSplit(settings, moonLordStatus.Definition, out TimeSpan moonLordReference))
         {
             return moonLordTime < moonLordReference
                 ? CreateTimerTextStyle(
@@ -311,7 +311,7 @@ internal static class OverlayTextStyles
 
         if (statuses.Count > 0 && statuses[^1].Time is TimeSpan finalTime)
         {
-            if (settings.TryGetReferenceSplit(statuses[^1].Definition, out TimeSpan finalReference) &&
+            if (ReferenceSplitSetService.TryGetReferenceSplit(settings, statuses[^1].Definition, out TimeSpan finalReference) &&
                 finalTime < finalReference)
             {
                 return CreateTimerTextStyle(
@@ -322,7 +322,7 @@ internal static class OverlayTextStyles
                     milliseconds);
             }
 
-            if (settings.TryGetReferenceSplit(statuses[^1].Definition, out finalReference) &&
+            if (ReferenceSplitSetService.TryGetReferenceSplit(settings, statuses[^1].Definition, out finalReference) &&
                 settings.Overlay.EnableTimerGradientColor)
             {
                 return GetTimerGradientTextStyle(settings, finalTime - finalReference, palette, milliseconds);
@@ -354,7 +354,7 @@ internal static class OverlayTextStyles
         }
 
         if (TryGetTimerComparisonDefinition(settings, statuses, currentSplitIndex, out SplitDefinition comparisonDefinition) &&
-            settings.TryGetReferenceSplit(comparisonDefinition, out TimeSpan currentReference))
+            ReferenceSplitSetService.TryGetReferenceSplit(settings, comparisonDefinition, out TimeSpan currentReference))
         {
             if (settings.Overlay.EnableTimerGradientColor)
             {

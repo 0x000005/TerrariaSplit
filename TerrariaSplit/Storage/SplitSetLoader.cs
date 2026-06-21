@@ -9,8 +9,8 @@ internal static class SplitSetLoader
         LoadPersonalBestTimeSets(settings);
         LoadPersonalBestSegmentSets(settings);
         SettingsNormalizer.Normalize(settings);
-        settings.SyncPersonalBestTimesFromActiveSet();
-        settings.SyncPersonalBestSegmentsFromActiveSet();
+        PersonalBestSetService.SyncPersonalBestTimesFromActiveSet(settings);
+        PersonalBestSetService.SyncPersonalBestSegmentsFromActiveSet(settings);
     }
 
     private static void LoadPersonalBestTimeSets(AppSettings settings)

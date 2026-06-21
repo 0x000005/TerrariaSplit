@@ -62,15 +62,15 @@ internal sealed class DataSettingsPage : SettingsPageBase
         {
             settings.Comparison.ActiveReferenceSplitSet = referenceSetBox.SelectedItem is string selectedReferenceSet
                 ? selectedReferenceSet
-                : settings.GetActiveReferenceSet().Name;
+                : ReferenceSplitSetService.GetActiveReferenceSet(settings).Name;
         }
 
         settings.Comparison.ActivePersonalBestTimeSet = personalBestTimeSetBox.SelectedItem is string selectedPersonalBestTimeSet
             ? selectedPersonalBestTimeSet
-            : settings.GetActivePersonalBestTimeSet().Name;
+            : PersonalBestSetService.GetActivePersonalBestTimeSet(settings).Name;
         settings.Comparison.ActivePersonalBestSegmentSet = personalBestSegmentSetBox.SelectedItem is string selectedPersonalBestSegmentSet
             ? selectedPersonalBestSegmentSet
-            : settings.GetActivePersonalBestSegmentSet().Name;
+            : PersonalBestSetService.GetActivePersonalBestSegmentSet(settings).Name;
     }
 
     public override void OnModelChanged(SettingsModelChange change)
@@ -208,7 +208,7 @@ internal sealed class DataSettingsPage : SettingsPageBase
             {
                 if (personalBestTimeTextBoxes.TryGetValue(row.Key, out TextBox? textBox))
                 {
-                    textBox.Text = Draft.GetPersonalBestTimeText(row.Key);
+                    textBox.Text = PersonalBestSetService.GetPersonalBestTimeText(Draft, row.Key);
                 }
             }
 
@@ -222,7 +222,7 @@ internal sealed class DataSettingsPage : SettingsPageBase
             personalBestTimeTextBoxes.Clear();
             foreach (SplitConditionDataRow row in rows)
             {
-                TextBox textBox = Factory.CreateTextBox(Draft.GetPersonalBestTimeText(row.Key));
+                TextBox textBox = Factory.CreateTextBox(PersonalBestSetService.GetPersonalBestTimeText(Draft, row.Key));
                 textBox.PlaceholderText = Context.Localize("m:ss or h:mm:ss");
                 textBox.TextChanged += (_, _) => RefreshReferenceDataFromPersonalBest();
                 personalBestTimeTextBoxes[row.Key] = textBox;
@@ -252,7 +252,7 @@ internal sealed class DataSettingsPage : SettingsPageBase
             {
                 if (personalBestSegmentTextBoxes.TryGetValue(group.Key, out TextBox? textBox))
                 {
-                    textBox.Text = Draft.GetPersonalBestSegmentText(group.Key);
+                    textBox.Text = PersonalBestSetService.GetPersonalBestSegmentText(Draft, group.Key);
                 }
             }
 
@@ -266,7 +266,7 @@ internal sealed class DataSettingsPage : SettingsPageBase
             personalBestSegmentTextBoxes.Clear();
             foreach (RouteGroup group in groups)
             {
-                TextBox textBox = Factory.CreateTextBox(Draft.GetPersonalBestSegmentText(group.Key));
+                TextBox textBox = Factory.CreateTextBox(PersonalBestSetService.GetPersonalBestSegmentText(Draft, group.Key));
                 textBox.PlaceholderText = Context.Localize("m:ss or h:mm:ss");
                 personalBestSegmentTextBoxes[group.Key] = textBox;
                 Factory.AddRawSettingRow(personalBestSegmentGrid, GetRawGroupDisplayName(group), textBox);
@@ -311,7 +311,7 @@ internal sealed class DataSettingsPage : SettingsPageBase
         ConfigurePersonalSetBox(
             personalBestTimeSetBox,
             Draft.Comparison.PersonalBestTimeSets,
-            Draft.GetActivePersonalBestTimeSet().Name,
+            PersonalBestSetService.GetActivePersonalBestTimeSet(Draft).Name,
             SwitchPersonalBestTimeSet);
     }
 
@@ -320,7 +320,7 @@ internal sealed class DataSettingsPage : SettingsPageBase
         ConfigurePersonalSetBox(
             personalBestSegmentSetBox,
             Draft.Comparison.PersonalBestSegmentSets,
-            Draft.GetActivePersonalBestSegmentSet().Name,
+            PersonalBestSetService.GetActivePersonalBestSegmentSet(Draft).Name,
             SwitchPersonalBestSegmentSet);
     }
 
@@ -364,7 +364,7 @@ internal sealed class DataSettingsPage : SettingsPageBase
         if (personalBestTimeSetBox.SelectedItem is string selectedName)
         {
             Draft.Comparison.ActivePersonalBestTimeSet = selectedName;
-            Draft.SyncPersonalBestTimesFromActiveSet();
+            PersonalBestSetService.SyncPersonalBestTimesFromActiveSet(Draft);
         }
 
         LoadPersonalBestTimeTextBoxes();
@@ -377,7 +377,7 @@ internal sealed class DataSettingsPage : SettingsPageBase
         if (personalBestSegmentSetBox.SelectedItem is string selectedName)
         {
             Draft.Comparison.ActivePersonalBestSegmentSet = selectedName;
-            Draft.SyncPersonalBestSegmentsFromActiveSet();
+            PersonalBestSetService.SyncPersonalBestSegmentsFromActiveSet(Draft);
         }
 
         LoadPersonalBestSegmentTextBoxes();
@@ -399,7 +399,7 @@ internal sealed class DataSettingsPage : SettingsPageBase
             return;
         }
 
-        Draft.Comparison.ReferenceSplitSets.Add(AppSettings.CreateReferenceSet(
+        Draft.Comparison.ReferenceSplitSets.Add(ReferenceSplitSetService.CreateReferenceSet(
             name,
             keys: GetCumulativeRows().Select(row => row.Key)));
         referenceSetBox.Items.Add(name);
@@ -414,7 +414,7 @@ internal sealed class DataSettingsPage : SettingsPageBase
             return;
         }
 
-        ReferenceSplitSet activeSet = Draft.GetActiveReferenceSet();
+        ReferenceSplitSet activeSet = ReferenceSplitSetService.GetActiveReferenceSet(Draft);
         foreach ((string name, TextBox textBox) in splitTextBoxes)
         {
             string text = textBox.Text.Trim();
@@ -434,20 +434,20 @@ internal sealed class DataSettingsPage : SettingsPageBase
     {
         foreach ((string name, TextBox textBox) in personalBestTimeTextBoxes)
         {
-            Draft.SetPersonalBestTimeText(name, NormalizeTimeText(textBox.Text));
+            PersonalBestSetService.SetPersonalBestTimeText(Draft, name, NormalizeTimeText(textBox.Text));
         }
 
-        Draft.SyncActivePersonalBestTimeSetFromDictionary();
+        PersonalBestSetService.SyncActivePersonalBestTimeSetFromDictionary(Draft);
     }
 
     private void SavePersonalBestSegmentTextBoxes()
     {
         foreach ((string name, TextBox textBox) in personalBestSegmentTextBoxes)
         {
-            Draft.SetPersonalBestSegmentText(name, NormalizeTimeText(textBox.Text));
+            PersonalBestSetService.SetPersonalBestSegmentText(Draft, name, NormalizeTimeText(textBox.Text));
         }
 
-        Draft.SyncActivePersonalBestSegmentSetFromDictionary();
+        PersonalBestSetService.SyncActivePersonalBestSegmentSetFromDictionary(Draft);
     }
 
     private static string NormalizeTimeText(string text)
@@ -470,7 +470,7 @@ internal sealed class DataSettingsPage : SettingsPageBase
     {
         foreach ((string name, TextBox textBox) in personalBestTimeTextBoxes)
         {
-            textBox.Text = Draft.GetPersonalBestTimeText(name);
+            textBox.Text = PersonalBestSetService.GetPersonalBestTimeText(Draft, name);
         }
     }
 
@@ -478,7 +478,7 @@ internal sealed class DataSettingsPage : SettingsPageBase
     {
         foreach ((string name, TextBox textBox) in personalBestSegmentTextBoxes)
         {
-            textBox.Text = Draft.GetPersonalBestSegmentText(name);
+            textBox.Text = PersonalBestSetService.GetPersonalBestSegmentText(Draft, name);
         }
     }
 
@@ -545,12 +545,12 @@ internal sealed class DataSettingsPage : SettingsPageBase
     {
         if (!usePersonalBestAsReferenceTimeBox.Checked)
         {
-            return Draft.GetReferenceText(name);
+            return ReferenceSplitSetService.GetReferenceText(Draft, name);
         }
 
         return personalBestTimeTextBoxes.TryGetValue(name, out TextBox? personalBestTextBox)
             ? personalBestTextBox.Text
-            : Draft.GetPersonalBestTimeText(name);
+            : PersonalBestSetService.GetPersonalBestTimeText(Draft, name);
     }
 
     private IEnumerable<SplitConditionDataRow> GetCumulativeRows()

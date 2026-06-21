@@ -6,7 +6,7 @@ internal static class StatisticsTableBuilder
     {
         return Build(
             settings,
-            settings.GetActiveReferenceSet(),
+            ReferenceSplitSetService.GetActiveReferenceSet(settings),
             stats.LastRunSplits);
     }
 

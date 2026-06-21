@@ -58,7 +58,7 @@ internal sealed class RunFinalizer
         List<PendingPersonalBestSegmentUpdate> segmentUpdates = updates.SegmentUpdates.Values.ToList();
         foreach (PendingPersonalBestSegmentUpdate update in segmentUpdates)
         {
-            settings.SetPersonalBestSegmentText(update.GroupKey, update.NewTimeText);
+            PersonalBestSetService.SetPersonalBestSegmentText(settings, update.GroupKey, update.NewTimeText);
         }
 
         if (segmentUpdates.Count > 0)

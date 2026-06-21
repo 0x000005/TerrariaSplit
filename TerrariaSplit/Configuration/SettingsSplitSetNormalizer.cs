@@ -6,7 +6,7 @@ internal static class SettingsSplitSetNormalizer
     {
         if (settings.Comparison.ReferenceSplitSets.Count == 0)
         {
-            settings.Comparison.ReferenceSplitSets.Add(AppSettings.CreateReferenceSet(
+            settings.Comparison.ReferenceSplitSets.Add(ReferenceSplitSetService.CreateReferenceSet(
                 "WR",
                 keys: SplitConditionDataRows.Build(settings).Select(row => row.Key)));
         }

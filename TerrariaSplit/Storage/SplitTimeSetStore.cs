@@ -125,7 +125,7 @@ internal static class SplitTimeSetStore
             AppLogger.Error(ex, "Failed to load embedded default WR reference times.");
         }
 
-        return AppSettings.CreateReferenceSet("WR");
+        return ReferenceSplitSetService.CreateReferenceSet("WR");
     }
 
     private static bool AreReferenceSetsEmpty(IEnumerable<ReferenceSplitSet> sets)

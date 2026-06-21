@@ -87,8 +87,8 @@ internal sealed class AppSettingsRepository : ISettingsRepository
                 SplitTimeSetStore.SaveReferenceSets(snapshot.Comparison.ReferenceSplitSets);
             }
 
-            snapshot.SyncActivePersonalBestTimeSetFromDictionary();
-            snapshot.SyncActivePersonalBestSegmentSetFromDictionary();
+            PersonalBestSetService.SyncActivePersonalBestTimeSetFromDictionary(snapshot);
+            PersonalBestSetService.SyncActivePersonalBestSegmentSetFromDictionary(snapshot);
             SplitTimeSetStore.SavePersonalBestTimeSets(snapshot.Comparison.PersonalBestTimeSets);
             SplitTimeSetStore.SavePersonalBestSegmentSets(snapshot.Comparison.PersonalBestSegmentSets);
             string directory = Path.GetDirectoryName(SettingsPath)!;

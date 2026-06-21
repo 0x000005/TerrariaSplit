@@ -1917,7 +1917,7 @@ static void TestAppSettingsUsesPersonalBestAsReferenceTime()
     string skeletronKey = SingleCumulativeKey(settings, skeletronSplitId);
     settings.Comparison.ReferenceSplitSets =
     [
-        AppSettings.CreateReferenceSet("WR", new Dictionary<string, string>
+        ReferenceSplitSetService.CreateReferenceSet("WR", new Dictionary<string, string>
         {
             [skeletronKey] = "01:00"
         }, SplitConditionDataRows.Build(settings).Select(row => row.Key))
@@ -1926,13 +1926,13 @@ static void TestAppSettingsUsesPersonalBestAsReferenceTime()
 
     SplitDefinition definition = SplitCatalog.Build(settings).Single(item => item.Id == skeletronSplitId);
 
-    AssertEqual(AppSettings.PersonalBestReferenceSetName, settings.GetActiveReferenceSet().Name);
-    AssertEqual("00:30", settings.GetReferenceText(skeletronKey));
-    AssertEqual(true, settings.TryGetReferenceSplit(definition, out TimeSpan split));
+    AssertEqual(ReferenceSplitSetService.PersonalBestReferenceSetName, ReferenceSplitSetService.GetActiveReferenceSet(settings).Name);
+    AssertEqual("00:30", ReferenceSplitSetService.GetReferenceText(settings, skeletronKey));
+    AssertEqual(true, ReferenceSplitSetService.TryGetReferenceSplit(settings, definition, out TimeSpan split));
     AssertEqual(TimeSpan.FromSeconds(30), split);
 
-    settings.SetReferenceText(skeletronKey, "05:00");
-    AssertEqual("00:30", settings.GetReferenceText(skeletronKey));
+    ReferenceSplitSetService.SetReferenceText(settings, skeletronKey, "05:00");
+    AssertEqual("00:30", ReferenceSplitSetService.GetReferenceText(settings, skeletronKey));
 }
 
 static void TestAppSettingsStorePreservesActiveExternalSplitSetNames()

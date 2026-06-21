@@ -15,7 +15,7 @@ internal static class SoundFeedbackService
         }
 
         SplitDefinition definition = statuses[completedIndex].Definition;
-        TimeSpan? referenceSplit = settings.TryGetReferenceSplit(definition, out TimeSpan configuredReferenceSplit)
+        TimeSpan? referenceSplit = ReferenceSplitSetService.TryGetReferenceSplit(settings, definition, out TimeSpan configuredReferenceSplit)
             ? configuredReferenceSplit
             : null;
         TimeSpan? segmentTime = SplitTimingComparisons.TryGetCompletedSegmentTime(settings, statuses, completedIndex, out TimeSpan completedSegmentTime)

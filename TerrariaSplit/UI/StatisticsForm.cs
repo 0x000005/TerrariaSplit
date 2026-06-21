@@ -25,7 +25,7 @@ internal sealed class StatisticsForm : Form
         this.settings = settings;
         stats = RunStatsStore.Load();
         referenceTimeSets = settings.Comparison.UsePersonalBestAsReferenceTime
-            ? new List<ReferenceSplitSet> { settings.CreatePersonalBestReferenceSet() }
+            ? new List<ReferenceSplitSet> { ReferenceSplitSetService.CreatePersonalBestReferenceSet(settings) }
             : settings.Comparison.ReferenceSplitSets.ToList();
         personalBestSets = SplitTimeSetStore.LoadLastRunSets();
 
@@ -82,7 +82,7 @@ internal sealed class StatisticsForm : Form
         {
             referenceTimeBox.Items.Add(timeSet.Name);
         }
-        referenceTimeBox.SelectedItem = settings.GetActiveReferenceSet().Name;
+        referenceTimeBox.SelectedItem = ReferenceSplitSetService.GetActiveReferenceSet(settings).Name;
         if (referenceTimeBox.SelectedIndex < 0 && referenceTimeBox.Items.Count > 0)
         {
             referenceTimeBox.SelectedIndex = 0;
@@ -268,7 +268,7 @@ internal sealed class StatisticsForm : Form
             }
         }
 
-        return settings.GetActiveReferenceSet();
+        return ReferenceSplitSetService.GetActiveReferenceSet(settings);
     }
 
     private Dictionary<string, string> GetSelectedPersonalSplits()

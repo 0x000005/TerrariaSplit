@@ -1327,7 +1327,7 @@ internal static class RenderingTests
             Array.Empty<string>(),
             Array.Empty<string>(),
             [SplitCatalog.Skeletron]);
-        settings.GetActiveReferenceSet().Splits[SingleCumulativeKey(settings, definition.Id)] = "0:10.00";
+        ReferenceSplitSetService.GetActiveReferenceSet(settings).Splits[SingleCumulativeKey(settings, definition.Id)] = "0:10.00";
 
         var statuses = new List<SplitStatusSnapshot>
         {
@@ -1449,7 +1449,7 @@ internal static class RenderingTests
         SettingsNormalizer.Normalize(settings);
         settings.Comparison.ReferenceSplitSets =
         [
-            AppSettings.CreateReferenceSet("WR", new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            ReferenceSplitSetService.CreateReferenceSet("WR", new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
                 [SingleCumulativeKey(settings, "split:skeletron")] = "13:42.00"
             }, SplitConditionDataRows.Build(settings).Select(row => row.Key))
@@ -1776,8 +1776,8 @@ internal static class RenderingTests
             }
         };
         SettingsNormalizer.Normalize(settings);
-        settings.GetActiveReferenceSet().Splits[SingleCumulativeKey(settings, "split:attached")] = "0:10.00";
-        settings.GetActiveReferenceSet().Splits[SingleCumulativeKey(settings, "split:main")] = "0:30.00";
+        ReferenceSplitSetService.GetActiveReferenceSet(settings).Splits[SingleCumulativeKey(settings, "split:attached")] = "0:10.00";
+        ReferenceSplitSetService.GetActiveReferenceSet(settings).Splits[SingleCumulativeKey(settings, "split:main")] = "0:30.00";
         IReadOnlyList<SplitStatusSnapshot> statuses = SplitCatalog.Build(settings)
             .Select(SplitStatusSnapshot.FromDefinition)
             .ToArray();

@@ -4,7 +4,8 @@ namespace TerrariaSplit.Configuration;
 
 internal sealed class AppSettings
 {
-    public const string PersonalBestReferenceSetName = "PB";
+    [Obsolete("Use ReferenceSplitSetService.PersonalBestReferenceSetName instead.")]
+    public const string PersonalBestReferenceSetName = ReferenceSplitSetService.PersonalBestReferenceSetName;
 
     public GeneralSettings General { get; set; } = new();
     public HotkeySettings Hotkeys { get; set; } = new();
@@ -14,177 +15,104 @@ internal sealed class AppSettings
     public AutomationSettings Automation { get; set; } = new();
     public PracticeWorldSettings PracticeWorlds { get; set; } = new();
     public AdvancedSettings Advanced { get; set; } = new();
+
+    [Obsolete("Use ReferenceSplitSetService.TryGetReferenceSplit instead.")]
     public bool TryGetReferenceSplit(SplitDefinition definition, out TimeSpan split)
     {
-        return SplitConditionDataRows.TryGetSplitTime(this, GetActiveReferenceSet().Splits, definition, out split);
+        return ReferenceSplitSetService.TryGetReferenceSplit(this, definition, out split);
     }
 
+    [Obsolete("Use ReferenceSplitSetService.GetReferenceText instead.")]
     public string GetReferenceText(string name)
     {
-        return GetActiveReferenceSet().Splits.TryGetValue(name, out string? value) ? value : string.Empty;
+        return ReferenceSplitSetService.GetReferenceText(this, name);
     }
 
+    [Obsolete("Use PersonalBestSetService.GetPersonalBestTimeText instead.")]
     public string GetPersonalBestTimeText(string name)
     {
-        return Comparison.PersonalBestTimes.TryGetValue(name, out string? value) ? value : string.Empty;
+        return PersonalBestSetService.GetPersonalBestTimeText(this, name);
     }
 
+    [Obsolete("Use PersonalBestSetService.GetPersonalBestSegmentText instead.")]
     public string GetPersonalBestSegmentText(string name)
     {
-        return Comparison.PersonalBestSegmentTimes.TryGetValue(name, out string? value) ? value : string.Empty;
+        return PersonalBestSetService.GetPersonalBestSegmentText(this, name);
     }
 
+    [Obsolete("Use ReferenceSplitSetService.SetReferenceText instead.")]
     public void SetReferenceText(string name, string value)
     {
-        if (Comparison.UsePersonalBestAsReferenceTime)
-        {
-            return;
-        }
-
-        GetActiveReferenceSet().Splits[name] = value;
+        ReferenceSplitSetService.SetReferenceText(this, name, value);
     }
 
+    [Obsolete("Use PersonalBestSetService.SetPersonalBestTimeText instead.")]
     public void SetPersonalBestTimeText(string name, string value)
     {
-        Comparison.PersonalBestTimes[name] = value;
+        PersonalBestSetService.SetPersonalBestTimeText(this, name, value);
     }
 
+    [Obsolete("Use PersonalBestSetService.SetPersonalBestSegmentText instead.")]
     public void SetPersonalBestSegmentText(string name, string value)
     {
-        Comparison.PersonalBestSegmentTimes[name] = value;
+        PersonalBestSetService.SetPersonalBestSegmentText(this, name, value);
     }
 
+    [Obsolete("Use ReferenceSplitSetService.GetActiveReferenceSet instead.")]
     public ReferenceSplitSet GetActiveReferenceSet()
     {
-        if (Comparison.UsePersonalBestAsReferenceTime)
-        {
-            return CreatePersonalBestReferenceSet();
-        }
-
-        ReferenceSplitSet? activeSet = Comparison.ReferenceSplitSets.FirstOrDefault(
-            set => string.Equals(set.Name, Comparison.ActiveReferenceSplitSet, StringComparison.OrdinalIgnoreCase));
-        if (activeSet is not null)
-        {
-            return activeSet;
-        }
-
-        if (Comparison.ReferenceSplitSets.Count == 0)
-        {
-            Comparison.ReferenceSplitSets.Add(CreateReferenceSet("WR", keys: SplitConditionDataRows.Build(this).Select(row => row.Key)));
-        }
-
-        Comparison.ActiveReferenceSplitSet = Comparison.ReferenceSplitSets[0].Name;
-        return Comparison.ReferenceSplitSets[0];
+        return ReferenceSplitSetService.GetActiveReferenceSet(this);
     }
 
+    [Obsolete("Use ReferenceSplitSetService.CreatePersonalBestReferenceSet instead.")]
     public ReferenceSplitSet CreatePersonalBestReferenceSet()
     {
-        return CreateReferenceSet(
-            PersonalBestReferenceSetName,
-            Comparison.PersonalBestTimes,
-            SplitConditionDataRows.Build(this).Select(row => row.Key));
+        return ReferenceSplitSetService.CreatePersonalBestReferenceSet(this);
     }
 
+    [Obsolete("Use PersonalBestSetService.GetActivePersonalBestTimeSet instead.")]
     public ReferenceSplitSet GetActivePersonalBestTimeSet()
     {
-        ReferenceSplitSet set = GetActivePersonalSet(
-            Comparison.PersonalBestTimeSets,
-            Comparison.ActivePersonalBestTimeSet,
-            "Personal",
-            Comparison.PersonalBestTimes,
-            out string activeName);
-        Comparison.ActivePersonalBestTimeSet = activeName;
-        return set;
+        return PersonalBestSetService.GetActivePersonalBestTimeSet(this);
     }
 
+    [Obsolete("Use PersonalBestSetService.GetActivePersonalBestSegmentSet instead.")]
     public ReferenceSplitSet GetActivePersonalBestSegmentSet()
     {
-        ReferenceSplitSet set = GetActivePersonalSet(
-            Comparison.PersonalBestSegmentSets,
-            Comparison.ActivePersonalBestSegmentSet,
-            "Personal",
-            Comparison.PersonalBestSegmentTimes,
-            out string activeName);
-        Comparison.ActivePersonalBestSegmentSet = activeName;
-        return set;
+        return PersonalBestSetService.GetActivePersonalBestSegmentSet(this);
     }
 
+    [Obsolete("Use PersonalBestSetService.SyncPersonalBestTimesFromActiveSet instead.")]
     public void SyncPersonalBestTimesFromActiveSet()
     {
-        Comparison.PersonalBestTimes = new Dictionary<string, string>(
-            GetActivePersonalBestTimeSet().Splits,
-            StringComparer.OrdinalIgnoreCase);
+        PersonalBestSetService.SyncPersonalBestTimesFromActiveSet(this);
     }
 
+    [Obsolete("Use PersonalBestSetService.SyncPersonalBestSegmentsFromActiveSet instead.")]
     public void SyncPersonalBestSegmentsFromActiveSet()
     {
-        Comparison.PersonalBestSegmentTimes = new Dictionary<string, string>(
-            GetActivePersonalBestSegmentSet().Splits,
-            StringComparer.OrdinalIgnoreCase);
+        PersonalBestSetService.SyncPersonalBestSegmentsFromActiveSet(this);
     }
 
+    [Obsolete("Use PersonalBestSetService.SyncActivePersonalBestTimeSetFromDictionary instead.")]
     public void SyncActivePersonalBestTimeSetFromDictionary()
     {
-        GetActivePersonalBestTimeSet().Splits = new Dictionary<string, string>(
-            Comparison.PersonalBestTimes,
-            StringComparer.OrdinalIgnoreCase);
+        PersonalBestSetService.SyncActivePersonalBestTimeSetFromDictionary(this);
     }
 
+    [Obsolete("Use PersonalBestSetService.SyncActivePersonalBestSegmentSetFromDictionary instead.")]
     public void SyncActivePersonalBestSegmentSetFromDictionary()
     {
-        GetActivePersonalBestSegmentSet().Splits = new Dictionary<string, string>(
-            Comparison.PersonalBestSegmentTimes,
-            StringComparer.OrdinalIgnoreCase);
+        PersonalBestSetService.SyncActivePersonalBestSegmentSetFromDictionary(this);
     }
 
-    private static ReferenceSplitSet GetActivePersonalSet(
-        List<ReferenceSplitSet> sets,
-        string activeName,
-        string fallbackName,
-        Dictionary<string, string> fallbackValues,
-        out string normalizedActiveName)
-    {
-        ReferenceSplitSet? activeSet = sets.FirstOrDefault(
-            set => string.Equals(set.Name, activeName, StringComparison.OrdinalIgnoreCase));
-        if (activeSet is not null)
-        {
-            normalizedActiveName = activeSet.Name;
-            return activeSet;
-        }
-
-        if (sets.Count == 0)
-        {
-            sets.Add(new ReferenceSplitSet
-            {
-                Name = fallbackName,
-                Splits = new Dictionary<string, string>(fallbackValues, StringComparer.OrdinalIgnoreCase)
-            });
-        }
-
-        normalizedActiveName = sets[0].Name;
-        return sets[0];
-    }
-
+    [Obsolete("Use ReferenceSplitSetService.CreateReferenceSet instead.")]
     public static ReferenceSplitSet CreateReferenceSet(
         string name,
         Dictionary<string, string>? values = null,
         IEnumerable<string>? keys = null)
     {
-        var set = new ReferenceSplitSet
-        {
-            Name = string.IsNullOrWhiteSpace(name) ? "Reference" : name.Trim()
-        };
-
-        IEnumerable<string> splitKeys = keys ?? SplitConditionDataRows.Build(SplitCatalog.CreateDefaultRoute()).Select(row => row.Key);
-        foreach (string key in splitKeys.Where(key => !string.IsNullOrWhiteSpace(key)).Distinct(StringComparer.OrdinalIgnoreCase))
-        {
-            string value = values is not null && values.TryGetValue(key, out string? existingValue)
-                ? existingValue
-                : string.Empty;
-            set.Splits[key] = value;
-        }
-
-        return set;
+        return ReferenceSplitSetService.CreateReferenceSet(name, values, keys);
     }
 }
 

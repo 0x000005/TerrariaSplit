@@ -151,7 +151,7 @@ internal static class SplitExpandedConditionRows
         SplitConditionDataRow? row = SplitConditionDataRows.ForSplit(settings, splitId)
             .FirstOrDefault(candidate => candidate.ConditionIndex == conditionIndex);
         return row is not null &&
-            settings.GetActiveReferenceSet().Splits.TryGetValue(row.Key, out string? value) &&
+            ReferenceSplitSetService.GetActiveReferenceSet(settings).Splits.TryGetValue(row.Key, out string? value) &&
             TimeText.TryParse(value, out referenceTime);
     }
 }
