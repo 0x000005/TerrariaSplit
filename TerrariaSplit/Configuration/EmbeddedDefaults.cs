@@ -1,5 +1,6 @@
 namespace TerrariaSplit;
 
+// TODO R10: move these defaults into embedded JSON resources.
 internal static class EmbeddedDefaults
 {
     public const string SettingsJson = """
