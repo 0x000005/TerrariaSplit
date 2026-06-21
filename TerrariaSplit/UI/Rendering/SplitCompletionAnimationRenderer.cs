@@ -169,7 +169,10 @@ internal static class SplitCompletionAnimationRenderer
 
     private static (int FirstRowIndex, int LastRowIndex) GetRenderedRowRange(OverlayRenderContext context)
     {
-        IReadOnlyList<SplitDisplayRow> rows = SplitDisplayRows.Build(context.Settings, context.Statuses);
+        IReadOnlyList<SplitDisplayRow> rows = SplitDisplayRows.Build(
+            context.Settings,
+            context.Statuses,
+            context.CurrentSplitIndex);
         if (rows.Count == 0)
         {
             return (0, Math.Max(ReservedRowCount, context.VisibleStatusRowCount) - 1);

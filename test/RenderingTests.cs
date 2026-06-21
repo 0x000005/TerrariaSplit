@@ -27,6 +27,7 @@ internal static class RenderingTests
         yield return ("SplitRenderData filters OR completion icons to matched target", SplitRenderDataFiltersOrCompletionIconsToMatchedTarget);
         yield return ("SplitRenderData filters active OR icons to satisfied targets", SplitRenderDataFiltersActiveOrIconsToSatisfiedTargets);
         yield return ("SplitDisplayRows shows attached rows for active following anchor", SplitDisplayRowsShowsAttachedRowsForActiveFollowingAnchor);
+        yield return ("SplitDisplayRows limits visible groups around current split", SplitDisplayRowsLimitsVisibleGroupsAroundCurrentSplit);
         yield return ("SplitDisplayRows expands multi condition rows with reserved height", SplitDisplayRowsExpandsMultiConditionRowsWithReservedHeight);
         yield return ("SplitListRenderer orders satisfied icons first", SplitListRendererOrdersSatisfiedIconsFirst);
         yield return ("SplitListRenderer shows skipped time for skipped splits", SplitListRendererShowsSkippedTimeForSkippedSplits);
@@ -558,6 +559,119 @@ internal static class RenderingTests
         TestAssert.Equal(2, hiddenFirstAttachedRows.Count);
         TestAssert.Equal(new SplitDisplayRow(1, 1), hiddenFirstAttachedRows[0]);
         TestAssert.Equal(new SplitDisplayRow(2, 2), hiddenFirstAttachedRows[1]);
+    }
+
+    private static void SplitDisplayRowsLimitsVisibleGroupsAroundCurrentSplit()
+    {
+        SplitStatusSnapshot[] statuses = Enumerable.Range(0, 8)
+            .Select(index => new SplitStatusSnapshot(
+                CreateDisplayRowDefinition($"split:{index}", isAttached: false),
+                null,
+                IsSkipped: false,
+                CompletedFactKeys: []))
+            .ToArray();
+        var settings = new AppSettings
+        {
+            Route =
+            {
+                VisibleGroupCountLimit = 5,
+                CurrentGroupPosition = 3
+            }
+        };
+
+        IReadOnlyList<SplitDisplayRow> centeredRows = SplitDisplayRows.Build(settings, statuses, currentSplitIndex: 4);
+        SplitDisplayRow[] expectedCenteredRows =
+        [
+            new SplitDisplayRow(2, 0),
+            new SplitDisplayRow(3, 1),
+            new SplitDisplayRow(4, 2),
+            new SplitDisplayRow(5, 3),
+            new SplitDisplayRow(6, 4)
+        ];
+        TestAssert.Equal(true, centeredRows.SequenceEqual(expectedCenteredRows));
+        TestAssert.Equal(5, SplitDisplayRows.GetRequiredRowCount(settings, statuses, currentSplitIndex: 4));
+        TestAssert.Equal(true, SplitDisplayRows.TryGetRowIndex(settings, statuses, 4, currentSplitIndex: 4, out int currentRow));
+        TestAssert.Equal(2, currentRow);
+        TestAssert.Equal(false, SplitDisplayRows.TryGetRowIndex(settings, statuses, 1, currentSplitIndex: 4, out _));
+
+        IReadOnlyList<SplitDisplayRow> nearStartRows = SplitDisplayRows.Build(settings, statuses, currentSplitIndex: 1);
+        SplitDisplayRow[] expectedNearStartRows =
+        [
+            new SplitDisplayRow(0, 0),
+            new SplitDisplayRow(1, 1),
+            new SplitDisplayRow(2, 2),
+            new SplitDisplayRow(3, 3),
+            new SplitDisplayRow(4, 4)
+        ];
+        TestAssert.Equal(true, nearStartRows.SequenceEqual(expectedNearStartRows));
+
+        SplitDefinition previousA = CreateDisplayRowDefinition("split:previous-a", isAttached: false);
+        SplitDefinition previousB = CreateDisplayRowDefinition("split:previous-b", isAttached: false);
+        SplitDefinition attachedA = CreateDisplayRowDefinition("split:attached-a", isAttached: true);
+        SplitDefinition attachedB = CreateDisplayRowDefinition("split:attached-b", isAttached: true);
+        SplitDefinition parent = CreateDisplayRowDefinition("split:parent", isAttached: false);
+        SplitDefinition next = CreateDisplayRowDefinition("split:next", isAttached: false);
+        SplitStatusSnapshot[] hiddenAttachedStatuses =
+        [
+            new SplitStatusSnapshot(previousA, null, IsSkipped: false, CompletedFactKeys: []),
+            new SplitStatusSnapshot(previousB, null, IsSkipped: false, CompletedFactKeys: []),
+            new SplitStatusSnapshot(attachedA, null, IsSkipped: false, CompletedFactKeys: []),
+            new SplitStatusSnapshot(attachedB, null, IsSkipped: false, CompletedFactKeys: []),
+            new SplitStatusSnapshot(parent, null, IsSkipped: false, CompletedFactKeys: []),
+            new SplitStatusSnapshot(next, null, IsSkipped: false, CompletedFactKeys: [])
+        ];
+        settings.Route.VisibleGroupCountLimit = 3;
+        settings.Route.CurrentGroupPosition = 2;
+
+        IReadOnlyList<SplitDisplayRow> attachedLimitedRows = SplitDisplayRows.Build(
+            settings,
+            hiddenAttachedStatuses,
+            currentSplitIndex: 4);
+        SplitDisplayRow[] expectedAttachedLimitedRows =
+        [
+            new SplitDisplayRow(1, 0),
+            new SplitDisplayRow(4, 1),
+            new SplitDisplayRow(5, 2)
+        ];
+        TestAssert.Equal(true, attachedLimitedRows.SequenceEqual(expectedAttachedLimitedRows));
+        TestAssert.Equal(false, attachedLimitedRows.Any(row => row.StatusIndex is 2 or 3));
+
+        SplitCondition factA = SplitCondition.Fact("fact:a");
+        SplitCondition factB = SplitCondition.Fact("fact:b");
+        SplitCondition factC = SplitCondition.Fact("fact:c");
+        SplitCondition condition = SplitCondition.AtLeast([factA, factB, factC], 2);
+        SplitDefinition expanded = new(
+            "split:expanded-limit",
+            "Expanded Limit",
+            condition,
+            ["a.png", "b.png", "c.png"],
+            ["target:a", "target:b", "target:c"],
+            ["target:a", "target:b", "target:c"]);
+        AppSettings expandedSettings = CreateExpandedRowsSettings(expanded, condition);
+        expandedSettings.Route.VisibleGroupCountLimit = 1;
+        expandedSettings.Route.CurrentGroupPosition = 1;
+        SplitStatusSnapshot expandedPending = new(
+            expanded,
+            null,
+            IsSkipped: false,
+            CompletedFactKeys: [],
+            FactCompletionTimes: new Dictionary<string, TimeSpan>(StringComparer.OrdinalIgnoreCase)
+            {
+                [factC.FactKey] = TimeSpan.FromSeconds(5)
+            });
+        SplitStatusSnapshot[] expandedStatuses =
+        [
+            new SplitStatusSnapshot(CreateDisplayRowDefinition("split:previous", isAttached: false), TimeSpan.FromSeconds(1), IsSkipped: false, CompletedFactKeys: []),
+            expandedPending
+        ];
+
+        IReadOnlyList<SplitDisplayRow> expandedLimitedRows = SplitDisplayRows.Build(
+            expandedSettings,
+            expandedStatuses,
+            currentSplitIndex: 1);
+        TestAssert.Equal(2, expandedLimitedRows.Count);
+        TestAssert.Equal(true, expandedLimitedRows.All(row => row.StatusIndex == 1));
+        TestAssert.Equal(2, SplitDisplayRows.GetRequiredRowCount(expandedSettings, expandedStatuses, currentSplitIndex: 1));
     }
 
     private static void SplitDisplayRowsExpandsMultiConditionRowsWithReservedHeight()

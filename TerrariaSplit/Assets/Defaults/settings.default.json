@@ -856,6 +856,8 @@
     ],
     "ExpandSplitDetails": true,
     "CollapseSplitDetailsOnCompletion": true,
+    "VisibleGroupCountLimit": 0,
+    "CurrentGroupPosition": 3,
     "AutoHideAttachedGroups": true,
     "AttachedGroupsAffectTimerComparison": true
   },

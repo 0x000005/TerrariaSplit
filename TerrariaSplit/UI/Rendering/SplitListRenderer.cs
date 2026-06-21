@@ -12,7 +12,10 @@ internal static class SplitListRenderer
         float listOpacity,
         Rectangle? clipBounds = null)
     {
-        IReadOnlyList<SplitDisplayRow> rows = SplitDisplayRows.Build(context.Settings, context.Statuses);
+        IReadOnlyList<SplitDisplayRow> rows = SplitDisplayRows.Build(
+            context.Settings,
+            context.Statuses,
+            context.CurrentSplitIndex);
         int focusIndex = GetCurrentSplitHighlightIndex(context, rows);
         if (focusIndex < 0)
         {
@@ -94,7 +97,9 @@ internal static class SplitListRenderer
 
     public static int GetCurrentSplitHighlightIndex(OverlayRenderContext context)
     {
-        return GetCurrentSplitHighlightIndex(context, SplitDisplayRows.Build(context.Settings, context.Statuses));
+        return GetCurrentSplitHighlightIndex(
+            context,
+            SplitDisplayRows.Build(context.Settings, context.Statuses, context.CurrentSplitIndex));
     }
 
     private static int GetCurrentSplitHighlightIndex(

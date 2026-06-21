@@ -255,7 +255,7 @@ internal sealed partial class MainForm : Form
         if (settings.Overlay.ShowEarlyDeltaTime &&
             currentSplitIndex >= 0 &&
             currentSplitIndex < splitStatuses.Count &&
-            SplitDisplayRows.TryGetRowIndex(settings, splitStatuses, currentSplitIndex, out int visualRowIndex) &&
+            SplitDisplayRows.TryGetRowIndex(settings, splitStatuses, currentSplitIndex, currentSplitIndex, out int visualRowIndex) &&
             TryGetLayout(out SplitLayout layout))
         {
             Rectangle rowRect = overlayWindowsInitialized

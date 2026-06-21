@@ -9,10 +9,18 @@ internal static class SplitDisplayRows
 {
     public static IReadOnlyList<SplitDisplayRow> Build(IReadOnlyList<SplitStatusSnapshot> statuses)
     {
-        return Build(settings: null, statuses);
+        return Build(null, statuses);
     }
 
     public static IReadOnlyList<SplitDisplayRow> Build(AppSettings? settings, IReadOnlyList<SplitStatusSnapshot> statuses)
+    {
+        return Build(settings, statuses, currentSplitIndex: -1);
+    }
+
+    public static IReadOnlyList<SplitDisplayRow> Build(
+        AppSettings? settings,
+        IReadOnlyList<SplitStatusSnapshot> statuses,
+        int currentSplitIndex)
     {
         List<AttachedBlock> lockedBlocks = settings?.Route.AutoHideAttachedGroups == false
             ? new List<AttachedBlock>()
@@ -32,28 +40,39 @@ internal static class SplitDisplayRows
             baseRows.Add(new SplitDisplayRow(index, rowIndex));
         }
 
-        return ExpandRows(settings, statuses, baseRows
+        SplitDisplayRow[] orderedBaseRows = baseRows
             .OrderBy(row => row.RowIndex)
             .ThenBy(row => row.StatusIndex)
-            .ToArray());
+            .ToArray();
+        return ExpandRows(settings, statuses, ApplyVisibleGroupLimit(settings, orderedBaseRows, currentSplitIndex));
     }
 
     public static int GetRequiredRowCount(IReadOnlyList<SplitStatusSnapshot> statuses)
     {
-        return GetRequiredRowCount(settings: null, statuses);
+        return GetRequiredRowCount(null, statuses);
     }
 
     public static int GetRequiredRowCount(AppSettings? settings, IReadOnlyList<SplitStatusSnapshot> statuses)
     {
-        IReadOnlyList<SplitDisplayRow> rows = Build(settings, statuses);
+        return GetRequiredRowCount(settings, statuses, currentSplitIndex: -1);
+    }
+
+    public static int GetRequiredRowCount(
+        AppSettings? settings,
+        IReadOnlyList<SplitStatusSnapshot> statuses,
+        int currentSplitIndex)
+    {
+        IReadOnlyList<SplitDisplayRow> rows = Build(settings, statuses, currentSplitIndex);
         return rows.Count == 0
-            ? Math.Max(1, statuses.Count)
-            : Math.Max(statuses.Count, rows.Max(row => row.RowIndex) + 1);
+            ? 1
+            : IsVisibleGroupLimitEnabled(settings)
+                ? Math.Max(1, rows.Max(row => row.RowIndex) + 1)
+                : Math.Max(statuses.Count, rows.Max(row => row.RowIndex) + 1);
     }
 
     public static int GetReservedRowCount(IReadOnlyList<SplitStatusSnapshot> statuses)
     {
-        return GetReservedRowCount(settings: null, statuses);
+        return GetReservedRowCount(null, statuses);
     }
 
     public static int GetReservedRowCount(AppSettings? settings, IReadOnlyList<SplitStatusSnapshot> statuses)
@@ -247,7 +266,7 @@ internal static class SplitDisplayRows
         int statusIndex,
         out int rowIndex)
     {
-        return TryGetRowIndex(settings: null, statuses, statusIndex, out rowIndex);
+        return TryGetRowIndex(null, statuses, statusIndex, out rowIndex);
     }
 
     public static bool TryGetRowIndex(
@@ -256,7 +275,17 @@ internal static class SplitDisplayRows
         int statusIndex,
         out int rowIndex)
     {
-        foreach (SplitDisplayRow row in Build(settings, statuses))
+        return TryGetRowIndex(settings, statuses, statusIndex, currentSplitIndex: -1, out rowIndex);
+    }
+
+    public static bool TryGetRowIndex(
+        AppSettings? settings,
+        IReadOnlyList<SplitStatusSnapshot> statuses,
+        int statusIndex,
+        int currentSplitIndex,
+        out int rowIndex)
+    {
+        foreach (SplitDisplayRow row in Build(settings, statuses, currentSplitIndex))
         {
             if (row.StatusIndex == statusIndex)
             {
@@ -267,6 +296,67 @@ internal static class SplitDisplayRows
 
         rowIndex = -1;
         return false;
+    }
+
+    private static IReadOnlyList<SplitDisplayRow> ApplyVisibleGroupLimit(
+        AppSettings? settings,
+        IReadOnlyList<SplitDisplayRow> baseRows,
+        int currentSplitIndex)
+    {
+        if (!IsVisibleGroupLimitEnabled(settings))
+        {
+            return baseRows;
+        }
+
+        if (baseRows.Count == 0)
+        {
+            return baseRows;
+        }
+
+        int limit = Math.Clamp(settings!.Route.VisibleGroupCountLimit, 0, 100);
+        int focusIndex = FindFocusGroupIndex(baseRows, currentSplitIndex);
+        int currentPosition = Math.Clamp(settings.Route.CurrentGroupPosition, 1, limit);
+        int start = focusIndex - (currentPosition - 1);
+        start = Math.Clamp(start, 0, Math.Max(0, baseRows.Count - limit));
+        int count = Math.Min(limit, baseRows.Count - start);
+        var rows = new List<SplitDisplayRow>(count);
+        for (int i = 0; i < count; i++)
+        {
+            rows.Add(baseRows[start + i] with { RowIndex = i });
+        }
+
+        return rows;
+    }
+
+    private static int FindFocusGroupIndex(IReadOnlyList<SplitDisplayRow> rows, int currentSplitIndex)
+    {
+        if (rows.Count == 0 || currentSplitIndex < 0)
+        {
+            return 0;
+        }
+
+        for (int i = 0; i < rows.Count; i++)
+        {
+            if (rows[i].StatusIndex == currentSplitIndex)
+            {
+                return i;
+            }
+        }
+
+        for (int i = 0; i < rows.Count; i++)
+        {
+            if (rows[i].StatusIndex > currentSplitIndex)
+            {
+                return i;
+            }
+        }
+
+        return rows.Count - 1;
+    }
+
+    private static bool IsVisibleGroupLimitEnabled(AppSettings? settings)
+    {
+        return settings?.Route.VisibleGroupCountLimit > 0;
     }
 
     private static IReadOnlyList<SplitDisplayRow> ExpandRows(

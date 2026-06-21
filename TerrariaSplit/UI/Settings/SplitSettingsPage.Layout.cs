@@ -42,6 +42,21 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
         UpdateCollapseSplitDetailsAvailability();
     }
 
+    private void AddVisibleGroupLimitSection(TableLayoutPanel parent)
+    {
+        TableLayoutPanel section = Factory.CreateSection("Visible group count limit");
+        TableLayoutPanel grid = Factory.CreateTwoColumnGrid(280f);
+
+        visibleGroupCountLimitBox = Factory.CreateNumberBox(Draft.Route.VisibleGroupCountLimit, 0, 100);
+        Factory.AddSettingRow(grid, "Visible group count", visibleGroupCountLimitBox);
+
+        currentGroupPositionBox = Factory.CreateNumberBox(Draft.Route.CurrentGroupPosition, 1, 100);
+        Factory.AddSettingRow(grid, "Current group position", currentGroupPositionBox);
+
+        SettingsUiFactory.AddSectionControl(section, grid);
+        SettingsUiFactory.AddSection(parent, section);
+    }
+
     private void AddAttachedGroupsSection(TableLayoutPanel parent)
     {
         TableLayoutPanel section = Factory.CreateSection("Attached groups");

@@ -78,6 +78,7 @@ var legacyTests = new (string Name, Action Test)[]
     ("Settings form applies dynamic delta units from UI page", TestSettingsFormAppliesDynamicDeltaUnitsFromUiPage),
     ("Settings form applies text effects from UI page", TestSettingsFormAppliesTextEffectsFromUiPage),
     ("Settings form applies attached split display settings", TestSettingsFormAppliesAttachedSplitDisplaySettings),
+    ("Settings form applies visible group count limit", TestSettingsFormAppliesVisibleGroupCountLimit),
     ("Settings form applies UI font families", TestSettingsFormAppliesUiFontFamilies),
     ("Settings form applies practice world slots", TestSettingsFormAppliesPracticeWorldSlots),
     ("Settings form preserves advanced split route", TestSettingsFormPreservesAdvancedSplitRoute),
@@ -2093,6 +2094,31 @@ static void TestSettingsFormAppliesAttachedSplitDisplaySettings()
         AssertEqual(74, form.Result.Overlay.TextEffects.AttachedDeltaOpacityPercent);
         AssertEqual(32, form.Result.Overlay.TextEffects.AttachedDeltaShadowPercent);
         AssertEqual(42, form.Result.Overlay.TextEffects.AttachedDeltaOutlineThicknessPercent);
+    });
+}
+
+static void TestSettingsFormAppliesVisibleGroupCountLimit()
+{
+    RunSta(() =>
+    {
+        using var form = new SettingsForm(AppSettingsDefaults.Create());
+        SplitSettingsPage page = form.PageHost.GetOrCreatePage<SplitSettingsPage>(SettingsPageId.Splits);
+
+        page.VisibleGroupCountLimitBoxForTests.Text = "5";
+        page.CurrentGroupPositionBoxForTests.Text = "3";
+
+        form.ApplyForTests();
+
+        AssertEqual(5, form.Result.Route.VisibleGroupCountLimit);
+        AssertEqual(3, form.Result.Route.CurrentGroupPosition);
+
+        page.VisibleGroupCountLimitBoxForTests.Text = "2";
+        page.CurrentGroupPositionBoxForTests.Text = "9";
+
+        form.ApplyForTests();
+
+        AssertEqual(2, form.Result.Route.VisibleGroupCountLimit);
+        AssertEqual(2, form.Result.Route.CurrentGroupPosition);
     });
 }
 

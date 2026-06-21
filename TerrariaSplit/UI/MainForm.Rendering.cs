@@ -99,7 +99,7 @@ internal sealed partial class MainForm : Form
 
         void AddRow(int row)
         {
-            if (!SplitDisplayRows.TryGetRowIndex(settings, splitStatuses, row, out int visualRow))
+            if (!SplitDisplayRows.TryGetRowIndex(settings, splitStatuses, row, currentSplitIndex, out int visualRow))
             {
                 return;
             }
@@ -156,7 +156,7 @@ internal sealed partial class MainForm : Form
             : null;
         Point compositePoint = compositeLayout?.MapStatusPointToComposite(point) ?? point;
 
-        foreach (SplitDisplayRow row in SplitDisplayRows.Build(settings, statuses))
+        foreach (SplitDisplayRow row in SplitDisplayRows.Build(settings, statuses, currentSplitIndex))
         {
             Rectangle currentRowRect = layout.GetRowRect(row.RowIndex);
             if (currentRowRect.Contains(compositePoint))
@@ -264,7 +264,7 @@ internal sealed partial class MainForm : Form
 
     private int GetCurrentLayoutRowCount()
     {
-        return SplitDisplayRows.GetRequiredRowCount(settings, splitStatuses);
+        return SplitDisplayRows.GetRequiredRowCount(settings, splitStatuses, currentSplitIndex);
     }
 
     private int GetCurrentReservedLayoutRowCount()
