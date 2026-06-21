@@ -746,7 +746,7 @@ internal sealed class SplitSettingsPage : SettingsPageBase
         try
         {
             targetList.Items.Clear();
-            List<SplitTargetDefinition> targets = QueryTargets(query, targetKind)
+            List<SplitTargetDefinition> targets = SplitTargetSearch.QueryTargets(query, targetKind)
                 .Take(MaxTargetSearchResults + 1)
                 .ToList();
             if (targets.Count > MaxTargetSearchResults)
@@ -766,111 +766,6 @@ internal sealed class SplitSettingsPage : SettingsPageBase
         }
 
         LoadSelectedConditionSettings();
-    }
-
-    private static IEnumerable<SplitTargetDefinition> QueryTargets(string query, string targetKind)
-    {
-        if (string.Equals(targetKind, SplitTargetKind.Boss, StringComparison.OrdinalIgnoreCase))
-        {
-            foreach (BossFactDescriptor boss in SplitCatalog.BossFacts)
-            {
-                var target = new SplitTargetDefinition(
-                    boss.TargetId,
-                    SplitTargetKind.Boss,
-                    boss.DisplayName,
-                    boss.FactKey,
-                    boss.IconFileName);
-                if (MatchesTarget(query, target))
-                {
-                    yield return target;
-                }
-            }
-
-            yield break;
-        }
-
-        if (string.Equals(targetKind, SplitTargetKind.Item, StringComparison.OrdinalIgnoreCase))
-        {
-            if (int.TryParse(query, out int itemId) &&
-                SplitCatalog.TryGetTarget(SplitCatalog.CreateItemTargetId(itemId), out SplitTargetDefinition exactItemTarget))
-            {
-                yield return exactItemTarget;
-                yield break;
-            }
-
-            foreach (TerrariaItemDefinition item in TerrariaItemCatalog.Items
-                .Where(item => SplitCatalog.TryGetTarget(SplitCatalog.CreateItemTargetId(item.Id), out SplitTargetDefinition target) &&
-                    MatchesTarget(query, target)))
-            {
-                if (SplitCatalog.TryGetTarget(SplitCatalog.CreateItemTargetId(item.Id), out SplitTargetDefinition target))
-                {
-                    yield return target;
-                }
-            }
-
-            yield break;
-        }
-
-        if (string.Equals(targetKind, SplitTargetKind.Npc, StringComparison.OrdinalIgnoreCase))
-        {
-            if (int.TryParse(query, out int npcId) &&
-                SplitCatalog.TryGetTarget(SplitCatalog.CreateNpcTargetId(npcId), out SplitTargetDefinition exactNpcTarget))
-            {
-                yield return exactNpcTarget;
-                yield break;
-            }
-
-            foreach (TerrariaNpcDefinition npc in TerrariaNpcCatalog.Items)
-            {
-                if (SplitCatalog.TryGetTarget(SplitCatalog.CreateNpcTargetId(npc.Id), out SplitTargetDefinition target) &&
-                    MatchesTarget(query, target))
-                {
-                    yield return target;
-                }
-            }
-
-            yield break;
-        }
-
-        if (string.Equals(targetKind, SplitTargetKind.Biome, StringComparison.OrdinalIgnoreCase))
-        {
-            foreach (TerrariaBiomeDefinition biome in TerrariaBiomeCatalog.Items)
-            {
-                if (SplitCatalog.TryGetTarget(SplitCatalog.CreateBiomeTargetId(biome.Id), out SplitTargetDefinition target) &&
-                    MatchesTarget(query, target))
-                {
-                    yield return target;
-                }
-            }
-        }
-    }
-
-    private static bool MatchesTarget(string query, SplitTargetDefinition target)
-    {
-        return SplitTargetDisplayNames.GetSearchNames(target)
-            .Where(value => !string.IsNullOrWhiteSpace(value))
-            .Any(value => Matches(query, value) || MatchesNormalized(query, value));
-    }
-
-    private static bool Matches(string query, string value)
-    {
-        return string.IsNullOrWhiteSpace(query) ||
-            value.Contains(query, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static bool MatchesNormalized(string query, string value)
-    {
-        string normalizedQuery = NormalizeSearchText(query);
-        return normalizedQuery.Length > 0 &&
-            NormalizeSearchText(value).Contains(normalizedQuery, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static string NormalizeSearchText(string value)
-    {
-        return new string(value
-            .Where(char.IsLetterOrDigit)
-            .Select(char.ToLowerInvariant)
-            .ToArray());
     }
 
     private void RefreshRouteList()
@@ -1145,7 +1040,7 @@ internal sealed class SplitSettingsPage : SettingsPageBase
         SplitCondition condition = SplitCondition.AtLeast([CreateFactCondition(target)], 1);
         routeEntries.Add(new SplitRouteEntry
         {
-            Id = CreateUniqueSplitId(CreateSplitId(target)),
+            Id = CreateUniqueSplitId(SplitSettingsRouteIdFactory.CreateSplitId(target)),
             DisplayName = SplitTargetDisplayNames.GetTargetName(target, Draft.Language),
             Enabled = true,
             IsAttached = false,
@@ -2171,15 +2066,6 @@ internal sealed class SplitSettingsPage : SettingsPageBase
         return SplitCatalog.TryParseItemFactKey(condition.FactKey, out _);
     }
 
-    private static string CreateSplitId(SplitTargetDefinition target)
-    {
-        return target.Kind == SplitTargetKind.Item && SplitCatalog.TryParseItemTargetId(target.Id, out int itemId)
-            ? $"split:item-{itemId.ToString(CultureInfo.InvariantCulture)}"
-            : target.Kind == SplitTargetKind.Npc && SplitCatalog.TryParseNpcTargetId(target.Id, out int npcId)
-                ? $"split:npc-{npcId.ToString(CultureInfo.InvariantCulture)}"
-            : $"split:{target.Id.Replace(':', '-')}";
-    }
-
     private void EnsureRouteEntryIds()
     {
         HashSet<string> seenIds = new(StringComparer.OrdinalIgnoreCase);
@@ -2187,9 +2073,9 @@ internal sealed class SplitSettingsPage : SettingsPageBase
         {
             SplitRouteEntry entry = routeEntries[i];
             string baseId = string.IsNullOrWhiteSpace(entry.Id)
-                ? CreateSplitId(entry, i + 1)
+                ? SplitSettingsRouteIdFactory.CreateSplitId(entry, i + 1)
                 : entry.Id.Trim();
-            entry.Id = CreateUniqueSplitId(baseId, seenIds, i + 1);
+            entry.Id = SplitSettingsRouteIdFactory.CreateUniqueSplitId(baseId, seenIds, i + 1);
         }
     }
 
@@ -2199,36 +2085,7 @@ internal sealed class SplitSettingsPage : SettingsPageBase
             .Select(entry => entry.Id.Trim())
             .Where(id => !string.IsNullOrWhiteSpace(id))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        return CreateUniqueSplitId(preferredId, seenIds, routeEntries.Count + 1);
-    }
-
-    private static string CreateUniqueSplitId(string preferredId, HashSet<string> seenIds, int index)
-    {
-        string baseId = string.IsNullOrWhiteSpace(preferredId)
-            ? $"split:custom-{index.ToString(CultureInfo.InvariantCulture)}"
-            : preferredId.Trim();
-        string id = baseId;
-        int suffix = index;
-        while (!seenIds.Add(id))
-        {
-            id = $"{baseId}-{suffix.ToString(CultureInfo.InvariantCulture)}";
-            suffix++;
-        }
-
-        return id;
-    }
-
-    private static string CreateSplitId(SplitRouteEntry entry, int index)
-    {
-        foreach (string factKey in (entry.Condition ?? SplitCondition.All([])).GetFactKeys())
-        {
-            if (SplitCatalog.TryGetTargetByFactKey(factKey, out SplitTargetDefinition target))
-            {
-                return CreateSplitId(target);
-            }
-        }
-
-        return $"split:custom-{index.ToString(CultureInfo.InvariantCulture)}";
+        return SplitSettingsRouteIdFactory.CreateUniqueSplitId(preferredId, seenIds, routeEntries.Count + 1);
     }
 
     private bool TryValidateRoute(out string message)
