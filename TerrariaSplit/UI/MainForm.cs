@@ -50,6 +50,7 @@ internal sealed partial class MainForm : Form
     private bool runtimeResourcesDisposed;
     private string currentWindowText = string.Empty;
     private IDisposable? settingsModalWindowRegistration;
+    private IDisposable? settingsChildModalWindowRegistration;
     private bool overlayWindowsInitialized;
     private bool overlayWindowInitializationInProgress;
     private bool statusBoundsFeedbackEnabled;
@@ -354,6 +355,8 @@ internal sealed partial class MainForm : Form
         worldAutomation.Dispose();
         settingsDialogHost?.Dispose();
         settingsDialogHost = null;
+        settingsChildModalWindowRegistration?.Dispose();
+        settingsChildModalWindowRegistration = null;
         settingsModalWindowRegistration?.Dispose();
         settingsModalWindowRegistration = null;
         timerOverlayHost.Dispose();
@@ -940,6 +943,8 @@ internal sealed partial class MainForm : Form
         }
 
         settingsFormOpen = true;
+        settingsChildModalWindowRegistration?.Dispose();
+        settingsChildModalWindowRegistration = null;
         settingsModalWindowRegistration?.Dispose();
         hotkeyManager.Dispose();
         AcceptRuntimeCommandSequence(monitorCoordinator.ClearPendingMenuActions());
@@ -957,6 +962,8 @@ internal sealed partial class MainForm : Form
                     ExecuteAppCommand(AppCommand.ApplySettings(result.Result));
                 }
 
+                settingsChildModalWindowRegistration?.Dispose();
+                settingsChildModalWindowRegistration = null;
                 settingsModalWindowRegistration?.Dispose();
                 settingsModalWindowRegistration = null;
                 settingsDialogHost = null;
@@ -973,6 +980,8 @@ internal sealed partial class MainForm : Form
             Bounds);
         settingsModalWindowRegistration = modalWindows.RegisterModalWindow(
             () => settingsDialogHost?.WindowHandle ?? IntPtr.Zero);
+        settingsChildModalWindowRegistration = modalWindows.RegisterModalWindow(
+            () => settingsDialogHost?.ChildDialogWindowHandle ?? IntPtr.Zero);
         settingsDialogHost.Show();
     }
 

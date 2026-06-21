@@ -18,6 +18,7 @@ internal sealed class SettingsDialogHost : IDisposable
     private Thread? thread;
     private SettingsForm? form;
     private IntPtr formHandle;
+    private IntPtr activeChildDialogHandle;
     private bool started;
     private bool disposed;
     private bool applyInProgress;
@@ -51,6 +52,17 @@ internal sealed class SettingsDialogHost : IDisposable
             lock (sync)
             {
                 return formHandle;
+            }
+        }
+    }
+
+    public IntPtr ChildDialogWindowHandle
+    {
+        get
+        {
+            lock (sync)
+            {
+                return activeChildDialogHandle;
             }
         }
     }
@@ -90,6 +102,7 @@ internal sealed class SettingsDialogHost : IDisposable
             currentThread = thread;
             currentForm = form;
             formHandle = IntPtr.Zero;
+            activeChildDialogHandle = IntPtr.Zero;
         }
 
         if (currentForm is not null && !currentForm.IsDisposed && currentForm.IsHandleCreated)
@@ -121,7 +134,8 @@ internal sealed class SettingsDialogHost : IDisposable
             initialSettings,
             runtimeDiagnosticsProvider,
             runtimeDebugSnapshotProvider,
-            worldPoolCountProvider);
+            worldPoolCountProvider,
+            modalHandleChanged: UpdateActiveChildDialogHandle);
         dialog.HandleCreated += (_, _) =>
         {
             lock (sync)
@@ -136,7 +150,10 @@ internal sealed class SettingsDialogHost : IDisposable
             lock (sync)
             {
                 formHandle = IntPtr.Zero;
+                activeChildDialogHandle = IntPtr.Zero;
             }
+
+            DispatchToOwner(windowHandleChangedCallback);
         };
         lock (sync)
         {
@@ -169,6 +186,7 @@ internal sealed class SettingsDialogHost : IDisposable
         {
             form = null;
             formHandle = IntPtr.Zero;
+            activeChildDialogHandle = IntPtr.Zero;
             thread = null;
         }
 
@@ -190,6 +208,21 @@ internal sealed class SettingsDialogHost : IDisposable
     private void DispatchToOwner(Action action)
     {
         _ = TryDispatchToOwner(action);
+    }
+
+    private void UpdateActiveChildDialogHandle(IntPtr handle)
+    {
+        lock (sync)
+        {
+            if (disposed)
+            {
+                return;
+            }
+
+            activeChildDialogHandle = handle;
+        }
+
+        DispatchToOwner(windowHandleChangedCallback);
     }
 
     private bool TryDispatchToOwner(Action action)

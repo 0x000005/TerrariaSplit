@@ -79,13 +79,16 @@ internal sealed class WindowLayerController
 
     public bool ActivateCurrentModal()
     {
-        ModalWindowRegistration? registration = modalWindows.LastOrDefault();
-        if (registration is null)
+        IntPtr modalHandle = IntPtr.Zero;
+        for (int i = modalWindows.Count - 1; i >= 0; i--)
         {
-            return false;
+            modalHandle = modalWindows[i].GetHandle();
+            if (modalHandle != IntPtr.Zero)
+            {
+                break;
+            }
         }
 
-        IntPtr modalHandle = registration.GetHandle();
         if (modalHandle == IntPtr.Zero)
         {
             return false;

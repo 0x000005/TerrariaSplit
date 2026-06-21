@@ -7,13 +7,23 @@ internal sealed partial class SettingsForm : Form
 {
     private const int ResizeBorder = 8;
 
+    private enum TitleBarButtonIcon
+    {
+        Minimize,
+        Maximize,
+        Restore,
+        Close
+    }
+
     private readonly AppSettings settings;
     private readonly Func<RuntimePerformanceDiagnostics>? runtimeDiagnosticsProvider;
     private readonly Func<RuntimeDebugSnapshot>? runtimeDebugSnapshotProvider;
     private readonly Func<AppSettings, int>? worldPoolCountProvider;
     private readonly SettingsUiFactory uiFactory;
     private readonly SettingsDialogService dialogService;
+    private readonly ToolTip titleBarToolTip = new();
     private SettingsPageHost? pageHost;
+    private Button maximizeButton = null!;
     private bool dragging;
     private Point dragStartCursor;
     private Point dragStartLocation;
@@ -22,20 +32,22 @@ internal sealed partial class SettingsForm : Form
         AppSettings currentSettings,
         Func<RuntimePerformanceDiagnostics>? runtimeDiagnosticsProvider = null,
         Func<RuntimeDebugSnapshot>? runtimeDebugSnapshotProvider = null,
-        Func<AppSettings, int>? worldPoolCountProvider = null)
+        Func<AppSettings, int>? worldPoolCountProvider = null,
+        SettingsMessageBoxPresenter? messageBoxPresenter = null,
+        Action<IntPtr>? modalHandleChanged = null)
     {
         settings = AppSettingsStore.Clone(currentSettings);
         this.runtimeDiagnosticsProvider = runtimeDiagnosticsProvider;
         this.runtimeDebugSnapshotProvider = runtimeDebugSnapshotProvider;
         this.worldPoolCountProvider = worldPoolCountProvider;
         uiFactory = new SettingsUiFactory(Localize);
-        dialogService = new SettingsDialogService(this, Localize);
+        dialogService = new SettingsDialogService(this, Localize, messageBoxPresenter, modalHandleChanged);
 
         Text = Localizer.Get("TerrariaSplit Settings", settings);
         StartPosition = FormStartPosition.CenterParent;
         FormBorderStyle = FormBorderStyle.None;
-        MinimizeBox = false;
-        MaximizeBox = false;
+        MinimizeBox = true;
+        MaximizeBox = true;
         ClientSize = new Size(1500, 1000);
         Padding = new Padding(1);
         UiTheme.ConfigureForm(this, new Size(1040, 740));
@@ -85,6 +97,16 @@ internal sealed partial class SettingsForm : Form
         e.Graphics.DrawRectangle(pen, 0, 0, ClientSize.Width - 1, ClientSize.Height - 1);
     }
 
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            titleBarToolTip.Dispose();
+        }
+
+        base.Dispose(disposing);
+    }
+
     protected override void WndProc(ref Message m)
     {
         const int wmNcHitTest = 0x84;
@@ -100,7 +122,9 @@ internal sealed partial class SettingsForm : Form
 
         base.WndProc(ref m);
 
-        if (m.Msg != wmNcHitTest || m.Result != (IntPtr)htClient)
+        if (m.Msg != wmNcHitTest ||
+            m.Result != (IntPtr)htClient ||
+            WindowState == FormWindowState.Maximized)
         {
             return;
         }
@@ -196,6 +220,7 @@ internal sealed partial class SettingsForm : Form
         titleBar.MouseDown += (_, e) => BeginDrag(e);
         titleBar.MouseMove += (_, _) => ContinueDrag();
         titleBar.MouseUp += (_, e) => EndDrag(e);
+        titleBar.DoubleClick += (_, _) => ToggleMaximized();
 
         var title = new Label
         {
@@ -208,28 +233,120 @@ internal sealed partial class SettingsForm : Form
         title.MouseDown += (_, e) => BeginDrag(e);
         title.MouseMove += (_, _) => ContinueDrag();
         title.MouseUp += (_, e) => EndDrag(e);
+        title.DoubleClick += (_, _) => ToggleMaximized();
 
-        var closeButton = new Button
-        {
-            Dock = DockStyle.Right,
-            FlatStyle = FlatStyle.Flat,
-            ForeColor = UiTheme.Text,
-            BackColor = UiTheme.SurfaceRaised,
-            Text = "X",
-            Width = 48
-        };
-        closeButton.FlatAppearance.BorderSize = 0;
-        closeButton.FlatAppearance.MouseOverBackColor = Color.FromArgb(78, 57, 57);
-        closeButton.FlatAppearance.MouseDownBackColor = Color.FromArgb(98, 48, 48);
+        Button closeButton = CreateTitleBarButton(TitleBarButtonIcon.Close, "Close", danger: true);
         closeButton.Click += (_, _) =>
         {
             DialogResult = DialogResult.Cancel;
             Close();
         };
 
+        maximizeButton = CreateTitleBarButton(TitleBarButtonIcon.Maximize, "Maximize");
+        maximizeButton.Click += (_, _) => ToggleMaximized();
+        SizeChanged += (_, _) => UpdateMaximizeButtonText();
+        UpdateMaximizeButtonText();
+
+        Button minimizeButton = CreateTitleBarButton(TitleBarButtonIcon.Minimize, "Minimize");
+        minimizeButton.Click += (_, _) => WindowState = FormWindowState.Minimized;
+
+        var windowButtons = new TableLayoutPanel
+        {
+            Dock = DockStyle.Right,
+            Width = 144,
+            ColumnCount = 3,
+            RowCount = 1,
+            Margin = Padding.Empty,
+            Padding = Padding.Empty
+        };
+        windowButtons.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 48f));
+        windowButtons.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 48f));
+        windowButtons.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 48f));
+        windowButtons.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+        windowButtons.Controls.Add(minimizeButton, 0, 0);
+        windowButtons.Controls.Add(maximizeButton, 1, 0);
+        windowButtons.Controls.Add(closeButton, 2, 0);
+
         titleBar.Controls.Add(title);
-        titleBar.Controls.Add(closeButton);
+        titleBar.Controls.Add(windowButtons);
         return titleBar;
+    }
+
+    private Button CreateTitleBarButton(TitleBarButtonIcon icon, string accessibleName, bool danger = false)
+    {
+        var button = new Button
+        {
+            Dock = DockStyle.Fill,
+            FlatStyle = FlatStyle.Flat,
+            ForeColor = UiTheme.Text,
+            BackColor = UiTheme.SurfaceRaised,
+            Text = string.Empty,
+            AccessibleName = accessibleName,
+            Margin = Padding.Empty
+        };
+        button.Tag = icon;
+        button.FlatAppearance.BorderSize = 0;
+        button.FlatAppearance.MouseOverBackColor = danger
+            ? Color.FromArgb(78, 57, 57)
+            : Color.FromArgb(47, 58, 64);
+        button.FlatAppearance.MouseDownBackColor = danger
+            ? Color.FromArgb(98, 48, 48)
+            : Color.FromArgb(41, 50, 56);
+        button.Paint += DrawTitleBarButtonIcon;
+        titleBarToolTip.SetToolTip(button, Localize(accessibleName));
+        return button;
+    }
+
+    private static void DrawTitleBarButtonIcon(object? sender, PaintEventArgs e)
+    {
+        if (sender is not Button button || button.Tag is not TitleBarButtonIcon icon)
+        {
+            return;
+        }
+
+        Color color = button.Enabled ? button.ForeColor : UiTheme.MutedText;
+        int centerX = button.ClientSize.Width / 2;
+        int centerY = button.ClientSize.Height / 2;
+        using var pen = new Pen(color, 1.8f);
+        switch (icon)
+        {
+            case TitleBarButtonIcon.Minimize:
+                e.Graphics.DrawLine(pen, centerX - 7, centerY + 6, centerX + 7, centerY + 6);
+                break;
+            case TitleBarButtonIcon.Maximize:
+                e.Graphics.DrawRectangle(pen, centerX - 7, centerY - 7, 14, 14);
+                break;
+            case TitleBarButtonIcon.Restore:
+                e.Graphics.DrawRectangle(pen, centerX - 8, centerY - 3, 12, 12);
+                e.Graphics.DrawRectangle(pen, centerX - 4, centerY - 7, 12, 12);
+                break;
+            case TitleBarButtonIcon.Close:
+                e.Graphics.DrawLine(pen, centerX - 6, centerY - 6, centerX + 6, centerY + 6);
+                e.Graphics.DrawLine(pen, centerX + 6, centerY - 6, centerX - 6, centerY + 6);
+                break;
+        }
+    }
+
+    private void ToggleMaximized()
+    {
+        WindowState = WindowState == FormWindowState.Maximized
+            ? FormWindowState.Normal
+            : FormWindowState.Maximized;
+        UpdateMaximizeButtonText();
+    }
+
+    private void UpdateMaximizeButtonText()
+    {
+        if (maximizeButton is null)
+        {
+            return;
+        }
+
+        bool maximized = WindowState == FormWindowState.Maximized;
+        maximizeButton.Tag = maximized ? TitleBarButtonIcon.Restore : TitleBarButtonIcon.Maximize;
+        maximizeButton.AccessibleName = maximized ? "Restore" : "Maximize";
+        titleBarToolTip.SetToolTip(maximizeButton, Localize(maximized ? "Restore" : "Maximize"));
+        maximizeButton.Invalidate();
     }
 
     private Control CreateBody()
@@ -348,12 +465,7 @@ internal sealed partial class SettingsForm : Form
             message = ex.Message;
             if (showError)
             {
-                MessageBox.Show(
-                    this,
-                    ex.Message,
-                    Localize("TerrariaSplit Settings"),
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Warning);
+                dialogService.ShowWarning(ex.Message, Localize("TerrariaSplit Settings"));
             }
 
             return false;
@@ -372,7 +484,7 @@ internal sealed partial class SettingsForm : Form
 
     private void BeginDrag(MouseEventArgs e)
     {
-        if (e.Button != MouseButtons.Left)
+        if (e.Button != MouseButtons.Left || WindowState == FormWindowState.Maximized)
         {
             return;
         }

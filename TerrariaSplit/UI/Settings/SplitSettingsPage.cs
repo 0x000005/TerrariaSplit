@@ -1496,19 +1496,32 @@ internal sealed class SplitSettingsPage : SettingsPageBase
 
         if (!TryCommitAdvancedConditionText())
         {
+            ShowAdvancedConditionWarning(advancedConditionError);
             return;
         }
 
         if (!CanUseBasicConditionEditor(GetCurrentCondition()))
         {
             advancedConditionError = Context.Localize("Advanced condition cannot be converted to basic editor without losing structure.");
-            statusLabel.Text = advancedConditionError;
+            ShowAdvancedConditionWarning(advancedConditionError);
             return;
         }
 
         SplitIconOverride previousOverride = GetCurrentIconOverride();
         RenderConditionList(GetCurrentCondition(), previousOverride);
         SetAdvancedConditionMode(false, updateText: false);
+    }
+
+    private void ShowAdvancedConditionWarning(string message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            message = Context.Localize("Invalid advanced condition.");
+        }
+
+        advancedConditionError = message;
+        statusLabel.Text = message;
+        Context.Dialogs.ShowWarning(message, Context.Localize("TerrariaSplit Settings"));
     }
 
     private void SetAdvancedConditionMode(
