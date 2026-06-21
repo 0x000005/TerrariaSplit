@@ -47,6 +47,7 @@ var legacyTests = new (string Name, Action Test)[]
     ("Default reference times match default settings route", TestDefaultReferenceTimesMatchDefaultSettingsRoute),
     ("AppSettingsStore writes embedded defaults when settings file is invalid", TestAppSettingsStoreWritesEmbeddedDefaultsWhenSettingsFileIsInvalid),
     ("SplitTimeSetStore writes embedded WR when reference files are invalid", TestSplitTimeSetStoreWritesEmbeddedWrWhenReferenceFilesAreInvalid),
+    ("AppSettingsStore save does not mutate source settings", TestAppSettingsStoreSaveDoesNotMutateSourceSettings),
     ("Runtime data paths use final directory layout", TestRuntimeDataPathsUseFinalDirectoryLayout),
     ("AppLogger is disabled by default", TestAppLoggerIsDisabledByDefault),
     ("Main publish is single file", TestMainPublishIsSingleFile),
@@ -1144,6 +1145,96 @@ static void TestSplitTimeSetStoreWritesEmbeddedWrWhenReferenceFilesAreInvalid()
     finally
     {
         RestoreDirectory(referenceDirectory, referenceSnapshot);
+    }
+}
+
+static void TestAppSettingsStoreSaveDoesNotMutateSourceSettings()
+{
+    string settingsDirectory = AppSettingsStore.SettingsDirectory;
+    string referenceDirectory = SplitTimeSetStore.ReferenceDirectory;
+    string personalBestTimeDirectory = SplitTimeSetStore.PersonalBestTimeDirectory;
+    string personalBestSegmentDirectory = SplitTimeSetStore.PersonalBestSegmentDirectory;
+    DirectorySnapshot settingsSnapshot = SnapshotDirectory(settingsDirectory);
+    DirectorySnapshot referenceSnapshot = SnapshotDirectory(referenceDirectory);
+    DirectorySnapshot personalBestTimeSnapshot = SnapshotDirectory(personalBestTimeDirectory);
+    DirectorySnapshot personalBestSegmentSnapshot = SnapshotDirectory(personalBestSegmentDirectory);
+
+    try
+    {
+        DeleteDirectoryIfExists(settingsDirectory);
+        DeleteDirectoryIfExists(referenceDirectory);
+        DeleteDirectoryIfExists(personalBestTimeDirectory);
+        DeleteDirectoryIfExists(personalBestSegmentDirectory);
+
+        string profileName = "save-mutation-test.json";
+        _ = AppSettingsStore.Load(profileName);
+
+        AppSettings settings = AppSettingsDefaults.Create();
+        SettingsNormalizer.Normalize(settings);
+        settings.ReferenceSplitSets =
+        [
+            new ReferenceSplitSet
+            {
+                Name = "Custom Reference",
+                Splits = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["condition:test-reference"] = "00:01"
+                }
+            }
+        ];
+        settings.PersonalBestTimeSets =
+        [
+            new ReferenceSplitSet
+            {
+                Name = "Race PB",
+                Splits = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["condition:test-pb"] = "00:02"
+                }
+            }
+        ];
+        settings.PersonalBestSegmentSets =
+        [
+            new ReferenceSplitSet
+            {
+                Name = "Race Segments",
+                Splits = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["split:test-segment"] = "00:03"
+                }
+            }
+        ];
+        settings.ActiveReferenceSplitSet = "Custom Reference";
+        settings.ActivePersonalBestTimeSet = "Race PB";
+        settings.ActivePersonalBestSegmentSet = "Race Segments";
+
+        List<ReferenceSplitSet> referenceSets = settings.ReferenceSplitSets;
+        List<ReferenceSplitSet> personalBestTimeSets = settings.PersonalBestTimeSets;
+        List<ReferenceSplitSet> personalBestSegmentSets = settings.PersonalBestSegmentSets;
+        string beforeJson = JsonSerializer.Serialize(settings, JsonFileStore.JsonOptions);
+
+        AppSettingsStore.Save(settings);
+
+        string afterJson = JsonSerializer.Serialize(settings, JsonFileStore.JsonOptions);
+        AssertEqual(beforeJson, afterJson);
+        AssertEqual(true, ReferenceEquals(referenceSets, settings.ReferenceSplitSets));
+        AssertEqual(true, ReferenceEquals(personalBestTimeSets, settings.PersonalBestTimeSets));
+        AssertEqual(true, ReferenceEquals(personalBestSegmentSets, settings.PersonalBestSegmentSets));
+
+        AppSettings persisted = SettingsSerializer.ReadSettings(
+            Path.Combine(settingsDirectory, profileName),
+            "saved mutation test settings")
+            ?? throw new InvalidOperationException("Saved mutation test settings could not be read.");
+        AssertEqual(0, persisted.ReferenceSplitSets.Count);
+        AssertEqual(0, persisted.PersonalBestTimeSets.Count);
+        AssertEqual(0, persisted.PersonalBestSegmentSets.Count);
+    }
+    finally
+    {
+        RestoreDirectory(settingsDirectory, settingsSnapshot);
+        RestoreDirectory(referenceDirectory, referenceSnapshot);
+        RestoreDirectory(personalBestTimeDirectory, personalBestTimeSnapshot);
+        RestoreDirectory(personalBestSegmentDirectory, personalBestSegmentSnapshot);
     }
 }
 

@@ -75,34 +75,19 @@ internal static class AppSettingsStore
 
     public static void Save(AppSettings settings)
     {
-        Normalize(settings);
-        if (!settings.UsePersonalBestAsReferenceTime)
+        AppSettings snapshot = Clone(settings);
+        if (!snapshot.UsePersonalBestAsReferenceTime)
         {
-            SplitTimeSetStore.SaveReferenceSets(settings.ReferenceSplitSets);
+            SplitTimeSetStore.SaveReferenceSets(snapshot.ReferenceSplitSets);
         }
 
-        settings.SyncActivePersonalBestTimeSetFromDictionary();
-        settings.SyncActivePersonalBestSegmentSetFromDictionary();
-        SplitTimeSetStore.SavePersonalBestTimeSets(settings.PersonalBestTimeSets);
-        SplitTimeSetStore.SavePersonalBestSegmentSets(settings.PersonalBestSegmentSets);
-        List<ReferenceSplitSet> referenceSets = settings.ReferenceSplitSets;
-        List<ReferenceSplitSet> personalBestTimeSets = settings.PersonalBestTimeSets;
-        List<ReferenceSplitSet> personalBestSegmentSets = settings.PersonalBestSegmentSets;
-        settings.ReferenceSplitSets = new List<ReferenceSplitSet>();
-        settings.PersonalBestTimeSets = new List<ReferenceSplitSet>();
-        settings.PersonalBestSegmentSets = new List<ReferenceSplitSet>();
+        snapshot.SyncActivePersonalBestTimeSetFromDictionary();
+        snapshot.SyncActivePersonalBestSegmentSetFromDictionary();
+        SplitTimeSetStore.SavePersonalBestTimeSets(snapshot.PersonalBestTimeSets);
+        SplitTimeSetStore.SavePersonalBestSegmentSets(snapshot.PersonalBestSegmentSets);
         string directory = Path.GetDirectoryName(SettingsPath)!;
         Directory.CreateDirectory(directory);
-        try
-        {
-            SettingsSerializer.WriteSettings(SettingsPath, settings);
-        }
-        finally
-        {
-            settings.ReferenceSplitSets = referenceSets;
-            settings.PersonalBestTimeSets = personalBestTimeSets;
-            settings.PersonalBestSegmentSets = personalBestSegmentSets;
-        }
+        SettingsSerializer.WriteSettings(SettingsPath, AppSettingsPersistenceProjection.Create(snapshot));
     }
 
     public static AppSettings Clone(AppSettings settings)
