@@ -192,14 +192,14 @@ internal static class TextEffectRenderer
         }
 
         RectangleF bounds = path.GetBounds();
-        RectangleF gradientBounds = InflateBounds(bounds, Math.Max(4f, font.Size * 0.35f));
+        RectangleF gradientBounds = TextEffectGeometry.InflateBounds(bounds, Math.Max(4f, font.Size * 0.35f));
         using var outlineBrush = new LinearGradientBrush(gradientBounds, Color.White, Color.White, LinearGradientMode.Horizontal);
         Color[] colors = SplitCompletionOutlineStyles.GetColors(style, elapsed.TotalSeconds)
             .Select(color => WithOpacity(color, opacity))
             .ToArray();
         var blend = new ColorBlend
         {
-            Positions = CreateColorPositions(colors.Length),
+            Positions = TextEffectGeometry.CreateColorPositions(colors.Length),
             Colors = colors
         };
         outlineBrush.InterpolationColors = blend;
@@ -259,52 +259,17 @@ internal static class TextEffectRenderer
 
     internal static Rectangle GetAspectFitBounds(Image image, Rectangle bounds)
     {
-        if (image.Width <= 0 ||
-            image.Height <= 0 ||
-            bounds.Width <= 0 ||
-            bounds.Height <= 0)
-        {
-            return Rectangle.Empty;
-        }
-
-        float scale = Math.Min(
-            bounds.Width / (float)image.Width,
-            bounds.Height / (float)image.Height);
-        int width = Math.Max(1, (int)Math.Round(image.Width * scale));
-        int height = Math.Max(1, (int)Math.Round(image.Height * scale));
-        return new Rectangle(
-            bounds.X + (bounds.Width - width) / 2,
-            bounds.Y + (bounds.Height - height) / 2,
-            width,
-            height);
+        return TextEffectGeometry.GetAspectFitBounds(image.Size, bounds);
     }
 
     public static GraphicsPath CreateTextPath(Graphics graphics, string text, Font font, float x, float y, StringFormat format)
     {
-        var path = new GraphicsPath();
-        using StringFormat pathFormat = (StringFormat)format.Clone();
-        path.AddString(
-            text,
-            font.FontFamily,
-            (int)font.Style,
-            emSize: GetFontPixelsPerEm(graphics, font),
-            origin: new PointF(x, y),
-            format: pathFormat);
-        return path;
+        return TextEffectGeometry.CreateTextPath(graphics, text, font, x, y, format);
     }
 
     public static GraphicsPath CreateTextPath(Graphics graphics, string text, Font font, RectangleF bounds, StringFormat format)
     {
-        var path = new GraphicsPath();
-        using StringFormat pathFormat = (StringFormat)format.Clone();
-        path.AddString(
-            text,
-            font.FontFamily,
-            (int)font.Style,
-            emSize: GetFontPixelsPerEm(graphics, font),
-            layoutRect: bounds,
-            format: pathFormat);
-        return path;
+        return TextEffectGeometry.CreateTextPath(graphics, text, font, bounds, format);
     }
 
     public static float AlignTextPathBottom(
@@ -319,20 +284,22 @@ internal static class TextEffectRenderer
         float y,
         StringFormat format)
     {
-        using GraphicsPath referencePath = CreateTextPath(graphics, referenceText, referenceFont, referenceX, referenceY, format);
-        using GraphicsPath path = CreateTextPath(graphics, text, font, x, y, format);
-        if (referencePath.PointCount == 0 || path.PointCount == 0)
-        {
-            return y;
-        }
-
-        return y + referencePath.GetBounds().Bottom - path.GetBounds().Bottom;
+        return TextEffectGeometry.AlignTextPathBottom(
+            graphics,
+            referenceText,
+            referenceFont,
+            referenceX,
+            referenceY,
+            text,
+            font,
+            x,
+            y,
+            format);
     }
 
     public static Color WithOpacity(Color color, float opacity)
     {
-        int alpha = (int)Math.Round(color.A * Math.Clamp(opacity, 0f, 1f));
-        return Color.FromArgb(alpha, color.R, color.G, color.B);
+        return TextEffectGeometry.WithOpacity(color, opacity);
     }
 
     private static bool HasTextEffects(TextRenderStyle style)
@@ -353,7 +320,7 @@ internal static class TextEffectRenderer
             return;
         }
 
-        RectangleF layerBounds = GetTextEffectLayerBounds(graphics, path, font, style);
+        RectangleF layerBounds = TextEffectGeometry.GetTextEffectLayerBounds(graphics, path, font, style);
         if (layerBounds.Width <= 0f || layerBounds.Height <= 0f)
         {
             return;
@@ -413,38 +380,6 @@ internal static class TextEffectRenderer
         }
     }
 
-    private static RectangleF GetTextEffectLayerBounds(
-        Graphics graphics,
-        GraphicsPath path,
-        Font font,
-        TextRenderStyle style)
-    {
-        RectangleF bounds = path.GetBounds();
-        float shadowOffset = GetTextShadowOpacity(style.ShadowPercent) > 0f
-            ? GetTextShadowOffset(graphics, font)
-            : 0f;
-        if (shadowOffset > 0f)
-        {
-            bounds = RectangleF.Union(
-                bounds,
-                new RectangleF(
-                    bounds.X + shadowOffset,
-                    bounds.Y + shadowOffset,
-                    bounds.Width,
-                    bounds.Height));
-        }
-
-        float outlineRadius = style.OutlineThicknessPercent > 0
-            ? GetTextOutlineRadius(graphics, font, style.OutlineThicknessPercent)
-            : 0f;
-        float padding = MathF.Ceiling(Math.Max(outlineRadius, shadowOffset) + 3f);
-        return RectangleF.FromLTRB(
-            MathF.Floor(bounds.Left - padding),
-            MathF.Floor(bounds.Top - padding),
-            MathF.Ceiling(bounds.Right + padding),
-            MathF.Ceiling(bounds.Bottom + padding));
-    }
-
     private static void DrawTextEffects(
         Graphics graphics,
         GraphicsPath path,
@@ -457,12 +392,12 @@ internal static class TextEffectRenderer
             return;
         }
 
-        float shadowOpacity = GetTextShadowOpacity(style.ShadowPercent);
+        float shadowOpacity = TextEffectGeometry.GetTextShadowOpacity(style.ShadowPercent);
         if (shadowOpacity > 0f)
         {
             using GraphicsPath shadowPath = (GraphicsPath)path.Clone();
             using var matrix = new Matrix();
-            float offset = GetTextShadowOffset(graphics, font);
+            float offset = TextEffectGeometry.GetTextShadowOffset(graphics, font);
             matrix.Translate(offset, offset);
             shadowPath.Transform(matrix);
 
@@ -472,7 +407,7 @@ internal static class TextEffectRenderer
 
         if (style.OutlineThicknessPercent > 0)
         {
-            float radius = GetTextOutlineRadius(graphics, font, style.OutlineThicknessPercent);
+            float radius = TextEffectGeometry.GetTextOutlineRadius(graphics, font, style.OutlineThicknessPercent);
             using var outlinePen = new Pen(WithOpacity(style.Outline, opacity), Math.Max(0.2f, radius * 2f))
             {
                 LineJoin = LineJoin.Round,
@@ -509,10 +444,10 @@ internal static class TextEffectRenderer
         StringFormat format,
         float opacity)
     {
-        float shadowOpacity = GetTextShadowOpacity(style.ShadowPercent);
+        float shadowOpacity = TextEffectGeometry.GetTextShadowOpacity(style.ShadowPercent);
         if (shadowOpacity > 0f)
         {
-            int offset = (int)Math.Round(GetTextShadowOffset(graphics, font));
+            int offset = (int)Math.Round(TextEffectGeometry.GetTextShadowOffset(graphics, font));
             Rectangle shadowBounds = new(bounds.X + offset, bounds.Y + offset, bounds.Width, bounds.Height);
             using var shadowBrush = new SolidBrush(WithOpacity(style.Shadow, opacity * shadowOpacity));
             graphics.DrawString(text, font, shadowBrush, shadowBounds, format);
@@ -532,10 +467,10 @@ internal static class TextEffectRenderer
         StringFormat format,
         float opacity)
     {
-        float shadowOpacity = GetTextShadowOpacity(style.ShadowPercent);
+        float shadowOpacity = TextEffectGeometry.GetTextShadowOpacity(style.ShadowPercent);
         if (shadowOpacity > 0f)
         {
-            float offset = GetTextShadowOffset(graphics, font);
+            float offset = TextEffectGeometry.GetTextShadowOffset(graphics, font);
             using var shadowBrush = new SolidBrush(WithOpacity(style.Shadow, opacity * shadowOpacity));
             graphics.DrawString(text, font, shadowBrush, x + offset, y + offset, format);
         }
@@ -544,58 +479,4 @@ internal static class TextEffectRenderer
         graphics.DrawString(text, font, fillBrush, x, y, format);
     }
 
-    private static float GetTextShadowOpacity(int shadowPercent)
-    {
-        float amount = Math.Clamp(shadowPercent, 0, 100) / 100f;
-        if (amount <= 0f)
-        {
-            return 0f;
-        }
-
-        return Math.Clamp(0.08f + 0.58f * MathF.Pow(amount, 0.85f), 0f, 0.66f);
-    }
-
-    private static float GetTextShadowOffset(Graphics graphics, Font font)
-    {
-        return Math.Clamp(GetFontPixelsPerEm(graphics, font) * 0.08f, 1f, 4f);
-    }
-
-    private static float GetTextOutlineRadius(Graphics graphics, Font font, int thicknessPercent)
-    {
-        float amount = Math.Clamp(thicknessPercent, 0, 200) / 200f;
-        float radius = GetFontPixelsPerEm(graphics, font) * 0.075f * amount + 0.15f;
-        return Math.Clamp(radius, 0.2f, 3.5f);
-    }
-
-    private static float[] CreateColorPositions(int count)
-    {
-        if (count <= 1)
-        {
-            return new[] { 0f };
-        }
-
-        var positions = new float[count];
-        for (int i = 0; i < count; i++)
-        {
-            positions[i] = i / (float)(count - 1);
-        }
-
-        return positions;
-    }
-
-    private static RectangleF InflateBounds(RectangleF bounds, float amount)
-    {
-        if (bounds.Width <= 0f || bounds.Height <= 0f)
-        {
-            return new RectangleF(bounds.X - amount, bounds.Y - amount, amount * 2f + 1f, amount * 2f + 1f);
-        }
-
-        bounds.Inflate(amount, amount);
-        return bounds;
-    }
-
-    private static float GetFontPixelsPerEm(Graphics graphics, Font font)
-    {
-        return font.SizeInPoints * graphics.DpiY / 72f;
-    }
 }

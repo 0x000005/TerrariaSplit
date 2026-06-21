@@ -12,8 +12,8 @@ internal static class RenderingTests
     public static IEnumerable<(string Name, Action Test)> All()
     {
         yield return ("UiPalette maps configured text colors", UiPaletteMapsConfiguredTextColors);
-        yield return ("TextEffectRenderer applies opacity without changing RGB", TextEffectRendererAppliesOpacity);
-        yield return ("TextEffectRenderer fits images without stretching", TextEffectRendererFitsImagesWithoutStretching);
+        yield return ("TextEffectGeometry applies opacity without changing RGB", TextEffectGeometryAppliesOpacity);
+        yield return ("TextEffectGeometry fits images without stretching", TextEffectGeometryFitsImagesWithoutStretching);
         yield return ("TextEffectRenderer draws direct styled string", TextEffectRendererDrawsDirectStyledString);
         yield return ("TextEffectRenderer draws direct shadow-only text", TextEffectRendererDrawsDirectShadowOnlyText);
         yield return ("OverlayFontCache keeps main timer font independent from milliseconds visibility", OverlayFontCacheKeepsMainTimerFontIndependentFromMillisecondsVisibility);
@@ -66,9 +66,9 @@ internal static class RenderingTests
         TestAssert.Equal(Color.FromArgb(0xBB, 0xCC, 0xDD), palette.SplitCompletionTimeText);
     }
 
-    private static void TextEffectRendererAppliesOpacity()
+    private static void TextEffectGeometryAppliesOpacity()
     {
-        Color color = TextEffectRenderer.WithOpacity(Color.FromArgb(200, 10, 20, 30), 0.5f);
+        Color color = TextEffectGeometry.WithOpacity(Color.FromArgb(200, 10, 20, 30), 0.5f);
 
         TestAssert.Equal(100, color.A);
         TestAssert.Equal(10, color.R);
@@ -76,14 +76,14 @@ internal static class RenderingTests
         TestAssert.Equal(30, color.B);
     }
 
-    private static void TextEffectRendererFitsImagesWithoutStretching()
+    private static void TextEffectGeometryFitsImagesWithoutStretching()
     {
         using var wide = new Bitmap(40, 20);
-        Rectangle wideBounds = TextEffectRenderer.GetAspectFitBounds(wide, new Rectangle(10, 20, 32, 32));
+        Rectangle wideBounds = TextEffectGeometry.GetAspectFitBounds(wide.Size, new Rectangle(10, 20, 32, 32));
         TestAssert.Equal(new Rectangle(10, 28, 32, 16), wideBounds);
 
         using var tall = new Bitmap(20, 40);
-        Rectangle tallBounds = TextEffectRenderer.GetAspectFitBounds(tall, new Rectangle(10, 20, 32, 32));
+        Rectangle tallBounds = TextEffectGeometry.GetAspectFitBounds(tall.Size, new Rectangle(10, 20, 32, 32));
         TestAssert.Equal(new Rectangle(18, 20, 16, 32), tallBounds);
     }
 

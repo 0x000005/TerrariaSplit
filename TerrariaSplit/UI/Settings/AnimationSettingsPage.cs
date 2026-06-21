@@ -618,15 +618,15 @@ internal sealed class AnimationSettingsPage : SettingsPageBase
             return;
         }
 
-        using GraphicsPath path = CreatePreviewTextPath(graphics, text, font, 0f, 0f, format);
-        CenterPath(path, centerX, centerY);
+        using GraphicsPath path = TextEffectGeometry.CreateTextPath(graphics, text, font, 0f, 0f, format);
+        TextEffectGeometry.CenterPath(path, centerX, centerY);
         RectangleF pathBounds = path.GetBounds();
-        RectangleF gradientBounds = InflateBounds(pathBounds, Math.Max(4f, font.Size * 0.35f));
+        RectangleF gradientBounds = TextEffectGeometry.InflateBounds(pathBounds, Math.Max(4f, font.Size * 0.35f));
         using var outlineBrush = new LinearGradientBrush(gradientBounds, Color.White, Color.White, LinearGradientMode.Horizontal);
         Color[] colors = SplitCompletionOutlineStyles.GetColors(normalized, Environment.TickCount64 / 1000.0);
         outlineBrush.InterpolationColors = new ColorBlend
         {
-            Positions = CreateColorPositions(colors.Length),
+            Positions = TextEffectGeometry.CreateColorPositions(colors.Length),
             Colors = colors
         };
 
@@ -639,55 +639,6 @@ internal sealed class AnimationSettingsPage : SettingsPageBase
 
         using var fillBrush = new SolidBrush(fillColor);
         graphics.FillPath(fillBrush, path);
-    }
-
-    private static GraphicsPath CreatePreviewTextPath(Graphics graphics, string text, Font font, float x, float y, StringFormat format)
-    {
-        var path = new GraphicsPath();
-        using StringFormat pathFormat = (StringFormat)format.Clone();
-        path.AddString(
-            text,
-            font.FontFamily,
-            (int)font.Style,
-            emSize: font.SizeInPoints * graphics.DpiY / 72f,
-            origin: new PointF(x, y),
-            format: pathFormat);
-        return path;
-    }
-
-    private static void CenterPath(GraphicsPath path, float centerX, float centerY)
-    {
-        RectangleF bounds = path.GetBounds();
-        using var matrix = new Matrix();
-        matrix.Translate(centerX - (bounds.Left + bounds.Width / 2f), centerY - (bounds.Top + bounds.Height / 2f));
-        path.Transform(matrix);
-    }
-
-    private static RectangleF InflateBounds(RectangleF bounds, float amount)
-    {
-        if (bounds.Width <= 0f || bounds.Height <= 0f)
-        {
-            return new RectangleF(bounds.X - amount, bounds.Y - amount, amount * 2f + 1f, amount * 2f + 1f);
-        }
-
-        bounds.Inflate(amount, amount);
-        return bounds;
-    }
-
-    private static float[] CreateColorPositions(int count)
-    {
-        if (count <= 1)
-        {
-            return new[] { 0f };
-        }
-
-        var positions = new float[count];
-        for (int i = 0; i < count; i++)
-        {
-            positions[i] = i / (float)(count - 1);
-        }
-
-        return positions;
     }
 
     private void PopulateSegmentBestDeltaHighlightGrid()
