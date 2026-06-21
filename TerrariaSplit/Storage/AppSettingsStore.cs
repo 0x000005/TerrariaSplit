@@ -1,4 +1,4 @@
-namespace TerrariaSplit.Configuration;
+namespace TerrariaSplit.Storage;
 
 internal static class AppSettingsStore
 {
