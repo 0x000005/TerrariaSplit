@@ -47,6 +47,7 @@ internal sealed class TerrariaMonitorCoordinator : IDisposable
         ITerrariaWorldWatcher watcher,
         ITerrariaUiScalePatchApplier uiScalePatchApplier,
         Action<Action> dispatch,
+        IAppLogger? logger = null,
         Action<string>? logInfo = null,
         Action<Exception, string>? logError = null,
         Func<DateTime>? utcNowProvider = null,
@@ -57,8 +58,9 @@ internal sealed class TerrariaMonitorCoordinator : IDisposable
         this.watcher = watcher;
         this.uiScalePatchApplier = uiScalePatchApplier;
         this.dispatch = dispatch;
-        this.logInfo = logInfo ?? AppLogger.Info;
-        this.logError = logError ?? AppLogger.Error;
+        logger ??= NullAppLogger.Instance;
+        this.logInfo = logInfo ?? logger.Info;
+        this.logError = logError ?? logger.Error;
         this.utcNowProvider = utcNowProvider ?? (() => DateTime.UtcNow);
         this.isProcessStillRunning = isProcessStillRunning ?? IsProcessStillRunning;
         this.shouldYieldDispatch = shouldYieldDispatch ?? (() => false);

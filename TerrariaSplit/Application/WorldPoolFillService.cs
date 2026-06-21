@@ -13,6 +13,7 @@ internal sealed class WorldPoolFillService : IDisposable
     private readonly WorldPoolStore store;
     private readonly HeadlessWorldGenerator generator = new();
     private readonly ISettingsSnapshotFactory settingsSnapshots;
+    private readonly IAppLogger logger;
     private readonly object sync = new();
     private AppSettings? settings;
     private CancellationTokenSource? cancellation;
@@ -20,10 +21,14 @@ internal sealed class WorldPoolFillService : IDisposable
     private bool disposed;
     private bool loggedMissingServer;
 
-    public WorldPoolFillService(WorldPoolStore store, ISettingsSnapshotFactory settingsSnapshots)
+    public WorldPoolFillService(
+        WorldPoolStore store,
+        ISettingsSnapshotFactory settingsSnapshots,
+        IAppLogger? logger = null)
     {
         this.store = store;
         this.settingsSnapshots = settingsSnapshots;
+        this.logger = logger ?? NullAppLogger.Instance;
     }
 
     // Called at startup and whenever settings are applied. Refreshing the signature clears
@@ -76,7 +81,7 @@ internal sealed class WorldPoolFillService : IDisposable
             }
             catch (Exception ex)
             {
-                AppLogger.Error(ex, "World pool fill iteration failed.");
+                logger.Error(ex, "World pool fill iteration failed.");
             }
 
             if (generated)
@@ -128,7 +133,7 @@ internal sealed class WorldPoolFillService : IDisposable
                 if (!loggedMissingServer)
                 {
                     loggedMissingServer = true;
-                    AppLogger.Info("World pool fill is idle because TerrariaServer.exe could not be located.");
+                    logger.Info("World pool fill is idle because TerrariaServer.exe could not be located.");
                 }
             }
 
@@ -142,7 +147,7 @@ internal sealed class WorldPoolFillService : IDisposable
                 IsGenerationStillCurrent(signature) &&
                 store.TryAdd(signature, result.WorldPath, result.Metadata, out WorldPoolEntry entry))
             {
-                AppLogger.Info(
+                logger.Info(
                     $"World pool banked world {entry.WorldFileName}; pool now holds " +
                     $"{store.Count(signature)}/{autoCreate.WorldPoolTargetCount}.");
             }

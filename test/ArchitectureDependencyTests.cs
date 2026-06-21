@@ -65,11 +65,7 @@ internal static class ArchitectureDependencyTests
         AssertOnlyAllowedFilesReference(
             Path.Combine("TerrariaSplit", "Application"),
             "AppLogger",
-            [
-                Path.Combine("TerrariaSplit", "Application", "AutomationRunner.cs"),
-                Path.Combine("TerrariaSplit", "Application", "TerrariaMonitorCoordinator.cs"),
-                Path.Combine("TerrariaSplit", "Application", "WorldPoolFillService.cs")
-            ]);
+            []);
     }
 
     private static void AssertNoMatches(string relativeDirectory, Regex pattern, string message)

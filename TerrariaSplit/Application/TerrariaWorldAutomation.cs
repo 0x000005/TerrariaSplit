@@ -7,20 +7,23 @@ internal sealed class TerrariaWorldAutomation : IDisposable
     private readonly AutomationRunner<AppSettings> createWorldRunner;
     private readonly AutomationRunner<EnterWorldAutomationRequest> enterWorldRunner;
 
-    public TerrariaWorldAutomation(WorldPoolStore? worldPool = null)
+    public TerrariaWorldAutomation(WorldPoolStore? worldPool = null, IAppLogger? logger = null)
     {
+        logger ??= NullAppLogger.Instance;
         createWorldWorkflow = new CreateWorldWorkflow(worldPool);
         createWorldRunner = new AutomationRunner<AppSettings>(
             "Create world",
             createWorldWorkflow.RunAsync,
-            createWorldWorkflow.Dispose);
+            createWorldWorkflow.Dispose,
+            logger);
         enterWorldRunner = new AutomationRunner<EnterWorldAutomationRequest>(
             "Enter world",
             (request, cancellationToken) => enterWorldWorkflow.RunAsync(
                 request.Settings,
                 request.Slot,
                 cancellationToken),
-            enterWorldWorkflow.Dispose);
+            enterWorldWorkflow.Dispose,
+            logger);
     }
 
     public bool IsRunning => IsCreateWorldRunning || IsEnterWorldRunning;

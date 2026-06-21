@@ -6,17 +6,20 @@ internal sealed class AutomationRunner<TRequest> : IDisposable
     private readonly string name;
     private readonly Func<TRequest, CancellationToken, Task> runAsync;
     private readonly Action? dispose;
+    private readonly IAppLogger logger;
     private CancellationTokenSource? runCancellation;
     private bool isRunning;
 
     public AutomationRunner(
         string name,
         Func<TRequest, CancellationToken, Task> runAsync,
-        Action? dispose = null)
+        Action? dispose = null,
+        IAppLogger? logger = null)
     {
         this.name = name;
         this.runAsync = runAsync;
         this.dispose = dispose;
+        this.logger = logger ?? NullAppLogger.Instance;
     }
 
     public bool IsRunning
@@ -58,7 +61,7 @@ internal sealed class AutomationRunner<TRequest> : IDisposable
                 return false;
             }
 
-            AppLogger.Info($"{name} automation cancellation requested.");
+            logger.Info($"{name} automation cancellation requested.");
             runCancellation.Cancel();
             return true;
         }

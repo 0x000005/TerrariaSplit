@@ -18,6 +18,7 @@ internal sealed partial class MainForm : Form
 
     private readonly WorldPoolStore worldPoolStore = new();
     private readonly ISettingsSnapshotFactory settingsSnapshots = new StoredSettingsSnapshotFactory();
+    private readonly IAppLogger appLogger = StaticAppLogger.Instance;
     private readonly TerrariaWorldAutomation worldAutomation;
     private readonly WorldPoolFillService worldPoolFillService;
     private readonly MainFormContextMenuBuilder contextMenuBuilder = new();
@@ -96,18 +97,19 @@ internal sealed partial class MainForm : Form
         this.registerGlobalHotkeys = registerGlobalHotkeys;
         dispatchedControlTick = DispatchedControlTick;
         dispatchedStatusPaintTick = DispatchedStatusPaintTick;
-        worldAutomation = new TerrariaWorldAutomation(worldPoolStore);
+        worldAutomation = new TerrariaWorldAutomation(worldPoolStore, appLogger);
         applicationController = new ApplicationController(
             AppSettingsStore.Load(),
             ShowPersonalBestUpdateConfirmation,
             settingsSnapshots);
-        worldPoolFillService = new WorldPoolFillService(worldPoolStore, settingsSnapshots);
+        worldPoolFillService = new WorldPoolFillService(worldPoolStore, settingsSnapshots, appLogger);
         RefreshTimerOverlaySettingsSnapshot();
         palette = UiPalette.From(settings.Colors);
         monitorCoordinator = new TerrariaMonitorCoordinator(
             new TerrariaWorldWatcher(),
             new TerrariaUiScalePatchApplierAdapter(),
             callback => BeginInvoke(callback),
+            appLogger,
             shouldYieldDispatch: UiInputMessageProbe.HasPendingInputMessage,
             recordPoll: performance.RecordWatcherPoll);
         monitorCoordinator.WatcherPollCompleted += HandleWatcherPollCompleted;
