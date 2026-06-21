@@ -389,7 +389,7 @@ internal sealed partial class MainForm : Form
         if (!overlayWindowsInitialized ||
             !statusBoundsFeedbackEnabled ||
             suppressStatusBoundsFeedback ||
-            dragging)
+            windowShell.IsDragging)
         {
             return;
         }

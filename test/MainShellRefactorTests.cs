@@ -23,6 +23,8 @@ internal static class MainShellRefactorTests
         yield return ("WindowLayerController applies always-on-top setting without blocking input", WindowLayerControllerAppliesAlwaysOnTopSettingWithoutBlockingInput);
         yield return ("WindowLayerController blocks main windows while modal is registered", WindowLayerControllerBlocksMainWindowsWhileModalIsRegistered);
         yield return ("WindowLayerController ignores modal activation when no modal is registered", WindowLayerControllerIgnoresModalActivationWhenNoModalIsRegistered);
+        yield return ("WindowShell computes drag deltas", WindowShellComputesDragDeltas);
+        yield return ("WindowShell drives close finalization state", WindowShellDrivesCloseFinalizationState);
         yield return ("ProgramModalWindowCoordinator registers modal forms through one gateway", ProgramModalWindowCoordinatorRegistersModalFormsThroughOneGateway);
         yield return ("ProgramModalWindowCoordinator enables only the current nested modal", ProgramModalWindowCoordinatorEnablesOnlyCurrentNestedModal);
         yield return ("MainWindowModalInputRouter redirects blocked main window activation", MainWindowModalInputRouterRedirectsBlockedMainWindowActivation);
@@ -400,6 +402,41 @@ internal static class MainShellRefactorTests
             TestAssert.Equal(false, timerBlocked);
             TestAssert.Equal(false, controller.HasModalWindow);
         });
+    }
+
+    private static void WindowShellComputesDragDeltas()
+    {
+        var shell = new WindowShell();
+
+        shell.BeginDrag(new Point(10, 10));
+        TestAssert.Equal(true, shell.IsDragging);
+        TestAssert.Equal(false, shell.TryMoveDrag(new Point(10, 10), out _));
+        TestAssert.Equal(true, shell.TryMoveDrag(new Point(13, 9), out Point firstDelta));
+        TestAssert.Equal(new Point(3, -1), firstDelta);
+        TestAssert.Equal(true, shell.TryMoveDrag(new Point(15, 12), out Point secondDelta));
+        TestAssert.Equal(new Point(2, 3), secondDelta);
+
+        shell.CancelDrag();
+
+        TestAssert.Equal(false, shell.IsDragging);
+        TestAssert.Equal(false, shell.TryMoveDrag(new Point(20, 20), out _));
+    }
+
+    private static void WindowShellDrivesCloseFinalizationState()
+    {
+        var shell = new WindowShell();
+
+        TestAssert.Equal(WindowCloseAction.StartFinalization, shell.RequestClose());
+        TestAssert.Equal(WindowCloseAction.CancelAlreadyPending, shell.RequestClose());
+
+        shell.CompleteCloseFinalization();
+
+        TestAssert.Equal(WindowCloseAction.AllowClose, shell.RequestClose());
+        TestAssert.Equal(false, shell.IsClosing);
+
+        shell.MarkClosing();
+
+        TestAssert.Equal(true, shell.IsClosing);
     }
 
     private static void WindowLayerControllerIgnoresModalActivationWhenNoModalIsRegistered()

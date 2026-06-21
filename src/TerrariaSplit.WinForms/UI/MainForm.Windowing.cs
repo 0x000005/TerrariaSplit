@@ -117,7 +117,7 @@ internal sealed partial class MainForm : Form
 
     protected override void OnFormClosed(FormClosedEventArgs e)
     {
-        closing = true;
+        windowShell.MarkClosing();
         DisposeRuntimeResources();
         base.OnFormClosed(e);
     }
@@ -126,7 +126,7 @@ internal sealed partial class MainForm : Form
     {
         if (disposing)
         {
-            closing = true;
+            windowShell.MarkClosing();
             DisposeRuntimeResources();
         }
 
@@ -161,19 +161,19 @@ internal sealed partial class MainForm : Form
 
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
-        if (closeFinalizationComplete)
+        WindowCloseAction closeAction = windowShell.RequestClose();
+        if (closeAction == WindowCloseAction.AllowClose)
         {
             base.OnFormClosing(e);
             return;
         }
 
-        if (closeFinalizationPending)
+        if (closeAction == WindowCloseAction.CancelAlreadyPending)
         {
             e.Cancel = true;
             return;
         }
 
-        closeFinalizationPending = true;
         e.Cancel = true;
         BeginInvoke(new Action(() =>
         {
@@ -183,8 +183,7 @@ internal sealed partial class MainForm : Form
             }
             finally
             {
-                closeFinalizationPending = false;
-                closeFinalizationComplete = true;
+                windowShell.CompleteCloseFinalization();
                 Close();
             }
         }));
@@ -210,8 +209,7 @@ internal sealed partial class MainForm : Form
                 ResizeBorder,
                 OverlayResizeEdges.Left | OverlayResizeEdges.Top | OverlayResizeEdges.Right | OverlayResizeEdges.Bottom))
         {
-            dragging = true;
-            dragStartCursor = Cursor.Position;
+            windowShell.BeginDrag(Cursor.Position);
         }
     }
 
@@ -219,24 +217,16 @@ internal sealed partial class MainForm : Form
     {
         if (mainWindowModalInputRouter.HasModalWindow)
         {
-            dragging = false;
+            windowShell.CancelDrag();
             return;
         }
 
         base.OnMouseMove(e);
-        if (!dragging)
+        if (!windowShell.TryMoveDrag(Cursor.Position, out Point delta))
         {
             return;
         }
 
-        Point currentCursor = Cursor.Position;
-        Point delta = new(currentCursor.X - dragStartCursor.X, currentCursor.Y - dragStartCursor.Y);
-        if (delta.X == 0 && delta.Y == 0)
-        {
-            return;
-        }
-
-        dragStartCursor = currentCursor;
         overlayBoundsController.MoveBy(delta);
     }
 
@@ -244,14 +234,14 @@ internal sealed partial class MainForm : Form
     {
         if (mainWindowModalInputRouter.TryRedirectFromMainInput())
         {
-            dragging = false;
+            windowShell.CancelDrag();
             return;
         }
 
         base.OnMouseUp(e);
         if (e.Button == MouseButtons.Left)
         {
-            dragging = false;
+            windowShell.CancelDrag();
         }
 
         if (e.Button == MouseButtons.Right && settings.General.PracticeMode)

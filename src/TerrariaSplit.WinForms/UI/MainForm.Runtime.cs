@@ -115,7 +115,7 @@ internal sealed partial class MainForm : Form
 
     private bool CanDispatchToUiThread()
     {
-        return !closing && IsHandleCreated && !IsDisposed && !Disposing;
+        return !windowShell.IsClosing && IsHandleCreated && !IsDisposed && !Disposing;
     }
 
     private void ProcessUiTick()
@@ -167,7 +167,7 @@ internal sealed partial class MainForm : Form
 
     private void UpdateStatusPaintSchedulerState()
     {
-        bool shouldRun = !closing &&
+        bool shouldRun = !windowShell.IsClosing &&
             runtimeOverlayPaintSuspensionCount <= 0 &&
             (timerPhase == SplitTimerPhase.Running || overlayAnimations.SplitCompletionAnimation is not null);
         if (shouldRun && !statusPaintScheduler.IsRunning)
@@ -277,14 +277,7 @@ internal sealed partial class MainForm : Form
 
     private void UpdateWindowTitle()
     {
-        string title = SegmentTimerWindowTitle;
-        if (string.Equals(title, currentWindowText, StringComparison.Ordinal))
-        {
-            return;
-        }
-
-        currentWindowText = title;
-        Text = title;
+        windowShell.SyncTitle(this, SegmentTimerWindowTitle);
     }
 
     internal RuntimePerformanceDiagnostics GetRuntimeDiagnostics()
@@ -438,7 +431,7 @@ internal sealed partial class MainForm : Form
             if (runtimeOverlayPaintSuspensionCount == 0)
             {
                 monitorCoordinator.ApplyUiDispatchSuspended(false);
-                if (runtimeControlSchedulerSuspended && !closing)
+                if (runtimeControlSchedulerSuspended && !windowShell.IsClosing)
                 {
                     controlScheduler.Start(controlTickInterval);
                 }

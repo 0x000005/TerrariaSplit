@@ -39,17 +39,12 @@ internal sealed partial class MainForm : Form
     private readonly TimerOverlayWindowHost timerOverlayHost;
     private readonly ProgramModalWindowCoordinator modalWindows;
     private readonly MainWindowModalInputRouter mainWindowModalInputRouter;
+    private readonly WindowShell windowShell = new();
     private readonly object runtimeDebugSnapshotLock = new();
     private bool mouseClickThrough;
-    private bool dragging;
-    private Point dragStartCursor;
-    private bool closeFinalizationPending;
-    private bool closeFinalizationComplete;
     private int runtimeOverlayPaintSuspensionCount;
     private bool runtimeControlSchedulerSuspended;
-    private bool closing;
     private bool runtimeResourcesDisposed;
-    private string currentWindowText = string.Empty;
     private bool overlayWindowsInitialized;
     private bool overlayWindowInitializationInProgress;
     private bool statusBoundsFeedbackEnabled;
@@ -145,7 +140,7 @@ internal sealed partial class MainForm : Form
         mainWindowModalInputRouter = MainShellCompositionRoot.CreateModalInputRouter(
             modalWindows,
             contextMenu,
-            () => dragging = false);
+            windowShell.CancelDrag);
         automationShell = MainShellCompositionRoot.CreateAutomationShell(
             worldPoolStore,
             () => settings,
