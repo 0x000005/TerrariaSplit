@@ -6,11 +6,20 @@ namespace TerrariaSplit.UI.Settings;
 
 internal sealed class UiSettingsPage : SettingsPageBase
 {
-    private readonly CheckBox enableDynamicDeltaTimeUnitsBox = new();
     private readonly Dictionary<string, ColumnControls> columnControls = new();
     private readonly Dictionary<string, FontControls> fontControls = new();
     private readonly TextBox timerOffsetXBox = new();
     private readonly TextBox timerOffsetYBox = new();
+    private readonly CheckBox visibleGroupCountLimitEnabledBox = new();
+    private readonly TextBox visibleGroupCountLimitBox = new();
+    private readonly TextBox currentGroupPositionBox = new();
+    private readonly CheckBox showFinalGroupBox = new();
+    private readonly CheckBox expandSplitDetailsBox = new();
+    private readonly CheckBox collapseSplitDetailsOnCompletionBox = new();
+    private readonly CheckBox autoHideAttachedGroupsBox = new();
+    private readonly CheckBox showEarlyDeltaTimeBox = new();
+    private readonly TextBox earlyDeltaTimeSecondsBox = new();
+    private readonly CheckBox enableDynamicDeltaTimeUnitsBox = new();
     private readonly TextBox iconOpacityBox = new();
     private readonly TextBox timeOpacityBox = new();
     private readonly TextBox timeShadowBox = new();
@@ -34,7 +43,25 @@ internal sealed class UiSettingsPage : SettingsPageBase
 
     public override SettingsPageId Id => SettingsPageId.Ui;
 
-    internal CheckBox EnableDynamicDeltaTimeUnitsBox => enableDynamicDeltaTimeUnitsBox;
+    internal CheckBox VisibleGroupCountLimitEnabledBoxForTests => visibleGroupCountLimitEnabledBox;
+
+    internal TextBox VisibleGroupCountLimitBoxForTests => visibleGroupCountLimitBox;
+
+    internal TextBox CurrentGroupPositionBoxForTests => currentGroupPositionBox;
+
+    internal CheckBox ShowFinalGroupBoxForTests => showFinalGroupBox;
+
+    internal CheckBox ExpandSplitDetailsBoxForTests => expandSplitDetailsBox;
+
+    internal CheckBox CollapseSplitDetailsOnCompletionBoxForTests => collapseSplitDetailsOnCompletionBox;
+
+    internal CheckBox AutoHideAttachedGroupsBoxForTests => autoHideAttachedGroupsBox;
+
+    internal CheckBox ShowEarlyDeltaTimeBoxForTests => showEarlyDeltaTimeBox;
+
+    internal TextBox EarlyDeltaTimeSecondsBoxForTests => earlyDeltaTimeSecondsBox;
+
+    internal CheckBox EnableDynamicDeltaTimeUnitsBoxForTests => enableDynamicDeltaTimeUnitsBox;
 
     internal TextBox IconOpacityBox => iconOpacityBox;
 
@@ -120,6 +147,8 @@ internal sealed class UiSettingsPage : SettingsPageBase
         {
             AddColumnSettingsSection(content);
             AddTimerSettingsSection(content);
+            AddGroupSettingsSection(content);
+            AddDeltaTimeSettingsSection(content);
         });
     }
 
@@ -133,8 +162,12 @@ internal sealed class UiSettingsPage : SettingsPageBase
         ApplyColumnSettings("AttachedDelta", settings.Overlay.Columns.AttachedDelta);
         ApplyFontSettings("Timer", settings.Overlay.Columns.Timer);
         ApplyFontSettings("TimerMilliseconds", settings.Overlay.Columns.TimerMilliseconds);
+        if (ApplyGroupSettings(settings))
+        {
+            Context.NotifyModelChanged(SettingsModelChange.RouteChanged);
+        }
+        ApplyDeltaTimeSettings(settings);
 
-        settings.Overlay.EnableDynamicDeltaTimeUnits = enableDynamicDeltaTimeUnitsBox.Checked;
         settings.Overlay.Columns.TimerOffsetX = SettingsValueParser.ParseIntBox(timerOffsetXBox, 0, -2000, 2000);
         settings.Overlay.Columns.TimerOffsetY = SettingsValueParser.ParseIntBox(timerOffsetYBox, 0, -2000, 2000);
         settings.Overlay.TextEffects ??= new UiTextEffectSettings();
@@ -162,8 +195,6 @@ internal sealed class UiSettingsPage : SettingsPageBase
 
     private void AddColumnSettingsSection(TableLayoutPanel parent)
     {
-        ConfigureCheckBox(enableDynamicDeltaTimeUnitsBox, Draft.Overlay.EnableDynamicDeltaTimeUnits);
-
         TableLayoutPanel section = Factory.CreateSection("Split display");
         TableLayoutPanel grid = Factory.CreateGrid(
             SettingsUiFactory.ColumnStylePercent(100f),
@@ -240,12 +271,46 @@ internal sealed class UiSettingsPage : SettingsPageBase
             attachedDeltaOutlineThicknessBox,
             Draft.Overlay.TextEffects.AttachedDeltaOutlineThicknessPercent);
 
-        TableLayoutPanel optionsGrid = Factory.CreateTwoColumnGrid(280f);
-        Factory.AddSettingRow(optionsGrid, "Dynamic delta time units", enableDynamicDeltaTimeUnitsBox);
-
         SettingsUiFactory.AddSectionControl(section, grid);
-        SettingsUiFactory.AddSectionControl(section, optionsGrid);
         SettingsUiFactory.AddSection(parent, section);
+    }
+
+    private void AddGroupSettingsSection(TableLayoutPanel parent)
+    {
+        TableLayoutPanel section = Factory.CreateSection("Group");
+
+        SettingsUiFactory.AddSectionControl(section, Factory.CreateSubsectionLabel("Group count limit"));
+        TableLayoutPanel visibleGrid = Factory.CreateTwoColumnGrid(280f);
+        int visibleGroupCountLimit = Math.Clamp(Draft.Route.VisibleGroupCountLimit, 1, 100);
+        ConfigureCheckBox(visibleGroupCountLimitEnabledBox, Draft.Route.EnableVisibleGroupCountLimit);
+        visibleGroupCountLimitEnabledBox.CheckedChanged += (_, _) => UpdateVisibleGroupCountLimitAvailability();
+        ConfigureNumberBox(visibleGroupCountLimitBox, visibleGroupCountLimit, 1, 100);
+        ConfigureNumberBox(currentGroupPositionBox, Draft.Route.CurrentGroupPosition, 1, visibleGroupCountLimit);
+        ConfigureCheckBox(showFinalGroupBox, Draft.Route.ShowFinalGroup);
+        Factory.AddSettingRow(visibleGrid, "Enabled", visibleGroupCountLimitEnabledBox);
+        Factory.AddSettingRow(visibleGrid, "Visible group count", visibleGroupCountLimitBox);
+        Factory.AddSettingRow(visibleGrid, "Current group position", currentGroupPositionBox);
+        Factory.AddSettingRow(visibleGrid, "Show final group", showFinalGroupBox);
+        SettingsUiFactory.AddSectionControl(section, visibleGrid);
+
+        SettingsUiFactory.AddSectionControl(section, Factory.CreateSubsectionLabel("Main groups"));
+        TableLayoutPanel mainGrid = Factory.CreateTwoColumnGrid(280f);
+        ConfigureCheckBox(expandSplitDetailsBox, Draft.Route.ExpandSplitDetails);
+        expandSplitDetailsBox.CheckedChanged += (_, _) => UpdateCollapseSplitDetailsAvailability();
+        ConfigureCheckBox(collapseSplitDetailsOnCompletionBox, Draft.Route.CollapseSplitDetailsOnCompletion);
+        Factory.AddSettingRow(mainGrid, "Auto expand multi-condition main groups", expandSplitDetailsBox);
+        Factory.AddSettingRow(mainGrid, "Collapse after completion", collapseSplitDetailsOnCompletionBox);
+        SettingsUiFactory.AddSectionControl(section, mainGrid);
+
+        SettingsUiFactory.AddSectionControl(section, Factory.CreateSubsectionLabel("Attached groups"));
+        TableLayoutPanel attachedGrid = Factory.CreateTwoColumnGrid(280f);
+        ConfigureCheckBox(autoHideAttachedGroupsBox, Draft.Route.AutoHideAttachedGroups);
+        Factory.AddSettingRow(attachedGrid, "Auto hide attached groups", autoHideAttachedGroupsBox);
+        SettingsUiFactory.AddSectionControl(section, attachedGrid);
+
+        SettingsUiFactory.AddSection(parent, section);
+        UpdateVisibleGroupCountLimitAvailability();
+        UpdateCollapseSplitDetailsAvailability();
     }
 
     private void AddColumnSettingsRow(
@@ -343,6 +408,29 @@ internal sealed class UiSettingsPage : SettingsPageBase
         SettingsUiFactory.AddSection(parent, section);
     }
 
+    private void AddDeltaTimeSettingsSection(TableLayoutPanel parent)
+    {
+        TableLayoutPanel section = Factory.CreateSection("Delta time");
+
+        SettingsUiFactory.AddSectionControl(section, Factory.CreateSubsectionLabel("Early delta time"));
+        TableLayoutPanel earlyDeltaGrid = Factory.CreateTwoColumnGrid(280f);
+        ConfigureCheckBox(showEarlyDeltaTimeBox, Draft.Overlay.ShowEarlyDeltaTime);
+        showEarlyDeltaTimeBox.CheckedChanged += (_, _) => UpdateEarlyDeltaAvailability();
+        ConfigureNumberBox(earlyDeltaTimeSecondsBox, Draft.Overlay.EarlyDeltaTimeSeconds, 0, 3600);
+        Factory.AddSettingRow(earlyDeltaGrid, "Enabled", showEarlyDeltaTimeBox);
+        Factory.AddSettingRow(earlyDeltaGrid, "Show when within seconds", earlyDeltaTimeSecondsBox);
+        SettingsUiFactory.AddSectionControl(section, earlyDeltaGrid);
+
+        SettingsUiFactory.AddSectionControl(section, Factory.CreateSubsectionLabel("Dynamic delta time units"));
+        TableLayoutPanel dynamicUnitGrid = Factory.CreateTwoColumnGrid(280f);
+        ConfigureCheckBox(enableDynamicDeltaTimeUnitsBox, Draft.Overlay.EnableDynamicDeltaTimeUnits);
+        Factory.AddSettingRow(dynamicUnitGrid, "Enabled", enableDynamicDeltaTimeUnitsBox);
+        SettingsUiFactory.AddSectionControl(section, dynamicUnitGrid);
+
+        SettingsUiFactory.AddSection(parent, section);
+        UpdateEarlyDeltaAvailability();
+    }
+
     private void AddFontSettingsRow(
         TableLayoutPanel grid,
         string label,
@@ -429,6 +517,72 @@ internal sealed class UiSettingsPage : SettingsPageBase
         UiTheme.StyleTextBox(textBox);
         textBox.Dock = DockStyle.Fill;
         textBox.Text = Math.Clamp(selected, minimum, maximum).ToString(CultureInfo.InvariantCulture);
+    }
+
+    private bool ApplyGroupSettings(AppSettings settings)
+    {
+        bool enableVisibleGroupCountLimit = visibleGroupCountLimitEnabledBox.Checked;
+        int visibleGroupCountLimit = SettingsValueParser.ParseIntBox(
+            visibleGroupCountLimitBox,
+            settings.Route.VisibleGroupCountLimit,
+            1,
+            100);
+        int currentGroupPosition = SettingsValueParser.ParseIntBox(
+            currentGroupPositionBox,
+            settings.Route.CurrentGroupPosition,
+            1,
+            visibleGroupCountLimit);
+
+        bool showFinalGroup = showFinalGroupBox.Checked;
+        bool expand = expandSplitDetailsBox.Checked;
+        bool collapse = collapseSplitDetailsOnCompletionBox.Checked;
+        bool autoHideAttachedGroups = autoHideAttachedGroupsBox.Checked;
+        bool changed =
+            settings.Route.EnableVisibleGroupCountLimit != enableVisibleGroupCountLimit ||
+            settings.Route.VisibleGroupCountLimit != visibleGroupCountLimit ||
+            settings.Route.CurrentGroupPosition != currentGroupPosition ||
+            settings.Route.ShowFinalGroup != showFinalGroup ||
+            settings.Route.ExpandSplitDetails != expand ||
+            settings.Route.CollapseSplitDetailsOnCompletion != collapse ||
+            settings.Route.AutoHideAttachedGroups != autoHideAttachedGroups;
+
+        settings.Route.EnableVisibleGroupCountLimit = enableVisibleGroupCountLimit;
+        settings.Route.VisibleGroupCountLimit = visibleGroupCountLimit;
+        settings.Route.CurrentGroupPosition = currentGroupPosition;
+        settings.Route.ShowFinalGroup = showFinalGroup;
+        settings.Route.ExpandSplitDetails = expand;
+        settings.Route.CollapseSplitDetailsOnCompletion = collapse;
+        settings.Route.AutoHideAttachedGroups = autoHideAttachedGroups;
+        return changed;
+    }
+
+    private void ApplyDeltaTimeSettings(AppSettings settings)
+    {
+        settings.Overlay.ShowEarlyDeltaTime = showEarlyDeltaTimeBox.Checked;
+        settings.Overlay.EarlyDeltaTimeSeconds = SettingsValueParser.ParseIntBox(
+            earlyDeltaTimeSecondsBox,
+            settings.Overlay.EarlyDeltaTimeSeconds,
+            0,
+            3600);
+        settings.Overlay.EnableDynamicDeltaTimeUnits = enableDynamicDeltaTimeUnitsBox.Checked;
+    }
+
+    private void UpdateCollapseSplitDetailsAvailability()
+    {
+        collapseSplitDetailsOnCompletionBox.Enabled = expandSplitDetailsBox.Checked;
+    }
+
+    private void UpdateVisibleGroupCountLimitAvailability()
+    {
+        bool enabled = visibleGroupCountLimitEnabledBox.Checked;
+        visibleGroupCountLimitBox.Enabled = enabled;
+        currentGroupPositionBox.Enabled = enabled;
+        showFinalGroupBox.Enabled = enabled;
+    }
+
+    private void UpdateEarlyDeltaAvailability()
+    {
+        earlyDeltaTimeSecondsBox.Enabled = showEarlyDeltaTimeBox.Checked;
     }
 
     private void ApplyColumnSettings(string key, UiColumnSettings target)

@@ -75,7 +75,7 @@ var legacyTests = new (string Name, Action Test)[]
     ("Input model no longer exposes runtime hotkey requests", TestInputModelStaticRegression),
     ("Settings form orders moved pages", TestSettingsFormOrdersMovedPages),
     ("Settings form applies global scale from General page", TestSettingsFormAppliesGlobalScaleFromGeneralPage),
-    ("Settings form applies dynamic delta units from UI page", TestSettingsFormAppliesDynamicDeltaUnitsFromUiPage),
+    ("Settings form applies delta time display from UI page", TestSettingsFormAppliesDeltaTimeDisplayFromUiPage),
     ("Settings form applies text effects from UI page", TestSettingsFormAppliesTextEffectsFromUiPage),
     ("Settings form applies attached split display settings", TestSettingsFormAppliesAttachedSplitDisplaySettings),
     ("Settings form applies visible group count limit", TestSettingsFormAppliesVisibleGroupCountLimit),
@@ -1006,11 +1006,10 @@ static void TestLocalizer()
     AssertEqual("\u4E2A\u4EBA\u6700\u4F73\u5355\u6BB5", Localizer.Get("Personal segment best", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
     AssertEqual("\u5F53\u524D\u6570\u636E\u6587\u4EF6", Localizer.Get("Active file", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
     AssertEqual("m:ss \u6216 h:mm:ss", Localizer.Get("m:ss or h:mm:ss", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
-    AssertEqual("\u975E\u9644\u5C5E\u7EC4", Localizer.Get("Main groups", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u4E3B\u8981\u7EC4", Localizer.Get("Main groups", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
     AssertEqual("\u9644\u5C5E\u7EC4", Localizer.Get("Attached groups", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
     AssertEqual("\u9644\u5C5E\u7EC4", Localizer.Get("Attached group marker", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
     AssertEqual("\u81EA\u52A8\u9690\u85CF\u9644\u5C5E\u7EC4", Localizer.Get("Auto hide attached groups", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
-    AssertEqual("\u9644\u5C5E\u7EC4\u53C2\u4E0E\u4E3B\u8BA1\u65F6\u5668\u5FEB\u6162\u5224\u5B9A", Localizer.Get("Attached groups affect main timer comparison", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
     AssertEqual("\u5B8C\u6210\u5F53\u524D\u9636\u6BB5\u65F6\u70B9\u4EAE\u56FE\u6807", Localizer.Get("Light icons when current stage completed", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
     AssertEqual("\u4E3B\u9636\u6BB5\u5B8C\u6210\u52A8\u753B", Localizer.Get("Main stage completion animation", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
     AssertEqual("\u7EC4", Localizer.Get("BOSS Group", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
@@ -1060,6 +1059,9 @@ static void TestLegacyFlatSettingsJsonMigratesToSections()
       "AlwaysOnTop": true,
       "PauseResumeKey": "F10",
       "SplitRoute": [],
+      "VisibleGroupCountLimit": 5,
+      "CurrentGroupPosition": 3,
+      "ShowFinalGroup": true,
       "UsePersonalBestAsReferenceTime": true,
       "ShowSplitCompletionAnimation": false,
       "AutoCreate": {
@@ -1075,6 +1077,10 @@ static void TestLegacyFlatSettingsJsonMigratesToSections()
     AssertEqual(true, settings.General.AlwaysOnTop);
     AssertEqual("F10", settings.Hotkeys.PauseResumeKey);
     AssertEqual(0, settings.Route.SplitRoute.Count);
+    AssertEqual(true, settings.Route.EnableVisibleGroupCountLimit);
+    AssertEqual(5, settings.Route.VisibleGroupCountLimit);
+    AssertEqual(3, settings.Route.CurrentGroupPosition);
+    AssertEqual(true, settings.Route.ShowFinalGroup);
     AssertEqual(true, settings.Comparison.UsePersonalBestAsReferenceTime);
     AssertEqual(false, settings.Overlay.ShowSplitCompletionAnimation);
     AssertEqual(true, settings.Automation.AutoCreate.EnablePyramidFilter);
@@ -1993,16 +1999,28 @@ static void TestSettingsFormOrdersMovedPages()
     });
 }
 
-static void TestSettingsFormAppliesDynamicDeltaUnitsFromUiPage()
+static void TestSettingsFormAppliesDeltaTimeDisplayFromUiPage()
 {
     RunSta(() =>
     {
-        using var form = new SettingsForm(new AppSettings { Overlay = { EnableDynamicDeltaTimeUnits = true } });
+        using var form = new SettingsForm(new AppSettings
+        {
+            Overlay =
+            {
+                ShowEarlyDeltaTime = true,
+                EarlyDeltaTimeSeconds = 60,
+                EnableDynamicDeltaTimeUnits = true
+            }
+        });
         UiSettingsPage page = form.PageHost.GetOrCreatePage<UiSettingsPage>(SettingsPageId.Ui);
-        page.EnableDynamicDeltaTimeUnitsBox.Checked = false;
+        page.ShowEarlyDeltaTimeBoxForTests.Checked = false;
+        page.EarlyDeltaTimeSecondsBoxForTests.Text = "90";
+        page.EnableDynamicDeltaTimeUnitsBoxForTests.Checked = false;
 
         form.ApplyForTests();
 
+        AssertEqual(false, form.Result.Overlay.ShowEarlyDeltaTime);
+        AssertEqual(90, form.Result.Overlay.EarlyDeltaTimeSeconds);
         AssertEqual(false, form.Result.Overlay.EnableDynamicDeltaTimeUnits);
     });
 }
@@ -2102,23 +2120,38 @@ static void TestSettingsFormAppliesVisibleGroupCountLimit()
     RunSta(() =>
     {
         using var form = new SettingsForm(AppSettingsDefaults.Create());
-        SplitSettingsPage page = form.PageHost.GetOrCreatePage<SplitSettingsPage>(SettingsPageId.Splits);
+        UiSettingsPage page = form.PageHost.GetOrCreatePage<UiSettingsPage>(SettingsPageId.Ui);
 
+        page.VisibleGroupCountLimitEnabledBoxForTests.Checked = true;
         page.VisibleGroupCountLimitBoxForTests.Text = "5";
         page.CurrentGroupPositionBoxForTests.Text = "3";
+        page.ShowFinalGroupBoxForTests.Checked = true;
 
         form.ApplyForTests();
 
+        AssertEqual(true, form.Result.Route.EnableVisibleGroupCountLimit);
         AssertEqual(5, form.Result.Route.VisibleGroupCountLimit);
         AssertEqual(3, form.Result.Route.CurrentGroupPosition);
+        AssertEqual(true, form.Result.Route.ShowFinalGroup);
 
         page.VisibleGroupCountLimitBoxForTests.Text = "2";
+        page.CurrentGroupPositionBoxForTests.Text = "9";
+        page.ShowFinalGroupBoxForTests.Checked = false;
+
+        form.ApplyForTests();
+
+        AssertEqual(true, form.Result.Route.EnableVisibleGroupCountLimit);
+        AssertEqual(2, form.Result.Route.VisibleGroupCountLimit);
+        AssertEqual(2, form.Result.Route.CurrentGroupPosition);
+        AssertEqual(false, form.Result.Route.ShowFinalGroup);
+
+        page.VisibleGroupCountLimitBoxForTests.Text = "0";
         page.CurrentGroupPositionBoxForTests.Text = "9";
 
         form.ApplyForTests();
 
-        AssertEqual(2, form.Result.Route.VisibleGroupCountLimit);
-        AssertEqual(2, form.Result.Route.CurrentGroupPosition);
+        AssertEqual(1, form.Result.Route.VisibleGroupCountLimit);
+        AssertEqual(1, form.Result.Route.CurrentGroupPosition);
     });
 }
 

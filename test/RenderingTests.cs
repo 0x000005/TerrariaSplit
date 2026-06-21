@@ -41,7 +41,7 @@ internal static class RenderingTests
         yield return ("SplitCompletionAnimationRenderer preserves fade curve", SplitCompletionAnimationRendererPreservesFadeCurve);
         yield return ("SplitCompletionAnimationRenderer preserves delta slide curve", SplitCompletionAnimationRendererPreservesDeltaSlideCurve);
         yield return ("SplitCompletionAnimationRenderer centers on rendered rows", SplitCompletionAnimationRendererCentersOnRenderedRows);
-        yield return ("OverlayTextStyles can ignore attached groups for timer comparison", OverlayTextStylesCanIgnoreAttachedGroupsForTimerComparison);
+        yield return ("OverlayTextStyles includes attached groups in timer comparison", OverlayTextStylesIncludesAttachedGroupsInTimerComparison);
         yield return ("OverlayTextStyles maps text effect percentages", OverlayTextStylesMapsTextEffectPercentages);
     }
 
@@ -574,6 +574,7 @@ internal static class RenderingTests
         {
             Route =
             {
+                EnableVisibleGroupCountLimit = true,
                 VisibleGroupCountLimit = 5,
                 CurrentGroupPosition = 3
             }
@@ -594,6 +595,22 @@ internal static class RenderingTests
         TestAssert.Equal(2, currentRow);
         TestAssert.Equal(false, SplitDisplayRows.TryGetRowIndex(settings, statuses, 1, currentSplitIndex: 4, out _));
 
+        IReadOnlyList<SplitDisplayRow> bottomAlignedRows = SplitDisplayRows.Build(
+            settings,
+            statuses,
+            currentSplitIndex: 4,
+            minimumRowCount: SplitCompletionAnimationRenderer.ReservedRowCount);
+        TestAssert.Equal(
+            true,
+            bottomAlignedRows.SequenceEqual(
+            [
+                new SplitDisplayRow(2, 2),
+                new SplitDisplayRow(3, 3),
+                new SplitDisplayRow(4, 4),
+                new SplitDisplayRow(5, 5),
+                new SplitDisplayRow(6, 6)
+            ]));
+
         IReadOnlyList<SplitDisplayRow> nearStartRows = SplitDisplayRows.Build(settings, statuses, currentSplitIndex: 1);
         SplitDisplayRow[] expectedNearStartRows =
         [
@@ -604,6 +621,67 @@ internal static class RenderingTests
             new SplitDisplayRow(4, 4)
         ];
         TestAssert.Equal(true, nearStartRows.SequenceEqual(expectedNearStartRows));
+
+        settings.Route.ShowFinalGroup = true;
+        IReadOnlyList<SplitDisplayRow> finalGroupRows = SplitDisplayRows.Build(
+            settings,
+            statuses,
+            currentSplitIndex: 4);
+        SplitDisplayRow[] expectedFinalGroupRows =
+        [
+            new SplitDisplayRow(2, 0),
+            new SplitDisplayRow(3, 1),
+            new SplitDisplayRow(4, 2),
+            new SplitDisplayRow(5, 3),
+            new SplitDisplayRow(7, 4)
+        ];
+        TestAssert.Equal(true, finalGroupRows.SequenceEqual(expectedFinalGroupRows));
+
+        IReadOnlyList<SplitDisplayRow> bottomAlignedFinalGroupRows = SplitDisplayRows.Build(
+            settings,
+            statuses,
+            currentSplitIndex: 4,
+            minimumRowCount: SplitCompletionAnimationRenderer.ReservedRowCount);
+        TestAssert.Equal(SplitCompletionAnimationRenderer.ReservedRowCount - 1, bottomAlignedFinalGroupRows[^1].RowIndex);
+        TestAssert.Equal(7, bottomAlignedFinalGroupRows[^1].StatusIndex);
+
+        IReadOnlyList<SplitDisplayRow> completedRunRows = SplitDisplayRows.Build(
+            settings,
+            statuses,
+            currentSplitIndex: statuses.Length,
+            minimumRowCount: 10,
+            ignoreVisibleGroupLimit: true);
+        SplitDisplayRow[] expectedCompletedRunRows =
+        [
+            new SplitDisplayRow(0, 0),
+            new SplitDisplayRow(1, 1),
+            new SplitDisplayRow(2, 2),
+            new SplitDisplayRow(3, 3),
+            new SplitDisplayRow(4, 4),
+            new SplitDisplayRow(5, 5),
+            new SplitDisplayRow(6, 6),
+            new SplitDisplayRow(7, 7)
+        ];
+        TestAssert.Equal(true, completedRunRows.SequenceEqual(expectedCompletedRunRows));
+        TestAssert.Equal(
+            8,
+            SplitDisplayRows.GetRequiredRowCount(
+                settings,
+                statuses,
+                currentSplitIndex: statuses.Length,
+                ignoreVisibleGroupLimit: true));
+        TestAssert.Equal(
+            true,
+            SplitDisplayRows.TryGetRowIndex(
+                settings,
+                statuses,
+                1,
+                currentSplitIndex: statuses.Length,
+                minimumRowCount: 10,
+                ignoreVisibleGroupLimit: true,
+                out int completedRunRow));
+        TestAssert.Equal(1, completedRunRow);
+        settings.Route.ShowFinalGroup = false;
 
         SplitDefinition previousA = CreateDisplayRowDefinition("split:previous-a", isAttached: false);
         SplitDefinition previousB = CreateDisplayRowDefinition("split:previous-b", isAttached: false);
@@ -622,6 +700,7 @@ internal static class RenderingTests
         ];
         settings.Route.VisibleGroupCountLimit = 3;
         settings.Route.CurrentGroupPosition = 2;
+        settings.Route.EnableVisibleGroupCountLimit = true;
 
         IReadOnlyList<SplitDisplayRow> attachedLimitedRows = SplitDisplayRows.Build(
             settings,
@@ -635,6 +714,15 @@ internal static class RenderingTests
         ];
         TestAssert.Equal(true, attachedLimitedRows.SequenceEqual(expectedAttachedLimitedRows));
         TestAssert.Equal(false, attachedLimitedRows.Any(row => row.StatusIndex is 2 or 3));
+
+        IReadOnlyList<SplitDisplayRow> attachedUnlimitedRows = SplitDisplayRows.Build(
+            settings,
+            hiddenAttachedStatuses,
+            currentSplitIndex: hiddenAttachedStatuses.Length,
+            minimumRowCount: 0,
+            ignoreVisibleGroupLimit: true);
+        TestAssert.Equal(4, attachedUnlimitedRows.Count);
+        TestAssert.Equal(false, attachedUnlimitedRows.Any(row => row.StatusIndex is 2 or 3));
 
         SplitCondition factA = SplitCondition.Fact("fact:a");
         SplitCondition factB = SplitCondition.Fact("fact:b");
@@ -650,6 +738,7 @@ internal static class RenderingTests
         AppSettings expandedSettings = CreateExpandedRowsSettings(expanded, condition);
         expandedSettings.Route.VisibleGroupCountLimit = 1;
         expandedSettings.Route.CurrentGroupPosition = 1;
+        expandedSettings.Route.EnableVisibleGroupCountLimit = true;
         SplitStatusSnapshot expandedPending = new(
             expanded,
             null,
@@ -1633,7 +1722,7 @@ internal static class RenderingTests
         TestAssert.Equal(42, milliseconds.OutlineThicknessPercent);
     }
 
-    private static void OverlayTextStylesCanIgnoreAttachedGroupsForTimerComparison()
+    private static void OverlayTextStylesIncludesAttachedGroupsInTimerComparison()
     {
         var settings = new AppSettings
         {
@@ -1694,7 +1783,6 @@ internal static class RenderingTests
             .ToArray();
         UiPalette palette = UiPalette.From(settings.Overlay.Colors);
 
-        settings.Route.AttachedGroupsAffectTimerComparison = true;
         TextRenderStyle attachedComparison = OverlayTextStyles.GetTimerTextStyle(
             settings,
             statuses,
@@ -1704,18 +1792,7 @@ internal static class RenderingTests
             palette,
             milliseconds: false);
 
-        settings.Route.AttachedGroupsAffectTimerComparison = false;
-        TextRenderStyle mainComparison = OverlayTextStyles.GetTimerTextStyle(
-            settings,
-            statuses,
-            currentSplitIndex: 0,
-            SplitTimerPhase.Running,
-            TimeSpan.FromSeconds(20),
-            palette,
-            milliseconds: false);
-
         TestAssert.Equal(Color.FromArgb(0x44, 0x55, 0x66).ToArgb(), attachedComparison.Fill.ToArgb());
-        TestAssert.Equal(Color.FromArgb(0x11, 0x22, 0x33).ToArgb(), mainComparison.Fill.ToArgb());
     }
 
     private static SplitDefinition CreateAnyBossDefinition()

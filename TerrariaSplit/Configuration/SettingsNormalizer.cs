@@ -86,14 +86,11 @@ internal static class SettingsNormalizer
 
     private static void NormalizeRoute(AppSettings settings)
     {
-        settings.Route.VisibleGroupCountLimit = Math.Clamp(settings.Route.VisibleGroupCountLimit, 0, 100);
-        settings.Route.CurrentGroupPosition = Math.Clamp(settings.Route.CurrentGroupPosition, 1, 100);
-        if (settings.Route.VisibleGroupCountLimit > 0)
-        {
-            settings.Route.CurrentGroupPosition = Math.Min(
-                settings.Route.CurrentGroupPosition,
-                settings.Route.VisibleGroupCountLimit);
-        }
+        settings.Route.VisibleGroupCountLimit = Math.Clamp(settings.Route.VisibleGroupCountLimit, 1, 100);
+        settings.Route.CurrentGroupPosition = Math.Clamp(
+            settings.Route.CurrentGroupPosition,
+            1,
+            settings.Route.VisibleGroupCountLimit);
 
         if (settings.Route.SplitRoute.Count == 0)
         {

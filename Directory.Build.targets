@@ -1,0 +1,9 @@
+<Project>
+  <Target Name="TerrariaSplitRemovePdbFilesFromPublishDirectory" AfterTargets="Publish" Condition="'$(PublishDir)' != ''">
+    <ItemGroup>
+      <TerrariaSplitPublishedPdbFiles Include="$(PublishDir)**\*.pdb" />
+    </ItemGroup>
+
+    <Delete Files="@(TerrariaSplitPublishedPdbFiles)" />
+  </Target>
+</Project>

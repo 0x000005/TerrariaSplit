@@ -5,7 +5,7 @@ namespace TerrariaSplit.UI.Rendering;
 
 internal static class SplitCompletionAnimationRenderer
 {
-    public const int ReservedRowCount = 8;
+    public const int ReservedRowCount = 7;
     private static readonly TimeSpan SplitCompletionFadeDuration = TimeSpan.FromSeconds(0.45);
     private static readonly TimeSpan SplitCompletionDeltaIntroGap = TimeSpan.FromSeconds(0.06);
     private const float SplitCompletionLabelFontRatio = 0.64f;
@@ -172,7 +172,9 @@ internal static class SplitCompletionAnimationRenderer
         IReadOnlyList<SplitDisplayRow> rows = SplitDisplayRows.Build(
             context.Settings,
             context.Statuses,
-            context.CurrentSplitIndex);
+            context.CurrentSplitIndex,
+            context.VisibleStatusRowCount,
+            context.IgnoreVisibleGroupLimit);
         if (rows.Count == 0)
         {
             return (0, Math.Max(ReservedRowCount, context.VisibleStatusRowCount) - 1);

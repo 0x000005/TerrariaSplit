@@ -210,10 +210,11 @@ internal sealed class RouteSettings
     public List<SplitRouteEntry> SplitRoute { get; set; } = new();
     public bool ExpandSplitDetails { get; set; }
     public bool CollapseSplitDetailsOnCompletion { get; set; } = true;
-    public int VisibleGroupCountLimit { get; set; }
+    public bool EnableVisibleGroupCountLimit { get; set; }
+    public int VisibleGroupCountLimit { get; set; } = 5;
     public int CurrentGroupPosition { get; set; } = 3;
+    public bool ShowFinalGroup { get; set; }
     public bool AutoHideAttachedGroups { get; set; } = true;
-    public bool AttachedGroupsAffectTimerComparison { get; set; } = true;
 }
 
 internal sealed class ComparisonSettings

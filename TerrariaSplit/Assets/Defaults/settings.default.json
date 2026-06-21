@@ -856,10 +856,11 @@
     ],
     "ExpandSplitDetails": true,
     "CollapseSplitDetailsOnCompletion": true,
-    "VisibleGroupCountLimit": 0,
+    "EnableVisibleGroupCountLimit": false,
+    "VisibleGroupCountLimit": 5,
     "CurrentGroupPosition": 3,
-    "AutoHideAttachedGroups": true,
-    "AttachedGroupsAffectTimerComparison": true
+    "ShowFinalGroup": false,
+    "AutoHideAttachedGroups": true
   },
   "Comparison": {
     "ReferenceSplitSets": [],

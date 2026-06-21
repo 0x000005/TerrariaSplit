@@ -392,31 +392,8 @@ internal static class OverlayTextStyles
         }
 
         SplitDefinition current = statuses[currentSplitIndex].Definition;
-        if (settings.Route.AttachedGroupsAffectTimerComparison || !current.IsAttached)
-        {
-            definition = current;
-            return true;
-        }
-
-        for (int i = currentSplitIndex; i < statuses.Count; i++)
-        {
-            if (!statuses[i].Definition.IsAttached)
-            {
-                definition = statuses[i].Definition;
-                return true;
-            }
-        }
-
-        for (int i = currentSplitIndex - 1; i >= 0; i--)
-        {
-            if (!statuses[i].Definition.IsAttached)
-            {
-                definition = statuses[i].Definition;
-                return true;
-            }
-        }
-
-        return false;
+        definition = current;
+        return true;
     }
 
     private static TextRenderStyle GetTimerGradientTextStyle(

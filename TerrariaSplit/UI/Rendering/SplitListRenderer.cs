@@ -15,7 +15,9 @@ internal static class SplitListRenderer
         IReadOnlyList<SplitDisplayRow> rows = SplitDisplayRows.Build(
             context.Settings,
             context.Statuses,
-            context.CurrentSplitIndex);
+            context.CurrentSplitIndex,
+            context.VisibleStatusRowCount,
+            context.IgnoreVisibleGroupLimit);
         int focusIndex = GetCurrentSplitHighlightIndex(context, rows);
         if (focusIndex < 0)
         {
@@ -99,7 +101,12 @@ internal static class SplitListRenderer
     {
         return GetCurrentSplitHighlightIndex(
             context,
-            SplitDisplayRows.Build(context.Settings, context.Statuses, context.CurrentSplitIndex));
+            SplitDisplayRows.Build(
+                context.Settings,
+                context.Statuses,
+                context.CurrentSplitIndex,
+                context.VisibleStatusRowCount,
+                context.IgnoreVisibleGroupLimit));
     }
 
     private static int GetCurrentSplitHighlightIndex(

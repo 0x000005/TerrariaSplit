@@ -10,9 +10,6 @@ internal sealed partial class AnimationSettingsPage : SettingsPageBase
     private readonly CheckBox showCurrentSplitHighlightBox = new();
     private readonly TextBox currentSplitHighlightScaleBox = new();
     private readonly TextBox currentSplitDepthStrengthBox = new();
-    private readonly CheckBox showEarlyDeltaTimeBox = new();
-    private readonly TextBox earlyDeltaTimeSecondsBox = new();
-    private readonly CheckBox enableDynamicDeltaTimeUnitsBox = new();
     private readonly CheckBox enableDeltaGradientColorBox = new();
     private readonly CheckBox enableCurrentDeltaGradientColorBox = new();
     private readonly CheckBox enableTimerGradientColorBox = new();
@@ -64,8 +61,6 @@ internal sealed partial class AnimationSettingsPage : SettingsPageBase
         settings.Overlay.ShowCurrentSplitHighlight = showCurrentSplitHighlightBox.Checked;
         settings.Overlay.CurrentSplitHighlightScalePercent = SettingsValueParser.ParseIntBox(currentSplitHighlightScaleBox, 112, 100, 140);
         settings.Overlay.CurrentSplitDepthStrengthPercent = SettingsValueParser.ParseIntBox(currentSplitDepthStrengthBox, 45, 0, 100);
-        settings.Overlay.ShowEarlyDeltaTime = showEarlyDeltaTimeBox.Checked;
-        settings.Overlay.EarlyDeltaTimeSeconds = SettingsValueParser.ParseIntBox(earlyDeltaTimeSecondsBox, 60, 0, 3600);
         settings.Overlay.EnableDeltaGradientColor = enableDeltaGradientColorBox.Checked;
         settings.Overlay.EnableCurrentDeltaGradientColor = enableCurrentDeltaGradientColorBox.Checked;
         settings.Overlay.EnableTimerGradientColor = enableTimerGradientColorBox.Checked;
@@ -101,9 +96,6 @@ internal sealed partial class AnimationSettingsPage : SettingsPageBase
         showCurrentSplitHighlightBox.CheckedChanged += (_, _) => UpdateEffectAvailability();
         ConfigureNumberBox(currentSplitHighlightScaleBox, Draft.Overlay.CurrentSplitHighlightScalePercent, 100, 140);
         ConfigureNumberBox(currentSplitDepthStrengthBox, Draft.Overlay.CurrentSplitDepthStrengthPercent, 0, 100);
-        ConfigureCheckBox(showEarlyDeltaTimeBox, Draft.Overlay.ShowEarlyDeltaTime);
-        showEarlyDeltaTimeBox.CheckedChanged += (_, _) => UpdateEffectAvailability();
-        ConfigureNumberBox(earlyDeltaTimeSecondsBox, Draft.Overlay.EarlyDeltaTimeSeconds, 0, 3600);
         ConfigureCheckBox(enableDeltaGradientColorBox, Draft.Overlay.EnableDeltaGradientColor);
         ConfigureCheckBox(enableCurrentDeltaGradientColorBox, Draft.Overlay.EnableCurrentDeltaGradientColor);
         ConfigureCheckBox(enableTimerGradientColorBox, Draft.Overlay.EnableTimerGradientColor);
@@ -123,7 +115,6 @@ internal sealed partial class AnimationSettingsPage : SettingsPageBase
 
         AddIconLightingSection(parent);
         AddCurrentSplitSection(parent);
-        AddEarlyDeltaSection(parent);
         AddDeltaGradientSection(parent);
         AddSplitCompletionSection(parent);
         AddSegmentBestDeltaHighlightSection(parent);
@@ -152,16 +143,6 @@ internal sealed partial class AnimationSettingsPage : SettingsPageBase
         Factory.AddSettingRow(currentGrid, "Depth strength %", currentSplitDepthStrengthBox);
         SettingsUiFactory.AddSectionControl(currentSection, currentGrid);
         SettingsUiFactory.AddSection(parent, currentSection);
-    }
-
-    private void AddEarlyDeltaSection(TableLayoutPanel parent)
-    {
-        TableLayoutPanel earlyDeltaSection = Factory.CreateSection("Early delta time");
-        TableLayoutPanel earlyDeltaGrid = Factory.CreateTwoColumnGrid(280f);
-        Factory.AddSettingRow(earlyDeltaGrid, "Enabled", showEarlyDeltaTimeBox);
-        Factory.AddSettingRow(earlyDeltaGrid, "Show when within seconds", earlyDeltaTimeSecondsBox);
-        SettingsUiFactory.AddSectionControl(earlyDeltaSection, earlyDeltaGrid);
-        SettingsUiFactory.AddSection(parent, earlyDeltaSection);
     }
 
     private void AddDeltaGradientSection(TableLayoutPanel parent)

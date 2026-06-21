@@ -19,12 +19,6 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
     private TextBox splitNameBox = null!;
     private CheckBox splitEnabledBox = null!;
     private CheckBox splitAttachedBox = null!;
-    private CheckBox expandSplitDetailsBox = null!;
-    private CheckBox collapseSplitDetailsOnCompletionBox = null!;
-    private TextBox visibleGroupCountLimitBox = null!;
-    private TextBox currentGroupPositionBox = null!;
-    private CheckBox autoHideAttachedGroupsBox = null!;
-    private CheckBox attachedGroupsAffectTimerComparisonBox = null!;
     private ThemedDropDownList conditionMatchModeBox = null!;
     private ThemedDropDownList iconOverrideBox = null!;
     private TextBox iconOverrideFileBox = null!;
@@ -73,20 +67,6 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
 
     internal CheckBox SplitAttachedBoxForTests => splitAttachedBox;
 
-    internal CheckBox SplitExpandDetailsBoxForTests => expandSplitDetailsBox;
-
-    internal CheckBox ExpandSplitDetailsBoxForTests => expandSplitDetailsBox;
-
-    internal CheckBox CollapseSplitDetailsOnCompletionBoxForTests => collapseSplitDetailsOnCompletionBox;
-
-    internal TextBox VisibleGroupCountLimitBoxForTests => visibleGroupCountLimitBox;
-
-    internal TextBox CurrentGroupPositionBoxForTests => currentGroupPositionBox;
-
-    internal CheckBox AutoHideAttachedGroupsBoxForTests => autoHideAttachedGroupsBox;
-
-    internal CheckBox AttachedGroupsAffectTimerComparisonBoxForTests => attachedGroupsAffectTimerComparisonBox;
-
     internal ThemedDropDownList IconOverrideBoxForTests => iconOverrideBox;
 
     internal TextBox IconOverrideFileBoxForTests => iconOverrideFileBox;
@@ -110,9 +90,6 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
         Control page = context.BuildScrollPage(content =>
         {
             AddEditorSection(content);
-            AddVisibleGroupLimitSection(content);
-            AddExpansionSection(content);
-            AddAttachedGroupsSection(content);
         });
 
         RefreshTargetList();
@@ -137,11 +114,10 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
         if (TryValidateRoute(out string validationMessage))
         {
             settings.Route.SplitRoute = routeDraft.CreateSnapshot();
-            bool expansionChanged = SaveExpansionSettings(settings);
 
             AppSettingsStore.Normalize(settings);
             statusLabel.Text = string.Empty;
-            if (routeDirty || expansionChanged)
+            if (routeDirty)
             {
                 Context.NotifyModelChanged(SettingsModelChange.RouteChanged);
             }
@@ -164,7 +140,6 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
 
         routeDraft.EnsureEntryIds();
         routeDraft.NormalizeAttachedRouteFlags();
-        bool expansionChanged = SaveExpansionSettings(Draft);
         string validationMessage = string.Empty;
         if (routeDirty && TryValidateRoute(out validationMessage))
         {
@@ -176,59 +151,10 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
             return;
         }
 
-        if (!routeDirty && expansionChanged)
-        {
-            AppSettingsStore.Normalize(Draft);
-            Context.NotifyModelChanged(SettingsModelChange.RouteChanged);
-            statusLabel.Text = string.Empty;
-            return;
-        }
-
-        if (routeDirty && expansionChanged)
-        {
-            Context.NotifyModelChanged(SettingsModelChange.RouteChanged);
-        }
-
         if (routeDirty)
         {
             statusLabel.Text = validationMessage;
         }
-    }
-
-    private bool SaveExpansionSettings(AppSettings settings)
-    {
-        bool expand = expandSplitDetailsBox?.Checked == true;
-        bool collapse = collapseSplitDetailsOnCompletionBox?.Checked != false;
-        int visibleGroupCountLimit = SettingsValueParser.ParseIntBox(
-            visibleGroupCountLimitBox,
-            settings.Route.VisibleGroupCountLimit,
-            0,
-            100);
-        int currentGroupPosition = SettingsValueParser.ParseIntBox(
-            currentGroupPositionBox,
-            settings.Route.CurrentGroupPosition,
-            1,
-            100);
-        if (visibleGroupCountLimit > 0)
-        {
-            currentGroupPosition = Math.Min(currentGroupPosition, visibleGroupCountLimit);
-        }
-
-        bool autoHideAttachedGroups = autoHideAttachedGroupsBox?.Checked != false;
-        bool attachedGroupsAffectTimerComparison = attachedGroupsAffectTimerComparisonBox?.Checked != false;
-        bool changed = settings.Route.ExpandSplitDetails != expand ||
-            settings.Route.CollapseSplitDetailsOnCompletion != collapse ||
-            settings.Route.VisibleGroupCountLimit != visibleGroupCountLimit ||
-            settings.Route.CurrentGroupPosition != currentGroupPosition ||
-            settings.Route.AutoHideAttachedGroups != autoHideAttachedGroups ||
-            settings.Route.AttachedGroupsAffectTimerComparison != attachedGroupsAffectTimerComparison;
-        settings.Route.ExpandSplitDetails = expand;
-        settings.Route.CollapseSplitDetailsOnCompletion = collapse;
-        settings.Route.VisibleGroupCountLimit = visibleGroupCountLimit;
-        settings.Route.CurrentGroupPosition = currentGroupPosition;
-        settings.Route.AutoHideAttachedGroups = autoHideAttachedGroups;
-        settings.Route.AttachedGroupsAffectTimerComparison = attachedGroupsAffectTimerComparison;
-        return changed;
     }
 
 

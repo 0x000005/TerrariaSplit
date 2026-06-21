@@ -15,6 +15,7 @@ internal sealed partial class MainForm : Form
         }
 
         TimeSpan elapsed = timerElapsed;
+        bool ignoreVisibleGroupLimit = ShouldIgnoreVisibleGroupLimitForCompletedRun();
         var context = new OverlayRenderContext(
             settings,
             palette,
@@ -24,11 +25,12 @@ internal sealed partial class MainForm : Form
             timerPhase,
             elapsed,
             layout,
-            Math.Max(GetCurrentLayoutRowCount(), SplitCompletionAnimationRenderer.ReservedRowCount),
+            GetCurrentVisibleStatusRowCount(),
             mouseClickThrough,
             overlayAnimations.SplitCompletionAnimation,
             overlayAnimations.SegmentBestDeltaHighlights,
-            DateTime.UtcNow);
+            DateTime.UtcNow,
+            ignoreVisibleGroupLimit);
         OverlayRenderResult result = OverlayRenderer.RenderStatus(
             graphics,
             context,
@@ -95,11 +97,19 @@ internal sealed partial class MainForm : Form
 
         OverlayCompositeLayout compositeLayout = overlayBoundsController.CurrentLayout;
         int bleed = SplitListRenderer.GetRowBleedMargin(settings);
+        bool ignoreVisibleGroupLimit = ShouldIgnoreVisibleGroupLimitForCompletedRun();
         Rectangle? region = null;
 
         void AddRow(int row)
         {
-            if (!SplitDisplayRows.TryGetRowIndex(settings, splitStatuses, row, currentSplitIndex, out int visualRow))
+            if (!SplitDisplayRows.TryGetRowIndex(
+                    settings,
+                    splitStatuses,
+                    row,
+                    currentSplitIndex,
+                    GetCurrentVisibleStatusRowCount(),
+                    ignoreVisibleGroupLimit,
+                    out int visualRow))
             {
                 return;
             }
@@ -156,7 +166,12 @@ internal sealed partial class MainForm : Form
             : null;
         Point compositePoint = compositeLayout?.MapStatusPointToComposite(point) ?? point;
 
-        foreach (SplitDisplayRow row in SplitDisplayRows.Build(settings, statuses, currentSplitIndex))
+        foreach (SplitDisplayRow row in SplitDisplayRows.Build(
+            settings,
+            statuses,
+            currentSplitIndex,
+            GetCurrentVisibleStatusRowCount(),
+            ShouldIgnoreVisibleGroupLimitForCompletedRun()))
         {
             Rectangle currentRowRect = layout.GetRowRect(row.RowIndex);
             if (currentRowRect.Contains(compositePoint))
@@ -246,7 +261,7 @@ internal sealed partial class MainForm : Form
 
         if (!SplitLayoutCalculator.TryCreate(
                 ClientRectangle,
-                GetCurrentLayoutRowCount(),
+                GetCurrentVisibleStatusRowCount(),
                 RowGap,
                 value => OverlayRenderContext.ScaleInt(settings, value),
                 out layout))
@@ -264,12 +279,34 @@ internal sealed partial class MainForm : Form
 
     private int GetCurrentLayoutRowCount()
     {
-        return SplitDisplayRows.GetRequiredRowCount(settings, splitStatuses, currentSplitIndex);
+        return SplitDisplayRows.GetRequiredRowCount(
+            settings,
+            splitStatuses,
+            currentSplitIndex,
+            ShouldIgnoreVisibleGroupLimitForCompletedRun());
+    }
+
+    private int GetCurrentVisibleStatusRowCount()
+    {
+        return Math.Max(GetCurrentLayoutRowCount(), SplitCompletionAnimationRenderer.ReservedRowCount);
     }
 
     private int GetCurrentReservedLayoutRowCount()
     {
         return SplitDisplayRows.GetReservedRowCount(settings, splitStatuses);
+    }
+
+    private bool ShouldIgnoreVisibleGroupLimitForCompletedRun()
+    {
+        if (timerPhase != SplitTimerPhase.Paused ||
+            splitStatuses.Count == 0 ||
+            currentSplitIndex < splitStatuses.Count)
+        {
+            return false;
+        }
+
+        SplitStatusSnapshot finalStatus = splitStatuses[^1];
+        return finalStatus.IsCompleted || finalStatus.IsSkipped;
     }
 
     private static int GetLayoutRowCount(AppSettings settings)

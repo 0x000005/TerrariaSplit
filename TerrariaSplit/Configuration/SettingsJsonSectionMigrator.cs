@@ -27,8 +27,11 @@ internal static class SettingsJsonSectionMigrator
         nameof(RouteSettings.SplitRoute),
         nameof(RouteSettings.ExpandSplitDetails),
         nameof(RouteSettings.CollapseSplitDetailsOnCompletion),
-        nameof(RouteSettings.AutoHideAttachedGroups),
-        nameof(RouteSettings.AttachedGroupsAffectTimerComparison)
+        nameof(RouteSettings.EnableVisibleGroupCountLimit),
+        nameof(RouteSettings.VisibleGroupCountLimit),
+        nameof(RouteSettings.CurrentGroupPosition),
+        nameof(RouteSettings.ShowFinalGroup),
+        nameof(RouteSettings.AutoHideAttachedGroups)
     ];
 
     private static readonly string[] ComparisonKeys =
@@ -101,9 +104,26 @@ internal static class SettingsJsonSectionMigrator
         MoveKeys(root, nameof(AppSettings.General), GeneralKeys);
         MoveKeys(root, nameof(AppSettings.Hotkeys), HotkeyKeys);
         MoveKeys(root, nameof(AppSettings.Route), RouteKeys);
+        MigrateVisibleGroupCountLimit(root);
         MoveKeys(root, nameof(AppSettings.Comparison), ComparisonKeys);
         MoveKeys(root, nameof(AppSettings.Overlay), OverlayKeys);
         MoveKey(root, nameof(AppSettings.Automation), nameof(AutomationSettings.AutoCreate));
+    }
+
+    private static void MigrateVisibleGroupCountLimit(JsonObject root)
+    {
+        string? routeKey = FindKey(root, nameof(AppSettings.Route));
+        if (routeKey is null ||
+            root[routeKey] is not JsonObject route ||
+            ContainsKey(route, nameof(RouteSettings.EnableVisibleGroupCountLimit)))
+        {
+            return;
+        }
+
+        if (TryGetInt(route, nameof(RouteSettings.VisibleGroupCountLimit), out int limit) && limit > 0)
+        {
+            route[nameof(RouteSettings.EnableVisibleGroupCountLimit)] = true;
+        }
     }
 
     private static void MoveKeys(JsonObject root, string sectionName, IEnumerable<string> keys)
@@ -172,5 +192,19 @@ internal static class SettingsJsonSectionMigrator
         }
 
         return null;
+    }
+
+    private static bool TryGetInt(JsonObject root, string key, out int value)
+    {
+        string? existingKey = FindKey(root, key);
+        if (existingKey is not null &&
+            root[existingKey] is JsonValue node &&
+            node.TryGetValue(out value))
+        {
+            return true;
+        }
+
+        value = 0;
+        return false;
     }
 }

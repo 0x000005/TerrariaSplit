@@ -281,8 +281,6 @@ internal sealed partial class AnimationSettingsPage : SettingsPageBase
             currentSplitHighlightScaleBox,
             currentSplitDepthStrengthBox);
 
-        SetEnabled(showEarlyDeltaTimeBox.Checked, earlyDeltaTimeSecondsBox);
-
         bool deltaGradientEnabled =
             enableDeltaGradientColorBox.Checked ||
             enableCurrentDeltaGradientColorBox.Checked ||
