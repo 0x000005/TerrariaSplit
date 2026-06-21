@@ -11,6 +11,18 @@
     <DefaultItemExcludes>$(DefaultItemExcludes);bin\**;obj\**;.build-check\**;.check\**;.verify\**;.codex-build-check\**;.codex-memory-probe\**;.codex-verify\**;.codex_bin\**;.codex_obj\**</DefaultItemExcludes>
   </PropertyGroup>
 
+  <ItemGroup>
+    <Compile Remove="Application\**\*.cs" />
+    <Compile Remove="Configuration\**\*.cs" />
+    <Compile Remove="Domain\**\*.cs" />
+    <Compile Remove="Infrastructure\**\*.cs" />
+    <Compile Remove="Localization\**\*.cs" />
+    <Compile Remove="Models\**\*.cs" />
+    <Compile Remove="Statistics\**\*.cs" />
+    <Compile Remove="Storage\**\*.cs" />
+    <Compile Remove="Terraria\**\*.cs" />
+  </ItemGroup>
+
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
     <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">win-x64</RuntimeIdentifier>
     <SelfContained Condition="'$(SelfContained)' == ''">true</SelfContained>
@@ -28,7 +40,14 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Diagnostics.Runtime" Version="3.1.512801" />
+    <ProjectReference Include="..\src\TerrariaSplit.Application\TerrariaSplit.Application.csproj" />
+    <ProjectReference Include="..\src\TerrariaSplit.Configuration\TerrariaSplit.Configuration.csproj" />
+    <ProjectReference Include="..\src\TerrariaSplit.Domain\TerrariaSplit.Domain.csproj" />
+    <ProjectReference Include="..\src\TerrariaSplit.Infrastructure\TerrariaSplit.Infrastructure.csproj" />
+    <ProjectReference Include="..\src\TerrariaSplit.Infrastructure.Windows\TerrariaSplit.Infrastructure.Windows.csproj" />
+    <ProjectReference Include="..\src\TerrariaSplit.Statistics\TerrariaSplit.Statistics.csproj" />
+    <ProjectReference Include="..\src\TerrariaSplit.Storage\TerrariaSplit.Storage.csproj" />
+    <ProjectReference Include="..\src\TerrariaSplit.Terraria\TerrariaSplit.Terraria.csproj" />
   </ItemGroup>
 
   <Import Project="Build\MemoryProbe.targets" />

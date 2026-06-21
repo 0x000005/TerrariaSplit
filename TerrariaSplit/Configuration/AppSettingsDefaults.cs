@@ -1,7 +1,15 @@
+using System.Text.Json;
+
 namespace TerrariaSplit.Configuration;
 
 internal static class AppSettingsDefaults
 {
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        WriteIndented = true
+    };
+
     private static readonly Lazy<AppSettings> Template = new(LoadTemplate);
 
     public static AppSettings TemplateSettings => Template.Value;
@@ -14,12 +22,13 @@ internal static class AppSettingsDefaults
 
     public static AppSettings Create()
     {
-        return SettingsSerializer.Clone(Template.Value);
+        string json = JsonSerializer.Serialize(Template.Value, JsonOptions);
+        return JsonSerializer.Deserialize<AppSettings>(json, JsonOptions) ?? new AppSettings();
     }
 
     private static AppSettings LoadTemplate()
     {
-        return SettingsSerializer.ReadSettingsFromJson(TemplateJson, "default settings template")
+        return JsonSerializer.Deserialize<AppSettings>(TemplateJson, JsonOptions)
             ?? throw new InvalidOperationException("Embedded default settings template is invalid.");
     }
 }

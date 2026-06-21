@@ -1,0 +1,13 @@
+global using TerrariaSplit.Application;
+global using TerrariaSplit.Application.Diagnostics;
+global using TerrariaSplit.Configuration;
+global using TerrariaSplit.Domain;
+global using TerrariaSplit.Domain.Formatting;
+global using TerrariaSplit.Infrastructure;
+global using TerrariaSplit.Localization;
+global using TerrariaSplit.Models;
+global using TerrariaSplit.Storage;
+global using TerrariaSplit.Terraria;
+global using TerrariaSplit.Terraria.Automation;
+global using TerrariaSplit.Terraria.Memory;
+global using TerrariaSplit.Terraria.Processes;

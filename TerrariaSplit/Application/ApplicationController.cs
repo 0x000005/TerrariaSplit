@@ -197,8 +197,13 @@ internal sealed class ApplicationController
 
     private void AddResetEffects(List<ApplicationEffect> effects, bool recordStats, bool playResetSound)
     {
-        runLifecycle.Reset(Settings, ViewState.DisplayStatuses, recordStats, confirmPersonalBestUpdate);
+        bool settingsUpdated = runLifecycle.Reset(Settings, ViewState.DisplayStatuses, recordStats, confirmPersonalBestUpdate);
         ViewState = ApplicationViewState.FromDefinitions(Settings, Definitions);
+        if (settingsUpdated)
+        {
+            effects.Add(ApplicationEffect.SaveSettings(Settings));
+        }
+
         effects.Add(ApplicationEffect.Simple(ApplicationEffectKind.ClearOverlayAnimation));
         effects.Add(ApplicationEffect.Simple(ApplicationEffectKind.RefreshTimerOverlaySettings));
         if (playResetSound)

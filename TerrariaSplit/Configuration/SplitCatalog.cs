@@ -26,7 +26,7 @@ internal static class SplitCatalog
     public const string LunaticCultist = "boss:lunatic-cultist";
     public const string MoonLord = "boss:moon-lord";
 
-    public const int MaxItemId = 6146;
+    public const int MaxItemId = SplitFactKeys.MaxItemId;
 
     private static readonly IReadOnlyDictionary<string, BossFactDescriptor> BossByTargetId;
     private static readonly IReadOnlyDictionary<string, SplitTargetDefinition> BossTargetsById;
@@ -252,12 +252,12 @@ internal static class SplitCatalog
 
     public static string CreateItemFactKey(int itemId)
     {
-        return $"item:{itemId}:owned-count";
+        return SplitFactKeys.CreateItemFactKey(itemId);
     }
 
     public static string CreateItemEverOwnedFactKey(int itemId)
     {
-        return $"item:{itemId}:ever-owned-count";
+        return SplitFactKeys.CreateItemEverOwnedFactKey(itemId);
     }
 
     public static string CreateNpcPresentFactKey(int npcId)
@@ -515,8 +515,7 @@ internal static class SplitCatalog
 
     public static bool TryParseItemFactKey(string factKey, out int itemId)
     {
-        return TryParseItemOwnedCountFactKey(factKey, out itemId) ||
-            TryParseItemEverOwnedFactKey(factKey, out itemId);
+        return SplitFactKeys.TryParseItemFactKey(factKey, out itemId);
     }
 
     public static bool TryParseNpcPresentFactKey(string factKey, out int npcId)
@@ -553,28 +552,12 @@ internal static class SplitCatalog
 
     public static bool TryParseItemOwnedCountFactKey(string factKey, out int itemId)
     {
-        itemId = 0;
-        if (!factKey.StartsWith("item:", StringComparison.OrdinalIgnoreCase) ||
-            !factKey.EndsWith(":owned-count", StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        string id = factKey["item:".Length..^":owned-count".Length];
-        return int.TryParse(id, out itemId) && itemId is >= 1 and <= MaxItemId;
+        return SplitFactKeys.TryParseItemOwnedCountFactKey(factKey, out itemId);
     }
 
     public static bool TryParseItemEverOwnedFactKey(string factKey, out int itemId)
     {
-        itemId = 0;
-        if (!factKey.StartsWith("item:", StringComparison.OrdinalIgnoreCase) ||
-            !factKey.EndsWith(":ever-owned-count", StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        string id = factKey["item:".Length..^":ever-owned-count".Length];
-        return int.TryParse(id, out itemId) && itemId is >= 1 and <= MaxItemId;
+        return SplitFactKeys.TryParseItemEverOwnedFactKey(factKey, out itemId);
     }
 
     private static string CreateStableSplitId(SplitRouteEntry entry)

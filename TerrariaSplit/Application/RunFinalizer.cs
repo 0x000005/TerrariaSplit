@@ -1,17 +1,17 @@
-namespace TerrariaSplit.UI;
+namespace TerrariaSplit.Application;
 
 internal sealed class RunFinalizer
 {
-    public void Finalize(
+    public bool Finalize(
         AppSettings settings,
         IReadOnlyList<SplitStatusSnapshot> statuses,
         bool runStatsRecorded,
         Func<string, bool> confirmPersonalBestUpdates)
     {
-        Finalize(settings, settings, statuses, runStatsRecorded, confirmPersonalBestUpdates);
+        return Finalize(settings, settings, statuses, runStatsRecorded, confirmPersonalBestUpdates);
     }
 
-    public void Finalize(
+    public bool Finalize(
         AppSettings routeSettings,
         AppSettings updateTargetSettings,
         IReadOnlyList<SplitStatusSnapshot> statuses,
@@ -22,6 +22,7 @@ internal sealed class RunFinalizer
             routeSettings,
             updateTargetSettings,
             statuses);
+        bool settingsUpdated = false;
         if (updates.HasUpdates && updateTargetSettings.AutoUpdatePersonalBestData)
         {
             bool shouldUpdate = !updateTargetSettings.AskBeforeUpdatingPersonalBestData ||
@@ -29,6 +30,7 @@ internal sealed class RunFinalizer
             if (shouldUpdate)
             {
                 ApplyPendingPersonalBestUpdates(updateTargetSettings, updates);
+                settingsUpdated = true;
             }
         }
 
@@ -36,6 +38,8 @@ internal sealed class RunFinalizer
         {
             RunStatsStore.RecordRun(statuses);
         }
+
+        return settingsUpdated;
     }
 
     private static void ApplyPendingPersonalBestUpdates(AppSettings settings, PendingPersonalBestUpdates updates)
@@ -72,7 +76,6 @@ internal sealed class RunFinalizer
             settings.ActivePersonalBestTimeSet = snapshot.Name;
         }
 
-        AppSettingsStore.Save(settings);
     }
 
     private static PendingPersonalBestUpdates BuildPendingPersonalBestUpdates(

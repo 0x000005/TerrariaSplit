@@ -43,12 +43,15 @@ internal sealed class TimerController
         {
             runStarted = true;
             runTimer.StartAt(observedTimestamp);
-            splitTracker.OnRunStarted(snapshot);
+            splitTracker.OnRunStarted(snapshot.Facts);
         }
 
         if (runTimer.Phase == SplitTimerPhase.Running)
         {
-            SplitRecord? split = splitTracker.Update(snapshot, runTimer.ElapsedAt(observedTimestamp));
+            SplitRecord? split = splitTracker.Update(
+                snapshot.Facts,
+                snapshot.IsGameMenu,
+                runTimer.ElapsedAt(observedTimestamp));
             if (split is not null)
             {
                 completedSplitIndex = split.Value.Index;

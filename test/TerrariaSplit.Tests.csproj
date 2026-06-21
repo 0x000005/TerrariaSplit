@@ -11,6 +11,14 @@
 
   <ItemGroup>
     <Compile Include="*.cs" />
+    <ProjectReference Include="..\src\TerrariaSplit.Application\TerrariaSplit.Application.csproj" />
+    <ProjectReference Include="..\src\TerrariaSplit.Configuration\TerrariaSplit.Configuration.csproj" />
+    <ProjectReference Include="..\src\TerrariaSplit.Domain\TerrariaSplit.Domain.csproj" />
+    <ProjectReference Include="..\src\TerrariaSplit.Infrastructure\TerrariaSplit.Infrastructure.csproj" />
+    <ProjectReference Include="..\src\TerrariaSplit.Infrastructure.Windows\TerrariaSplit.Infrastructure.Windows.csproj" />
+    <ProjectReference Include="..\src\TerrariaSplit.Statistics\TerrariaSplit.Statistics.csproj" />
+    <ProjectReference Include="..\src\TerrariaSplit.Storage\TerrariaSplit.Storage.csproj" />
+    <ProjectReference Include="..\src\TerrariaSplit.Terraria\TerrariaSplit.Terraria.csproj" />
     <ProjectReference Include="..\TerrariaSplit\TerrariaSplit.csproj" />
   </ItemGroup>
 

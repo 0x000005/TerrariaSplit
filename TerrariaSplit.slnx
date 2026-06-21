@@ -1,4 +1,12 @@
 <Solution>
+  <Project Path="src/TerrariaSplit.Domain/TerrariaSplit.Domain.csproj" />
+  <Project Path="src/TerrariaSplit.Configuration/TerrariaSplit.Configuration.csproj" />
+  <Project Path="src/TerrariaSplit.Infrastructure/TerrariaSplit.Infrastructure.csproj" />
+  <Project Path="src/TerrariaSplit.Infrastructure.Windows/TerrariaSplit.Infrastructure.Windows.csproj" />
+  <Project Path="src/TerrariaSplit.Storage/TerrariaSplit.Storage.csproj" />
+  <Project Path="src/TerrariaSplit.Statistics/TerrariaSplit.Statistics.csproj" />
+  <Project Path="src/TerrariaSplit.Terraria/TerrariaSplit.Terraria.csproj" />
+  <Project Path="src/TerrariaSplit.Application/TerrariaSplit.Application.csproj" />
   <Project Path="TerrariaSplit/TerrariaSplit.csproj" />
   <Project Path="TerrariaSplit.MemoryProbe/TerrariaSplit.MemoryProbe.csproj" />
   <Project Path="test/TerrariaSplit.Tests.csproj" />

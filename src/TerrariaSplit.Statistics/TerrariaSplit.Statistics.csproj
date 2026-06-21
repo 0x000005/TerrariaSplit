@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\TerrariaSplit\Statistics\**\*.cs" Link="Statistics\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="GlobalUsings.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TerrariaSplit.Configuration\TerrariaSplit.Configuration.csproj" />
+    <ProjectReference Include="..\TerrariaSplit.Domain\TerrariaSplit.Domain.csproj" />
+  </ItemGroup>
+
+</Project>

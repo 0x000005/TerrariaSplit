@@ -1,4 +1,4 @@
-namespace TerrariaSplit.Application;
+namespace TerrariaSplit.Terraria;
 
 internal sealed class TerrariaUiScalePatchApplierAdapter : ITerrariaUiScalePatchApplier
 {

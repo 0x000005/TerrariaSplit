@@ -1,4 +1,4 @@
-namespace TerrariaSplit.UI;
+namespace TerrariaSplit.Application;
 
 internal static class SplitSoundSelector
 {

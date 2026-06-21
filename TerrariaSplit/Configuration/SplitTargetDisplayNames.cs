@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace TerrariaSplit.Domain;
+namespace TerrariaSplit.Configuration;
 
 internal static class SplitTargetDisplayNames
 {

@@ -237,7 +237,8 @@ internal sealed class CreateWorldWorkflow : IDisposable
                 continue;
             }
 
-            if (worldPool.TryInstallWorld(entry, out string installedPath, out string message))
+            string worldsPath = Path.Combine(TerrariaSavePaths.SaveRoot(), "Worlds");
+            if (worldPool.TryInstallWorld(entry, worldsPath, out string installedPath, out string message))
             {
                 AppLogger.Info(
                     $"Create world automation installed pooled world {entry.WorldFileName} " +

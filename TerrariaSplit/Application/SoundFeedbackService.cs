@@ -18,10 +18,10 @@ internal static class SoundFeedbackService
         TimeSpan? referenceSplit = settings.TryGetReferenceSplit(definition, out TimeSpan configuredReferenceSplit)
             ? configuredReferenceSplit
             : null;
-        TimeSpan? segmentTime = SplitRenderData.TryGetCompletedSegmentTime(settings, statuses, completedIndex, out TimeSpan completedSegmentTime)
+        TimeSpan? segmentTime = SplitTimingComparisons.TryGetCompletedSegmentTime(settings, statuses, completedIndex, out TimeSpan completedSegmentTime)
             ? completedSegmentTime
             : null;
-        TimeSpan? personalBestSegment = SplitRenderData.TryGetPersonalBestSegment(settings, definition, out TimeSpan configuredPersonalBestSegment)
+        TimeSpan? personalBestSegment = SplitTimingComparisons.TryGetPersonalBestSegment(settings, definition, out TimeSpan configuredPersonalBestSegment)
             ? configuredPersonalBestSegment
             : null;
 

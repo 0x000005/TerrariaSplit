@@ -8,7 +8,7 @@ internal static class AppLogger
 
     public static bool IsEnabled => IsEnabledValue(Environment.GetEnvironmentVariable(EnableLogEnvironmentVariable));
 
-    public static string LogPath => RuntimeDataPaths.LogPath;
+    public static string LogPath => Path.Combine(AppContext.BaseDirectory, "terrariasplit.log");
 
     public static void Info(string message)
     {

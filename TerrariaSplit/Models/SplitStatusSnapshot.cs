@@ -1,4 +1,4 @@
-namespace TerrariaSplit.Application;
+namespace TerrariaSplit.Models;
 
 internal sealed record SplitStatusSnapshot(
     SplitDefinition Definition,

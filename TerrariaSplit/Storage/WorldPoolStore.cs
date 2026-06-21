@@ -115,7 +115,11 @@ internal sealed class WorldPoolStore
         }
     }
 
-    public bool TryInstallWorld(WorldPoolEntry entry, out string installedPath, out string message)
+    public bool TryInstallWorld(
+        WorldPoolEntry entry,
+        string worldsPath,
+        out string installedPath,
+        out string message)
     {
         installedPath = string.Empty;
         message = string.Empty;
@@ -129,7 +133,6 @@ internal sealed class WorldPoolStore
                 return false;
             }
 
-            string worldsPath = Path.Combine(TerrariaSavePaths.SaveRoot(), "Worlds");
             Directory.CreateDirectory(worldsPath);
             installedPath = Path.Combine(worldsPath, Path.GetFileName(sourcePath));
 

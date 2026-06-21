@@ -27,23 +27,22 @@ internal sealed class SplitTracker
         MarkAllInitialStatesResolved();
     }
 
-    public void OnRunStarted(TerrariaWatchSnapshot snapshot)
+    public void OnRunStarted(TerrariaGameFacts facts)
     {
         ResetStatuses();
         maxOwnedItemCounts.Clear();
         MarkAllInitialStatesPending();
-        TerrariaGameFacts facts = AddRunDerivedFacts(snapshot.Facts);
-        ResolveInitialStates(facts);
+        ResolveInitialStates(AddRunDerivedFacts(facts));
     }
 
-    public SplitRecord? Update(TerrariaWatchSnapshot snapshot, TimeSpan elapsed)
+    public SplitRecord? Update(TerrariaGameFacts snapshotFacts, bool? isGameMenu, TimeSpan elapsed)
     {
-        if (snapshot.IsGameMenu != false || currentIndex >= statuses.Count)
+        if (isGameMenu != false || currentIndex >= statuses.Count)
         {
             return null;
         }
 
-        TerrariaGameFacts facts = AddRunDerivedFacts(snapshot.Facts);
+        TerrariaGameFacts facts = AddRunDerivedFacts(snapshotFacts);
         AddSatisfiedFactKeysToCompletedStatuses(facts, elapsed);
         ResolveInitialStates(facts);
         if (currentIndex >= statuses.Count)
@@ -172,13 +171,13 @@ internal sealed class SplitTracker
         bool addedDerivedFact = false;
         foreach ((string factKey, FactValue value) in facts.Values)
         {
-            if (!SplitCatalog.TryParseItemOwnedCountFactKey(factKey, out int itemId))
+            if (!SplitFactKeys.TryParseItemOwnedCountFactKey(factKey, out int itemId))
             {
                 continue;
             }
 
             addedDerivedFact = true;
-            string everFactKey = SplitCatalog.CreateItemEverOwnedFactKey(itemId);
+            string everFactKey = SplitFactKeys.CreateItemEverOwnedFactKey(itemId);
             if (value.AsInteger() is int currentCount)
             {
                 int maxCount = maxOwnedItemCounts.TryGetValue(itemId, out int previous)

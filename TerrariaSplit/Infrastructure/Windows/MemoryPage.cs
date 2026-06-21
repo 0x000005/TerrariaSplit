@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace TerrariaSplit.Terraria.Memory;
+namespace TerrariaSplit.Infrastructure.Windows;
 
 [Flags]
 internal enum MemoryPageProtect : uint

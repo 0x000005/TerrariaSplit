@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\TerrariaSplit\Terraria\**\*.cs" Link="Terraria\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="GlobalUsings.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Diagnostics.Runtime" Version="3.1.512801" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TerrariaSplit.Configuration\TerrariaSplit.Configuration.csproj" />
+    <ProjectReference Include="..\TerrariaSplit.Domain\TerrariaSplit.Domain.csproj" />
+    <ProjectReference Include="..\TerrariaSplit.Infrastructure\TerrariaSplit.Infrastructure.csproj" />
+    <ProjectReference Include="..\TerrariaSplit.Infrastructure.Windows\TerrariaSplit.Infrastructure.Windows.csproj" />
+    <ProjectReference Include="..\TerrariaSplit.Storage\TerrariaSplit.Storage.csproj" />
+  </ItemGroup>
+
+</Project>
