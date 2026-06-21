@@ -50,6 +50,7 @@ var legacyTests = new (string Name, Action Test)[]
     ("SplitTimeSetStore writes embedded WR when reference files are invalid", TestSplitTimeSetStoreWritesEmbeddedWrWhenReferenceFilesAreInvalid),
     ("AppSettingsStore save does not mutate source settings", TestAppSettingsStoreSaveDoesNotMutateSourceSettings),
     ("Runtime data paths use final directory layout", TestRuntimeDataPathsUseFinalDirectoryLayout),
+    ("OperationResult preserves user message and exception", TestOperationResultPreservesFailureDetail),
     ("AppLogger is disabled by default", TestAppLoggerIsDisabledByDefault),
     ("Main publish is single file", TestMainPublishIsSingleFile),
     ("MemoryProbe publish is self contained", TestMemoryProbePublishIsSelfContained),
@@ -1320,6 +1321,19 @@ static void TestRuntimeDataPathsUseFinalDirectoryLayout()
     AssertEqual(true, Directory.Exists(SplitTimeSetStore.LastRunDirectory));
     AssertEqual(true, Directory.Exists(SplitTimeSetStore.PersonalBestTimeDirectory));
     AssertEqual(true, Directory.Exists(SplitTimeSetStore.PersonalBestSegmentDirectory));
+}
+
+static void TestOperationResultPreservesFailureDetail()
+{
+    var exception = new IOException("disk is full");
+    OperationResult result = OperationResult.Failure("Could not save settings.", exception);
+
+    AssertEqual(false, result.Succeeded);
+    AssertEqual(true, result.Failed);
+    AssertEqual("Could not save settings.", result.UserMessage);
+    AssertEqual("Could not save settings.", result.Message);
+    AssertEqual(true, ReferenceEquals(exception, result.Exception));
+    AssertEqual(string.Empty, OperationResult.Success().Message);
 }
 
 static void TestAppLoggerIsDisabledByDefault()
