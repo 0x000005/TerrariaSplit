@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace TerrariaSplit;
+namespace TerrariaSplit.Terraria.Automation;
 
 internal readonly record struct TerrariaCopiedSeed(string Text, TerrariaWorldSeedMetadata Metadata);
 

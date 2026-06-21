@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Windows.Forms;
 
-namespace TerrariaSplit;
+namespace TerrariaSplit.UI.Settings;
 
 internal static class SettingsValueParser
 {

@@ -1,6 +1,6 @@
 using System.Diagnostics;
 
-namespace TerrariaSplit;
+namespace TerrariaSplit.Domain;
 
 internal enum SplitTimerPhase
 {

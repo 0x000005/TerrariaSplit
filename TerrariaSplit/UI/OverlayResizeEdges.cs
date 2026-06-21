@@ -1,4 +1,4 @@
-namespace TerrariaSplit;
+namespace TerrariaSplit.UI;
 
 [Flags]
 internal enum OverlayResizeEdges

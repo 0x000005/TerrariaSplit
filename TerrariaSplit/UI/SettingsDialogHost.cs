@@ -1,7 +1,7 @@
 using System.Drawing;
 using System.Windows.Forms;
 
-namespace TerrariaSplit;
+namespace TerrariaSplit.UI;
 
 internal sealed class SettingsDialogHost : IDisposable
 {
@@ -179,7 +179,7 @@ internal sealed class SettingsDialogHost : IDisposable
             resultSettings = AppSettingsStore.Clone(dialog.Result);
         };
 
-        Application.Run(dialog);
+        System.Windows.Forms.Application.Run(dialog);
         result = new SettingsDialogResult(dialogResult, resultSettings);
 
         lock (sync)

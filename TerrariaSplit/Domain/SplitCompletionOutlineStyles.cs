@@ -1,6 +1,6 @@
 using System.Drawing;
 
-namespace TerrariaSplit;
+namespace TerrariaSplit.Domain;
 
 internal static class SplitCompletionOutlineStyles
 {

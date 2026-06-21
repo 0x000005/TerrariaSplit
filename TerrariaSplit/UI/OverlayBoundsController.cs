@@ -1,6 +1,6 @@
 using System.Drawing;
 
-namespace TerrariaSplit;
+namespace TerrariaSplit.UI;
 
 internal sealed class OverlayBoundsController
 {

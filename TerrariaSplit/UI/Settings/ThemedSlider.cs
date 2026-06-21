@@ -2,7 +2,7 @@ using System.ComponentModel;
 using System.Drawing.Drawing2D;
 using System.Windows.Forms;
 
-namespace TerrariaSplit;
+namespace TerrariaSplit.UI.Settings;
 
 internal sealed class ThemedSlider : Control
 {

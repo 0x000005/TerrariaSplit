@@ -1,4 +1,4 @@
-namespace TerrariaSplit;
+namespace TerrariaSplit.UI;
 
 internal static class HotkeyCommandMapper
 {

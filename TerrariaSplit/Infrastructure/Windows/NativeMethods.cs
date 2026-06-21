@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace TerrariaSplit;
+namespace TerrariaSplit.Infrastructure.Windows;
 
 internal static class NativeMethods
 {

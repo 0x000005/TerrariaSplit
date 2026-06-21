@@ -1,4 +1,4 @@
-namespace TerrariaSplit;
+namespace TerrariaSplit.Infrastructure;
 
 internal static class FileAccessProbe
 {

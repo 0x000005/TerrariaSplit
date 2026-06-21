@@ -3,7 +3,7 @@ using System.ComponentModel;
 using System.Drawing;
 using System.Windows.Forms;
 
-namespace TerrariaSplit;
+namespace TerrariaSplit.UI.Settings;
 
 internal class ThemedDropDownList : UserControl
 {

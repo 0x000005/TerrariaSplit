@@ -2,9 +2,9 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
-using static TerrariaSplit.LayeredWindowNative;
+using static TerrariaSplit.Infrastructure.Windows.LayeredWindowNative;
 
-namespace TerrariaSplit;
+namespace TerrariaSplit.Infrastructure;
 
 internal static class LayeredWindowUpdater
 {

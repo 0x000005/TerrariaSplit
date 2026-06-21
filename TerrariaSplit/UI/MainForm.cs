@@ -3,7 +3,7 @@ using System.Diagnostics;
 using System.Threading;
 using System.Windows.Forms;
 
-namespace TerrariaSplit;
+namespace TerrariaSplit.UI;
 
 internal sealed partial class MainForm : Form
 {

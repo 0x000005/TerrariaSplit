@@ -1,4 +1,4 @@
-namespace TerrariaSplit;
+namespace TerrariaSplit.Terraria;
 
 internal static class TerrariaSavePaths
 {

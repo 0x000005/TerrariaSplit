@@ -1,6 +1,6 @@
 using System.Media;
 
-namespace TerrariaSplit;
+namespace TerrariaSplit.UI;
 
 internal sealed class SoundPlayerService
 {

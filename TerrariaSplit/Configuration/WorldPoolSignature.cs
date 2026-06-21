@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace TerrariaSplit;
+namespace TerrariaSplit.Configuration;
 
 // A stable fingerprint of the world-generation inputs and filters that affect whether
 // a pooled world file is valid for the current auto-create settings.

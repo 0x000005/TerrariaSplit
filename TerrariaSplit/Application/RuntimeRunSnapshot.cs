@@ -1,6 +1,6 @@
 using System.Diagnostics;
 
-namespace TerrariaSplit;
+namespace TerrariaSplit.Application;
 
 internal sealed record RuntimeRunSnapshot(
     SplitTimerState TimerState,

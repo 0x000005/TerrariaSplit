@@ -1,4 +1,4 @@
-namespace TerrariaSplit;
+namespace TerrariaSplit.Terraria;
 
 internal readonly record struct TerrariaWatcherDiagnostics(
     string Stage,

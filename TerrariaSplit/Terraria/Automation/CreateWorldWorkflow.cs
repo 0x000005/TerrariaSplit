@@ -1,7 +1,7 @@
 using System.Drawing;
 using System.Windows.Forms;
 
-namespace TerrariaSplit;
+namespace TerrariaSplit.Terraria.Automation;
 
 internal sealed class CreateWorldWorkflow : IDisposable
 {

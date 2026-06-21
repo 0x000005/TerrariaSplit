@@ -1,4 +1,4 @@
-namespace TerrariaSplit;
+namespace TerrariaSplit.Application;
 
 internal sealed class TerrariaWorldAutomation : IDisposable
 {

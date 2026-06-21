@@ -1,6 +1,6 @@
 using System.Windows.Forms;
 
-namespace TerrariaSplit;
+namespace TerrariaSplit.UI;
 
 internal sealed class WindowLayerController
 {

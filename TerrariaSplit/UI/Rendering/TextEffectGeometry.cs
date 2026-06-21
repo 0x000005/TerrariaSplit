@@ -1,7 +1,7 @@
 using System.Drawing;
 using System.Drawing.Drawing2D;
 
-namespace TerrariaSplit;
+namespace TerrariaSplit.UI.Rendering;
 
 internal static class TextEffectGeometry
 {

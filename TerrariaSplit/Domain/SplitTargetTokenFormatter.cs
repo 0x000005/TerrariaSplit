@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace TerrariaSplit;
+namespace TerrariaSplit.Domain;
 
 internal static class SplitTargetTokenFormatter
 {

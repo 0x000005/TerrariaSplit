@@ -645,7 +645,7 @@ internal static class MainShellRefactorTests
         {
             using var form = new SettingsForm(new AppSettings());
             form.Show();
-            Application.DoEvents();
+            System.Windows.Forms.Application.DoEvents();
             Control[] controls = EnumerateControls(form).ToArray();
 
             Button minimize = controls.OfType<Button>().Single(button => button.AccessibleName == "Minimize");

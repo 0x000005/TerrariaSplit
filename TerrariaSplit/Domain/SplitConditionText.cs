@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text;
 
-namespace TerrariaSplit;
+namespace TerrariaSplit.Domain;
 
 internal static class SplitConditionText
 {

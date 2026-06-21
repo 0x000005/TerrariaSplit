@@ -1,4 +1,4 @@
-namespace TerrariaSplit;
+namespace TerrariaSplit.Terraria.Automation;
 
 internal sealed class TerrariaSavePreparation
 {

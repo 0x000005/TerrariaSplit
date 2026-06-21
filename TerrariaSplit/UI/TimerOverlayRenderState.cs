@@ -1,4 +1,4 @@
-namespace TerrariaSplit;
+namespace TerrariaSplit.UI;
 
 internal sealed record TimerOverlayRenderState(
     AppSettings Settings,

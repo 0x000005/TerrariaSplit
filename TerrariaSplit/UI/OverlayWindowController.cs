@@ -6,7 +6,7 @@ using System.Drawing.Text;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
-namespace TerrariaSplit;
+namespace TerrariaSplit.UI;
 
 internal sealed class OverlayWindowController : IDisposable
 {

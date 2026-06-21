@@ -1,4 +1,4 @@
-﻿namespace TerrariaSplit;
+namespace TerrariaSplit.Localization;
 
 internal sealed class ChineseStrings : ILocalizedStringProvider
 {

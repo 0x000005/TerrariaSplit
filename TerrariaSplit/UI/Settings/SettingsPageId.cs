@@ -1,4 +1,4 @@
-namespace TerrariaSplit;
+namespace TerrariaSplit.UI.Settings;
 
 internal enum SettingsPageId
 {

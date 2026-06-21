@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Windows.Forms;
 
-namespace TerrariaSplit;
+namespace TerrariaSplit.UI.Settings;
 
 internal delegate DialogResult SettingsMessageBoxPresenter(
     IWin32Window owner,

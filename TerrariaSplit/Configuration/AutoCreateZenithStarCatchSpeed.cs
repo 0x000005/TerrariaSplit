@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace TerrariaSplit;
+namespace TerrariaSplit.Configuration;
 
 internal static class AutoCreateZenithStarCatchSpeed
 {

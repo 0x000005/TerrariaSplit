@@ -1,7 +1,7 @@
 using System.Drawing;
 using System.Drawing.Text;
 
-namespace TerrariaSplit;
+namespace TerrariaSplit.Configuration;
 
 internal static class UiFontSettings
 {

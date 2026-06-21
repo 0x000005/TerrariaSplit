@@ -13,7 +13,7 @@ internal static class Program
         }
 
         ApplicationConfiguration.Initialize();
-        Application.Run(new MainForm());
+        System.Windows.Forms.Application.Run(new MainForm());
         return 0;
     }
 }

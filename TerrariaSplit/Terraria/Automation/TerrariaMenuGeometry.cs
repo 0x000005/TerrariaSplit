@@ -1,6 +1,6 @@
 using System.Drawing;
 
-namespace TerrariaSplit;
+namespace TerrariaSplit.Terraria.Automation;
 
 internal readonly record struct TerrariaMenuGeometry(float Scale, float LogicalWidth, float LogicalHeight)
 {

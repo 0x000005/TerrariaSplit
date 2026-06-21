@@ -2,8 +2,9 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
+using Process = System.Diagnostics.Process;
 
-namespace TerrariaSplit;
+namespace TerrariaSplit.Terraria.Memory;
 
 internal sealed class ProcessMemoryReader : IProcessMemoryReader
 {

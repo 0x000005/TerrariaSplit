@@ -2,7 +2,7 @@ using System.Drawing;
 using System.Globalization;
 using System.Windows.Forms;
 
-namespace TerrariaSplit;
+namespace TerrariaSplit.UI.Settings;
 
 internal sealed class AutomationSettingsPage : SettingsPageBase
 {

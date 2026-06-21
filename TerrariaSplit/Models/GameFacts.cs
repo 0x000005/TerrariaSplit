@@ -1,4 +1,4 @@
-namespace TerrariaSplit;
+namespace TerrariaSplit.Models;
 
 internal enum FactValueKind
 {

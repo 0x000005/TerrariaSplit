@@ -1,4 +1,4 @@
-namespace TerrariaSplit;
+namespace TerrariaSplit.Domain;
 
 internal readonly record struct ItemIconAnimation(int FrameCount);
 

@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace TerrariaSplit;
+namespace TerrariaSplit.Infrastructure;
 
 internal static class JsonFileStore
 {

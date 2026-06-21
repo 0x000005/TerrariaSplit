@@ -3,9 +3,9 @@ using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
-using static TerrariaSplit.LayeredWindowNative;
+using static TerrariaSplit.Infrastructure.Windows.LayeredWindowNative;
 
-namespace TerrariaSplit;
+namespace TerrariaSplit.Infrastructure;
 
 internal sealed class LayeredWindowRenderTarget : IDisposable
 {

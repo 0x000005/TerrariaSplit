@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace TerrariaSplit;
+namespace TerrariaSplit.Storage;
 
 // Persisted, thread-safe pool of generated world files for one WorldPoolSignature.
 // The foreground workflow installs the first matching .wld into

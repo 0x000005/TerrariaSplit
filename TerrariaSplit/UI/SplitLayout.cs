@@ -1,6 +1,6 @@
 using System.Drawing;
 
-namespace TerrariaSplit;
+namespace TerrariaSplit.UI;
 
 internal readonly record struct SplitLayout(Rectangle FirstRowRect, Rectangle TimerRect, int RowGap)
 {

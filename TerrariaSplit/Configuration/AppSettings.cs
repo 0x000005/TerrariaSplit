@@ -1,7 +1,7 @@
 using System.Windows.Forms;
 using System.Text.Json.Serialization;
 
-namespace TerrariaSplit;
+namespace TerrariaSplit.Configuration;
 
 internal sealed class AppSettings
 {

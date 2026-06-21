@@ -1,4 +1,4 @@
-namespace TerrariaSplit;
+namespace TerrariaSplit.UI.Rendering;
 
 internal static class SplitCompletionAnimationFactory
 {

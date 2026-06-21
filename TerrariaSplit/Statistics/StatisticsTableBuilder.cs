@@ -1,4 +1,4 @@
-namespace TerrariaSplit;
+namespace TerrariaSplit.Statistics;
 
 internal static class StatisticsTableBuilder
 {

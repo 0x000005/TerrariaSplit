@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Globalization;
 
-namespace TerrariaSplit;
+namespace TerrariaSplit.Application;
 
 internal sealed class TerrariaMonitorCoordinator : IDisposable
 {

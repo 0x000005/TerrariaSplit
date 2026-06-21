@@ -1,4 +1,4 @@
-namespace TerrariaSplit;
+namespace TerrariaSplit.Domain;
 
 internal sealed record TerrariaNpcDefinition(
     int Id,

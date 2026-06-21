@@ -1,6 +1,6 @@
 using System.Drawing;
 
-namespace TerrariaSplit;
+namespace TerrariaSplit.Terraria.Automation;
 
 internal sealed class EnterWorldWorkflow : IDisposable
 {

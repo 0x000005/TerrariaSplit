@@ -1,6 +1,7 @@
 using System.Diagnostics;
+using Process = System.Diagnostics.Process;
 
-namespace TerrariaSplit;
+namespace TerrariaSplit.Terraria.Automation;
 
 internal sealed class TerrariaVisibleSeedReader : IPyramidVisibleSeedReader, IDisposable
 {

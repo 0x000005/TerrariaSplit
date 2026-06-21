@@ -1,6 +1,6 @@
 using System.Diagnostics;
 
-namespace TerrariaSplit;
+namespace TerrariaSplit.Infrastructure;
 
 internal readonly record struct RuntimePerformanceDiagnostics(
     int ControlTickCount,

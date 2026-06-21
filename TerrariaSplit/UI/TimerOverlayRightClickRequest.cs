@@ -1,5 +1,5 @@
 using System.Drawing;
 
-namespace TerrariaSplit;
+namespace TerrariaSplit.UI;
 
 internal readonly record struct TimerOverlayRightClickRequest(Point LocalPoint, Point ScreenPoint);

@@ -17,7 +17,7 @@
 
   <Target Name="TerrariaSplitBuildMemoryProbe"
           BeforeTargets="Build"
-          Condition="'$(DesignTimeBuild)' != 'true' and '$(TerrariaSplitSkipMemoryProbe)' != 'true'">
+          Condition="'$(DesignTimeBuild)' != 'true' and '$(TerrariaSplitSkipMemoryProbe)' != 'true' and '$(SolutionPath)' == ''">
     <MSBuild Projects="$(TerrariaSplitMemoryProbeProject)"
              Targets="Restore;Build"
              Properties="$(TerrariaSplitMemoryProbeBuildProperties)" />

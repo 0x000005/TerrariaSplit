@@ -1,4 +1,4 @@
-namespace TerrariaSplit;
+namespace TerrariaSplit.Terraria.Memory;
 
 internal sealed record TerrariaItemMemoryLayout(
     IntPtr PlayerArrayStaticFieldAddress,

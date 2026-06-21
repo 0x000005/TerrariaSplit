@@ -1,4 +1,4 @@
-namespace TerrariaSplit;
+namespace TerrariaSplit.UI;
 
 internal readonly record struct ModalWindowOptions(
     bool ForceTopMost,

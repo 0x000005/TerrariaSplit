@@ -1,4 +1,4 @@
-namespace TerrariaSplit;
+namespace TerrariaSplit.Configuration;
 
 internal sealed class UiColorSettings
 {

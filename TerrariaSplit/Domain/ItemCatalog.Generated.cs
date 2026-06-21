@@ -1,4 +1,4 @@
-namespace TerrariaSplit;
+namespace TerrariaSplit.Domain;
 
 internal readonly record struct TerrariaItemDefinition(int Id, string InternalName, string DisplayName, string ChineseName);
 

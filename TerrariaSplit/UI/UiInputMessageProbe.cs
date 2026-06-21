@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace TerrariaSplit;
+namespace TerrariaSplit.UI;
 
 internal static class UiInputMessageProbe
 {

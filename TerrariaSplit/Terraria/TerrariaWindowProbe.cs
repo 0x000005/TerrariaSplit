@@ -2,8 +2,9 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Drawing;
 using System.Runtime.InteropServices;
+using Process = System.Diagnostics.Process;
 
-namespace TerrariaSplit;
+namespace TerrariaSplit.Terraria;
 
 internal static class TerrariaWindowProbe
 {

@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
-namespace TerrariaSplit;
+namespace TerrariaSplit.Configuration;
 
 internal static class SettingsSerializer
 {

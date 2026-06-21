@@ -1,7 +1,7 @@
 using Microsoft.Win32.SafeHandles;
 using System.Runtime.InteropServices;
 
-namespace TerrariaSplit;
+namespace TerrariaSplit.Infrastructure;
 
 /// <summary>
 /// Windows high-resolution waitable timer (Windows 10 1803+). Lets a thread sleep

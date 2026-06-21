@@ -1,6 +1,6 @@
 using System.Diagnostics;
 
-namespace TerrariaSplit;
+namespace TerrariaSplit.Terraria.Processes;
 
 // Resolves the path to TerrariaServer.exe, which ships alongside Terraria.exe in the
 // game install. The world pool runs it headlessly to generate worlds in the background,

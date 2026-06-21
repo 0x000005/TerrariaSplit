@@ -1,4 +1,4 @@
-namespace TerrariaSplit;
+namespace TerrariaSplit.Terraria.Memory;
 
 internal sealed class TerrariaWorldCreationSeedReader
 {

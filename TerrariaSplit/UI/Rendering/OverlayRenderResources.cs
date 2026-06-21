@@ -1,6 +1,6 @@
 using System.Drawing;
 
-namespace TerrariaSplit;
+namespace TerrariaSplit.UI.Rendering;
 
 internal sealed class OverlayRenderResources : IDisposable
 {

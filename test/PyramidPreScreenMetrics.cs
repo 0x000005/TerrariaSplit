@@ -3,6 +3,7 @@ using System.Globalization;
 using TerrariaSplit;
 using TerrariaSplit.Terraria.WorldGeneration;
 using TerrariaSplit.Terraria.WorldGeneration.Simulation;
+using ScannerPyramidChestItemNames = TerrariaSplit.Terraria.Automation.PyramidChestItemNames;
 
 internal static class PyramidPreScreenMetrics
 {
@@ -239,12 +240,12 @@ internal static class PyramidPreScreenMetrics
             return PyramidTruthClass.None;
         }
 
-        if (truth.ContainsItem(TerrariaSplit.PyramidChestItemNames.FlyingCarpet))
+        if (truth.ContainsItem(ScannerPyramidChestItemNames.FlyingCarpet))
         {
             return PyramidTruthClass.FlyingCarpet;
         }
 
-        if (truth.ContainsItem(TerrariaSplit.PyramidChestItemNames.SandstormInABottle))
+        if (truth.ContainsItem(ScannerPyramidChestItemNames.SandstormInABottle))
         {
             return PyramidTruthClass.SandstormInABottle;
         }

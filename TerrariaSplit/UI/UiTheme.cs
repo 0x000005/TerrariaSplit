@@ -3,7 +3,7 @@ using System.Drawing.Drawing2D;
 using System.Reflection;
 using System.Windows.Forms;
 
-namespace TerrariaSplit;
+namespace TerrariaSplit.UI;
 
 internal static class UiTheme
 {

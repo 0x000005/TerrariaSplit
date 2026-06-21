@@ -1,4 +1,4 @@
-namespace TerrariaSplit;
+namespace TerrariaSplit.Configuration;
 
 // TODO R10: move these defaults into embedded JSON resources.
 internal static class EmbeddedDefaults

@@ -1,7 +1,8 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using Process = System.Diagnostics.Process;
 
-namespace TerrariaSplit;
+namespace TerrariaSplit.Terraria;
 
 internal sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
 {

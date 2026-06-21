@@ -1,7 +1,8 @@
 using System.Diagnostics;
 using System.Globalization;
+using Process = System.Diagnostics.Process;
 
-namespace TerrariaSplit;
+namespace TerrariaSplit.Terraria.Memory;
 
 internal sealed class TerrariaMemoryResolver
 {

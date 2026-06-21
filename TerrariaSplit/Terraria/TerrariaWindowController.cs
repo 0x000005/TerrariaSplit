@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
-namespace TerrariaSplit;
+namespace TerrariaSplit.Terraria;
 
 internal sealed class TerrariaWindowController
 {

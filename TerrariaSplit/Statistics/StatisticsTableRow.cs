@@ -1,4 +1,4 @@
-namespace TerrariaSplit;
+namespace TerrariaSplit.Statistics;
 
 internal sealed record StatisticsTableRow(
     SplitConditionDataRow ConditionRow,

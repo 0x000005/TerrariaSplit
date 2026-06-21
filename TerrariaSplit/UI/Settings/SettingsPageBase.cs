@@ -1,7 +1,7 @@
 using System;
 using System.Windows.Forms;
 
-namespace TerrariaSplit;
+namespace TerrariaSplit.UI.Settings;
 
 internal abstract class SettingsPageBase : ISettingsPage, ISettingsPageLifecycle, ISettingsModelListener
 {

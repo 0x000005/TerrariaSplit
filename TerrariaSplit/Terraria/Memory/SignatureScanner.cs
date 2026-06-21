@@ -1,6 +1,6 @@
 using System.Diagnostics;
 
-namespace TerrariaSplit;
+namespace TerrariaSplit.Terraria.Memory;
 
 internal static class SignatureScanner
 {

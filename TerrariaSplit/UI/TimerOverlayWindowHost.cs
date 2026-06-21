@@ -1,7 +1,7 @@
 using System.Drawing;
 using System.Threading;
 
-namespace TerrariaSplit;
+namespace TerrariaSplit.UI;
 
 internal sealed class TimerOverlayWindowHost : IDisposable
 {
@@ -232,7 +232,7 @@ internal sealed class TimerOverlayWindowHost : IDisposable
 
         ApplyLatestState(overlayForm);
         ready.Set();
-        Application.Run(overlayForm);
+        System.Windows.Forms.Application.Run(overlayForm);
 
         lock (sync)
         {

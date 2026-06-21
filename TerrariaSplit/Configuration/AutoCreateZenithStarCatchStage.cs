@@ -1,4 +1,4 @@
-namespace TerrariaSplit;
+namespace TerrariaSplit.Configuration;
 
 internal static class AutoCreateZenithStarCatchStage
 {

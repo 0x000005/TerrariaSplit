@@ -1,6 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 
-namespace TerrariaSplit;
+namespace TerrariaSplit.Terraria.Memory;
 
 internal interface IProcessMemoryReader
 {

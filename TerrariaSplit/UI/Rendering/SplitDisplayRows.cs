@@ -1,4 +1,4 @@
-namespace TerrariaSplit;
+namespace TerrariaSplit.UI.Rendering;
 
 internal readonly record struct SplitDisplayRow(int StatusIndex, int RowIndex, int ConditionIndex = -1)
 {

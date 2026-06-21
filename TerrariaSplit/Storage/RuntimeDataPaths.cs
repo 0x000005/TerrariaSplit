@@ -1,4 +1,4 @@
-namespace TerrariaSplit;
+namespace TerrariaSplit.Storage;
 
 internal static class RuntimeDataPaths
 {

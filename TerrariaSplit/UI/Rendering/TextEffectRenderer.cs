@@ -4,7 +4,7 @@ using System.Drawing.Imaging;
 using System.Drawing.Text;
 using System.Windows.Forms;
 
-namespace TerrariaSplit;
+namespace TerrariaSplit.UI.Rendering;
 
 internal static class TextEffectRenderer
 {

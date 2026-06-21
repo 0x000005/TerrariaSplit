@@ -1,4 +1,4 @@
-namespace TerrariaSplit;
+namespace TerrariaSplit.Models;
 
 internal sealed record SplitDefinition(
     string Id,

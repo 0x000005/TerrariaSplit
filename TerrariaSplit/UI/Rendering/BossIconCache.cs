@@ -1,7 +1,7 @@
 using System.Drawing;
 using System.Drawing.Imaging;
 
-namespace TerrariaSplit;
+namespace TerrariaSplit.UI.Rendering;
 
 internal sealed class BossIconCache : IDisposable
 {

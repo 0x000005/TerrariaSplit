@@ -8,6 +8,8 @@ using System.Windows.Forms;
 using TerrariaSplit;
 using TerrariaSplit.Tests;
 using TerrariaSplit.Terraria.WorldGeneration.Simulation;
+using ScannerPyramidChestItem = TerrariaSplit.Terraria.Automation.PyramidChestItem;
+using ScannerPyramidChestItemNames = TerrariaSplit.Terraria.Automation.PyramidChestItemNames;
 
 if (PyramidPreScreenMetrics.TryRun(args))
 {
@@ -3114,7 +3116,7 @@ static void TestPyramidScannerReadsChestContents()
                     12,
                     chestY,
                     [
-                        new SyntheticChestItem(0, PyramidChestItemNames.FlyingCarpet)
+                        new SyntheticChestItem(0, ScannerPyramidChestItemNames.FlyingCarpet)
                     ]),
                 new SyntheticChest(
                     corridor.Left + 4,
@@ -3144,15 +3146,15 @@ static void TestPyramidScannerReadsChestContents()
         AssertEqual(chestY, chest.Y);
         AssertEqual(true, chest.ContainsItem(857));
         AssertEqual(false, chest.ContainsItem(934));
-        AssertEqual(true, result.ContainsItem(PyramidChestItemNames.SandstormInABottle));
-        AssertEqual(false, result.ContainsItem(PyramidChestItemNames.FlyingCarpet));
+        AssertEqual(true, result.ContainsItem(ScannerPyramidChestItemNames.SandstormInABottle));
+        AssertEqual(false, result.ContainsItem(ScannerPyramidChestItemNames.FlyingCarpet));
         AssertEqual(true, PyramidFilterItemMatcher.Matches(result, AutoCreatePyramidFilterItem.SandstormInABottleMask));
         AssertEqual(false, PyramidFilterItemMatcher.Matches(result, AutoCreatePyramidFilterItem.FlyingCarpetMask));
         AssertEqual(false, PyramidFilterItemMatcher.Matches(result, AutoCreatePyramidFilterItem.PharaohSetMask));
         AssertEqual(true, result.FormatSummary().Contains("Sandstorm in a Bottle", StringComparison.Ordinal));
         AssertEqual(true, result.FormatSummary().Contains("#279 x250", StringComparison.Ordinal));
         AssertEqual("none", default(PyramidChestScanResult).FormatSummary());
-        AssertEqual(false, default(PyramidChestScanResult).ContainsItem(PyramidChestItemNames.SandstormInABottle));
+        AssertEqual(false, default(PyramidChestScanResult).ContainsItem(ScannerPyramidChestItemNames.SandstormInABottle));
         AssertEqual("(0,0): empty", default(PyramidChestInfo).FormatSummary());
 
         AssertEqual(true, scanner.TryScanCandidateItemChests(
@@ -3188,8 +3190,8 @@ static void TestPyramidScannerReadsChestContents()
                 chestX,
                 chestY,
                 [
-                    new PyramidChestItem(0, PyramidChestItemNames.PharaohMask, 1, 0),
-                    new PyramidChestItem(1, PyramidChestItemNames.PharaohRobe, 1, 0)
+                    new ScannerPyramidChestItem(0, ScannerPyramidChestItemNames.PharaohMask, 1, 0),
+                    new ScannerPyramidChestItem(1, ScannerPyramidChestItemNames.PharaohRobe, 1, 0)
                 ])
         ]);
         var partialPharaohResult = new PyramidChestScanResult(
@@ -3198,7 +3200,7 @@ static void TestPyramidScannerReadsChestContents()
                 chestX,
                 chestY,
                 [
-                    new PyramidChestItem(0, PyramidChestItemNames.PharaohMask, 1, 0)
+                    new ScannerPyramidChestItem(0, ScannerPyramidChestItemNames.PharaohMask, 1, 0)
                 ])
         ]);
         AssertEqual(true, PyramidFilterItemMatcher.Matches(pharaohResult, AutoCreatePyramidFilterItem.PharaohSetMask));
@@ -3230,7 +3232,7 @@ static void TestPyramidFilterFastOpensAfterGenerationStateEnds()
                     corridor.Left + 8,
                     corridor.Top + 8,
                     [
-                        new SyntheticChestItem(0, PyramidChestItemNames.FlyingCarpet)
+                        new SyntheticChestItem(0, ScannerPyramidChestItemNames.FlyingCarpet)
                     ])
             ]);
 
@@ -3284,7 +3286,7 @@ static void TestPyramidFilterFallsBackWithoutGenerationState()
                     corridor.Left + 8,
                     corridor.Top + 8,
                     [
-                        new SyntheticChestItem(0, PyramidChestItemNames.SandstormInABottle)
+                        new SyntheticChestItem(0, ScannerPyramidChestItemNames.SandstormInABottle)
                     ])
             ]);
 

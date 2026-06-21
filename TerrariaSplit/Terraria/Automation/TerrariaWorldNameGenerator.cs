@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace TerrariaSplit;
+namespace TerrariaSplit.Terraria.Automation;
 
 internal static class TerrariaWorldNameGenerator
 {

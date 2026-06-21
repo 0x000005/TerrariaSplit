@@ -1,4 +1,4 @@
-namespace TerrariaSplit;
+namespace TerrariaSplit.Application;
 
 internal interface ITerrariaWorldWatcher : IDisposable
 {

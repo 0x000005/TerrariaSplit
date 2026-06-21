@@ -1,8 +1,9 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Text;
+using Process = System.Diagnostics.Process;
 
-namespace TerrariaSplit;
+namespace TerrariaSplit.Terraria.Automation;
 
 // Generates a single world headlessly with TerrariaServer.exe (no game window, no
 // foreground), then reads metadata from the world header and optionally scans for

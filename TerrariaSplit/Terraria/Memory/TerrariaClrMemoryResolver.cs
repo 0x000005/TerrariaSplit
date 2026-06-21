@@ -3,8 +3,9 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json;
 using Microsoft.Diagnostics.Runtime;
+using Process = System.Diagnostics.Process;
 
-namespace TerrariaSplit;
+namespace TerrariaSplit.Terraria.Memory;
 
 internal sealed class TerrariaClrMemoryResolver
 {
