@@ -3,13 +3,15 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 
+$failed = $false
+
 function Write-Section {
     param([string] $Title)
     Write-Host ''
     Write-Host "== $Title =="
 }
 
-function Show-Matches {
+function Test-NoMatches {
     param(
         [string] $Title,
         [string] $Path,
@@ -19,6 +21,7 @@ function Show-Matches {
     Write-Section $Title
     if (-not (Test-Path $Path)) {
         Write-Host "Missing path: $Path"
+        $script:failed = $true
         return
     }
 
@@ -29,38 +32,65 @@ function Show-Matches {
         $matches | ForEach-Object {
             Write-Host "$($_.Path):$($_.LineNumber): $($_.Line.Trim())"
         }
+        $script:failed = $true
     }
     else {
         Write-Host 'No matches.'
     }
 }
 
-Show-Matches `
+Test-NoMatches `
+    -Title 'Domain -> outer layer references' `
+    -Path 'TerrariaSplit\Domain' `
+    -Pattern 'System\.Windows\.Forms|TerrariaSplit\.UI|TerrariaSplit\.Storage|TerrariaSplit\.Terraria|\bAppSettingsStore\b|\bAppLogger\b'
+
+Test-NoMatches `
     -Title 'Application -> AppSettingsStore references' `
     -Path 'TerrariaSplit\Application' `
-    -Pattern 'AppSettingsStore'
+    -Pattern '\bAppSettingsStore\b'
 
-Show-Matches `
+Test-NoMatches `
     -Title 'Application -> AppLogger references' `
     -Path 'TerrariaSplit\Application' `
-    -Pattern 'AppLogger'
+    -Pattern '\bAppLogger\b'
 
-Show-Matches `
+Test-NoMatches `
     -Title 'Application -> WinForms references' `
     -Path 'TerrariaSplit\Application' `
     -Pattern 'System\.Windows\.Forms|\bForm\b|\bControl\b'
 
-Show-Matches `
+Test-NoMatches `
     -Title 'Terraria -> UI shell references' `
     -Path 'TerrariaSplit\Terraria' `
-    -Pattern 'MainForm|SettingsPage|OverlayWindow|TimerOverlay|ApplicationShellEffectExecutor'
+    -Pattern 'MainForm|SettingsPage|SettingsForm|OverlayWindow|TimerOverlay|ApplicationShellEffectExecutor'
+
+Test-NoMatches `
+    -Title 'Storage -> outer layer references' `
+    -Path 'TerrariaSplit\Storage' `
+    -Pattern 'TerrariaSplit\.UI|TerrariaSplit\.Application|TerrariaSplit\.Terraria'
+
+Test-NoMatches `
+    -Title 'UI Settings -> shell side-effect starters' `
+    -Path 'TerrariaSplit\UI\Settings' `
+    -Pattern 'StartCreateWorld|StartEnterWorld|TerrariaWorldAutomation|TerrariaMonitorCoordinator|WorldPoolFillService|GlobalHotkeyManager'
 
 Write-Section 'Root namespace files'
-Get-ChildItem -Path 'TerrariaSplit' -Recurse -Filter *.cs |
-    Select-String -Pattern '^namespace TerrariaSplit;$' |
-    Select-Object -ExpandProperty Path |
-    Sort-Object |
-    ForEach-Object { Write-Host $_ }
+$rootNamespaceMatches = Get-ChildItem -Path 'TerrariaSplit' -Recurse -Filter *.cs |
+    Select-String -Pattern '^namespace TerrariaSplit;$'
+
+if ($rootNamespaceMatches) {
+    $rootNamespaceMatches | ForEach-Object {
+        Write-Host "$($_.Path):$($_.LineNumber): $($_.Line.Trim())"
+    }
+    $failed = $true
+}
+else {
+    Write-Host 'No matches.'
+}
+
+if ($failed) {
+    throw 'Architecture check failed.'
+}
 
 Write-Host ''
-Write-Host 'Architecture script is informational in R0. Later phases should make remaining violations fail the check.'
+Write-Host 'Architecture check passed.'

@@ -13,7 +13,9 @@ internal static class ArchitectureDependencyTests
         yield return ("Architecture keeps Application free of WinForms", ApplicationDoesNotReferenceWinForms);
         yield return ("Architecture keeps Domain free of outer layers", DomainDoesNotReferenceOuterLayers);
         yield return ("Architecture keeps Terraria free of UI shell references", TerrariaDoesNotReferenceUiShell);
+        yield return ("Architecture keeps Storage free of outer layers", StorageDoesNotReferenceOuterLayers);
         yield return ("Architecture keeps UI settings pages from starting automation", UiSettingsDoesNotStartAutomation);
+        yield return ("Architecture has no root namespace source files", RootNamespaceIsEmpty);
         yield return ("Architecture static dependency debt does not grow", StaticDependencyDebtDoesNotGrow);
     }
 
@@ -53,6 +55,24 @@ internal static class ArchitectureDependencyTests
                 @"StartCreateWorld|StartEnterWorld|TerrariaWorldAutomation|TerrariaMonitorCoordinator|WorldPoolFillService|GlobalHotkeyManager",
                 RegexOptions.Compiled),
             "Settings pages edit data and must not start shell/runtime side effects directly.");
+    }
+
+    private static void StorageDoesNotReferenceOuterLayers()
+    {
+        AssertNoMatches(
+            Path.Combine("TerrariaSplit", "Storage"),
+            new Regex(
+                @"TerrariaSplit\.UI|TerrariaSplit\.Application|TerrariaSplit\.Terraria",
+                RegexOptions.Compiled),
+            "Storage must not reference UI, Application, or Terraria integration layers.");
+    }
+
+    private static void RootNamespaceIsEmpty()
+    {
+        AssertNoMatches(
+            "TerrariaSplit",
+            new Regex(@"^namespace TerrariaSplit;$", RegexOptions.Compiled),
+            "Root namespace source files must be moved into layer namespaces.");
     }
 
     private static void StaticDependencyDebtDoesNotGrow()
