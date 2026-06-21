@@ -594,7 +594,7 @@ internal sealed class WorldGenState
 
     private bool IsFirstActiveScanTile(int x, int candidateY, int y)
     {
-        if (!InWorld(x, y) || !Tiles[x, y].Active)
+        if (!WorldGenBounds.InWorld(this, x, y) || !Tiles[x, y].Active)
         {
             return false;
         }
@@ -609,12 +609,6 @@ internal sealed class WorldGenState
         }
 
         return true;
-    }
-
-    private bool InWorld(int x, int y)
-    {
-        return (uint)x < (uint)Options.Dimensions.Width &&
-            (uint)y < (uint)Options.Dimensions.Height;
     }
 
 }

@@ -1,3 +1,5 @@
+using static TerrariaSplit.Terraria.WorldGeneration.Simulation.WorldGenBounds;
+
 namespace TerrariaSplit.Terraria.WorldGeneration.Simulation;
 
 internal static class EarlyWorldMutationPasses
@@ -621,9 +623,4 @@ internal static class EarlyWorldMutationPasses
         return state;
     }
 
-    private static bool IsInWorld(WorldGenState state, int x, int y)
-    {
-        return (uint)x < (uint)state.Options.Dimensions.Width &&
-            (uint)y < (uint)state.Options.Dimensions.Height;
-    }
 }

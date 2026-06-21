@@ -1,3 +1,5 @@
+using static TerrariaSplit.Terraria.WorldGeneration.Simulation.WorldGenBounds;
+
 namespace TerrariaSplit.Terraria.WorldGeneration.Simulation;
 
 internal static class SnowConversionPasses
@@ -71,11 +73,4 @@ internal static class SnowConversionPasses
         return true;
     }
 
-    private static bool InWorld(WorldGenState state, int x, int y, int fluff)
-    {
-        return x >= fluff &&
-            y >= fluff &&
-            x < state.Options.Dimensions.Width - fluff &&
-            y < state.Options.Dimensions.Height - fluff;
-    }
 }

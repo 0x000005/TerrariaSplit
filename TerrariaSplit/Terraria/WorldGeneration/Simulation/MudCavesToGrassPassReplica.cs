@@ -1,3 +1,5 @@
+using static TerrariaSplit.Terraria.WorldGeneration.Simulation.WorldGenBounds;
+
 namespace TerrariaSplit.Terraria.WorldGeneration.Simulation;
 
 internal static class MudCavesToGrassPassReplica
@@ -200,14 +202,6 @@ internal static class MudCavesToGrassPassReplica
         }
 
         return connected.Count;
-    }
-
-    private static bool InWorld(WorldGenState state, int x, int y, int fluff)
-    {
-        return x >= fluff &&
-            y >= fluff &&
-            x < state.Options.Dimensions.Width - fluff &&
-            y < state.Options.Dimensions.Height - fluff;
     }
 
     private static bool IsClearableSolid(TileData tile)

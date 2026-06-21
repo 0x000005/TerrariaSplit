@@ -1,3 +1,5 @@
+using static TerrariaSplit.Terraria.WorldGeneration.Simulation.WorldGenBounds;
+
 namespace TerrariaSplit.Terraria.WorldGeneration.Simulation;
 
 internal static class DunesPassReplica
@@ -227,12 +229,6 @@ internal static class DunesPassReplica
                 tile.SetType(TileIds.Sand);
             }
         }
-    }
-
-    private static bool IsInWorld(WorldGenState state, int x, int y)
-    {
-        return (uint)x < (uint)state.Options.Dimensions.Width &&
-            (uint)y < (uint)state.Options.Dimensions.Height;
     }
 
     private readonly record struct Point2(int X, int Y);

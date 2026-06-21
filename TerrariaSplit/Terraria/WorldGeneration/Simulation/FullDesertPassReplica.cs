@@ -1,3 +1,5 @@
+using static TerrariaSplit.Terraria.WorldGeneration.Simulation.WorldGenBounds;
+
 namespace TerrariaSplit.Terraria.WorldGeneration.Simulation;
 
 internal static class FullDesertPassReplica
@@ -958,14 +960,6 @@ internal static class FullDesertPassReplica
 
         double delta = Math.Clamp((yProgress - 0.6) / 0.4, 0.0, 1.0);
         return (1.0 - Math.Cos(delta * Math.PI) * 0.5 - 0.5) * -0.5 + 1.0;
-    }
-
-    private static bool InWorld(WorldGenState state, int x, int y, int fluff)
-    {
-        return x >= fluff &&
-            y >= fluff &&
-            x < state.Options.Dimensions.Width - fluff &&
-            y < state.Options.Dimensions.Height - fluff;
     }
 
     private static bool IsSolid(TileData tile)

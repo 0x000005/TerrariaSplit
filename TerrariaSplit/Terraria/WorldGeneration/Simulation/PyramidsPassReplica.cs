@@ -1,3 +1,5 @@
+using static TerrariaSplit.Terraria.WorldGeneration.Simulation.WorldGenBounds;
+
 namespace TerrariaSplit.Terraria.WorldGeneration.Simulation;
 
 internal static class PyramidsPassReplica
@@ -495,12 +497,6 @@ internal static class PyramidsPassReplica
         }
 
         state.Tiles[x, y].Active = false;
-    }
-
-    private static bool InWorld(WorldGenState state, int x, int y)
-    {
-        return (uint)x < (uint)state.Options.Dimensions.Width &&
-            (uint)y < (uint)state.Options.Dimensions.Height;
     }
 
     private static int RollPyramidMainItem(UnifiedRandom random)

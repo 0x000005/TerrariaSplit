@@ -1,3 +1,5 @@
+using static TerrariaSplit.Terraria.WorldGeneration.Simulation.WorldGenBounds;
+
 namespace TerrariaSplit.Terraria.WorldGeneration.Simulation;
 
 internal static class CrimsonPassReplica
@@ -1136,14 +1138,6 @@ internal static class CrimsonPassReplica
     private static bool IsDungeonWall(int wallType)
     {
         return wallType is 7 or 8 or 9 or 94 or 95 or 96 or 97 or 98 or 99;
-    }
-
-    private static bool InWorld(WorldGenState state, int x, int y, int fluff = 0)
-    {
-        return x >= fluff &&
-            y >= fluff &&
-            x < state.Options.Dimensions.Width - fluff &&
-            y < state.Options.Dimensions.Height - fluff;
     }
 
     private struct Vec2
