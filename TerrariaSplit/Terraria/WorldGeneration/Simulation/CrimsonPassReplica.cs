@@ -1116,17 +1116,6 @@ internal static class CrimsonPassReplica
         return InWorld(state, x, y);
     }
 
-    private static bool IsDungeonTile(int tileType)
-    {
-        return tileType is
-            TileIds.BlueDungeonBrick or
-            TileIds.GreenDungeonBrick or
-            TileIds.PinkDungeonBrick or
-            TileIds.AncientBlueBrick or
-            TileIds.AncientGreenBrick or
-            TileIds.AncientPinkBrick;
-    }
-
     private static bool IsCrackedDungeonBrick(int tileType)
     {
         return tileType is
