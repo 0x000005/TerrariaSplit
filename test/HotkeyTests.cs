@@ -99,7 +99,7 @@ internal static class HotkeyTests
     private static void ApplicationControllerMapsInputCommandsToEffects()
     {
         DateTime requestedAtUtc = DateTime.UtcNow;
-        var controller = new ApplicationController(new AppSettings(), _ => true);
+        var controller = new ApplicationController(new AppSettings(), _ => true, new StoredSettingsSnapshotFactory());
 
         ApplicationUpdate resetUpdate = controller.HandleCommand(
             AppCommand.QueueMenuAction(MenuActionKind.Reset, requestedAtUtc));
@@ -150,7 +150,7 @@ internal static class HotkeyTests
         {
             confirmCount++;
             return true;
-        });
+        }, new StoredSettingsSnapshotFactory());
         var tracker = new SplitTracker();
         tracker.SetDefinitions(controller.Definitions);
         tracker.Statuses[0].SetTime(TimeSpan.FromSeconds(30));

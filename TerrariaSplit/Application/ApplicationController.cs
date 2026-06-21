@@ -72,7 +72,7 @@ internal sealed record ApplicationEffect
     {
         return new ApplicationEffect(ApplicationEffectKind.SaveSettings)
         {
-            SettingsToSave = AppSettingsStore.Clone(settings)
+            SettingsToSave = settings
         };
     }
 
@@ -94,11 +94,16 @@ internal sealed class ApplicationController
 {
     private readonly RunLifecycleController runLifecycle = new();
     private readonly Func<string, bool> confirmPersonalBestUpdate;
+    private readonly ISettingsSnapshotFactory settingsSnapshots;
     private long minimumAcceptedRuntimeCommandSequence;
 
-    public ApplicationController(AppSettings settings, Func<string, bool> confirmPersonalBestUpdate)
+    public ApplicationController(
+        AppSettings settings,
+        Func<string, bool> confirmPersonalBestUpdate,
+        ISettingsSnapshotFactory settingsSnapshots)
     {
         this.confirmPersonalBestUpdate = confirmPersonalBestUpdate;
+        this.settingsSnapshots = settingsSnapshots;
         Settings = settings;
         Definitions = SplitCatalog.Build(settings);
         ViewState = ApplicationViewState.FromDefinitions(settings, Definitions);
@@ -201,7 +206,7 @@ internal sealed class ApplicationController
         ViewState = ApplicationViewState.FromDefinitions(Settings, Definitions);
         if (settingsUpdated)
         {
-            effects.Add(ApplicationEffect.SaveSettings(Settings));
+            effects.Add(CreateSaveSettingsEffect(Settings));
         }
 
         effects.Add(ApplicationEffect.Simple(ApplicationEffectKind.ClearOverlayAnimation));
@@ -218,12 +223,12 @@ internal sealed class ApplicationController
 
     private void TogglePyramidFilter(List<ApplicationEffect> effects)
     {
-        AppSettings previousSettings = AppSettingsStore.Clone(Settings);
-        AppSettings nextSettings = AppSettingsStore.Clone(Settings);
+        AppSettings previousSettings = settingsSnapshots.CreateSnapshot(Settings);
+        AppSettings nextSettings = settingsSnapshots.CreateSnapshot(Settings);
         nextSettings.AutoCreate.EnablePyramidFilter = !nextSettings.AutoCreate.EnablePyramidFilter;
         Settings = nextSettings;
 
-        effects.Add(ApplicationEffect.SaveSettings(Settings));
+        effects.Add(CreateSaveSettingsEffect(Settings));
         effects.Add(ApplicationEffect.ApplySettingsToShell(previousSettings, Definitions.Count));
     }
 
@@ -260,8 +265,8 @@ internal sealed class ApplicationController
 
     private void ApplySettings(AppSettings appliedSettings, List<ApplicationEffect> effects)
     {
-        AppSettings previousSettings = AppSettingsStore.Clone(Settings);
-        AppSettings nextSettings = AppSettingsStore.Clone(appliedSettings);
+        AppSettings previousSettings = settingsSnapshots.CreateSnapshot(Settings);
+        AppSettings nextSettings = settingsSnapshots.CreateSnapshot(appliedSettings);
         runLifecycle.Reset(
             Settings,
             nextSettings,
@@ -272,13 +277,18 @@ internal sealed class ApplicationController
         Definitions = SplitCatalog.Build(Settings);
         ViewState = ApplicationViewState.FromDefinitions(Settings, Definitions);
 
-        effects.Add(ApplicationEffect.SaveSettings(Settings));
+        effects.Add(CreateSaveSettingsEffect(Settings));
         effects.Add(ApplicationEffect.Simple(ApplicationEffectKind.ClearOverlayAnimation));
         effects.Add(ApplicationEffect.Simple(ApplicationEffectKind.RefreshTimerOverlaySettings));
         effects.Add(ApplicationEffect.SubmitRuntimeCommand(RuntimeCommand.Reset()));
         effects.Add(ApplicationEffect.SubmitRuntimeCommand(RuntimeCommand.SetDefinitions(Definitions)));
         effects.Add(ApplicationEffect.Simple(ApplicationEffectKind.ResetUiScalePatchState));
         effects.Add(ApplicationEffect.ApplySettingsToShell(previousSettings, Definitions.Count));
+    }
+
+    private ApplicationEffect CreateSaveSettingsEffect(AppSettings settings)
+    {
+        return ApplicationEffect.SaveSettings(settingsSnapshots.CreateSnapshot(settings));
     }
 }
 

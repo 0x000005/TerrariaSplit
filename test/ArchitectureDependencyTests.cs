@@ -60,10 +60,7 @@ internal static class ArchitectureDependencyTests
         AssertOnlyAllowedFilesReference(
             Path.Combine("TerrariaSplit", "Application"),
             "AppSettingsStore",
-            [
-                Path.Combine("TerrariaSplit", "Application", "ApplicationController.cs"),
-                Path.Combine("TerrariaSplit", "Application", "WorldPoolFillService.cs")
-            ]);
+            []);
 
         AssertOnlyAllowedFilesReference(
             Path.Combine("TerrariaSplit", "Application"),

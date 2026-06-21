@@ -12,6 +12,7 @@ internal sealed class WorldPoolFillService : IDisposable
 
     private readonly WorldPoolStore store;
     private readonly HeadlessWorldGenerator generator = new();
+    private readonly ISettingsSnapshotFactory settingsSnapshots;
     private readonly object sync = new();
     private AppSettings? settings;
     private CancellationTokenSource? cancellation;
@@ -19,16 +20,17 @@ internal sealed class WorldPoolFillService : IDisposable
     private bool disposed;
     private bool loggedMissingServer;
 
-    public WorldPoolFillService(WorldPoolStore store)
+    public WorldPoolFillService(WorldPoolStore store, ISettingsSnapshotFactory settingsSnapshots)
     {
         this.store = store;
+        this.settingsSnapshots = settingsSnapshots;
     }
 
     // Called at startup and whenever settings are applied. Refreshing the signature clears
     // the pool when any world-gen setting changed, and starts the loop if needed.
     public void UpdateSettings(AppSettings newSettings)
     {
-        AppSettings clone = AppSettingsStore.Clone(newSettings);
+        AppSettings clone = settingsSnapshots.CreateSnapshot(newSettings);
         lock (sync)
         {
             if (disposed)

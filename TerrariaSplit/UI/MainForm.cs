@@ -17,6 +17,7 @@ internal sealed partial class MainForm : Form
     private const string SegmentTimerWindowTitle = "TerrariaSplit - Segment Timer";
 
     private readonly WorldPoolStore worldPoolStore = new();
+    private readonly ISettingsSnapshotFactory settingsSnapshots = new StoredSettingsSnapshotFactory();
     private readonly TerrariaWorldAutomation worldAutomation;
     private readonly WorldPoolFillService worldPoolFillService;
     private readonly MainFormContextMenuBuilder contextMenuBuilder = new();
@@ -96,8 +97,11 @@ internal sealed partial class MainForm : Form
         dispatchedControlTick = DispatchedControlTick;
         dispatchedStatusPaintTick = DispatchedStatusPaintTick;
         worldAutomation = new TerrariaWorldAutomation(worldPoolStore);
-        applicationController = new ApplicationController(AppSettingsStore.Load(), ShowPersonalBestUpdateConfirmation);
-        worldPoolFillService = new WorldPoolFillService(worldPoolStore);
+        applicationController = new ApplicationController(
+            AppSettingsStore.Load(),
+            ShowPersonalBestUpdateConfirmation,
+            settingsSnapshots);
+        worldPoolFillService = new WorldPoolFillService(worldPoolStore, settingsSnapshots);
         RefreshTimerOverlaySettingsSnapshot();
         palette = UiPalette.From(settings.Colors);
         monitorCoordinator = new TerrariaMonitorCoordinator(
