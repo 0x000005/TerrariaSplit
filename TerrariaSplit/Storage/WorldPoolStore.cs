@@ -7,16 +7,17 @@ namespace TerrariaSplit.Storage;
 // Terraria's Worlds folder instead of replaying a seed through the UI.
 internal sealed class WorldPoolStore
 {
-    private static readonly string RootDirectory = RuntimeDataPaths.WorldPoolDirectory;
-    private static readonly string FilePath = Path.Combine(RootDirectory, "world-pool.json");
-    private static readonly string WorldDirectory = Path.Combine(RootDirectory, "worlds");
-
     private readonly object sync = new();
+    private readonly string filePath;
+    private readonly string worldDirectory;
     private WorldPoolData data;
 
-    public WorldPoolStore()
+    public WorldPoolStore(IRuntimeDataPaths? paths = null)
     {
-        data = JsonFileStore.Read<WorldPoolData>(FilePath, "world pool") ?? new WorldPoolData();
+        paths ??= AppContextRuntimeDataPaths.Default;
+        filePath = Path.Combine(paths.WorldPoolDirectory, "world-pool.json");
+        worldDirectory = Path.Combine(paths.WorldPoolDirectory, "worlds");
+        data = JsonFileStore.Read<WorldPoolData>(filePath, "world pool") ?? new WorldPoolData();
         data.Signature ??= string.Empty;
         data.Worlds ??= new List<WorldPoolEntry>();
         PruneMissingFiles(persist: true);
@@ -65,9 +66,9 @@ internal sealed class WorldPoolStore
 
             try
             {
-                Directory.CreateDirectory(WorldDirectory);
+                Directory.CreateDirectory(worldDirectory);
                 string fileName = CreateWorldFileName();
-                string targetPath = Path.Combine(WorldDirectory, fileName);
+                string targetPath = Path.Combine(worldDirectory, fileName);
                 File.Copy(sourceWorldPath, targetPath, overwrite: false);
                 CopyBackupIfPresent(sourceWorldPath, targetPath);
 
@@ -168,7 +169,7 @@ internal sealed class WorldPoolStore
         }
 
         string fileName = Path.GetFileName(entry.WorldFileName);
-        string path = Path.Combine(WorldDirectory, fileName);
+        string path = Path.Combine(worldDirectory, fileName);
         return File.Exists(path) ? path : null;
     }
 
@@ -177,11 +178,11 @@ internal sealed class WorldPoolStore
         return string.Equals(data.Signature, signature, StringComparison.Ordinal);
     }
 
-    private static string CreateWorldFileName()
+    private string CreateWorldFileName()
     {
         string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss_fff", CultureInfo.InvariantCulture);
         string fileName = $"TerrariaSplit_{timestamp}.wld";
-        if (!File.Exists(Path.Combine(WorldDirectory, fileName)))
+        if (!File.Exists(Path.Combine(worldDirectory, fileName)))
         {
             return fileName;
         }
@@ -189,7 +190,7 @@ internal sealed class WorldPoolStore
         for (int suffix = 2; suffix < 1000; suffix++)
         {
             fileName = $"TerrariaSplit_{timestamp}_{suffix.ToString(CultureInfo.InvariantCulture)}.wld";
-            if (!File.Exists(Path.Combine(WorldDirectory, fileName)))
+            if (!File.Exists(Path.Combine(worldDirectory, fileName)))
             {
                 return fileName;
             }
@@ -225,12 +226,12 @@ internal sealed class WorldPoolStore
 
     private void DeletePoolFiles()
     {
-        if (!Directory.Exists(WorldDirectory))
+        if (!Directory.Exists(worldDirectory))
         {
             return;
         }
 
-        foreach (string file in Directory.EnumerateFiles(WorldDirectory, "*", SearchOption.TopDirectoryOnly))
+        foreach (string file in Directory.EnumerateFiles(worldDirectory, "*", SearchOption.TopDirectoryOnly))
         {
             TryDeleteFile(file);
         }
@@ -262,7 +263,7 @@ internal sealed class WorldPoolStore
 
     private void Persist()
     {
-        JsonFileStore.Write(FilePath, data, "world pool");
+        JsonFileStore.Write(filePath, data, "world pool");
     }
 
     internal sealed class WorldPoolData

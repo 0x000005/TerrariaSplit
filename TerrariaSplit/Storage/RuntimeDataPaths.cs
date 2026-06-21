@@ -2,21 +2,23 @@ namespace TerrariaSplit.Storage;
 
 internal static class RuntimeDataPaths
 {
-    public static string DataDirectory => Path.Combine(AppContext.BaseDirectory, "Data");
+    private static IRuntimeDataPaths Paths => AppContextRuntimeDataPaths.Default;
 
-    public static string SettingsDirectory => Path.Combine(AppContext.BaseDirectory, "Settings");
+    public static string DataDirectory => Paths.DataDirectory;
 
-    public static string ReferenceTimesDirectory => Path.Combine(DataDirectory, "reference-times");
+    public static string SettingsDirectory => Paths.SettingsDirectory;
 
-    public static string LastRunTimesDirectory => Path.Combine(DataDirectory, "last-times");
+    public static string ReferenceTimesDirectory => Paths.ReferenceTimesDirectory;
 
-    public static string PersonalBestTimesDirectory => Path.Combine(DataDirectory, "personal-best-times");
+    public static string LastRunTimesDirectory => Paths.LastRunTimesDirectory;
 
-    public static string PersonalBestSegmentsDirectory => Path.Combine(DataDirectory, "personal-best-segments");
+    public static string PersonalBestTimesDirectory => Paths.PersonalBestTimesDirectory;
 
-    public static string WorldPoolDirectory => Path.Combine(AppContext.BaseDirectory, "Worlds");
+    public static string PersonalBestSegmentsDirectory => Paths.PersonalBestSegmentsDirectory;
 
-    public static string WorldPoolScratchDirectory => Path.Combine(WorldPoolDirectory, "scratch");
+    public static string WorldPoolDirectory => Paths.WorldPoolDirectory;
 
-    public static string LogPath => Path.Combine(AppContext.BaseDirectory, "terrariasplit.log");
+    public static string WorldPoolScratchDirectory => Paths.WorldPoolScratchDirectory;
+
+    public static string LogPath => Paths.LogPath;
 }

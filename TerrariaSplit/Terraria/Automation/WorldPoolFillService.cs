@@ -11,7 +11,7 @@ internal sealed class WorldPoolFillService : IDisposable
     private static readonly TimeSpan IdleInterval = TimeSpan.FromSeconds(8);
 
     private readonly WorldPoolStore store;
-    private readonly HeadlessWorldGenerator generator = new();
+    private readonly HeadlessWorldGenerator generator;
     private readonly ISettingsSnapshotFactory settingsSnapshots;
     private readonly IAppLogger logger;
     private readonly object sync = new();
@@ -24,9 +24,11 @@ internal sealed class WorldPoolFillService : IDisposable
     public WorldPoolFillService(
         WorldPoolStore store,
         ISettingsSnapshotFactory settingsSnapshots,
-        IAppLogger? logger = null)
+        IAppLogger? logger = null,
+        IRuntimeDataPaths? paths = null)
     {
         this.store = store;
+        generator = new HeadlessWorldGenerator(paths);
         this.settingsSnapshots = settingsSnapshots;
         this.logger = logger ?? NullAppLogger.Instance;
     }

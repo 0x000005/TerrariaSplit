@@ -7,7 +7,8 @@ internal static class MainShellCompositionRoot
 {
     public static MainShellServices CreateCore(Func<string, bool> confirmPersonalBestUpdate)
     {
-        var worldPoolStore = new WorldPoolStore();
+        IRuntimeDataPaths runtimeDataPaths = AppContextRuntimeDataPaths.Default;
+        var worldPoolStore = new WorldPoolStore(runtimeDataPaths);
         ISettingsSnapshotFactory settingsSnapshots = new StoredSettingsSnapshotFactory();
         IAppLogger logger = StaticAppLogger.Instance;
         var runStatisticsRecorder = new DelegateRunStatisticsRecorder(RunStatsStore.RecordRun);
@@ -25,7 +26,7 @@ internal static class MainShellCompositionRoot
             worldPoolStore,
             settingsSnapshots,
             logger,
-            new WorldPoolFillService(worldPoolStore, settingsSnapshots, logger),
+            new WorldPoolFillService(worldPoolStore, settingsSnapshots, logger, runtimeDataPaths),
             new MainFormContextMenuBuilder(),
             new SoundPlayerService(),
             new GlobalHotkeyManager(),

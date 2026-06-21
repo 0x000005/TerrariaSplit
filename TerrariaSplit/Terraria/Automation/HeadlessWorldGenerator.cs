@@ -12,8 +12,6 @@ namespace TerrariaSplit.Terraria.Automation;
 // folder is never touched.
 internal sealed class HeadlessWorldGenerator : IDisposable
 {
-    private static readonly string ScratchDirectory = RuntimeDataPaths.WorldPoolScratchDirectory;
-    private static readonly string ServerPidPath = Path.Combine(ScratchDirectory, "server.pid");
     private const string GenerationMutexName = @"Local\TerrariaSplit.WorldPool.HeadlessWorldGenerator";
     private const string WorldFileStem = "tspool";
     private static readonly TimeSpan GenerationTimeout = TimeSpan.FromMinutes(3);
@@ -23,11 +21,16 @@ internal sealed class HeadlessWorldGenerator : IDisposable
     private readonly TerrariaWorldFilePyramidScanner scanner = new();
     private readonly PyramidFilterWorldFileEvaluator worldFileEvaluator;
     private readonly object currentProcessSync = new();
+    private readonly string scratchDirectory;
+    private readonly string serverPidPath;
     private Process? currentProcess;
     private bool disposed;
 
-    public HeadlessWorldGenerator()
+    public HeadlessWorldGenerator(IRuntimeDataPaths? paths = null)
     {
+        paths ??= AppContextRuntimeDataPaths.Default;
+        scratchDirectory = paths.WorldPoolScratchDirectory;
+        serverPidPath = Path.Combine(scratchDirectory, "server.pid");
         worldFileEvaluator = new PyramidFilterWorldFileEvaluator(scanner);
     }
 
@@ -44,14 +47,14 @@ internal sealed class HeadlessWorldGenerator : IDisposable
             return HeadlessWorldGenResult.Skipped;
         }
 
-        Directory.CreateDirectory(ScratchDirectory);
+        Directory.CreateDirectory(scratchDirectory);
         StopRecordedServer(serverExePath);
         CleanScratch();
 
         TerrariaCopiedSeed copiedSeed = TerrariaCopiedSeedBuilder.Create(settings);
         string worldName = TerrariaWorldNameGenerator.Create(appLanguage);
         string serverLanguage = TerrariaLanguageCodes.FromAppLanguage(appLanguage);
-        string configPath = Path.Combine(ScratchDirectory, "server-config.txt");
+        string configPath = Path.Combine(scratchDirectory, "server-config.txt");
         File.WriteAllText(configPath, BuildServerConfig(settings, copiedSeed.Text, worldName, serverLanguage), new UTF8Encoding(false));
 
         Process? process = null;
@@ -131,12 +134,12 @@ internal sealed class HeadlessWorldGenerator : IDisposable
         return new HeadlessWorldGenResult(candidateItemFound, true, worldPath, metadata, Generated: true);
     }
 
-    private static Process StartServer(string serverExePath, string configPath)
+    private Process StartServer(string serverExePath, string configPath)
     {
         var startInfo = new ProcessStartInfo
         {
             FileName = serverExePath,
-            WorkingDirectory = Path.GetDirectoryName(serverExePath) ?? ScratchDirectory,
+            WorkingDirectory = Path.GetDirectoryName(serverExePath) ?? scratchDirectory,
             UseShellExecute = false,
             CreateNoWindow = true,
             RedirectStandardOutput = true,
@@ -165,7 +168,7 @@ internal sealed class HeadlessWorldGenerator : IDisposable
         }
 
         JsonFileStore.Write(
-            ServerPidPath,
+            serverPidPath,
             new ServerProcessMarker
             {
                 ProcessId = process.Id,
@@ -185,7 +188,7 @@ internal sealed class HeadlessWorldGenerator : IDisposable
             }
         }
 
-        TryDeleteFile(ServerPidPath);
+        TryDeleteFile(serverPidPath);
     }
 
     private static bool ProcessIdMatches(Process process, int? processId)
@@ -217,9 +220,9 @@ internal sealed class HeadlessWorldGenerator : IDisposable
         }
     }
 
-    private static void StopRecordedServer(string serverExePath)
+    private void StopRecordedServer(string serverExePath)
     {
-        ServerProcessMarker? marker = JsonFileStore.Read<ServerProcessMarker>(ServerPidPath, "world pool server marker");
+        ServerProcessMarker? marker = JsonFileStore.Read<ServerProcessMarker>(serverPidPath, "world pool server marker");
         if (marker is null || marker.ProcessId <= 0)
         {
             return;
@@ -243,7 +246,7 @@ internal sealed class HeadlessWorldGenerator : IDisposable
         }
         finally
         {
-            TryDeleteFile(ServerPidPath);
+            TryDeleteFile(serverPidPath);
         }
     }
 
@@ -331,7 +334,7 @@ internal sealed class HeadlessWorldGenerator : IDisposable
         }
     }
 
-    private static async Task<string?> WaitForStableWorldFileAsync(CancellationToken cancellationToken)
+    private async Task<string?> WaitForStableWorldFileAsync(CancellationToken cancellationToken)
     {
         DateTime deadline = DateTime.UtcNow + GenerationTimeout;
         string? stablePath = null;
@@ -374,17 +377,17 @@ internal sealed class HeadlessWorldGenerator : IDisposable
         return null;
     }
 
-    private static bool TryFindNewestWorldFile(out string? path, out long length, out DateTime writeTimeUtc)
+    private bool TryFindNewestWorldFile(out string? path, out long length, out DateTime writeTimeUtc)
     {
         path = null;
         length = -1;
         writeTimeUtc = DateTime.MinValue;
-        if (!Directory.Exists(ScratchDirectory))
+        if (!Directory.Exists(scratchDirectory))
         {
             return false;
         }
 
-        foreach (string worldFile in Directory.EnumerateFiles(ScratchDirectory, "*.wld", SearchOption.AllDirectories))
+        foreach (string worldFile in Directory.EnumerateFiles(scratchDirectory, "*.wld", SearchOption.AllDirectories))
         {
             FileInfo info;
             try
@@ -409,7 +412,7 @@ internal sealed class HeadlessWorldGenerator : IDisposable
         return path is not null;
     }
 
-    private static string BuildServerConfig(
+    private string BuildServerConfig(
         AutoCreateWorldSettings settings,
         string copiedSeed,
         string worldName,
@@ -420,10 +423,10 @@ internal sealed class HeadlessWorldGenerator : IDisposable
         // scratch .wld we want generated. Without this line the dedicated server ignores
         // autocreate, drops into its interactive "Choose World" menu, and hangs on stdin until
         // the generation timeout, producing no world file.
-        builder.AppendLine("world=" + Path.Combine(ScratchDirectory, WorldFileStem + ".wld"));
+        builder.AppendLine("world=" + Path.Combine(scratchDirectory, WorldFileStem + ".wld"));
         builder.AppendLine("autocreate=" + TerrariaWorldSeedOptions.SizeCode(settings.WorldSize).ToString(CultureInfo.InvariantCulture));
         builder.AppendLine("worldname=" + worldName);
-        builder.AppendLine("worldpath=" + ScratchDirectory + Path.DirectorySeparatorChar);
+        builder.AppendLine("worldpath=" + scratchDirectory + Path.DirectorySeparatorChar);
         builder.AppendLine("difficulty=" + TerrariaWorldSeedOptions.ServerDifficultyCode(settings.WorldDifficulty).ToString(CultureInfo.InvariantCulture));
         builder.AppendLine("seed=" + copiedSeed);
         builder.AppendLine("maxplayers=1");
@@ -440,14 +443,14 @@ internal sealed class HeadlessWorldGenerator : IDisposable
         CleanScratch();
     }
 
-    private static void CleanScratch()
+    private void CleanScratch()
     {
-        if (!Directory.Exists(ScratchDirectory))
+        if (!Directory.Exists(scratchDirectory))
         {
             return;
         }
 
-        foreach (string file in Directory.EnumerateFiles(ScratchDirectory, "*", SearchOption.AllDirectories))
+        foreach (string file in Directory.EnumerateFiles(scratchDirectory, "*", SearchOption.AllDirectories))
         {
             TryDeleteFile(file);
         }
@@ -483,7 +486,7 @@ internal sealed class HeadlessWorldGenerator : IDisposable
         }
 
         TryKill(processToKill);
-        TryDeleteFile(ServerPidPath);
+        TryDeleteFile(serverPidPath);
         CleanScratch();
     }
 

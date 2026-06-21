@@ -5,9 +5,16 @@ internal sealed class AppSettingsRepository : ISettingsRepository
     private const string DefaultSettingsFileName = "settings.json";
     private const string ActiveSettingsFileName = "active-profile.txt";
 
-    private string activeSettingsPath = Path.Combine(RuntimeDataPaths.SettingsDirectory, DefaultSettingsFileName);
+    private readonly IRuntimeDataPaths paths;
+    private string activeSettingsPath;
 
-    public string SettingsDirectory => RuntimeDataPaths.SettingsDirectory;
+    public AppSettingsRepository(IRuntimeDataPaths? paths = null)
+    {
+        this.paths = paths ?? AppContextRuntimeDataPaths.Default;
+        activeSettingsPath = Path.Combine(SettingsDirectory, DefaultSettingsFileName);
+    }
+
+    public string SettingsDirectory => paths.SettingsDirectory;
 
     public string SettingsPath => activeSettingsPath;
 
