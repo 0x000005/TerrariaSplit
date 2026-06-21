@@ -16,20 +16,20 @@ internal sealed partial class MainForm : Form
     private const int WsExLayered = 0x80000;
     private const string SegmentTimerWindowTitle = "TerrariaSplit - Segment Timer";
 
-    private readonly WorldPoolStore worldPoolStore = new();
-    private readonly ISettingsSnapshotFactory settingsSnapshots = new StoredSettingsSnapshotFactory();
-    private readonly IAppLogger appLogger = StaticAppLogger.Instance;
+    private readonly WorldPoolStore worldPoolStore;
+    private readonly ISettingsSnapshotFactory settingsSnapshots;
+    private readonly IAppLogger appLogger;
     private readonly AutomationShell automationShell;
     private readonly WorldPoolFillService worldPoolFillService;
-    private readonly MainFormContextMenuBuilder contextMenuBuilder = new();
-    private readonly SoundPlayerService soundPlayer = new();
+    private readonly MainFormContextMenuBuilder contextMenuBuilder;
+    private readonly SoundPlayerService soundPlayer;
     private readonly HighPrecisionScheduler controlScheduler;
     private readonly HighPrecisionScheduler statusPaintScheduler;
-    private readonly GlobalHotkeyManager hotkeyManager = new();
-    private readonly OverlayRenderResources renderResources = new();
-    private readonly OverlayAnimationController overlayAnimations = new();
-    private readonly ContextMenuStrip contextMenu = new();
-    private readonly RuntimePerformanceTracker performance = new();
+    private readonly GlobalHotkeyManager hotkeyManager;
+    private readonly OverlayRenderResources renderResources;
+    private readonly OverlayAnimationController overlayAnimations;
+    private readonly ContextMenuStrip contextMenu;
+    private readonly RuntimePerformanceTracker performance;
     private readonly ApplicationController applicationController;
     private readonly ApplicationShellEffectExecutor effectExecutor;
     private readonly SettingsShell settingsShell;
@@ -94,22 +94,27 @@ internal sealed partial class MainForm : Form
         this.registerGlobalHotkeys = registerGlobalHotkeys;
         dispatchedControlTick = DispatchedControlTick;
         dispatchedStatusPaintTick = DispatchedStatusPaintTick;
-        applicationController = new ApplicationController(
-            AppSettingsStore.Load(),
-            ShowPersonalBestUpdateConfirmation,
-            settingsSnapshots);
-        worldPoolFillService = new WorldPoolFillService(worldPoolStore, settingsSnapshots, appLogger);
+        MainShellServices services = MainShellCompositionRoot.CreateCore(ShowPersonalBestUpdateConfirmation);
+        worldPoolStore = services.WorldPoolStore;
+        settingsSnapshots = services.SettingsSnapshots;
+        appLogger = services.AppLogger;
+        worldPoolFillService = services.WorldPoolFillService;
+        contextMenuBuilder = services.ContextMenuBuilder;
+        soundPlayer = services.SoundPlayer;
+        hotkeyManager = services.HotkeyManager;
+        renderResources = services.RenderResources;
+        overlayAnimations = services.OverlayAnimations;
+        contextMenu = services.ContextMenu;
+        performance = services.Performance;
+        applicationController = services.ApplicationController;
         RefreshTimerOverlaySettingsSnapshot();
         palette = UiPalette.From(settings.Overlay.Colors);
-        monitorCoordinator = new TerrariaMonitorCoordinator(
-            new TerrariaWorldWatcher(),
-            new TerrariaUiScalePatchApplierAdapter(),
+        monitorCoordinator = MainShellCompositionRoot.CreateMonitorCoordinator(
             callback => BeginInvoke(callback),
             appLogger,
-            shouldYieldDispatch: UiInputMessageProbe.HasPendingInputMessage,
-            recordPoll: performance.RecordWatcherPoll);
+            performance);
         monitorCoordinator.WatcherPollCompleted += HandleWatcherPollCompleted;
-        overlayWindowController = new OverlayWindowController(
+        overlayWindowController = MainShellCompositionRoot.CreateOverlayWindowController(
             this,
             graphics =>
             {
@@ -127,21 +132,18 @@ internal sealed partial class MainForm : Form
         appliedOverlayReservedRowCount = initialReservedRowCount;
         appliedOverlayVisibleRowCount = initialVisibleRowCount;
         overlayBoundsController.LayoutChanged += ApplyOverlayLayout;
-        timerOverlayHost = new TimerOverlayWindowHost(
+        timerOverlayHost = MainShellCompositionRoot.CreateTimerOverlayWindowHost(
             callback => BeginInvoke(callback),
             elapsed => performance.RecordTimerOverlayPaint(elapsed),
             tick => performance.RecordTimerOverlayPaintTick(tick),
             performance.RecordTimerOverlayPaintDispatchSkipped,
             performance.RecordTimerOverlayPaintInputSkipped);
-        modalWindows = new ProgramModalWindowCoordinator(
-            this,
-            timerOverlayHost.ApplyInteractionBlocked,
-            () => timerOverlayHost.WindowHandle);
-        mainWindowModalInputRouter = new MainWindowModalInputRouter(
+        modalWindows = MainShellCompositionRoot.CreateModalWindowCoordinator(this, timerOverlayHost);
+        mainWindowModalInputRouter = MainShellCompositionRoot.CreateModalInputRouter(
             modalWindows,
             contextMenu,
             () => dragging = false);
-        automationShell = new AutomationShell(
+        automationShell = MainShellCompositionRoot.CreateAutomationShell(
             worldPoolStore,
             () => settings,
             settingsSnapshots,
@@ -149,7 +151,7 @@ internal sealed partial class MainForm : Form
             this,
             () => AcceptRuntimeCommandSequence(monitorCoordinator.ClearPendingMenuActions()),
             appLogger);
-        settingsShell = new SettingsShell(
+        settingsShell = MainShellCompositionRoot.CreateSettingsShell(
             () => settings,
             GetRuntimeDiagnostics,
             GetRuntimeDebugSnapshot,
@@ -167,24 +169,19 @@ internal sealed partial class MainForm : Form
         timerOverlayHost.RightClickRequested += HandleTimerOverlayRightClickRequested;
         timerOverlayHost.Activated += QueueMainWindowForegroundGroupSync;
         timerOverlayHost.ModalActivationRequested += () => modalWindows.ActivateCurrentModal();
-        effectExecutor = new ApplicationShellEffectExecutor(
-            new DelegateRuntimeCommandPort(SubmitRuntimeCommand),
-            new DelegateSoundPort(soundPlayer.StopAll, soundPlayer.Play),
-            new DelegateOverlayPort(
-                ToggleMouseClickThrough,
-                overlayAnimations.Clear,
-                ClearSplitCompletionAnimation,
-                TrackSegmentBestDeltaHighlight,
-                StartSplitCompletionAnimation,
-                monitorCoordinator.ResetUiScalePatchState,
-                RefreshTimerOverlaySettingsSnapshot,
-                RefreshRuntimeUi),
-            new DelegateSettingsPort(AppSettingsStore.Save, ApplyLoadedSettings),
-            new DelegateAutomationPort(
-                automationShell.StartCreateWorld,
-                automationShell.ShowPracticeWorldSelector,
-                () => automationShell.CancelCreateWorld(),
-                () => automationShell.CancelEnterWorld()));
+        effectExecutor = MainShellCompositionRoot.CreateEffectExecutor(
+            SubmitRuntimeCommand,
+            soundPlayer,
+            overlayAnimations,
+            ToggleMouseClickThrough,
+            ClearSplitCompletionAnimation,
+            TrackSegmentBestDeltaHighlight,
+            StartSplitCompletionAnimation,
+            monitorCoordinator.ResetUiScalePatchState,
+            RefreshTimerOverlaySettingsSnapshot,
+            RefreshRuntimeUi,
+            ApplyLoadedSettings,
+            automationShell);
         overlayBoundsController.UpdateContext(
             settings,
             GetCurrentReservedLayoutRowCount(),
@@ -219,8 +216,8 @@ internal sealed partial class MainForm : Form
         };
         ContextMenuStrip = contextMenu;
 
-        controlScheduler = new HighPrecisionScheduler("TerrariaSplit UI control", _ => QueueControlTick());
-        statusPaintScheduler = new HighPrecisionScheduler("TerrariaSplit status paint", QueueStatusPaintTick);
+        controlScheduler = MainShellCompositionRoot.CreateControlScheduler(QueueControlTick);
+        statusPaintScheduler = MainShellCompositionRoot.CreateStatusPaintScheduler(QueueStatusPaintTick);
 
         controlTickInterval = ResolveControlTickInterval();
         controlScheduler.Start(controlTickInterval);
