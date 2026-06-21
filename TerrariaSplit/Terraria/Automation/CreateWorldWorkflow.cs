@@ -41,102 +41,37 @@ internal sealed class CreateWorldWorkflow : IDisposable
             ApplyTiming(autoCreate);
             while (true)
             {
-                Size clientSize = Size.Empty;
-                if (!await automation.RunStepAsync(
-                        "activate Terraria window",
-                        _ =>
-                        {
-                            if (!automation.TryActivate(out Size activatedSize))
-                            {
-                                AppLogger.Info("Create world automation could not activate Terraria window.");
-                                return Task.FromResult(false);
-                            }
-
-                            clientSize = activatedSize;
-                            return Task.FromResult(true);
-                        },
-                        cancellationToken))
+                CreateWorldActivationStep activation = await ActivateTerrariaAsync(cancellationToken);
+                if (!activation.Succeeded)
                 {
                     return;
                 }
 
-                TerrariaMenuGeometry geometry = TerrariaMenuGeometry.From(clientSize);
+                TerrariaMenuGeometry geometry = TerrariaMenuGeometry.From(activation.ClientSize);
 
-                TerrariaSaveCleanupResult cleanup = default;
-                if (!await automation.RunStepAsync(
-                        "save cleanup",
-                        _ =>
-                        {
-                            cleanup = savePreparation.MoveNonFavoritesToBackup();
-                            return Task.FromResult(true);
-                        },
-                        cancellationToken))
+                CreateWorldCleanupStep cleanupStep = await RunSaveCleanupAsync(cancellationToken);
+                if (!cleanupStep.Succeeded)
                 {
                     return;
                 }
 
                 string worldGenSignature = WorldPoolSignature.From(settings);
-                WorldPoolEntry? installedPooledWorld = null;
-                if (!await automation.RunStepAsync(
-                        "install pooled world",
-                        _ =>
-                        {
-                            installedPooledWorld = TryInstallPooledWorld(autoCreate, worldGenSignature);
-                            return Task.FromResult(true);
-                        },
-                        cancellationToken))
+                CreateWorldPoolInstallStep poolInstall = await InstallPooledWorldAsync(autoCreate, worldGenSignature, cancellationToken);
+                if (!poolInstall.Succeeded)
                 {
                     return;
                 }
 
-                if (!await automation.ClickAsync("Single Player", geometry.MainMenuSinglePlayer(), menuActionDelay, cancellationToken))
+                if (!await CreatePlayerAndOpenWorldSelectAsync(autoCreate, geometry, cleanupStep.Cleanup, cancellationToken))
                 {
                     return;
                 }
 
-                Dictionary<string, DateTime> playersBefore = savePreparation.SnapshotSaveFiles("Players", "*.plr");
-                if (!await automation.ClickAsync("new player", geometry.SelectMenuNewButton(), menuActionDelay, cancellationToken))
+                if (poolInstall.InstalledWorld is not null)
                 {
-                    return;
-                }
-
-                if (!await ApplyPlayerTemplateAsync(autoCreate, geometry, cancellationToken))
-                {
-                    return;
-                }
-
-                if (!await ApplyPlayerDifficultyAsync(autoCreate.PlayerDifficulty, geometry, cancellationToken))
-                {
-                    return;
-                }
-
-                if (!await automation.ClickAsync("create player", geometry.CreatePlayerButton(), menuActionDelay, cancellationToken))
-                {
-                    return;
-                }
-
-                if (!await ConfirmPlayerNameAsync(autoCreate.PlayerName, geometry, cancellationToken))
-                {
-                    return;
-                }
-
-                if (!await WaitForNewOrChangedSaveFileAsync("player file", playersBefore, "Players", "*.plr", PlayerCreateTimeout, cancellationToken))
-                {
-                    return;
-                }
-
-                if (!await ClickPlayerAsync(geometry, cleanup.FavoritePlayers, cancellationToken))
-                {
-                    return;
-                }
-
-                await automation.DelayAsync(menuActionDelay, cancellationToken);
-
-                if (installedPooledWorld is not null)
-                {
-                    worldPool?.RemoveFirst(worldGenSignature, installedPooledWorld);
+                    worldPool?.RemoveFirst(worldGenSignature, poolInstall.InstalledWorld);
                     AppLogger.Info(
-                        $"Create world automation installed pooled world {installedPooledWorld.WorldFileName}; " +
+                        $"Create world automation installed pooled world {poolInstall.InstalledWorld.WorldFileName}; " +
                         "stopped at world select.");
                     return;
                 }
@@ -154,6 +89,108 @@ internal sealed class CreateWorldWorkflow : IDisposable
         {
             AppLogger.Error(ex, "Create world automation failed.");
         }
+    }
+
+    private async Task<CreateWorldActivationStep> ActivateTerrariaAsync(CancellationToken cancellationToken)
+    {
+        Size clientSize = Size.Empty;
+        bool succeeded = await automation.RunStepAsync(
+            "activate Terraria window",
+            _ =>
+            {
+                if (!automation.TryActivate(out Size activatedSize))
+                {
+                    AppLogger.Info("Create world automation could not activate Terraria window.");
+                    return Task.FromResult(false);
+                }
+
+                clientSize = activatedSize;
+                return Task.FromResult(true);
+            },
+            cancellationToken);
+        return new CreateWorldActivationStep(succeeded, clientSize);
+    }
+
+    private async Task<CreateWorldCleanupStep> RunSaveCleanupAsync(CancellationToken cancellationToken)
+    {
+        TerrariaSaveCleanupResult cleanup = default;
+        bool succeeded = await automation.RunStepAsync(
+            "save cleanup",
+            _ =>
+            {
+                cleanup = savePreparation.MoveNonFavoritesToBackup();
+                return Task.FromResult(true);
+            },
+            cancellationToken);
+        return new CreateWorldCleanupStep(succeeded, cleanup);
+    }
+
+    private async Task<CreateWorldPoolInstallStep> InstallPooledWorldAsync(
+        AutoCreateWorldSettings settings,
+        string worldGenSignature,
+        CancellationToken cancellationToken)
+    {
+        WorldPoolEntry? installedPooledWorld = null;
+        bool succeeded = await automation.RunStepAsync(
+            "install pooled world",
+            _ =>
+            {
+                installedPooledWorld = TryInstallPooledWorld(settings, worldGenSignature);
+                return Task.FromResult(true);
+            },
+            cancellationToken);
+        return new CreateWorldPoolInstallStep(succeeded, installedPooledWorld);
+    }
+
+    private async Task<bool> CreatePlayerAndOpenWorldSelectAsync(
+        AutoCreateWorldSettings settings,
+        TerrariaMenuGeometry geometry,
+        TerrariaSaveCleanupResult cleanup,
+        CancellationToken cancellationToken)
+    {
+        if (!await automation.ClickAsync("Single Player", geometry.MainMenuSinglePlayer(), menuActionDelay, cancellationToken))
+        {
+            return false;
+        }
+
+        Dictionary<string, DateTime> playersBefore = savePreparation.SnapshotSaveFiles("Players", "*.plr");
+        if (!await automation.ClickAsync("new player", geometry.SelectMenuNewButton(), menuActionDelay, cancellationToken))
+        {
+            return false;
+        }
+
+        if (!await ApplyPlayerTemplateAsync(settings, geometry, cancellationToken))
+        {
+            return false;
+        }
+
+        if (!await ApplyPlayerDifficultyAsync(settings.PlayerDifficulty, geometry, cancellationToken))
+        {
+            return false;
+        }
+
+        if (!await automation.ClickAsync("create player", geometry.CreatePlayerButton(), menuActionDelay, cancellationToken))
+        {
+            return false;
+        }
+
+        if (!await ConfirmPlayerNameAsync(settings.PlayerName, geometry, cancellationToken))
+        {
+            return false;
+        }
+
+        if (!await WaitForNewOrChangedSaveFileAsync("player file", playersBefore, "Players", "*.plr", PlayerCreateTimeout, cancellationToken))
+        {
+            return false;
+        }
+
+        if (!await ClickPlayerAsync(geometry, cleanup.FavoritePlayers, cancellationToken))
+        {
+            return false;
+        }
+
+        await automation.DelayAsync(menuActionDelay, cancellationToken);
+        return true;
     }
 
     private async Task<bool> RunWorldCreationLoopAsync(
@@ -675,6 +712,12 @@ internal sealed class CreateWorldWorkflow : IDisposable
     }
 
 }
+
+internal readonly record struct CreateWorldActivationStep(bool Succeeded, Size ClientSize);
+
+internal readonly record struct CreateWorldCleanupStep(bool Succeeded, TerrariaSaveCleanupResult Cleanup);
+
+internal readonly record struct CreateWorldPoolInstallStep(bool Succeeded, WorldPoolEntry? InstalledWorld);
 
 internal enum CreateWorldAttemptResult
 {
