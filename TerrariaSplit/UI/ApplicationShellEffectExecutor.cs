@@ -2,60 +2,24 @@ namespace TerrariaSplit.UI;
 
 internal sealed class ApplicationShellEffectExecutor
 {
-    private readonly Action<RuntimeCommand> submitRuntimeCommand;
-    private readonly Action stopAllSounds;
-    private readonly Action<string> playSound;
-    private readonly Action toggleMouseClickThrough;
-    private readonly Action clearOverlayAnimation;
-    private readonly Action clearSplitCompletionAnimation;
-    private readonly Action<int> trackSegmentBestDeltaHighlight;
-    private readonly Action<int> startSplitCompletionAnimation;
-    private readonly Action<AppSettings> saveSettings;
-    private readonly Action startCreateWorldAutomation;
-    private readonly Action showPracticeWorldSelector;
-    private readonly Action cancelCreateWorldAutomation;
-    private readonly Action cancelEnterWorldAutomation;
-    private readonly Action resetUiScalePatchState;
-    private readonly Action<AppSettings, int> applySettingsToShell;
-    private readonly Action refreshTimerOverlaySettings;
-    private readonly Action refreshRuntimeUi;
+    private readonly IRuntimeCommandPort runtimeCommands;
+    private readonly ISoundPort sounds;
+    private readonly IOverlayPort overlay;
+    private readonly ISettingsPort settings;
+    private readonly IAutomationPort automation;
 
     public ApplicationShellEffectExecutor(
-        Action<RuntimeCommand> submitRuntimeCommand,
-        Action stopAllSounds,
-        Action<string> playSound,
-        Action toggleMouseClickThrough,
-        Action clearOverlayAnimation,
-        Action clearSplitCompletionAnimation,
-        Action<int> trackSegmentBestDeltaHighlight,
-        Action<int> startSplitCompletionAnimation,
-        Action<AppSettings> saveSettings,
-        Action startCreateWorldAutomation,
-        Action showPracticeWorldSelector,
-        Action cancelCreateWorldAutomation,
-        Action cancelEnterWorldAutomation,
-        Action resetUiScalePatchState,
-        Action<AppSettings, int> applySettingsToShell,
-        Action refreshTimerOverlaySettings,
-        Action refreshRuntimeUi)
+        IRuntimeCommandPort runtimeCommands,
+        ISoundPort sounds,
+        IOverlayPort overlay,
+        ISettingsPort settings,
+        IAutomationPort automation)
     {
-        this.submitRuntimeCommand = submitRuntimeCommand;
-        this.stopAllSounds = stopAllSounds;
-        this.playSound = playSound;
-        this.toggleMouseClickThrough = toggleMouseClickThrough;
-        this.clearOverlayAnimation = clearOverlayAnimation;
-        this.clearSplitCompletionAnimation = clearSplitCompletionAnimation;
-        this.trackSegmentBestDeltaHighlight = trackSegmentBestDeltaHighlight;
-        this.startSplitCompletionAnimation = startSplitCompletionAnimation;
-        this.saveSettings = saveSettings;
-        this.startCreateWorldAutomation = startCreateWorldAutomation;
-        this.showPracticeWorldSelector = showPracticeWorldSelector;
-        this.cancelCreateWorldAutomation = cancelCreateWorldAutomation;
-        this.cancelEnterWorldAutomation = cancelEnterWorldAutomation;
-        this.resetUiScalePatchState = resetUiScalePatchState;
-        this.applySettingsToShell = applySettingsToShell;
-        this.refreshTimerOverlaySettings = refreshTimerOverlaySettings;
-        this.refreshRuntimeUi = refreshRuntimeUi;
+        this.runtimeCommands = runtimeCommands;
+        this.sounds = sounds;
+        this.overlay = overlay;
+        this.settings = settings;
+        this.automation = automation;
     }
 
     public void Apply(IReadOnlyList<ApplicationEffect> effects)
@@ -71,58 +35,58 @@ internal sealed class ApplicationShellEffectExecutor
         switch (effect)
         {
             case SubmitRuntimeCommandEffect submit:
-                submitRuntimeCommand(submit.Command);
+                runtimeCommands.Submit(submit.Command);
                 break;
             case StopAllSoundsEffect:
-                stopAllSounds();
+                sounds.StopAll();
                 break;
             case PlaySoundEffect play:
                 if (!string.IsNullOrWhiteSpace(play.Path))
                 {
-                    playSound(play.Path);
+                    sounds.Play(play.Path);
                 }
                 break;
             case ToggleMouseClickThroughEffect:
-                toggleMouseClickThrough();
+                overlay.ToggleMouseClickThrough();
                 break;
             case ClearOverlayAnimationEffect:
-                clearOverlayAnimation();
+                overlay.ClearOverlayAnimation();
                 break;
             case ClearSplitCompletionAnimationEffect:
-                clearSplitCompletionAnimation();
+                overlay.ClearSplitCompletionAnimation();
                 break;
             case TrackSegmentBestDeltaHighlightEffect track:
-                trackSegmentBestDeltaHighlight(track.SplitIndex);
+                overlay.TrackSegmentBestDeltaHighlight(track.SplitIndex);
                 break;
             case StartSplitCompletionAnimationEffect startSplit:
-                startSplitCompletionAnimation(startSplit.SplitIndex);
+                overlay.StartSplitCompletionAnimation(startSplit.SplitIndex);
                 break;
             case SaveSettingsEffect save:
-                saveSettings(save.Settings);
+                settings.Save(save.Settings);
                 break;
             case StartCreateWorldAutomationEffect:
-                startCreateWorldAutomation();
+                automation.StartCreateWorld();
                 break;
             case ShowPracticeWorldSelectorEffect:
-                showPracticeWorldSelector();
+                automation.ShowPracticeWorldSelector();
                 break;
             case CancelCreateWorldAutomationEffect:
-                cancelCreateWorldAutomation();
+                automation.CancelCreateWorld();
                 break;
             case CancelEnterWorldAutomationEffect:
-                cancelEnterWorldAutomation();
+                automation.CancelEnterWorld();
                 break;
             case ResetUiScalePatchStateEffect:
-                resetUiScalePatchState();
+                overlay.ResetUiScalePatchState();
                 break;
             case ApplySettingsToShellEffect applySettings:
-                applySettingsToShell(applySettings.PreviousSettings, applySettings.SplitCount);
+                settings.ApplyToShell(applySettings.PreviousSettings, applySettings.SplitCount);
                 break;
             case RefreshTimerOverlaySettingsEffect:
-                refreshTimerOverlaySettings();
+                overlay.RefreshTimerOverlaySettings();
                 break;
             case RefreshRuntimeUiEffect:
-                refreshRuntimeUi();
+                overlay.RefreshRuntimeUi();
                 break;
         }
     }

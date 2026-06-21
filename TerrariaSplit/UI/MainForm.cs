@@ -151,23 +151,23 @@ internal sealed partial class MainForm : Form
         timerOverlayHost.Activated += QueueMainWindowForegroundGroupSync;
         timerOverlayHost.ModalActivationRequested += () => modalWindows.ActivateCurrentModal();
         effectExecutor = new ApplicationShellEffectExecutor(
-            SubmitRuntimeCommand,
-            soundPlayer.StopAll,
-            soundPlayer.Play,
-            ToggleMouseClickThrough,
-            overlayAnimations.Clear,
-            ClearSplitCompletionAnimation,
-            TrackSegmentBestDeltaHighlight,
-            StartSplitCompletionAnimation,
-            AppSettingsStore.Save,
-            StartCreateWorldAutomation,
-            ShowPracticeWorldSelector,
-            () => worldAutomation.CancelCreateWorld(),
-            () => worldAutomation.CancelEnterWorld(),
-            monitorCoordinator.ResetUiScalePatchState,
-            ApplyLoadedSettings,
-            RefreshTimerOverlaySettingsSnapshot,
-            RefreshRuntimeUi);
+            new DelegateRuntimeCommandPort(SubmitRuntimeCommand),
+            new DelegateSoundPort(soundPlayer.StopAll, soundPlayer.Play),
+            new DelegateOverlayPort(
+                ToggleMouseClickThrough,
+                overlayAnimations.Clear,
+                ClearSplitCompletionAnimation,
+                TrackSegmentBestDeltaHighlight,
+                StartSplitCompletionAnimation,
+                monitorCoordinator.ResetUiScalePatchState,
+                RefreshTimerOverlaySettingsSnapshot,
+                RefreshRuntimeUi),
+            new DelegateSettingsPort(AppSettingsStore.Save, ApplyLoadedSettings),
+            new DelegateAutomationPort(
+                StartCreateWorldAutomation,
+                ShowPracticeWorldSelector,
+                () => worldAutomation.CancelCreateWorld(),
+                () => worldAutomation.CancelEnterWorld()));
         overlayBoundsController.UpdateContext(
             settings,
             GetCurrentReservedLayoutRowCount(),
