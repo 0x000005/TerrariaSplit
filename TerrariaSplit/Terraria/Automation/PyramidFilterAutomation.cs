@@ -107,7 +107,7 @@ internal sealed class PyramidFilterAutomation
                 if (hasCandidate && candidatePath is not null)
                 {
                     bool fastOpenActive = IsFastOpenActive(nowUtc, fastOpenDeadline);
-                    if (fastOpenActive && CanOpenForExclusiveRead(candidatePath))
+                    if (fastOpenActive && FileAccessProbe.CanOpenForExclusiveRead(candidatePath))
                     {
                         AppLogger.Info(
                             $"Pyramid filter will scan '{Path.GetFileName(candidatePath)}' after world generation state ended.");
@@ -223,7 +223,7 @@ internal sealed class PyramidFilterAutomation
         if (string.Equals(stablePath, candidatePath, StringComparison.OrdinalIgnoreCase) &&
             stableLength == length &&
             stableWriteTime == writeTime &&
-            CanOpenForRead(candidatePath))
+            FileAccessProbe.CanOpenForRead(candidatePath))
         {
             if (stableSince == DateTime.MinValue)
             {
@@ -308,39 +308,6 @@ internal sealed class PyramidFilterAutomation
         return Path.Combine(TerrariaSavePaths.SaveRoot(), "Worlds");
     }
 
-    private static bool CanOpenForExclusiveRead(string path)
-    {
-        try
-        {
-            using FileStream stream = new(
-                path,
-                FileMode.Open,
-                FileAccess.Read,
-                FileShare.None);
-            return stream.Length > 0;
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            return false;
-        }
-    }
-
-    private static bool CanOpenForRead(string path)
-    {
-        try
-        {
-            using FileStream stream = new(
-                path,
-                FileMode.Open,
-                FileAccess.Read,
-                FileShare.ReadWrite | FileShare.Delete);
-            return stream.Length > 0;
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            return false;
-        }
-    }
 }
 
 internal readonly record struct PyramidFilterWaitTimings(

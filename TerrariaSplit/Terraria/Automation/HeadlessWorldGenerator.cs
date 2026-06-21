@@ -347,7 +347,7 @@ internal sealed class HeadlessWorldGenerator : IDisposable
                 if (string.Equals(stablePath, candidatePath, StringComparison.OrdinalIgnoreCase) &&
                     stableLength == length &&
                     stableWriteTime == writeTime &&
-                    CanOpenForRead(candidatePath))
+                    FileAccessProbe.CanOpenForRead(candidatePath))
                 {
                     if (stableSince == DateTime.MinValue)
                     {
@@ -406,23 +406,6 @@ internal sealed class HeadlessWorldGenerator : IDisposable
         }
 
         return path is not null;
-    }
-
-    private static bool CanOpenForRead(string path)
-    {
-        try
-        {
-            using FileStream stream = new(
-                path,
-                FileMode.Open,
-                FileAccess.Read,
-                FileShare.ReadWrite | FileShare.Delete);
-            return stream.Length > 0;
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            return false;
-        }
     }
 
     private static string BuildServerConfig(
