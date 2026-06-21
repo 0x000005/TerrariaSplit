@@ -30,6 +30,8 @@ internal static class MainShellRefactorTests
         yield return ("PracticeWorldSelectorForm uses save selector text", PracticeWorldSelectorFormUsesSaveSelectorText);
         yield return ("PracticeWorldSelectorForm scales layout with display context", PracticeWorldSelectorFormScalesLayoutWithDisplayContext);
         yield return ("HotkeyWarningDialog uses plain dialog content", HotkeyWarningDialogUsesPlainDialogContent);
+        yield return ("SettingsMessageDialog uses themed dialog chrome", SettingsMessageDialogUsesThemedDialogChrome);
+        yield return ("Settings form title bar uses icon window buttons", SettingsFormTitleBarUsesIconWindowButtons);
         yield return ("SettingsUiFactory keeps two-column editor column fixed width", SettingsUiFactoryKeepsTwoColumnEditorColumnFixedWidth);
         yield return ("SettingsUiFactory row labels ellipsize clipped text", SettingsUiFactoryRowLabelsEllipsizeClippedText);
         yield return ("SettingsUiFactory hides native multiline scrollbars", SettingsUiFactoryHidesNativeMultilineScrollbars);
@@ -587,6 +589,85 @@ internal static class MainShellRefactorTests
             TestAssert.Equal(
                 true,
                 controls.OfType<Label>().Any(label => label.Text.Contains("Ctrl + F10", StringComparison.Ordinal)));
+        });
+    }
+
+    private static void SettingsMessageDialogUsesThemedDialogChrome()
+    {
+        RunSta(() =>
+        {
+            using var dialog = new SettingsMessageDialog(
+                "Settings",
+                "Advanced condition cannot be converted.",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning,
+                static key => key);
+            Control[] controls = EnumerateControls(dialog).ToArray();
+
+            TestAssert.Equal(FormBorderStyle.None, dialog.FormBorderStyle);
+            TestAssert.Equal(UiTheme.Window, dialog.BackColor);
+            TestAssert.Equal(true, controls.OfType<Button>().Any(button => button.Text == "OK"));
+            TestAssert.Equal(
+                true,
+                controls.OfType<Label>().Any(label => label.Text.Contains("Advanced condition", StringComparison.Ordinal)));
+            TestAssert.Equal(false, controls.OfType<TextBox>().Any());
+            TestAssert.Equal(
+                false,
+                controls.OfType<Panel>().Any(panel => panel.BackColor == Color.FromArgb(196, 143, 58)));
+
+            using var oneLine = new SettingsMessageDialog(
+                "Settings",
+                "One line.",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning,
+                static key => key);
+            using var tenLines = new SettingsMessageDialog(
+                "Settings",
+                string.Join(Environment.NewLine, Enumerable.Range(1, 10).Select(index => $"Line {index}")),
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning,
+                static key => key);
+            using var twelveLines = new SettingsMessageDialog(
+                "Settings",
+                string.Join(Environment.NewLine, Enumerable.Range(1, 12).Select(index => $"Line {index}")),
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning,
+                static key => key);
+
+            TestAssert.Equal(true, tenLines.ClientSize.Height > oneLine.ClientSize.Height);
+            TestAssert.Equal(tenLines.ClientSize.Height, twelveLines.ClientSize.Height);
+        });
+    }
+
+    private static void SettingsFormTitleBarUsesIconWindowButtons()
+    {
+        RunSta(() =>
+        {
+            using var form = new SettingsForm(new AppSettings());
+            form.Show();
+            Application.DoEvents();
+            Control[] controls = EnumerateControls(form).ToArray();
+
+            Button minimize = controls.OfType<Button>().Single(button => button.AccessibleName == "Minimize");
+            Button maximize = controls.OfType<Button>().Single(button => button.AccessibleName == "Maximize");
+            Button close = controls.OfType<Button>().Single(button => button.AccessibleName == "Close");
+
+            TestAssert.Equal(string.Empty, minimize.Text);
+            TestAssert.Equal(string.Empty, maximize.Text);
+            TestAssert.Equal(string.Empty, close.Text);
+            TestAssert.Equal(true, form.MinimizeBox);
+            TestAssert.Equal(true, form.MaximizeBox);
+
+            maximize.PerformClick();
+            TestAssert.Equal(FormWindowState.Maximized, form.WindowState);
+            TestAssert.Equal("Restore", maximize.AccessibleName);
+
+            maximize.PerformClick();
+            TestAssert.Equal(FormWindowState.Normal, form.WindowState);
+            TestAssert.Equal("Maximize", maximize.AccessibleName);
+
+            minimize.PerformClick();
+            TestAssert.Equal(FormWindowState.Minimized, form.WindowState);
         });
     }
 

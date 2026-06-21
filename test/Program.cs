@@ -41,7 +41,7 @@ var legacyTests = new (string Name, Action Test)[]
     ("Localizer returns English fallback and Chinese Crimson", TestLocalizer),
     ("JsonFileStore writes settings atomically", TestJsonFileStoreWritesAtomically),
     ("Default settings template covers serializable settings", TestDefaultSettingsTemplateCoversSerializableSettings),
-    ("Default attached split display matches primary display without bold", TestDefaultAttachedSplitDisplayMatchesPrimaryDisplayWithoutBold),
+    ("Default attached split display matches primary display", TestDefaultAttachedSplitDisplayMatchesPrimaryDisplay),
     ("Default reference times match default settings route", TestDefaultReferenceTimesMatchDefaultSettingsRoute),
     ("AppSettingsStore writes embedded defaults when settings file is invalid", TestAppSettingsStoreWritesEmbeddedDefaultsWhenSettingsFileIsInvalid),
     ("SplitTimeSetStore writes embedded WR when reference files are invalid", TestSplitTimeSetStoreWritesEmbeddedWrWhenReferenceFilesAreInvalid),
@@ -77,13 +77,13 @@ var legacyTests = new (string Name, Action Test)[]
     ("Settings form applies practice world slots", TestSettingsFormAppliesPracticeWorldSlots),
     ("Settings form preserves advanced split route", TestSettingsFormPreservesAdvancedSplitRoute),
     ("Settings form keeps advanced condition mode per group", TestSettingsFormKeepsAdvancedConditionModePerGroup),
-    ("Settings form blocks lossy advanced condition downgrade", TestSettingsFormBlocksLossyAdvancedConditionDowngrade),
+    ("Settings form warns and blocks lossy advanced condition downgrade", TestSettingsFormBlocksLossyAdvancedConditionDowngrade),
     ("Settings form allows empty advanced condition downgrade", TestSettingsFormAllowsEmptyAdvancedConditionDowngrade),
     ("Settings form switches split conditions without overwrite", TestSettingsFormSwitchesSplitConditionsWithoutOverwrite),
     ("Settings form saves attached route flags", TestSettingsFormSavesAttachedRouteFlags),
     ("Settings form saves split icon override", TestSettingsFormSavesSplitIconOverride),
     ("Settings form saves localized split icon override", TestSettingsFormSavesLocalizedSplitIconOverride),
-    ("Settings form rejects invalid split route apply", TestSettingsFormRejectsInvalidSplitRouteApply),
+    ("Settings form warns and rejects invalid split route apply", TestSettingsFormRejectsInvalidSplitRouteApply),
     ("Settings form edits match mode from dropdown", TestSettingsFormEditsMatchModeFromDropdown),
     ("Settings form decrements match mode when deleting condition", TestSettingsFormDecrementsMatchModeWhenDeletingCondition),
     ("Settings form edits item quantity from selected condition", TestSettingsFormEditsItemQuantityFromSelectedCondition),
@@ -980,7 +980,7 @@ static void TestLocalizer()
     AssertEqual("\u4E2A\u4EBA\u6700\u4F73\u5355\u6BB5", Localizer.Get("Personal segment best", new AppSettings { Language = "\u4E2D\u6587" }));
     AssertEqual("\u5F53\u524D\u6570\u636E\u6587\u4EF6", Localizer.Get("Active file", new AppSettings { Language = "\u4E2D\u6587" }));
     AssertEqual("m:ss \u6216 h:mm:ss", Localizer.Get("m:ss or h:mm:ss", new AppSettings { Language = "\u4E2D\u6587" }));
-    AssertEqual("\u975E\u9644\u5C5E\u7EC4", Localizer.Get("Split details", new AppSettings { Language = "\u4E2D\u6587" }));
+    AssertEqual("\u975E\u9644\u5C5E\u7EC4", Localizer.Get("Main groups", new AppSettings { Language = "\u4E2D\u6587" }));
     AssertEqual("\u9644\u5C5E\u7EC4", Localizer.Get("Attached groups", new AppSettings { Language = "\u4E2D\u6587" }));
     AssertEqual("\u9644\u5C5E\u7EC4", Localizer.Get("Attached group marker", new AppSettings { Language = "\u4E2D\u6587" }));
     AssertEqual("\u81EA\u52A8\u9690\u85CF\u9644\u5C5E\u7EC4", Localizer.Get("Auto hide attached groups", new AppSettings { Language = "\u4E2D\u6587" }));
@@ -1026,24 +1026,22 @@ static void TestDefaultSettingsTemplateCoversSerializableSettings()
     AssertJsonCoversType(typeof(AppSettings), document.RootElement, "settings");
 }
 
-static void TestDefaultAttachedSplitDisplayMatchesPrimaryDisplayWithoutBold()
+static void TestDefaultAttachedSplitDisplayMatchesPrimaryDisplay()
 {
     AppSettings settings = AppSettingsDefaults.Create();
 
-    AssertColumnMatchesExceptBold(settings.Columns.Icon, settings.Columns.AttachedIcon);
-    AssertColumnMatchesExceptBold(settings.Columns.Time, settings.Columns.AttachedTime);
-    AssertColumnMatchesExceptBold(settings.Columns.Delta, settings.Columns.AttachedDelta);
-    AssertEqual(false, settings.Columns.AttachedIcon.Bold);
-    AssertEqual(false, settings.Columns.AttachedTime.Bold);
-    AssertEqual(false, settings.Columns.AttachedDelta.Bold);
+    AssertColumnMatches(settings.Columns.Icon, settings.Columns.AttachedIcon);
+    AssertColumnMatches(settings.Columns.Time, settings.Columns.AttachedTime);
+    AssertColumnMatches(settings.Columns.Delta, settings.Columns.AttachedDelta);
 }
 
-static void AssertColumnMatchesExceptBold(UiColumnSettings expected, UiColumnSettings actual)
+static void AssertColumnMatches(UiColumnSettings expected, UiColumnSettings actual)
 {
     AssertEqual(expected.Show, actual.Show);
     AssertEqual(expected.Width, actual.Width);
     AssertEqual(expected.FontFamily, actual.FontFamily);
     AssertEqual(expected.FontSize, actual.FontSize);
+    AssertEqual(expected.Bold, actual.Bold);
 }
 
 static void TestDefaultReferenceTimesMatchDefaultSettingsRoute()
@@ -2145,12 +2143,24 @@ static void TestSettingsFormBlocksLossyAdvancedConditionDowngrade()
             ]
         };
 
-        using var form = new SettingsForm(settings);
+        var warnings = new List<(string Message, string Title, MessageBoxButtons Buttons, MessageBoxIcon Icon)>();
+        using var form = new SettingsForm(
+            settings,
+            messageBoxPresenter: (_, message, title, buttons, icon) =>
+            {
+                warnings.Add((message, title, buttons, icon));
+                return DialogResult.OK;
+            });
         SplitSettingsPage page = form.PageHost.GetOrCreatePage<SplitSettingsPage>(SettingsPageId.Splits);
 
         AssertEqual(true, page.AdvancedConditionModeForTests);
         InvokePrivate(page, "ToggleAdvancedConditionMode");
         AssertEqual(true, page.AdvancedConditionModeForTests);
+        AssertEqual(1, warnings.Count);
+        AssertEqual("Advanced condition cannot be converted to basic editor without losing structure.", warnings[0].Message);
+        AssertEqual("TerrariaSplit Settings", warnings[0].Title);
+        AssertEqual(MessageBoxButtons.OK, warnings[0].Buttons);
+        AssertEqual(MessageBoxIcon.Warning, warnings[0].Icon);
 
         form.ApplyForTests();
         AssertEqual(true, form.Result.SplitRoute.Single().UseAdvancedConditionEditor);
@@ -2341,7 +2351,7 @@ static void TestSettingsFormSavesSplitIconOverride()
 
         using var reopened = new SettingsForm(form.Result);
         SplitSettingsPage reopenedPage = reopened.PageHost.GetOrCreatePage<SplitSettingsPage>(SettingsPageId.Splits);
-        AssertEqual("Wall of Flesh", reopenedPage.IconOverrideBoxForTests.SelectedItem?.ToString());
+        AssertEqual("Wall of Flesh (Boss:wall-of-flesh)", reopenedPage.IconOverrideBoxForTests.SelectedItem?.ToString());
         reopened.ApplyForTests();
 
         SplitIconOverride reopenedTargetOverride = reopened.Result.SplitRoute[0].IconOverride;
@@ -2394,7 +2404,7 @@ static void TestSettingsFormSavesLocalizedSplitIconOverride()
 
         using var reopened = new SettingsForm(form.Result);
         SplitSettingsPage reopenedPage = reopened.PageHost.GetOrCreatePage<SplitSettingsPage>(SettingsPageId.Splits);
-        AssertEqual("血肉墙", reopenedPage.IconOverrideBoxForTests.SelectedItem?.ToString());
+        AssertEqual("血肉墙 (Boss:wall-of-flesh)", reopenedPage.IconOverrideBoxForTests.SelectedItem?.ToString());
     });
 }
 
@@ -2410,13 +2420,28 @@ static void TestSettingsFormRejectsInvalidSplitRouteApply()
             ]
         };
 
-        using var form = new SettingsForm(settings);
+        var warnings = new List<(string Message, string Title, MessageBoxButtons Buttons, MessageBoxIcon Icon)>();
+        using var form = new SettingsForm(
+            settings,
+            messageBoxPresenter: (_, message, title, buttons, icon) =>
+            {
+                warnings.Add((message, title, buttons, icon));
+                return DialogResult.OK;
+            });
         SplitSettingsPage page = form.PageHost.GetOrCreatePage<SplitSettingsPage>(SettingsPageId.Splits);
         page.ConditionListForTests.SelectedIndex = 0;
         InvokePrivate(page, "RemoveSelectedFact");
 
         AssertEqual(false, form.TryApplyForTests(out string message));
         AssertEqual(false, string.IsNullOrWhiteSpace(message));
+        AssertEqual(0, warnings.Count);
+
+        InvokePrivate(form, "ApplyAndNotify");
+        AssertEqual(1, warnings.Count);
+        AssertEqual(message, warnings[0].Message);
+        AssertEqual("TerrariaSplit Settings", warnings[0].Title);
+        AssertEqual(MessageBoxButtons.OK, warnings[0].Buttons);
+        AssertEqual(MessageBoxIcon.Warning, warnings[0].Icon);
         AssertEqual("split:skeletron", form.Result.SplitRoute.Single().Id);
         AssertEqual(SplitCatalog.CreateBossFactCondition(SplitCatalog.Skeletron).FactKey, form.Result.SplitRoute.Single().Condition.GetFactConditions().Single().FactKey);
     });
@@ -3649,7 +3674,9 @@ static void TestOverlayCompositeLayoutCalculator()
         visibleStatusCount: 5,
         baseRowGap: 9,
         out OverlayCompositeLayout bottomAlignedLayout));
-    AssertEqual(layout.Layout.GetRowRect(2).Y, bottomAlignedLayout.Layout.GetRowRect(0).Y);
+    int visibleRows = Math.Max(5, SplitCompletionAnimationRenderer.ReservedRowCount);
+    int rowOffset = 9 - visibleRows;
+    AssertEqual(layout.Layout.GetRowRect(rowOffset).Y, bottomAlignedLayout.Layout.GetRowRect(0).Y);
     AssertEqual(layout.TimerLocalBounds.Top, layout.MapTimerPointToComposite(Point.Empty).Y);
 
     AssertEqual(true, OverlayCompositeLayoutCalculator.TryCreate(
@@ -4181,14 +4208,17 @@ static void TestMainFormInitializesOverlayLayoutWithCurrentSplitCount()
         Rectangle compositeBounds = boundsController.CompositeBounds;
         AppSettings settings = GetMainFormSettings(form);
 
-        AssertEqual(true, SplitLayoutCalculator.TryCreate(
-            new Rectangle(0, 0, compositeBounds.Width, compositeBounds.Height),
-            SplitDisplayRows.GetRequiredRowCount(applicationController.ViewState.DisplayStatuses),
+        int reservedRowCount = SplitDisplayRows.GetReservedRowCount(settings, applicationController.ViewState.DisplayStatuses);
+        int visibleRowCount = SplitDisplayRows.GetRequiredRowCount(settings, applicationController.ViewState.DisplayStatuses);
+        AssertEqual(true, OverlayCompositeLayoutCalculator.TryCreate(
+            compositeBounds,
+            settings,
+            reservedRowCount,
+            visibleRowCount,
             9,
-            value => OverlayRenderContext.ScaleInt(settings, value),
-            out SplitLayout expectedLayout));
-        AssertEqual(expectedLayout.FirstRowRect, boundsController.CurrentLayout.Layout.FirstRowRect);
-        AssertEqual(expectedLayout.TimerRect, boundsController.CurrentLayout.Layout.TimerRect);
+            out OverlayCompositeLayout expectedLayout));
+        AssertEqual(expectedLayout.Layout.FirstRowRect, boundsController.CurrentLayout.Layout.FirstRowRect);
+        AssertEqual(expectedLayout.Layout.TimerRect, boundsController.CurrentLayout.Layout.TimerRect);
     });
 }
 
@@ -4586,6 +4616,18 @@ static T GetPrivateField<T>(object target, params string[] fieldNames)
     return value;
 }
 
+static IEnumerable<Control> EnumerateControls(Control root)
+{
+    yield return root;
+    foreach (Control child in root.Controls)
+    {
+        foreach (Control descendant in EnumerateControls(child))
+        {
+            yield return descendant;
+        }
+    }
+}
+
 static object? InvokePrivate(object target, string name, params object?[] args)
 {
     MethodInfo method = target.GetType().GetMethod(name, BindingFlags.Instance | BindingFlags.NonPublic)
@@ -4742,8 +4784,25 @@ static void DeleteDirectoryIfExists(string path)
 {
     if (Directory.Exists(path))
     {
+        ClearReadOnlyAttributes(path);
         Directory.Delete(path, true);
     }
+}
+
+static void ClearReadOnlyAttributes(string path)
+{
+    var directory = new DirectoryInfo(path);
+    if (!directory.Exists)
+    {
+        return;
+    }
+
+    foreach (FileSystemInfo entry in directory.EnumerateFileSystemInfos("*", SearchOption.AllDirectories))
+    {
+        entry.Attributes &= ~FileAttributes.ReadOnly;
+    }
+
+    directory.Attributes &= ~FileAttributes.ReadOnly;
 }
 
 static void Nearly(double expected, double actual, double tolerance)
