@@ -12,7 +12,7 @@ internal sealed partial class MainForm : Form
             CreateParams parameters = base.CreateParams;
             parameters.Style = OverlayWindowController.ComposeBorderlessStyle(parameters.Style);
             parameters.ExStyle |= WsExLayered;
-            if (mouseClickThrough)
+            if (overlayShell.MouseClickThrough)
             {
                 parameters.ExStyle |= WsExTransparent;
             }
@@ -24,7 +24,7 @@ internal sealed partial class MainForm : Form
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
-        overlayWindowController.ApplyWindowStyle(mouseClickThrough);
+        overlayWindowController.ApplyWindowStyle(overlayShell.MouseClickThrough);
         InitializeOverlayWindows();
         modalWindows.ApplyWindowState();
         if (!settingsShell.IsOpen)
@@ -39,7 +39,7 @@ internal sealed partial class MainForm : Form
     protected override void OnShown(EventArgs e)
     {
         base.OnShown(e);
-        if (overlayWindowsInitialized)
+        if (overlayShell.WindowsInitialized)
         {
             ApplyOverlayLayout(overlayBoundsController.CurrentLayout);
         }
@@ -305,7 +305,7 @@ internal sealed partial class MainForm : Form
 
         base.WndProc(ref m);
 
-        if (mouseClickThrough && m.Msg == wmNcHitTest)
+        if (overlayShell.MouseClickThrough && m.Msg == wmNcHitTest)
         {
             m.Result = (IntPtr)htTransparent;
             return;

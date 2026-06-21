@@ -13,9 +13,9 @@ internal sealed partial class MainForm : Form
     private void ApplyLoadedSettings(AppSettings? previousSettings = null, int splitCount = -1)
     {
         MarkStatusOverlayStaticContentDirty();
-        Rectangle? referenceCompositeBounds = overlayWindowsInitialized
+        Rectangle? referenceCompositeBounds = overlayShell.WindowsInitialized
             ? overlayBoundsController.CompositeBounds
-            : pendingInitialCompositeBounds;
+            : overlayShell.PendingInitialCompositeBounds;
         int visibleRowCount = GetCurrentLayoutRowCount();
         int resolvedRowCount = splitCount >= 0
             ? Math.Max(GetCurrentReservedLayoutRowCount(), splitCount)
@@ -64,11 +64,11 @@ internal sealed partial class MainForm : Form
             Size defaultCompositeSize = new(
                 defaultWidth,
                 defaultHeight);
-            if (!overlayWindowsInitialized &&
+            if (!overlayShell.WindowsInitialized &&
                 !IsHandleCreated &&
                 TryGetInitialOverlayLayout(defaultCompositeSize, out targetCompositeBounds, out OverlayCompositeLayout initialLayout))
             {
-                pendingInitialCompositeBounds = targetCompositeBounds;
+                overlayShell.PendingInitialCompositeBounds = targetCompositeBounds;
                 MinimumSize = minimumStatusSize;
                 StartPosition = FormStartPosition.Manual;
                 Location = initialLayout.StatusScreenBounds.Location;
@@ -87,14 +87,14 @@ internal sealed partial class MainForm : Form
             int width = Math.Max(targetSize.Width, minimumCompositeSize.Width);
             int height = Math.Max(targetSize.Height, minimumCompositeSize.Height);
             height = GetFittingCompositeHeight(width, height, rowCount, visibleRowCount);
-            Rectangle referenceBounds = referenceCompositeBoundsOverride ?? (overlayWindowsInitialized
+            Rectangle referenceBounds = referenceCompositeBoundsOverride ?? (overlayShell.WindowsInitialized
                 ? overlayBoundsController.CompositeBounds
-                : pendingInitialCompositeBounds ?? Bounds);
+                : overlayShell.PendingInitialCompositeBounds ?? Bounds);
             targetCompositeBounds = new Rectangle(referenceBounds.Left, referenceBounds.Top, width, height);
         }
 
         MinimumSize = minimumStatusSize;
-        if (overlayWindowsInitialized)
+        if (overlayShell.WindowsInitialized)
         {
             overlayBoundsController.ApplyCompositeBounds(targetCompositeBounds);
             return;
@@ -105,7 +105,7 @@ internal sealed partial class MainForm : Form
             Size = targetCompositeBounds.Size;
         }
 
-        pendingInitialCompositeBounds = targetCompositeBounds;
+        overlayShell.PendingInitialCompositeBounds = targetCompositeBounds;
     }
 
     private Size GetCompositeMinimumSize(int rowCount, int visibleRowCount)
@@ -171,9 +171,9 @@ internal sealed partial class MainForm : Form
         int currentSplitCount,
         Size? currentCompositeSizeOverride = null)
     {
-        Size currentSize = currentCompositeSizeOverride ?? (overlayWindowsInitialized
+        Size currentSize = currentCompositeSizeOverride ?? (overlayShell.WindowsInitialized
             ? overlayBoundsController.CompositeBounds.Size
-            : pendingInitialCompositeBounds?.Size ?? Size);
+            : overlayShell.PendingInitialCompositeBounds?.Size ?? Size);
         if (previousSettings is null)
         {
             return currentSize;
@@ -277,43 +277,40 @@ internal sealed partial class MainForm : Form
     {
         BackColor = Color.Black;
         TransparencyKey = Color.Empty;
-        overlayWindowController.ApplyWindowStyle(mouseClickThrough);
-        timerOverlayHost.ApplyMouseClickThrough(mouseClickThrough);
+        overlayWindowController.ApplyWindowStyle(overlayShell.MouseClickThrough);
+        timerOverlayHost.ApplyMouseClickThrough(overlayShell.MouseClickThrough);
         QueueStatusOverlayRender();
     }
 
     private void InitializeOverlayWindows()
     {
-        if (overlayWindowsInitialized)
+        if (!overlayShell.BeginWindowInitialization())
         {
             return;
         }
 
-        overlayWindowInitializationInProgress = true;
         try
         {
-            overlayWindowsInitialized = true;
-            Rectangle initialCompositeBounds = pendingInitialCompositeBounds ?? Bounds;
-            pendingInitialCompositeBounds = null;
+            Rectangle initialCompositeBounds = overlayShell.CompleteWindowInitialization(Bounds);
             overlayBoundsController.Initialize(initialCompositeBounds);
             timerOverlayHost.Start();
             UpdateEffectiveOverlayTopMost();
-            timerOverlayHost.ApplyMouseClickThrough(mouseClickThrough);
+            timerOverlayHost.ApplyMouseClickThrough(overlayShell.MouseClickThrough);
             UpdateTimerOverlayRefreshInterval();
             PublishTimerOverlaySnapshot(true);
         }
         finally
         {
-            overlayWindowInitializationInProgress = false;
+            overlayShell.EndWindowInitialization();
         }
 
         RenderInitialStatusOverlay();
-        BeginInvoke(new Action(() => statusBoundsFeedbackEnabled = true));
+        BeginInvoke(new Action(overlayShell.EnableStatusBoundsFeedback));
     }
 
     private void ApplyOverlayLayout(OverlayCompositeLayout layout)
     {
-        suppressStatusBoundsFeedback = true;
+        overlayShell.BeginSuppressStatusBoundsFeedback();
         try
         {
             if (Location != layout.StatusScreenBounds.Location)
@@ -328,19 +325,19 @@ internal sealed partial class MainForm : Form
         }
         finally
         {
-            suppressStatusBoundsFeedback = false;
+            overlayShell.EndSuppressStatusBoundsFeedback();
         }
 
         timerOverlayHost.ApplyOverlayLayout(layout);
         UpdateEffectiveOverlayTopMost();
-        timerOverlayHost.ApplyMouseClickThrough(mouseClickThrough);
+        timerOverlayHost.ApplyMouseClickThrough(overlayShell.MouseClickThrough);
         UpdateTimerOverlayRefreshInterval();
         QueueStatusOverlayRender();
     }
 
     private void QueueStatusOverlayRender()
     {
-        if (!overlayWindowsInitialized || overlayWindowInitializationInProgress)
+        if (!overlayShell.WindowsInitialized || overlayShell.WindowInitializationInProgress)
         {
             return;
         }
@@ -355,15 +352,11 @@ internal sealed partial class MainForm : Form
 
     private void UpdateOverlayLayoutContext(int reservedRowCount, int visibleRowCount, bool force)
     {
-        if (!force &&
-            reservedRowCount == appliedOverlayReservedRowCount &&
-            visibleRowCount == appliedOverlayVisibleRowCount)
+        if (!overlayShell.ApplyLayoutRowCounts(reservedRowCount, visibleRowCount, force))
         {
             return;
         }
 
-        appliedOverlayReservedRowCount = reservedRowCount;
-        appliedOverlayVisibleRowCount = visibleRowCount;
         overlayBoundsController.UpdateContext(settings, reservedRowCount, visibleRowCount);
         MarkStatusOverlayStaticContentDirty();
     }
@@ -376,7 +369,7 @@ internal sealed partial class MainForm : Form
 
     private void RenderInitialStatusOverlay()
     {
-        if (!overlayWindowsInitialized || overlayWindowInitializationInProgress)
+        if (!overlayShell.WindowsInitialized || overlayShell.WindowInitializationInProgress)
         {
             return;
         }
@@ -386,9 +379,9 @@ internal sealed partial class MainForm : Form
 
     private void NotifyStatusBoundsChanged()
     {
-        if (!overlayWindowsInitialized ||
-            !statusBoundsFeedbackEnabled ||
-            suppressStatusBoundsFeedback ||
+        if (!overlayShell.WindowsInitialized ||
+            !overlayShell.StatusBoundsFeedbackEnabled ||
+            overlayShell.SuppressStatusBoundsFeedback ||
             windowShell.IsDragging)
         {
             return;
@@ -399,7 +392,7 @@ internal sealed partial class MainForm : Form
 
     private void PublishTimerOverlaySnapshot(bool force = false)
     {
-        if (!overlayWindowsInitialized)
+        if (!overlayShell.WindowsInitialized)
         {
             return;
         }
@@ -466,7 +459,7 @@ internal sealed partial class MainForm : Form
             splitStatuses,
             currentSplitIndex,
             runtimeSnapshot.TimerState,
-            mouseClickThrough);
+            overlayShell.MouseClickThrough);
     }
 
     private TimerOverlayStateKey BuildTimerOverlaySnapshotKey()
@@ -474,14 +467,14 @@ internal sealed partial class MainForm : Form
         return new TimerOverlayStateKey(
             runtimeSnapshot.TimerState,
             currentSplitIndex,
-            mouseClickThrough,
+            overlayShell.MouseClickThrough,
             viewState.StatusHash,
             timerOverlaySettingsRevision);
     }
 
     private void UpdateTimerOverlayRefreshInterval()
     {
-        if (!overlayWindowsInitialized)
+        if (!overlayShell.WindowsInitialized)
         {
             return;
         }
@@ -496,7 +489,7 @@ internal sealed partial class MainForm : Form
     private void HandleTimerOverlayRightClickRequested(TimerOverlayRightClickRequest request)
     {
         if (settings.General.PracticeMode &&
-            overlayWindowsInitialized &&
+            overlayShell.WindowsInitialized &&
             TryGetLayout(out SplitLayout layout))
         {
             Point compositePoint = overlayBoundsController.CurrentLayout.MapTimerPointToComposite(request.LocalPoint);

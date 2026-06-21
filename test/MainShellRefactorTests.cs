@@ -20,6 +20,8 @@ internal static class MainShellRefactorTests
         yield return ("OverlayWindowController queues render once while pending", OverlayWindowControllerQueuesRenderOnceWhilePending);
         yield return ("OverlayWindowController click-through style preserves unrelated bits", OverlayWindowControllerPreservesUnrelatedStyleBits);
         yield return ("OverlayWindowController strips non-client border style", OverlayWindowControllerStripsNonClientBorderStyle);
+        yield return ("OverlayShell tracks initialization and row counts", OverlayShellTracksInitializationAndRowCounts);
+        yield return ("OverlayShell tracks click-through and feedback suppression", OverlayShellTracksClickThroughAndFeedbackSuppression);
         yield return ("WindowLayerController applies always-on-top setting without blocking input", WindowLayerControllerAppliesAlwaysOnTopSettingWithoutBlockingInput);
         yield return ("WindowLayerController blocks main windows while modal is registered", WindowLayerControllerBlocksMainWindowsWhileModalIsRegistered);
         yield return ("WindowLayerController ignores modal activation when no modal is registered", WindowLayerControllerIgnoresModalActivationWhenNoModalIsRegistered);
@@ -353,6 +355,49 @@ internal static class MainShellRefactorTests
 
         TestAssert.Equal(true, (style & sentinel) == sentinel);
         TestAssert.Equal(0, style & nonClient);
+    }
+
+    private static void OverlayShellTracksInitializationAndRowCounts()
+    {
+        var shell = new OverlayShell
+        {
+            PendingInitialCompositeBounds = new Rectangle(10, 20, 300, 400)
+        };
+
+        TestAssert.Equal(true, shell.BeginWindowInitialization());
+        TestAssert.Equal(true, shell.WindowInitializationInProgress);
+        TestAssert.Equal(
+            new Rectangle(10, 20, 300, 400),
+            shell.CompleteWindowInitialization(new Rectangle(1, 2, 3, 4)));
+        TestAssert.Equal(true, shell.WindowsInitialized);
+        TestAssert.Equal(null, shell.PendingInitialCompositeBounds);
+
+        shell.EndWindowInitialization();
+
+        TestAssert.Equal(false, shell.WindowInitializationInProgress);
+        TestAssert.Equal(false, shell.BeginWindowInitialization());
+        TestAssert.Equal(true, shell.ApplyLayoutRowCounts(8, 6, force: false));
+        TestAssert.Equal(false, shell.ApplyLayoutRowCounts(8, 6, force: false));
+        TestAssert.Equal(true, shell.ApplyLayoutRowCounts(8, 6, force: true));
+        TestAssert.Equal(true, shell.ApplyLayoutRowCounts(9, 6, force: false));
+    }
+
+    private static void OverlayShellTracksClickThroughAndFeedbackSuppression()
+    {
+        var shell = new OverlayShell();
+
+        TestAssert.Equal(false, shell.MouseClickThrough);
+        shell.SetMouseClickThrough(true);
+        TestAssert.Equal(true, shell.MouseClickThrough);
+
+        TestAssert.Equal(false, shell.StatusBoundsFeedbackEnabled);
+        shell.EnableStatusBoundsFeedback();
+        TestAssert.Equal(true, shell.StatusBoundsFeedbackEnabled);
+
+        shell.BeginSuppressStatusBoundsFeedback();
+        TestAssert.Equal(true, shell.SuppressStatusBoundsFeedback);
+        shell.EndSuppressStatusBoundsFeedback();
+        TestAssert.Equal(false, shell.SuppressStatusBoundsFeedback);
     }
 
     private static void WindowLayerControllerAppliesAlwaysOnTopSettingWithoutBlockingInput()

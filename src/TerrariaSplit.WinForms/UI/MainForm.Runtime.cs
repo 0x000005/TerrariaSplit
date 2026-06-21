@@ -260,7 +260,7 @@ internal sealed partial class MainForm : Form
                 out int visualRowIndex) &&
             TryGetLayout(out SplitLayout layout))
         {
-            Rectangle rowRect = overlayWindowsInitialized
+            Rectangle rowRect = overlayShell.WindowsInitialized
                 ? overlayBoundsController.CurrentLayout.ToStatusLocal(layout.GetRowRect(visualRowIndex))
                 : layout.GetRowRect(visualRowIndex);
             Invalidate(Rectangle.Inflate(rowRect, ScaleInt(6), ScaleInt(6)));
@@ -309,7 +309,7 @@ internal sealed partial class MainForm : Form
             }
         }
 
-        bool wasClickThrough = mouseClickThrough;
+        bool wasClickThrough = overlayShell.MouseClickThrough;
         if (wasClickThrough)
         {
             SetMouseClickThrough(false);
@@ -353,9 +353,9 @@ internal sealed partial class MainForm : Form
 
     private void SetMouseClickThrough(bool enabled)
     {
-        mouseClickThrough = enabled;
-        overlayWindowController.ApplyWindowStyle(mouseClickThrough);
-        timerOverlayHost.ApplyMouseClickThrough(mouseClickThrough);
+        overlayShell.SetMouseClickThrough(enabled);
+        overlayWindowController.ApplyWindowStyle(overlayShell.MouseClickThrough);
+        timerOverlayHost.ApplyMouseClickThrough(overlayShell.MouseClickThrough);
         modalWindows.ApplyWindowState();
         PublishTimerOverlaySnapshot();
         UpdateWindowTitle();
@@ -363,7 +363,7 @@ internal sealed partial class MainForm : Form
 
     private void ToggleMouseClickThrough()
     {
-        SetMouseClickThrough(!mouseClickThrough);
+        SetMouseClickThrough(!overlayShell.MouseClickThrough);
         InvalidateRuntimeRenderRegion();
     }
 
@@ -401,7 +401,7 @@ internal sealed partial class MainForm : Form
         }
 
         UpdateStatusPaintSchedulerState();
-        if (overlayWindowsInitialized)
+        if (overlayShell.WindowsInitialized)
         {
             timerOverlayHost.ApplyPaintSuspended(true);
         }
@@ -414,7 +414,7 @@ internal sealed partial class MainForm : Form
         {
             RuntimeOverlayPaintResume resume =
                 runtimeShell.EndOverlayPaintSuspension(!windowShell.IsClosing);
-            if (overlayWindowsInitialized && resume.Completed)
+            if (overlayShell.WindowsInitialized && resume.Completed)
             {
                 timerOverlayHost.ApplyPaintSuspended(false);
                 timerOverlayHost.RequestRender();

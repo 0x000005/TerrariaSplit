@@ -7,8 +7,8 @@ internal sealed partial class MainForm : Form
 {
     private void DrawStatusOverlay(Graphics graphics)
     {
-        if (!overlayWindowsInitialized ||
-            overlayWindowInitializationInProgress ||
+        if (!overlayShell.WindowsInitialized ||
+            overlayShell.WindowInitializationInProgress ||
             !TryGetLayout(out SplitLayout layout))
         {
             return;
@@ -26,7 +26,7 @@ internal sealed partial class MainForm : Form
             elapsed,
             layout,
             GetCurrentVisibleStatusRowCount(),
-            mouseClickThrough,
+            overlayShell.MouseClickThrough,
             overlayAnimations.SplitCompletionAnimation,
             overlayAnimations.SegmentBestDeltaHighlights,
             DateTime.UtcNow,
@@ -90,7 +90,7 @@ internal sealed partial class MainForm : Form
 
     private Rectangle? ComputeStatusOverlayDynamicRegion()
     {
-        if (!overlayWindowsInitialized || !TryGetLayout(out SplitLayout layout))
+        if (!overlayShell.WindowsInitialized || !TryGetLayout(out SplitLayout layout))
         {
             return null;
         }
@@ -161,7 +161,7 @@ internal sealed partial class MainForm : Form
             return false;
         }
 
-        OverlayCompositeLayout? compositeLayout = overlayWindowsInitialized
+        OverlayCompositeLayout? compositeLayout = overlayShell.WindowsInitialized
             ? overlayBoundsController.CurrentLayout
             : null;
         Point compositePoint = compositeLayout?.MapStatusPointToComposite(point) ?? point;
@@ -253,7 +253,7 @@ internal sealed partial class MainForm : Form
 
     private bool TryGetLayout(out SplitLayout layout)
     {
-        if (overlayWindowsInitialized)
+        if (overlayShell.WindowsInitialized)
         {
             layout = overlayBoundsController.CurrentLayout.Layout;
             return true;

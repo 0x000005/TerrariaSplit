@@ -37,22 +37,15 @@ internal sealed partial class MainForm : Form
     private readonly RuntimeShell runtimeShell = new(
         DefaultControlTickInterval,
         RefreshRateSettings.ToInterval(AppSettingsDefaults.Advanced.RunningStatusPaintHz));
+    private readonly OverlayShell overlayShell = new();
     private readonly OverlayWindowController overlayWindowController;
     private readonly OverlayBoundsController overlayBoundsController;
     private readonly TimerOverlayWindowHost timerOverlayHost;
     private readonly ProgramModalWindowCoordinator modalWindows;
     private readonly MainWindowModalInputRouter mainWindowModalInputRouter;
     private readonly WindowShell windowShell = new();
-    private bool mouseClickThrough;
     private bool runtimeResourcesDisposed;
-    private bool overlayWindowsInitialized;
-    private bool overlayWindowInitializationInProgress;
-    private bool statusBoundsFeedbackEnabled;
-    private bool suppressStatusBoundsFeedback;
-    private Rectangle? pendingInitialCompositeBounds;
     private long timerOverlaySettingsRevision;
-    private int appliedOverlayReservedRowCount = -1;
-    private int appliedOverlayVisibleRowCount = -1;
 
     private AppSettings timerOverlaySettingsSnapshot = new();
     private UiPalette palette;
@@ -120,8 +113,7 @@ internal sealed partial class MainForm : Form
             settings,
             initialReservedRowCount,
             initialVisibleRowCount);
-        appliedOverlayReservedRowCount = initialReservedRowCount;
-        appliedOverlayVisibleRowCount = initialVisibleRowCount;
+        overlayShell.ApplyLayoutRowCounts(initialReservedRowCount, initialVisibleRowCount, force: true);
         overlayBoundsController.LayoutChanged += ApplyOverlayLayout;
         timerOverlayHost = MainShellCompositionRoot.CreateTimerOverlayWindowHost(
             callback => BeginInvoke(callback),
