@@ -14,7 +14,7 @@ internal static class SplitDisplayRows
 
     public static IReadOnlyList<SplitDisplayRow> Build(AppSettings? settings, IReadOnlyList<SplitStatusSnapshot> statuses)
     {
-        List<AttachedBlock> lockedBlocks = settings?.AutoHideAttachedGroups == false
+        List<AttachedBlock> lockedBlocks = settings?.Route.AutoHideAttachedGroups == false
             ? new List<AttachedBlock>()
             : GetLockedAttachedBlocks(statuses);
         Dictionary<int, int> attachedRowOverrides = BuildAttachedRowOverrides(statuses, lockedBlocks);
@@ -124,7 +124,7 @@ internal static class SplitDisplayRows
 
     private static int GetReservedExpansionRowCount(AppSettings? settings, SplitDefinition definition)
     {
-        if (settings?.ExpandSplitDetails != true || definition.IsAttached)
+        if (settings?.Route.ExpandSplitDetails != true || definition.IsAttached)
         {
             return 0;
         }

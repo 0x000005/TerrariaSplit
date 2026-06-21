@@ -41,7 +41,7 @@ internal static class SplitExpandedConditionRows
         IReadOnlyList<SplitStatusSnapshot> statuses,
         int statusIndex)
     {
-        if (settings?.ExpandSplitDetails != true)
+        if (settings?.Route.ExpandSplitDetails != true)
         {
             return false;
         }
@@ -58,7 +58,7 @@ internal static class SplitExpandedConditionRows
             return false;
         }
 
-        if (status.IsCompleted && settings.CollapseSplitDetailsOnCompletion)
+        if (status.IsCompleted && settings.Route.CollapseSplitDetailsOnCompletion)
         {
             return false;
         }

@@ -252,7 +252,7 @@ internal sealed class ApplicationController
         if (playResetSound)
         {
             effects.Add(ApplicationEffect.Simple(ApplicationEffectKind.StopAllSounds));
-            effects.Add(ApplicationEffect.PlaySound(Settings.Sounds.Reset));
+            effects.Add(ApplicationEffect.PlaySound(Settings.Overlay.Sounds.Reset));
         }
 
         effects.Add(ApplicationEffect.SubmitRuntimeCommand(RuntimeCommand.Reset()));
@@ -263,7 +263,7 @@ internal sealed class ApplicationController
     {
         AppSettings previousSettings = settingsSnapshots.CreateSnapshot(Settings);
         AppSettings nextSettings = settingsSnapshots.CreateSnapshot(Settings);
-        nextSettings.AutoCreate.EnablePyramidFilter = !nextSettings.AutoCreate.EnablePyramidFilter;
+        nextSettings.Automation.AutoCreate.EnablePyramidFilter = !nextSettings.Automation.AutoCreate.EnablePyramidFilter;
         Settings = nextSettings;
 
         effects.Add(CreateSaveSettingsEffect(Settings));
@@ -352,11 +352,11 @@ internal static class RunEventProcessor
                 case RunEventKind.PauseChanged:
                     if (runEvent.CurrentPhase == SplitTimerPhase.Paused)
                     {
-                        effects.Add(ApplicationEffect.PlaySound(settings.Sounds.Pause));
+                        effects.Add(ApplicationEffect.PlaySound(settings.Overlay.Sounds.Pause));
                     }
                     else if (runEvent.CurrentPhase == SplitTimerPhase.Running)
                     {
-                        effects.Add(ApplicationEffect.PlaySound(settings.Sounds.Resume));
+                        effects.Add(ApplicationEffect.PlaySound(settings.Overlay.Sounds.Resume));
                     }
                     break;
                 case RunEventKind.MenuActionRequested:
@@ -367,7 +367,7 @@ internal static class RunEventProcessor
                     break;
                 case RunEventKind.RunStarted:
                     runLifecycle.MarkRunStarted();
-                    effects.Add(ApplicationEffect.PlaySound(settings.Sounds.EnterWorld));
+                    effects.Add(ApplicationEffect.PlaySound(settings.Overlay.Sounds.EnterWorld));
                     break;
                 case RunEventKind.SplitCompleted:
                     effects.Add(ApplicationEffect.Split(
@@ -375,7 +375,7 @@ internal static class RunEventProcessor
                         runEvent.SplitIndex));
                     if (!IsAttachedSplit(viewState, runEvent.SplitIndex))
                     {
-                        effects.Add(settings.ShowSplitCompletionAnimation
+                        effects.Add(settings.Overlay.ShowSplitCompletionAnimation
                             ? ApplicationEffect.Split(
                                 ApplicationEffectKind.StartSplitCompletionAnimation,
                                 runEvent.SplitIndex)

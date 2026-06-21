@@ -113,7 +113,7 @@ internal sealed class WorldPoolFillService : IDisposable
             return false;
         }
 
-        AutoCreateWorldSettings autoCreate = current.AutoCreate;
+        AutoCreateWorldSettings autoCreate = current.Automation.AutoCreate;
         if (!autoCreate.EnableWorldPool)
         {
             return false;
@@ -140,7 +140,7 @@ internal sealed class WorldPoolFillService : IDisposable
             return false;
         }
 
-        HeadlessWorldGenResult result = await generator.GenerateAndScanAsync(serverExe, current.Language, autoCreate, cancellationToken);
+        HeadlessWorldGenResult result = await generator.GenerateAndScanAsync(serverExe, current.General.Language, autoCreate, cancellationToken);
         try
         {
             if (result.Keep &&
@@ -173,7 +173,7 @@ internal sealed class WorldPoolFillService : IDisposable
             return false;
         }
 
-        AutoCreateWorldSettings autoCreate = current.AutoCreate;
+        AutoCreateWorldSettings autoCreate = current.Automation.AutoCreate;
         return autoCreate.EnableWorldPool &&
             string.Equals(WorldPoolSignature.From(current), signature, StringComparison.Ordinal);
     }

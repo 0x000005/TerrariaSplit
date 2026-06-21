@@ -28,7 +28,7 @@ internal sealed class GeneralSettingsPage : SettingsPageBase
 
     public override void Apply(AppSettings settings)
     {
-        settings.Language = languageBox.SelectedItem as string ?? LanguageNames.English;
+        settings.General.Language = languageBox.SelectedItem as string ?? LanguageNames.English;
         settings.PauseResumeKey = pauseKeyBox.Hotkey.ToString();
         settings.ResetKey = resetKeyBox.Hotkey.ToString();
         settings.MouseClickThroughKey = mouseClickThroughKeyBox.Hotkey.ToString();
@@ -55,7 +55,7 @@ internal sealed class GeneralSettingsPage : SettingsPageBase
         languageBox.Dock = DockStyle.Fill;
         languageBox.Items.Add(LanguageNames.English);
         languageBox.Items.Add(LanguageNames.Chinese);
-        languageBox.SelectedItem = LanguageNames.Normalize(Draft.Language);
+        languageBox.SelectedItem = LanguageNames.Normalize(Draft.General.Language);
 
         UiTheme.StyleTextBox(globalScaleBox);
         globalScaleBox.Dock = DockStyle.Fill;

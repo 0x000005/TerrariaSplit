@@ -49,7 +49,7 @@ internal static class SplitCompletionAnimationRenderer
 
     public static TimeSpan GetAnimationDuration(AppSettings settings)
     {
-        return TimeSpan.FromSeconds(Math.Clamp(settings.SplitCompletionAnimationDurationSeconds, 2f, 20f));
+        return TimeSpan.FromSeconds(Math.Clamp(settings.Overlay.SplitCompletionAnimationDurationSeconds, 2f, 20f));
     }
 
     public static float GetAnimationOpacity(TimeSpan elapsed, TimeSpan duration)
@@ -331,14 +331,14 @@ internal static class SplitCompletionAnimationRenderer
             splitValue,
             splitDelta,
             context.ScaleFactor,
-            context.Settings.Columns.Timer.FontFamily);
+            context.Settings.Overlay.Columns.Timer.FontFamily);
         float labelSize = valueSize * SplitCompletionLabelFontRatio;
         float deltaSize = valueSize * SplitCompletionDeltaFontRatio;
         TimeSpan animationDuration = GetAnimationDuration(context.Settings);
 
-        using var labelFont = OverlayTextMetrics.CreatePixelFont(labelSize, FontStyle.Bold, context.Settings.Columns.Timer.FontFamily);
-        using var valueFont = OverlayTextMetrics.CreatePixelFont(valueSize, FontStyle.Bold, context.Settings.Columns.Timer.FontFamily);
-        using var deltaFont = OverlayTextMetrics.CreatePixelFont(deltaSize, FontStyle.Bold, context.Settings.Columns.Timer.FontFamily);
+        using var labelFont = OverlayTextMetrics.CreatePixelFont(labelSize, FontStyle.Bold, context.Settings.Overlay.Columns.Timer.FontFamily);
+        using var valueFont = OverlayTextMetrics.CreatePixelFont(valueSize, FontStyle.Bold, context.Settings.Overlay.Columns.Timer.FontFamily);
+        using var deltaFont = OverlayTextMetrics.CreatePixelFont(deltaSize, FontStyle.Bold, context.Settings.Overlay.Columns.Timer.FontFamily);
 
         int labelHeight = Math.Max(1, (int)Math.Ceiling(labelFont.GetHeight(graphics)));
         int valueHeight = Math.Max(1, (int)Math.Ceiling(valueFont.GetHeight(graphics)) + context.ScaleInt(2));
@@ -402,7 +402,7 @@ internal static class SplitCompletionAnimationRenderer
         Rectangle timerRect,
         Rectangle listBounds)
     {
-        if (!context.Settings.Columns.Timer.Show && !context.Settings.Columns.TimerMilliseconds.Show)
+        if (!context.Settings.Overlay.Columns.Timer.Show && !context.Settings.Overlay.Columns.TimerMilliseconds.Show)
         {
             return listBounds.Left + listBounds.Width / 2f;
         }
@@ -419,7 +419,7 @@ internal static class SplitCompletionAnimationRenderer
         bool showComparison)
     {
         return showComparison && comparison.ShowDelta && comparison.Delta is TimeSpan delta
-            ? TimeText.FormatDelta(delta, settings.EnableDynamicDeltaTimeUnits)
+            ? TimeText.FormatDelta(delta, settings.Overlay.EnableDynamicDeltaTimeUnits)
             : string.Empty;
     }
 
@@ -592,7 +592,7 @@ internal static class SplitCompletionAnimationRenderer
                 valueY,
                 format,
                 elapsed,
-                context.Settings.SplitCompletionOutlineThicknessPercent,
+                context.Settings.Overlay.SplitCompletionOutlineThicknessPercent,
                 outlineStyle,
                 opacity);
         }
@@ -615,8 +615,8 @@ internal static class SplitCompletionAnimationRenderer
                 context.Settings,
                 comparison,
                 context.Palette,
-                context.Settings.EnableCurrentDeltaGradientColor);
-            if (context.Settings.ShowSegmentBestDeltaHighlight &&
+                context.Settings.Overlay.EnableCurrentDeltaGradientColor);
+            if (context.Settings.Overlay.ShowSegmentBestDeltaHighlight &&
                 comparison.Delta is TimeSpan deltaValue &&
                 deltaValue < TimeSpan.Zero)
             {

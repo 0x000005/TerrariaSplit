@@ -4,41 +4,49 @@ internal static class SettingsNormalizer
 {
     public static void Normalize(AppSettings settings)
     {
-        SettingsMigrator.Migrate(settings);
         AppSettings defaults = AppSettingsDefaults.Create();
-        settings.SplitRoute ??= new List<SplitRouteEntry>();
-        settings.ReferenceSplitSets ??= new List<ReferenceSplitSet>();
-        settings.PersonalBestTimeSets ??= new List<ReferenceSplitSet>();
-        settings.PersonalBestSegmentSets ??= new List<ReferenceSplitSet>();
-        settings.PersonalBestTimes ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        settings.PersonalBestSegmentTimes ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        settings.SplitCompletionSplitComparisons ??= new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
-        settings.SplitCompletionSegmentComparisons ??= new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
-        settings.SplitCompletionOutlineSplitStyles ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        settings.SplitCompletionOutlineSegmentStyles ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        settings.SegmentBestDeltaHighlightStyles ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        settings.Colors ??= defaults.Colors;
-        settings.Sounds ??= defaults.Sounds;
-        settings.Columns ??= defaults.Columns;
-        settings.TextEffects ??= defaults.TextEffects;
-        settings.AutoCreate ??= defaults.AutoCreate;
+        settings.General ??= defaults.General;
+        settings.Hotkeys ??= defaults.Hotkeys;
+        settings.Route ??= defaults.Route;
+        settings.Comparison ??= defaults.Comparison;
+        settings.Overlay ??= defaults.Overlay;
+        settings.Automation ??= defaults.Automation;
+        settings.PracticeWorlds ??= defaults.PracticeWorlds;
+        settings.Advanced ??= defaults.Advanced;
+        SettingsMigrator.Migrate(settings);
+        settings.Route.SplitRoute ??= new List<SplitRouteEntry>();
+        settings.Comparison.ReferenceSplitSets ??= new List<ReferenceSplitSet>();
+        settings.Comparison.PersonalBestTimeSets ??= new List<ReferenceSplitSet>();
+        settings.Comparison.PersonalBestSegmentSets ??= new List<ReferenceSplitSet>();
+        settings.Comparison.PersonalBestTimes ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        settings.Comparison.PersonalBestSegmentTimes ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        settings.Overlay.SplitCompletionSplitComparisons ??= new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+        settings.Overlay.SplitCompletionSegmentComparisons ??= new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+        settings.Overlay.SplitCompletionOutlineSplitStyles ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        settings.Overlay.SplitCompletionOutlineSegmentStyles ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        settings.Overlay.SegmentBestDeltaHighlightStyles ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        settings.Overlay.Colors ??= defaults.Overlay.Colors;
+        settings.Overlay.Sounds ??= defaults.Overlay.Sounds;
+        settings.Overlay.Columns ??= defaults.Overlay.Columns;
+        settings.Overlay.TextEffects ??= defaults.Overlay.TextEffects;
+        settings.Automation.AutoCreate ??= defaults.Automation.AutoCreate;
         settings.PracticeWorlds ??= new PracticeWorldSettings();
         settings.Advanced ??= defaults.Advanced;
-        SettingsSectionNormalizer.NormalizeAutoCreate(settings.AutoCreate);
+        SettingsSectionNormalizer.NormalizeAutoCreate(settings.Automation.AutoCreate);
         SettingsSectionNormalizer.NormalizePracticeWorlds(settings.PracticeWorlds);
         SettingsSectionNormalizer.NormalizeAdvanced(settings.Advanced);
-        settings.SplitCompletionAnimationDurationSeconds = Math.Clamp(settings.SplitCompletionAnimationDurationSeconds, 2f, 20f);
-        settings.SplitCompletionOutlineThicknessPercent = Math.Clamp(settings.SplitCompletionOutlineThicknessPercent, 0, 100);
-        settings.CurrentSplitHighlightScalePercent = Math.Clamp(settings.CurrentSplitHighlightScalePercent, 100, 140);
-        settings.CurrentSplitDepthStrengthPercent = Math.Clamp(settings.CurrentSplitDepthStrengthPercent, 0, 100);
-        settings.EarlyDeltaTimeSeconds = Math.Clamp(settings.EarlyDeltaTimeSeconds, 0, 3600);
-        settings.DeltaGradientThresholdSeconds = Math.Clamp(settings.DeltaGradientThresholdSeconds, 1, 3600);
-        settings.DeltaGradientCurve = DeltaGradientCurves.Normalize(settings.DeltaGradientCurve);
-        settings.CurrentBossIconGrayscaleWeakenPercent = Math.Clamp(settings.CurrentBossIconGrayscaleWeakenPercent, 0, 100);
-        settings.CurrentBossIconBrightnessBoostPercent = Math.Clamp(settings.CurrentBossIconBrightnessBoostPercent, 0, 100);
+        settings.Overlay.SplitCompletionAnimationDurationSeconds = Math.Clamp(settings.Overlay.SplitCompletionAnimationDurationSeconds, 2f, 20f);
+        settings.Overlay.SplitCompletionOutlineThicknessPercent = Math.Clamp(settings.Overlay.SplitCompletionOutlineThicknessPercent, 0, 100);
+        settings.Overlay.CurrentSplitHighlightScalePercent = Math.Clamp(settings.Overlay.CurrentSplitHighlightScalePercent, 100, 140);
+        settings.Overlay.CurrentSplitDepthStrengthPercent = Math.Clamp(settings.Overlay.CurrentSplitDepthStrengthPercent, 0, 100);
+        settings.Overlay.EarlyDeltaTimeSeconds = Math.Clamp(settings.Overlay.EarlyDeltaTimeSeconds, 0, 3600);
+        settings.Overlay.DeltaGradientThresholdSeconds = Math.Clamp(settings.Overlay.DeltaGradientThresholdSeconds, 1, 3600);
+        settings.Overlay.DeltaGradientCurve = DeltaGradientCurves.Normalize(settings.Overlay.DeltaGradientCurve);
+        settings.Overlay.CurrentBossIconGrayscaleWeakenPercent = Math.Clamp(settings.Overlay.CurrentBossIconGrayscaleWeakenPercent, 0, 100);
+        settings.Overlay.CurrentBossIconBrightnessBoostPercent = Math.Clamp(settings.Overlay.CurrentBossIconBrightnessBoostPercent, 0, 100);
         NormalizeRoute(settings);
-        SettingsSectionNormalizer.NormalizeColumnSettings(settings.Columns, defaults.Columns);
-        SettingsSectionNormalizer.NormalizeTextEffects(settings.TextEffects);
+        SettingsSectionNormalizer.NormalizeColumnSettings(settings.Overlay.Columns, defaults.Overlay.Columns);
+        SettingsSectionNormalizer.NormalizeTextEffects(settings.Overlay.TextEffects);
 
         IReadOnlyList<SplitConditionDataRow> conditionRows = SplitConditionDataRows.Build(settings);
         HashSet<string> conditionRowKeys = conditionRows
@@ -49,23 +57,23 @@ internal static class SettingsNormalizer
 
         foreach (string key in conditionRowKeys)
         {
-            settings.PersonalBestTimes.TryAdd(key, string.Empty);
+            settings.Comparison.PersonalBestTimes.TryAdd(key, string.Empty);
         }
 
         foreach (RouteGroup group in SplitRouteGroups.Build(settings))
         {
-            settings.PersonalBestSegmentTimes.TryAdd(group.Key, string.Empty);
-            settings.SplitCompletionSplitComparisons.TryAdd(group.Key, true);
-            settings.SplitCompletionSegmentComparisons.TryAdd(group.Key, true);
-            settings.SplitCompletionOutlineSplitStyles[group.Key] = GetNormalizedOutlineStyle(
-                settings.SplitCompletionOutlineSplitStyles,
+            settings.Comparison.PersonalBestSegmentTimes.TryAdd(group.Key, string.Empty);
+            settings.Overlay.SplitCompletionSplitComparisons.TryAdd(group.Key, true);
+            settings.Overlay.SplitCompletionSegmentComparisons.TryAdd(group.Key, true);
+            settings.Overlay.SplitCompletionOutlineSplitStyles[group.Key] = GetNormalizedOutlineStyle(
+                settings.Overlay.SplitCompletionOutlineSplitStyles,
                 group.Key,
                 SplitCompletionOutlineStyles.Rainbow);
-            settings.SplitCompletionOutlineSegmentStyles[group.Key] = GetNormalizedOutlineStyle(
-                settings.SplitCompletionOutlineSegmentStyles,
+            settings.Overlay.SplitCompletionOutlineSegmentStyles[group.Key] = GetNormalizedOutlineStyle(
+                settings.Overlay.SplitCompletionOutlineSegmentStyles,
                 group.Key,
                 SplitCompletionOutlineStyles.Aurora);
-            settings.SegmentBestDeltaHighlightStyles[group.Key] = GetNormalizedDeltaHighlightStyle(settings.SegmentBestDeltaHighlightStyles, group.Key);
+            settings.Overlay.SegmentBestDeltaHighlightStyles[group.Key] = GetNormalizedDeltaHighlightStyle(settings.Overlay.SegmentBestDeltaHighlightStyles, group.Key);
         }
 
         RemoveUnknownRouteGroupKeys(settings);
@@ -78,15 +86,15 @@ internal static class SettingsNormalizer
 
     private static void NormalizeRoute(AppSettings settings)
     {
-        if (settings.SplitRoute.Count == 0)
+        if (settings.Route.SplitRoute.Count == 0)
         {
-            settings.SplitRoute = SplitCatalog.CreateDefaultRoute();
+            settings.Route.SplitRoute = SplitCatalog.CreateDefaultRoute();
             return;
         }
 
         var normalized = new List<SplitRouteEntry>();
         HashSet<string> seenIds = new(StringComparer.OrdinalIgnoreCase);
-        foreach (SplitRouteEntry entry in settings.SplitRoute)
+        foreach (SplitRouteEntry entry in settings.Route.SplitRoute)
         {
             if (entry is null)
             {
@@ -135,7 +143,7 @@ internal static class SettingsNormalizer
             }
         }
 
-        settings.SplitRoute = normalized;
+        settings.Route.SplitRoute = normalized;
     }
 
     private static bool RequiresAdvancedConditionEditor(SplitCondition condition)
@@ -286,9 +294,9 @@ internal static class SettingsNormalizer
 
     private static void RemoveUnknownCumulativeKeys(AppSettings settings, HashSet<string> conditionRowKeys)
     {
-        SettingsNormalizationHelpers.RemoveKeysExcept(settings.PersonalBestTimes, conditionRowKeys);
+        SettingsNormalizationHelpers.RemoveKeysExcept(settings.Comparison.PersonalBestTimes, conditionRowKeys);
 
-        foreach (ReferenceSplitSet set in settings.ReferenceSplitSets)
+        foreach (ReferenceSplitSet set in settings.Comparison.ReferenceSplitSets)
         {
             SettingsNormalizationHelpers.RemoveKeysExcept(set.Splits, conditionRowKeys);
         }
@@ -299,12 +307,12 @@ internal static class SettingsNormalizer
         HashSet<string> validGroupKeys = SplitRouteGroups.Build(settings)
             .Select(group => group.Key)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        SettingsNormalizationHelpers.RemoveKeysExcept(settings.PersonalBestSegmentTimes, validGroupKeys);
-        SettingsNormalizationHelpers.RemoveKeysExcept(settings.SplitCompletionSplitComparisons, validGroupKeys);
-        SettingsNormalizationHelpers.RemoveKeysExcept(settings.SplitCompletionSegmentComparisons, validGroupKeys);
-        SettingsNormalizationHelpers.RemoveKeysExcept(settings.SplitCompletionOutlineSplitStyles, validGroupKeys);
-        SettingsNormalizationHelpers.RemoveKeysExcept(settings.SplitCompletionOutlineSegmentStyles, validGroupKeys);
-        SettingsNormalizationHelpers.RemoveKeysExcept(settings.SegmentBestDeltaHighlightStyles, validGroupKeys);
+        SettingsNormalizationHelpers.RemoveKeysExcept(settings.Comparison.PersonalBestSegmentTimes, validGroupKeys);
+        SettingsNormalizationHelpers.RemoveKeysExcept(settings.Overlay.SplitCompletionSplitComparisons, validGroupKeys);
+        SettingsNormalizationHelpers.RemoveKeysExcept(settings.Overlay.SplitCompletionSegmentComparisons, validGroupKeys);
+        SettingsNormalizationHelpers.RemoveKeysExcept(settings.Overlay.SplitCompletionOutlineSplitStyles, validGroupKeys);
+        SettingsNormalizationHelpers.RemoveKeysExcept(settings.Overlay.SplitCompletionOutlineSegmentStyles, validGroupKeys);
+        SettingsNormalizationHelpers.RemoveKeysExcept(settings.Overlay.SegmentBestDeltaHighlightStyles, validGroupKeys);
     }
 
     private static string GetNormalizedDeltaHighlightStyle(Dictionary<string, string> styles, string key)

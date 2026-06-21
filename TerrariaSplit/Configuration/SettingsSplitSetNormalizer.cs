@@ -4,9 +4,9 @@ internal static class SettingsSplitSetNormalizer
 {
     public static void NormalizeReferenceSets(AppSettings settings)
     {
-        if (settings.ReferenceSplitSets.Count == 0)
+        if (settings.Comparison.ReferenceSplitSets.Count == 0)
         {
-            settings.ReferenceSplitSets.Add(AppSettings.CreateReferenceSet(
+            settings.Comparison.ReferenceSplitSets.Add(AppSettings.CreateReferenceSet(
                 "WR",
                 keys: SplitConditionDataRows.Build(settings).Select(row => row.Key)));
         }
@@ -14,7 +14,7 @@ internal static class SettingsSplitSetNormalizer
         HashSet<string> conditionRowKeys = SplitConditionDataRows.Build(settings)
             .Select(row => row.Key)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        foreach (ReferenceSplitSet set in settings.ReferenceSplitSets)
+        foreach (ReferenceSplitSet set in settings.Comparison.ReferenceSplitSets)
         {
             set.Name = string.IsNullOrWhiteSpace(set.Name) ? "Reference" : set.Name.Trim();
             set.Splits ??= new Dictionary<string, string>();
@@ -26,34 +26,34 @@ internal static class SettingsSplitSetNormalizer
             }
         }
 
-        if (string.IsNullOrWhiteSpace(settings.ActiveReferenceSplitSet) ||
-            !settings.ReferenceSplitSets.Any(set => string.Equals(
+        if (string.IsNullOrWhiteSpace(settings.Comparison.ActiveReferenceSplitSet) ||
+            !settings.Comparison.ReferenceSplitSets.Any(set => string.Equals(
                 set.Name,
-                settings.ActiveReferenceSplitSet,
+                settings.Comparison.ActiveReferenceSplitSet,
                 StringComparison.OrdinalIgnoreCase)))
         {
-            settings.ActiveReferenceSplitSet = settings.ReferenceSplitSets[0].Name;
+            settings.Comparison.ActiveReferenceSplitSet = settings.Comparison.ReferenceSplitSets[0].Name;
         }
     }
 
     public static void NormalizePersonalBestTimeSets(AppSettings settings)
     {
         NormalizePersonalSets(
-            settings.PersonalBestTimeSets,
+            settings.Comparison.PersonalBestTimeSets,
             "Personal",
             validKeys: SplitConditionDataRows.Build(settings).Select(row => row.Key),
-            activeName: settings.ActivePersonalBestTimeSet,
-            setActiveName: value => settings.ActivePersonalBestTimeSet = value);
+            activeName: settings.Comparison.ActivePersonalBestTimeSet,
+            setActiveName: value => settings.Comparison.ActivePersonalBestTimeSet = value);
     }
 
     public static void NormalizePersonalBestSegmentSets(AppSettings settings)
     {
         NormalizePersonalSets(
-            settings.PersonalBestSegmentSets,
+            settings.Comparison.PersonalBestSegmentSets,
             "Personal",
             validKeys: SplitRouteGroups.Build(settings).Select(group => group.Key),
-            activeName: settings.ActivePersonalBestSegmentSet,
-            setActiveName: value => settings.ActivePersonalBestSegmentSet = value);
+            activeName: settings.Comparison.ActivePersonalBestSegmentSet,
+            setActiveName: value => settings.Comparison.ActivePersonalBestSegmentSet = value);
     }
 
     private static void NormalizePersonalSets(

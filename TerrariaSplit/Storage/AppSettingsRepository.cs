@@ -30,9 +30,9 @@ internal sealed class AppSettingsRepository : ISettingsRepository
         activeSettingsPath = NormalizeSettingsPath(path);
         SettingsDocument document = ReadSettingsDocument(SettingsPath);
         AppSettings settings = document.Settings;
-        string activeReferenceSplitSet = settings.ActiveReferenceSplitSet;
-        string activePersonalBestTimeSet = settings.ActivePersonalBestTimeSet;
-        string activePersonalBestSegmentSet = settings.ActivePersonalBestSegmentSet;
+        string activeReferenceSplitSet = settings.Comparison.ActiveReferenceSplitSet;
+        string activePersonalBestTimeSet = settings.Comparison.ActivePersonalBestTimeSet;
+        string activePersonalBestSegmentSet = settings.Comparison.ActivePersonalBestSegmentSet;
 
         Normalize(settings);
         RestoreActiveSplitSetNames(
@@ -68,15 +68,15 @@ internal sealed class AppSettingsRepository : ISettingsRepository
     public void Save(AppSettings settings)
     {
         AppSettings snapshot = Clone(settings);
-        if (!snapshot.UsePersonalBestAsReferenceTime)
+        if (!snapshot.Comparison.UsePersonalBestAsReferenceTime)
         {
-            SplitTimeSetStore.SaveReferenceSets(snapshot.ReferenceSplitSets);
+            SplitTimeSetStore.SaveReferenceSets(snapshot.Comparison.ReferenceSplitSets);
         }
 
         snapshot.SyncActivePersonalBestTimeSetFromDictionary();
         snapshot.SyncActivePersonalBestSegmentSetFromDictionary();
-        SplitTimeSetStore.SavePersonalBestTimeSets(snapshot.PersonalBestTimeSets);
-        SplitTimeSetStore.SavePersonalBestSegmentSets(snapshot.PersonalBestSegmentSets);
+        SplitTimeSetStore.SavePersonalBestTimeSets(snapshot.Comparison.PersonalBestTimeSets);
+        SplitTimeSetStore.SavePersonalBestSegmentSets(snapshot.Comparison.PersonalBestSegmentSets);
         string directory = Path.GetDirectoryName(SettingsPath)!;
         Directory.CreateDirectory(directory);
         SettingsSerializer.WriteSettings(SettingsPath, AppSettingsPersistenceProjection.Create(snapshot));
@@ -134,17 +134,17 @@ internal sealed class AppSettingsRepository : ISettingsRepository
     {
         if (!string.IsNullOrWhiteSpace(activeReferenceSplitSet))
         {
-            settings.ActiveReferenceSplitSet = activeReferenceSplitSet.Trim();
+            settings.Comparison.ActiveReferenceSplitSet = activeReferenceSplitSet.Trim();
         }
 
         if (!string.IsNullOrWhiteSpace(activePersonalBestTimeSet))
         {
-            settings.ActivePersonalBestTimeSet = activePersonalBestTimeSet.Trim();
+            settings.Comparison.ActivePersonalBestTimeSet = activePersonalBestTimeSet.Trim();
         }
 
         if (!string.IsNullOrWhiteSpace(activePersonalBestSegmentSet))
         {
-            settings.ActivePersonalBestSegmentSet = activePersonalBestSegmentSet.Trim();
+            settings.Comparison.ActivePersonalBestSegmentSet = activePersonalBestSegmentSet.Trim();
         }
     }
 }

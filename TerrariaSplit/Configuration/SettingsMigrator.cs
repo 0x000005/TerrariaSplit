@@ -21,7 +21,7 @@ internal static class SettingsMigrator
                 continue;
             }
 
-            settings.ExpandSplitDetails = true;
+            settings.Route.ExpandSplitDetails = true;
             entry.ExpandDetails = false;
         }
     }

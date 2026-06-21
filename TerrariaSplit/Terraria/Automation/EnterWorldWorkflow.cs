@@ -5,14 +5,14 @@ namespace TerrariaSplit.Terraria.Automation;
 internal sealed class EnterWorldWorkflow : IDisposable
 {
     private readonly TerrariaAutomationContext automation = new("Enter world");
-    private TimeSpan menuActionDelay = TimeSpan.FromMilliseconds(AppSettingsDefaults.AutoCreate.MenuActionDelayMilliseconds);
+    private TimeSpan menuActionDelay = TimeSpan.FromMilliseconds(AppSettingsDefaults.Automation.AutoCreate.MenuActionDelayMilliseconds);
 
     public async Task RunAsync(AppSettings settings, PracticeWorldSlot slot, CancellationToken cancellationToken = default)
     {
         automation.BeginRun();
         try
         {
-            ApplyTiming(settings.AutoCreate);
+            ApplyTiming(settings.Automation.AutoCreate);
             OperationResult validation = EnterWorldSaveInstaller.Validate(slot);
             if (validation.Failed)
             {

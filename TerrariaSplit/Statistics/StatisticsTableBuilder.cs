@@ -23,7 +23,7 @@ internal static class StatisticsTableBuilder
             .SelectMany(group => group.Entries.Select(entry => (entry.Id, group)))
             .ToDictionary(item => item.Id, item => item.group, StringComparer.OrdinalIgnoreCase);
 
-        foreach (SplitRouteEntry entry in settings.SplitRoute)
+        foreach (SplitRouteEntry entry in settings.Route.SplitRoute)
         {
             if (!entry.Enabled || string.IsNullOrWhiteSpace(entry.Id))
             {
@@ -71,8 +71,8 @@ internal static class StatisticsTableBuilder
                     GetConditionOrSplitValue(personalSplits, conditionRow),
                     referenceSegmentText,
                     personalSegmentText,
-                    GetValue(settings.PersonalBestTimes, conditionRow.Key),
-                    GetValue(settings.PersonalBestSegmentTimes, group.Key),
+                    GetValue(settings.Comparison.PersonalBestTimes, conditionRow.Key),
+                    GetValue(settings.Comparison.PersonalBestSegmentTimes, group.Key),
                     groupConditionRows.Count,
                     i));
             }
@@ -101,7 +101,7 @@ internal static class StatisticsTableBuilder
                 GetConditionOrSplitValue(personalSplits, conditionRow),
                 "--",
                 "--",
-                GetValue(settings.PersonalBestTimes, conditionRow.Key),
+                GetValue(settings.Comparison.PersonalBestTimes, conditionRow.Key),
                 "--",
                 attachedRows.Count,
                 i));

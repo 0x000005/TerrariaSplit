@@ -72,8 +72,8 @@ internal sealed partial class MainForm : Form
         }
 
         bool enableDeltaGradient = status.Time is TimeSpan
-            ? settings.EnableDeltaGradientColor
-            : settings.EnableCurrentDeltaGradientColor;
+            ? settings.Overlay.EnableDeltaGradientColor
+            : settings.Overlay.EnableCurrentDeltaGradientColor;
         Color deltaColor = OverlayColorMath.GetDeltaComparisonColor(
             settings,
             comparison,
@@ -83,7 +83,7 @@ internal sealed partial class MainForm : Form
     }
 
     private bool StatusOverlayHighlightsActive =>
-        settings.ShowSegmentBestDeltaHighlight &&
+        settings.Overlay.ShowSegmentBestDeltaHighlight &&
         overlayAnimations.SegmentBestDeltaHighlights.Count > 0;
 
     private Rectangle? ComputeStatusOverlayDynamicRegion()

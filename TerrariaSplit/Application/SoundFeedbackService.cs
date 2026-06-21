@@ -26,7 +26,7 @@ internal static class SoundFeedbackService
             : null;
 
         return SplitSoundSelector.GetPath(
-            settings.Sounds,
+            settings.Overlay.Sounds,
             definition,
             splitTime,
             referenceSplit,

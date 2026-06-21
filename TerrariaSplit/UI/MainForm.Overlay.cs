@@ -20,7 +20,7 @@ internal sealed partial class MainForm : Form
         int resolvedRowCount = splitCount >= 0
             ? Math.Max(GetCurrentReservedLayoutRowCount(), splitCount)
             : GetCurrentReservedLayoutRowCount();
-        palette = UiPalette.From(settings.Colors);
+        palette = UiPalette.From(settings.Overlay.Colors);
         RefreshTimerOverlaySettingsSnapshot();
         UpdateOverlayLayoutContext(resolvedRowCount, visibleRowCount, force: true);
         UpdateEffectiveOverlayTopMost();
@@ -179,8 +179,8 @@ internal sealed partial class MainForm : Form
             return currentSize;
         }
 
-        int oldScale = Math.Clamp(previousSettings.Columns.ScalePercent, 25, 300);
-        int newScale = Math.Clamp(settings.Columns.ScalePercent, 25, 300);
+        int oldScale = Math.Clamp(previousSettings.Overlay.Columns.ScalePercent, 25, 300);
+        int newScale = Math.Clamp(settings.Overlay.Columns.ScalePercent, 25, 300);
         float ratio = newScale / (float)oldScale;
         int width = currentSize.Width;
         int height = currentSize.Height;
@@ -497,7 +497,7 @@ internal sealed partial class MainForm : Form
 
     private void HandleTimerOverlayRightClickRequested(TimerOverlayRightClickRequest request)
     {
-        if (settings.PracticeMode &&
+        if (settings.General.PracticeMode &&
             overlayWindowsInitialized &&
             TryGetLayout(out SplitLayout layout))
         {
@@ -530,6 +530,6 @@ internal sealed partial class MainForm : Form
 
     private void UpdateEffectiveOverlayTopMost()
     {
-        modalWindows.SetAlwaysOnTop(settings.AlwaysOnTop);
+        modalWindows.SetAlwaysOnTop(settings.General.AlwaysOnTop);
     }
 }

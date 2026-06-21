@@ -43,6 +43,7 @@ var legacyTests = new (string Name, Action Test)[]
     ("Localizer returns English fallback and Chinese Crimson", TestLocalizer),
     ("JsonFileStore writes settings atomically", TestJsonFileStoreWritesAtomically),
     ("Default settings template covers serializable settings", TestDefaultSettingsTemplateCoversSerializableSettings),
+    ("Legacy flat settings JSON migrates to sections", TestLegacyFlatSettingsJsonMigratesToSections),
     ("Default attached split display matches primary display", TestDefaultAttachedSplitDisplayMatchesPrimaryDisplay),
     ("Default reference times match default settings route", TestDefaultReferenceTimesMatchDefaultSettingsRoute),
     ("AppSettingsStore writes embedded defaults when settings file is invalid", TestAppSettingsStoreWritesEmbeddedDefaultsWhenSettingsFileIsInvalid),
@@ -1027,6 +1028,49 @@ static void TestDefaultSettingsTemplateCoversSerializableSettings()
     using JsonDocument document = JsonDocument.Parse(AppSettingsDefaults.TemplateJson);
 
     AssertJsonCoversType(typeof(AppSettings), document.RootElement, "settings");
+}
+
+static void TestLegacyFlatSettingsJsonMigratesToSections()
+{
+    const string json = """
+    {
+      "Language": "English",
+      "AlwaysOnTop": true,
+      "PauseResumeKey": "F10",
+      "SplitRoute": [],
+      "UsePersonalBestAsReferenceTime": true,
+      "ShowSplitCompletionAnimation": false,
+      "AutoCreate": {
+        "EnablePyramidFilter": true
+      }
+    }
+    """;
+
+    AppSettings settings = SettingsSerializer.ReadSettingsFromJson(json, "legacy flat settings")
+        ?? throw new InvalidOperationException("Legacy flat settings could not be read.");
+
+    AssertEqual("English", settings.General.Language);
+    AssertEqual(true, settings.General.AlwaysOnTop);
+    AssertEqual("F10", settings.Hotkeys.PauseResumeKey);
+    AssertEqual(0, settings.Route.SplitRoute.Count);
+    AssertEqual(true, settings.Comparison.UsePersonalBestAsReferenceTime);
+    AssertEqual(false, settings.Overlay.ShowSplitCompletionAnimation);
+    AssertEqual(true, settings.Automation.AutoCreate.EnablePyramidFilter);
+
+    string persisted = JsonSerializer.Serialize(settings, JsonFileStore.JsonOptions);
+    using JsonDocument document = JsonDocument.Parse(persisted);
+    JsonElement root = document.RootElement;
+
+    AssertEqual(true, root.TryGetProperty(nameof(AppSettings.General), out _));
+    AssertEqual(true, root.TryGetProperty(nameof(AppSettings.Hotkeys), out _));
+    AssertEqual(true, root.TryGetProperty(nameof(AppSettings.Route), out _));
+    AssertEqual(true, root.TryGetProperty(nameof(AppSettings.Comparison), out _));
+    AssertEqual(true, root.TryGetProperty(nameof(AppSettings.Overlay), out _));
+    AssertEqual(true, root.TryGetProperty(nameof(AppSettings.Automation), out _));
+    AssertEqual(false, root.TryGetProperty(nameof(AppSettings.Language), out _));
+    AssertEqual(false, root.TryGetProperty(nameof(AppSettings.PauseResumeKey), out _));
+    AssertEqual(false, root.TryGetProperty(nameof(AppSettings.SplitRoute), out _));
+    AssertEqual(false, root.TryGetProperty(nameof(AppSettings.AutoCreate), out _));
 }
 
 static void TestDefaultAttachedSplitDisplayMatchesPrimaryDisplay()
@@ -4813,6 +4857,12 @@ static void AssertJsonCoversType(Type type, JsonElement element, string path)
 static Type? GetTemplateNestedType(Type type)
 {
     if (type == typeof(UiColorSettings) ||
+        type == typeof(GeneralSettings) ||
+        type == typeof(HotkeySettings) ||
+        type == typeof(RouteSettings) ||
+        type == typeof(ComparisonSettings) ||
+        type == typeof(OverlaySettings) ||
+        type == typeof(AutomationSettings) ||
         type == typeof(UiSoundSettings) ||
         type == typeof(UiColumnLayoutSettings) ||
         type == typeof(UiColumnSettings) ||

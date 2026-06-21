@@ -9,7 +9,7 @@ internal static class SplitTimingComparisons
     {
         segment = TimeSpan.Zero;
         string groupKey = GetSplitCompletionGroupKey(settings, definition);
-        if (settings.PersonalBestSegmentTimes.TryGetValue(groupKey, out string? value) &&
+        if (settings.Comparison.PersonalBestSegmentTimes.TryGetValue(groupKey, out string? value) &&
             TimeText.TryParse(value, out TimeSpan parsed))
         {
             segment = parsed;

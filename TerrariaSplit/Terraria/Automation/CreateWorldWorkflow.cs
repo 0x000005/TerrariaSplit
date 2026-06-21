@@ -15,9 +15,9 @@ internal sealed class CreateWorldWorkflow : IDisposable
     private readonly PyramidSeedPreScreenAutomation pyramidSeedPreScreenAutomation;
     private readonly TerrariaWorldFilePyramidScanner worldFileScanner = new();
     private readonly WorldPoolStore? worldPool;
-    private TimeSpan shortActionDelay = TimeSpan.FromMilliseconds(AppSettingsDefaults.AutoCreate.ShortActionDelayMilliseconds);
-    private TimeSpan menuActionDelay = TimeSpan.FromMilliseconds(AppSettingsDefaults.AutoCreate.MenuActionDelayMilliseconds);
-    private int pyramidFilterPostDelayMilliseconds = AppSettingsDefaults.AutoCreate.PyramidFilterPostDelayMilliseconds;
+    private TimeSpan shortActionDelay = TimeSpan.FromMilliseconds(AppSettingsDefaults.Automation.AutoCreate.ShortActionDelayMilliseconds);
+    private TimeSpan menuActionDelay = TimeSpan.FromMilliseconds(AppSettingsDefaults.Automation.AutoCreate.MenuActionDelayMilliseconds);
+    private int pyramidFilterPostDelayMilliseconds = AppSettingsDefaults.Automation.AutoCreate.PyramidFilterPostDelayMilliseconds;
 
     public CreateWorldWorkflow(WorldPoolStore? worldPool = null)
     {
@@ -37,7 +37,7 @@ internal sealed class CreateWorldWorkflow : IDisposable
         automation.BeginRun();
         try
         {
-            AutoCreateWorldSettings autoCreate = settings.AutoCreate;
+            AutoCreateWorldSettings autoCreate = settings.Automation.AutoCreate;
             ApplyTiming(autoCreate);
             while (true)
             {

@@ -125,7 +125,7 @@ internal static class SplitCatalog
 
     public static IReadOnlyList<SplitDefinition> Build(AppSettings settings)
     {
-        return settings.SplitRoute
+        return settings.Route.SplitRoute
             .Where(entry => entry.Enabled)
             .Select(BuildSplit)
             .Where(definition => definition is not null)

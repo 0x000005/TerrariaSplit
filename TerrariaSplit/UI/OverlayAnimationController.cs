@@ -48,7 +48,7 @@ internal sealed class OverlayAnimationController
 
         if (completedIndex < 0 ||
             completedIndex >= statuses.Count ||
-            !settings.ShowSegmentBestDeltaHighlight ||
+            !settings.Overlay.ShowSegmentBestDeltaHighlight ||
             !SplitRenderData.TryGetCompletedSegmentTime(settings, statuses, completedIndex, out TimeSpan segmentTime))
         {
             return;

@@ -18,7 +18,9 @@ internal static class AppSettingsDefaults
 
     public static AdvancedSettings Advanced => Template.Value.Advanced;
 
-    public static AutoCreateWorldSettings AutoCreate => Template.Value.AutoCreate;
+    public static AutomationSettings Automation => Template.Value.Automation;
+
+    public static AutoCreateWorldSettings AutoCreate => Template.Value.Automation.AutoCreate;
 
     public static AppSettings Create()
     {
@@ -28,7 +30,7 @@ internal static class AppSettingsDefaults
 
     private static AppSettings LoadTemplate()
     {
-        return JsonSerializer.Deserialize<AppSettings>(TemplateJson, JsonOptions)
+        return SettingsJsonSectionMigrator.Deserialize(TemplateJson, JsonOptions)
             ?? throw new InvalidOperationException("Embedded default settings template is invalid.");
     }
 }

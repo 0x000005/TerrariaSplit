@@ -12,7 +12,7 @@ internal static class WorldPoolSignature
 
     public static string From(AppSettings settings)
     {
-        return From(settings.AutoCreate, settings.Language);
+        return From(settings.Automation.AutoCreate, settings.General.Language);
     }
 
     public static string From(AutoCreateWorldSettings autoCreate)

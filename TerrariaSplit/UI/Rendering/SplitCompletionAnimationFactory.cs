@@ -33,9 +33,9 @@ internal static class SplitCompletionAnimationFactory
             SplitRenderData.GetReferenceSplitComparison(settings, definition, splitTime),
             SplitRenderData.GetPersonalBestSegmentComparison(settings, definition, segmentTime),
             SplitRenderData.IsSplitCompletionSplitComparisonEnabled(settings, groupKey),
-            SplitRenderData.GetSplitCompletionOutlineStyle(settings.SplitCompletionOutlineSplitStyles, groupKey),
+            SplitRenderData.GetSplitCompletionOutlineStyle(settings.Overlay.SplitCompletionOutlineSplitStyles, groupKey),
             SplitRenderData.IsSplitCompletionSegmentComparisonEnabled(settings, groupKey),
-            SplitRenderData.GetSplitCompletionOutlineStyle(settings.SplitCompletionOutlineSegmentStyles, groupKey),
+            SplitRenderData.GetSplitCompletionOutlineStyle(settings.Overlay.SplitCompletionOutlineSegmentStyles, groupKey),
             segmentBestDeltaHighlightStyle,
             startedAtUtc);
     }

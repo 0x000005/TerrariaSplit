@@ -21,12 +21,12 @@ internal sealed class BossIconCache : IDisposable
         Bitmap lit = File.Exists(path) ? LoadIconBitmap(path, iconKey) : CreatePlaceholderIcon();
         Bitmap undefeated = CreateBossChecklistUndefeatedIcon(
             lit,
-            settings.UndefeatedIconGrayscalePercent,
-            settings.UndefeatedIconBrightnessPercent);
+            settings.Overlay.UndefeatedIconGrayscalePercent,
+            settings.Overlay.UndefeatedIconBrightnessPercent);
         Bitmap current = CreateBossChecklistUndefeatedIcon(
             lit,
-            Math.Max(0, settings.UndefeatedIconGrayscalePercent - settings.CurrentBossIconGrayscaleWeakenPercent),
-            Math.Min(100, settings.UndefeatedIconBrightnessPercent + settings.CurrentBossIconBrightnessBoostPercent));
+            Math.Max(0, settings.Overlay.UndefeatedIconGrayscalePercent - settings.Overlay.CurrentBossIconGrayscaleWeakenPercent),
+            Math.Min(100, settings.Overlay.UndefeatedIconBrightnessPercent + settings.Overlay.CurrentBossIconBrightnessBoostPercent));
         iconPair = new IconPair(lit, undefeated, current);
         cache[cacheKey] = iconPair;
         return iconPair;

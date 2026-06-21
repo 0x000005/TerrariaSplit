@@ -26,7 +26,7 @@ internal sealed record OverlayRenderContext(
 
     public static float GetScaleFactor(AppSettings settings)
     {
-        return Math.Clamp(settings.Columns.ScalePercent, 25, 300) / 100f;
+        return Math.Clamp(settings.Overlay.Columns.ScalePercent, 25, 300) / 100f;
     }
 
     public static int ScaleInt(AppSettings settings, int value)

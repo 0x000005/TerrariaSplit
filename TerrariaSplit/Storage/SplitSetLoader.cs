@@ -5,7 +5,7 @@ internal static class SplitSetLoader
     public static void LoadInto(AppSettings settings)
     {
         SplitTimeSetStore.EnsureDirectories();
-        settings.ReferenceSplitSets = SplitTimeSetStore.LoadReferenceSets();
+        settings.Comparison.ReferenceSplitSets = SplitTimeSetStore.LoadReferenceSets();
         LoadPersonalBestTimeSets(settings);
         LoadPersonalBestSegmentSets(settings);
         SettingsNormalizer.Normalize(settings);
@@ -18,15 +18,15 @@ internal static class SplitSetLoader
         List<ReferenceSplitSet> personalBestTimeSets = SplitTimeSetStore.LoadPersonalBestTimeSets();
         if (personalBestTimeSets.Count > 0)
         {
-            settings.PersonalBestTimeSets = personalBestTimeSets;
+            settings.Comparison.PersonalBestTimeSets = personalBestTimeSets;
             return;
         }
 
-        settings.PersonalBestTimeSets = new List<ReferenceSplitSet>
+        settings.Comparison.PersonalBestTimeSets = new List<ReferenceSplitSet>
         {
             CreateSet("Personal", SplitConditionDataRows.Build(settings).Select(row => row.Key))
         };
-        SplitTimeSetStore.SavePersonalBestTimeSets(settings.PersonalBestTimeSets);
+        SplitTimeSetStore.SavePersonalBestTimeSets(settings.Comparison.PersonalBestTimeSets);
     }
 
     private static void LoadPersonalBestSegmentSets(AppSettings settings)
@@ -34,15 +34,15 @@ internal static class SplitSetLoader
         List<ReferenceSplitSet> personalBestSegmentSets = SplitTimeSetStore.LoadPersonalBestSegmentSets();
         if (personalBestSegmentSets.Count > 0)
         {
-            settings.PersonalBestSegmentSets = personalBestSegmentSets;
+            settings.Comparison.PersonalBestSegmentSets = personalBestSegmentSets;
             return;
         }
 
-        settings.PersonalBestSegmentSets = new List<ReferenceSplitSet>
+        settings.Comparison.PersonalBestSegmentSets = new List<ReferenceSplitSet>
         {
             CreateSet("Personal", SplitRouteGroups.Build(settings).Select(group => group.Key))
         };
-        SplitTimeSetStore.SavePersonalBestSegmentSets(settings.PersonalBestSegmentSets);
+        SplitTimeSetStore.SavePersonalBestSegmentSets(settings.Comparison.PersonalBestSegmentSets);
     }
 
     private static ReferenceSplitSet CreateSet(string name, IEnumerable<string> keys)

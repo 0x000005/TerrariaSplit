@@ -23,9 +23,9 @@ internal sealed class RunFinalizer
             updateTargetSettings,
             statuses);
         bool settingsUpdated = false;
-        if (updates.HasUpdates && updateTargetSettings.AutoUpdatePersonalBestData)
+        if (updates.HasUpdates && updateTargetSettings.Comparison.AutoUpdatePersonalBestData)
         {
-            bool shouldUpdate = !updateTargetSettings.AskBeforeUpdatingPersonalBestData ||
+            bool shouldUpdate = !updateTargetSettings.Comparison.AskBeforeUpdatingPersonalBestData ||
                 confirmPersonalBestUpdates(BuildPersonalBestUpdatePromptText(updates, updateTargetSettings));
             if (shouldUpdate)
             {
@@ -54,26 +54,26 @@ internal sealed class RunFinalizer
         {
             (string bossName, string previousTimeText, string newTimeText) = BuildSnapshotLabel(segmentUpdates);
             ReferenceSplitSet snapshot = SplitTimeSetStore.SavePersonalBestSegmentSnapshot(
-                settings.PersonalBestSegmentTimes,
+                settings.Comparison.PersonalBestSegmentTimes,
                 bossName,
                 previousTimeText,
                 newTimeText);
-            AddPersonalBestSnapshot(settings.PersonalBestSegmentSets, snapshot);
-            settings.ActivePersonalBestSegmentSet = snapshot.Name;
+            AddPersonalBestSnapshot(settings.Comparison.PersonalBestSegmentSets, snapshot);
+            settings.Comparison.ActivePersonalBestSegmentSet = snapshot.Name;
         }
 
         if (updates.TimeUpdate is PendingPersonalBestTimeUpdate timeUpdate)
         {
-            settings.PersonalBestTimes = new Dictionary<string, string>(
+            settings.Comparison.PersonalBestTimes = new Dictionary<string, string>(
                 timeUpdate.Splits,
                 StringComparer.OrdinalIgnoreCase);
             ReferenceSplitSet snapshot = SplitTimeSetStore.SavePersonalBestTimeSnapshot(
-                settings.PersonalBestTimes,
+                settings.Comparison.PersonalBestTimes,
                 timeUpdate.BossName,
                 timeUpdate.PreviousTimeText,
                 timeUpdate.NewTimeText);
-            AddPersonalBestSnapshot(settings.PersonalBestTimeSets, snapshot);
-            settings.ActivePersonalBestTimeSet = snapshot.Name;
+            AddPersonalBestSnapshot(settings.Comparison.PersonalBestTimeSets, snapshot);
+            settings.Comparison.ActivePersonalBestTimeSet = snapshot.Name;
         }
 
     }
@@ -123,7 +123,7 @@ internal sealed class RunFinalizer
                 continue;
             }
 
-            if (baselineSettings.PersonalBestSegmentTimes.TryGetValue(group.Key, out string? existingText) &&
+            if (baselineSettings.Comparison.PersonalBestSegmentTimes.TryGetValue(group.Key, out string? existingText) &&
                 TimeText.TryParse(existingText, out TimeSpan existingSegment) &&
                 existingSegment <= segmentTime)
             {
@@ -220,7 +220,7 @@ internal sealed class RunFinalizer
 
         bool hasExistingMoonLordTime = SplitConditionDataRows.TryGetSplitTime(
             routeSettings,
-            baselineSettings.PersonalBestTimes,
+            baselineSettings.Comparison.PersonalBestTimes,
             moonLordStatus.Definition,
             out TimeSpan existingMoonLordTime);
         string existingMoonLordText = hasExistingMoonLordTime

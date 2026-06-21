@@ -7,14 +7,22 @@ internal static class SettingsSerializer
 {
     public static AppSettings? ReadSettings(string path, string description)
     {
-        return JsonFileStore.Read<AppSettings>(path, description);
+        try
+        {
+            return ReadSettingsFromJson(File.ReadAllText(path), description);
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error(ex, $"Failed to read {description}: {path}");
+            return default;
+        }
     }
 
     public static AppSettings? ReadSettingsFromJson(string json, string description)
     {
         try
         {
-            return JsonSerializer.Deserialize<AppSettings>(json, JsonFileStore.JsonOptions);
+            return SettingsJsonSectionMigrator.Deserialize(json, JsonFileStore.JsonOptions);
         }
         catch (Exception ex)
         {
@@ -47,18 +55,19 @@ internal static class SettingsSerializer
             if (!File.Exists(path))
             {
                 shouldWriteDefaults = true;
-                return merged.Deserialize<AppSettings>(JsonFileStore.JsonOptions);
+                return SettingsJsonSectionMigrator.Deserialize(merged, JsonFileStore.JsonOptions);
             }
 
             JsonObject? overrides = ReadJsonObject(path);
             if (overrides is null)
             {
                 shouldWriteDefaults = true;
-                return merged.Deserialize<AppSettings>(JsonFileStore.JsonOptions);
+                return SettingsJsonSectionMigrator.Deserialize(merged, JsonFileStore.JsonOptions);
             }
 
+            SettingsJsonSectionMigrator.Migrate(overrides);
             MergeJsonObject(merged, overrides);
-            AppSettings? settings = merged.Deserialize<AppSettings>(JsonFileStore.JsonOptions);
+            AppSettings? settings = SettingsJsonSectionMigrator.Deserialize(merged, JsonFileStore.JsonOptions);
             if (settings is null)
             {
                 shouldWriteDefaults = true;
@@ -78,7 +87,7 @@ internal static class SettingsSerializer
     public static AppSettings Clone(AppSettings settings)
     {
         string json = JsonSerializer.Serialize(settings, JsonFileStore.JsonOptions);
-        return JsonSerializer.Deserialize<AppSettings>(json, JsonFileStore.JsonOptions) ?? new AppSettings();
+        return SettingsJsonSectionMigrator.Deserialize(json, JsonFileStore.JsonOptions) ?? new AppSettings();
     }
 
     public static bool IsValidSettingsFile(string path)
@@ -92,11 +101,14 @@ internal static class SettingsSerializer
             }
 
             JsonElement root = document.RootElement;
-            return root.TryGetProperty(nameof(AppSettings.SplitRoute), out _) ||
-                root.TryGetProperty(nameof(AppSettings.Columns), out _) ||
-                root.TryGetProperty(nameof(AppSettings.Colors), out _) ||
-                root.TryGetProperty(nameof(AppSettings.ReferenceSplitSets), out _) ||
-                root.TryGetProperty(nameof(AppSettings.ShowSplitCompletionAnimation), out _);
+            return root.TryGetProperty(nameof(AppSettings.Route), out _) ||
+                root.TryGetProperty(nameof(AppSettings.Overlay), out _) ||
+                root.TryGetProperty(nameof(AppSettings.Comparison), out _) ||
+                root.TryGetProperty(nameof(RouteSettings.SplitRoute), out _) ||
+                root.TryGetProperty(nameof(OverlaySettings.Columns), out _) ||
+                root.TryGetProperty(nameof(OverlaySettings.Colors), out _) ||
+                root.TryGetProperty(nameof(ComparisonSettings.ReferenceSplitSets), out _) ||
+                root.TryGetProperty(nameof(OverlaySettings.ShowSplitCompletionAnimation), out _);
         }
         catch (Exception ex)
         {

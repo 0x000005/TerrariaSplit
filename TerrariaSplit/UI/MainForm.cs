@@ -100,7 +100,7 @@ internal sealed partial class MainForm : Form
             settingsSnapshots);
         worldPoolFillService = new WorldPoolFillService(worldPoolStore, settingsSnapshots, appLogger);
         RefreshTimerOverlaySettingsSnapshot();
-        palette = UiPalette.From(settings.Colors);
+        palette = UiPalette.From(settings.Overlay.Colors);
         monitorCoordinator = new TerrariaMonitorCoordinator(
             new TerrariaWorldWatcher(),
             new TerrariaUiScalePatchApplierAdapter(),
@@ -191,7 +191,7 @@ internal sealed partial class MainForm : Form
             GetCurrentLayoutRowCount());
         AcceptRuntimeCommandSequence(monitorCoordinator.SetRuntimeDefinitions(applicationController.Definitions));
         Text = SegmentTimerWindowTitle;
-        modalWindows.SetAlwaysOnTop(settings.AlwaysOnTop);
+        modalWindows.SetAlwaysOnTop(settings.General.AlwaysOnTop);
         FormBorderStyle = FormBorderStyle.None;
         ShowInTaskbar = true;
         StartPosition = FormStartPosition.CenterScreen;
@@ -211,7 +211,7 @@ internal sealed partial class MainForm : Form
                 return;
             }
 
-            if (settings.PracticeMode && IsEditablePracticePoint(PointToClient(Cursor.Position)))
+            if (settings.General.PracticeMode && IsEditablePracticePoint(PointToClient(Cursor.Position)))
             {
                 e.Cancel = true;
                 return;

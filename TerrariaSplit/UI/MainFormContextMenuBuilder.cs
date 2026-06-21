@@ -31,7 +31,7 @@ internal sealed class MainFormContextMenuBuilder
         var item = new ToolStripMenuItem(Localizer.Get("Quick pyramid filter", settings))
         {
             Name = PyramidFilterToggleItemName,
-            Checked = settings.AutoCreate.EnablePyramidFilter
+            Checked = settings.Automation.AutoCreate.EnablePyramidFilter
         };
         item.Click += (_, _) => togglePyramidFilter();
         return item;

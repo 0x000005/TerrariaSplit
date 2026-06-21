@@ -252,7 +252,7 @@ internal sealed partial class MainForm : Form
 
     private void InvalidateRuntimeRenderRegion()
     {
-        if (settings.ShowEarlyDeltaTime &&
+        if (settings.Overlay.ShowEarlyDeltaTime &&
             currentSplitIndex >= 0 &&
             currentSplitIndex < splitStatuses.Count &&
             SplitDisplayRows.TryGetRowIndex(settings, splitStatuses, currentSplitIndex, out int visualRowIndex) &&

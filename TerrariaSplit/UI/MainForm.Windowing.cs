@@ -254,7 +254,7 @@ internal sealed partial class MainForm : Form
             dragging = false;
         }
 
-        if (e.Button == MouseButtons.Right && settings.PracticeMode)
+        if (e.Button == MouseButtons.Right && settings.General.PracticeMode)
         {
             TryOpenPracticeEdit(e.Location);
         }

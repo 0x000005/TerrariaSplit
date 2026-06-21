@@ -11,9 +11,9 @@ internal sealed class TerrariaWindowController
     private const uint MouseEventLeftUp = 0x0004;
     private const uint KeyEventKeyUp = 0x0002;
 
-    public int WindowActivationDelayMilliseconds { get; set; } = AppSettingsDefaults.AutoCreate.WindowActivationDelayMilliseconds;
-    public int ClickFocusDelayMilliseconds { get; set; } = AppSettingsDefaults.AutoCreate.ClickFocusDelayMilliseconds;
-    public int InputPressDurationMilliseconds { get; set; } = AppSettingsDefaults.AutoCreate.InputPressDurationMilliseconds;
+    public int WindowActivationDelayMilliseconds { get; set; } = AppSettingsDefaults.Automation.AutoCreate.WindowActivationDelayMilliseconds;
+    public int ClickFocusDelayMilliseconds { get; set; } = AppSettingsDefaults.Automation.AutoCreate.ClickFocusDelayMilliseconds;
+    public int InputPressDurationMilliseconds { get; set; } = AppSettingsDefaults.Automation.AutoCreate.InputPressDurationMilliseconds;
 
     public bool TryActivate(out Size clientSize)
     {

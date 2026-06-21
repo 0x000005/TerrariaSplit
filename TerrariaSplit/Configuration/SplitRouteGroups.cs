@@ -4,7 +4,7 @@ internal static class SplitRouteGroups
 {
     public static List<RouteGroup> Build(AppSettings settings)
     {
-        return settings.SplitRoute
+        return settings.Route.SplitRoute
             .Where(entry => entry.Enabled)
             .Where(entry => !entry.IsAttached)
             .Where(entry => !string.IsNullOrWhiteSpace(entry.Id))

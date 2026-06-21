@@ -7,7 +7,7 @@ internal static class Localizer
 
     public static string Get(string key, AppSettings settings)
     {
-        ILocalizedStringProvider provider = LanguageNames.IsChinese(settings.Language) ? Chinese : English;
+        ILocalizedStringProvider provider = LanguageNames.IsChinese(settings.General.Language) ? Chinese : English;
         return provider.TryGet(key, out string value)
             ? value
             : key;

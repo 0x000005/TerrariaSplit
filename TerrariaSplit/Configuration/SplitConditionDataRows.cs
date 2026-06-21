@@ -14,7 +14,7 @@ internal static class SplitConditionDataRows
 {
     public static IReadOnlyList<SplitConditionDataRow> Build(AppSettings settings)
     {
-        return Build(settings.SplitRoute, settings.Language);
+        return Build(settings.Route.SplitRoute, settings.General.Language);
     }
 
     public static IReadOnlyList<SplitConditionDataRow> Build(IEnumerable<SplitRouteEntry> route, string? language = null)
@@ -98,7 +98,7 @@ internal static class SplitConditionDataRows
         out TimeSpan split)
     {
         split = TimeSpan.Zero;
-        SplitRouteEntry? entry = settings.SplitRoute.FirstOrDefault(routeEntry =>
+        SplitRouteEntry? entry = settings.Route.SplitRoute.FirstOrDefault(routeEntry =>
             routeEntry.Enabled &&
             string.Equals(routeEntry.Id, splitId, StringComparison.OrdinalIgnoreCase));
         if (entry is null)

@@ -4,8 +4,8 @@ internal static class SettingsPersistenceProjection
 {
     public static void RemoveExternalSplitSets(AppSettings settings)
     {
-        settings.ReferenceSplitSets = new List<ReferenceSplitSet>();
-        settings.PersonalBestTimeSets = new List<ReferenceSplitSet>();
-        settings.PersonalBestSegmentSets = new List<ReferenceSplitSet>();
+        settings.Comparison.ReferenceSplitSets = new List<ReferenceSplitSet>();
+        settings.Comparison.PersonalBestTimeSets = new List<ReferenceSplitSet>();
+        settings.Comparison.PersonalBestSegmentSets = new List<ReferenceSplitSet>();
     }
 }
