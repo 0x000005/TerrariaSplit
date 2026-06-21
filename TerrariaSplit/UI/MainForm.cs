@@ -19,7 +19,7 @@ internal sealed partial class MainForm : Form
     private readonly WorldPoolStore worldPoolStore = new();
     private readonly ISettingsSnapshotFactory settingsSnapshots = new StoredSettingsSnapshotFactory();
     private readonly IAppLogger appLogger = StaticAppLogger.Instance;
-    private readonly TerrariaWorldAutomation worldAutomation;
+    private readonly AutomationShell automationShell;
     private readonly WorldPoolFillService worldPoolFillService;
     private readonly MainFormContextMenuBuilder contextMenuBuilder = new();
     private readonly SoundPlayerService soundPlayer = new();
@@ -94,7 +94,6 @@ internal sealed partial class MainForm : Form
         this.registerGlobalHotkeys = registerGlobalHotkeys;
         dispatchedControlTick = DispatchedControlTick;
         dispatchedStatusPaintTick = DispatchedStatusPaintTick;
-        worldAutomation = new TerrariaWorldAutomation(worldPoolStore, appLogger);
         applicationController = new ApplicationController(
             AppSettingsStore.Load(),
             ShowPersonalBestUpdateConfirmation,
@@ -142,6 +141,14 @@ internal sealed partial class MainForm : Form
             modalWindows,
             contextMenu,
             () => dragging = false);
+        automationShell = new AutomationShell(
+            worldPoolStore,
+            () => settings,
+            settingsSnapshots,
+            modalWindows,
+            this,
+            () => AcceptRuntimeCommandSequence(monitorCoordinator.ClearPendingMenuActions()),
+            appLogger);
         settingsShell = new SettingsShell(
             () => settings,
             GetRuntimeDiagnostics,
@@ -174,10 +181,10 @@ internal sealed partial class MainForm : Form
                 RefreshRuntimeUi),
             new DelegateSettingsPort(AppSettingsStore.Save, ApplyLoadedSettings),
             new DelegateAutomationPort(
-                StartCreateWorldAutomation,
-                ShowPracticeWorldSelector,
-                () => worldAutomation.CancelCreateWorld(),
-                () => worldAutomation.CancelEnterWorld()));
+                automationShell.StartCreateWorld,
+                automationShell.ShowPracticeWorldSelector,
+                () => automationShell.CancelCreateWorld(),
+                () => automationShell.CancelEnterWorld()));
         overlayBoundsController.UpdateContext(
             settings,
             GetCurrentReservedLayoutRowCount(),
@@ -368,7 +375,7 @@ internal sealed partial class MainForm : Form
         hotkeyManager.Dispose();
         monitorCoordinator.Dispose();
         worldPoolFillService.Dispose();
-        worldAutomation.Dispose();
+        automationShell.Dispose();
         settingsShell.Dispose();
         timerOverlayHost.Dispose();
         overlayWindowController.Dispose();
@@ -524,8 +531,8 @@ internal sealed partial class MainForm : Form
             if (HotkeyCommandMapper.TryMap(
                     action,
                     DateTime.UtcNow,
-                    worldAutomation.IsCreateWorldRunning,
-                    worldAutomation.IsEnterWorldRunning,
+                    automationShell.IsCreateWorldRunning,
+                    automationShell.IsEnterWorldRunning,
                     out AppCommand command))
             {
                 ExecuteAppCommand(command);
@@ -1461,63 +1468,6 @@ internal sealed partial class MainForm : Form
         UpdateOverlayLayoutContextIfChanged();
         UpdateStatusPaintSchedulerState();
         PublishTimerOverlaySnapshot();
-    }
-
-    private async void StartCreateWorldAutomation()
-    {
-        try
-        {
-            await worldAutomation.StartCreateWorldAsync(AppSettingsStore.Clone(settings));
-        }
-        catch (Exception ex)
-        {
-            AppLogger.Error(ex, "Unhandled create world automation error.");
-        }
-    }
-
-    private void ShowPracticeWorldSelector()
-    {
-        using var form = new PracticeWorldSelectorForm(settings);
-        var window = new TerrariaWindowController();
-        if (window.TryGetClientScreenBounds(out Rectangle terrariaBounds))
-        {
-            form.Location = new Point(
-                terrariaBounds.Left + Math.Max(0, (terrariaBounds.Width - form.Width) / 2),
-                terrariaBounds.Top + Math.Max(0, (terrariaBounds.Height - form.Height) / 2));
-        }
-        else
-        {
-            Rectangle workingArea = Screen.FromControl(this).WorkingArea;
-            form.Location = new Point(
-                workingArea.Left + Math.Max(0, (workingArea.Width - form.Width) / 2),
-                workingArea.Top + Math.Max(0, (workingArea.Height - form.Height) / 2));
-        }
-
-        if (modalWindows.ShowDialog(form, ModalWindowOptions.ForceTopMostForeground) == DialogResult.OK &&
-            form.SelectedSlot is PracticeWorldSlot selectedSlot)
-        {
-            StartPracticeWorldAutomation(selectedSlot);
-        }
-    }
-
-    private async void StartPracticeWorldAutomation(PracticeWorldSlot selectedSlot)
-    {
-        if (!EnterWorldSaveInstaller.TryValidate(selectedSlot, out string validationMessage))
-        {
-            AppLogger.Info(validationMessage);
-            return;
-        }
-
-        AcceptRuntimeCommandSequence(monitorCoordinator.ClearPendingMenuActions());
-
-        try
-        {
-            await worldAutomation.StartEnterWorldAsync(AppSettingsStore.Clone(settings), selectedSlot);
-        }
-        catch (Exception ex)
-        {
-            AppLogger.Error(ex, "Unhandled practice world automation error.");
-        }
     }
 
     private void RegisterConfiguredHotkeys()

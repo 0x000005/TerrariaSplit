@@ -1,0 +1,112 @@
+using System.Drawing;
+using System.Windows.Forms;
+
+namespace TerrariaSplit.UI;
+
+internal sealed class AutomationShell : IDisposable
+{
+    private readonly TerrariaWorldAutomation worldAutomation;
+    private readonly Func<AppSettings> getSettings;
+    private readonly ISettingsSnapshotFactory settingsSnapshots;
+    private readonly ProgramModalWindowCoordinator modalWindows;
+    private readonly Control owner;
+    private readonly Action clearPendingMenuActions;
+    private readonly IAppLogger logger;
+
+    public AutomationShell(
+        WorldPoolStore worldPoolStore,
+        Func<AppSettings> getSettings,
+        ISettingsSnapshotFactory settingsSnapshots,
+        ProgramModalWindowCoordinator modalWindows,
+        Control owner,
+        Action clearPendingMenuActions,
+        IAppLogger logger)
+    {
+        this.getSettings = getSettings;
+        this.settingsSnapshots = settingsSnapshots;
+        this.modalWindows = modalWindows;
+        this.owner = owner;
+        this.clearPendingMenuActions = clearPendingMenuActions;
+        this.logger = logger;
+        worldAutomation = new TerrariaWorldAutomation(worldPoolStore, logger);
+    }
+
+    public bool IsCreateWorldRunning => worldAutomation.IsCreateWorldRunning;
+
+    public bool IsEnterWorldRunning => worldAutomation.IsEnterWorldRunning;
+
+    public async void StartCreateWorld()
+    {
+        try
+        {
+            await worldAutomation.StartCreateWorldAsync(settingsSnapshots.CreateSnapshot(getSettings()));
+        }
+        catch (Exception ex)
+        {
+            logger.Error(ex, "Unhandled create world automation error.");
+        }
+    }
+
+    public void ShowPracticeWorldSelector()
+    {
+        AppSettings settings = getSettings();
+        using var form = new PracticeWorldSelectorForm(settings);
+        var window = new TerrariaWindowController();
+        if (window.TryGetClientScreenBounds(out Rectangle terrariaBounds))
+        {
+            form.Location = new Point(
+                terrariaBounds.Left + Math.Max(0, (terrariaBounds.Width - form.Width) / 2),
+                terrariaBounds.Top + Math.Max(0, (terrariaBounds.Height - form.Height) / 2));
+        }
+        else
+        {
+            Rectangle workingArea = Screen.FromControl(owner).WorkingArea;
+            form.Location = new Point(
+                workingArea.Left + Math.Max(0, (workingArea.Width - form.Width) / 2),
+                workingArea.Top + Math.Max(0, (workingArea.Height - form.Height) / 2));
+        }
+
+        if (modalWindows.ShowDialog(form, ModalWindowOptions.ForceTopMostForeground) == DialogResult.OK &&
+            form.SelectedSlot is PracticeWorldSlot selectedSlot)
+        {
+            StartPracticeWorld(selectedSlot);
+        }
+    }
+
+    public bool CancelCreateWorld()
+    {
+        return worldAutomation.CancelCreateWorld();
+    }
+
+    public bool CancelEnterWorld()
+    {
+        return worldAutomation.CancelEnterWorld();
+    }
+
+    public void Dispose()
+    {
+        worldAutomation.Dispose();
+    }
+
+    private async void StartPracticeWorld(PracticeWorldSlot selectedSlot)
+    {
+        if (!EnterWorldSaveInstaller.TryValidate(selectedSlot, out string validationMessage))
+        {
+            logger.Info(validationMessage);
+            return;
+        }
+
+        clearPendingMenuActions();
+
+        try
+        {
+            await worldAutomation.StartEnterWorldAsync(
+                settingsSnapshots.CreateSnapshot(getSettings()),
+                selectedSlot);
+        }
+        catch (Exception ex)
+        {
+            logger.Error(ex, "Unhandled practice world automation error.");
+        }
+    }
+}
