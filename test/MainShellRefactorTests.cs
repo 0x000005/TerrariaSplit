@@ -30,6 +30,8 @@ internal static class MainShellRefactorTests
         yield return ("PracticeWorldSelectorForm uses save selector text", PracticeWorldSelectorFormUsesSaveSelectorText);
         yield return ("PracticeWorldSelectorForm scales layout with display context", PracticeWorldSelectorFormScalesLayoutWithDisplayContext);
         yield return ("HotkeyWarningDialog uses plain dialog content", HotkeyWarningDialogUsesPlainDialogContent);
+        yield return ("HotkeyShell suppresses repeated registration warnings", HotkeyShellSuppressesRepeatedRegistrationWarnings);
+        yield return ("HotkeyShell unregisters when global hotkeys are disabled", HotkeyShellUnregistersWhenGlobalHotkeysAreDisabled);
         yield return ("SettingsMessageDialog uses themed dialog chrome", SettingsMessageDialogUsesThemedDialogChrome);
         yield return ("Settings form title bar uses icon window buttons", SettingsFormTitleBarUsesIconWindowButtons);
         yield return ("SettingsUiFactory keeps two-column editor column fixed width", SettingsUiFactoryKeepsTwoColumnEditorColumnFixedWidth);
@@ -600,6 +602,52 @@ internal static class MainShellRefactorTests
         });
     }
 
+    private static void HotkeyShellSuppressesRepeatedRegistrationWarnings()
+    {
+        var manager = new FakeHotkeyRegistrationManager(
+        [
+            new HotkeyRegistrationWarning(
+                HotkeyAction.Reset,
+                Keys.F6,
+                HotkeyRegistrationWarningKind.Duplicate,
+                "Duplicate hotkey.")
+        ]);
+        var messages = new List<string>();
+        using var shell = new HotkeyShell(
+            manager,
+            () => new AppSettings { General = { Language = LanguageNames.English } },
+            () => new IntPtr(123),
+            () => true,
+            registerGlobalHotkeys: true,
+            messages.Add);
+
+        shell.Register();
+        shell.Register();
+
+        TestAssert.Equal(2, manager.RegisterCount);
+        TestAssert.Equal(1, messages.Count);
+        TestAssert.Equal(true, messages[0].Contains("Reset", StringComparison.Ordinal));
+        TestAssert.Equal(true, messages[0].Contains("F6", StringComparison.Ordinal));
+    }
+
+    private static void HotkeyShellUnregistersWhenGlobalHotkeysAreDisabled()
+    {
+        var manager = new FakeHotkeyRegistrationManager([]);
+        var shell = new HotkeyShell(
+            manager,
+            () => new AppSettings(),
+            () => new IntPtr(123),
+            () => true,
+            registerGlobalHotkeys: false,
+            _ => { });
+
+        shell.Register();
+
+        TestAssert.Equal(0, manager.RegisterCount);
+        TestAssert.Equal(1, manager.DisposeCount);
+        shell.Dispose();
+    }
+
     private static void SettingsMessageDialogUsesThemedDialogChrome()
     {
         RunSta(() =>
@@ -976,6 +1024,37 @@ internal static class MainShellRefactorTests
 
         public void CancelEnterWorld()
         {
+        }
+    }
+
+    private sealed class FakeHotkeyRegistrationManager : IHotkeyRegistrationManager
+    {
+        private readonly IReadOnlyList<HotkeyRegistrationWarning> warnings;
+
+        public FakeHotkeyRegistrationManager(IReadOnlyList<HotkeyRegistrationWarning> warnings)
+        {
+            this.warnings = warnings;
+        }
+
+        public int RegisterCount { get; private set; }
+
+        public int DisposeCount { get; private set; }
+
+        public IReadOnlyList<HotkeyRegistrationWarning> RegisterConfiguredHotkeys(IntPtr windowHandle, AppSettings settings)
+        {
+            RegisterCount++;
+            return warnings;
+        }
+
+        public bool TryGetAction(Message message, out HotkeyAction action)
+        {
+            action = default;
+            return false;
+        }
+
+        public void Dispose()
+        {
+            DisposeCount++;
         }
     }
 

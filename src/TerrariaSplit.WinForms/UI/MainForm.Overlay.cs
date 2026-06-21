@@ -26,7 +26,7 @@ internal sealed partial class MainForm : Form
         UpdateEffectiveOverlayTopMost();
         if (IsHandleCreated && !settingsShell.IsOpen)
         {
-            RegisterConfiguredHotkeys();
+            hotkeyShell.Register();
         }
 
         ApplyLayeredOverlayWindowStyle();

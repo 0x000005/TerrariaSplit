@@ -13,7 +13,14 @@ internal enum HotkeyAction
     PracticeWorld
 }
 
-internal sealed class GlobalHotkeyManager : IDisposable
+internal interface IHotkeyRegistrationManager : IDisposable
+{
+    IReadOnlyList<HotkeyRegistrationWarning> RegisterConfiguredHotkeys(IntPtr windowHandle, AppSettings settings);
+
+    bool TryGetAction(Message message, out HotkeyAction action);
+}
+
+internal sealed class GlobalHotkeyManager : IHotkeyRegistrationManager
 {
     public const int HotkeyMessage = 0x0312;
 

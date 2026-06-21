@@ -25,7 +25,7 @@ internal sealed partial class MainForm : Form
     private readonly SoundPlayerService soundPlayer;
     private readonly HighPrecisionScheduler controlScheduler;
     private readonly HighPrecisionScheduler statusPaintScheduler;
-    private readonly GlobalHotkeyManager hotkeyManager;
+    private readonly HotkeyShell hotkeyShell;
     private readonly OverlayRenderResources renderResources;
     private readonly OverlayAnimationController overlayAnimations;
     private readonly ContextMenuStrip contextMenu;
@@ -47,7 +47,6 @@ internal sealed partial class MainForm : Form
     private bool closeFinalizationComplete;
     private int runtimeOverlayPaintSuspensionCount;
     private bool runtimeControlSchedulerSuspended;
-    private string? lastHotkeyWarningText;
     private bool closing;
     private bool runtimeResourcesDisposed;
     private string currentWindowText = string.Empty;
@@ -68,7 +67,6 @@ internal sealed partial class MainForm : Form
     private UiPalette palette;
     private readonly Action dispatchedControlTick;
     private readonly Action dispatchedStatusPaintTick;
-    private readonly bool registerGlobalHotkeys;
     private bool statusOverlayContentDirty = true;
     private StatusOverlayDynamicKey? lastStatusOverlayDynamicKey;
     private Rectangle? statusOverlayPartialClipBounds;
@@ -91,7 +89,6 @@ internal sealed partial class MainForm : Form
 
     public MainForm(bool registerGlobalHotkeys = true)
     {
-        this.registerGlobalHotkeys = registerGlobalHotkeys;
         dispatchedControlTick = DispatchedControlTick;
         dispatchedStatusPaintTick = DispatchedStatusPaintTick;
         MainShellServices services = MainShellCompositionRoot.CreateCore(ShowPersonalBestUpdateConfirmation);
@@ -101,7 +98,13 @@ internal sealed partial class MainForm : Form
         worldPoolFillService = services.WorldPoolFillService;
         contextMenuBuilder = services.ContextMenuBuilder;
         soundPlayer = services.SoundPlayer;
-        hotkeyManager = services.HotkeyManager;
+        hotkeyShell = new HotkeyShell(
+            services.HotkeyManager,
+            () => settings,
+            () => Handle,
+            () => IsHandleCreated,
+            registerGlobalHotkeys,
+            ShowHotkeyWarning);
         renderResources = services.RenderResources;
         overlayAnimations = services.OverlayAnimations;
         contextMenu = services.ContextMenu;
@@ -160,8 +163,8 @@ internal sealed partial class MainForm : Form
             callback => BeginInvoke(callback),
             ApplySettings,
             () => AcceptRuntimeCommandSequence(monitorCoordinator.ClearPendingMenuActions()),
-            hotkeyManager.Dispose,
-            RegisterConfiguredHotkeys,
+            hotkeyShell.Unregister,
+            hotkeyShell.Register,
             () => IsHandleCreated,
             modalWindows,
             () => Bounds);

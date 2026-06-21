@@ -9,7 +9,7 @@ internal sealed record MainShellServices(
     WorldPoolFillService WorldPoolFillService,
     MainFormContextMenuBuilder ContextMenuBuilder,
     SoundPlayerService SoundPlayer,
-    GlobalHotkeyManager HotkeyManager,
+    IHotkeyRegistrationManager HotkeyManager,
     OverlayRenderResources RenderResources,
     OverlayAnimationController OverlayAnimations,
     ContextMenuStrip ContextMenu,

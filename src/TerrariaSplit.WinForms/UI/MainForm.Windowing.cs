@@ -29,7 +29,7 @@ internal sealed partial class MainForm : Form
         modalWindows.ApplyWindowState();
         if (!settingsShell.IsOpen)
         {
-            RegisterConfiguredHotkeys();
+            hotkeyShell.Register();
         }
 
         Invalidate();
@@ -143,7 +143,7 @@ internal sealed partial class MainForm : Form
         runtimeResourcesDisposed = true;
         controlScheduler.Dispose();
         statusPaintScheduler.Dispose();
-        hotkeyManager.Dispose();
+        hotkeyShell.Dispose();
         monitorCoordinator.Dispose();
         worldPoolFillService.Dispose();
         automationShell.Dispose();
@@ -155,7 +155,7 @@ internal sealed partial class MainForm : Form
 
     protected override void OnHandleDestroyed(EventArgs e)
     {
-        hotkeyManager.Dispose();
+        hotkeyShell.Unregister();
         base.OnHandleDestroyed(e);
     }
 
@@ -297,7 +297,7 @@ internal sealed partial class MainForm : Form
             return;
         }
 
-        if (hotkeyManager.TryGetAction(m, out HotkeyAction action))
+        if (hotkeyShell.TryGetAction(m, out HotkeyAction action))
         {
             if (HotkeyCommandMapper.TryMap(
                     action,
