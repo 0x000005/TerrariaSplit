@@ -3,6 +3,7 @@ using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Drawing.Text;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using TerrariaSplit;
 
 namespace TerrariaSplit.Tests;
@@ -12,6 +13,7 @@ internal static class RenderingTests
     public static IEnumerable<(string Name, Action Test)> All()
     {
         yield return ("UiPalette maps configured text colors", UiPaletteMapsConfiguredTextColors);
+        yield return ("LayeredWindowNative preserves Win32 struct layouts", LayeredWindowNativePreservesWin32StructLayouts);
         yield return ("TextEffectGeometry applies opacity without changing RGB", TextEffectGeometryAppliesOpacity);
         yield return ("TextEffectGeometry fits images without stretching", TextEffectGeometryFitsImagesWithoutStretching);
         yield return ("TextEffectRenderer draws direct styled string", TextEffectRendererDrawsDirectStyledString);
@@ -64,6 +66,17 @@ internal static class RenderingTests
         TestAssert.Equal(Color.FromArgb(0x99, 0xAA, 0xBB), palette.SplitCompletionLabelText);
         TestAssert.Equal(Color.FromArgb(0xAA, 0xBB, 0xCC), palette.SplitCompletionSegmentTimeText);
         TestAssert.Equal(Color.FromArgb(0xBB, 0xCC, 0xDD), palette.SplitCompletionTimeText);
+    }
+
+    private static void LayeredWindowNativePreservesWin32StructLayouts()
+    {
+        TestAssert.Equal(8, Marshal.SizeOf<LayeredWindowNative.NativePoint>());
+        TestAssert.Equal(8, Marshal.SizeOf<LayeredWindowNative.NativeSize>());
+        TestAssert.Equal(16, Marshal.SizeOf<LayeredWindowNative.NativeRect>());
+        TestAssert.Equal(4, Marshal.SizeOf<LayeredWindowNative.BlendFunction>());
+        TestAssert.Equal(40, Marshal.SizeOf<LayeredWindowNative.BitmapInfoHeader>());
+        TestAssert.Equal(44, Marshal.SizeOf<LayeredWindowNative.BitmapInfo>());
+        TestAssert.Equal(IntPtr.Size == 8 ? 80 : 40, Marshal.SizeOf<LayeredWindowNative.UpdateLayeredWindowInfo>());
     }
 
     private static void TextEffectGeometryAppliesOpacity()

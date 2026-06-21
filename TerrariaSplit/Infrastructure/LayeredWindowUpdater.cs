@@ -2,17 +2,12 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
+using static TerrariaSplit.LayeredWindowNative;
 
 namespace TerrariaSplit;
 
 internal static class LayeredWindowUpdater
 {
-    private const byte AcSrcOver = 0x00;
-    private const byte AcSrcAlpha = 0x01;
-    private const int UlwAlpha = 0x00000002;
-    private const uint BiRgb = 0;
-    private const uint DibRgbColors = 0;
-
     public static bool Update(Form form, Bitmap bitmap)
     {
         IntPtr screenDc = GetDC(IntPtr.Zero);
@@ -149,102 +144,4 @@ internal static class LayeredWindowUpdater
         }
     }
 
-    [DllImport("user32.dll", SetLastError = true)]
-    private static extern IntPtr GetDC(IntPtr hWnd);
-
-    [DllImport("user32.dll", SetLastError = true)]
-    private static extern int ReleaseDC(IntPtr hWnd, IntPtr hDc);
-
-    [DllImport("gdi32.dll", SetLastError = true)]
-    private static extern IntPtr CreateCompatibleDC(IntPtr hDc);
-
-    [DllImport("gdi32.dll", SetLastError = true)]
-    private static extern bool DeleteDC(IntPtr hDc);
-
-    [DllImport("gdi32.dll", SetLastError = true)]
-    private static extern IntPtr SelectObject(IntPtr hDc, IntPtr hObject);
-
-    [DllImport("gdi32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool DeleteObject(IntPtr hObject);
-
-    [DllImport("gdi32.dll", SetLastError = true)]
-    private static extern IntPtr CreateDIBSection(
-        IntPtr hdc,
-        ref BitmapInfo pbmi,
-        uint usage,
-        out IntPtr bits,
-        IntPtr section,
-        uint offset);
-
-    [DllImport("user32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool UpdateLayeredWindow(
-        IntPtr hWnd,
-        IntPtr hdcDst,
-        ref NativePoint pptDst,
-        ref NativeSize psize,
-        IntPtr hdcSrc,
-        ref NativePoint pptSrc,
-        int crKey,
-        ref BlendFunction pblend,
-        int dwFlags);
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct NativePoint
-    {
-        public int X;
-        public int Y;
-
-        public NativePoint(int x, int y)
-        {
-            X = x;
-            Y = y;
-        }
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct NativeSize
-    {
-        public int Width;
-        public int Height;
-
-        public NativeSize(int width, int height)
-        {
-            Width = width;
-            Height = height;
-        }
-    }
-
-    [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    private struct BlendFunction
-    {
-        public byte BlendOp;
-        public byte BlendFlags;
-        public byte SourceConstantAlpha;
-        public byte AlphaFormat;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct BitmapInfo
-    {
-        public BitmapInfoHeader Header;
-        public uint Colors;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct BitmapInfoHeader
-    {
-        public uint Size;
-        public int Width;
-        public int Height;
-        public ushort Planes;
-        public ushort BitCount;
-        public uint Compression;
-        public uint SizeImage;
-        public int XPelsPerMeter;
-        public int YPelsPerMeter;
-        public uint ClrUsed;
-        public uint ClrImportant;
-    }
 }
