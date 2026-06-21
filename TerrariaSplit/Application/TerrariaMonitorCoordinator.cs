@@ -25,10 +25,10 @@ internal sealed class TerrariaMonitorCoordinator : IDisposable
     private readonly Action<string> logInfo;
     private readonly Action<Exception, string> logError;
     private readonly ConcurrentQueue<WatcherPollCompletion> pendingWatcherCompletions = new();
-    private readonly ConcurrentQueue<RuntimeProcessorCommand> pendingRuntimeCommands = new();
     private readonly object lifecycleLock = new();
     private readonly AutoResetEvent watcherLoopSignal = new(false);
-    private readonly WatcherRuntimeProcessor runtimeProcessor = new(RuntimePendingMenuGraceDuration);
+    private readonly WatcherRuntimeProcessor runtimeProcessor;
+    private readonly RuntimeCommandSequencer runtimeCommands;
     private DateTime nextUiScalePatchAttemptUtc = DateTime.MinValue;
     private bool uiScalePatchInFlight;
     private int currentRunPhaseValue;
@@ -40,8 +40,6 @@ internal sealed class TerrariaMonitorCoordinator : IDisposable
     private Task? watcherLoopTask;
     private int? uiScalePatchAppliedProcessId;
     private string? lastUiScalePatchLogKey;
-    private long issuedRuntimeCommandSequence;
-    private long appliedRuntimeCommandSequence;
 
     public TerrariaMonitorCoordinator(
         ITerrariaWorldWatcher watcher,
@@ -65,6 +63,8 @@ internal sealed class TerrariaMonitorCoordinator : IDisposable
         this.isProcessStillRunning = isProcessStillRunning ?? IsProcessStillRunning;
         this.shouldYieldDispatch = shouldYieldDispatch ?? (() => false);
         this.recordPoll = recordPoll;
+        runtimeProcessor = new WatcherRuntimeProcessor(RuntimePendingMenuGraceDuration);
+        runtimeCommands = new RuntimeCommandSequencer(runtimeProcessor);
         CurrentSnapshot = new TerrariaWatchSnapshot(
             false,
             null,
@@ -266,7 +266,7 @@ internal sealed class TerrariaMonitorCoordinator : IDisposable
                 continue;
             }
 
-            RuntimeCommandDrainResult commandResult = DrainRuntimeCommands();
+            RuntimeCommandDrainResult commandResult = runtimeCommands.Drain();
             WatcherPollCompletion completion = PollWatcher(
                 commandResult.LatestAppliedSequence,
                 commandResult.Events);
@@ -380,33 +380,10 @@ internal sealed class TerrariaMonitorCoordinator : IDisposable
 
     private long QueueRuntimeCommand(RuntimeCommand command)
     {
-        long sequence = Interlocked.Increment(ref issuedRuntimeCommandSequence);
-        pendingRuntimeCommands.Enqueue(new RuntimeProcessorCommand(sequence, command));
+        long sequence = runtimeCommands.Queue(command);
         watcherLoopSignal.Set();
         StartWatcherLoopIfNeeded();
         return sequence;
-    }
-
-    private RuntimeCommandDrainResult DrainRuntimeCommands()
-    {
-        long latestAppliedSequence = Volatile.Read(ref appliedRuntimeCommandSequence);
-        List<RunEvent>? events = null;
-        while (pendingRuntimeCommands.TryDequeue(out RuntimeProcessorCommand command))
-        {
-            IReadOnlyList<RunEvent> commandEvents = runtimeProcessor.ApplyCommand(
-                command.Command,
-                Stopwatch.GetTimestamp());
-            if (commandEvents.Count > 0)
-            {
-                events ??= new List<RunEvent>();
-                events.AddRange(commandEvents);
-            }
-
-            latestAppliedSequence = command.Sequence;
-        }
-
-        Volatile.Write(ref appliedRuntimeCommandSequence, latestAppliedSequence);
-        return new RuntimeCommandDrainResult(latestAppliedSequence, events ?? []);
     }
 
     private void QueueWatcherCompletion(WatcherPollCompletion completion)
@@ -630,10 +607,6 @@ internal readonly record struct WatcherPollCompletion(
     TimeSpan NextPollInterval,
     TimeSpan ProcessLookupInterval,
     Exception? Error);
-
-internal readonly record struct RuntimeProcessorCommand(
-    long Sequence,
-    RuntimeCommand Command);
 
 internal readonly record struct WatcherPublishState(
     bool HasPublished,
