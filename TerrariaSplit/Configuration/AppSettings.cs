@@ -460,7 +460,7 @@ internal static class AutoCreateSpecialWorldSeed
     public static bool TryNormalize(string? value, out string seed)
     {
         seed = string.Empty;
-        string normalized = NormalizeToken(value);
+        string normalized = SettingsTokenParser.NormalizeAliasKey(value);
         if (string.IsNullOrWhiteSpace(normalized) || string.Equals(normalized, "normal", StringComparison.OrdinalIgnoreCase))
         {
             return false;
@@ -472,7 +472,7 @@ internal static class AutoCreateSpecialWorldSeed
     public static IReadOnlyList<string> ParseList(string? value)
     {
         List<string> seeds = new();
-        foreach (string token in SplitSeedList(value))
+        foreach (string token in SettingsTokenParser.SplitList(value))
         {
             if (TryNormalize(token, out string seed) && !seeds.Contains(seed, StringComparer.OrdinalIgnoreCase))
             {
@@ -515,30 +515,6 @@ internal static class AutoCreateSpecialWorldSeed
     private static string Normalize(string value)
     {
         return All.FirstOrDefault(option => string.Equals(option, value, StringComparison.OrdinalIgnoreCase)) ?? value;
-    }
-
-    private static string NormalizeToken(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return string.Empty;
-        }
-
-        return new string(value.Trim().Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant();
-    }
-
-    private static IEnumerable<string> SplitSeedList(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            yield break;
-        }
-
-        char[] separators = ['|', ',', ';', '\r', '\n', '\t', '\uFF0C', '\uFF1B'];
-        foreach (string token in value.Split(separators, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-        {
-            yield return token;
-        }
     }
 }
 
@@ -583,7 +559,7 @@ internal static class AutoCreatePyramidFilterItem
     public static bool TryNormalize(string? value, out string item)
     {
         item = string.Empty;
-        string normalized = NormalizeToken(value);
+        string normalized = SettingsTokenParser.NormalizeAliasKey(value);
         if (string.IsNullOrWhiteSpace(normalized))
         {
             return false;
@@ -595,7 +571,7 @@ internal static class AutoCreatePyramidFilterItem
     public static IReadOnlyList<string> ParseList(string? value)
     {
         List<string> items = new();
-        foreach (string token in SplitItemList(value))
+        foreach (string token in SettingsTokenParser.SplitList(value))
         {
             if (TryNormalize(token, out string item) && !items.Contains(item, StringComparer.OrdinalIgnoreCase))
             {
@@ -646,30 +622,6 @@ internal static class AutoCreatePyramidFilterItem
 
         return NormalizeMask(mask);
     }
-
-    private static string NormalizeToken(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return string.Empty;
-        }
-
-        return new string(value.Trim().Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant();
-    }
-
-    private static IEnumerable<string> SplitItemList(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            yield break;
-        }
-
-        char[] separators = ['|', ',', ';', '\r', '\n', '\t', '\uFF0C', '\uFF1B'];
-        foreach (string token in value.Split(separators, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-        {
-            yield return token;
-        }
-    }
 }
 
 internal static class AutoCreateSeedList
@@ -681,9 +633,7 @@ internal static class AutoCreateSeedList
             return [];
         }
 
-        char[] separators = ['|', ',', ';', '\r', '\n', '\t', '\uFF0C', '\uFF1B'];
-        return value.Split(separators, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Where(seed => !string.IsNullOrWhiteSpace(seed))
+        return SettingsTokenParser.SplitList(value)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
