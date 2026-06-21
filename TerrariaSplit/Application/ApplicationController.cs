@@ -59,7 +59,7 @@ internal sealed record ApplicationUpdate(
 
 internal sealed class ApplicationController
 {
-    private readonly RunLifecycleController runLifecycle = new();
+    private readonly RunLifecycleController runLifecycle;
     private readonly Func<string, bool> confirmPersonalBestUpdate;
     private readonly ISettingsSnapshotFactory settingsSnapshots;
     private long minimumAcceptedRuntimeCommandSequence;
@@ -67,10 +67,13 @@ internal sealed class ApplicationController
     public ApplicationController(
         AppSettings settings,
         Func<string, bool> confirmPersonalBestUpdate,
-        ISettingsSnapshotFactory settingsSnapshots)
+        ISettingsSnapshotFactory settingsSnapshots,
+        IRunStatisticsRecorder? runStatisticsRecorder = null,
+        IPersonalBestSnapshotStore? personalBestSnapshotStore = null)
     {
         this.confirmPersonalBestUpdate = confirmPersonalBestUpdate;
         this.settingsSnapshots = settingsSnapshots;
+        runLifecycle = new RunLifecycleController(runStatisticsRecorder, personalBestSnapshotStore);
         Settings = settings;
         Definitions = SplitCatalog.Build(settings);
         ViewState = ApplicationViewState.FromDefinitions(settings, Definitions);

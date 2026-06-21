@@ -2,8 +2,17 @@ namespace TerrariaSplit.Application;
 
 internal sealed class RunLifecycleController
 {
-    private readonly RunFinalizer runFinalizer = new();
+    private readonly IRunStatisticsRecorder runStatisticsRecorder;
+    private readonly RunFinalizer runFinalizer;
     private bool runStatsRecorded;
+
+    public RunLifecycleController(
+        IRunStatisticsRecorder? runStatisticsRecorder = null,
+        IPersonalBestSnapshotStore? personalBestSnapshotStore = null)
+    {
+        this.runStatisticsRecorder = runStatisticsRecorder ?? NullRunStatisticsRecorder.Instance;
+        runFinalizer = new RunFinalizer(this.runStatisticsRecorder, personalBestSnapshotStore);
+    }
 
     public void MarkRunStarted()
     {
@@ -49,7 +58,7 @@ internal sealed class RunLifecycleController
             return;
         }
 
-        RunStatsStore.RecordRun(statuses);
+        runStatisticsRecorder.RecordRun(statuses);
         runStatsRecorded = true;
     }
 }

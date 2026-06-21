@@ -10,10 +10,16 @@ internal static class MainShellCompositionRoot
         var worldPoolStore = new WorldPoolStore();
         ISettingsSnapshotFactory settingsSnapshots = new StoredSettingsSnapshotFactory();
         IAppLogger logger = StaticAppLogger.Instance;
+        var runStatisticsRecorder = new DelegateRunStatisticsRecorder(RunStatsStore.RecordRun);
+        var personalBestSnapshotStore = new DelegatePersonalBestSnapshotStore(
+            SplitTimeSetStore.SavePersonalBestTimeSnapshot,
+            SplitTimeSetStore.SavePersonalBestSegmentSnapshot);
         var applicationController = new ApplicationController(
             AppSettingsStore.Load(),
             confirmPersonalBestUpdate,
-            settingsSnapshots);
+            settingsSnapshots,
+            runStatisticsRecorder,
+            personalBestSnapshotStore);
 
         return new MainShellServices(
             worldPoolStore,

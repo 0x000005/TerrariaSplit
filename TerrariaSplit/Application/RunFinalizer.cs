@@ -2,6 +2,17 @@ namespace TerrariaSplit.Application;
 
 internal sealed class RunFinalizer
 {
+    private readonly IRunStatisticsRecorder runStatisticsRecorder;
+    private readonly IPersonalBestSnapshotStore personalBestSnapshotStore;
+
+    public RunFinalizer(
+        IRunStatisticsRecorder? runStatisticsRecorder = null,
+        IPersonalBestSnapshotStore? personalBestSnapshotStore = null)
+    {
+        this.runStatisticsRecorder = runStatisticsRecorder ?? NullRunStatisticsRecorder.Instance;
+        this.personalBestSnapshotStore = personalBestSnapshotStore ?? InMemoryPersonalBestSnapshotStore.Instance;
+    }
+
     public bool Finalize(
         AppSettings settings,
         IReadOnlyList<SplitStatusSnapshot> statuses,
@@ -36,13 +47,13 @@ internal sealed class RunFinalizer
 
         if (!runStatsRecorded)
         {
-            RunStatsStore.RecordRun(statuses);
+            runStatisticsRecorder.RecordRun(statuses);
         }
 
         return settingsUpdated;
     }
 
-    private static void ApplyPendingPersonalBestUpdates(AppSettings settings, PendingPersonalBestUpdates updates)
+    private void ApplyPendingPersonalBestUpdates(AppSettings settings, PendingPersonalBestUpdates updates)
     {
         List<PendingPersonalBestSegmentUpdate> segmentUpdates = updates.SegmentUpdates.Values.ToList();
         foreach (PendingPersonalBestSegmentUpdate update in segmentUpdates)
@@ -53,7 +64,7 @@ internal sealed class RunFinalizer
         if (segmentUpdates.Count > 0)
         {
             (string bossName, string previousTimeText, string newTimeText) = BuildSnapshotLabel(segmentUpdates);
-            ReferenceSplitSet snapshot = SplitTimeSetStore.SavePersonalBestSegmentSnapshot(
+            ReferenceSplitSet snapshot = personalBestSnapshotStore.SavePersonalBestSegmentSnapshot(
                 settings.Comparison.PersonalBestSegmentTimes,
                 bossName,
                 previousTimeText,
@@ -67,7 +78,7 @@ internal sealed class RunFinalizer
             settings.Comparison.PersonalBestTimes = new Dictionary<string, string>(
                 timeUpdate.Splits,
                 StringComparer.OrdinalIgnoreCase);
-            ReferenceSplitSet snapshot = SplitTimeSetStore.SavePersonalBestTimeSnapshot(
+            ReferenceSplitSet snapshot = personalBestSnapshotStore.SavePersonalBestTimeSnapshot(
                 settings.Comparison.PersonalBestTimes,
                 timeUpdate.BossName,
                 timeUpdate.PreviousTimeText,
