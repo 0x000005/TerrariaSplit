@@ -69,11 +69,6 @@ internal enum SplitColumn
     Delta
 }
 
-internal readonly record struct SplitComparison(TimeSpan? Delta, bool ShowDelta)
-{
-    public static SplitComparison Empty => new(null, false);
-}
-
 internal readonly record struct SegmentBestDeltaHighlight(string Style, DateTime StartedAtUtc);
 
 internal sealed record SplitCompletionAnimation(

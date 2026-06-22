@@ -29,6 +29,7 @@ var legacyTests = new (string Name, Action Test)[]
     ("Runtime performance tracker separates paint ticks from completed paints", TestRuntimePerformancePaintDiagnostics),
     ("RunEventProcessor suppresses attached split completion animation", TestRunEventProcessorSuppressesAttachedSplitCompletionAnimation),
     ("SplitTimer clamps practice time at zero", TestSplitTimerPracticeClamp),
+    ("SplitComparisonService computes running and completed deltas", TestSplitComparisonServiceComputesDeltas),
     ("SplitRouteGroups builds enabled main split entries", TestSplitRouteGroups),
     ("RunFinalizer applies simplified personal best eligibility", TestRunFinalizerSimplifiedPersonalBestEligibility),
     ("SplitConditionText parses ALL and ATLEAST syntax", TestSplitConditionTextParsesAllAndAtLeastSyntax),
@@ -318,6 +319,87 @@ static void TestSplitTimerPracticeClamp()
     var timer = new SplitTimer();
     timer.SetPracticeElapsed(TimeSpan.FromSeconds(-5));
     AssertEqual(TimeSpan.Zero, timer.Elapsed);
+}
+
+static void TestSplitComparisonServiceComputesDeltas()
+{
+    var definition = new SplitDefinition(
+        "split:test",
+        "Test",
+        SplitCondition.Fact("fact:test"),
+        [],
+        [],
+        []);
+    var routeEntry = new SplitRouteEntry
+    {
+        Id = definition.Id,
+        DisplayName = definition.DisplayName,
+        Enabled = true,
+        Condition = definition.Condition,
+        IconTargetIds = []
+    };
+    string referenceKey = SplitConditionDataRows.Build(new AppSettings
+    {
+        Route =
+        {
+            SplitRoute = [routeEntry]
+        }
+    }).Single().Key;
+    var settings = new AppSettings
+    {
+        Overlay =
+        {
+            ShowEarlyDeltaTime = true,
+            EarlyDeltaTimeSeconds = 5
+        },
+        Route =
+        {
+            SplitRoute = [routeEntry]
+        },
+        Comparison =
+        {
+            ActiveReferenceSplitSet = "WR",
+            ReferenceSplitSets =
+            [
+                new ReferenceSplitSet
+                {
+                    Name = "WR",
+                    Splits = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        [referenceKey] = "00:10.00"
+                    }
+                }
+            ]
+        }
+    };
+    var runningStatus = new SplitStatusSnapshot(definition, null, IsSkipped: false, CompletedFactKeys: []);
+
+    SplitComparison hiddenRunning = SplitComparisonService.GetSplitComparison(
+        settings,
+        SplitTimerPhase.Running,
+        TimeSpan.FromSeconds(4),
+        runningStatus,
+        isCurrent: true);
+    AssertEqual(TimeSpan.FromSeconds(-6), hiddenRunning.Delta);
+    AssertEqual(false, hiddenRunning.ShowDelta);
+
+    SplitComparison visibleRunning = SplitComparisonService.GetSplitComparison(
+        settings,
+        SplitTimerPhase.Running,
+        TimeSpan.FromSeconds(6),
+        runningStatus,
+        isCurrent: true);
+    AssertEqual(TimeSpan.FromSeconds(-4), visibleRunning.Delta);
+    AssertEqual(true, visibleRunning.ShowDelta);
+
+    SplitComparison completed = SplitComparisonService.GetSplitComparison(
+        settings,
+        SplitTimerPhase.Running,
+        TimeSpan.FromSeconds(12),
+        new SplitStatusSnapshot(definition, TimeSpan.FromSeconds(11), IsSkipped: false, CompletedFactKeys: []),
+        isCurrent: false);
+    AssertEqual(TimeSpan.FromSeconds(1), completed.Delta);
+    AssertEqual(true, completed.ShowDelta);
 }
 
 static void TestSplitRouteGroups()

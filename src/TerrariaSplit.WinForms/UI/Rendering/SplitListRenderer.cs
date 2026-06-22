@@ -246,7 +246,7 @@ internal static class SplitListRenderer
             }
         }
 
-        SplitComparison comparison = SplitRenderData.GetSplitComparison(
+        SplitComparison comparison = SplitComparisonService.GetSplitComparison(
             context.Settings,
             context.TimerPhase,
             context.TimerElapsed,

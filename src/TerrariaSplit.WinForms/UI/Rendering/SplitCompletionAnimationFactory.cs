@@ -15,7 +15,7 @@ internal static class SplitCompletionAnimationFactory
             return null;
         }
 
-        if (!SplitRenderData.TryGetCompletedSegmentTime(settings, statuses, completedIndex, out TimeSpan segmentTime))
+        if (!SplitComparisonService.TryGetCompletedSegmentTime(settings, statuses, completedIndex, out TimeSpan segmentTime))
         {
             return null;
         }
@@ -23,15 +23,15 @@ internal static class SplitCompletionAnimationFactory
         SplitStatusSnapshot status = statuses[completedIndex];
         SplitDefinition definition = status.Definition;
         SplitDefinition displayDefinition = SplitRenderData.GetDisplayDefinition(status);
-        string groupKey = SplitRenderData.GetSplitCompletionGroupKey(settings, definition);
+        string groupKey = SplitComparisonService.GetSplitCompletionGroupKey(settings, definition);
         string segmentBestDeltaHighlightStyle = SplitRenderData.GetSegmentBestDeltaHighlightStyle(settings, groupKey);
 
         return new SplitCompletionAnimation(
             displayDefinition,
             segmentTime,
             splitTime,
-            SplitRenderData.GetReferenceSplitComparison(settings, definition, splitTime),
-            SplitRenderData.GetPersonalBestSegmentComparison(settings, definition, segmentTime),
+            SplitComparisonService.GetReferenceSplitComparison(settings, definition, splitTime),
+            SplitComparisonService.GetPersonalBestSegmentComparison(settings, definition, segmentTime),
             SplitRenderData.IsSplitCompletionSplitComparisonEnabled(settings, groupKey),
             SplitRenderData.GetSplitCompletionOutlineStyle(settings.Overlay.SplitCompletionOutlineSplitStyles, groupKey),
             SplitRenderData.IsSplitCompletionSegmentComparisonEnabled(settings, groupKey),

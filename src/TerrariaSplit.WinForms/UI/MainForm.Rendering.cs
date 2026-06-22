@@ -57,7 +57,7 @@ internal sealed partial class MainForm : Form
             return new StatusOverlayDynamicKey(index, string.Empty, 0);
         }
 
-        SplitComparison comparison = SplitRenderData.GetSplitComparison(
+        SplitComparison comparison = SplitComparisonService.GetSplitComparison(
             settings,
             timerPhase,
             elapsed,
