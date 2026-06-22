@@ -200,8 +200,8 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
 
         insertionIndex = Math.Clamp(insertionIndex, 0, routeEntries.Count);
         routeEntries.Insert(insertionIndex, entry);
-        loadedRouteEntryIndex = -1;
-        routeDirty = true;
+        routeController.ClearLoadedEntry();
+        routeController.MarkDirty();
         routeDraft.NormalizeAttachedRouteFlags();
         RefreshRouteList();
         routeList.SelectedIndex = insertionIndex;
@@ -327,7 +327,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
         SplitIconOverride previousOverride = GetCurrentIconOverride();
         RefreshIconOverrideOptions(previousOverride);
         entry.IconOverride = GetCurrentIconOverride();
-        routeDirty = true;
+        routeController.MarkDirty();
     }
 
     private static int GetInsertionIndex(ListBox listBox, Point point)

@@ -38,7 +38,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
         SplitIconOverride previousOverride = GetCurrentIconOverride();
         RefreshIconOverrideOptions(previousOverride);
         entry.IconOverride = GetCurrentIconOverride();
-        routeDirty = true;
+        routeController.MarkDirty();
         statusLabel.Text = string.Empty;
     }
 
@@ -92,7 +92,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
         SplitIconOverride previousOverride = GetCurrentIconOverride();
         RefreshIconOverrideOptions(previousOverride);
         entry.IconOverride = GetCurrentIconOverride();
-        routeDirty = true;
+        routeController.MarkDirty();
     }
 
     private void ToggleAdvancedConditionMode()
@@ -159,7 +159,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
                 entry.UseAdvancedConditionEditor = enabled;
                 if (markDirty)
                 {
-                    routeDirty = true;
+                    routeController.MarkDirty();
                 }
             }
         }
@@ -200,7 +200,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
             return;
         }
 
-        routeDirty = true;
+        routeController.MarkDirty();
         statusLabel.Text = string.Empty;
     }
 
@@ -327,7 +327,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
         {
             UseBasicConditionFromList();
             entry.Condition = GetCurrentCondition();
-            routeDirty = true;
+            routeController.MarkDirty();
             statusLabel.Text = string.Empty;
         }
     }
@@ -343,7 +343,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
         {
             UseBasicConditionFromList();
             entry.Condition = GetCurrentCondition();
-            routeDirty = true;
+            routeController.MarkDirty();
             statusLabel.Text = string.Empty;
         }
     }
@@ -552,12 +552,12 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
     private bool TryGetSelectedRouteEntry(out SplitRouteEntry entry)
     {
         entry = null!;
-        if (loadedRouteEntryIndex < 0 || loadedRouteEntryIndex >= routeEntries.Count)
+        if (routeController.LoadedEntryIndex < 0 || routeController.LoadedEntryIndex >= routeEntries.Count)
         {
             return false;
         }
 
-        entry = routeEntries[loadedRouteEntryIndex];
+        entry = routeEntries[routeController.LoadedEntryIndex];
         return true;
     }
 

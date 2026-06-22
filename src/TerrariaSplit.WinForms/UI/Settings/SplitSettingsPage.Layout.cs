@@ -91,7 +91,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
         routeList.AllowDrop = true;
         routeList.SelectedIndexChanged += (_, _) =>
         {
-            if (!refreshingRouteList)
+            if (!routeController.Refreshing)
             {
                 LoadSelectedRouteEntry();
             }

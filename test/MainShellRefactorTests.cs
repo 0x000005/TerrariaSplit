@@ -49,6 +49,7 @@ internal static class MainShellRefactorTests
         yield return ("FontFamilySelector uses themed drop-down list", FontFamilySelectorUsesThemedDropDownList);
         yield return ("Settings form uses themed drop-down lists", SettingsFormUsesThemedDropDownLists);
         yield return ("SplitRouteListController consumes route drags once", SplitRouteListControllerConsumesRouteDragsOnce);
+        yield return ("SplitRouteListController tracks route edit state", SplitRouteListControllerTracksRouteEditState);
         yield return ("SplitConditionEditorController cancels condition drags", SplitConditionEditorControllerCancelsConditionDrags);
         yield return ("ApplicationShellEffectExecutor reports settings save failure", ApplicationShellEffectExecutorReportsSettingsSaveFailure);
         yield return ("ApplicationShellEffectExecutor rejects unknown effects", ApplicationShellEffectExecutorRejectsUnknownEffects);
@@ -1068,6 +1069,29 @@ internal static class MainShellRefactorTests
         TestAssert.Equal(true, controller.TryConsumeDrag(MouseButtons.Left, new Point(500, 500), out int index));
         TestAssert.Equal(3, index);
         TestAssert.Equal(false, controller.TryConsumeDrag(MouseButtons.Left, new Point(500, 500), out _));
+    }
+
+    private static void SplitRouteListControllerTracksRouteEditState()
+    {
+        var controller = new SplitRouteListController();
+
+        TestAssert.Equal(false, controller.Dirty);
+        TestAssert.Equal(false, controller.Refreshing);
+        TestAssert.Equal(-1, controller.LoadedEntryIndex);
+
+        controller.LoadedEntryIndex = 4;
+        controller.Refreshing = true;
+        controller.MarkDirty();
+
+        TestAssert.Equal(true, controller.Dirty);
+        TestAssert.Equal(true, controller.Refreshing);
+        TestAssert.Equal(4, controller.LoadedEntryIndex);
+
+        controller.ClearDirty();
+        controller.ClearLoadedEntry();
+
+        TestAssert.Equal(false, controller.Dirty);
+        TestAssert.Equal(-1, controller.LoadedEntryIndex);
     }
 
     private static void SplitConditionEditorControllerCancelsConditionDrags()

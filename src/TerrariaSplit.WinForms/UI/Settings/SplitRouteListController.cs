@@ -8,6 +8,27 @@ internal sealed class SplitRouteListController
     private int dragIndex = -1;
     private Point dragStartPoint;
 
+    public bool Dirty { get; private set; }
+
+    public bool Refreshing { get; set; }
+
+    public int LoadedEntryIndex { get; set; } = -1;
+
+    public void MarkDirty()
+    {
+        Dirty = true;
+    }
+
+    public void ClearDirty()
+    {
+        Dirty = false;
+    }
+
+    public void ClearLoadedEntry()
+    {
+        LoadedEntryIndex = -1;
+    }
+
     public void CancelDrag()
     {
         dragIndex = -1;

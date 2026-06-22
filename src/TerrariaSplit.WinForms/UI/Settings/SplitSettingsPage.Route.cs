@@ -20,7 +20,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
         }
 
         int selected = routeList.SelectedIndex;
-        refreshingRouteList = true;
+        routeController.Refreshing = true;
         routeList.BeginUpdate();
         try
         {
@@ -33,7 +33,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
         finally
         {
             routeList.EndUpdate();
-            refreshingRouteList = false;
+            routeController.Refreshing = false;
         }
 
         if (routeList.Items.Count == 0)
@@ -43,7 +43,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
         }
 
         routeList.SelectedIndex = Math.Clamp(selected, 0, routeList.Items.Count - 1);
-        if (routeList.SelectedIndex != loadedRouteEntryIndex)
+        if (routeList.SelectedIndex != routeController.LoadedEntryIndex)
         {
             LoadSelectedRouteEntry();
         }
@@ -57,7 +57,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
         }
 
         int newIndex = routeList.SelectedIndex;
-        if (newIndex == loadedRouteEntryIndex)
+        if (newIndex == routeController.LoadedEntryIndex)
         {
             return;
         }
@@ -74,7 +74,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
             return;
         }
 
-        loadedRouteEntryIndex = newIndex;
+        routeController.LoadedEntryIndex = newIndex;
         updatingUi = true;
         try
         {
@@ -94,9 +94,9 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
 
     private void RevertRouteSelection()
     {
-        if (loadedRouteEntryIndex < 0 ||
-            loadedRouteEntryIndex >= routeList.Items.Count ||
-            routeList.SelectedIndex == loadedRouteEntryIndex)
+        if (routeController.LoadedEntryIndex < 0 ||
+            routeController.LoadedEntryIndex >= routeList.Items.Count ||
+            routeList.SelectedIndex == routeController.LoadedEntryIndex)
         {
             return;
         }
@@ -104,7 +104,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
         updatingUi = true;
         try
         {
-            routeList.SelectedIndex = loadedRouteEntryIndex;
+            routeList.SelectedIndex = routeController.LoadedEntryIndex;
         }
         finally
         {
@@ -114,7 +114,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
 
     private void ClearSelectedRouteControls()
     {
-        loadedRouteEntryIndex = -1;
+        routeController.ClearLoadedEntry();
         updatingUi = true;
         try
         {
@@ -140,8 +140,8 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
     {
         if (updatingUi ||
             routeList is null ||
-            loadedRouteEntryIndex < 0 ||
-            loadedRouteEntryIndex >= routeEntries.Count)
+            routeController.LoadedEntryIndex < 0 ||
+            routeController.LoadedEntryIndex >= routeEntries.Count)
         {
             return true;
         }
@@ -151,7 +151,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
             return false;
         }
 
-        SplitRouteEntry entry = routeEntries[loadedRouteEntryIndex];
+        SplitRouteEntry entry = routeEntries[routeController.LoadedEntryIndex];
         entry.DisplayName = splitNameBox.Text.Trim();
         entry.Enabled = splitEnabledBox.Checked;
         entry.IsAttached = splitAttachedBox.Enabled && splitAttachedBox.Checked;
@@ -165,19 +165,19 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
     private void UpdateSelectedAttachedAvailability()
     {
         if (splitAttachedBox is null ||
-            loadedRouteEntryIndex < 0 ||
-            loadedRouteEntryIndex >= routeEntries.Count)
+            routeController.LoadedEntryIndex < 0 ||
+            routeController.LoadedEntryIndex >= routeEntries.Count)
         {
             return;
         }
 
-        bool canAttach = routeDraft.CanEntryAttachToFollowingAnchor(loadedRouteEntryIndex);
+        bool canAttach = routeDraft.CanEntryAttachToFollowingAnchor(routeController.LoadedEntryIndex);
         bool previousUpdating = updatingUi;
         updatingUi = true;
         try
         {
             splitAttachedBox.Enabled = canAttach;
-            splitAttachedBox.Checked = canAttach && routeEntries[loadedRouteEntryIndex].IsAttached;
+            splitAttachedBox.Checked = canAttach && routeEntries[routeController.LoadedEntryIndex].IsAttached;
         }
         finally
         {
@@ -192,7 +192,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
             return;
         }
 
-        routeDirty = true;
+        routeController.MarkDirty();
         if (!SaveSelectedEntryFromControls())
         {
             return;
@@ -222,7 +222,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
             UseAdvancedConditionEditor = false
         });
         routeDraft.NormalizeAttachedRouteFlags();
-        routeDirty = true;
+        routeController.MarkDirty();
         RefreshRouteList();
         routeList.SelectedIndex = routeEntries.Count - 1;
     }
@@ -252,7 +252,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
             UseAdvancedConditionEditor = false
         });
 
-        routeDirty = true;
+        routeController.MarkDirty();
         statusLabel.Text = string.Empty;
         routeDraft.NormalizeAttachedRouteFlags();
         RefreshRouteList();
@@ -268,8 +268,8 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
 
         int index = routeList.SelectedIndex;
         routeEntries.RemoveAt(index);
-        loadedRouteEntryIndex = -1;
-        routeDirty = true;
+        routeController.ClearLoadedEntry();
+        routeController.MarkDirty();
         routeDraft.NormalizeAttachedRouteFlags();
         RefreshRouteList();
         if (routeList.Items.Count > 0)

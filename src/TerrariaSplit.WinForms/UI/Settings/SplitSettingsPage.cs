@@ -33,9 +33,6 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
     private Button advancedConditionButton = null!;
     private Label statusLabel = null!;
     private bool updatingUi;
-    private bool refreshingRouteList;
-    private bool routeDirty;
-    private int loadedRouteEntryIndex = -1;
 
     private List<SplitRouteEntry> routeEntries => routeDraft.Entries;
 
@@ -109,12 +106,12 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
 
             SettingsNormalizer.Normalize(settings);
             statusLabel.Text = string.Empty;
-            if (routeDirty)
+            if (routeController.Dirty)
             {
                 Context.NotifyModelChanged(SettingsModelChange.RouteChanged);
             }
 
-            routeDirty = false;
+            routeController.ClearDirty();
             return;
         }
 
@@ -133,17 +130,17 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
         routeDraft.EnsureEntryIds();
         routeDraft.NormalizeAttachedRouteFlags();
         string validationMessage = string.Empty;
-        if (routeDirty && TryValidateRoute(out validationMessage))
+        if (routeController.Dirty && TryValidateRoute(out validationMessage))
         {
             Draft.Route.SplitRoute = routeDraft.CreateSnapshot();
             SettingsNormalizer.Normalize(Draft);
             Context.NotifyModelChanged(SettingsModelChange.RouteChanged);
             statusLabel.Text = string.Empty;
-            routeDirty = false;
+            routeController.ClearDirty();
             return;
         }
 
-        if (routeDirty)
+        if (routeController.Dirty)
         {
             statusLabel.Text = validationMessage;
         }
