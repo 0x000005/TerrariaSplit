@@ -5,6 +5,7 @@ namespace TerrariaSplit.UI.Settings;
 internal sealed class SoundSettingsPage : SettingsPageBase
 {
     private readonly Dictionary<string, TextBox> soundTextBoxes = new();
+    private readonly Dictionary<string, Label> soundLabels = new();
 
     public override SettingsPageId Id => SettingsPageId.Sounds;
 
@@ -18,6 +19,14 @@ internal sealed class SoundSettingsPage : SettingsPageBase
     public override void Apply(AppSettings settings)
     {
         SettingsBinder.ApplySounds(settings, soundTextBoxes);
+    }
+
+    public override void OnModelChanged(SettingsModelChange change)
+    {
+        if (change == SettingsModelChange.RouteChanged)
+        {
+            UpdateFinalGroupLabels();
+        }
     }
 
     private void BuildSections(TableLayoutPanel parent)
@@ -70,9 +79,24 @@ internal sealed class SoundSettingsPage : SettingsPageBase
         clearButton.Click += (_, _) => textBox.Text = string.Empty;
 
         int row = Factory.AddGridRow(grid);
-        grid.Controls.Add(labelIsLocalized ? Factory.CreateRawRowLabel(label) : Factory.CreateRowLabel(label), 0, row);
+        Label rowLabel = labelIsLocalized
+            ? Factory.CreateRawRowLabel(label)
+            : Factory.CreateRowLabel(label);
+        soundLabels[key] = rowLabel;
+        grid.Controls.Add(rowLabel, 0, row);
         grid.Controls.Add(textBox, 1, row);
         grid.Controls.Add(browseButton, 2, row);
         grid.Controls.Add(clearButton, 3, row);
+    }
+
+    private void UpdateFinalGroupLabels()
+    {
+        foreach (SoundDescriptor descriptor in SettingsDescriptors.Sounds.Where(sound => sound.PrefixWithFinalGroupName))
+        {
+            if (soundLabels.TryGetValue(descriptor.Key, out Label? label))
+            {
+                label.Text = GetSoundLabel(descriptor);
+            }
+        }
     }
 }
