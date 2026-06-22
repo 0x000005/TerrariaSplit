@@ -767,20 +767,52 @@ internal static class RenderingTests
 
     private static void OverlayFrameBuilderBuildsRowsAndPaintOrder()
     {
-        SplitStatusSnapshot[] statuses = Enumerable.Range(0, 5)
-            .Select(index => new SplitStatusSnapshot(
-                CreateDisplayRowDefinition($"split:{index}", isAttached: false),
+        SplitDefinition[] definitions = Enumerable.Range(0, 5)
+            .Select(index => CreateDisplayRowDefinition($"split:{index}", isAttached: false))
+            .ToArray();
+        SplitStatusSnapshot[] statuses = definitions
+            .Select(definition => new SplitStatusSnapshot(
+                definition,
                 null,
                 IsSkipped: false,
                 CompletedFactKeys: []))
             .ToArray();
+        statuses[3] = statuses[3] with { Time = TimeSpan.FromSeconds(3) };
         var settings = new AppSettings
         {
             Overlay =
             {
-                ShowCurrentSplitHighlight = true
+                ShowCurrentSplitHighlight = true,
+                ShowEarlyDeltaTime = true,
+                EarlyDeltaTimeSeconds = 30
+            },
+            Comparison =
+            {
+                ActiveReferenceSplitSet = "WR",
+                ReferenceSplitSets =
+                [
+                    new ReferenceSplitSet
+                    {
+                        Name = "WR",
+                        Splits = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                    }
+                ]
+            },
+            Route =
+            {
+                SplitRoute = definitions
+                    .Select(definition => new SplitRouteEntry
+                    {
+                        Id = definition.Id,
+                        DisplayName = definition.DisplayName,
+                        Condition = definition.Condition.Clone(),
+                        IconTargetIds = definition.TargetIds.ToList()
+                    })
+                    .ToList()
             }
         };
+        settings.Comparison.ReferenceSplitSets[0].Splits[SingleCumulativeKey(settings, definitions[2].Id)] = "00:10.00";
+        settings.Comparison.ReferenceSplitSets[0].Splits[SingleCumulativeKey(settings, definitions[3].Id)] = "00:05.00";
         var context = new OverlayRenderContext(
             settings,
             UiPalette.From(new UiColorSettings()),
@@ -806,6 +838,19 @@ internal static class RenderingTests
         TestAssert.Equal(
             "0|4|1|3|2",
             string.Join("|", frame.PaintOrderRows.Select(row => row.RowIndex)));
+        OverlayFrameRow currentRow = frame.Rows.Single(row => row.StatusIndex == 2);
+        TestAssert.Equal(TimeSpan.FromSeconds(2), currentRow.Comparison.Delta);
+        TestAssert.Equal(true, currentRow.Comparison.ShowDelta);
+        TestAssert.Equal(TimeText.FormatSplit(TimeSpan.FromSeconds(10)), currentRow.TimeText);
+        TestAssert.Equal(false, currentRow.UseSplitTimeStyle);
+        TestAssert.Equal(false, currentRow.UseCompletedDeltaGradient);
+
+        OverlayFrameRow completedRow = frame.Rows.Single(row => row.StatusIndex == 3);
+        TestAssert.Equal(TimeSpan.FromSeconds(-2), completedRow.Comparison.Delta);
+        TestAssert.Equal(true, completedRow.Comparison.ShowDelta);
+        TestAssert.Equal(TimeText.FormatSplit(TimeSpan.FromSeconds(3)), completedRow.TimeText);
+        TestAssert.Equal(true, completedRow.UseSplitTimeStyle);
+        TestAssert.Equal(true, completedRow.UseCompletedDeltaGradient);
     }
 
     private static void SplitDisplayRowsExpandsMultiConditionRowsWithReservedHeight()
@@ -844,6 +889,27 @@ internal static class RenderingTests
             SplitExpandedConditionRows.Build(settings, statuses, statusIndex: 1);
         TestAssert.Equal(1, pendingExpandedRows.Count);
         TestAssert.Equal(TimeSpan.FromSeconds(20), pendingExpandedRows[0].ReferenceTime);
+        OverlayFrame pendingFrame = OverlayFrameBuilder.Build(new OverlayRenderContext(
+            settings,
+            UiPalette.From(new UiColorSettings()),
+            TestSnapshots.Terraria(isGameMenu: false),
+            statuses,
+            CurrentSplitIndex: 1,
+            SplitTimerPhase.Running,
+            TimeSpan.FromSeconds(12),
+            new SplitLayout(new Rectangle(0, 0, 160, 32), new Rectangle(0, 40, 160, 160), 3),
+            VisibleStatusRowCount: statuses.Length,
+            MouseClickThrough: false,
+            SplitCompletionAnimation: null,
+            SegmentBestDeltaHighlights: new Dictionary<int, SegmentBestDeltaHighlight>(),
+            NowUtc: new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)));
+        OverlayFrameRow pendingExpandedFrameRow = pendingFrame.Rows.Single(row => row.IsExpandedCondition);
+        TestAssert.Equal(new SplitDisplayRow(1, 1, 1), pendingExpandedFrameRow.DisplayRow);
+        TestAssert.Equal(SplitComparison.Empty, pendingExpandedFrameRow.Comparison);
+        TestAssert.Equal(TimeText.FormatSplit(TimeSpan.FromSeconds(20)), pendingExpandedFrameRow.TimeText);
+        TestAssert.Equal(false, pendingExpandedFrameRow.UseSplitTimeStyle);
+        TestAssert.Equal(false, pendingExpandedFrameRow.UseCompletedDeltaGradient);
+        TestAssert.Equal(true, pendingExpandedFrameRow.DrawExpandedIcons);
 
         SplitStatusSnapshot cCompleted = expandedPending with
         {
@@ -936,21 +1002,21 @@ internal static class RenderingTests
 
         TestAssert.Equal(
             true,
-            SplitListRenderer.ShouldShowSkippedTime(new SplitStatusSnapshot(
+            SplitRenderData.ShouldShowSkippedTime(new SplitStatusSnapshot(
                 skipped,
                 null,
                 IsSkipped: true,
                 CompletedFactKeys: [])));
         TestAssert.Equal(
             false,
-            SplitListRenderer.ShouldShowSkippedTime(new SplitStatusSnapshot(
+            SplitRenderData.ShouldShowSkippedTime(new SplitStatusSnapshot(
                 pending,
                 null,
                 IsSkipped: false,
                 CompletedFactKeys: [])));
         TestAssert.Equal(
             false,
-            SplitListRenderer.ShouldShowSkippedTime(new SplitStatusSnapshot(
+            SplitRenderData.ShouldShowSkippedTime(new SplitStatusSnapshot(
                 skipped,
                 TimeSpan.FromSeconds(1),
                 IsSkipped: true,

@@ -1441,9 +1441,9 @@ Renderer 不需要理解为什么要远处先画。
 
 ```text
 [x] SplitListRenderer 不再直接构建 SplitDisplayRows
-[ ] SplitListRenderer 不再直接处理 reference/PB comparison 规则
+[x] SplitListRenderer 不再直接处理 reference/PB comparison 规则
 [x] OverlayFrameBuilder 有单测覆盖 focus row、attached rows、expanded rows、completed fact icons
-[ ] renderer 更接近纯绘制函数
+[x] renderer 更接近纯绘制函数
 ```
 
 ---

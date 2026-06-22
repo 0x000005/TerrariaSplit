@@ -23,7 +23,7 @@ internal static class SplitListRenderer
         float listOpacity,
         Rectangle? clipBounds = null)
     {
-        foreach (SplitDisplayRow row in frame.PaintOrderRows)
+        foreach (OverlayFrameRow row in frame.PaintOrderRows)
         {
             RenderRow(graphics, context, resources, listOpacity, row, frame.FocusRowIndex, clipBounds);
         }
@@ -45,7 +45,7 @@ internal static class SplitListRenderer
         OverlayRenderContext context,
         OverlayRenderResources resources,
         float listOpacity,
-        SplitDisplayRow row,
+        OverlayFrameRow row,
         int focusIndex,
         Rectangle? clipBounds)
     {
@@ -63,7 +63,6 @@ internal static class SplitListRenderer
         bool isCurrent = row.StatusIndex == context.CurrentSplitIndex &&
             context.TimerPhase != SplitTimerPhase.NotStarted;
         float depthScale = GetCurrentSplitDepthScale(context.Settings, row.RowIndex, focusIndex);
-        bool isExpandedRow = TryGetExpandedRow(context, row, out SplitExpandedConditionRow expandedRow);
         DrawSplitRow(
             graphics,
             context,
@@ -75,8 +74,7 @@ internal static class SplitListRenderer
             isCurrent,
             GetCurrentSplitDepthOpacity(context.Settings, row.RowIndex, focusIndex, listOpacity),
             depthScale,
-            isExpandedRow ? expandedRow : null,
-            isExpandedRow && IsFirstExpandedConditionRow(context, row, expandedRow));
+            row);
     }
 
     public static float GetCurrentSplitDepthScale(AppSettings settings, int rowIndex, int focusIndex)
@@ -213,8 +211,7 @@ internal static class SplitListRenderer
         bool isCurrent,
         float opacity,
         float wheelScale,
-        SplitExpandedConditionRow? expandedRow,
-        bool drawExpandedIcons)
+        OverlayFrameRow frameRow)
     {
         if (opacity <= 0.01f)
         {
@@ -227,10 +224,11 @@ internal static class SplitListRenderer
         UiColumnSettings deltaSettings = GetDeltaColumnSettings(context.Settings, attached);
         ColumnRects columns = GetColumnRects(context.Settings, rect, attached);
 
+        SplitExpandedConditionRow? expandedRow = frameRow.ExpandedRow;
         if (columns.Icon is Rectangle iconColumnRect)
         {
             Rectangle iconRect = Rectangle.Inflate(iconColumnRect, -2, 0);
-            if (expandedRow is null || drawExpandedIcons)
+            if (expandedRow is null || frameRow.DrawExpandedIcons)
             {
                 DrawIcons(
                     graphics,
@@ -246,36 +244,17 @@ internal static class SplitListRenderer
             }
         }
 
-        SplitComparison comparison = SplitComparisonService.GetSplitComparison(
-            context.Settings,
-            context.TimerPhase,
-            context.TimerElapsed,
-            status,
-            isCurrent);
-        if (expandedRow is SplitExpandedConditionRow expandedComparison)
-        {
-            comparison = GetExpandedComparison(expandedComparison);
-        }
+        SplitComparison comparison = frameRow.Comparison;
 
         if (columns.Time is Rectangle timeRect)
         {
-            bool showExpandedTime = expandedRow?.CompletionTime is TimeSpan;
-            bool showSplitTime = expandedRow is null && status.IsCompleted && status.Time is not null;
-            bool showSkippedTime = expandedRow is null && ShouldShowSkippedTime(status);
-            string timeText = expandedRow is SplitExpandedConditionRow expandedTime
-                ? FormatExpandedTime(expandedTime)
-                : showSplitTime
-                    ? TimeText.FormatSplit(status.Time!.Value)
-                    : showSkippedTime
-                        ? "--"
-                        : SplitRenderData.FormatReferenceTime(context.Settings, status.Definition);
-            TextRenderStyle timeStyle = showSplitTime || showSkippedTime || showExpandedTime
+            TextRenderStyle timeStyle = frameRow.UseSplitTimeStyle
                 ? OverlayTextStyles.GetSplitTextStyle(context.Settings, context.Palette, attached)
                 : OverlayTextStyles.GetReferenceTextStyle(context.Settings, context.Palette, isCurrent, attached);
 
             TextEffectRenderer.DrawStyledText(
                 graphics,
-                timeText,
+                frameRow.TimeText,
                 resources.Fonts.GetColumnFont(timeSettings, context.ScaleFactor, sizeScale: wheelScale),
                 timeStyle,
                 timeRect,
@@ -286,15 +265,9 @@ internal static class SplitListRenderer
 
         if (columns.Delta is Rectangle deltaRect)
         {
-            bool enableDeltaGradient = status.Time is TimeSpan
+            bool enableDeltaGradient = frameRow.UseCompletedDeltaGradient
                 ? context.Settings.Overlay.EnableDeltaGradientColor
                 : context.Settings.Overlay.EnableCurrentDeltaGradientColor;
-            if (expandedRow is SplitExpandedConditionRow expandedDelta)
-            {
-                enableDeltaGradient = expandedDelta.CompletionTime.HasValue
-                    ? context.Settings.Overlay.EnableDeltaGradientColor
-                    : context.Settings.Overlay.EnableCurrentDeltaGradientColor;
-            }
             Color deltaColor = OverlayColorMath.GetDeltaComparisonColor(
                 context.Settings,
                 comparison,
@@ -321,64 +294,6 @@ internal static class SplitListRenderer
                 opacity * OverlayTextStyles.GetDeltaTextOpacity(context.Settings, attached),
                 supersampleEffects: false);
         }
-    }
-
-    internal static bool ShouldShowSkippedTime(SplitStatusSnapshot status)
-    {
-        return status.IsSkipped &&
-            status.Time is null;
-    }
-
-    private static bool TryGetExpandedRow(
-        OverlayRenderContext context,
-        SplitDisplayRow row,
-        out SplitExpandedConditionRow expandedRow)
-    {
-        if (!row.IsExpandedCondition)
-        {
-            expandedRow = default;
-            return false;
-        }
-
-        return SplitExpandedConditionRows.TryGetRow(context.Settings, context.Statuses, row, out expandedRow);
-    }
-
-    private static bool IsFirstExpandedConditionRow(
-        OverlayRenderContext context,
-        SplitDisplayRow row,
-        SplitExpandedConditionRow expandedRow)
-    {
-        IReadOnlyList<SplitExpandedConditionRow> expandedRows =
-            SplitExpandedConditionRows.Build(context.Settings, context.Statuses, row.StatusIndex);
-        return expandedRows.Count > 0 &&
-            expandedRows[0].ConditionIndex == expandedRow.ConditionIndex;
-    }
-
-    private static SplitComparison GetExpandedComparison(SplitExpandedConditionRow row)
-    {
-        if (row.ReferenceTime is not TimeSpan reference)
-        {
-            return SplitComparison.Empty;
-        }
-
-        if (row.CompletionTime is TimeSpan completion)
-        {
-            return new SplitComparison(completion - reference, ShowDelta: true);
-        }
-
-        return SplitComparison.Empty;
-    }
-
-    private static string FormatExpandedTime(SplitExpandedConditionRow row)
-    {
-        if (row.CompletionTime is TimeSpan completion)
-        {
-            return TimeText.FormatSplit(completion);
-        }
-
-        return row.ReferenceTime is TimeSpan reference
-            ? TimeText.FormatSplit(reference)
-            : "--";
     }
 
     private static void DrawIcons(

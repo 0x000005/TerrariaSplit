@@ -51,11 +51,29 @@ internal readonly record struct OverlayRenderResult(bool SplitCompletionAnimatio
 
 internal sealed record OverlayFrame(
     AppSettings Settings,
-    IReadOnlyList<SplitDisplayRow> Rows,
-    IReadOnlyList<SplitDisplayRow> PaintOrderRows,
+    IReadOnlyList<OverlayFrameRow> Rows,
+    IReadOnlyList<OverlayFrameRow> PaintOrderRows,
     int FocusRowIndex,
     SplitTimerPhase TimerPhase,
     TimeSpan TimerElapsed);
+
+internal readonly record struct OverlayFrameRow(
+    SplitDisplayRow DisplayRow,
+    SplitComparison Comparison,
+    string TimeText,
+    bool UseSplitTimeStyle,
+    bool UseCompletedDeltaGradient,
+    SplitExpandedConditionRow? ExpandedRow,
+    bool DrawExpandedIcons)
+{
+    public int StatusIndex => DisplayRow.StatusIndex;
+
+    public int RowIndex => DisplayRow.RowIndex;
+
+    public int ConditionIndex => DisplayRow.ConditionIndex;
+
+    public bool IsExpandedCondition => ExpandedRow.HasValue;
+}
 
 internal readonly record struct ColumnRects(
     Rectangle? Icon,

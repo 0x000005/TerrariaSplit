@@ -93,6 +93,12 @@ internal static class SplitRenderData
             : string.Empty;
     }
 
+    public static bool ShouldShowSkippedTime(SplitStatusSnapshot status)
+    {
+        return status.IsSkipped &&
+            status.Time is null;
+    }
+
     public static string GetSplitCompletionOutlineStyle(Dictionary<string, string> values, string groupKey)
     {
         return values.TryGetValue(groupKey, out string? style)
