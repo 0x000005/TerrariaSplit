@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Application;
 
-internal enum MenuActionKind
+public enum MenuActionKind
 {
     Reset,
     CreateWorld,

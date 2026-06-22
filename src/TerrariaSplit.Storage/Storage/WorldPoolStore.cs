@@ -5,7 +5,7 @@ namespace TerrariaSplit.Storage;
 // Persisted, thread-safe pool of generated world files for one WorldPoolSignature.
 // The foreground workflow installs the first matching .wld into
 // Terraria's Worlds folder instead of replaying a seed through the UI.
-internal sealed class WorldPoolStore
+public sealed class WorldPoolStore
 {
     private readonly object sync = new();
     private readonly string filePath;
@@ -274,7 +274,7 @@ internal sealed class WorldPoolStore
     }
 }
 
-internal sealed class WorldPoolEntry
+public sealed class WorldPoolEntry
 {
     public string WorldFileName { get; set; } = string.Empty;
 

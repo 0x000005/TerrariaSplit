@@ -1,13 +1,13 @@
 namespace TerrariaSplit.Models;
 
-internal enum SplitConditionResult
+public enum SplitConditionResult
 {
     Unknown,
     False,
     True
 }
 
-internal static class SplitConditionKind
+public static class SplitConditionKind
 {
     public const string All = "All";
     public const string Any = "Any";
@@ -40,7 +40,7 @@ internal static class SplitConditionKind
     }
 }
 
-internal static class SplitFactComparison
+public static class SplitFactComparison
 {
     public const string IsTrue = "IsTrue";
     public const string IsFalse = "IsFalse";
@@ -62,7 +62,7 @@ internal static class SplitFactComparison
     }
 }
 
-internal sealed class SplitCondition
+public sealed class SplitCondition
 {
     public string Kind { get; set; } = SplitConditionKind.Fact;
 

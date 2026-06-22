@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Application.Ports;
 
-internal interface ITerrariaWorldWatcher : IDisposable
+public interface ITerrariaWorldWatcher : IDisposable
 {
     TerrariaWatchSnapshot Poll();
 

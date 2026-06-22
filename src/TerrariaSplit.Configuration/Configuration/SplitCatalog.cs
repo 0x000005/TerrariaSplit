@@ -1,12 +1,12 @@
 namespace TerrariaSplit.Configuration;
 
-internal enum BossFactAddressKind
+public enum BossFactAddressKind
 {
     BossFlagBlock,
     Hardmode
 }
 
-internal sealed record BossFactDescriptor(
+public sealed record BossFactDescriptor(
     string TargetId,
     string DisplayName,
     string FactKey,
@@ -14,7 +14,7 @@ internal sealed record BossFactDescriptor(
     int Offset,
     string IconFileName);
 
-internal static class SplitCatalog
+public static class SplitCatalog
 {
     public const string Skeletron = "boss:skeletron";
     public const string WallOfFlesh = "boss:wall-of-flesh";

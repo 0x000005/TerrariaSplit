@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Configuration;
 
-internal static class ReferenceSplitSetService
+public static class ReferenceSplitSetService
 {
     public const string PersonalBestReferenceSetName = "PB";
 

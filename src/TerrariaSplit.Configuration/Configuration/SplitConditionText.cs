@@ -3,7 +3,7 @@ using System.Text;
 
 namespace TerrariaSplit.Configuration;
 
-internal static class SplitConditionText
+public static class SplitConditionText
 {
     public static bool TryParse(string text, string? language, out SplitCondition condition, out string errorMessage)
     {

@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Application;
 
-internal enum TerrariaWorldCreationSeedStatus
+public enum TerrariaWorldCreationSeedStatus
 {
     Unknown,
     NotOnWorldCreationPage,
@@ -8,7 +8,7 @@ internal enum TerrariaWorldCreationSeedStatus
     Seed
 }
 
-internal readonly record struct TerrariaWorldCreationSeedSnapshot(
+public readonly record struct TerrariaWorldCreationSeedSnapshot(
     TerrariaWorldCreationSeedStatus Status,
     string? SeedText,
     IntPtr WorldCreationAddress)

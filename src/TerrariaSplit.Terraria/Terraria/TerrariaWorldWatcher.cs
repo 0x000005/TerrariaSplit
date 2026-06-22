@@ -4,7 +4,7 @@ using Process = System.Diagnostics.Process;
 
 namespace TerrariaSplit.Terraria;
 
-internal sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
+public sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
 {
     private readonly TerrariaMemoryProfile profile;
     private readonly TerrariaMemoryResolver resolver;
@@ -46,7 +46,7 @@ internal sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
     {
     }
 
-    public TerrariaWorldWatcher(TerrariaMemoryProfile profile)
+    internal TerrariaWorldWatcher(TerrariaMemoryProfile profile)
     {
         this.profile = profile;
         resolver = new TerrariaMemoryResolver(profile);

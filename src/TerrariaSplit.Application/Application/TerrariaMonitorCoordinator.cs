@@ -2,7 +2,7 @@ using System.Diagnostics;
 
 namespace TerrariaSplit.Application;
 
-internal sealed class TerrariaMonitorCoordinator : IDisposable
+public sealed class TerrariaMonitorCoordinator : IDisposable
 {
     private static readonly TimeSpan RuntimePendingMenuGraceDuration = TimeSpan.FromSeconds(0.5);
     private static readonly TimeSpan WatcherRunningPollInterval = TimeSpan.FromMilliseconds(5);
@@ -345,7 +345,7 @@ internal sealed class TerrariaMonitorCoordinator : IDisposable
 
 }
 
-internal readonly record struct WatcherPollNotification(
+public readonly record struct WatcherPollNotification(
     TerrariaWatchSnapshot Snapshot,
     TerrariaWatchSnapshot PreviousSnapshot,
     TerrariaWatcherDiagnostics Diagnostics,

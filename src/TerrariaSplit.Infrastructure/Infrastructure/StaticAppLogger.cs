@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Infrastructure;
 
-internal sealed class StaticAppLogger : IAppLogger
+public sealed class StaticAppLogger : IAppLogger
 {
     public static StaticAppLogger Instance { get; } = new();
 

@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Application;
 
-internal static class SplitComparisonService
+public static class SplitComparisonService
 {
     public static SplitComparison GetSplitComparison(
         AppSettings settings,

@@ -4,7 +4,7 @@ namespace TerrariaSplit.Configuration;
 
 // A stable fingerprint of the world-generation inputs and filters that affect whether
 // a pooled world file is valid for the current auto-create settings.
-internal static class WorldPoolSignature
+public static class WorldPoolSignature
 {
     // Terraria's world generator is version-sensitive. Keep this as a visible pool
     // signature component instead of an opaque "v1" format marker.

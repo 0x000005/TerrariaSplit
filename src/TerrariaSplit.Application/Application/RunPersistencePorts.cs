@@ -1,11 +1,11 @@
 namespace TerrariaSplit.Application;
 
-internal interface IRunStatisticsRecorder
+public interface IRunStatisticsRecorder
 {
     void RecordRun(IReadOnlyList<SplitStatusSnapshot> statuses);
 }
 
-internal interface IPersonalBestSnapshotStore
+public interface IPersonalBestSnapshotStore
 {
     ReferenceSplitSet SavePersonalBestTimeSnapshot(
         Dictionary<string, string> splits,
@@ -20,7 +20,7 @@ internal interface IPersonalBestSnapshotStore
         string newTime);
 }
 
-internal sealed class DelegateRunStatisticsRecorder : IRunStatisticsRecorder
+public sealed class DelegateRunStatisticsRecorder : IRunStatisticsRecorder
 {
     private readonly Action<IReadOnlyList<SplitStatusSnapshot>> recordRun;
 
@@ -35,7 +35,7 @@ internal sealed class DelegateRunStatisticsRecorder : IRunStatisticsRecorder
     }
 }
 
-internal sealed class DelegatePersonalBestSnapshotStore : IPersonalBestSnapshotStore
+public sealed class DelegatePersonalBestSnapshotStore : IPersonalBestSnapshotStore
 {
     private readonly Func<Dictionary<string, string>, string, string?, string, ReferenceSplitSet> saveTimeSnapshot;
     private readonly Func<Dictionary<string, string>, string, string?, string, ReferenceSplitSet> saveSegmentSnapshot;
@@ -67,7 +67,7 @@ internal sealed class DelegatePersonalBestSnapshotStore : IPersonalBestSnapshotS
     }
 }
 
-internal sealed class NullRunStatisticsRecorder : IRunStatisticsRecorder
+public sealed class NullRunStatisticsRecorder : IRunStatisticsRecorder
 {
     public static NullRunStatisticsRecorder Instance { get; } = new();
 
@@ -80,7 +80,7 @@ internal sealed class NullRunStatisticsRecorder : IRunStatisticsRecorder
     }
 }
 
-internal sealed class InMemoryPersonalBestSnapshotStore : IPersonalBestSnapshotStore
+public sealed class InMemoryPersonalBestSnapshotStore : IPersonalBestSnapshotStore
 {
     public static InMemoryPersonalBestSnapshotStore Instance { get; } = new();
 

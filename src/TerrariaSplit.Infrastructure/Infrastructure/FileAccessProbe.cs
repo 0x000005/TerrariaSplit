@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Infrastructure;
 
-internal static class FileAccessProbe
+public static class FileAccessProbe
 {
     public static bool CanOpenForRead(string path)
     {

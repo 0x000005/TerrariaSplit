@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace TerrariaSplit.Configuration;
 
-internal sealed class AppSettings
+public sealed class AppSettings
 {
     [Obsolete("Use ReferenceSplitSetService.PersonalBestReferenceSetName instead.")]
     public const string PersonalBestReferenceSetName = ReferenceSplitSetService.PersonalBestReferenceSetName;
@@ -116,7 +116,7 @@ internal sealed class AppSettings
     }
 }
 
-internal sealed class GeneralSettings
+public sealed class GeneralSettings
 {
     public bool ShowMouseClickThroughIndicator { get; set; }
     public string Language { get; set; } = "English";
@@ -124,7 +124,7 @@ internal sealed class GeneralSettings
     public bool PracticeMode { get; set; } = true;
 }
 
-internal sealed class HotkeySettings
+public sealed class HotkeySettings
 {
     public string PauseResumeKey { get; set; } = "F12";
     public string ResetKey { get; set; } = "F6";
@@ -133,7 +133,7 @@ internal sealed class HotkeySettings
     public string PracticeWorldKey { get; set; } = "F8";
 }
 
-internal sealed class RouteSettings
+public sealed class RouteSettings
 {
     public List<SplitRouteEntry> SplitRoute { get; set; } = new();
     public bool ExpandSplitDetails { get; set; }
@@ -145,7 +145,7 @@ internal sealed class RouteSettings
     public bool AutoHideAttachedGroups { get; set; } = true;
 }
 
-internal sealed class ComparisonSettings
+public sealed class ComparisonSettings
 {
     public List<ReferenceSplitSet> ReferenceSplitSets { get; set; } = new();
     public string ActiveReferenceSplitSet { get; set; } = "WR";
@@ -160,7 +160,7 @@ internal sealed class ComparisonSettings
     public bool AskBeforeUpdatingPersonalBestData { get; set; }
 }
 
-internal sealed class OverlaySettings
+public sealed class OverlaySettings
 {
     public bool ShowSplitCompletionAnimation { get; set; } = true;
     public float SplitCompletionAnimationDurationSeconds { get; set; } = 4.2f;
@@ -193,12 +193,12 @@ internal sealed class OverlaySettings
     public int CurrentBossIconBrightnessBoostPercent { get; set; } = 35;
 }
 
-internal sealed class AutomationSettings
+public sealed class AutomationSettings
 {
     public AutoCreateWorldSettings AutoCreate { get; set; } = new();
 }
 
-internal sealed class AdvancedSettings
+public sealed class AdvancedSettings
 {
     public bool EnableTerrariaUiScalePatch { get; set; }
     public int ReadyWatcherPollHz { get; set; }
@@ -207,7 +207,7 @@ internal sealed class AdvancedSettings
     public int TimerOverlayRefreshHz { get; set; }
 }
 
-internal sealed class AutoCreateWorldSettings
+public sealed class AutoCreateWorldSettings
 {
     public string PlayerName { get; set; } = string.Empty;
     public string PlayerTemplateCode { get; set; } = string.Empty;
@@ -233,7 +233,7 @@ internal sealed class AutoCreateWorldSettings
     public int InputPressDurationMilliseconds { get; set; }
 }
 
-internal sealed class PracticeWorldSettings
+public sealed class PracticeWorldSettings
 {
     public const int SlotCount = 10;
 
@@ -247,7 +247,7 @@ internal sealed class PracticeWorldSettings
     }
 }
 
-internal sealed class PracticeWorldSlot
+public sealed class PracticeWorldSlot
 {
     public string Name { get; set; } = string.Empty;
     public string PlayerFilePath { get; set; } = string.Empty;
@@ -258,7 +258,7 @@ internal sealed class PracticeWorldSlot
         !string.IsNullOrWhiteSpace(Name);
 }
 
-internal static class AutoCreatePlayerDifficulty
+public static class AutoCreatePlayerDifficulty
 {
     public const string Softcore = "Softcore";
     public const string Mediumcore = "Mediumcore";
@@ -273,7 +273,7 @@ internal static class AutoCreatePlayerDifficulty
     }
 }
 
-internal static class AutoCreateWorldSize
+public static class AutoCreateWorldSize
 {
     public const string Small = "Small";
     public const string Medium = "Medium";
@@ -287,7 +287,7 @@ internal static class AutoCreateWorldSize
     }
 }
 
-internal static class AutoCreateWorldDifficulty
+public static class AutoCreateWorldDifficulty
 {
     public const string Journey = "Journey";
     public const string Classic = "Classic";
@@ -308,7 +308,7 @@ internal static class AutoCreateWorldDifficulty
     }
 }
 
-internal static class AutoCreateWorldEvil
+public static class AutoCreateWorldEvil
 {
     public const string Random = "Random";
     public const string Corruption = "Corruption";
@@ -322,7 +322,7 @@ internal static class AutoCreateWorldEvil
     }
 }
 
-internal static class AutoCreateSpecialWorldSeed
+public static class AutoCreateSpecialWorldSeed
 {
     public const string NotTheBees = "Not the Bees";
     public const string Drunk = "Drunk";
@@ -454,7 +454,7 @@ internal static class AutoCreateSpecialWorldSeed
     }
 }
 
-internal static class AutoCreatePyramidFilterItem
+public static class AutoCreatePyramidFilterItem
 {
     public const string SandstormInABottle = "Sandstorm in a Bottle";
     public const string FlyingCarpet = "Flying Carpet";
@@ -560,7 +560,7 @@ internal static class AutoCreatePyramidFilterItem
     }
 }
 
-internal static class AutoCreateSeedList
+public static class AutoCreateSeedList
 {
     public static IReadOnlyList<string> Parse(string? value)
     {

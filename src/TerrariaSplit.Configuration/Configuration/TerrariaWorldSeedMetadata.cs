@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Configuration;
 
-internal readonly record struct TerrariaWorldSeedMetadata(
+public readonly record struct TerrariaWorldSeedMetadata(
     string SeedText,
     int SizeCode,
     int DifficultyCode,

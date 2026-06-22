@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Models;
 
-internal sealed record SplitStatusSnapshot(
+public sealed record SplitStatusSnapshot(
     SplitDefinition Definition,
     TimeSpan? Time,
     bool IsSkipped,

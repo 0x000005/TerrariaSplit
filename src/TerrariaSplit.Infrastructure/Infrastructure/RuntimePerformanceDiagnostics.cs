@@ -2,7 +2,7 @@ using System.Diagnostics;
 
 namespace TerrariaSplit.Infrastructure;
 
-internal readonly record struct RuntimePerformanceDiagnostics(
+public readonly record struct RuntimePerformanceDiagnostics(
     int ControlTickCount,
     double LastControlTickMilliseconds,
     double AverageControlTickMilliseconds,
@@ -99,7 +99,7 @@ internal readonly record struct RuntimePerformanceDiagnostics(
         MaxTimerOverlayPaintIntervalMilliseconds: 0);
 }
 
-internal sealed class RuntimePerformanceTracker
+public sealed class RuntimePerformanceTracker
 {
     private readonly object sync = new();
     private readonly RollingPerformanceCounter controlTicks = new();
@@ -295,7 +295,7 @@ internal sealed class RuntimePerformanceTracker
     }
 }
 
-internal sealed class RollingPerformanceCounter
+public sealed class RollingPerformanceCounter
 {
     private readonly double[] samples;
     private int nextIndex;

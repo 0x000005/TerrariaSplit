@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Localization;
 
-internal static class TerrariaLanguageCodes
+public static class TerrariaLanguageCodes
 {
     public const string English = "en-US";
     public const string ChineseSimplified = "zh-Hans";

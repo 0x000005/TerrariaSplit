@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Localization;
 
-internal static class LanguageNames
+public static class LanguageNames
 {
     public const string English = "English";
     public const string Chinese = "中文";

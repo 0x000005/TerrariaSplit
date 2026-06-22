@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Domain;
 
-internal sealed class SplitStatus
+public sealed class SplitStatus
 {
     public SplitStatus(SplitDefinition definition)
     {
@@ -153,7 +153,7 @@ internal sealed class SplitStatus
     }
 }
 
-internal readonly record struct SplitStatusState(
+public readonly record struct SplitStatusState(
     TimeSpan? Time,
     bool IsSkipped,
     IReadOnlyList<string>? CompletedFactKeys,

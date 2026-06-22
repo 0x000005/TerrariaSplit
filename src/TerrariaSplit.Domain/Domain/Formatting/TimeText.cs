@@ -2,7 +2,7 @@ using System.Globalization;
 
 namespace TerrariaSplit.Domain.Formatting;
 
-internal static class TimeText
+public static class TimeText
 {
     public static bool TryParse(string? text, out TimeSpan time)
     {

@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Domain;
 
-internal static class DeltaGradientCurves
+public static class DeltaGradientCurves
 {
     public const string Linear = "Linear";
     public const string Smooth = "Smooth";

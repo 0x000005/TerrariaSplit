@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Storage;
 
-internal static class AppSettingsStore
+public static class AppSettingsStore
 {
     private static readonly AppSettingsRepository Repository = new();
 

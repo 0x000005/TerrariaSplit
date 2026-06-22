@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Application.Ports;
 
-internal interface ITerrariaUiScalePatchApplier
+public interface ITerrariaUiScalePatchApplier
 {
     TerrariaUiScalePatchResult TryApply();
 }

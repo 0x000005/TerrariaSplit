@@ -1,13 +1,13 @@
 namespace TerrariaSplit.Domain;
 
-internal sealed record TerrariaNpcDefinition(
+public sealed record TerrariaNpcDefinition(
     int Id,
     string InternalName,
     string DisplayName,
     string ChineseName,
     int DefaultHeadIndex);
 
-internal static class TerrariaNpcCatalog
+public static class TerrariaNpcCatalog
 {
     public const int MaxNpcId = 687;
 

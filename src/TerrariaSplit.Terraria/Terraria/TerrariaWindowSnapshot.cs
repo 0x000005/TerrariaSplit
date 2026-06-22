@@ -2,7 +2,7 @@ using System.Drawing;
 
 namespace TerrariaSplit.Terraria;
 
-internal readonly record struct TerrariaWindowSnapshot(
+public readonly record struct TerrariaWindowSnapshot(
     bool HasProcess,
     int? ProcessId,
     DateTime? ProcessStartTime,

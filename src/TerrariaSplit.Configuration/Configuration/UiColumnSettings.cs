@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Configuration;
 
-internal sealed class UiColumnSettings
+public sealed class UiColumnSettings
 {
     public bool Show { get; set; } = true;
     public int Width { get; set; }
@@ -9,7 +9,7 @@ internal sealed class UiColumnSettings
     public bool Bold { get; set; }
 }
 
-internal sealed class UiTextEffectSettings
+public sealed class UiTextEffectSettings
 {
     public int IconOpacityPercent { get; set; } = 100;
     public int TimeOpacityPercent { get; set; } = 100;
@@ -33,7 +33,7 @@ internal sealed class UiTextEffectSettings
     public int TimerMillisecondsOutlineThicknessPercent { get; set; } = 100;
 }
 
-internal sealed class UiColumnLayoutSettings
+public sealed class UiColumnLayoutSettings
 {
     public int ScalePercent { get; set; } = 100;
 

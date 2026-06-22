@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Infrastructure;
 
-internal readonly record struct OperationResult(
+public readonly record struct OperationResult(
     bool Succeeded,
     string? UserMessage = null,
     Exception? Exception = null)

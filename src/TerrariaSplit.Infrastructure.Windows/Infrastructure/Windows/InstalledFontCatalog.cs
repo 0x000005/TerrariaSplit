@@ -2,14 +2,14 @@ using System.Drawing.Text;
 
 namespace TerrariaSplit.Infrastructure.Windows;
 
-internal interface IInstalledFontCatalog
+public interface IInstalledFontCatalog
 {
     IReadOnlyList<string> GetInstalledFamilyNames();
 
     string NormalizeInstalledFamilyName(string? familyName, string fallbackFamilyName);
 }
 
-internal sealed class InstalledFontCatalog : IInstalledFontCatalog
+public sealed class InstalledFontCatalog : IInstalledFontCatalog
 {
     public static InstalledFontCatalog Shared { get; } = new();
 

@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Storage;
 
-internal static class RunStatsStore
+public static class RunStatsStore
 {
     public static RunStats Load()
     {

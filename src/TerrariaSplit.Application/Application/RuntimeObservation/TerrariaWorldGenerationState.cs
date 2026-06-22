@@ -2,7 +2,7 @@ using System.Globalization;
 
 namespace TerrariaSplit.Application;
 
-internal readonly record struct TerrariaWorldGenerationState(
+public readonly record struct TerrariaWorldGenerationState(
     string? CurrentPassName,
     string? ProgressMessage,
     double? CurrentProgress,

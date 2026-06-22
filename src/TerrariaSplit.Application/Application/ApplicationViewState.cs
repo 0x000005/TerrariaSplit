@@ -2,7 +2,7 @@ using System.Diagnostics;
 
 namespace TerrariaSplit.Application;
 
-internal sealed record ApplicationViewState(
+public sealed record ApplicationViewState(
     AppSettings Settings,
     RuntimeRunSnapshot RuntimeSnapshot,
     IReadOnlyList<SplitStatusSnapshot> DisplayStatuses,

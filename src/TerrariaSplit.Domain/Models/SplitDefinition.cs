@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Models;
 
-internal sealed record SplitDefinition(
+public sealed record SplitDefinition(
     string Id,
     string DisplayName,
     SplitCondition Condition,
@@ -37,14 +37,14 @@ internal sealed record SplitDefinition(
     }
 }
 
-internal sealed record SplitTargetDefinition(
+public sealed record SplitTargetDefinition(
     string Id,
     string Kind,
     string DisplayName,
     string FactKey,
     string IconFileName);
 
-internal static class SplitTargetKind
+public static class SplitTargetKind
 {
     public const string Boss = "Boss";
     public const string Item = "Item";
@@ -52,7 +52,7 @@ internal static class SplitTargetKind
     public const string Biome = "Biome";
 }
 
-internal static class SplitIconOverrideSource
+public static class SplitIconOverrideSource
 {
     public const string All = "All";
     public const string Target = "Target";
@@ -71,7 +71,7 @@ internal static class SplitIconOverrideSource
     }
 }
 
-internal sealed class SplitIconOverride
+public sealed class SplitIconOverride
 {
     public string Source { get; set; } = SplitIconOverrideSource.All;
 
@@ -80,7 +80,7 @@ internal sealed class SplitIconOverride
     public string FilePath { get; set; } = string.Empty;
 }
 
-internal sealed class SplitRouteEntry
+public sealed class SplitRouteEntry
 {
     public string Id { get; set; } = string.Empty;
 
@@ -103,4 +103,4 @@ internal sealed class SplitRouteEntry
     public bool ExpandDetails { get; set; }
 }
 
-internal readonly record struct SplitRecord(int Index, string Name, TimeSpan Time);
+public readonly record struct SplitRecord(int Index, string Name, TimeSpan Time);

@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Configuration;
 
-internal static class SettingsPersistenceProjection
+public static class SettingsPersistenceProjection
 {
     public static void RemoveExternalSplitSets(AppSettings settings)
     {

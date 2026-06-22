@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Application.Diagnostics;
 
-internal readonly record struct SignatureScanDiagnostics(
+public readonly record struct SignatureScanDiagnostics(
     string ScopeDescription,
     int PrivateExecutablePagesSeen,
     int PrivateExecutablePagesScanned,

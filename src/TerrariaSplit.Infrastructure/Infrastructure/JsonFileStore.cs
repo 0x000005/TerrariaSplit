@@ -2,7 +2,7 @@ using System.Text.Json;
 
 namespace TerrariaSplit.Infrastructure;
 
-internal static class JsonFileStore
+public static class JsonFileStore
 {
     public static readonly JsonSerializerOptions JsonOptions = new()
     {

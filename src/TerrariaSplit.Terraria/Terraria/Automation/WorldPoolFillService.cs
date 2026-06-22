@@ -6,7 +6,7 @@ namespace TerrariaSplit.Terraria.Automation;
 // It backs off once the pool reaches the target count and resumes when worlds are consumed.
 // This is a background task, not a dedicated UI thread; the expensive work happens in a
 // separate TerrariaServer.exe process.
-internal sealed class WorldPoolFillService : IDisposable
+public sealed class WorldPoolFillService : IDisposable
 {
     private static readonly TimeSpan IdleInterval = TimeSpan.FromSeconds(8);
 

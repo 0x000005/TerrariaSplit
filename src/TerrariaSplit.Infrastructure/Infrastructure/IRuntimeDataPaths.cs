@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Infrastructure;
 
-internal interface IRuntimeDataPaths
+public interface IRuntimeDataPaths
 {
     string DataDirectory { get; }
 

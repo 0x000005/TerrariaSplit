@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Infrastructure;
 
-internal static class AppLogger
+public static class AppLogger
 {
     public const string EnableLogEnvironmentVariable = "TERRARIA_SPLIT_ENABLE_LOG";
 

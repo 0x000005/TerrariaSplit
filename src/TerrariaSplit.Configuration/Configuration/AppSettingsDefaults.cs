@@ -2,7 +2,7 @@ using System.Text.Json;
 
 namespace TerrariaSplit.Configuration;
 
-internal static class AppSettingsDefaults
+public static class AppSettingsDefaults
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {

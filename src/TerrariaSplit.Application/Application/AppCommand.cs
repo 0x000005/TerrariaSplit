@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Application;
 
-internal abstract record AppCommand
+public abstract record AppCommand
 {
     public static AppCommand TogglePause() => new TogglePauseCommand();
 
@@ -27,22 +27,22 @@ internal abstract record AppCommand
     public static AppCommand ApplySettings(AppSettings settings) => new ApplySettingsCommand(settings);
 }
 
-internal sealed record TogglePauseCommand : AppCommand;
+public sealed record TogglePauseCommand : AppCommand;
 
-internal sealed record ResetRunCommand(bool RecordStats, bool PlayResetSound) : AppCommand;
+public sealed record ResetRunCommand(bool RecordStats, bool PlayResetSound) : AppCommand;
 
-internal sealed record ToggleMouseClickThroughCommand : AppCommand;
+public sealed record ToggleMouseClickThroughCommand : AppCommand;
 
-internal sealed record TogglePyramidFilterCommand : AppCommand;
+public sealed record TogglePyramidFilterCommand : AppCommand;
 
-internal sealed record QueueMenuActionCommand(MenuActionKind Action, DateTime RequestedAtUtc) : AppCommand;
+public sealed record QueueMenuActionCommand(MenuActionKind Action, DateTime RequestedAtUtc) : AppCommand;
 
-internal sealed record CancelCreateWorldCommand : AppCommand;
+public sealed record CancelCreateWorldCommand : AppCommand;
 
-internal sealed record CancelEnterWorldCommand : AppCommand;
+public sealed record CancelEnterWorldCommand : AppCommand;
 
-internal sealed record EditPracticeSplitTimeCommand(int SplitIndex, TimeSpan? Time) : AppCommand;
+public sealed record EditPracticeSplitTimeCommand(int SplitIndex, TimeSpan? Time) : AppCommand;
 
-internal sealed record EditPracticeTotalTimeCommand(TimeSpan Time) : AppCommand;
+public sealed record EditPracticeTotalTimeCommand(TimeSpan Time) : AppCommand;
 
-internal sealed record ApplySettingsCommand(AppSettings Settings) : AppCommand;
+public sealed record ApplySettingsCommand(AppSettings Settings) : AppCommand;

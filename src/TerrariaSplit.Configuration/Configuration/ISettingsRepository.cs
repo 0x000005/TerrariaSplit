@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Configuration;
 
-internal interface ISettingsRepository
+public interface ISettingsRepository
 {
     string SettingsDirectory { get; }
 

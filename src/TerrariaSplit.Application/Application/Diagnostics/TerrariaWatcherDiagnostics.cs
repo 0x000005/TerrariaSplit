@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Application.Diagnostics;
 
-internal readonly record struct TerrariaWatcherDiagnostics(
+public readonly record struct TerrariaWatcherDiagnostics(
     string Stage,
     string SupportedVersion,
     string SignatureProfile,
@@ -23,7 +23,7 @@ internal readonly record struct TerrariaWatcherDiagnostics(
     TerrariaWorldCreationSeedSnapshot WorldCreationSeed,
     string CompatibilityHint);
 
-internal static class TerrariaWatcherDiagnosticsDefaults
+public static class TerrariaWatcherDiagnosticsDefaults
 {
     public static TerrariaWatcherDiagnostics Empty => new(
         Stage: "waiting for process",

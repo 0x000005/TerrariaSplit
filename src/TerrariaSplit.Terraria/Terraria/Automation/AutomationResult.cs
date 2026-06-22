@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Terraria.Automation;
 
-internal sealed record AutomationResult(
+public sealed record AutomationResult(
     bool Succeeded,
     bool Cancelled,
     string UserMessage,

@@ -1588,9 +1588,9 @@ Infrastructure -> Storage/Terraria/Application/WinForms
 ### PR-10 验收
 
 ```text
-[ ] runtime 项目之间基本没有 InternalsVisibleTo
-[ ] tests 仍可通过 InternalsVisibleTo 访问必要 internal
-[ ] 不因为 IVT 删除而把所有类型无脑 public；public 类型应该是 contract
+[x] runtime 项目之间基本没有 InternalsVisibleTo
+[x] tests 仍可通过 InternalsVisibleTo 访问必要 internal
+[x] 不因为 IVT 删除而把所有类型无脑 public；public 类型应该是 contract
 ```
 
 ---

@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Domain;
 
-internal static class SplitTimerFormatter
+public static class SplitTimerFormatter
 {
     // The timer overlay formats elapsed time every frame; centiseconds only take
     // 100 distinct values and the main text only changes once per second, so both

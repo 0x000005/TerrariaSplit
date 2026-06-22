@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Configuration;
 
-internal sealed class SettingsDocument
+public sealed class SettingsDocument
 {
     public int SchemaVersion { get; set; } = SettingsSchemaVersion.Current;
 
@@ -16,4 +16,4 @@ internal sealed class SettingsDocument
     }
 }
 
-internal sealed record LoadedSettingsDocument(AppSettings Settings, string Path, bool ShouldSaveDefaults);
+public sealed record LoadedSettingsDocument(AppSettings Settings, string Path, bool ShouldSaveDefaults);

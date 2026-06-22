@@ -2,7 +2,7 @@ using System.Drawing;
 
 namespace TerrariaSplit.Terraria.Automation;
 
-internal readonly record struct TerrariaMenuGeometry(float Scale, float LogicalWidth, float LogicalHeight)
+public readonly record struct TerrariaMenuGeometry(float Scale, float LogicalWidth, float LogicalHeight)
 {
     public static TerrariaMenuGeometry From(Size clientSize)
     {

@@ -4,7 +4,7 @@ using System.Windows.Forms;
 
 namespace TerrariaSplit.Terraria;
 
-internal sealed class TerrariaWindowController
+public sealed class TerrariaWindowController
 {
     private const int SwRestore = 9;
     private const uint MouseEventLeftDown = 0x0002;

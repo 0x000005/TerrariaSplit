@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Configuration;
 
-internal static class SettingsNormalizer
+public static class SettingsNormalizer
 {
     public static void Normalize(AppSettings settings)
     {

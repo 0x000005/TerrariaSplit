@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Configuration;
 
-internal static class AutoCreateZenithStarCatchStage
+public static class AutoCreateZenithStarCatchStage
 {
     public const string LifeCrystals = "Life Crystals";
     public const string Statues = "Statues";

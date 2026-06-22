@@ -230,8 +230,11 @@ internal static class ArchitectureDependencyTests
     {
         string root = FindRepositoryRoot();
         string path = Path.Combine(root, "src", "TerrariaSplit.Configuration", "Configuration", "AppSettings.cs");
-        string appSettingsClass = File.ReadAllText(path)
-            .Split("internal sealed class GeneralSettings", StringSplitOptions.None)[0];
+        string appSettingsClass = Regex.Split(
+            File.ReadAllText(path),
+            @"\b(?:public|internal)\s+sealed\s+class\s+GeneralSettings\b",
+            RegexOptions.None,
+            TimeSpan.FromSeconds(1))[0];
 
         if (appSettingsClass.Contains("[JsonIgnore]", StringComparison.Ordinal))
         {

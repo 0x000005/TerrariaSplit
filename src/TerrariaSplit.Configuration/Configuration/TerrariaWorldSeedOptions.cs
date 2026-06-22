@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Configuration;
 
-internal static class TerrariaWorldSeedOptions
+public static class TerrariaWorldSeedOptions
 {
     public const int CorruptionEvilCode = 1;
     public const int CrimsonEvilCode = 2;

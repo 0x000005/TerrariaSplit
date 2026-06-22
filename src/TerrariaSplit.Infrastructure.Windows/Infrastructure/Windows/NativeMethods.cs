@@ -2,7 +2,7 @@ using System.Runtime.InteropServices;
 
 namespace TerrariaSplit.Infrastructure.Windows;
 
-internal static class NativeMethods
+public static class NativeMethods
 {
     public const int SwRestore = 9;
 
@@ -132,7 +132,7 @@ internal static class NativeMethods
 }
 
 [Flags]
-internal enum ProcessAccessRights : uint
+public enum ProcessAccessRights : uint
 {
     QueryInformation = 0x0400,
     VirtualMemoryOperation = 0x0008,

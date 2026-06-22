@@ -3,7 +3,7 @@ using System.Text.Json.Nodes;
 
 namespace TerrariaSplit.Configuration;
 
-internal static class SettingsJsonSectionMigrator
+public static class SettingsJsonSectionMigrator
 {
     private const string LegacyChinese = "\u6D93\uE15F\u6783";
 

@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Configuration;
 
-internal sealed class UiSoundSettings
+public sealed class UiSoundSettings
 {
     public string Pause { get; set; } = string.Empty;
     public string Resume { get; set; } = string.Empty;

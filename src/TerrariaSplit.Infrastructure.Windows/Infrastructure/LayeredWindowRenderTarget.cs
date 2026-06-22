@@ -7,7 +7,7 @@ using static TerrariaSplit.Infrastructure.Windows.LayeredWindowNative;
 
 namespace TerrariaSplit.Infrastructure;
 
-internal sealed class LayeredWindowRenderTarget : IDisposable
+public sealed class LayeredWindowRenderTarget : IDisposable
 {
     // Offsets into the unmanaged scratch block used for the pointer members of
     // UPDATELAYEREDWINDOWINFO (POINT dst, SIZE size, POINT src, BLENDFUNCTION,

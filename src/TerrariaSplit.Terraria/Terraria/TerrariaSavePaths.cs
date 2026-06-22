@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Terraria;
 
-internal static class TerrariaSavePaths
+public static class TerrariaSavePaths
 {
     public const string DeletedSavesDirectoryName = "TerrariaSplitDeleted";
 

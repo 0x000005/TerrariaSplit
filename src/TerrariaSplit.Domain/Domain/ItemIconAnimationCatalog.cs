@@ -1,8 +1,8 @@
 namespace TerrariaSplit.Domain;
 
-internal readonly record struct ItemIconAnimation(int FrameCount);
+public readonly record struct ItemIconAnimation(int FrameCount);
 
-internal static class ItemIconAnimationCatalog
+public static class ItemIconAnimationCatalog
 {
     private static readonly int[] FoodItemIds =
     [

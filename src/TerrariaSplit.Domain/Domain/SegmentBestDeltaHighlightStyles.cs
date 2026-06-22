@@ -2,7 +2,7 @@ using System.Drawing;
 
 namespace TerrariaSplit.Domain;
 
-internal static class SegmentBestDeltaHighlightStyles
+public static class SegmentBestDeltaHighlightStyles
 {
     public const string None = "None";
     public const string Rainbow = "Rainbow";

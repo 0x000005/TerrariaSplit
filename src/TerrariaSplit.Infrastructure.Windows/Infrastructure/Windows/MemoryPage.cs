@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 namespace TerrariaSplit.Infrastructure.Windows;
 
 [Flags]
-internal enum MemoryPageProtect : uint
+public enum MemoryPageProtect : uint
 {
     PageNoAccess = 0x01,
     PageReadOnly = 0x02,
@@ -18,14 +18,14 @@ internal enum MemoryPageProtect : uint
     PageWriteCombine = 0x400
 }
 
-internal enum MemoryPageState : uint
+public enum MemoryPageState : uint
 {
     Commit = 0x1000,
     Reserve = 0x2000,
     Free = 0x10000
 }
 
-internal enum MemoryPageType : uint
+public enum MemoryPageType : uint
 {
     Private = 0x20000,
     Mapped = 0x40000,
@@ -33,7 +33,7 @@ internal enum MemoryPageType : uint
 }
 
 [StructLayout(LayoutKind.Sequential)]
-internal struct MemoryBasicInformation
+public struct MemoryBasicInformation
 {
     public IntPtr BaseAddress;
     public IntPtr AllocationBase;
@@ -44,7 +44,7 @@ internal struct MemoryBasicInformation
     public MemoryPageType Type;
 }
 
-internal readonly record struct MemoryPage(
+public readonly record struct MemoryPage(
     IntPtr BaseAddress,
     long RegionSize,
     MemoryPageProtect Protect,

@@ -2,7 +2,7 @@ using System.Text.Json;
 
 namespace TerrariaSplit.Terraria;
 
-internal sealed class TerrariaSaveFileCleaner
+public sealed class TerrariaSaveFileCleaner
 {
     private const int MaxDeletedBackupFolders = 50;
     private const string FavoritesFileName = "favorites.json";
@@ -252,7 +252,7 @@ internal sealed class TerrariaSaveFileCleaner
     }
 }
 
-internal readonly record struct TerrariaSaveCleanupResult(
+public readonly record struct TerrariaSaveCleanupResult(
     string SaveRoot,
     string BackupRoot,
     int FavoritePlayers,
@@ -260,13 +260,13 @@ internal readonly record struct TerrariaSaveCleanupResult(
     int MovedPlayers,
     int MovedWorlds);
 
-internal readonly record struct TerrariaWorldCleanupResult(
+public readonly record struct TerrariaWorldCleanupResult(
     string SaveRoot,
     string BackupRoot,
     int FavoriteWorlds,
     int MovedWorlds);
 
-internal readonly record struct TerrariaSaveInventorySnapshot(
+public readonly record struct TerrariaSaveInventorySnapshot(
     int PlayerFiles,
     int WorldFiles,
     int FavoritePlayers,

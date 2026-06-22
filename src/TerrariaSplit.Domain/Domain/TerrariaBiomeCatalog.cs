@@ -1,13 +1,13 @@
 namespace TerrariaSplit.Domain;
 
-internal sealed record TerrariaBiomeDefinition(
+public sealed record TerrariaBiomeDefinition(
     string Id,
     string DisplayName,
     string ChineseName,
     TerrariaBiomeRule Rule,
     string IconFileName);
 
-internal sealed record TerrariaBiomeRule(
+public sealed record TerrariaBiomeRule(
     IReadOnlyList<TerrariaBiomeZoneBit> Required,
     IReadOnlyList<TerrariaBiomeZoneBit> AnyOf,
     IReadOnlyList<TerrariaBiomeZoneBit> Excluded)
@@ -15,9 +15,9 @@ internal sealed record TerrariaBiomeRule(
     public IEnumerable<TerrariaBiomeZoneBit> ZoneBits => Required.Concat(AnyOf).Concat(Excluded);
 }
 
-internal readonly record struct TerrariaBiomeZoneBit(string ZoneFieldName, int BitIndex);
+public readonly record struct TerrariaBiomeZoneBit(string ZoneFieldName, int BitIndex);
 
-internal static class TerrariaBiomeCatalog
+public static class TerrariaBiomeCatalog
 {
     private static readonly TerrariaBiomeZoneBit[] ForestExclusions =
     [

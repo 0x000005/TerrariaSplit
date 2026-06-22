@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Terraria;
 
-internal sealed class TerrariaUiScalePatchApplierAdapter : ITerrariaUiScalePatchApplier
+public sealed class TerrariaUiScalePatchApplierAdapter : ITerrariaUiScalePatchApplier
 {
     private readonly TerrariaUiScalePatch patch = new();
 

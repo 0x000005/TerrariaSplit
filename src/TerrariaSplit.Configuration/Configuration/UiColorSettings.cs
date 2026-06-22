@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Configuration;
 
-internal sealed class UiColorSettings
+public sealed class UiColorSettings
 {
     public string ReferenceText { get; set; } = "#E2E2E2";
     public string ReferenceTextOutline { get; set; } = "#101010";

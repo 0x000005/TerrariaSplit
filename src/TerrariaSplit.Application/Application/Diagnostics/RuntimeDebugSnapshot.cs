@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Application.Diagnostics;
 
-internal readonly record struct RuntimeDebugSnapshot(
+public readonly record struct RuntimeDebugSnapshot(
     TerrariaWatchSnapshot WatchSnapshot,
     TerrariaWatcherDiagnostics WatcherDiagnostics,
     RuntimePerformanceDiagnostics Performance,

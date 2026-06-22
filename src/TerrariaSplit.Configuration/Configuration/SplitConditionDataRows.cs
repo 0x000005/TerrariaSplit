@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Configuration;
 
-internal sealed record SplitConditionDataRow(
+public sealed record SplitConditionDataRow(
     string Key,
     string DisplayName,
     string SplitId,
@@ -10,7 +10,7 @@ internal sealed record SplitConditionDataRow(
     int ConditionIndex,
     bool IsAttached = false);
 
-internal static class SplitConditionDataRows
+public static class SplitConditionDataRows
 {
     public static IReadOnlyList<SplitConditionDataRow> Build(AppSettings settings)
     {

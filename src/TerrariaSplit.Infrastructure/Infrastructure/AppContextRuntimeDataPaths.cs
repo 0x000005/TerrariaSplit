@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Infrastructure;
 
-internal sealed class AppContextRuntimeDataPaths : IRuntimeDataPaths
+public sealed class AppContextRuntimeDataPaths : IRuntimeDataPaths
 {
     public static AppContextRuntimeDataPaths Default { get; } = new();
 

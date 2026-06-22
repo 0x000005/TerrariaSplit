@@ -2,13 +2,13 @@ using System.Diagnostics;
 
 namespace TerrariaSplit.Infrastructure;
 
-internal readonly record struct HighPrecisionSchedulerTick(
+public readonly record struct HighPrecisionSchedulerTick(
     long ScheduledTimestamp,
     long ActualTimestamp,
     TimeSpan Interval,
     TimeSpan Delay);
 
-internal sealed class HighPrecisionScheduler : IDisposable
+public sealed class HighPrecisionScheduler : IDisposable
 {
     private static readonly TimeSpan MinimumInterval = TimeSpan.FromMilliseconds(1);
     private static readonly TimeSpan SleepGuard = TimeSpan.FromMilliseconds(1);

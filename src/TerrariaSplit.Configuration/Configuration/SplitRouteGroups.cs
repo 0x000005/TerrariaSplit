@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Configuration;
 
-internal static class SplitRouteGroups
+public static class SplitRouteGroups
 {
     public static List<RouteGroup> Build(AppSettings settings)
     {
@@ -59,4 +59,4 @@ internal static class SplitRouteGroups
     }
 }
 
-internal sealed record RouteGroup(string Key, string DisplayName, IReadOnlyList<SplitRouteEntry> Entries);
+public sealed record RouteGroup(string Key, string DisplayName, IReadOnlyList<SplitRouteEntry> Entries);

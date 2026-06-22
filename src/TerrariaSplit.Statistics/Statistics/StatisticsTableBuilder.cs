@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Statistics;
 
-internal static class StatisticsTableBuilder
+public static class StatisticsTableBuilder
 {
     public static List<StatisticsTableRow> Build(AppSettings settings, RunStats stats)
     {

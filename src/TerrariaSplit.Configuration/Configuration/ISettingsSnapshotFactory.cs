@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Configuration;
 
-internal interface ISettingsSnapshotFactory
+public interface ISettingsSnapshotFactory
 {
     AppSettings CreateSnapshot(AppSettings settings);
 }

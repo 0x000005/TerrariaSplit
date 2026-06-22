@@ -2,7 +2,7 @@ using System.Reflection;
 
 namespace TerrariaSplit.Configuration;
 
-internal static class EmbeddedDefaults
+public static class EmbeddedDefaults
 {
     private static readonly Lazy<string> SettingsJsonValue = new(() => ReadResource("settings.default.json"));
     private static readonly Lazy<string> ReferenceTimesWrJsonValue = new(() => ReadResource("reference-splits.default.json"));

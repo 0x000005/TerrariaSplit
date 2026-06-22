@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Configuration;
 
-internal sealed record UiTextEffectDescriptor(
+public sealed record UiTextEffectDescriptor(
     string Key,
     Func<UiTextEffectSettings, int> GetOpacity,
     Action<UiTextEffectSettings, int> SetOpacity,
@@ -9,7 +9,7 @@ internal sealed record UiTextEffectDescriptor(
     Func<UiTextEffectSettings, int>? GetOutline,
     Action<UiTextEffectSettings, int>? SetOutline);
 
-internal static class UiTextEffectDescriptors
+public static class UiTextEffectDescriptors
 {
     public static UiTextEffectDescriptor Icon { get; } = new(
         nameof(UiTextEffectSettings.IconOpacityPercent),
@@ -96,7 +96,7 @@ internal static class UiTextEffectDescriptors
     ];
 }
 
-internal sealed record UiColumnDescriptor(
+public sealed record UiColumnDescriptor(
     string Key,
     string Label,
     Func<UiColumnLayoutSettings, UiColumnSettings?> GetValue,
@@ -106,7 +106,7 @@ internal sealed record UiColumnDescriptor(
     bool ShowFontFamily = true,
     bool ShowBold = true);
 
-internal static class UiColumnDescriptors
+public static class UiColumnDescriptors
 {
     public static UiColumnDescriptor Icon { get; } = new(
         nameof(UiColumnLayoutSettings.Icon),

@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Terraria.Automation;
 
-internal sealed class TerrariaSavePreparation
+public sealed class TerrariaSavePreparation
 {
     private readonly TerrariaSaveFileCleaner saveCleaner = new();
 

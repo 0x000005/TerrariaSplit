@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Configuration;
 
-internal static class PersonalBestSetService
+public static class PersonalBestSetService
 {
     public static string GetPersonalBestTimeText(AppSettings settings, string name)
     {

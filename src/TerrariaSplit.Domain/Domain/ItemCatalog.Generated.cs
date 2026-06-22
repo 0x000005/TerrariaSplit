@@ -1,8 +1,8 @@
 namespace TerrariaSplit.Domain;
 
-internal readonly record struct TerrariaItemDefinition(int Id, string InternalName, string DisplayName, string ChineseName);
+public readonly record struct TerrariaItemDefinition(int Id, string InternalName, string DisplayName, string ChineseName);
 
-internal static class TerrariaItemCatalog
+public static class TerrariaItemCatalog
 {
     public static readonly IReadOnlyList<TerrariaItemDefinition> Items =
     [

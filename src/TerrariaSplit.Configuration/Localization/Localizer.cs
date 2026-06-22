@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Localization;
 
-internal static class Localizer
+public static class Localizer
 {
     private static readonly ILocalizedStringProvider English = new EnglishStrings();
     private static readonly ILocalizedStringProvider Chinese = new ChineseStrings();

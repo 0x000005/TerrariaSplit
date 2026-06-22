@@ -2,7 +2,7 @@ using System.Globalization;
 
 namespace TerrariaSplit.Configuration;
 
-internal static class AutoCreateZenithStarCatchSpeed
+public static class AutoCreateZenithStarCatchSpeed
 {
     public const int MinimumSliderValue = 0;
     public const int MaximumSliderValue = 1000;

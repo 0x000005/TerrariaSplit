@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Storage;
 
-internal static class SplitTimeSetStore
+public static class SplitTimeSetStore
 {
     private const int MaxLastRunSetsToLoad = 100;
 

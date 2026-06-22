@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Configuration;
 
-internal static class SettingsSectionNormalizer
+public static class SettingsSectionNormalizer
 {
     public static void NormalizeAutoCreate(AutoCreateWorldSettings autoCreate)
     {

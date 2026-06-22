@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Application;
 
-internal readonly record struct TerrariaUiScalePatchResult(
+public readonly record struct TerrariaUiScalePatchResult(
     TerrariaUiScalePatchStatus Status,
     int? ProcessId,
     string Message)
@@ -36,7 +36,7 @@ internal readonly record struct TerrariaUiScalePatchResult(
     }
 }
 
-internal enum TerrariaUiScalePatchStatus
+public enum TerrariaUiScalePatchStatus
 {
     NoProcess,
     Unsupported,

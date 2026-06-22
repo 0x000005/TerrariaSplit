@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Configuration;
 
-internal static class RefreshRateSettings
+public static class RefreshRateSettings
 {
     public static readonly int[] ReadyWatcherPollHzOptions = [120, 240, 480, 960];
     public static readonly int[] StandardRefreshHzOptions = [60, 90, 120, 180, 240];

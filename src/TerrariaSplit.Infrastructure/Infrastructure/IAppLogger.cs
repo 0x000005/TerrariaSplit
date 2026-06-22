@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Infrastructure;
 
-internal interface IAppLogger
+public interface IAppLogger
 {
     void Info(string message);
 

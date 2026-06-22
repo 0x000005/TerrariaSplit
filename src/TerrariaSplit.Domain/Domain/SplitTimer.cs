@@ -2,14 +2,14 @@ using System.Diagnostics;
 
 namespace TerrariaSplit.Domain;
 
-internal enum SplitTimerPhase
+public enum SplitTimerPhase
 {
     NotStarted,
     Running,
     Paused
 }
 
-internal sealed class SplitTimer
+public sealed class SplitTimer
 {
     private long runningSinceTimestamp;
     private TimeSpan elapsedBeforePause = TimeSpan.Zero;
@@ -123,7 +123,7 @@ internal sealed class SplitTimer
     }
 }
 
-internal readonly record struct SplitTimerState(
+public readonly record struct SplitTimerState(
     SplitTimerPhase Phase,
     TimeSpan ElapsedBeforePause,
     long RunningSinceTimestamp);

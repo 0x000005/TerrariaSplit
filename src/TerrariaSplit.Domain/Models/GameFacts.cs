@@ -1,13 +1,13 @@
 namespace TerrariaSplit.Models;
 
-internal enum FactValueKind
+public enum FactValueKind
 {
     Unknown,
     Boolean,
     Integer
 }
 
-internal readonly record struct FactValue(FactValueKind Kind, bool BooleanValue, int IntegerValue)
+public readonly record struct FactValue(FactValueKind Kind, bool BooleanValue, int IntegerValue)
 {
     public static FactValue Unknown => new(FactValueKind.Unknown, false, 0);
 
@@ -42,7 +42,7 @@ internal readonly record struct FactValue(FactValueKind Kind, bool BooleanValue,
     }
 }
 
-internal sealed class TerrariaGameFacts : IEquatable<TerrariaGameFacts>
+public sealed class TerrariaGameFacts : IEquatable<TerrariaGameFacts>
 {
     private readonly Dictionary<string, FactValue> values;
 
@@ -122,7 +122,7 @@ internal sealed class TerrariaGameFacts : IEquatable<TerrariaGameFacts>
         return hash.ToHashCode();
     }
 
-    internal sealed class Builder
+    public sealed class Builder
     {
         private readonly Dictionary<string, FactValue> values = new(StringComparer.OrdinalIgnoreCase);
 

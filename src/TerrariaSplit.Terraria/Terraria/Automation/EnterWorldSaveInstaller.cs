@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Terraria.Automation;
 
-internal static class EnterWorldSaveInstaller
+public static class EnterWorldSaveInstaller
 {
     public static bool TryValidate(PracticeWorldSlot slot, out string message)
     {

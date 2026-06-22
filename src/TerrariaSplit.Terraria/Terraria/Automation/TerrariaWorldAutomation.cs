@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Terraria.Automation;
 
-internal sealed class TerrariaWorldAutomation : IDisposable
+public sealed class TerrariaWorldAutomation : IDisposable
 {
     private readonly CreateWorldWorkflow createWorldWorkflow;
     private readonly EnterWorldWorkflow enterWorldWorkflow = new();

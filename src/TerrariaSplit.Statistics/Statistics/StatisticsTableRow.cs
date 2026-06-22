@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Statistics;
 
-internal sealed record StatisticsTableRow(
+public sealed record StatisticsTableRow(
     SplitConditionDataRow ConditionRow,
     string ReferenceTimeText,
     string PersonalTimeText,

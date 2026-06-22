@@ -2,7 +2,7 @@ using System.Globalization;
 
 namespace TerrariaSplit.Configuration;
 
-internal static class SplitTargetDisplayNames
+public static class SplitTargetDisplayNames
 {
     private static readonly IReadOnlyDictionary<string, string> BossChineseNames =
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)

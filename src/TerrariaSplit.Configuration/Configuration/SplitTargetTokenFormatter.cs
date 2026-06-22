@@ -2,7 +2,7 @@ using System.Globalization;
 
 namespace TerrariaSplit.Configuration;
 
-internal static class SplitTargetTokenFormatter
+public static class SplitTargetTokenFormatter
 {
     public static string Format(SplitTargetDefinition target)
     {

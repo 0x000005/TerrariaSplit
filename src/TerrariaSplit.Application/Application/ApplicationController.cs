@@ -1,63 +1,63 @@
 namespace TerrariaSplit.Application;
 
-internal abstract record ApplicationEffect;
+public abstract record ApplicationEffect;
 
-internal sealed record SubmitRuntimeCommandEffect(RuntimeCommand Command)
+public sealed record SubmitRuntimeCommandEffect(RuntimeCommand Command)
     : ApplicationEffect;
 
-internal sealed record StopAllSoundsEffect()
+public sealed record StopAllSoundsEffect()
     : ApplicationEffect;
 
-internal sealed record PlaySoundEffect(string Path)
+public sealed record PlaySoundEffect(string Path)
     : ApplicationEffect;
 
-internal sealed record ToggleMouseClickThroughEffect()
+public sealed record ToggleMouseClickThroughEffect()
     : ApplicationEffect;
 
-internal sealed record ClearOverlayAnimationEffect()
+public sealed record ClearOverlayAnimationEffect()
     : ApplicationEffect;
 
-internal sealed record ClearSplitCompletionAnimationEffect()
+public sealed record ClearSplitCompletionAnimationEffect()
     : ApplicationEffect;
 
-internal sealed record TrackSegmentBestDeltaHighlightEffect(int SplitIndex)
+public sealed record TrackSegmentBestDeltaHighlightEffect(int SplitIndex)
     : ApplicationEffect;
 
-internal sealed record StartSplitCompletionAnimationEffect(int SplitIndex)
+public sealed record StartSplitCompletionAnimationEffect(int SplitIndex)
     : ApplicationEffect;
 
-internal sealed record SaveSettingsEffect(AppSettings Settings)
+public sealed record SaveSettingsEffect(AppSettings Settings)
     : ApplicationEffect;
 
-internal sealed record StartCreateWorldAutomationEffect()
+public sealed record StartCreateWorldAutomationEffect()
     : ApplicationEffect;
 
-internal sealed record ShowPracticeWorldSelectorEffect()
+public sealed record ShowPracticeWorldSelectorEffect()
     : ApplicationEffect;
 
-internal sealed record CancelCreateWorldAutomationEffect()
+public sealed record CancelCreateWorldAutomationEffect()
     : ApplicationEffect;
 
-internal sealed record CancelEnterWorldAutomationEffect()
+public sealed record CancelEnterWorldAutomationEffect()
     : ApplicationEffect;
 
-internal sealed record ResetUiScalePatchStateEffect()
+public sealed record ResetUiScalePatchStateEffect()
     : ApplicationEffect;
 
-internal sealed record ApplySettingsToShellEffect(AppSettings PreviousSettings, int SplitCount)
+public sealed record ApplySettingsToShellEffect(AppSettings PreviousSettings, int SplitCount)
     : ApplicationEffect;
 
-internal sealed record RefreshTimerOverlaySettingsEffect()
+public sealed record RefreshTimerOverlaySettingsEffect()
     : ApplicationEffect;
 
-internal sealed record RefreshRuntimeUiEffect()
+public sealed record RefreshRuntimeUiEffect()
     : ApplicationEffect;
 
-internal sealed record ApplicationUpdate(
+public sealed record ApplicationUpdate(
     IReadOnlyList<ApplicationEffect> Effects,
     bool InvalidateAll = false);
 
-internal sealed class ApplicationController
+public sealed class ApplicationController
 {
     private readonly RunLifecycleController runLifecycle;
     private readonly Func<string, bool> confirmPersonalBestUpdate;

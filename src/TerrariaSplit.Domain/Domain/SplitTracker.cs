@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Domain;
 
-internal sealed class SplitTracker
+public sealed class SplitTracker
 {
     private readonly List<SplitStatus> statuses = new();
     private readonly Dictionary<int, int> maxOwnedItemCounts = new();
@@ -377,7 +377,7 @@ internal sealed class SplitTracker
     }
 }
 
-internal readonly record struct SplitTrackerState(
+public readonly record struct SplitTrackerState(
     SplitStatusState[] Statuses,
     int CurrentIndex,
     IReadOnlyDictionary<int, int> MaxOwnedItemCounts);

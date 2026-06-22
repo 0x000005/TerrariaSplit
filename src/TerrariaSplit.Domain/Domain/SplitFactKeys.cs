@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Domain;
 
-internal static class SplitFactKeys
+public static class SplitFactKeys
 {
     public const int MaxItemId = 6146;
 

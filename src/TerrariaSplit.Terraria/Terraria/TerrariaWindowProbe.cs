@@ -6,7 +6,7 @@ using Process = System.Diagnostics.Process;
 
 namespace TerrariaSplit.Terraria;
 
-internal static class TerrariaWindowProbe
+public static class TerrariaWindowProbe
 {
     public static TerrariaWindowSnapshot Read()
     {

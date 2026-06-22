@@ -2,7 +2,7 @@ using System.Diagnostics;
 
 namespace TerrariaSplit.Application;
 
-internal sealed record RuntimeRunSnapshot(
+public sealed record RuntimeRunSnapshot(
     SplitTimerState TimerState,
     IReadOnlyList<SplitStatusSnapshot> Statuses,
     int CurrentSplitIndex,
@@ -67,7 +67,7 @@ internal sealed record RuntimeRunSnapshot(
     }
 }
 
-internal enum RuntimeCommandKind
+public enum RuntimeCommandKind
 {
     SetDefinitions,
     Reset,
@@ -78,7 +78,7 @@ internal enum RuntimeCommandKind
     ClearPendingMenuActions
 }
 
-internal sealed record RuntimeCommand
+public sealed record RuntimeCommand
 {
     private RuntimeCommand(RuntimeCommandKind kind)
     {
@@ -147,7 +147,7 @@ internal sealed record RuntimeCommand
     }
 }
 
-internal enum RunEventKind
+public enum RunEventKind
 {
     RunStarted,
     PauseChanged,
@@ -158,7 +158,7 @@ internal enum RunEventKind
     PracticeTotalTimeEdited
 }
 
-internal readonly record struct RunEvent(
+public readonly record struct RunEvent(
     RunEventKind Kind,
     int SplitIndex = -1,
     MenuActionKind? MenuAction = null,

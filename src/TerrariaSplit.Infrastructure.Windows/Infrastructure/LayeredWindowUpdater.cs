@@ -6,7 +6,7 @@ using static TerrariaSplit.Infrastructure.Windows.LayeredWindowNative;
 
 namespace TerrariaSplit.Infrastructure;
 
-internal static class LayeredWindowUpdater
+public static class LayeredWindowUpdater
 {
     public static bool Update(Form form, Bitmap bitmap)
     {
