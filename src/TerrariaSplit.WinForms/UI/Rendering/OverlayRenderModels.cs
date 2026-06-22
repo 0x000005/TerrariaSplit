@@ -49,6 +49,14 @@ internal sealed record OverlayRenderContext(
 
 internal readonly record struct OverlayRenderResult(bool SplitCompletionAnimationActive);
 
+internal sealed record OverlayFrame(
+    AppSettings Settings,
+    IReadOnlyList<SplitDisplayRow> Rows,
+    IReadOnlyList<SplitDisplayRow> PaintOrderRows,
+    int FocusRowIndex,
+    SplitTimerPhase TimerPhase,
+    TimeSpan TimerElapsed);
+
 internal readonly record struct ColumnRects(
     Rectangle? Icon,
     Rectangle? Time,

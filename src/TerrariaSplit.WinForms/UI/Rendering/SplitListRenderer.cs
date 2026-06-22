@@ -12,16 +12,20 @@ internal static class SplitListRenderer
         float listOpacity,
         Rectangle? clipBounds = null)
     {
-        IReadOnlyList<SplitDisplayRow> rows = SplitDisplayRows.Build(
-            context.Settings,
-            context.Statuses,
-            context.CurrentSplitIndex,
-            context.VisibleStatusRowCount,
-            context.IgnoreVisibleGroupLimit);
-        int focusIndex = GetCurrentSplitHighlightIndex(context, rows);
-        foreach (SplitDisplayRow row in SplitRowPaintOrder.Create(rows, focusIndex))
+        Render(graphics, context, resources, OverlayFrameBuilder.Build(context), listOpacity, clipBounds);
+    }
+
+    public static void Render(
+        Graphics graphics,
+        OverlayRenderContext context,
+        OverlayRenderResources resources,
+        OverlayFrame frame,
+        float listOpacity,
+        Rectangle? clipBounds = null)
+    {
+        foreach (SplitDisplayRow row in frame.PaintOrderRows)
         {
-            RenderRow(graphics, context, resources, listOpacity, row, focusIndex, clipBounds);
+            RenderRow(graphics, context, resources, listOpacity, row, frame.FocusRowIndex, clipBounds);
         }
     }
 
@@ -73,30 +77,6 @@ internal static class SplitListRenderer
             depthScale,
             isExpandedRow ? expandedRow : null,
             isExpandedRow && IsFirstExpandedConditionRow(context, row, expandedRow));
-    }
-
-    public static int GetCurrentSplitHighlightIndex(OverlayRenderContext context)
-    {
-        return GetCurrentSplitHighlightIndex(
-            context,
-            SplitDisplayRows.Build(
-                context.Settings,
-                context.Statuses,
-                context.CurrentSplitIndex,
-                context.VisibleStatusRowCount,
-                context.IgnoreVisibleGroupLimit));
-    }
-
-    private static int GetCurrentSplitHighlightIndex(
-        OverlayRenderContext context,
-        IReadOnlyList<SplitDisplayRow> rows)
-    {
-        return context.Settings.Overlay.ShowCurrentSplitHighlight &&
-            context.TimerPhase != SplitTimerPhase.NotStarted &&
-            context.CurrentSplitIndex >= 0 &&
-            context.CurrentSplitIndex < context.Statuses.Count
-            ? rows.FirstOrDefault(row => row.StatusIndex == context.CurrentSplitIndex, new SplitDisplayRow(-1, -1)).RowIndex
-            : -1;
     }
 
     public static float GetCurrentSplitDepthScale(AppSettings settings, int rowIndex, int focusIndex)

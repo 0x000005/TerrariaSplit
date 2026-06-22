@@ -29,6 +29,7 @@ internal static class RenderingTests
         yield return ("SplitDisplayRows shows attached rows for active following anchor", SplitDisplayRowsShowsAttachedRowsForActiveFollowingAnchor);
         yield return ("SplitDisplayRows limits visible groups around current split", SplitDisplayRowsLimitsVisibleGroupsAroundCurrentSplit);
         yield return ("SplitDisplayRows expands multi condition rows with reserved height", SplitDisplayRowsExpandsMultiConditionRowsWithReservedHeight);
+        yield return ("OverlayFrameBuilder builds rows and paint order", OverlayFrameBuilderBuildsRowsAndPaintOrder);
         yield return ("SplitListRenderer orders satisfied icons first", SplitListRendererOrdersSatisfiedIconsFirst);
         yield return ("SplitListRenderer shows skipped time for skipped splits", SplitListRendererShowsSkippedTimeForSkippedSplits);
         yield return ("SplitListRenderer lights facts only after timer starts", SplitListRendererLightsFactsOnlyAfterTimerStarts);
@@ -762,6 +763,49 @@ internal static class RenderingTests
         TestAssert.Equal(2, expandedLimitedRows.Count);
         TestAssert.Equal(true, expandedLimitedRows.All(row => row.StatusIndex == 1));
         TestAssert.Equal(2, SplitDisplayRows.GetRequiredRowCount(expandedSettings, expandedStatuses, currentSplitIndex: 1));
+    }
+
+    private static void OverlayFrameBuilderBuildsRowsAndPaintOrder()
+    {
+        SplitStatusSnapshot[] statuses = Enumerable.Range(0, 5)
+            .Select(index => new SplitStatusSnapshot(
+                CreateDisplayRowDefinition($"split:{index}", isAttached: false),
+                null,
+                IsSkipped: false,
+                CompletedFactKeys: []))
+            .ToArray();
+        var settings = new AppSettings
+        {
+            Overlay =
+            {
+                ShowCurrentSplitHighlight = true
+            }
+        };
+        var context = new OverlayRenderContext(
+            settings,
+            UiPalette.From(new UiColorSettings()),
+            TestSnapshots.Terraria(isGameMenu: false),
+            statuses,
+            CurrentSplitIndex: 2,
+            SplitTimerPhase.Running,
+            TimeSpan.FromSeconds(12),
+            new SplitLayout(new Rectangle(0, 0, 160, 32), new Rectangle(0, 40, 160, 160), 6),
+            VisibleStatusRowCount: statuses.Length,
+            MouseClickThrough: false,
+            SplitCompletionAnimation: null,
+            SegmentBestDeltaHighlights: new Dictionary<int, SegmentBestDeltaHighlight>(),
+            NowUtc: new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+
+        OverlayFrame frame = OverlayFrameBuilder.Build(context);
+
+        TestAssert.Equal(true, ReferenceEquals(settings, frame.Settings));
+        TestAssert.Equal(5, frame.Rows.Count);
+        TestAssert.Equal(2, frame.FocusRowIndex);
+        TestAssert.Equal(SplitTimerPhase.Running, frame.TimerPhase);
+        TestAssert.Equal(TimeSpan.FromSeconds(12), frame.TimerElapsed);
+        TestAssert.Equal(
+            "0|4|1|3|2",
+            string.Join("|", frame.PaintOrderRows.Select(row => row.RowIndex)));
     }
 
     private static void SplitDisplayRowsExpandsMultiConditionRowsWithReservedHeight()
