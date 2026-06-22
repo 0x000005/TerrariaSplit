@@ -25,8 +25,6 @@ internal sealed partial class MainForm : Form
     private readonly HighPrecisionScheduler controlScheduler;
     private readonly HighPrecisionScheduler statusPaintScheduler;
     private readonly HotkeyShell hotkeyShell;
-    private readonly OverlayRenderResources renderResources;
-    private readonly OverlayAnimationController overlayAnimations;
     private readonly ContextMenuStrip contextMenu;
     private readonly RuntimePerformanceTracker performance;
     private readonly ApplicationController applicationController;
@@ -37,9 +35,6 @@ internal sealed partial class MainForm : Form
         DefaultControlTickInterval,
         RefreshRateSettings.ToInterval(AppSettingsDefaults.Advanced.RunningStatusPaintHz));
     private readonly OverlayShell overlayShell = new();
-    private readonly OverlayWindowController overlayWindowController;
-    private readonly OverlayBoundsController overlayBoundsController;
-    private readonly TimerOverlayWindowHost timerOverlayHost;
     private readonly ProgramModalWindowCoordinator modalWindows;
     private readonly MainWindowModalInputRouter mainWindowModalInputRouter;
     private readonly WindowShell windowShell = new();
@@ -79,8 +74,6 @@ internal sealed partial class MainForm : Form
             () => IsHandleCreated,
             registerGlobalHotkeys,
             ShowHotkeyWarning);
-        renderResources = services.RenderResources;
-        overlayAnimations = services.OverlayAnimations;
         contextMenu = services.ContextMenu;
         performance = services.Performance;
         applicationController = services.ApplicationController;
@@ -91,7 +84,7 @@ internal sealed partial class MainForm : Form
             appLogger,
             performance);
         monitorCoordinator.WatcherPollCompleted += HandleWatcherPollCompleted;
-        overlayWindowController = MainShellCompositionRoot.CreateOverlayWindowController(
+        OverlayWindowController overlayWindowController = MainShellCompositionRoot.CreateOverlayWindowController(
             this,
             graphics =>
             {
@@ -101,20 +94,26 @@ internal sealed partial class MainForm : Form
             elapsed => performance.RecordStatusPaint(elapsed));
         int initialReservedRowCount = GetCurrentReservedLayoutRowCount();
         int initialVisibleRowCount = GetCurrentLayoutRowCount();
-        overlayBoundsController = new OverlayBoundsController(
+        OverlayBoundsController overlayBoundsController = new OverlayBoundsController(
             RowGap,
             settings,
             initialReservedRowCount,
             initialVisibleRowCount);
         overlayShell.ApplyLayoutRowCounts(initialReservedRowCount, initialVisibleRowCount, force: true);
         overlayBoundsController.LayoutChanged += ApplyOverlayLayout;
-        timerOverlayHost = MainShellCompositionRoot.CreateTimerOverlayWindowHost(
+        TimerOverlayWindowHost timerOverlayHost = MainShellCompositionRoot.CreateTimerOverlayWindowHost(
             callback => BeginInvoke(callback),
             elapsed => performance.RecordTimerOverlayPaint(elapsed),
             tick => performance.RecordTimerOverlayPaintTick(tick),
             performance.RecordTimerOverlayPaintDispatchSkipped,
             performance.RecordTimerOverlayPaintInputSkipped);
-        modalWindows = MainShellCompositionRoot.CreateModalWindowCoordinator(this, timerOverlayHost);
+        overlayShell.AttachRuntimeComponents(
+            overlayWindowController,
+            overlayBoundsController,
+            timerOverlayHost,
+            services.RenderResources,
+            services.OverlayAnimations);
+        modalWindows = MainShellCompositionRoot.CreateModalWindowCoordinator(this, overlayShell.TimerOverlayHost);
         mainWindowModalInputRouter = MainShellCompositionRoot.CreateModalInputRouter(
             modalWindows,
             contextMenu,
@@ -141,15 +140,15 @@ internal sealed partial class MainForm : Form
             () => IsHandleCreated,
             modalWindows,
             () => Bounds);
-        timerOverlayHost.DragDeltaRequested += delta => overlayBoundsController.MoveBy(delta);
-        timerOverlayHost.UserResizeBoundsChanged += bounds => overlayBoundsController.HandleTimerResize(bounds);
-        timerOverlayHost.RightClickRequested += HandleTimerOverlayRightClickRequested;
-        timerOverlayHost.Activated += QueueMainWindowForegroundGroupSync;
-        timerOverlayHost.ModalActivationRequested += () => modalWindows.ActivateCurrentModal();
+        overlayShell.TimerOverlayHost.DragDeltaRequested += delta => overlayShell.BoundsController.MoveBy(delta);
+        overlayShell.TimerOverlayHost.UserResizeBoundsChanged += bounds => overlayShell.BoundsController.HandleTimerResize(bounds);
+        overlayShell.TimerOverlayHost.RightClickRequested += HandleTimerOverlayRightClickRequested;
+        overlayShell.TimerOverlayHost.Activated += QueueMainWindowForegroundGroupSync;
+        overlayShell.TimerOverlayHost.ModalActivationRequested += () => modalWindows.ActivateCurrentModal();
         effectExecutor = MainShellCompositionRoot.CreateEffectExecutor(
             SubmitRuntimeCommand,
             soundPlayer,
-            overlayAnimations,
+            overlayShell.Animations,
             ToggleMouseClickThrough,
             ClearSplitCompletionAnimation,
             TrackSegmentBestDeltaHighlight,
@@ -160,7 +159,7 @@ internal sealed partial class MainForm : Form
             ShowSettingsSaveFailure,
             ApplyLoadedSettings,
             automationShell);
-        overlayBoundsController.UpdateContext(
+        overlayShell.BoundsController.UpdateContext(
             settings,
             GetCurrentReservedLayoutRowCount(),
             GetCurrentLayoutRowCount());

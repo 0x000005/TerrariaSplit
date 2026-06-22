@@ -4415,7 +4415,7 @@ static void TestMainFormPreservesSizeWhenApplyingNonLayoutSettings()
     {
         using var form = new MainForm(registerGlobalHotkeys: false);
         _ = form.Handle;
-        OverlayBoundsController boundsController = GetPrivateField<OverlayBoundsController>(form, "overlayBoundsController");
+        OverlayBoundsController boundsController = GetMainFormOverlayBoundsController(form);
         AppSettings previousSettings = GetMainFormSettings(form);
         SplitStatusSnapshot[] statuses = SplitCatalog.Build(previousSettings)
             .Select(SplitStatusSnapshot.FromDefinition)
@@ -4561,7 +4561,7 @@ static void TestMainFormInitializesOverlayLayoutWithCurrentSplitCount()
         using var form = new MainForm(registerGlobalHotkeys: false);
         _ = form.Handle;
 
-        OverlayBoundsController boundsController = GetPrivateField<OverlayBoundsController>(form, "overlayBoundsController");
+        OverlayBoundsController boundsController = GetMainFormOverlayBoundsController(form);
         ApplicationController applicationController = GetPrivateField<ApplicationController>(form, "applicationController");
         Rectangle compositeBounds = boundsController.CompositeBounds;
         AppSettings settings = GetMainFormSettings(form);
@@ -4589,7 +4589,7 @@ static void TestMainFormOverlayClientSizeMatchesStatusLayout()
         form.Show();
         Application.DoEvents();
 
-        OverlayBoundsController boundsController = GetPrivateField<OverlayBoundsController>(form, "overlayBoundsController");
+        OverlayBoundsController boundsController = GetMainFormOverlayBoundsController(form);
 
         AssertEqual(boundsController.CurrentLayout.StatusScreenBounds.Size, form.ClientSize);
     });
@@ -4601,7 +4601,7 @@ static void TestMainFormScalesSizeWhenGlobalScaleChanges()
     {
         using var form = new MainForm(registerGlobalHotkeys: false);
         _ = form.Handle;
-        OverlayBoundsController boundsController = GetPrivateField<OverlayBoundsController>(form, "overlayBoundsController");
+        OverlayBoundsController boundsController = GetMainFormOverlayBoundsController(form);
         var previousSettings = new AppSettings();
         previousSettings.Overlay.Columns.ScalePercent = 100;
         SetMainFormSettings(form, previousSettings);
@@ -4628,7 +4628,7 @@ static void TestMainFormAdjustsWidthWhenSplitColumnsChange()
     {
         using var form = new MainForm(registerGlobalHotkeys: false);
         _ = form.Handle;
-        OverlayBoundsController boundsController = GetPrivateField<OverlayBoundsController>(form, "overlayBoundsController");
+        OverlayBoundsController boundsController = GetMainFormOverlayBoundsController(form);
         var previousSettings = new AppSettings();
         previousSettings.Overlay.Columns.ScalePercent = 100;
         SetMainFormSettings(form, previousSettings);
@@ -4654,7 +4654,7 @@ static void TestMainFormGrowsHeightWhenSplitRouteGrows()
     {
         using var form = new MainForm(registerGlobalHotkeys: false);
         _ = form.Handle;
-        OverlayBoundsController boundsController = GetPrivateField<OverlayBoundsController>(form, "overlayBoundsController");
+        OverlayBoundsController boundsController = GetMainFormOverlayBoundsController(form);
         var previousSettings = new AppSettings { Route = { SplitRoute = SplitCatalog.CreateDefaultRoute() } };
         previousSettings.Overlay.Columns.ScalePercent = 100;
         SetMainFormSettings(form, previousSettings);
@@ -4931,6 +4931,11 @@ static AppSettings GetMainFormSettings(MainForm form)
 {
     ApplicationController controller = GetPrivateField<ApplicationController>(form, "applicationController");
     return AppSettingsStore.Clone(controller.Settings);
+}
+
+static OverlayBoundsController GetMainFormOverlayBoundsController(MainForm form)
+{
+    return GetPrivateField<OverlayShell>(form, "overlayShell").BoundsController;
 }
 
 static void SetPrivateField(object target, string fieldName, object? value)

@@ -125,9 +125,9 @@ internal sealed partial class MainForm : Form
 
     private void RenderStatusOverlayTick()
     {
-        if (overlayAnimations.SplitCompletionAnimation is not null)
+        if (overlayShell.Animations.SplitCompletionAnimation is not null)
         {
-            overlayWindowController.RenderImmediately();
+            overlayShell.WindowController.RenderImmediately();
             return;
         }
 
@@ -148,7 +148,7 @@ internal sealed partial class MainForm : Form
         // can be skipped or limited to redrawing the affected rows.
         if (overlayShell.StatusOverlayContentDirty || overlayShell.LastStatusOverlayDynamicKey is null)
         {
-            overlayWindowController.RenderImmediately();
+            overlayShell.WindowController.RenderImmediately();
             return;
         }
 
@@ -161,7 +161,7 @@ internal sealed partial class MainForm : Form
 
         if (!TryRenderStatusOverlayRegion())
         {
-            overlayWindowController.RenderImmediately();
+            overlayShell.WindowController.RenderImmediately();
         }
     }
 
@@ -169,7 +169,7 @@ internal sealed partial class MainForm : Form
     {
         bool shouldRun = !windowShell.IsClosing &&
             !runtimeShell.IsOverlayPaintSuspended &&
-            (timerPhase == SplitTimerPhase.Running || overlayAnimations.SplitCompletionAnimation is not null);
+            (timerPhase == SplitTimerPhase.Running || overlayShell.Animations.SplitCompletionAnimation is not null);
         if (shouldRun && !statusPaintScheduler.IsRunning)
         {
             statusPaintScheduler.Start(runtimeShell.StatusPaintInterval);
@@ -262,7 +262,7 @@ internal sealed partial class MainForm : Form
             TryGetLayout(out SplitLayout layout))
         {
             Rectangle rowRect = overlayShell.WindowsInitialized
-                ? overlayBoundsController.CurrentLayout.ToStatusLocal(layout.GetRowRect(visualRowIndex))
+                ? overlayShell.BoundsController.CurrentLayout.ToStatusLocal(layout.GetRowRect(visualRowIndex))
                 : layout.GetRowRect(visualRowIndex);
             Invalidate(Rectangle.Inflate(rowRect, ScaleInt(6), ScaleInt(6)));
             return;
@@ -355,8 +355,8 @@ internal sealed partial class MainForm : Form
     private void SetMouseClickThrough(bool enabled)
     {
         overlayShell.SetMouseClickThrough(enabled);
-        overlayWindowController.ApplyWindowStyle(overlayShell.MouseClickThrough);
-        timerOverlayHost.ApplyMouseClickThrough(overlayShell.MouseClickThrough);
+        overlayShell.WindowController.ApplyWindowStyle(overlayShell.MouseClickThrough);
+        overlayShell.TimerOverlayHost.ApplyMouseClickThrough(overlayShell.MouseClickThrough);
         modalWindows.ApplyWindowState();
         PublishTimerOverlaySnapshot();
         UpdateWindowTitle();
@@ -370,7 +370,7 @@ internal sealed partial class MainForm : Form
 
     private void ClearSplitCompletionAnimation()
     {
-        overlayAnimations.ClearSplitCompletionAnimation();
+        overlayShell.Animations.ClearSplitCompletionAnimation();
         UpdateStatusPaintSchedulerState();
         QueueStatusOverlayRender();
     }
@@ -404,7 +404,7 @@ internal sealed partial class MainForm : Form
         UpdateStatusPaintSchedulerState();
         if (overlayShell.WindowsInitialized)
         {
-            timerOverlayHost.ApplyPaintSuspended(true);
+            overlayShell.TimerOverlayHost.ApplyPaintSuspended(true);
         }
 
         try
@@ -417,8 +417,8 @@ internal sealed partial class MainForm : Form
                 runtimeShell.EndOverlayPaintSuspension(!windowShell.IsClosing);
             if (overlayShell.WindowsInitialized && resume.Completed)
             {
-                timerOverlayHost.ApplyPaintSuspended(false);
-                timerOverlayHost.RequestRender();
+                overlayShell.TimerOverlayHost.ApplyPaintSuspended(false);
+                overlayShell.TimerOverlayHost.RequestRender();
             }
 
             if (resume.Completed)

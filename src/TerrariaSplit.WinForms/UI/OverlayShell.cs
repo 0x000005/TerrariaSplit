@@ -2,10 +2,15 @@ using System.Drawing;
 
 namespace TerrariaSplit.UI;
 
-internal sealed class OverlayShell
+internal sealed class OverlayShell : IDisposable
 {
     private int appliedReservedRowCount = -1;
     private int appliedVisibleRowCount = -1;
+    private OverlayWindowController? windowController;
+    private OverlayBoundsController? boundsController;
+    private TimerOverlayWindowHost? timerOverlayHost;
+    private OverlayRenderResources? renderResources;
+    private OverlayAnimationController? animations;
 
     public AppSettings TimerOverlaySettingsSnapshot { get; private set; } = new();
 
@@ -19,6 +24,21 @@ internal sealed class OverlayShell
 
     public Rectangle? StatusOverlayPartialClipBounds { get; private set; }
 
+    public OverlayWindowController WindowController =>
+        windowController ?? throw new InvalidOperationException("Overlay window controller has not been attached.");
+
+    public OverlayBoundsController BoundsController =>
+        boundsController ?? throw new InvalidOperationException("Overlay bounds controller has not been attached.");
+
+    public TimerOverlayWindowHost TimerOverlayHost =>
+        timerOverlayHost ?? throw new InvalidOperationException("Timer overlay host has not been attached.");
+
+    public OverlayRenderResources RenderResources =>
+        renderResources ?? throw new InvalidOperationException("Overlay render resources have not been attached.");
+
+    public OverlayAnimationController Animations =>
+        animations ?? throw new InvalidOperationException("Overlay animations have not been attached.");
+
     public bool MouseClickThrough { get; private set; }
 
     public bool WindowsInitialized { get; private set; }
@@ -30,6 +50,20 @@ internal sealed class OverlayShell
     public bool SuppressStatusBoundsFeedback { get; private set; }
 
     public Rectangle? PendingInitialCompositeBounds { get; set; }
+
+    public void AttachRuntimeComponents(
+        OverlayWindowController windowController,
+        OverlayBoundsController boundsController,
+        TimerOverlayWindowHost timerOverlayHost,
+        OverlayRenderResources renderResources,
+        OverlayAnimationController animations)
+    {
+        this.windowController = windowController;
+        this.boundsController = boundsController;
+        this.timerOverlayHost = timerOverlayHost;
+        this.renderResources = renderResources;
+        this.animations = animations;
+    }
 
     public void SetMouseClickThrough(bool enabled)
     {
@@ -133,5 +167,12 @@ internal sealed class OverlayShell
         appliedReservedRowCount = reservedRowCount;
         appliedVisibleRowCount = visibleRowCount;
         return true;
+    }
+
+    public void Dispose()
+    {
+        timerOverlayHost?.Dispose();
+        windowController?.Dispose();
+        renderResources?.Dispose();
     }
 }

@@ -24,7 +24,7 @@ internal sealed partial class MainForm : Form
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
-        overlayWindowController.ApplyWindowStyle(overlayShell.MouseClickThrough);
+        overlayShell.WindowController.ApplyWindowStyle(overlayShell.MouseClickThrough);
         InitializeOverlayWindows();
         modalWindows.ApplyWindowState();
         if (!settingsShell.IsOpen)
@@ -41,7 +41,7 @@ internal sealed partial class MainForm : Form
         base.OnShown(e);
         if (overlayShell.WindowsInitialized)
         {
-            ApplyOverlayLayout(overlayBoundsController.CurrentLayout);
+            ApplyOverlayLayout(overlayShell.BoundsController.CurrentLayout);
         }
 
         worldPoolFillService.UpdateSettings(settings);
@@ -148,9 +148,7 @@ internal sealed partial class MainForm : Form
         worldPoolFillService.Dispose();
         automationShell.Dispose();
         settingsShell.Dispose();
-        timerOverlayHost.Dispose();
-        overlayWindowController.Dispose();
-        renderResources.Dispose();
+        overlayShell.Dispose();
     }
 
     protected override void OnHandleDestroyed(EventArgs e)
@@ -227,7 +225,7 @@ internal sealed partial class MainForm : Form
             return;
         }
 
-        overlayBoundsController.MoveBy(delta);
+        overlayShell.BoundsController.MoveBy(delta);
     }
 
     protected override void OnMouseUp(MouseEventArgs e)

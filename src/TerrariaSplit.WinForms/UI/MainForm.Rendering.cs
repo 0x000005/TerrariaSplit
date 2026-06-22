@@ -27,16 +27,16 @@ internal sealed partial class MainForm : Form
             layout,
             GetCurrentVisibleStatusRowCount(),
             overlayShell.MouseClickThrough,
-            overlayAnimations.SplitCompletionAnimation,
-            overlayAnimations.SegmentBestDeltaHighlights,
+            overlayShell.Animations.SplitCompletionAnimation,
+            overlayShell.Animations.SegmentBestDeltaHighlights,
             DateTime.UtcNow,
             ignoreVisibleGroupLimit);
         OverlayRenderResult result = OverlayRenderer.RenderStatus(
             graphics,
             context,
-            renderResources,
+            overlayShell.RenderResources,
             overlayShell.StatusOverlayPartialClipBounds);
-        overlayAnimations.UpdateAfterRender(result);
+        overlayShell.Animations.UpdateAfterRender(result);
 
         overlayShell.RecordStatusOverlayRender(ComputeStatusOverlayDynamicKey(elapsed));
     }
@@ -82,7 +82,7 @@ internal sealed partial class MainForm : Form
 
     private bool StatusOverlayHighlightsActive =>
         settings.Overlay.ShowSegmentBestDeltaHighlight &&
-        overlayAnimations.SegmentBestDeltaHighlights.Count > 0;
+        overlayShell.Animations.SegmentBestDeltaHighlights.Count > 0;
 
     private Rectangle? ComputeStatusOverlayDynamicRegion()
     {
@@ -91,7 +91,7 @@ internal sealed partial class MainForm : Form
             return null;
         }
 
-        OverlayCompositeLayout compositeLayout = overlayBoundsController.CurrentLayout;
+        OverlayCompositeLayout compositeLayout = overlayShell.BoundsController.CurrentLayout;
         int bleed = SplitListRenderer.GetRowBleedMargin(settings);
         bool ignoreVisibleGroupLimit = ShouldIgnoreVisibleGroupLimitForCompletedRun();
         Rectangle? region = null;
@@ -120,7 +120,7 @@ internal sealed partial class MainForm : Form
         AddRow(currentSplitIndex);
         if (StatusOverlayHighlightsActive)
         {
-            foreach (int row in overlayAnimations.SegmentBestDeltaHighlights.Keys)
+            foreach (int row in overlayShell.Animations.SegmentBestDeltaHighlights.Keys)
             {
                 AddRow(row);
             }
@@ -139,7 +139,7 @@ internal sealed partial class MainForm : Form
         overlayShell.BeginStatusOverlayPartialClip(region);
         try
         {
-            return overlayWindowController.RenderRegionImmediately(region);
+            return overlayShell.WindowController.RenderRegionImmediately(region);
         }
         finally
         {
@@ -158,7 +158,7 @@ internal sealed partial class MainForm : Form
         }
 
         OverlayCompositeLayout? compositeLayout = overlayShell.WindowsInitialized
-            ? overlayBoundsController.CurrentLayout
+            ? overlayShell.BoundsController.CurrentLayout
             : null;
         Point compositePoint = compositeLayout?.MapStatusPointToComposite(point) ?? point;
 
@@ -251,7 +251,7 @@ internal sealed partial class MainForm : Form
     {
         if (overlayShell.WindowsInitialized)
         {
-            layout = overlayBoundsController.CurrentLayout.Layout;
+            layout = overlayShell.BoundsController.CurrentLayout.Layout;
             return true;
         }
 
@@ -315,14 +315,14 @@ internal sealed partial class MainForm : Form
 
     private void StartSplitCompletionAnimation(int completedIndex)
     {
-        overlayAnimations.StartSplitCompletionAnimation(settings, splitStatuses, completedIndex);
+        overlayShell.Animations.StartSplitCompletionAnimation(settings, splitStatuses, completedIndex);
         UpdateStatusPaintSchedulerState();
         QueueStatusOverlayRender();
     }
 
     private void TrackSegmentBestDeltaHighlight(int completedIndex)
     {
-        overlayAnimations.TrackSegmentBestDeltaHighlight(settings, splitStatuses, completedIndex);
+        overlayShell.Animations.TrackSegmentBestDeltaHighlight(settings, splitStatuses, completedIndex);
         QueueStatusOverlayRender();
     }
 
