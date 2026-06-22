@@ -37,21 +37,21 @@ internal sealed class PyramidSeedPreScreenAutomation
                 out TerrariaVisibleSeedReader? seedReader,
                 out string detail))
         {
-            AppLogger.Info($"Pyramid seed pre-screen could not start seed reader; randomizing once and continuing without prediction: {detail}");
+            StaticAppLogger.Instance.Info($"Pyramid seed pre-screen could not start seed reader; randomizing once and continuing without prediction: {detail}");
             return await RandomizeOnceAndContinueWithoutPredictionAsync(geometry, clickDelay, detail, cancellationToken);
         }
 
         if (seedReader is null)
         {
             const string missingReaderDetail = "Visible seed reader was not created.";
-            AppLogger.Info($"Pyramid seed pre-screen could not start seed reader; randomizing once and continuing without prediction: {missingReaderDetail}");
+            StaticAppLogger.Instance.Info($"Pyramid seed pre-screen could not start seed reader; randomizing once and continuing without prediction: {missingReaderDetail}");
             return await RandomizeOnceAndContinueWithoutPredictionAsync(geometry, clickDelay, missingReaderDetail, cancellationToken);
         }
 
         using (seedReader)
         {
-            AppLogger.Info("Pyramid seed pre-screen active for small crimson world; seedReadTimeout=1000ms.");
-            var loop = new PyramidSeedPreScreenLoop(evaluator, AppLogger.Info);
+            StaticAppLogger.Instance.Info("Pyramid seed pre-screen active for small crimson world; seedReadTimeout=1000ms.");
+            var loop = new PyramidSeedPreScreenLoop(evaluator, StaticAppLogger.Instance.Info);
             PyramidSeedPreScreenLoopResult result = await loop.RunAsync(
                 settings,
                 new TerrariaVisibleSeedRandomizer(automation, geometry, clickDelay),

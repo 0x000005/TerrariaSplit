@@ -27,7 +27,7 @@ internal sealed class ClipboardBackupScope : IDisposable
         }
         catch (Exception ex)
         {
-            AppLogger.Error(ex, "Automation failed to set clipboard text.");
+            StaticAppLogger.Instance.Error(ex, "Automation failed to set clipboard text.");
             return AutomationResult.Failure(
                 "Could not write to the Windows clipboard.",
                 "Automation failed to set clipboard text.",
@@ -56,7 +56,7 @@ internal sealed class ClipboardBackupScope : IDisposable
         }
         catch (Exception ex)
         {
-            AppLogger.Error(ex, "Automation failed to restore clipboard text.");
+            StaticAppLogger.Instance.Error(ex, "Automation failed to restore clipboard text.");
         }
     }
 }

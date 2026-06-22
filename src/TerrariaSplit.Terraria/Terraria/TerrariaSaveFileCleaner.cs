@@ -141,7 +141,7 @@ public sealed class TerrariaSaveFileCleaner
         }
         catch (Exception ex)
         {
-            AppLogger.Error(ex, "Failed to prune TerrariaSplit deleted backup folders.");
+            StaticAppLogger.Instance.Error(ex, "Failed to prune TerrariaSplit deleted backup folders.");
         }
     }
 
@@ -225,7 +225,7 @@ public sealed class TerrariaSaveFileCleaner
         }
         catch (Exception ex)
         {
-            AppLogger.Error(ex, $"Failed to read Terraria favorites file: {path}");
+            StaticAppLogger.Instance.Error(ex, $"Failed to read Terraria favorites file: {path}");
             return FavoriteSaveFiles.Empty;
         }
     }

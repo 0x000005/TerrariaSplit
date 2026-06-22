@@ -27,19 +27,19 @@
 ### 本轮完成后的硬性验收
 
 ```text
-[ ] dotnet build TerrariaSplit.slnx 通过
-[ ] dotnet test 通过
-[ ] Application 不引用 TerrariaSplit.Storage
-[ ] Application 不引用 TerrariaSplit.Terraria
-[ ] Configuration 不引用 WindowsForms / System.Drawing / InstalledFontCollection
-[ ] 所有 src 项目不再通过 Link 编译旧目录源码
-[ ] AppSettingsStore. 调用点为 0
-[ ] RuntimeDataPaths static 调用点为 0，或只在路径实现类内部出现
-[ ] AppLogger. static 调用点为 0，或只在 StaticAppLogger 内部出现
+[x] dotnet build TerrariaSplit.slnx 通过
+[x] dotnet test 通过
+[x] Application 不引用 TerrariaSplit.Storage
+[x] Application 不引用 TerrariaSplit.Terraria
+[x] Configuration 不引用 WindowsForms / System.Drawing / InstalledFontCollection
+[x] 所有 src 项目不再通过 Link 编译旧目录源码
+[x] AppSettingsStore. 调用点为 0
+[x] RuntimeDataPaths static 调用点为 0，或只在路径实现类内部出现
+[x] AppLogger. static 调用点为 0，或只在 StaticAppLogger 内部出现
 [ ] 设置保存失败、PB 保存失败、world pool 保存失败能到达 UI 提示或 diagnostics
-[ ] ApplicationShellEffectExecutor 遇到未知 effect 会 fail fast
-[ ] Settings JSON 带 SchemaVersion
-[ ] SettingsNormalizer 不再调用 SettingsMigrator
+[x] ApplicationShellEffectExecutor 遇到未知 effect 会 fail fast
+[x] Settings JSON 带 SchemaVersion
+[x] SettingsNormalizer 不再调用 SettingsMigrator
 [ ] LegacyChinese 不再出现在运行时 IsChinese 判断里
 [ ] MainForm 字段数量明显下降，overlay/runtime/hotkey/window 状态由 shell 持有
 [ ] SplitSettingsPage 不再持有 routeDragIndex / conditionDragIndex / advancedConditionMode 等 controller 状态
@@ -634,12 +634,12 @@ AppLogger static 删除，或只保留给 StaticAppLogger 过渡使用。
 ### PR-3 验收
 
 ```text
-[ ] AppSettingsStore. 调用点为 0
-[ ] RuntimeDataPaths 直接调用点为 0
-[ ] AppLogger. 直接调用点为 0，或只剩 StaticAppLogger 内部
-[ ] SettingsRepository.Save 返回 OperationResult
-[ ] JsonFileStore.Write 失败能传到调用方
-[ ] SaveSettingsEffect 失败能显示用户可见错误
+[x] AppSettingsStore. 调用点为 0
+[x] RuntimeDataPaths 直接调用点为 0
+[x] AppLogger. 直接调用点为 0，或只剩 StaticAppLogger 内部
+[x] SettingsRepository.Save 返回 OperationResult
+[x] JsonFileStore.Write 失败能传到调用方
+[x] SaveSettingsEffect 失败能显示用户可见错误
 [ ] WorldPoolStore / SplitTimeSetStore 不再是纯 static store
 ```
 

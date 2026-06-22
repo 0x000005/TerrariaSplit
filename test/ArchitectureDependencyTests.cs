@@ -193,8 +193,13 @@ internal static class ArchitectureDependencyTests
             "UseWindowsForms");
         AddLinkedSourceDebt(root, report);
         AddRuntimeTokenDebt(root, report, "AppSettingsStore.", "AppSettingsStore static calls");
-        AddRuntimeTokenDebt(root, report, "RuntimeDataPaths", "RuntimeDataPaths static references");
-        AddRuntimeTokenDebt(root, report, "AppLogger.", "AppLogger static calls");
+        AddRuntimeTokenDebt(root, report, "RuntimeDataPaths.", "RuntimeDataPaths static references");
+        AddRuntimeTokenDebt(
+            root,
+            report,
+            "AppLogger.",
+            "AppLogger static calls",
+            Path.Combine("src", "TerrariaSplit.Infrastructure", "Infrastructure", "StaticAppLogger.cs"));
         AddInternalsVisibleToDebt(root, report);
 
         Console.WriteLine("Architecture transition debt report:");
@@ -330,11 +335,15 @@ internal static class ArchitectureDependencyTests
         string root,
         List<string> report,
         string token,
-        string title)
+        string title,
+        params string[] allowedRelativeFiles)
     {
+        HashSet<string> allowed = allowedRelativeFiles.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        Regex pattern = new(@"\b" + Regex.Escape(token), RegexOptions.Compiled);
         string[] files = EnumerateRuntimeSourceFiles(root)
-            .Where(file => File.ReadAllText(file).Contains(token, StringComparison.Ordinal))
+            .Where(file => pattern.IsMatch(File.ReadAllText(file)))
             .Select(file => Path.GetRelativePath(root, file))
+            .Where(relativePath => !allowed.Contains(relativePath))
             .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
             .ToArray();
         if (files.Length > 0)

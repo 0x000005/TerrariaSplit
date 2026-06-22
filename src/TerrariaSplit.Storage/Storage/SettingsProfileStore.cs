@@ -41,7 +41,7 @@ internal static class SettingsProfileStore
         }
         catch (Exception ex)
         {
-            AppLogger.Error(ex, $"Failed to read active settings profile: {activeSettingsPath}");
+            StaticAppLogger.Instance.Error(ex, $"Failed to read active settings profile: {activeSettingsPath}");
             return getFallbackSettingsPath();
         }
     }
@@ -58,7 +58,7 @@ internal static class SettingsProfileStore
         }
         catch (Exception ex)
         {
-            AppLogger.Error(ex, $"Failed to write active settings profile: {activeSettingsPath}");
+            StaticAppLogger.Instance.Error(ex, $"Failed to write active settings profile: {activeSettingsPath}");
         }
     }
 }

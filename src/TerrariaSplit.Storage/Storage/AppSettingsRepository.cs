@@ -1,6 +1,6 @@
 namespace TerrariaSplit.Storage;
 
-internal sealed class AppSettingsRepository : ISettingsRepository
+public sealed class AppSettingsRepository : ISettingsRepository
 {
     private const string DefaultSettingsFileName = "settings.json";
     private const string ActiveSettingsFileName = "active-profile.txt";
@@ -72,12 +72,7 @@ internal sealed class AppSettingsRepository : ISettingsRepository
             .ToList();
     }
 
-    public void Save(AppSettings settings)
-    {
-        _ = TrySave(settings);
-    }
-
-    public OperationResult TrySave(AppSettings settings)
+    public OperationResult Save(AppSettings settings)
     {
         AppSettings snapshot = Clone(settings);
         try
@@ -97,9 +92,14 @@ internal sealed class AppSettingsRepository : ISettingsRepository
         }
         catch (Exception ex)
         {
-            AppLogger.Error(ex, $"Failed to save settings: {SettingsPath}");
+            StaticAppLogger.Instance.Error(ex, $"Failed to save settings: {SettingsPath}");
             return OperationResult.Failure("Failed to save settings.", ex);
         }
+    }
+
+    public OperationResult TrySave(AppSettings settings)
+    {
+        return Save(settings);
     }
 
     public AppSettings Clone(AppSettings settings)

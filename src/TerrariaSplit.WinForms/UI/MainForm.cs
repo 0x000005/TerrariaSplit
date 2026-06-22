@@ -124,6 +124,7 @@ internal sealed partial class MainForm : Form
             GetRuntimeDiagnostics,
             GetRuntimeDebugSnapshot,
             GetWorldPoolCount,
+            services.SettingsRepository,
             settingsSnapshots,
             callback => BeginInvoke(callback),
             ApplySettings,
@@ -151,6 +152,7 @@ internal sealed partial class MainForm : Form
             RefreshRuntimeUi,
             ShowSettingsSaveFailure,
             ApplyLoadedSettings,
+            services.SaveSettings,
             automationShell);
         overlayShell.BoundsController.UpdateContext(
             settings,

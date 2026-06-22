@@ -1456,14 +1456,16 @@ static void TestRuntimeDataPathsUseFinalDirectoryLayout()
 {
     string dataDirectory = Path.Combine(AppContext.BaseDirectory, "Data");
 
-    AssertEqual(dataDirectory, RuntimeDataPaths.DataDirectory);
+    IRuntimeDataPaths defaultPaths = AppContextRuntimeDataPaths.Default;
+
+    AssertEqual(dataDirectory, defaultPaths.DataDirectory);
     AssertEqual(Path.Combine(AppContext.BaseDirectory, "Settings"), AppSettingsStore.SettingsDirectory);
     AssertEqual(Path.Combine(dataDirectory, "reference-times"), SplitTimeSetStore.ReferenceDirectory);
     AssertEqual(Path.Combine(dataDirectory, "last-times"), SplitTimeSetStore.LastRunDirectory);
     AssertEqual(Path.Combine(dataDirectory, "personal-best-times"), SplitTimeSetStore.PersonalBestTimeDirectory);
     AssertEqual(Path.Combine(dataDirectory, "personal-best-segments"), SplitTimeSetStore.PersonalBestSegmentDirectory);
-    AssertEqual(Path.Combine(AppContext.BaseDirectory, "Worlds"), RuntimeDataPaths.WorldPoolDirectory);
-    AssertEqual(Path.Combine(AppContext.BaseDirectory, "Worlds", "scratch"), RuntimeDataPaths.WorldPoolScratchDirectory);
+    AssertEqual(Path.Combine(AppContext.BaseDirectory, "Worlds"), defaultPaths.WorldPoolDirectory);
+    AssertEqual(Path.Combine(AppContext.BaseDirectory, "Worlds", "scratch"), defaultPaths.WorldPoolScratchDirectory);
 
     string customBaseDirectory = Path.Combine(Path.GetTempPath(), "TerrariaSplitRuntimePathsTest");
     var customPaths = new AppContextRuntimeDataPaths(customBaseDirectory);

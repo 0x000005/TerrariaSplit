@@ -4,13 +4,13 @@ public static class SplitTimeSetStore
 {
     private const int MaxLastRunSetsToLoad = 100;
 
-    public static string ReferenceDirectory => RuntimeDataPaths.ReferenceTimesDirectory;
+    public static string ReferenceDirectory => AppContextRuntimeDataPaths.Default.ReferenceTimesDirectory;
 
-    public static string LastRunDirectory => RuntimeDataPaths.LastRunTimesDirectory;
+    public static string LastRunDirectory => AppContextRuntimeDataPaths.Default.LastRunTimesDirectory;
 
-    public static string PersonalBestTimeDirectory => RuntimeDataPaths.PersonalBestTimesDirectory;
+    public static string PersonalBestTimeDirectory => AppContextRuntimeDataPaths.Default.PersonalBestTimesDirectory;
 
-    public static string PersonalBestSegmentDirectory => RuntimeDataPaths.PersonalBestSegmentsDirectory;
+    public static string PersonalBestSegmentDirectory => AppContextRuntimeDataPaths.Default.PersonalBestSegmentsDirectory;
 
     public static void EnsureDirectories()
     {
@@ -122,7 +122,7 @@ public static class SplitTimeSetStore
         }
         catch (Exception ex)
         {
-            AppLogger.Error(ex, "Failed to load embedded default WR reference times.");
+            StaticAppLogger.Instance.Error(ex, "Failed to load embedded default WR reference times.");
         }
 
         return ReferenceSplitSetService.CreateReferenceSet("WR");
@@ -193,7 +193,7 @@ public static class SplitTimeSetStore
         }
         catch (Exception ex)
         {
-            AppLogger.Error(ex, $"Failed to load split time set: {path}");
+            StaticAppLogger.Instance.Error(ex, $"Failed to load split time set: {path}");
             return null;
         }
     }
@@ -220,7 +220,7 @@ public static class SplitTimeSetStore
                 }
                 catch (Exception ex)
                 {
-                    AppLogger.Error(ex, $"Failed to delete old split time set: {path}");
+                    StaticAppLogger.Instance.Error(ex, $"Failed to delete old split time set: {path}");
                 }
             }
         }

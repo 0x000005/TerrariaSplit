@@ -8,15 +8,16 @@ internal static class MainShellCompositionRoot
     public static MainShellServices CreateCore(Func<string, bool> confirmPersonalBestUpdate)
     {
         IRuntimeDataPaths runtimeDataPaths = AppContextRuntimeDataPaths.Default;
+        var settingsRepository = new AppSettingsRepository(runtimeDataPaths);
         var worldPoolStore = new WorldPoolStore(runtimeDataPaths);
-        ISettingsSnapshotFactory settingsSnapshots = new StoredSettingsSnapshotFactory();
+        ISettingsSnapshotFactory settingsSnapshots = new StoredSettingsSnapshotFactory(settingsRepository);
         IAppLogger logger = StaticAppLogger.Instance;
         var runStatisticsRecorder = new DelegateRunStatisticsRecorder(RunStatsStore.RecordRun);
         var personalBestSnapshotStore = new DelegatePersonalBestSnapshotStore(
             SplitTimeSetStore.SavePersonalBestTimeSnapshot,
             SplitTimeSetStore.SavePersonalBestSegmentSnapshot);
         var applicationController = new ApplicationController(
-            AppSettingsStore.Load(),
+            settingsRepository.Load(),
             confirmPersonalBestUpdate,
             settingsSnapshots,
             runStatisticsRecorder,
@@ -24,10 +25,12 @@ internal static class MainShellCompositionRoot
 
         return new MainShellServices(
             worldPoolStore,
+            settingsRepository,
+            settingsRepository.Save,
             settingsSnapshots,
             logger,
             new WorldPoolFillService(worldPoolStore, settingsSnapshots, logger, runtimeDataPaths),
-            new MainFormContextMenuBuilder(),
+            new MainFormContextMenuBuilder(settingsRepository),
             new SoundPlayerService(),
             new GlobalHotkeyManager(logger),
             new OverlayRenderResources(),
@@ -116,6 +119,7 @@ internal static class MainShellCompositionRoot
         Func<RuntimePerformanceDiagnostics> getRuntimeDiagnostics,
         Func<RuntimeDebugSnapshot> getRuntimeDebugSnapshot,
         Func<AppSettings, int> getWorldPoolCount,
+        ISettingsRepository settingsRepository,
         ISettingsSnapshotFactory settingsSnapshots,
         Action<Action> dispatch,
         Action<AppSettings> applySettings,
@@ -131,6 +135,7 @@ internal static class MainShellCompositionRoot
             getRuntimeDiagnostics,
             getRuntimeDebugSnapshot,
             getWorldPoolCount,
+            settingsRepository,
             settingsSnapshots,
             dispatch,
             applySettings,
@@ -155,6 +160,7 @@ internal static class MainShellCompositionRoot
         Action refreshRuntimeUi,
         Action<OperationResult> showSettingsSaveFailure,
         Action<AppSettings, int> applyLoadedSettings,
+        Func<AppSettings, OperationResult> saveSettings,
         AutomationShell automationShell)
     {
         return new ApplicationShellEffectExecutor(
@@ -169,7 +175,7 @@ internal static class MainShellCompositionRoot
                 resetUiScalePatchState,
                 refreshTimerOverlaySettings,
                 refreshRuntimeUi),
-            new DelegateSettingsPort(AppSettingsStore.TrySave, showSettingsSaveFailure, applyLoadedSettings),
+            new DelegateSettingsPort(saveSettings, showSettingsSaveFailure, applyLoadedSettings),
             new DelegateAutomationPort(
                 automationShell.StartCreateWorld,
                 automationShell.ShowPracticeWorldSelector,

@@ -77,7 +77,7 @@ internal sealed class TerrariaWorldFilePyramidScanner
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or EndOfStreamException or ArgumentException or InvalidDataException)
         {
             detail = ex.Message;
-            AppLogger.Error(ex, $"World pool failed to read world seed metadata from Terraria world file: {worldPath}");
+            StaticAppLogger.Instance.Error(ex, $"World pool failed to read world seed metadata from Terraria world file: {worldPath}");
             return false;
         }
     }
@@ -157,7 +157,7 @@ internal sealed class TerrariaWorldFilePyramidScanner
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or EndOfStreamException or ArgumentException or InvalidDataException)
         {
             detail = $"{phase}: {ex.Message}";
-            AppLogger.Error(ex, $"Pyramid filter failed to scan Terraria candidate chest data: {worldPath}");
+            StaticAppLogger.Instance.Error(ex, $"Pyramid filter failed to scan Terraria candidate chest data: {worldPath}");
             return false;
         }
     }

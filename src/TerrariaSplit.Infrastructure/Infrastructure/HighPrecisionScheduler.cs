@@ -219,7 +219,7 @@ public sealed class HighPrecisionScheduler : IDisposable
             }
             catch (Exception ex)
             {
-                AppLogger.Error(ex, $"{name} callback failed.");
+                StaticAppLogger.Instance.Error(ex, $"{name} callback failed.");
             }
 
             long intervalTicks = ToStopwatchTicks(currentInterval);

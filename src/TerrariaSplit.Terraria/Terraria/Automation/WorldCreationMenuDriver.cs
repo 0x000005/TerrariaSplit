@@ -218,7 +218,7 @@ internal sealed class WorldCreationMenuDriver
             return false;
         }
 
-        AppLogger.Info(
+        StaticAppLogger.Instance.Info(
             $"Create world automation removed {cleanup.MovedWorlds} non-favorite world(s) " +
             $"before retrying from world select; favoriteWorlds={cleanup.FavoriteWorlds}.");
         return true;
@@ -296,7 +296,7 @@ internal sealed class WorldCreationMenuDriver
                 cancellationToken);
         if (preScreenResult.Status == PyramidSeedPreScreenAutomationStatus.RetryFromMainMenu)
         {
-            AppLogger.Info($"Create world automation will return to main menu after pyramid seed pre-screen rejection: {preScreenResult.Detail}");
+            StaticAppLogger.Instance.Info($"Create world automation will return to main menu after pyramid seed pre-screen rejection: {preScreenResult.Detail}");
             return WorldSeedOptionsResult.RetryFromMainMenu;
         }
 
@@ -310,7 +310,7 @@ internal sealed class WorldCreationMenuDriver
 
         if (preScreenResult.Status == PyramidSeedPreScreenAutomationStatus.ContinueWithoutPreScreen)
         {
-            AppLogger.Info($"Create world automation will continue without pyramid seed pre-screen result: {preScreenResult.Detail}");
+            StaticAppLogger.Instance.Info($"Create world automation will continue without pyramid seed pre-screen result: {preScreenResult.Detail}");
         }
 
         return await automation.ClickAsync("apply visible seed", geometry.WorldAdvancedApplyButton(), menuActionDelay, cancellationToken)
@@ -327,7 +327,7 @@ internal sealed class WorldCreationMenuDriver
         {
             if (!AutoCreateSpecialWorldSeed.TryNormalize(rawSeed, out string specialSeed))
             {
-                AppLogger.Info($"Create world automation found an unknown special seed: {rawSeed}");
+                StaticAppLogger.Instance.Info($"Create world automation found an unknown special seed: {rawSeed}");
                 RecordFailure(AutomationResult.Failure(
                     $"Unknown Terraria special seed: {rawSeed}",
                     $"Create world automation found an unknown special seed: {rawSeed}"));
@@ -470,7 +470,7 @@ internal sealed class WorldCreationMenuDriver
             await automation.DelayAsync(SavePollInterval, cancellationToken);
         }
 
-        AppLogger.Info($"Create world automation {step} was not created or updated.");
+        StaticAppLogger.Instance.Info($"Create world automation {step} was not created or updated.");
         return false;
     }
 }

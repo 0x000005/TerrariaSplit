@@ -79,7 +79,7 @@ public sealed class WorldPoolStore
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                AppLogger.Error(ex, "World pool failed to bank generated world file.");
+                StaticAppLogger.Instance.Error(ex, "World pool failed to bank generated world file.");
                 return false;
             }
         }
@@ -146,7 +146,7 @@ public sealed class WorldPoolStore
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
                 message = ex.Message;
-                AppLogger.Error(ex, "World pool failed to install pooled world file.");
+                StaticAppLogger.Instance.Error(ex, "World pool failed to install pooled world file.");
                 return false;
             }
         }
@@ -219,7 +219,7 @@ public sealed class WorldPoolStore
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                AppLogger.Error(ex, $"World pool failed to copy optional backup file: {sourceBackupPath}");
+                StaticAppLogger.Instance.Error(ex, $"World pool failed to copy optional backup file: {sourceBackupPath}");
             }
         }
     }
@@ -257,7 +257,7 @@ public sealed class WorldPoolStore
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            AppLogger.Error(ex, $"World pool failed to delete file: {path}");
+            StaticAppLogger.Instance.Error(ex, $"World pool failed to delete file: {path}");
         }
     }
 

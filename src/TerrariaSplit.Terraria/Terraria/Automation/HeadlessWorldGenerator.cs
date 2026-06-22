@@ -43,7 +43,7 @@ internal sealed class HeadlessWorldGenerator : IDisposable
         using HeadlessGenerationLease? lease = HeadlessGenerationLease.TryAcquire(GenerationMutexName);
         if (lease is null)
         {
-            AppLogger.Info("World pool headless generation skipped because another generator is already running.");
+            StaticAppLogger.Instance.Info("World pool headless generation skipped because another generator is already running.");
             return HeadlessWorldGenResult.Skipped;
         }
 
@@ -64,7 +64,7 @@ internal sealed class HeadlessWorldGenerator : IDisposable
 
         if (worldPath is null)
         {
-            AppLogger.Info("World pool headless generation produced no world file.");
+            StaticAppLogger.Instance.Info("World pool headless generation produced no world file.");
             scratch.Clean();
             return HeadlessWorldGenResult.Miss;
         }
@@ -77,7 +77,7 @@ internal sealed class HeadlessWorldGenerator : IDisposable
             pyramidFilterResult = worldFileEvaluator.Evaluate(worldPath, settings);
             if (!pyramidFilterResult.ScanSucceeded)
             {
-                AppLogger.Info($"World pool could not scan candidate chest contents: {pyramidFilterResult.Detail}");
+                StaticAppLogger.Instance.Info($"World pool could not scan candidate chest contents: {pyramidFilterResult.Detail}");
             }
 
             candidateItemFound = pyramidFilterResult.Keep;
@@ -95,7 +95,7 @@ internal sealed class HeadlessWorldGenerator : IDisposable
         }
         else
         {
-            AppLogger.Info($"World pool could not read generated world metadata: {detail}");
+            StaticAppLogger.Instance.Info($"World pool could not read generated world metadata: {detail}");
         }
 
         string requiredPyramidItems = settings.EnablePyramidFilter
@@ -104,7 +104,7 @@ internal sealed class HeadlessWorldGenerator : IDisposable
         string candidateChestsSummary = settings.EnablePyramidFilter
             ? pyramidFilterResult.CandidateChests.FormatSummary()
             : "not scanned";
-        AppLogger.Info(
+        StaticAppLogger.Instance.Info(
             $"World pool headless generation world='{Path.GetFileName(worldPath)}': " +
             $"requiredPyramidItems={requiredPyramidItems}, " +
             $"candidateItems={candidateItemFound}, " +
@@ -199,7 +199,7 @@ internal sealed class HeadlessWorldGenerator : IDisposable
             Process process = Process.GetProcessById(marker.ProcessId);
             if (IsMarkedServerProcess(process, marker, serverExePath))
             {
-                AppLogger.Info($"Stopping stale world pool TerrariaServer.exe process {marker.ProcessId}.");
+                StaticAppLogger.Instance.Info($"Stopping stale world pool TerrariaServer.exe process {marker.ProcessId}.");
                 ProcessLifecycleGuard.TryKill(process, "World pool failed to stop headless Terraria server.");
             }
             else
@@ -419,7 +419,7 @@ internal sealed class HeadlessWorldGenerator : IDisposable
             catch (Exception ex) when (ex is UnauthorizedAccessException or IOException or System.ComponentModel.Win32Exception)
             {
                 mutex?.Dispose();
-                AppLogger.Error(ex, "World pool failed to acquire headless generation mutex.");
+                StaticAppLogger.Instance.Error(ex, "World pool failed to acquire headless generation mutex.");
                 return null;
             }
         }

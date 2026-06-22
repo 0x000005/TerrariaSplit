@@ -20,7 +20,7 @@ internal sealed class EnterWorldWorkflow : IDisposable
             OperationResult validation = EnterWorldSaveInstaller.Validate(slot);
             if (validation.Failed)
             {
-                AppLogger.Info(validation.Message);
+                StaticAppLogger.Instance.Info(validation.Message);
                 return AutomationResult.Failure(
                     validation.Message,
                     $"Enter world automation validation failed: {validation.Message}",
@@ -58,7 +58,7 @@ internal sealed class EnterWorldWorkflow : IDisposable
         }
         catch (Exception ex)
         {
-            AppLogger.Error(ex, "Enter world automation failed.");
+            StaticAppLogger.Instance.Error(ex, "Enter world automation failed.");
             return AutomationResult.Failure(
                 "Enter world automation failed.",
                 "Enter world automation threw an unhandled exception.",
@@ -78,7 +78,7 @@ internal sealed class EnterWorldWorkflow : IDisposable
                 result = EnterWorldSaveInstaller.Install(slot);
                 if (result.Failed)
                 {
-                    AppLogger.Info($"Enter world automation could not install save files: {result.Message}");
+                    StaticAppLogger.Instance.Info($"Enter world automation could not install save files: {result.Message}");
                     return Task.FromResult(false);
                 }
 

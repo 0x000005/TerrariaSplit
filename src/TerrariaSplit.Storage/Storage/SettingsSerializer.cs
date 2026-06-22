@@ -13,7 +13,7 @@ internal static class SettingsSerializer
         }
         catch (Exception ex)
         {
-            AppLogger.Error(ex, $"Failed to read {description}: {path}");
+            StaticAppLogger.Instance.Error(ex, $"Failed to read {description}: {path}");
             return default;
         }
     }
@@ -26,7 +26,7 @@ internal static class SettingsSerializer
         }
         catch (Exception ex)
         {
-            AppLogger.Error(ex, $"Failed to read {description}.");
+            StaticAppLogger.Instance.Error(ex, $"Failed to read {description}.");
             return default;
         }
     }
@@ -79,7 +79,7 @@ internal static class SettingsSerializer
         }
         catch (Exception ex)
         {
-            AppLogger.Error(ex, $"Failed to read {description} with defaults: {path}");
+            StaticAppLogger.Instance.Error(ex, $"Failed to read {description} with defaults: {path}");
             shouldWriteDefaults = true;
             return Clone(defaults);
         }
@@ -117,7 +117,7 @@ internal static class SettingsSerializer
         }
         catch (Exception ex)
         {
-            AppLogger.Error(ex, $"Ignored invalid settings file: {path}");
+            StaticAppLogger.Instance.Error(ex, $"Ignored invalid settings file: {path}");
             return false;
         }
     }
@@ -135,7 +135,7 @@ internal static class SettingsSerializer
         }
         catch (Exception ex)
         {
-            AppLogger.Error(ex, $"Failed to read settings JSON object: {path}");
+            StaticAppLogger.Instance.Error(ex, $"Failed to read settings JSON object: {path}");
             return null;
         }
     }

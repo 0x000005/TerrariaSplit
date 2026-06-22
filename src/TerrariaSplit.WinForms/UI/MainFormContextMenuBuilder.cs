@@ -5,6 +5,17 @@ namespace TerrariaSplit.UI;
 internal sealed class MainFormContextMenuBuilder
 {
     internal const string PyramidFilterToggleItemName = "PyramidFilterToggle";
+    private readonly ISettingsRepository settingsRepository;
+
+    public MainFormContextMenuBuilder()
+        : this(new AppSettingsRepository())
+    {
+    }
+
+    public MainFormContextMenuBuilder(ISettingsRepository settingsRepository)
+    {
+        this.settingsRepository = settingsRepository;
+    }
 
     public void Rebuild(
         ContextMenuStrip menu,
@@ -37,7 +48,7 @@ internal sealed class MainFormContextMenuBuilder
         return item;
     }
 
-    private static ToolStripMenuItem CreateSettingsFileMenu(
+    private ToolStripMenuItem CreateSettingsFileMenu(
         AppSettings settings,
         Action<string> switchSettingsFile)
     {
@@ -46,13 +57,13 @@ internal sealed class MainFormContextMenuBuilder
         return menu;
     }
 
-    private static void PopulateSettingsFileMenu(
+    private void PopulateSettingsFileMenu(
         ToolStripMenuItem menu,
         AppSettings settings,
         Action<string> switchSettingsFile)
     {
         menu.DropDownItems.Clear();
-        IReadOnlyList<string> files = AppSettingsStore.GetSettingsFiles();
+        IReadOnlyList<string> files = settingsRepository.GetSettingsFiles();
         if (files.Count == 0)
         {
             ToolStripMenuItem empty = new(Localizer.Get("No config files", settings))
@@ -63,7 +74,7 @@ internal sealed class MainFormContextMenuBuilder
             return;
         }
 
-        string activePath = Path.GetFullPath(AppSettingsStore.SettingsPath);
+        string activePath = Path.GetFullPath(settingsRepository.SettingsPath);
         foreach (string file in files)
         {
             string filePath = Path.GetFullPath(file);

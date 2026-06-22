@@ -30,12 +30,12 @@ public static class AppSettingsStore
 
     public static void Save(AppSettings settings)
     {
-        Repository.Save(settings);
+        _ = Repository.Save(settings);
     }
 
     public static OperationResult TrySave(AppSettings settings)
     {
-        return Repository.TrySave(settings);
+        return Repository.Save(settings);
     }
 
     public static AppSettings Clone(AppSettings settings)

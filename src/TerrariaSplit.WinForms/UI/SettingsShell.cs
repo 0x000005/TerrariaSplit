@@ -9,6 +9,7 @@ internal sealed class SettingsShell : IDisposable
     private readonly Func<RuntimePerformanceDiagnostics> getRuntimeDiagnostics;
     private readonly Func<RuntimeDebugSnapshot> getRuntimeDebugSnapshot;
     private readonly Func<AppSettings, int> getWorldPoolCount;
+    private readonly ISettingsRepository settingsRepository;
     private readonly ISettingsSnapshotFactory settingsSnapshots;
     private readonly Action<Action> dispatch;
     private readonly Action<AppSettings> applySettings;
@@ -28,6 +29,7 @@ internal sealed class SettingsShell : IDisposable
         Func<RuntimePerformanceDiagnostics> getRuntimeDiagnostics,
         Func<RuntimeDebugSnapshot> getRuntimeDebugSnapshot,
         Func<AppSettings, int> getWorldPoolCount,
+        ISettingsRepository settingsRepository,
         ISettingsSnapshotFactory settingsSnapshots,
         Action<Action> dispatch,
         Action<AppSettings> applySettings,
@@ -42,6 +44,7 @@ internal sealed class SettingsShell : IDisposable
         this.getRuntimeDiagnostics = getRuntimeDiagnostics;
         this.getRuntimeDebugSnapshot = getRuntimeDebugSnapshot;
         this.getWorldPoolCount = getWorldPoolCount;
+        this.settingsRepository = settingsRepository;
         this.settingsSnapshots = settingsSnapshots;
         this.dispatch = dispatch;
         this.applySettings = applySettings;
@@ -91,13 +94,13 @@ internal sealed class SettingsShell : IDisposable
     {
         if (string.Equals(
                 Path.GetFullPath(path),
-                Path.GetFullPath(AppSettingsStore.SettingsPath),
+                Path.GetFullPath(settingsRepository.SettingsPath),
                 StringComparison.OrdinalIgnoreCase))
         {
             return;
         }
 
-        AppSettings nextSettings = AppSettingsStore.Load(path);
+        AppSettings nextSettings = settingsRepository.Load(path);
         applySettings(nextSettings);
     }
 

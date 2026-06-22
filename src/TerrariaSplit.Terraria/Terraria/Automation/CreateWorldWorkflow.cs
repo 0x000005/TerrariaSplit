@@ -77,7 +77,7 @@ internal sealed class CreateWorldWorkflow : IDisposable
                 if (poolInstall.InstalledWorld is not null)
                 {
                     worldPoolInstallWorkflow.RemoveInstalled(worldGenSignature, poolInstall.InstalledWorld);
-                    AppLogger.Info(
+                    StaticAppLogger.Instance.Info(
                         $"Create world automation installed pooled world {poolInstall.InstalledWorld.WorldFileName}; " +
                         "stopped at world select.");
                     return AutomationResult.Success(
@@ -97,7 +97,7 @@ internal sealed class CreateWorldWorkflow : IDisposable
         }
         catch (Exception ex)
         {
-            AppLogger.Error(ex, "Create world automation failed.");
+            StaticAppLogger.Instance.Error(ex, "Create world automation failed.");
             return AutomationResult.Failure(
                 "Create world automation failed.",
                 "Create world automation threw an unhandled exception.",
@@ -175,7 +175,7 @@ internal sealed class CreateWorldWorkflow : IDisposable
             await zenithStarCatchAutomation.RunAsync(settings, cancellationToken);
 
             PyramidFilterOutcome outcome = await pyramidFilterAutomation.RunAsync(settings, worldsBefore, cancellationToken);
-            AppLogger.Info($"Create world automation pyramid filter outcome: {outcome}.");
+            StaticAppLogger.Instance.Info($"Create world automation pyramid filter outcome: {outcome}.");
             if (outcome != PyramidFilterOutcome.Rejected)
             {
                 return CreateWorldLoopResult.Finished(

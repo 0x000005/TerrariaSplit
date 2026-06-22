@@ -4,6 +4,8 @@ namespace TerrariaSplit.UI;
 
 internal sealed record MainShellServices(
     WorldPoolStore WorldPoolStore,
+    ISettingsRepository SettingsRepository,
+    Func<AppSettings, OperationResult> SaveSettings,
     ISettingsSnapshotFactory SettingsSnapshots,
     IAppLogger AppLogger,
     WorldPoolFillService WorldPoolFillService,

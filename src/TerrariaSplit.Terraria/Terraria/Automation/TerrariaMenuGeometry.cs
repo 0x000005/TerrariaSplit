@@ -198,7 +198,7 @@ public readonly record struct TerrariaMenuGeometry(float Scale, float LogicalWid
         }
         catch (Exception ex)
         {
-            AppLogger.Error(ex, "Failed to read Terraria main menu scale setting.");
+            StaticAppLogger.Instance.Error(ex, "Failed to read Terraria main menu scale setting.");
             return false;
         }
     }

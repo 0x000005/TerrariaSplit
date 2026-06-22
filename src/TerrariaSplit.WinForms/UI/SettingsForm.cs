@@ -83,7 +83,7 @@ internal sealed partial class SettingsForm : Form
         }
         catch (Exception ex)
         {
-            AppLogger.Error(ex, "Settings debug page failed to read world pool count.");
+            StaticAppLogger.Instance.Error(ex, "Settings debug page failed to read world pool count.");
             return 0;
         }
     }

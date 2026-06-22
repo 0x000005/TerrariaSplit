@@ -69,7 +69,7 @@ internal sealed class TerrariaAutomationContext
         }
         catch (Exception ex)
         {
-            AppLogger.Error(ex, $"{name} automation step '{step}' failed.");
+            StaticAppLogger.Instance.Error(ex, $"{name} automation step '{step}' failed.");
             return false;
         }
     }
@@ -144,7 +144,7 @@ internal sealed class TerrariaAutomationContext
         if (!escapeCancellationLogged)
         {
             escapeCancellationLogged = true;
-            AppLogger.Info($"{name} automation cancelled by Escape.");
+            StaticAppLogger.Instance.Info($"{name} automation cancelled by Escape.");
         }
 
         throw new OperationCanceledException($"{name} automation cancelled by Escape.", cancellationToken);
@@ -163,6 +163,6 @@ internal sealed class TerrariaAutomationContext
 
     private static void Log(AutomationStepResult result)
     {
-        AppLogger.Info(result.ToLogMessage());
+        StaticAppLogger.Instance.Info(result.ToLogMessage());
     }
 }

@@ -376,7 +376,7 @@ internal sealed partial class DebugSettingsPage : SettingsPageBase
 
                             if (task.Exception is not null)
                             {
-                                AppLogger.Error(task.Exception, "Failed to refresh debug page heavy snapshot.");
+                                StaticAppLogger.Instance.Error(task.Exception, "Failed to refresh debug page heavy snapshot.");
                             }
                         }
 
@@ -409,7 +409,7 @@ internal sealed partial class DebugSettingsPage : SettingsPageBase
             }
             catch (Exception ex)
             {
-                AppLogger.Error(ex, "Failed to copy Terraria debug information.");
+                StaticAppLogger.Instance.Error(ex, "Failed to copy Terraria debug information.");
             }
         }
 
