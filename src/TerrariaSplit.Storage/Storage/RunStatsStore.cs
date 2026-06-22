@@ -1,16 +1,23 @@
 namespace TerrariaSplit.Storage;
 
-public static class RunStatsStore
+public sealed class RunStatsRepository
 {
-    public static RunStats Load()
+    private readonly SplitTimeSetRepository splitTimeSets;
+
+    public RunStatsRepository(SplitTimeSetRepository? splitTimeSets = null)
+    {
+        this.splitTimeSets = splitTimeSets ?? new SplitTimeSetRepository();
+    }
+
+    public RunStats Load()
     {
         return new RunStats
         {
-            LastRunSplits = SplitTimeSetStore.LoadLatestLastRun()
+            LastRunSplits = splitTimeSets.LoadLatestLastRun()
         };
     }
 
-    public static void RecordRun(IReadOnlyList<SplitStatusSnapshot> statuses)
+    public void RecordRun(IReadOnlyList<SplitStatusSnapshot> statuses)
     {
         if (!statuses.Any(status => status.Time is not null))
         {
@@ -32,6 +39,21 @@ public static class RunStatsStore
             stats.LastRunSplits[status.Definition.Id] = TimeText.FormatRecord(splitTime);
         }
 
-        SplitTimeSetStore.SaveLastRun(stats.LastRunSplits, lastCompleted?.Definition.DisplayName, lastCompleted?.Time);
+        splitTimeSets.SaveLastRun(stats.LastRunSplits, lastCompleted?.Definition.DisplayName, lastCompleted?.Time);
+    }
+}
+
+public static class RunStatsStore
+{
+    private static readonly RunStatsRepository Repository = new();
+
+    public static RunStats Load()
+    {
+        return Repository.Load();
+    }
+
+    public static void RecordRun(IReadOnlyList<SplitStatusSnapshot> statuses)
+    {
+        Repository.RecordRun(statuses);
     }
 }

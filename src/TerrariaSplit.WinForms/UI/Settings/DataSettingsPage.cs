@@ -4,6 +4,7 @@ namespace TerrariaSplit.UI.Settings;
 
 internal sealed class DataSettingsPage : SettingsPageBase
 {
+    private readonly SplitTimeSetRepository splitTimeSets;
     private readonly ThemedDropDownList referenceSetBox = new();
     private readonly TextBox newReferenceSetNameBox = new();
     private readonly CheckBox usePersonalBestAsReferenceTimeBox = new();
@@ -34,6 +35,16 @@ internal sealed class DataSettingsPage : SettingsPageBase
     internal TextBox NewReferenceSetNameBox => newReferenceSetNameBox;
 
     internal IReadOnlyDictionary<string, TextBox> SplitTextBoxes => splitTextBoxes;
+
+    public DataSettingsPage()
+        : this(new SplitTimeSetRepository())
+    {
+    }
+
+    internal DataSettingsPage(SplitTimeSetRepository splitTimeSets)
+    {
+        this.splitTimeSets = splitTimeSets;
+    }
 
     protected override Control BuildPage(SettingsPageContext context)
     {
@@ -507,7 +518,7 @@ internal sealed class DataSettingsPage : SettingsPageBase
             return;
         }
 
-        Draft.Comparison.ReferenceSplitSets = SplitTimeSetStore.LoadReferenceSets();
+        Draft.Comparison.ReferenceSplitSets = splitTimeSets.LoadReferenceSets();
         referenceSetsLoadedForEditing = true;
         SettingsNormalizer.Normalize(Draft);
         PopulateReferenceSetBox();

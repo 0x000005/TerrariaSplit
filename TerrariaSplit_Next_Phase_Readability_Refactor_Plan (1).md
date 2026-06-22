@@ -40,10 +40,10 @@
 [x] ApplicationShellEffectExecutor 遇到未知 effect 会 fail fast
 [x] Settings JSON 带 SchemaVersion
 [x] SettingsNormalizer 不再调用 SettingsMigrator
-[ ] LegacyChinese 不再出现在运行时 IsChinese 判断里
-[ ] MainForm 字段数量明显下降，overlay/runtime/hotkey/window 状态由 shell 持有
-[ ] SplitSettingsPage 不再持有 routeDragIndex / conditionDragIndex / advancedConditionMode 等 controller 状态
-[ ] runtime 项目之间的 InternalsVisibleTo 基本删除，只保留 tests
+[x] LegacyChinese 不再出现在运行时 IsChinese 判断里
+[x] MainForm 字段数量明显下降，overlay/runtime/hotkey/window 状态由 shell 持有
+[x] SplitSettingsPage 不再持有 routeDragIndex / conditionDragIndex / advancedConditionMode 等 controller 状态
+[x] runtime 项目之间的 InternalsVisibleTo 基本删除，只保留 tests
 ```
 
 ---
@@ -198,10 +198,10 @@ TerrariaSplit/TerrariaSplit.csproj.user
 ### PR-1 验收
 
 ```text
-[ ] 新增 Directory.Build.props
-[ ] 新增架构测试或架构检查脚本
-[ ] bin/obj/*.csproj.user 不再出现在仓库
-[ ] 测试暂时允许当前已知违规，但能列出违规清单
+[x] 新增 Directory.Build.props
+[x] 新增架构测试或架构检查脚本
+[x] bin/obj/*.csproj.user 不再出现在仓库
+[x] 测试暂时允许当前已知违规，但能列出违规清单
 ```
 
 ---
@@ -417,14 +417,14 @@ public ApplicationUpdate HandleCommand(AppCommand command)
 ### PR-2 验收
 
 ```text
-[ ] src/TerrariaSplit.Application.csproj 不引用 Storage
-[ ] src/TerrariaSplit.Application.csproj 不引用 Terraria
-[ ] Application/GlobalUsings.cs 不再 global using Storage/Terraria
-[ ] TerrariaWorldAutomation 不在 Application 项目
-[ ] WorldPoolFillService 不在 Application 项目
-[ ] watcher ports 和 watcher contract models 在 Application
-[ ] AppCommand 不再使用 Kind + nullable payload
-[ ] ApplicationController 对未知 command fail fast
+[x] src/TerrariaSplit.Application.csproj 不引用 Storage
+[x] src/TerrariaSplit.Application.csproj 不引用 Terraria
+[x] Application/GlobalUsings.cs 不再 global using Storage/Terraria
+[x] TerrariaWorldAutomation 不在 Application 项目
+[x] WorldPoolFillService 不在 Application 项目
+[x] watcher ports 和 watcher contract models 在 Application
+[x] AppCommand 不再使用 Kind + nullable payload
+[x] ApplicationController 对未知 command fail fast
 ```
 
 ---
@@ -640,7 +640,7 @@ AppLogger static 删除，或只保留给 StaticAppLogger 过渡使用。
 [x] SettingsRepository.Save 返回 OperationResult
 [x] JsonFileStore.Write 失败能传到调用方
 [x] SaveSettingsEffect 失败能显示用户可见错误
-[ ] WorldPoolStore / SplitTimeSetStore 不再是纯 static store
+[x] WorldPoolStore / SplitTimeSetStore 不再是纯 static store
 ```
 
 ---
@@ -840,14 +840,14 @@ public bool TryGetReferenceSplit(...)
 ### PR-4 验收
 
 ```text
-[ ] Configuration.csproj 为 net10.0
-[ ] Configuration.csproj 没有 UseWindowsForms
-[ ] Configuration 项目无 System.Drawing / InstalledFontCollection
-[ ] settings.json 保存时包含 SchemaVersion
-[ ] 无 SchemaVersion 的旧 settings 可以迁移
-[ ] SettingsNormalizer 不调用 SettingsMigrator
-[ ] LanguageNames 不再暴露 LegacyChinese runtime 判断
-[ ] AppSettings 行为方法开始迁移到 service，或至少新增 service 并替换主要调用点
+[x] Configuration.csproj 为 net10.0
+[x] Configuration.csproj 没有 UseWindowsForms
+[x] Configuration 项目无 System.Drawing / InstalledFontCollection
+[x] settings.json 保存时包含 SchemaVersion
+[x] 无 SchemaVersion 的旧 settings 可以迁移
+[x] SettingsNormalizer 不调用 SettingsMigrator
+[x] LanguageNames 不再暴露 LegacyChinese runtime 判断
+[x] AppSettings 行为方法开始迁移到 service，或至少新增 service 并替换主要调用点
 ```
 
 ---
@@ -940,11 +940,11 @@ Terraria automation seed/name data -> Terraria
 ### PR-5 验收
 
 ```text
-[ ] 所有 src 项目不再使用 Link 编译旧目录
+[x] 所有 src 项目不再使用 Link 编译旧目录
 [ ] 根 TerrariaSplit/ 旧源码目录删除或改名为 src/TerrariaSplit.WinForms
-[ ] solution 项目路径更新
-[ ] test 项目引用更新
-[ ] build/test 通过
+[x] solution 项目路径更新
+[x] test 项目引用更新
+[x] build/test 通过
 ```
 
 ---
@@ -1118,11 +1118,11 @@ WindowShell
 ### PR-6 验收
 
 ```text
-[ ] MainForm 不再持有 overlay/timer overlay 内部状态
-[ ] MainForm 不再持有 watcher snapshot/diagnostics lock
-[ ] MainForm 不再持有 hotkey warning state
+[x] MainForm 不再持有 overlay/timer overlay 内部状态
+[x] MainForm 不再持有 watcher snapshot/diagnostics lock
+[x] MainForm 不再持有 hotkey warning state
 [ ] MainForm partial 文件可以减少，而不是继续增加
-[ ] OverlayShell / RuntimeShell / HotkeyShell / WindowShell 有独立单元测试或 fake 测试
+[x] OverlayShell / RuntimeShell / HotkeyShell / WindowShell 有独立单元测试或 fake 测试
 ```
 
 ---
@@ -1301,12 +1301,12 @@ SplitListRenderer.GetColumnRects
 ### PR-7 验收
 
 ```text
-[ ] SplitSettingsPage 不再直接持有 route/condition drag 状态
-[ ] Apply 和 OnDeselected 共用 CommitService
-[ ] Settings pages 不直接调用 AppSettingsStore.Normalize
-[ ] TextEffects normalizer 和 UI 至少共用一套 descriptor
-[ ] Columns normalizer 和 UI/renderer 至少共用一套 descriptor
-[ ] SplitSettingsPage.Condition.cs 行数显著下降，controller 可单测
+[x] SplitSettingsPage 不再直接持有 route/condition drag 状态
+[x] Apply 和 OnDeselected 共用 CommitService
+[x] Settings pages 不直接调用 AppSettingsStore.Normalize
+[x] TextEffects normalizer 和 UI 至少共用一套 descriptor
+[x] Columns normalizer 和 UI/renderer 至少共用一套 descriptor
+[x] SplitSettingsPage.Condition.cs 行数显著下降，controller 可单测
 ```
 
 ---
@@ -1440,9 +1440,9 @@ Renderer 不需要理解为什么要远处先画。
 ### PR-8 验收
 
 ```text
-[ ] SplitListRenderer 不再直接构建 SplitDisplayRows
+[x] SplitListRenderer 不再直接构建 SplitDisplayRows
 [ ] SplitListRenderer 不再直接处理 reference/PB comparison 规则
-[ ] OverlayFrameBuilder 有单测覆盖 focus row、attached rows、expanded rows、completed fact icons
+[x] OverlayFrameBuilder 有单测覆盖 focus row、attached rows、expanded rows、completed fact icons
 [ ] renderer 更接近纯绘制函数
 ```
 
@@ -1541,10 +1541,10 @@ internal sealed class ClipboardBackupScope : IDisposable
 ### PR-9 验收
 
 ```text
-[ ] CreateWorldWorkflow 行数显著下降，主要保留编排
-[ ] 自动化失败返回 AutomationResult，不只写日志
-[ ] Clipboard / Window activation / temporary scratch 有 scope/service 复用
-[ ] AutomationShell 能显示关键失败，例如找不到 Terraria、无法写剪贴板、无法安装 world
+[x] CreateWorldWorkflow 行数显著下降，主要保留编排
+[x] 自动化失败返回 AutomationResult，不只写日志
+[x] Clipboard / Window activation / temporary scratch 有 scope/service 复用
+[x] AutomationShell 能显示关键失败，例如找不到 Terraria、无法写剪贴板、无法安装 world
 ```
 
 ---
@@ -1615,11 +1615,11 @@ PR-10 InternalsVisibleTo 收口，最终架构门禁转为强制
 每个 PR 的原则：
 
 ```text
-[ ] 可以独立 build/test
-[ ] 不把失败路径改成静默
-[ ] 不新增 static 依赖
-[ ] 不新增 MainForm/SplitSettingsPage 状态字段
-[ ] 新增抽象必须有两个以上使用场景，或能明确阻断错误依赖
+[x] 可以独立 build/test
+[x] 不把失败路径改成静默
+[x] 不新增 static 依赖
+[x] 不新增 MainForm/SplitSettingsPage 状态字段
+[x] 新增抽象必须有两个以上使用场景，或能明确阻断错误依赖
 ```
 
 ---

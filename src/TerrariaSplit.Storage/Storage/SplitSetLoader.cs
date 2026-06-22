@@ -1,11 +1,18 @@
 namespace TerrariaSplit.Storage;
 
-internal static class SplitSetLoader
+internal sealed class SplitSetLoader
 {
-    public static void LoadInto(AppSettings settings)
+    private readonly SplitTimeSetRepository splitTimeSets;
+
+    public SplitSetLoader(SplitTimeSetRepository splitTimeSets)
     {
-        SplitTimeSetStore.EnsureDirectories();
-        settings.Comparison.ReferenceSplitSets = SplitTimeSetStore.LoadReferenceSets();
+        this.splitTimeSets = splitTimeSets;
+    }
+
+    public void LoadInto(AppSettings settings)
+    {
+        splitTimeSets.EnsureDirectories();
+        settings.Comparison.ReferenceSplitSets = splitTimeSets.LoadReferenceSets();
         LoadPersonalBestTimeSets(settings);
         LoadPersonalBestSegmentSets(settings);
         SettingsNormalizer.Normalize(settings);
@@ -13,9 +20,9 @@ internal static class SplitSetLoader
         PersonalBestSetService.SyncPersonalBestSegmentsFromActiveSet(settings);
     }
 
-    private static void LoadPersonalBestTimeSets(AppSettings settings)
+    private void LoadPersonalBestTimeSets(AppSettings settings)
     {
-        List<ReferenceSplitSet> personalBestTimeSets = SplitTimeSetStore.LoadPersonalBestTimeSets();
+        List<ReferenceSplitSet> personalBestTimeSets = splitTimeSets.LoadPersonalBestTimeSets();
         if (personalBestTimeSets.Count > 0)
         {
             settings.Comparison.PersonalBestTimeSets = personalBestTimeSets;
@@ -26,12 +33,12 @@ internal static class SplitSetLoader
         {
             CreateSet("Personal", SplitConditionDataRows.Build(settings).Select(row => row.Key))
         };
-        SplitTimeSetStore.SavePersonalBestTimeSets(settings.Comparison.PersonalBestTimeSets);
+        splitTimeSets.SavePersonalBestTimeSets(settings.Comparison.PersonalBestTimeSets);
     }
 
-    private static void LoadPersonalBestSegmentSets(AppSettings settings)
+    private void LoadPersonalBestSegmentSets(AppSettings settings)
     {
-        List<ReferenceSplitSet> personalBestSegmentSets = SplitTimeSetStore.LoadPersonalBestSegmentSets();
+        List<ReferenceSplitSet> personalBestSegmentSets = splitTimeSets.LoadPersonalBestSegmentSets();
         if (personalBestSegmentSets.Count > 0)
         {
             settings.Comparison.PersonalBestSegmentSets = personalBestSegmentSets;
@@ -42,7 +49,7 @@ internal static class SplitSetLoader
         {
             CreateSet("Personal", SplitRouteGroups.Build(settings).Select(group => group.Key))
         };
-        SplitTimeSetStore.SavePersonalBestSegmentSets(settings.Comparison.PersonalBestSegmentSets);
+        splitTimeSets.SavePersonalBestSegmentSets(settings.Comparison.PersonalBestSegmentSets);
     }
 
     private static ReferenceSplitSet CreateSet(string name, IEnumerable<string> keys)

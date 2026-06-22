@@ -20,14 +20,19 @@ internal sealed class StatisticsForm : Form
     private readonly ComboBox personalBestBox = new();
     private DataGridView grid = null!;
 
-    public StatisticsForm(AppSettings settings)
+    public StatisticsForm(
+        AppSettings settings,
+        RunStatsRepository? runStatsRepository = null,
+        SplitTimeSetRepository? splitTimeSets = null)
     {
+        splitTimeSets ??= new SplitTimeSetRepository();
+        runStatsRepository ??= new RunStatsRepository(splitTimeSets);
         this.settings = settings;
-        stats = RunStatsStore.Load();
+        stats = runStatsRepository.Load();
         referenceTimeSets = settings.Comparison.UsePersonalBestAsReferenceTime
             ? new List<ReferenceSplitSet> { ReferenceSplitSetService.CreatePersonalBestReferenceSet(settings) }
             : settings.Comparison.ReferenceSplitSets.ToList();
-        personalBestSets = SplitTimeSetStore.LoadLastRunSets();
+        personalBestSets = splitTimeSets.LoadLastRunSets();
 
         Text = Localizer.Get("Statistics", settings);
         StartPosition = FormStartPosition.CenterParent;

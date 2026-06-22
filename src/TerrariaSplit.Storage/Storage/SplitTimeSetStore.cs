@@ -1,18 +1,24 @@
 namespace TerrariaSplit.Storage;
 
-public static class SplitTimeSetStore
+public sealed class SplitTimeSetRepository
 {
     private const int MaxLastRunSetsToLoad = 100;
+    private readonly IRuntimeDataPaths paths;
 
-    public static string ReferenceDirectory => AppContextRuntimeDataPaths.Default.ReferenceTimesDirectory;
+    public SplitTimeSetRepository(IRuntimeDataPaths? paths = null)
+    {
+        this.paths = paths ?? AppContextRuntimeDataPaths.Default;
+    }
 
-    public static string LastRunDirectory => AppContextRuntimeDataPaths.Default.LastRunTimesDirectory;
+    public string ReferenceDirectory => paths.ReferenceTimesDirectory;
 
-    public static string PersonalBestTimeDirectory => AppContextRuntimeDataPaths.Default.PersonalBestTimesDirectory;
+    public string LastRunDirectory => paths.LastRunTimesDirectory;
 
-    public static string PersonalBestSegmentDirectory => AppContextRuntimeDataPaths.Default.PersonalBestSegmentsDirectory;
+    public string PersonalBestTimeDirectory => paths.PersonalBestTimesDirectory;
 
-    public static void EnsureDirectories()
+    public string PersonalBestSegmentDirectory => paths.PersonalBestSegmentsDirectory;
+
+    public void EnsureDirectories()
     {
         Directory.CreateDirectory(ReferenceDirectory);
         Directory.CreateDirectory(LastRunDirectory);
@@ -20,7 +26,7 @@ public static class SplitTimeSetStore
         Directory.CreateDirectory(PersonalBestSegmentDirectory);
     }
 
-    public static List<ReferenceSplitSet> LoadReferenceSets()
+    public List<ReferenceSplitSet> LoadReferenceSets()
     {
         List<ReferenceSplitSet> sets = LoadSets(ReferenceDirectory);
         return sets.Count == 0 || AreReferenceSetsEmpty(sets)
@@ -28,32 +34,32 @@ public static class SplitTimeSetStore
             : sets;
     }
 
-    public static void SaveReferenceSets(IEnumerable<ReferenceSplitSet> sets)
+    public void SaveReferenceSets(IEnumerable<ReferenceSplitSet> sets)
     {
         SaveNamedSets(ReferenceDirectory, sets);
     }
 
-    public static List<ReferenceSplitSet> LoadPersonalBestTimeSets()
+    public List<ReferenceSplitSet> LoadPersonalBestTimeSets()
     {
         return LoadSets(PersonalBestTimeDirectory, newestFirst: true, maxCount: null);
     }
 
-    public static List<ReferenceSplitSet> LoadPersonalBestSegmentSets()
+    public List<ReferenceSplitSet> LoadPersonalBestSegmentSets()
     {
         return LoadSets(PersonalBestSegmentDirectory, newestFirst: true, maxCount: null);
     }
 
-    public static void SavePersonalBestTimeSets(IEnumerable<ReferenceSplitSet> sets)
+    public void SavePersonalBestTimeSets(IEnumerable<ReferenceSplitSet> sets)
     {
         SaveSets(PersonalBestTimeDirectory, sets);
     }
 
-    public static void SavePersonalBestSegmentSets(IEnumerable<ReferenceSplitSet> sets)
+    public void SavePersonalBestSegmentSets(IEnumerable<ReferenceSplitSet> sets)
     {
         SaveSets(PersonalBestSegmentDirectory, sets);
     }
 
-    public static ReferenceSplitSet SavePersonalBestTimeSnapshot(
+    public ReferenceSplitSet SavePersonalBestTimeSnapshot(
         Dictionary<string, string> splits,
         string bossName,
         string? previousTime,
@@ -62,7 +68,7 @@ public static class SplitTimeSetStore
         return SavePersonalBestSnapshot(PersonalBestTimeDirectory, splits, bossName, previousTime, newTime);
     }
 
-    public static ReferenceSplitSet SavePersonalBestSegmentSnapshot(
+    public ReferenceSplitSet SavePersonalBestSegmentSnapshot(
         Dictionary<string, string> splits,
         string bossName,
         string? previousTime,
@@ -71,18 +77,18 @@ public static class SplitTimeSetStore
         return SavePersonalBestSnapshot(PersonalBestSegmentDirectory, splits, bossName, previousTime, newTime);
     }
 
-    public static Dictionary<string, string> LoadLatestLastRun()
+    public Dictionary<string, string> LoadLatestLastRun()
     {
         ReferenceSplitSet? latest = LoadLatestSet(LastRunDirectory);
         return latest?.Splits ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
     }
 
-    public static List<ReferenceSplitSet> LoadLastRunSets()
+    public List<ReferenceSplitSet> LoadLastRunSets()
     {
         return LoadSets(LastRunDirectory, newestFirst: true, MaxLastRunSetsToLoad);
     }
 
-    public static void SaveLastRun(Dictionary<string, string> splits, string? lastBossName = null, TimeSpan? runDuration = null)
+    public void SaveLastRun(Dictionary<string, string> splits, string? lastBossName = null, TimeSpan? runDuration = null)
     {
         string name = BuildLastRunName(lastBossName, runDuration);
         SaveSet(LastRunDirectory, $"{name}.json", new ReferenceSplitSet
@@ -97,7 +103,7 @@ public static class SplitTimeSetStore
         return LoadSets(directory, newestFirst: false, maxCount: null);
     }
 
-    private static List<ReferenceSplitSet> LoadAndSaveDefaultReferenceSets()
+    private List<ReferenceSplitSet> LoadAndSaveDefaultReferenceSets()
     {
         ReferenceSplitSet set = LoadEmbeddedDefaultReferenceSet();
         SaveSet(ReferenceDirectory, $"{SanitizeFileName(set.Name)}.json", set);
@@ -294,5 +300,86 @@ public static class SplitTimeSetStore
         }
 
         return trimmed.Length == 0 ? "Reference" : trimmed;
+    }
+}
+
+public static class SplitTimeSetStore
+{
+    private static readonly SplitTimeSetRepository Repository = new();
+
+    public static string ReferenceDirectory => Repository.ReferenceDirectory;
+
+    public static string LastRunDirectory => Repository.LastRunDirectory;
+
+    public static string PersonalBestTimeDirectory => Repository.PersonalBestTimeDirectory;
+
+    public static string PersonalBestSegmentDirectory => Repository.PersonalBestSegmentDirectory;
+
+    public static void EnsureDirectories()
+    {
+        Repository.EnsureDirectories();
+    }
+
+    public static List<ReferenceSplitSet> LoadReferenceSets()
+    {
+        return Repository.LoadReferenceSets();
+    }
+
+    public static void SaveReferenceSets(IEnumerable<ReferenceSplitSet> sets)
+    {
+        Repository.SaveReferenceSets(sets);
+    }
+
+    public static List<ReferenceSplitSet> LoadPersonalBestTimeSets()
+    {
+        return Repository.LoadPersonalBestTimeSets();
+    }
+
+    public static List<ReferenceSplitSet> LoadPersonalBestSegmentSets()
+    {
+        return Repository.LoadPersonalBestSegmentSets();
+    }
+
+    public static void SavePersonalBestTimeSets(IEnumerable<ReferenceSplitSet> sets)
+    {
+        Repository.SavePersonalBestTimeSets(sets);
+    }
+
+    public static void SavePersonalBestSegmentSets(IEnumerable<ReferenceSplitSet> sets)
+    {
+        Repository.SavePersonalBestSegmentSets(sets);
+    }
+
+    public static ReferenceSplitSet SavePersonalBestTimeSnapshot(
+        Dictionary<string, string> splits,
+        string bossName,
+        string? previousTime,
+        string newTime)
+    {
+        return Repository.SavePersonalBestTimeSnapshot(splits, bossName, previousTime, newTime);
+    }
+
+    public static ReferenceSplitSet SavePersonalBestSegmentSnapshot(
+        Dictionary<string, string> splits,
+        string bossName,
+        string? previousTime,
+        string newTime)
+    {
+        return Repository.SavePersonalBestSegmentSnapshot(splits, bossName, previousTime, newTime);
+    }
+
+    public static Dictionary<string, string> LoadLatestLastRun()
+    {
+        return Repository.LoadLatestLastRun();
+    }
+
+    public static List<ReferenceSplitSet> LoadLastRunSets()
+    {
+        return Repository.LoadLastRunSets();
+    }
+
+    public static void SaveLastRun(Dictionary<string, string> splits, string? lastBossName = null, TimeSpan? runDuration = null)
+    {
+        Repository.SaveLastRun(splits, lastBossName, runDuration);
     }
 }

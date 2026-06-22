@@ -6,11 +6,15 @@ public sealed class AppSettingsRepository : ISettingsRepository
     private const string ActiveSettingsFileName = "active-profile.txt";
 
     private readonly IRuntimeDataPaths paths;
+    private readonly SplitTimeSetRepository splitTimeSets;
+    private readonly SplitSetLoader splitSetLoader;
     private string activeSettingsPath;
 
-    public AppSettingsRepository(IRuntimeDataPaths? paths = null)
+    public AppSettingsRepository(IRuntimeDataPaths? paths = null, SplitTimeSetRepository? splitTimeSets = null)
     {
         this.paths = paths ?? AppContextRuntimeDataPaths.Default;
+        this.splitTimeSets = splitTimeSets ?? new SplitTimeSetRepository(this.paths);
+        splitSetLoader = new SplitSetLoader(this.splitTimeSets);
         activeSettingsPath = Path.Combine(SettingsDirectory, DefaultSettingsFileName);
     }
 
@@ -47,7 +51,7 @@ public sealed class AppSettingsRepository : ISettingsRepository
             activeReferenceSplitSet,
             activePersonalBestTimeSet,
             activePersonalBestSegmentSet);
-        SplitSetLoader.LoadInto(settings);
+        splitSetLoader.LoadInto(settings);
 
         if (document.ShouldSaveDefaults)
         {
@@ -79,13 +83,13 @@ public sealed class AppSettingsRepository : ISettingsRepository
         {
             if (!snapshot.Comparison.UsePersonalBestAsReferenceTime)
             {
-                SplitTimeSetStore.SaveReferenceSets(snapshot.Comparison.ReferenceSplitSets);
+                splitTimeSets.SaveReferenceSets(snapshot.Comparison.ReferenceSplitSets);
             }
 
             PersonalBestSetService.SyncActivePersonalBestTimeSetFromDictionary(snapshot);
             PersonalBestSetService.SyncActivePersonalBestSegmentSetFromDictionary(snapshot);
-            SplitTimeSetStore.SavePersonalBestTimeSets(snapshot.Comparison.PersonalBestTimeSets);
-            SplitTimeSetStore.SavePersonalBestSegmentSets(snapshot.Comparison.PersonalBestSegmentSets);
+            splitTimeSets.SavePersonalBestTimeSets(snapshot.Comparison.PersonalBestTimeSets);
+            splitTimeSets.SavePersonalBestSegmentSets(snapshot.Comparison.PersonalBestSegmentSets);
             string directory = Path.GetDirectoryName(SettingsPath)!;
             Directory.CreateDirectory(directory);
             return SettingsSerializer.WriteSettings(SettingsPath, AppSettingsPersistenceProjection.Create(snapshot));

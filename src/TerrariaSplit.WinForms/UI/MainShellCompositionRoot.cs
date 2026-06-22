@@ -8,14 +8,16 @@ internal static class MainShellCompositionRoot
     public static MainShellServices CreateCore(Func<string, bool> confirmPersonalBestUpdate)
     {
         IRuntimeDataPaths runtimeDataPaths = AppContextRuntimeDataPaths.Default;
-        var settingsRepository = new AppSettingsRepository(runtimeDataPaths);
+        var splitTimeSets = new SplitTimeSetRepository(runtimeDataPaths);
+        var runStatsRepository = new RunStatsRepository(splitTimeSets);
+        var settingsRepository = new AppSettingsRepository(runtimeDataPaths, splitTimeSets);
         var worldPoolStore = new WorldPoolStore(runtimeDataPaths);
         ISettingsSnapshotFactory settingsSnapshots = new StoredSettingsSnapshotFactory(settingsRepository);
         IAppLogger logger = StaticAppLogger.Instance;
-        var runStatisticsRecorder = new DelegateRunStatisticsRecorder(RunStatsStore.RecordRun);
+        var runStatisticsRecorder = new DelegateRunStatisticsRecorder(runStatsRepository.RecordRun);
         var personalBestSnapshotStore = new DelegatePersonalBestSnapshotStore(
-            SplitTimeSetStore.SavePersonalBestTimeSnapshot,
-            SplitTimeSetStore.SavePersonalBestSegmentSnapshot);
+            splitTimeSets.SavePersonalBestTimeSnapshot,
+            splitTimeSets.SavePersonalBestSegmentSnapshot);
         var applicationController = new ApplicationController(
             settingsRepository.Load(),
             confirmPersonalBestUpdate,

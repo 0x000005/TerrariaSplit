@@ -52,6 +52,8 @@ var legacyTests = new (string Name, Action Test)[]
     ("AppSettingsStore writes embedded defaults when settings file is invalid", TestAppSettingsStoreWritesEmbeddedDefaultsWhenSettingsFileIsInvalid),
     ("SplitTimeSetStore writes embedded WR when reference files are invalid", TestSplitTimeSetStoreWritesEmbeddedWrWhenReferenceFilesAreInvalid),
     ("AppSettingsStore save does not mutate source settings", TestAppSettingsStoreSaveDoesNotMutateSourceSettings),
+    ("Split time repositories use injected runtime data paths", TestSplitTimeRepositoriesUseInjectedRuntimeDataPaths),
+    ("AppSettingsRepository saves split time sets through injected repository", TestAppSettingsRepositorySavesSplitTimeSetsThroughInjectedRepository),
     ("Runtime data paths use final directory layout", TestRuntimeDataPathsUseFinalDirectoryLayout),
     ("OperationResult preserves user message and exception", TestOperationResultPreservesFailureDetail),
     ("AppLogger is disabled by default", TestAppLoggerIsDisabledByDefault),
@@ -1449,6 +1451,100 @@ static void TestAppSettingsStoreSaveDoesNotMutateSourceSettings()
         RestoreDirectory(referenceDirectory, referenceSnapshot);
         RestoreDirectory(personalBestTimeDirectory, personalBestTimeSnapshot);
         RestoreDirectory(personalBestSegmentDirectory, personalBestSegmentSnapshot);
+    }
+}
+
+static void TestSplitTimeRepositoriesUseInjectedRuntimeDataPaths()
+{
+    string baseDirectory = Path.Combine(
+        Path.GetTempPath(),
+        "TerrariaSplit.Tests",
+        "split-time-repository-" + Guid.NewGuid().ToString("N"));
+    try
+    {
+        var paths = new AppContextRuntimeDataPaths(baseDirectory);
+        var splitTimeSets = new SplitTimeSetRepository(paths);
+        splitTimeSets.EnsureDirectories();
+
+        AssertEqual(paths.ReferenceTimesDirectory, splitTimeSets.ReferenceDirectory);
+        AssertEqual(paths.LastRunTimesDirectory, splitTimeSets.LastRunDirectory);
+        AssertEqual(true, Directory.Exists(paths.ReferenceTimesDirectory));
+        AssertEqual(true, Directory.Exists(paths.LastRunTimesDirectory));
+
+        splitTimeSets.SaveReferenceSets(
+        [
+            new ReferenceSplitSet
+            {
+                Name = "Injected Reference",
+                Splits = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["condition:injected"] = "00:01"
+                }
+            }
+        ]);
+
+        AssertEqual(true, File.Exists(Path.Combine(paths.ReferenceTimesDirectory, "Injected Reference.json")));
+        AssertEqual("Injected Reference", splitTimeSets.LoadReferenceSets().Single().Name);
+
+        var runStats = new RunStatsRepository(splitTimeSets);
+        runStats.RecordRun(
+        [
+            new SplitStatusSnapshot(
+                new SplitDefinition("split:injected", "Injected", SplitCondition.Fact("fact:injected"), [], [], []),
+                TimeSpan.FromSeconds(2),
+                IsSkipped: false,
+                CompletedFactKeys: [])
+        ]);
+
+        AssertEqual(1, Directory.EnumerateFiles(paths.LastRunTimesDirectory, "*.json").Count());
+        AssertEqual(TimeText.FormatRecord(TimeSpan.FromSeconds(2)), runStats.Load().LastRunSplits["split:injected"]);
+    }
+    finally
+    {
+        DeleteDirectoryIfExists(baseDirectory);
+    }
+}
+
+static void TestAppSettingsRepositorySavesSplitTimeSetsThroughInjectedRepository()
+{
+    string baseDirectory = Path.Combine(
+        Path.GetTempPath(),
+        "TerrariaSplit.Tests",
+        "settings-repository-split-times-" + Guid.NewGuid().ToString("N"));
+    try
+    {
+        var paths = new AppContextRuntimeDataPaths(baseDirectory);
+        var splitTimeSets = new SplitTimeSetRepository(paths);
+        var settingsRepository = new AppSettingsRepository(paths, splitTimeSets);
+        AppSettings settings = AppSettingsDefaults.Create();
+        SettingsNormalizer.Normalize(settings);
+        IEnumerable<string> cumulativeKeys = SplitConditionDataRows.Build(settings).Select(row => row.Key);
+        IEnumerable<string> segmentKeys = SplitRouteGroups.Build(settings).Select(group => group.Key);
+
+        settings.Comparison.ReferenceSplitSets =
+        [
+            CreateSplitSet("Injected Reference", cumulativeKeys, "00:01")
+        ];
+        settings.Comparison.PersonalBestTimeSets =
+        [
+            CreateSplitSet("Injected PB", cumulativeKeys, "00:02")
+        ];
+        settings.Comparison.PersonalBestSegmentSets =
+        [
+            CreateSplitSet("Injected Segments", segmentKeys, "00:03")
+        ];
+
+        OperationResult result = settingsRepository.Save(settings);
+
+        AssertEqual(true, result.Succeeded);
+        AssertEqual(true, File.Exists(Path.Combine(paths.SettingsDirectory, "settings.json")));
+        AssertEqual(true, File.Exists(Path.Combine(paths.ReferenceTimesDirectory, "Injected Reference.json")));
+        AssertEqual(true, File.Exists(Path.Combine(paths.PersonalBestTimesDirectory, "Injected PB.json")));
+        AssertEqual(true, File.Exists(Path.Combine(paths.PersonalBestSegmentsDirectory, "Injected Segments.json")));
+    }
+    finally
+    {
+        DeleteDirectoryIfExists(baseDirectory);
     }
 }
 
