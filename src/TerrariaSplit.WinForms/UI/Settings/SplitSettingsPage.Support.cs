@@ -11,11 +11,6 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
         return routeDraft.CreateUniqueSplitId(preferredId);
     }
 
-    private bool TryValidateRoute(out string message)
-    {
-        return routeDraft.TryValidate(Context.Localize, out message);
-    }
-
     private sealed record RouteListItem(SplitRouteEntry Entry)
     {
         public override string ToString()

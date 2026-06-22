@@ -12,6 +12,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
     private readonly SplitRouteDraft routeDraft = new();
     private readonly SplitRouteListController routeController = new();
     private readonly SplitConditionEditorController conditionController = new();
+    private SplitSettingsCommitService commitService = null!;
     private SplitTargetListController targetController = null!;
     private ListBox targetList = null!;
     private ThemedDropDownList targetKindBox = null!;
@@ -74,6 +75,13 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
 
     protected override Control BuildPage(SettingsPageContext context)
     {
+        commitService = new SplitSettingsCommitService(
+            routeDraft,
+            routeController,
+            SaveSelectedEntryFromControls,
+            () => conditionController.AdvancedError,
+            context.Localize,
+            context.NotifyModelChanged);
         routeDraft.LoadFrom(Draft.Route);
 
         Control page = context.BuildScrollPage(content =>
@@ -93,56 +101,20 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
 
     public override void Apply(AppSettings settings)
     {
-        if (!SaveSelectedEntryFromControls())
+        SplitCommitResult result = commitService.CommitTo(settings, SplitCommitMode.StrictApply);
+        statusLabel.Text = result.Message;
+        if (!result.Succeeded)
         {
-            throw new SettingsApplyFailedException(conditionController.AdvancedError);
+            throw new SettingsApplyFailedException(result.Message);
         }
-
-        routeDraft.EnsureEntryIds();
-        routeDraft.NormalizeAttachedRouteFlags();
-        if (TryValidateRoute(out string validationMessage))
-        {
-            settings.Route.SplitRoute = routeDraft.CreateSnapshot();
-
-            SettingsNormalizer.Normalize(settings);
-            statusLabel.Text = string.Empty;
-            if (routeController.Dirty)
-            {
-                Context.NotifyModelChanged(SettingsModelChange.RouteChanged);
-            }
-
-            routeController.ClearDirty();
-            return;
-        }
-
-        statusLabel.Text = validationMessage;
-        throw new SettingsApplyFailedException(validationMessage);
     }
 
     public override void OnDeselected()
     {
-        if (!SaveSelectedEntryFromControls())
+        SplitCommitResult result = commitService.CommitTo(Draft, SplitCommitMode.LenientDeselection);
+        if (!result.Succeeded || result.RouteChanged)
         {
-            statusLabel.Text = conditionController.AdvancedError;
-            return;
-        }
-
-        routeDraft.EnsureEntryIds();
-        routeDraft.NormalizeAttachedRouteFlags();
-        string validationMessage = string.Empty;
-        if (routeController.Dirty && TryValidateRoute(out validationMessage))
-        {
-            Draft.Route.SplitRoute = routeDraft.CreateSnapshot();
-            SettingsNormalizer.Normalize(Draft);
-            Context.NotifyModelChanged(SettingsModelChange.RouteChanged);
-            statusLabel.Text = string.Empty;
-            routeController.ClearDirty();
-            return;
-        }
-
-        if (routeController.Dirty)
-        {
-            statusLabel.Text = validationMessage;
+            statusLabel.Text = result.Message;
         }
     }
 

@@ -50,6 +50,8 @@ internal static class MainShellRefactorTests
         yield return ("Settings form uses themed drop-down lists", SettingsFormUsesThemedDropDownLists);
         yield return ("SplitRouteListController consumes route drags once", SplitRouteListControllerConsumesRouteDragsOnce);
         yield return ("SplitRouteListController tracks route edit state", SplitRouteListControllerTracksRouteEditState);
+        yield return ("SplitSettingsCommitService commits dirty route", SplitSettingsCommitServiceCommitsDirtyRoute);
+        yield return ("SplitSettingsCommitService skips clean deselection notification", SplitSettingsCommitServiceSkipsCleanDeselectionNotification);
         yield return ("SplitConditionEditorController cancels condition drags", SplitConditionEditorControllerCancelsConditionDrags);
         yield return ("ApplicationShellEffectExecutor reports settings save failure", ApplicationShellEffectExecutorReportsSettingsSaveFailure);
         yield return ("ApplicationShellEffectExecutor rejects unknown effects", ApplicationShellEffectExecutorRejectsUnknownEffects);
@@ -1092,6 +1094,71 @@ internal static class MainShellRefactorTests
 
         TestAssert.Equal(false, controller.Dirty);
         TestAssert.Equal(-1, controller.LoadedEntryIndex);
+    }
+
+    private static void SplitSettingsCommitServiceCommitsDirtyRoute()
+    {
+        var routeDraft = new SplitRouteDraft();
+        routeDraft.LoadFrom(new AppSettings().Route);
+        var routeController = new SplitRouteListController();
+        routeController.MarkDirty();
+        int routeChangedNotifications = 0;
+        var commitService = new SplitSettingsCommitService(
+            routeDraft,
+            routeController,
+            () => true,
+            () => "editor failed",
+            key => key,
+            change =>
+            {
+                if (change == SettingsModelChange.RouteChanged)
+                {
+                    routeChangedNotifications++;
+                }
+            });
+
+        AppSettings target = new();
+        SplitCommitResult result = commitService.CommitTo(target, SplitCommitMode.StrictApply);
+
+        TestAssert.Equal(true, result.Succeeded);
+        TestAssert.Equal(true, result.RouteChanged);
+        TestAssert.Equal(string.Empty, result.Message);
+        TestAssert.Equal(false, routeController.Dirty);
+        TestAssert.Equal(1, routeChangedNotifications);
+        TestAssert.Equal(routeDraft.Entries.Count, target.Route.SplitRoute.Count);
+    }
+
+    private static void SplitSettingsCommitServiceSkipsCleanDeselectionNotification()
+    {
+        var routeDraft = new SplitRouteDraft();
+        routeDraft.LoadFrom(new AppSettings().Route);
+        var routeController = new SplitRouteListController();
+        int saveCalls = 0;
+        int routeChangedNotifications = 0;
+        var commitService = new SplitSettingsCommitService(
+            routeDraft,
+            routeController,
+            () =>
+            {
+                saveCalls++;
+                return true;
+            },
+            () => "editor failed",
+            key => key,
+            change =>
+            {
+                if (change == SettingsModelChange.RouteChanged)
+                {
+                    routeChangedNotifications++;
+                }
+            });
+
+        SplitCommitResult result = commitService.CommitTo(new AppSettings(), SplitCommitMode.LenientDeselection);
+
+        TestAssert.Equal(true, result.Succeeded);
+        TestAssert.Equal(false, result.RouteChanged);
+        TestAssert.Equal(1, saveCalls);
+        TestAssert.Equal(0, routeChangedNotifications);
     }
 
     private static void SplitConditionEditorControllerCancelsConditionDrags()
