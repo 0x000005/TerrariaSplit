@@ -14,8 +14,7 @@ internal sealed class CreateWorldWorkflow : IDisposable
     private readonly ZenithStarCatchAutomation zenithStarCatchAutomation;
     private readonly PyramidFilterAutomation pyramidFilterAutomation;
     private readonly PyramidSeedPreScreenAutomation pyramidSeedPreScreenAutomation;
-    private readonly TerrariaWorldFilePyramidScanner worldFileScanner = new();
-    private readonly WorldPoolStore? worldPool;
+    private readonly WorldPoolInstallWorkflow worldPoolInstallWorkflow;
     private TimeSpan shortActionDelay = TimeSpan.FromMilliseconds(AppSettingsDefaults.Automation.AutoCreate.ShortActionDelayMilliseconds);
     private TimeSpan menuActionDelay = TimeSpan.FromMilliseconds(AppSettingsDefaults.Automation.AutoCreate.MenuActionDelayMilliseconds);
     private int pyramidFilterPostDelayMilliseconds = AppSettingsDefaults.Automation.AutoCreate.PyramidFilterPostDelayMilliseconds;
@@ -23,11 +22,11 @@ internal sealed class CreateWorldWorkflow : IDisposable
 
     public CreateWorldWorkflow(WorldPoolStore? worldPool = null)
     {
-        this.worldPool = worldPool;
         windowActivation = new WindowActivationService(automation, "Create world");
         zenithStarCatchAutomation = new ZenithStarCatchAutomation(automation);
         pyramidFilterAutomation = new PyramidFilterAutomation(automation);
         pyramidSeedPreScreenAutomation = new PyramidSeedPreScreenAutomation(automation);
+        worldPoolInstallWorkflow = new WorldPoolInstallWorkflow(worldPool);
     }
 
     public Task<AutomationResult> RunAsync(CancellationToken cancellationToken = default)
@@ -64,7 +63,7 @@ internal sealed class CreateWorldWorkflow : IDisposable
                 }
 
                 string worldGenSignature = WorldPoolSignature.From(settings);
-                CreateWorldPoolInstallStep poolInstall = await InstallPooledWorldAsync(autoCreate, worldGenSignature, cancellationToken);
+                WorldPoolInstallResult poolInstall = await InstallPooledWorldAsync(autoCreate, worldGenSignature, cancellationToken);
                 if (!poolInstall.Succeeded)
                 {
                     return BuildFailure(poolInstall.UserMessage, poolInstall.DiagnosticMessage);
@@ -79,7 +78,7 @@ internal sealed class CreateWorldWorkflow : IDisposable
 
                 if (poolInstall.InstalledWorld is not null)
                 {
-                    worldPool?.RemoveFirst(worldGenSignature, poolInstall.InstalledWorld);
+                    worldPoolInstallWorkflow.RemoveInstalled(worldGenSignature, poolInstall.InstalledWorld);
                     AppLogger.Info(
                         $"Create world automation installed pooled world {poolInstall.InstalledWorld.WorldFileName}; " +
                         "stopped at world select.");
@@ -128,23 +127,23 @@ internal sealed class CreateWorldWorkflow : IDisposable
         return new CreateWorldCleanupStep(succeeded, cleanup);
     }
 
-    private async Task<CreateWorldPoolInstallStep> InstallPooledWorldAsync(
+    private async Task<WorldPoolInstallResult> InstallPooledWorldAsync(
         AutoCreateWorldSettings settings,
         string worldGenSignature,
         CancellationToken cancellationToken)
     {
-        CreateWorldPoolInstallStep installStep = CreateWorldPoolInstallStep.NotInstalled();
+        WorldPoolInstallResult installStep = WorldPoolInstallResult.NotInstalled();
         bool succeeded = await automation.RunStepAsync(
             "install pooled world",
             _ =>
             {
-                installStep = TryInstallPooledWorld(settings, worldGenSignature);
+                installStep = worldPoolInstallWorkflow.TryInstall(settings, worldGenSignature);
                 return Task.FromResult(installStep.Succeeded);
             },
             cancellationToken);
         return succeeded
             ? installStep
-            : CreateWorldPoolInstallStep.Failed(
+            : WorldPoolInstallResult.Failed(
                 installStep.UserMessage,
                 installStep.DiagnosticMessage);
     }
@@ -252,64 +251,6 @@ internal sealed class CreateWorldWorkflow : IDisposable
                     "Create world automation failed to clean up rejected world files before retrying.");
             }
         }
-    }
-
-    private CreateWorldPoolInstallStep TryInstallPooledWorld(AutoCreateWorldSettings settings, string signature)
-    {
-        if (worldPool is null ||
-            !settings.EnableWorldPool)
-        {
-            return CreateWorldPoolInstallStep.NotInstalled();
-        }
-
-        while (worldPool.TryPeekFirst(signature, out WorldPoolEntry entry))
-        {
-            TerrariaWorldSeedMetadata storedMetadata = entry.ToMetadata();
-            if (!storedMetadata.MatchesWorldOptions(settings))
-            {
-                AppLogger.Info(
-                    $"World pool discarded world {entry.WorldFileName}: stored metadata " +
-                    $"({storedMetadata.FormatWorldOptions()}) does not match current settings " +
-                    $"({TerrariaWorldSeedMetadata.FormatExpectedWorldOptions(settings)}).");
-                worldPool.RemoveFirst(signature, entry);
-                continue;
-            }
-
-            if (!worldPool.TryGetWorldPath(entry, out string pooledWorldPath))
-            {
-                AppLogger.Info($"World pool discarded world {entry.WorldFileName}: pooled world file is missing.");
-                worldPool.RemoveFirst(signature, entry);
-                continue;
-            }
-
-            if (!worldFileScanner.TryReadWorldSeedMetadata(pooledWorldPath, out TerrariaWorldSeedMetadata actualMetadata, out string detail) ||
-                !actualMetadata.Equals(storedMetadata) ||
-                !actualMetadata.MatchesWorldOptions(settings))
-            {
-                AppLogger.Info(
-                    $"World pool discarded world {entry.WorldFileName}: actual metadata " +
-                    $"({(detail.Length > 0 ? detail : actualMetadata.FormatWorldOptions())}) does not match stored/current settings " +
-                    $"({TerrariaWorldSeedMetadata.FormatExpectedWorldOptions(settings)}).");
-                worldPool.RemoveFirst(signature, entry);
-                continue;
-            }
-
-            string worldsPath = Path.Combine(TerrariaSavePaths.SaveRoot(), "Worlds");
-            if (worldPool.TryInstallWorld(entry, worldsPath, out string installedPath, out string message))
-            {
-                AppLogger.Info(
-                    $"Create world automation installed pooled world {entry.WorldFileName} " +
-                    $"to '{Path.GetFileName(installedPath)}' ({actualMetadata.FormatWorldOptions()}).");
-                return CreateWorldPoolInstallStep.Installed(entry);
-            }
-
-            AppLogger.Info($"Create world automation could not install pooled world {entry.WorldFileName}: {message}");
-            return CreateWorldPoolInstallStep.Failed(
-                "Could not install a pooled Terraria world.",
-                $"Create world automation could not install pooled world {entry.WorldFileName}: {message}");
-        }
-
-        return CreateWorldPoolInstallStep.NotInstalled();
     }
 
     private async Task<CreateWorldAttemptResult> CreateOneWorldAsync(
@@ -711,28 +652,6 @@ internal sealed class CreateWorldWorkflow : IDisposable
 internal readonly record struct CreateWorldActivationStep(bool Succeeded, Size ClientSize);
 
 internal readonly record struct CreateWorldCleanupStep(bool Succeeded, TerrariaSaveCleanupResult Cleanup);
-
-internal readonly record struct CreateWorldPoolInstallStep(
-    bool Succeeded,
-    WorldPoolEntry? InstalledWorld,
-    string UserMessage,
-    string DiagnosticMessage)
-{
-    public static CreateWorldPoolInstallStep NotInstalled()
-    {
-        return new CreateWorldPoolInstallStep(true, null, string.Empty, string.Empty);
-    }
-
-    public static CreateWorldPoolInstallStep Installed(WorldPoolEntry installedWorld)
-    {
-        return new CreateWorldPoolInstallStep(true, installedWorld, string.Empty, string.Empty);
-    }
-
-    public static CreateWorldPoolInstallStep Failed(string userMessage, string diagnosticMessage)
-    {
-        return new CreateWorldPoolInstallStep(false, null, userMessage, diagnosticMessage);
-    }
-}
 
 internal readonly record struct CreateWorldLoopResult(
     bool ContinueFromMainMenu,
