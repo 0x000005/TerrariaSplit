@@ -99,7 +99,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
         routeList.DrawItem += DrawRouteListItem;
         routeList.MouseDown += RouteListMouseDown;
         routeList.MouseMove += RouteListMouseMove;
-        routeList.MouseUp += (_, _) => routeDragIndex = -1;
+        routeList.MouseUp += (_, _) => routeController.CancelDrag();
         routeList.DragOver += RouteListDragOver;
         routeList.DragDrop += RouteListDragDrop;
         AddFullWidth(panel, CreateEditorListFrame(routeList));
@@ -170,7 +170,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
         conditionList.SelectedIndexChanged += (_, _) => LoadSelectedConditionSettings();
         conditionList.MouseDown += ConditionListMouseDown;
         conditionList.MouseMove += ConditionListMouseMove;
-        conditionList.MouseUp += (_, _) => conditionDragIndex = -1;
+        conditionList.MouseUp += (_, _) => conditionController.CancelDrag();
         conditionList.DragOver += ConditionListDragOver;
         conditionList.DragDrop += ConditionListDragDrop;
         conditionList.KeyDown += (_, e) =>

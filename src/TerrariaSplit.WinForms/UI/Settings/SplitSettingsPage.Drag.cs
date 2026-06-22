@@ -130,7 +130,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
 
     private void RouteListMouseDown(object? sender, MouseEventArgs e)
     {
-        routeDragIndex = -1;
+        routeController.CancelDrag();
         if (e.Button != MouseButtons.Left)
         {
             return;
@@ -142,21 +142,16 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
             return;
         }
 
-        routeDragIndex = index;
-        routeDragStartPoint = e.Location;
+        routeController.BeginDrag(index, e.Location);
     }
 
     private void RouteListMouseMove(object? sender, MouseEventArgs e)
     {
-        if (routeDragIndex < 0 ||
-            e.Button != MouseButtons.Left ||
-            !HasMovedBeyondDragThreshold(routeDragStartPoint, e.Location))
+        if (!routeController.TryConsumeDrag(e.Button, e.Location, out int index))
         {
             return;
         }
 
-        int index = routeDragIndex;
-        routeDragIndex = -1;
         if (!SaveSelectedEntryFromControls())
         {
             return;
@@ -219,7 +214,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
             return;
         }
 
-        conditionDragIndex = -1;
+        conditionController.CancelDrag();
         if (e.Button != MouseButtons.Left)
         {
             return;
@@ -231,8 +226,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
             return;
         }
 
-        conditionDragIndex = index;
-        conditionDragStartPoint = e.Location;
+        conditionController.BeginDrag(index, e.Location);
     }
 
     private void ConditionListMouseMove(object? sender, MouseEventArgs e)
@@ -242,15 +236,11 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
             return;
         }
 
-        if (conditionDragIndex < 0 ||
-            e.Button != MouseButtons.Left ||
-            !HasMovedBeyondDragThreshold(conditionDragStartPoint, e.Location))
+        if (!conditionController.TryConsumeDrag(e.Button, e.Location, out int index))
         {
             return;
         }
 
-        int index = conditionDragIndex;
-        conditionDragIndex = -1;
         conditionList.SelectedIndex = index;
         conditionList.DoDragDrop(new ConditionDragItem(index), DragDropEffects.Move);
     }
@@ -352,16 +342,5 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
         return point.Y > bounds.Top + (bounds.Height / 2)
             ? index + 1
             : index;
-    }
-
-    private static bool HasMovedBeyondDragThreshold(Point startPoint, Point currentPoint)
-    {
-        Size dragSize = SystemInformation.DragSize;
-        Rectangle dragBounds = new(
-            startPoint.X - (dragSize.Width / 2),
-            startPoint.Y - (dragSize.Height / 2),
-            dragSize.Width,
-            dragSize.Height);
-        return !dragBounds.Contains(currentPoint);
     }
 }

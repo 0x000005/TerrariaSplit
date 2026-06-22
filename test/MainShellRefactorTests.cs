@@ -48,6 +48,8 @@ internal static class MainShellRefactorTests
         yield return ("ThemedScrollPanel routes list wheel to inner list until boundary", ThemedScrollPanelRoutesListWheelToInnerListUntilBoundary);
         yield return ("FontFamilySelector uses themed drop-down list", FontFamilySelectorUsesThemedDropDownList);
         yield return ("Settings form uses themed drop-down lists", SettingsFormUsesThemedDropDownLists);
+        yield return ("SplitRouteListController consumes route drags once", SplitRouteListControllerConsumesRouteDragsOnce);
+        yield return ("SplitConditionEditorController cancels condition drags", SplitConditionEditorControllerCancelsConditionDrags);
         yield return ("ApplicationShellEffectExecutor reports settings save failure", ApplicationShellEffectExecutorReportsSettingsSaveFailure);
         yield return ("ApplicationShellEffectExecutor rejects unknown effects", ApplicationShellEffectExecutorRejectsUnknownEffects);
     }
@@ -1053,6 +1055,29 @@ internal static class MainShellRefactorTests
             TestAssert.Equal(false, controls.OfType<ComboBox>().Any());
             TestAssert.Equal(true, controls.OfType<ThemedDropDownList>().Any());
         });
+    }
+
+    private static void SplitRouteListControllerConsumesRouteDragsOnce()
+    {
+        var controller = new SplitRouteListController();
+
+        controller.BeginDrag(3, Point.Empty);
+
+        TestAssert.Equal(false, controller.TryConsumeDrag(MouseButtons.None, new Point(500, 500), out _));
+        TestAssert.Equal(false, controller.TryConsumeDrag(MouseButtons.Left, Point.Empty, out _));
+        TestAssert.Equal(true, controller.TryConsumeDrag(MouseButtons.Left, new Point(500, 500), out int index));
+        TestAssert.Equal(3, index);
+        TestAssert.Equal(false, controller.TryConsumeDrag(MouseButtons.Left, new Point(500, 500), out _));
+    }
+
+    private static void SplitConditionEditorControllerCancelsConditionDrags()
+    {
+        var controller = new SplitConditionEditorController();
+
+        controller.BeginDrag(2, Point.Empty);
+        controller.CancelDrag();
+
+        TestAssert.Equal(false, controller.TryConsumeDrag(MouseButtons.Left, new Point(500, 500), out _));
     }
 
     private static void ApplicationShellEffectExecutorReportsSettingsSaveFailure()

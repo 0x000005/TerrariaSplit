@@ -10,6 +10,8 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
     private const int TopSettingsRowsHeight = 174;
 
     private readonly SplitRouteDraft routeDraft = new();
+    private readonly SplitRouteListController routeController = new();
+    private readonly SplitConditionEditorController conditionController = new();
     private SplitTargetListController targetController = null!;
     private ListBox targetList = null!;
     private ThemedDropDownList targetKindBox = null!;
@@ -40,10 +42,6 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
     private bool advancedConditionMode;
     private string advancedConditionError = string.Empty;
     private int loadedRouteEntryIndex = -1;
-    private int routeDragIndex = -1;
-    private Point routeDragStartPoint;
-    private int conditionDragIndex = -1;
-    private Point conditionDragStartPoint;
 
     private List<SplitRouteEntry> routeEntries => routeDraft.Entries;
 
