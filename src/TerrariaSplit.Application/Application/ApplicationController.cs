@@ -29,6 +29,9 @@ public sealed record StartSplitCompletionAnimationEffect(int SplitIndex)
 public sealed record SaveSettingsEffect(AppSettings Settings)
     : ApplicationEffect;
 
+public sealed record ShowPersistenceFailureEffect(OperationResult Result)
+    : ApplicationEffect;
+
 public sealed record StartCreateWorldAutomationEffect()
     : ApplicationEffect;
 
@@ -168,13 +171,18 @@ public sealed class ApplicationController
 
     private void AddResetEffects(List<ApplicationEffect> effects, bool recordStats, bool playResetSound)
     {
-        bool settingsUpdated = runLifecycle.Reset(Settings, ViewState.DisplayStatuses, recordStats, confirmPersonalBestUpdate);
+        RunFinalizationResult finalization = runLifecycle.Reset(
+            Settings,
+            ViewState.DisplayStatuses,
+            recordStats,
+            confirmPersonalBestUpdate);
         ViewState = ApplicationViewState.FromDefinitions(Settings, Definitions);
-        if (settingsUpdated)
+        if (finalization.SettingsUpdated)
         {
             effects.Add(CreateSaveSettingsEffect(Settings));
         }
 
+        AddPersistenceFailureEffects(effects, finalization.PersistenceFailures);
         effects.Add(new ClearOverlayAnimationEffect());
         effects.Add(new RefreshTimerOverlaySettingsEffect());
         if (playResetSound)
@@ -233,7 +241,7 @@ public sealed class ApplicationController
     {
         AppSettings previousSettings = settingsSnapshots.CreateSnapshot(Settings);
         AppSettings nextSettings = settingsSnapshots.CreateSnapshot(appliedSettings);
-        runLifecycle.Reset(
+        RunFinalizationResult finalization = runLifecycle.Reset(
             Settings,
             nextSettings,
             ViewState.DisplayStatuses,
@@ -244,6 +252,7 @@ public sealed class ApplicationController
         ViewState = ApplicationViewState.FromDefinitions(Settings, Definitions);
 
         effects.Add(CreateSaveSettingsEffect(Settings));
+        AddPersistenceFailureEffects(effects, finalization.PersistenceFailures);
         effects.Add(new ClearOverlayAnimationEffect());
         effects.Add(new RefreshTimerOverlaySettingsEffect());
         effects.Add(new SubmitRuntimeCommandEffect(RuntimeCommand.Reset()));
@@ -255,6 +264,16 @@ public sealed class ApplicationController
     private ApplicationEffect CreateSaveSettingsEffect(AppSettings settings)
     {
         return new SaveSettingsEffect(settingsSnapshots.CreateSnapshot(settings));
+    }
+
+    private static void AddPersistenceFailureEffects(
+        List<ApplicationEffect> effects,
+        IReadOnlyList<OperationResult> failures)
+    {
+        foreach (OperationResult failure in failures)
+        {
+            effects.Add(new ShowPersistenceFailureEffect(failure));
+        }
     }
 }
 

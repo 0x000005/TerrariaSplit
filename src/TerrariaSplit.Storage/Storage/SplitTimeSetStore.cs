@@ -65,7 +65,27 @@ public sealed class SplitTimeSetRepository
         string? previousTime,
         string newTime)
     {
-        return SavePersonalBestSnapshot(PersonalBestTimeDirectory, splits, bossName, previousTime, newTime);
+        OperationResult result = TrySavePersonalBestTimeSnapshot(splits, bossName, previousTime, newTime, out ReferenceSplitSet? snapshot);
+        return result.Succeeded && snapshot is not null
+            ? snapshot
+            : throw new InvalidOperationException(result.Message, result.Exception);
+    }
+
+    public OperationResult TrySavePersonalBestTimeSnapshot(
+        Dictionary<string, string> splits,
+        string bossName,
+        string? previousTime,
+        string newTime,
+        out ReferenceSplitSet? snapshot)
+    {
+        return TrySavePersonalBestSnapshot(
+            PersonalBestTimeDirectory,
+            "personal best time set",
+            splits,
+            bossName,
+            previousTime,
+            newTime,
+            out snapshot);
     }
 
     public ReferenceSplitSet SavePersonalBestSegmentSnapshot(
@@ -74,7 +94,27 @@ public sealed class SplitTimeSetRepository
         string? previousTime,
         string newTime)
     {
-        return SavePersonalBestSnapshot(PersonalBestSegmentDirectory, splits, bossName, previousTime, newTime);
+        OperationResult result = TrySavePersonalBestSegmentSnapshot(splits, bossName, previousTime, newTime, out ReferenceSplitSet? snapshot);
+        return result.Succeeded && snapshot is not null
+            ? snapshot
+            : throw new InvalidOperationException(result.Message, result.Exception);
+    }
+
+    public OperationResult TrySavePersonalBestSegmentSnapshot(
+        Dictionary<string, string> splits,
+        string bossName,
+        string? previousTime,
+        string newTime,
+        out ReferenceSplitSet? snapshot)
+    {
+        return TrySavePersonalBestSnapshot(
+            PersonalBestSegmentDirectory,
+            "personal best segment set",
+            splits,
+            bossName,
+            previousTime,
+            newTime,
+            out snapshot);
     }
 
     public Dictionary<string, string> LoadLatestLastRun()
@@ -260,9 +300,47 @@ public sealed class SplitTimeSetRepository
         return set;
     }
 
+    private static OperationResult TrySavePersonalBestSnapshot(
+        string directory,
+        string description,
+        Dictionary<string, string> splits,
+        string bossName,
+        string? previousTime,
+        string newTime,
+        out ReferenceSplitSet? snapshot)
+    {
+        snapshot = null;
+        try
+        {
+            Directory.CreateDirectory(directory);
+            string name = BuildPersonalBestSnapshotName(bossName, previousTime, newTime);
+            snapshot = new ReferenceSplitSet
+            {
+                Name = name,
+                Splits = new Dictionary<string, string>(splits, StringComparer.OrdinalIgnoreCase)
+            };
+            return TrySaveSet(directory, $"{name}.json", snapshot, description);
+        }
+        catch (Exception ex)
+        {
+            StaticAppLogger.Instance.Error(ex, $"Failed to save {description}: {directory}");
+            snapshot = null;
+            return OperationResult.Failure($"Failed to save {description}.", ex);
+        }
+    }
+
     private static void SaveSet(string directory, string fileName, ReferenceSplitSet set)
     {
         JsonFileStore.Write(Path.Combine(directory, fileName), set, "split time set");
+    }
+
+    private static OperationResult TrySaveSet(
+        string directory,
+        string fileName,
+        ReferenceSplitSet set,
+        string description)
+    {
+        return JsonFileStore.TryWrite(Path.Combine(directory, fileName), set, description);
     }
 
     private static string BuildLastRunName(string? lastBossName, TimeSpan? runDuration)
@@ -359,6 +437,16 @@ public static class SplitTimeSetStore
         return Repository.SavePersonalBestTimeSnapshot(splits, bossName, previousTime, newTime);
     }
 
+    public static OperationResult TrySavePersonalBestTimeSnapshot(
+        Dictionary<string, string> splits,
+        string bossName,
+        string? previousTime,
+        string newTime,
+        out ReferenceSplitSet? snapshot)
+    {
+        return Repository.TrySavePersonalBestTimeSnapshot(splits, bossName, previousTime, newTime, out snapshot);
+    }
+
     public static ReferenceSplitSet SavePersonalBestSegmentSnapshot(
         Dictionary<string, string> splits,
         string bossName,
@@ -366,6 +454,16 @@ public static class SplitTimeSetStore
         string newTime)
     {
         return Repository.SavePersonalBestSegmentSnapshot(splits, bossName, previousTime, newTime);
+    }
+
+    public static OperationResult TrySavePersonalBestSegmentSnapshot(
+        Dictionary<string, string> splits,
+        string bossName,
+        string? previousTime,
+        string newTime,
+        out ReferenceSplitSet? snapshot)
+    {
+        return Repository.TrySavePersonalBestSegmentSnapshot(splits, bossName, previousTime, newTime, out snapshot);
     }
 
     public static Dictionary<string, string> LoadLatestLastRun()

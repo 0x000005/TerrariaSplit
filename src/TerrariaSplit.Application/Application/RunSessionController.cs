@@ -19,7 +19,7 @@ internal sealed class RunLifecycleController
         runStatsRecorded = false;
     }
 
-    public bool Reset(
+    public RunFinalizationResult Reset(
         AppSettings settings,
         IReadOnlyList<SplitStatusSnapshot> statuses,
         bool recordStats,
@@ -28,17 +28,17 @@ internal sealed class RunLifecycleController
         return Reset(settings, settings, statuses, recordStats, confirmPersonalBestUpdate);
     }
 
-    public bool Reset(
+    public RunFinalizationResult Reset(
         AppSettings routeSettings,
         AppSettings updateTargetSettings,
         IReadOnlyList<SplitStatusSnapshot> statuses,
         bool recordStats,
         Func<string, bool> confirmPersonalBestUpdate)
     {
-        bool settingsUpdated = false;
+        RunFinalizationResult result = RunFinalizationResult.NoChanges;
         if (recordStats)
         {
-            settingsUpdated = runFinalizer.Finalize(
+            result = runFinalizer.Finalize(
                 routeSettings,
                 updateTargetSettings,
                 statuses,
@@ -48,7 +48,7 @@ internal sealed class RunLifecycleController
         }
 
         runStatsRecorded = false;
-        return settingsUpdated;
+        return result;
     }
 
     public void RecordRunStatsOnce(IReadOnlyList<SplitStatusSnapshot> statuses)

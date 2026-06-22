@@ -16,8 +16,26 @@ internal static class MainShellCompositionRoot
         IAppLogger logger = StaticAppLogger.Instance;
         var runStatisticsRecorder = new DelegateRunStatisticsRecorder(runStatsRepository.RecordRun);
         var personalBestSnapshotStore = new DelegatePersonalBestSnapshotStore(
-            splitTimeSets.SavePersonalBestTimeSnapshot,
-            splitTimeSets.SavePersonalBestSegmentSnapshot);
+            (splits, bossName, previousTime, newTime) =>
+            {
+                OperationResult result = splitTimeSets.TrySavePersonalBestTimeSnapshot(
+                    splits,
+                    bossName,
+                    previousTime,
+                    newTime,
+                    out ReferenceSplitSet? snapshot);
+                return PersonalBestSnapshotSaveResult.FromResult(result, snapshot);
+            },
+            (splits, bossName, previousTime, newTime) =>
+            {
+                OperationResult result = splitTimeSets.TrySavePersonalBestSegmentSnapshot(
+                    splits,
+                    bossName,
+                    previousTime,
+                    newTime,
+                    out ReferenceSplitSet? snapshot);
+                return PersonalBestSnapshotSaveResult.FromResult(result, snapshot);
+            });
         var applicationController = new ApplicationController(
             settingsRepository.Load(),
             confirmPersonalBestUpdate,

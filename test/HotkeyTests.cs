@@ -10,6 +10,7 @@ internal static class HotkeyTests
         yield return ("Hotkey command mapper routes hotkeys into app commands", HotkeyCommandMapperRoutesHotkeysIntoAppCommands);
         yield return ("ApplicationController maps input commands to effects", ApplicationControllerMapsInputCommandsToEffects);
         yield return ("ApplicationController apply settings preserves pending PB update", ApplicationControllerApplySettingsPreservesPendingPersonalBestUpdate);
+        yield return ("ApplicationController reports personal best snapshot save failure", ApplicationControllerReportsPersonalBestSnapshotSaveFailure);
         yield return ("TimerController consumes queued menu actions only on menu", TimerControllerConsumesQueuedMenuActionsOnlyOnMenu);
         yield return ("TimerController records automatic events at observed timestamps", TimerControllerRecordsAutomaticEventsAtObservedTimestamps);
         yield return ("SplitCondition evaluates tri-state groups", SplitConditionEvaluatesTriStateGroups);
@@ -188,6 +189,79 @@ internal static class HotkeyTests
         TestAssert.Equal(true, update.Effects.Any(effect =>
             effect is SubmitRuntimeCommandEffect submit &&
             submit.Command.Kind == RuntimeCommandKind.Reset));
+    }
+
+    private static void ApplicationControllerReportsPersonalBestSnapshotSaveFailure()
+    {
+        var settings = new AppSettings
+        {
+            Comparison =
+            {
+                AutoUpdatePersonalBestData = true,
+                AskBeforeUpdatingPersonalBestData = false
+            },
+            Route =
+            {
+                SplitRoute =
+                [
+                    new SplitRouteEntry
+                    {
+                        Id = "split:skeletron",
+                        DisplayName = "Skeletron",
+                        Condition = SplitCatalog.CreateBossFactCondition(SplitCatalog.Skeletron),
+                        IconTargetIds = [SplitCatalog.Skeletron]
+                    }
+                ]
+            }
+        };
+        settings.Comparison.PersonalBestSegmentTimes["split:skeletron"] = "1:00.00";
+
+        OperationResult failure = OperationResult.Failure("Could not save PB snapshot.");
+        int saveAttempts = 0;
+        var failingStore = new DelegatePersonalBestSnapshotStore(
+            (_, _, _, _) =>
+            {
+                saveAttempts++;
+                return PersonalBestSnapshotSaveResult.FromResult(failure, null);
+            },
+            (_, _, _, _) =>
+            {
+                saveAttempts++;
+                return PersonalBestSnapshotSaveResult.FromResult(failure, null);
+            });
+        var controller = new ApplicationController(
+            settings,
+            _ => true,
+            new StoredSettingsSnapshotFactory(),
+            personalBestSnapshotStore: failingStore);
+        var tracker = new SplitTracker();
+        tracker.SetDefinitions(controller.Definitions);
+        tracker.Statuses[0].SetTime(TimeSpan.FromSeconds(30));
+        RuntimeRunSnapshot runtimeSnapshot = RuntimeRunSnapshot.FromState(
+            new SplitTimerState(SplitTimerPhase.Paused, TimeSpan.FromSeconds(30), 0),
+            tracker,
+            Stopwatch.GetTimestamp());
+
+        controller.HandleWatcherNotification(new WatcherPollNotification(
+            TestSnapshots.Terraria(isGameMenu: false),
+            TestSnapshots.Terraria(isGameMenu: false),
+            TerrariaWatcherDiagnosticsDefaults.Empty,
+            runtimeSnapshot,
+            [],
+            0,
+            TimeSpan.Zero,
+            Stopwatch.GetTimestamp(),
+            TimeSpan.FromMilliseconds(5),
+            TimeSpan.Zero,
+            null));
+
+        ApplicationUpdate update = controller.HandleCommand(AppCommand.ResetRun(recordStats: true, playResetSound: false));
+
+        TestAssert.Equal(1, saveAttempts);
+        TestAssert.Equal("0:30.00", controller.Settings.Comparison.PersonalBestSegmentTimes["split:skeletron"]);
+        TestAssert.Equal(true, update.Effects.Any(effect => effect is SaveSettingsEffect));
+        ShowPersistenceFailureEffect failureEffect = update.Effects.OfType<ShowPersistenceFailureEffect>().Single();
+        TestAssert.Equal("Could not save PB snapshot.", failureEffect.Result.Message);
     }
 
     private static void TimerControllerConsumesQueuedMenuActionsOnlyOnMenu()

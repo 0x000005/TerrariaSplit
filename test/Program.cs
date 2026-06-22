@@ -1486,6 +1486,19 @@ static void TestSplitTimeRepositoriesUseInjectedRuntimeDataPaths()
         AssertEqual(true, File.Exists(Path.Combine(paths.ReferenceTimesDirectory, "Injected Reference.json")));
         AssertEqual("Injected Reference", splitTimeSets.LoadReferenceSets().Single().Name);
 
+        OperationResult snapshotResult = splitTimeSets.TrySavePersonalBestTimeSnapshot(
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["condition:injected"] = "00:02"
+            },
+            "Injected",
+            "00:03",
+            "00:02",
+            out ReferenceSplitSet? snapshot);
+        AssertEqual(true, snapshotResult.Succeeded);
+        AssertEqual(true, snapshot is not null);
+        AssertEqual(true, File.Exists(Path.Combine(paths.PersonalBestTimesDirectory, snapshot!.Name + ".json")));
+
         var runStats = new RunStatsRepository(splitTimeSets);
         runStats.RecordRun(
         [

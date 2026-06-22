@@ -13,7 +13,7 @@ internal sealed class RunFinalizer
         this.personalBestSnapshotStore = personalBestSnapshotStore ?? InMemoryPersonalBestSnapshotStore.Instance;
     }
 
-    public bool Finalize(
+    public RunFinalizationResult Finalize(
         AppSettings settings,
         IReadOnlyList<SplitStatusSnapshot> statuses,
         bool runStatsRecorded,
@@ -22,7 +22,7 @@ internal sealed class RunFinalizer
         return Finalize(settings, settings, statuses, runStatsRecorded, confirmPersonalBestUpdates);
     }
 
-    public bool Finalize(
+    public RunFinalizationResult Finalize(
         AppSettings routeSettings,
         AppSettings updateTargetSettings,
         IReadOnlyList<SplitStatusSnapshot> statuses,
@@ -40,7 +40,17 @@ internal sealed class RunFinalizer
                 confirmPersonalBestUpdates(BuildPersonalBestUpdatePromptText(updates, updateTargetSettings));
             if (shouldUpdate)
             {
-                ApplyPendingPersonalBestUpdates(updateTargetSettings, updates);
+                IReadOnlyList<OperationResult> failures = ApplyPendingPersonalBestUpdates(updateTargetSettings, updates);
+                if (failures.Count > 0)
+                {
+                    if (!runStatsRecorded)
+                    {
+                        runStatisticsRecorder.RecordRun(statuses);
+                    }
+
+                    return new RunFinalizationResult(true, failures);
+                }
+
                 settingsUpdated = true;
             }
         }
@@ -50,11 +60,14 @@ internal sealed class RunFinalizer
             runStatisticsRecorder.RecordRun(statuses);
         }
 
-        return settingsUpdated;
+        return new RunFinalizationResult(settingsUpdated, []);
     }
 
-    private void ApplyPendingPersonalBestUpdates(AppSettings settings, PendingPersonalBestUpdates updates)
+    private IReadOnlyList<OperationResult> ApplyPendingPersonalBestUpdates(
+        AppSettings settings,
+        PendingPersonalBestUpdates updates)
     {
+        var failures = new List<OperationResult>();
         List<PendingPersonalBestSegmentUpdate> segmentUpdates = updates.SegmentUpdates.Values.ToList();
         foreach (PendingPersonalBestSegmentUpdate update in segmentUpdates)
         {
@@ -64,13 +77,21 @@ internal sealed class RunFinalizer
         if (segmentUpdates.Count > 0)
         {
             (string bossName, string previousTimeText, string newTimeText) = BuildSnapshotLabel(segmentUpdates);
-            ReferenceSplitSet snapshot = personalBestSnapshotStore.SavePersonalBestSegmentSnapshot(
+            PersonalBestSnapshotSaveResult saveResult = personalBestSnapshotStore.SavePersonalBestSegmentSnapshot(
                 settings.Comparison.PersonalBestSegmentTimes,
                 bossName,
                 previousTimeText,
                 newTimeText);
-            AddPersonalBestSnapshot(settings.Comparison.PersonalBestSegmentSets, snapshot);
-            settings.Comparison.ActivePersonalBestSegmentSet = snapshot.Name;
+            if (saveResult.Succeeded)
+            {
+                ReferenceSplitSet snapshot = saveResult.Snapshot!;
+                AddPersonalBestSnapshot(settings.Comparison.PersonalBestSegmentSets, snapshot);
+                settings.Comparison.ActivePersonalBestSegmentSet = snapshot.Name;
+            }
+            else
+            {
+                failures.Add(saveResult.Failure);
+            }
         }
 
         if (updates.TimeUpdate is PendingPersonalBestTimeUpdate timeUpdate)
@@ -78,15 +99,24 @@ internal sealed class RunFinalizer
             settings.Comparison.PersonalBestTimes = new Dictionary<string, string>(
                 timeUpdate.Splits,
                 StringComparer.OrdinalIgnoreCase);
-            ReferenceSplitSet snapshot = personalBestSnapshotStore.SavePersonalBestTimeSnapshot(
+            PersonalBestSnapshotSaveResult saveResult = personalBestSnapshotStore.SavePersonalBestTimeSnapshot(
                 settings.Comparison.PersonalBestTimes,
                 timeUpdate.BossName,
                 timeUpdate.PreviousTimeText,
                 timeUpdate.NewTimeText);
-            AddPersonalBestSnapshot(settings.Comparison.PersonalBestTimeSets, snapshot);
-            settings.Comparison.ActivePersonalBestTimeSet = snapshot.Name;
+            if (saveResult.Succeeded)
+            {
+                ReferenceSplitSet snapshot = saveResult.Snapshot!;
+                AddPersonalBestSnapshot(settings.Comparison.PersonalBestTimeSets, snapshot);
+                settings.Comparison.ActivePersonalBestTimeSet = snapshot.Name;
+            }
+            else
+            {
+                failures.Add(saveResult.Failure);
+            }
         }
 
+        return failures;
     }
 
     private static PendingPersonalBestUpdates BuildPendingPersonalBestUpdates(
@@ -393,4 +423,11 @@ internal sealed class RunFinalizer
         string PreviousTimeText,
         string NewTimeText,
         TimeSpan NewTime);
+}
+
+internal sealed record RunFinalizationResult(
+    bool SettingsUpdated,
+    IReadOnlyList<OperationResult> PersistenceFailures)
+{
+    public static RunFinalizationResult NoChanges { get; } = new(false, []);
 }

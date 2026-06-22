@@ -7,17 +7,46 @@ public interface IRunStatisticsRecorder
 
 public interface IPersonalBestSnapshotStore
 {
-    ReferenceSplitSet SavePersonalBestTimeSnapshot(
+    PersonalBestSnapshotSaveResult SavePersonalBestTimeSnapshot(
         Dictionary<string, string> splits,
         string bossName,
         string? previousTime,
         string newTime);
 
-    ReferenceSplitSet SavePersonalBestSegmentSnapshot(
+    PersonalBestSnapshotSaveResult SavePersonalBestSegmentSnapshot(
         Dictionary<string, string> splits,
         string bossName,
         string? previousTime,
         string newTime);
+}
+
+public sealed record PersonalBestSnapshotSaveResult(
+    ReferenceSplitSet? Snapshot,
+    OperationResult Result)
+{
+    public bool Succeeded => Result.Succeeded && Snapshot is not null;
+
+    public bool Failed => !Succeeded;
+
+    public OperationResult Failure => Result.Failed
+        ? Result
+        : OperationResult.Failure("Failed to save personal best snapshot.");
+
+    public static PersonalBestSnapshotSaveResult Success(ReferenceSplitSet snapshot)
+    {
+        return new PersonalBestSnapshotSaveResult(snapshot, OperationResult.Success());
+    }
+
+    public static PersonalBestSnapshotSaveResult FromResult(
+        OperationResult result,
+        ReferenceSplitSet? snapshot)
+    {
+        return result.Succeeded && snapshot is not null
+            ? Success(snapshot)
+            : new PersonalBestSnapshotSaveResult(null, result.Failed
+                ? result
+                : OperationResult.Failure("Failed to save personal best snapshot."));
+    }
 }
 
 public sealed class DelegateRunStatisticsRecorder : IRunStatisticsRecorder
@@ -37,18 +66,18 @@ public sealed class DelegateRunStatisticsRecorder : IRunStatisticsRecorder
 
 public sealed class DelegatePersonalBestSnapshotStore : IPersonalBestSnapshotStore
 {
-    private readonly Func<Dictionary<string, string>, string, string?, string, ReferenceSplitSet> saveTimeSnapshot;
-    private readonly Func<Dictionary<string, string>, string, string?, string, ReferenceSplitSet> saveSegmentSnapshot;
+    private readonly Func<Dictionary<string, string>, string, string?, string, PersonalBestSnapshotSaveResult> saveTimeSnapshot;
+    private readonly Func<Dictionary<string, string>, string, string?, string, PersonalBestSnapshotSaveResult> saveSegmentSnapshot;
 
     public DelegatePersonalBestSnapshotStore(
-        Func<Dictionary<string, string>, string, string?, string, ReferenceSplitSet> saveTimeSnapshot,
-        Func<Dictionary<string, string>, string, string?, string, ReferenceSplitSet> saveSegmentSnapshot)
+        Func<Dictionary<string, string>, string, string?, string, PersonalBestSnapshotSaveResult> saveTimeSnapshot,
+        Func<Dictionary<string, string>, string, string?, string, PersonalBestSnapshotSaveResult> saveSegmentSnapshot)
     {
         this.saveTimeSnapshot = saveTimeSnapshot;
         this.saveSegmentSnapshot = saveSegmentSnapshot;
     }
 
-    public ReferenceSplitSet SavePersonalBestTimeSnapshot(
+    public PersonalBestSnapshotSaveResult SavePersonalBestTimeSnapshot(
         Dictionary<string, string> splits,
         string bossName,
         string? previousTime,
@@ -57,7 +86,7 @@ public sealed class DelegatePersonalBestSnapshotStore : IPersonalBestSnapshotSto
         return saveTimeSnapshot(splits, bossName, previousTime, newTime);
     }
 
-    public ReferenceSplitSet SavePersonalBestSegmentSnapshot(
+    public PersonalBestSnapshotSaveResult SavePersonalBestSegmentSnapshot(
         Dictionary<string, string> splits,
         string bossName,
         string? previousTime,
@@ -88,22 +117,22 @@ public sealed class InMemoryPersonalBestSnapshotStore : IPersonalBestSnapshotSto
     {
     }
 
-    public ReferenceSplitSet SavePersonalBestTimeSnapshot(
+    public PersonalBestSnapshotSaveResult SavePersonalBestTimeSnapshot(
         Dictionary<string, string> splits,
         string bossName,
         string? previousTime,
         string newTime)
     {
-        return CreateSnapshot(splits, bossName, previousTime, newTime);
+        return PersonalBestSnapshotSaveResult.Success(CreateSnapshot(splits, bossName, previousTime, newTime));
     }
 
-    public ReferenceSplitSet SavePersonalBestSegmentSnapshot(
+    public PersonalBestSnapshotSaveResult SavePersonalBestSegmentSnapshot(
         Dictionary<string, string> splits,
         string bossName,
         string? previousTime,
         string newTime)
     {
-        return CreateSnapshot(splits, bossName, previousTime, newTime);
+        return PersonalBestSnapshotSaveResult.Success(CreateSnapshot(splits, bossName, previousTime, newTime));
     }
 
     private static ReferenceSplitSet CreateSnapshot(

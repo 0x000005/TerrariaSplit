@@ -1053,6 +1053,12 @@ internal readonly record struct OperationResult(
 - 非预期异常进入 log + diagnostics。
 - 预期失败不靠 exception 控制流程。
 
+当前落地状态：
+
+- settings save 失败已通过 `SaveSettingsEffect` / `OperationResult` 到达 UI 提示。
+- PB snapshot 保存失败已通过 `ShowPersistenceFailureEffect` 到达 UI 提示，自动更新流程不会被写盘异常打断。
+- world pool 前台 install 失败已通过 automation result 到达 UI；后台 bank/fill 失败进入 logger diagnostics。
+
 ### R8.2 引入 `IAppLogger`
 
 新增：

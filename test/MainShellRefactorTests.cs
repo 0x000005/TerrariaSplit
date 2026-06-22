@@ -54,6 +54,7 @@ internal static class MainShellRefactorTests
         yield return ("SplitSettingsCommitService skips clean deselection notification", SplitSettingsCommitServiceSkipsCleanDeselectionNotification);
         yield return ("SplitConditionEditorController cancels condition drags", SplitConditionEditorControllerCancelsConditionDrags);
         yield return ("ApplicationShellEffectExecutor reports settings save failure", ApplicationShellEffectExecutorReportsSettingsSaveFailure);
+        yield return ("ApplicationShellEffectExecutor reports persistence failure", ApplicationShellEffectExecutorReportsPersistenceFailure);
         yield return ("ApplicationShellEffectExecutor rejects unknown effects", ApplicationShellEffectExecutorRejectsUnknownEffects);
     }
 
@@ -1183,6 +1184,17 @@ internal static class MainShellRefactorTests
 
         TestAssert.Equal(1, settingsPort.SaveFailureCount);
         TestAssert.Equal("Could not save settings.", settingsPort.LastSaveFailure.Message);
+    }
+
+    private static void ApplicationShellEffectExecutorReportsPersistenceFailure()
+    {
+        var settingsPort = new RecordingSettingsPort();
+        ApplicationShellEffectExecutor executor = CreateEffectExecutor(settingsPort);
+
+        executor.Apply([new ShowPersistenceFailureEffect(OperationResult.Failure("Could not save PB snapshot."))]);
+
+        TestAssert.Equal(1, settingsPort.SaveFailureCount);
+        TestAssert.Equal("Could not save PB snapshot.", settingsPort.LastSaveFailure.Message);
     }
 
     private static void ApplicationShellEffectExecutorRejectsUnknownEffects()

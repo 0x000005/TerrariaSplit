@@ -68,6 +68,9 @@ internal sealed class ApplicationShellEffectExecutor
                     settings.ShowSaveFailure(saveResult);
                 }
                 break;
+            case ShowPersistenceFailureEffect failure:
+                settings.ShowSaveFailure(failure.Result);
+                break;
             case StartCreateWorldAutomationEffect:
                 automation.StartCreateWorld();
                 break;
