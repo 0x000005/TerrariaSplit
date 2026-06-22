@@ -36,7 +36,7 @@
 [x] AppSettingsStore. 调用点为 0
 [x] RuntimeDataPaths static 调用点为 0，或只在路径实现类内部出现
 [x] AppLogger. static 调用点为 0，或只在 StaticAppLogger 内部出现
-[ ] 设置保存失败、PB 保存失败、world pool 保存失败能到达 UI 提示或 diagnostics
+[x] 设置保存失败、PB 保存失败、world pool 保存失败能到达 UI 提示或 diagnostics
 [x] ApplicationShellEffectExecutor 遇到未知 effect 会 fail fast
 [x] Settings JSON 带 SchemaVersion
 [x] SettingsNormalizer 不再调用 SettingsMigrator
@@ -941,7 +941,7 @@ Terraria automation seed/name data -> Terraria
 
 ```text
 [x] 所有 src 项目不再使用 Link 编译旧目录
-[ ] 根 TerrariaSplit/ 旧源码目录删除或改名为 src/TerrariaSplit.WinForms
+[x] 根 TerrariaSplit/ 旧源码目录删除或改名为 src/TerrariaSplit.WinForms
 [x] solution 项目路径更新
 [x] test 项目引用更新
 [x] build/test 通过
