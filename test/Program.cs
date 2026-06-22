@@ -4449,8 +4449,8 @@ static void TestMainFormSettingsApplyRedrawsStaticStatusOverlayContent()
         using var form = new MainForm(registerGlobalHotkeys: false);
         _ = form.Handle;
 
-        SetPrivateField(form, "statusOverlayContentDirty", false);
-        SetPrivateField(form, "lastStatusOverlayDynamicKey", new StatusOverlayDynamicKey(0, string.Empty, 0));
+        OverlayShell overlayShell = GetPrivateField<OverlayShell>(form, "overlayShell");
+        overlayShell.RecordStatusOverlayRender(new StatusOverlayDynamicKey(0, string.Empty, 0));
 
         AppSettings nextSettings = GetMainFormSettings(form);
         nextSettings.Route.SplitRoute[0].Condition = SplitCondition.Any(
@@ -4461,11 +4461,8 @@ static void TestMainFormSettingsApplyRedrawsStaticStatusOverlayContent()
 
         InvokePrivate(form, "ApplySettings", nextSettings);
 
-        AssertEqual(true, GetPrivateField<bool>(form, "statusOverlayContentDirty"));
-        object? dynamicKey = form.GetType()
-            .GetField("lastStatusOverlayDynamicKey", BindingFlags.Instance | BindingFlags.NonPublic)
-            ?.GetValue(form);
-        AssertEqual(null, dynamicKey);
+        AssertEqual(true, overlayShell.StatusOverlayContentDirty);
+        AssertEqual(null, overlayShell.LastStatusOverlayDynamicKey);
     });
 }
 

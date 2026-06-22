@@ -146,14 +146,15 @@ internal sealed partial class MainForm : Form
         // Invalidate(); between those, the per-frame dynamics are the current
         // row's early delta and any segment-best highlight colors, so frames
         // can be skipped or limited to redrawing the affected rows.
-        if (statusOverlayContentDirty || lastStatusOverlayDynamicKey is null)
+        if (overlayShell.StatusOverlayContentDirty || overlayShell.LastStatusOverlayDynamicKey is null)
         {
             overlayWindowController.RenderImmediately();
             return;
         }
 
-        if (!StatusOverlayHighlightsActive &&
-            ComputeStatusOverlayDynamicKey(timerElapsed) == lastStatusOverlayDynamicKey.Value)
+        if (overlayShell.CanSkipRunningStatusOverlayFrame(
+                StatusOverlayHighlightsActive,
+                ComputeStatusOverlayDynamicKey(timerElapsed)))
         {
             return;
         }

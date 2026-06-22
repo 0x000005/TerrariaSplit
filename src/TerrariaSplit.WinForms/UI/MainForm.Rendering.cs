@@ -18,7 +18,7 @@ internal sealed partial class MainForm : Form
         bool ignoreVisibleGroupLimit = ShouldIgnoreVisibleGroupLimitForCompletedRun();
         var context = new OverlayRenderContext(
             settings,
-            palette,
+            overlayShell.Palette,
             runtimeShell.CurrentSnapshot,
             splitStatuses,
             currentSplitIndex,
@@ -35,14 +35,10 @@ internal sealed partial class MainForm : Form
             graphics,
             context,
             renderResources,
-            statusOverlayPartialClipBounds);
+            overlayShell.StatusOverlayPartialClipBounds);
         overlayAnimations.UpdateAfterRender(result);
 
-        lastStatusOverlayDynamicKey = ComputeStatusOverlayDynamicKey(elapsed);
-        if (statusOverlayPartialClipBounds is null)
-        {
-            statusOverlayContentDirty = false;
-        }
+        overlayShell.RecordStatusOverlayRender(ComputeStatusOverlayDynamicKey(elapsed));
     }
 
     private StatusOverlayDynamicKey ComputeStatusOverlayDynamicKey(TimeSpan elapsed)
@@ -79,7 +75,7 @@ internal sealed partial class MainForm : Form
         Color deltaColor = OverlayColorMath.GetDeltaComparisonColor(
             settings,
             comparison,
-            palette,
+            overlayShell.Palette,
             enableDeltaGradient);
         return new StatusOverlayDynamicKey(index, deltaText, deltaColor.ToArgb());
     }
@@ -140,14 +136,14 @@ internal sealed partial class MainForm : Form
             return false;
         }
 
-        statusOverlayPartialClipBounds = region;
+        overlayShell.BeginStatusOverlayPartialClip(region);
         try
         {
             return overlayWindowController.RenderRegionImmediately(region);
         }
         finally
         {
-            statusOverlayPartialClipBounds = null;
+            overlayShell.EndStatusOverlayPartialClip();
         }
     }
 

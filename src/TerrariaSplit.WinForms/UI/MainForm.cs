@@ -1,6 +1,5 @@
 using System.Drawing;
 using System.Diagnostics;
-using System.Threading;
 using System.Windows.Forms;
 
 namespace TerrariaSplit.UI;
@@ -45,15 +44,9 @@ internal sealed partial class MainForm : Form
     private readonly MainWindowModalInputRouter mainWindowModalInputRouter;
     private readonly WindowShell windowShell = new();
     private bool runtimeResourcesDisposed;
-    private long timerOverlaySettingsRevision;
 
-    private AppSettings timerOverlaySettingsSnapshot = new();
-    private UiPalette palette;
     private readonly Action dispatchedControlTick;
     private readonly Action dispatchedStatusPaintTick;
-    private bool statusOverlayContentDirty = true;
-    private StatusOverlayDynamicKey? lastStatusOverlayDynamicKey;
-    private Rectangle? statusOverlayPartialClipBounds;
     private AppSettings settings => applicationController.Settings;
 
     private ApplicationViewState viewState => applicationController.ViewState;
@@ -92,7 +85,7 @@ internal sealed partial class MainForm : Form
         performance = services.Performance;
         applicationController = services.ApplicationController;
         RefreshTimerOverlaySettingsSnapshot();
-        palette = UiPalette.From(settings.Overlay.Colors);
+        overlayShell.RefreshPalette(settings);
         monitorCoordinator = MainShellCompositionRoot.CreateMonitorCoordinator(
             callback => BeginInvoke(callback),
             appLogger,

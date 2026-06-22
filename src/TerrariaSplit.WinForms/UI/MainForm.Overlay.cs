@@ -20,7 +20,7 @@ internal sealed partial class MainForm : Form
         int resolvedRowCount = splitCount >= 0
             ? Math.Max(GetCurrentReservedLayoutRowCount(), splitCount)
             : GetCurrentReservedLayoutRowCount();
-        palette = UiPalette.From(settings.Overlay.Colors);
+        overlayShell.RefreshPalette(settings);
         RefreshTimerOverlaySettingsSnapshot();
         UpdateOverlayLayoutContext(resolvedRowCount, visibleRowCount, force: true);
         UpdateEffectiveOverlayTopMost();
@@ -363,8 +363,7 @@ internal sealed partial class MainForm : Form
 
     private void MarkStatusOverlayStaticContentDirty()
     {
-        statusOverlayContentDirty = true;
-        lastStatusOverlayDynamicKey = null;
+        overlayShell.MarkStatusOverlayStaticContentDirty();
     }
 
     private void RenderInitialStatusOverlay()
@@ -454,8 +453,8 @@ internal sealed partial class MainForm : Form
     private TimerOverlayRenderState BuildTimerOverlaySnapshot()
     {
         return new TimerOverlayRenderState(
-            timerOverlaySettingsSnapshot,
-            palette,
+            overlayShell.TimerOverlaySettingsSnapshot,
+            overlayShell.Palette,
             splitStatuses,
             currentSplitIndex,
             runtimeSnapshot.TimerState,
@@ -469,7 +468,7 @@ internal sealed partial class MainForm : Form
             currentSplitIndex,
             overlayShell.MouseClickThrough,
             viewState.StatusHash,
-            timerOverlaySettingsRevision);
+            overlayShell.TimerOverlaySettingsRevision);
     }
 
     private void UpdateTimerOverlayRefreshInterval()
@@ -515,8 +514,7 @@ internal sealed partial class MainForm : Form
 
     private void RefreshTimerOverlaySettingsSnapshot()
     {
-        timerOverlaySettingsRevision++;
-        timerOverlaySettingsSnapshot = settingsSnapshots.CreateSnapshot(settings);
+        overlayShell.RefreshTimerOverlaySettingsSnapshot(settingsSnapshots.CreateSnapshot(settings));
     }
 
     private void UpdateEffectiveOverlayTopMost()

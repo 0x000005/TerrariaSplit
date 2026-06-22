@@ -85,7 +85,7 @@ internal sealed partial class MainForm : Form
     protected override void OnInvalidated(InvalidateEventArgs e)
     {
         base.OnInvalidated(e);
-        statusOverlayContentDirty = true;
+        MarkStatusOverlayStaticContentDirty();
         QueueStatusOverlayRender();
     }
 

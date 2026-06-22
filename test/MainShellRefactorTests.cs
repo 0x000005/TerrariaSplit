@@ -22,6 +22,7 @@ internal static class MainShellRefactorTests
         yield return ("OverlayWindowController strips non-client border style", OverlayWindowControllerStripsNonClientBorderStyle);
         yield return ("OverlayShell tracks initialization and row counts", OverlayShellTracksInitializationAndRowCounts);
         yield return ("OverlayShell tracks click-through and feedback suppression", OverlayShellTracksClickThroughAndFeedbackSuppression);
+        yield return ("OverlayShell tracks render cache snapshots", OverlayShellTracksRenderCacheSnapshots);
         yield return ("WindowLayerController applies always-on-top setting without blocking input", WindowLayerControllerAppliesAlwaysOnTopSettingWithoutBlockingInput);
         yield return ("WindowLayerController blocks main windows while modal is registered", WindowLayerControllerBlocksMainWindowsWhileModalIsRegistered);
         yield return ("WindowLayerController ignores modal activation when no modal is registered", WindowLayerControllerIgnoresModalActivationWhenNoModalIsRegistered);
@@ -398,6 +399,46 @@ internal static class MainShellRefactorTests
         TestAssert.Equal(true, shell.SuppressStatusBoundsFeedback);
         shell.EndSuppressStatusBoundsFeedback();
         TestAssert.Equal(false, shell.SuppressStatusBoundsFeedback);
+    }
+
+    private static void OverlayShellTracksRenderCacheSnapshots()
+    {
+        var shell = new OverlayShell();
+        AppSettings settings = AppSettingsDefaults.Create();
+        settings.Overlay.Colors.TimerText = "#010203";
+
+        shell.RefreshPalette(settings);
+        TestAssert.Equal(Color.FromArgb(1, 2, 3), shell.Palette.TimerText);
+
+        var snapshot = new AppSettings();
+        shell.RefreshTimerOverlaySettingsSnapshot(snapshot);
+        TestAssert.Equal(1L, shell.TimerOverlaySettingsRevision);
+        TestAssert.Equal(true, ReferenceEquals(snapshot, shell.TimerOverlaySettingsSnapshot));
+
+        var key = new StatusOverlayDynamicKey(1, "+0.10", Color.Green.ToArgb());
+        TestAssert.Equal(true, shell.StatusOverlayContentDirty);
+        TestAssert.Equal(false, shell.CanSkipRunningStatusOverlayFrame(false, key));
+
+        shell.RecordStatusOverlayRender(key);
+        TestAssert.Equal(false, shell.StatusOverlayContentDirty);
+        TestAssert.Equal(key, shell.LastStatusOverlayDynamicKey);
+        TestAssert.Equal(true, shell.CanSkipRunningStatusOverlayFrame(false, key));
+        TestAssert.Equal(false, shell.CanSkipRunningStatusOverlayFrame(true, key));
+        TestAssert.Equal(false, shell.CanSkipRunningStatusOverlayFrame(
+            false,
+            new StatusOverlayDynamicKey(1, "+0.20", Color.Green.ToArgb())));
+
+        shell.MarkStatusOverlayStaticContentDirty();
+        TestAssert.Equal(true, shell.StatusOverlayContentDirty);
+        TestAssert.Equal(null, shell.LastStatusOverlayDynamicKey);
+
+        Rectangle clip = new(1, 2, 3, 4);
+        shell.BeginStatusOverlayPartialClip(clip);
+        shell.RecordStatusOverlayRender(key);
+        TestAssert.Equal(clip, shell.StatusOverlayPartialClipBounds);
+        TestAssert.Equal(true, shell.StatusOverlayContentDirty);
+        shell.EndStatusOverlayPartialClip();
+        TestAssert.Equal(null, shell.StatusOverlayPartialClipBounds);
     }
 
     private static void WindowLayerControllerAppliesAlwaysOnTopSettingWithoutBlockingInput()
