@@ -44,6 +44,7 @@ internal static class RenderingTests
         yield return ("SplitCompletionAnimationRenderer preserves delta slide curve", SplitCompletionAnimationRendererPreservesDeltaSlideCurve);
         yield return ("SplitCompletionAnimationRenderer centers on rendered rows", SplitCompletionAnimationRendererCentersOnRenderedRows);
         yield return ("OverlayTextStyles includes attached groups in timer comparison", OverlayTextStylesIncludesAttachedGroupsInTimerComparison);
+        yield return ("OverlayTextStyles follows displayed multi condition reference", OverlayTextStylesFollowsDisplayedMultiConditionReference);
         yield return ("OverlayTextStyles maps text effect percentages", OverlayTextStylesMapsTextEffectPercentages);
     }
 
@@ -1923,6 +1924,73 @@ internal static class RenderingTests
             milliseconds: false);
 
         TestAssert.Equal(Color.FromArgb(0x44, 0x55, 0x66).ToArgb(), attachedComparison.Fill.ToArgb());
+    }
+
+    private static void OverlayTextStylesFollowsDisplayedMultiConditionReference()
+    {
+        SplitCondition factA = SplitCondition.Fact("fact:a");
+        SplitCondition factB = SplitCondition.Fact("fact:b");
+        SplitCondition factC = SplitCondition.Fact("fact:c");
+        SplitCondition condition = SplitCondition.AtLeast([factA, factB, factC], 2);
+        var definition = new SplitDefinition(
+            "split:multi",
+            "Multi",
+            condition,
+            ["a.png", "b.png", "c.png"],
+            ["target:a", "target:b", "target:c"],
+            ["target:a", "target:b", "target:c"]);
+        AppSettings settings = CreateExpandedRowsSettings(definition, condition);
+        settings.Overlay.EnableTimerGradientColor = false;
+        settings.Overlay.Colors = new UiColorSettings
+        {
+            TimerAheadText = "#112233",
+            TimerAheadTextOutline = "#000000",
+            TimerAheadTextShadow = "#000000",
+            TimerBehindText = "#445566",
+            TimerBehindTextOutline = "#000000",
+            TimerBehindTextShadow = "#000000"
+        };
+
+        IReadOnlyList<SplitConditionDataRow> rows = SplitConditionDataRows
+            .ForSplit(settings, definition.Id)
+            .OrderBy(row => row.ConditionIndex)
+            .ToArray();
+        ReferenceSplitSet activeSet = ReferenceSplitSetService.GetActiveReferenceSet(settings);
+        activeSet.Splits[rows[0].Key] = "0:20.00";
+        activeSet.Splits[rows[1].Key] = "0:30.00";
+        activeSet.Splits[rows[2].Key] = "0:40.00";
+
+        IReadOnlyList<SplitStatusSnapshot> statuses = SplitCatalog.Build(settings)
+            .Select(SplitStatusSnapshot.FromDefinition)
+            .ToArray();
+        UiPalette palette = UiPalette.From(settings.Overlay.Colors);
+        IReadOnlyList<SplitExpandedConditionRow> expandedRows = SplitExpandedConditionRows.Build(settings, statuses, statusIndex: 0);
+        TestAssert.Equal(1, expandedRows.Count);
+        TestAssert.Equal(TimeSpan.FromSeconds(20), expandedRows[0].ReferenceTime);
+
+        TextRenderStyle expandedStyle = OverlayTextStyles.GetTimerTextStyle(
+            settings,
+            statuses,
+            currentSplitIndex: 0,
+            SplitTimerPhase.Running,
+            TimeSpan.FromSeconds(25),
+            palette,
+            milliseconds: false);
+        TestAssert.Equal(Color.FromArgb(0x44, 0x55, 0x66).ToArgb(), expandedStyle.Fill.ToArgb());
+
+        settings.Route.ExpandSplitDetails = false;
+        TestAssert.Equal(true, ReferenceSplitSetService.TryGetReferenceSplit(settings, statuses[0].Definition, out TimeSpan collapsedReference));
+        TestAssert.Equal(TimeSpan.FromSeconds(30), collapsedReference);
+
+        TextRenderStyle collapsedStyle = OverlayTextStyles.GetTimerTextStyle(
+            settings,
+            statuses,
+            currentSplitIndex: 0,
+            SplitTimerPhase.Running,
+            TimeSpan.FromSeconds(25),
+            palette,
+            milliseconds: false);
+        TestAssert.Equal(Color.FromArgb(0x11, 0x22, 0x33).ToArgb(), collapsedStyle.Fill.ToArgb());
     }
 
     private static SplitDefinition CreateAnyBossDefinition()

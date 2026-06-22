@@ -241,8 +241,12 @@ internal static class OverlayTextStyles
 
         if (statuses.Count > 0 && statuses[^1].Time is TimeSpan finalTime)
         {
-            if (ReferenceSplitSetService.TryGetReferenceSplit(settings, statuses[^1].Definition, out TimeSpan finalReference) &&
-                finalTime < finalReference)
+            bool hasFinalReference = TryGetTimerComparisonReference(
+                settings,
+                statuses,
+                statuses.Count - 1,
+                out TimeSpan finalReference);
+            if (hasFinalReference && finalTime < finalReference)
             {
                 return CreateTimerTextStyle(
                     settings,
@@ -252,8 +256,7 @@ internal static class OverlayTextStyles
                     milliseconds);
             }
 
-            if (ReferenceSplitSetService.TryGetReferenceSplit(settings, statuses[^1].Definition, out finalReference) &&
-                settings.Overlay.EnableTimerGradientColor)
+            if (hasFinalReference && settings.Overlay.EnableTimerGradientColor)
             {
                 return GetTimerGradientTextStyle(settings, finalTime - finalReference, palette, milliseconds);
             }
@@ -283,8 +286,7 @@ internal static class OverlayTextStyles
                 milliseconds);
         }
 
-        if (TryGetTimerComparisonDefinition(settings, statuses, currentSplitIndex, out SplitDefinition comparisonDefinition) &&
-            ReferenceSplitSetService.TryGetReferenceSplit(settings, comparisonDefinition, out TimeSpan currentReference))
+        if (TryGetTimerComparisonReference(settings, statuses, currentSplitIndex, out TimeSpan currentReference))
         {
             if (settings.Overlay.EnableTimerGradientColor)
             {
@@ -309,21 +311,29 @@ internal static class OverlayTextStyles
         return CreateTimerTextStyle(settings, palette.TimerText, palette.TimerTextOutline, palette.TimerTextShadow, milliseconds);
     }
 
-    private static bool TryGetTimerComparisonDefinition(
+    private static bool TryGetTimerComparisonReference(
         AppSettings settings,
         IReadOnlyList<SplitStatusSnapshot> statuses,
         int currentSplitIndex,
-        out SplitDefinition definition)
+        out TimeSpan reference)
     {
-        definition = null!;
+        reference = TimeSpan.Zero;
         if (currentSplitIndex < 0 || currentSplitIndex >= statuses.Count)
         {
             return false;
         }
 
-        SplitDefinition current = statuses[currentSplitIndex].Definition;
-        definition = current;
-        return true;
+        foreach (SplitExpandedConditionRow row in SplitExpandedConditionRows.Build(settings, statuses, currentSplitIndex))
+        {
+            if (!row.CompletionTime.HasValue && row.ReferenceTime is TimeSpan rowReference)
+            {
+                reference = rowReference;
+                return true;
+            }
+        }
+
+        SplitDefinition definition = statuses[currentSplitIndex].Definition;
+        return ReferenceSplitSetService.TryGetReferenceSplit(settings, definition, out reference);
     }
 
     private static TextRenderStyle GetTimerGradientTextStyle(

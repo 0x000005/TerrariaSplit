@@ -23,6 +23,7 @@ publish/
 .buildverify/
 .build-check/
 .verify/
+test/test-output/
 codex-build-check/
 promo-animation/
 **/.check/
