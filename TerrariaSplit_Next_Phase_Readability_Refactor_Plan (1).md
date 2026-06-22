@@ -1121,7 +1121,7 @@ WindowShell
 [x] MainForm 不再持有 overlay/timer overlay 内部状态
 [x] MainForm 不再持有 watcher snapshot/diagnostics lock
 [x] MainForm 不再持有 hotkey warning state
-[ ] MainForm partial 文件可以减少，而不是继续增加
+[x] MainForm partial 文件可以减少，而不是继续增加
 [x] OverlayShell / RuntimeShell / HotkeyShell / WindowShell 有独立单元测试或 fake 测试
 ```
 
