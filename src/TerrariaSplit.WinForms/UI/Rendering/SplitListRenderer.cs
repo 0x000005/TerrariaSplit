@@ -226,17 +226,22 @@ internal static class SplitListRenderer
 
     public static UiColumnSettings GetIconColumnSettings(AppSettings settings, bool attached)
     {
-        return attached ? settings.Overlay.Columns.AttachedIcon : settings.Overlay.Columns.Icon;
+        return GetColumnSettings(settings, attached ? UiColumnDescriptors.AttachedIcon : UiColumnDescriptors.Icon);
     }
 
     public static UiColumnSettings GetTimeColumnSettings(AppSettings settings, bool attached)
     {
-        return attached ? settings.Overlay.Columns.AttachedTime : settings.Overlay.Columns.Time;
+        return GetColumnSettings(settings, attached ? UiColumnDescriptors.AttachedTime : UiColumnDescriptors.Time);
     }
 
     public static UiColumnSettings GetDeltaColumnSettings(AppSettings settings, bool attached)
     {
-        return attached ? settings.Overlay.Columns.AttachedDelta : settings.Overlay.Columns.Delta;
+        return GetColumnSettings(settings, attached ? UiColumnDescriptors.AttachedDelta : UiColumnDescriptors.Delta);
+    }
+
+    private static UiColumnSettings GetColumnSettings(AppSettings settings, UiColumnDescriptor descriptor)
+    {
+        return descriptor.GetValue(settings.Overlay.Columns) ?? new UiColumnSettings();
     }
 
     private static void DrawSplitRow(
