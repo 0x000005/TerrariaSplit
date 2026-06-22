@@ -39,11 +39,13 @@ internal sealed class AutomationShell : IDisposable
     {
         try
         {
-            await worldAutomation.StartCreateWorldAsync(settingsSnapshots.CreateSnapshot(getSettings()));
+            AutomationResult result = await worldAutomation.StartCreateWorldAsync(settingsSnapshots.CreateSnapshot(getSettings()));
+            ShowAutomationFailure("Create world failed", result);
         }
         catch (Exception ex)
         {
             logger.Error(ex, "Unhandled create world automation error.");
+            ShowFailure("Create world failed", "Create world automation failed.");
         }
     }
 
@@ -94,6 +96,7 @@ internal sealed class AutomationShell : IDisposable
         if (validation.Failed)
         {
             logger.Info(validation.Message);
+            ShowFailure("Practice world failed", validation.Message);
             return;
         }
 
@@ -101,13 +104,48 @@ internal sealed class AutomationShell : IDisposable
 
         try
         {
-            await worldAutomation.StartEnterWorldAsync(
+            AutomationResult result = await worldAutomation.StartEnterWorldAsync(
                 settingsSnapshots.CreateSnapshot(getSettings()),
                 selectedSlot);
+            ShowAutomationFailure("Practice world failed", result);
         }
         catch (Exception ex)
         {
             logger.Error(ex, "Unhandled practice world automation error.");
+            ShowFailure("Practice world failed", "Practice world automation failed.");
         }
+    }
+
+    private void ShowAutomationFailure(string title, AutomationResult result)
+    {
+        if (result.Succeeded || result.Cancelled)
+        {
+            if (!string.IsNullOrWhiteSpace(result.DiagnosticMessage))
+            {
+                logger.Info(result.DiagnosticMessage);
+            }
+
+            return;
+        }
+
+        if (result.Exception is not null)
+        {
+            logger.Error(result.Exception, result.DiagnosticMessage);
+        }
+        else if (!string.IsNullOrWhiteSpace(result.DiagnosticMessage))
+        {
+            logger.Info(result.DiagnosticMessage);
+        }
+
+        ShowFailure(title, result.UserMessage);
+    }
+
+    private void ShowFailure(string title, string message)
+    {
+        string displayMessage = string.IsNullOrWhiteSpace(message)
+            ? "Automation failed."
+            : message;
+        using var dialog = new HotkeyWarningDialog(title, displayMessage);
+        modalWindows.ShowDialog(dialog);
     }
 }

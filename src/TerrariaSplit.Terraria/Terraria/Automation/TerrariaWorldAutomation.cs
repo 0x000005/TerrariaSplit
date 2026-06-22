@@ -32,12 +32,12 @@ internal sealed class TerrariaWorldAutomation : IDisposable
 
     public bool IsEnterWorldRunning => enterWorldRunner.IsRunning;
 
-    public Task StartCreateWorldAsync(AppSettings settings, CancellationToken cancellationToken = default)
+    public Task<AutomationResult> StartCreateWorldAsync(AppSettings settings, CancellationToken cancellationToken = default)
     {
         return createWorldRunner.StartAsync(settings, cancellationToken);
     }
 
-    public Task StartEnterWorldAsync(
+    public Task<AutomationResult> StartEnterWorldAsync(
         AppSettings settings,
         PracticeWorldSlot slot,
         CancellationToken cancellationToken = default)

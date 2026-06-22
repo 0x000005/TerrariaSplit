@@ -27,12 +27,12 @@ internal sealed class CreateWorldWorkflow : IDisposable
         pyramidSeedPreScreenAutomation = new PyramidSeedPreScreenAutomation(automation);
     }
 
-    public Task RunAsync(CancellationToken cancellationToken = default)
+    public Task<AutomationResult> RunAsync(CancellationToken cancellationToken = default)
     {
         return RunAsync(AppSettingsDefaults.Create(), cancellationToken);
     }
 
-    public async Task RunAsync(AppSettings settings, CancellationToken cancellationToken = default)
+    public async Task<AutomationResult> RunAsync(AppSettings settings, CancellationToken cancellationToken = default)
     {
         automation.BeginRun();
         try
@@ -44,7 +44,9 @@ internal sealed class CreateWorldWorkflow : IDisposable
                 CreateWorldActivationStep activation = await ActivateTerrariaAsync(cancellationToken);
                 if (!activation.Succeeded)
                 {
-                    return;
+                    return AutomationResult.Failure(
+                        "Could not activate the Terraria window.",
+                        "Create world automation could not activate Terraria window.");
                 }
 
                 TerrariaMenuGeometry geometry = TerrariaMenuGeometry.From(activation.ClientSize);
@@ -52,19 +54,23 @@ internal sealed class CreateWorldWorkflow : IDisposable
                 CreateWorldCleanupStep cleanupStep = await RunSaveCleanupAsync(cancellationToken);
                 if (!cleanupStep.Succeeded)
                 {
-                    return;
+                    return AutomationResult.Failure(
+                        "Could not prepare Terraria save files.",
+                        "Create world automation save cleanup step failed.");
                 }
 
                 string worldGenSignature = WorldPoolSignature.From(settings);
                 CreateWorldPoolInstallStep poolInstall = await InstallPooledWorldAsync(autoCreate, worldGenSignature, cancellationToken);
                 if (!poolInstall.Succeeded)
                 {
-                    return;
+                    return AutomationResult.Failure(poolInstall.UserMessage, poolInstall.DiagnosticMessage);
                 }
 
                 if (!await CreatePlayerAndOpenWorldSelectAsync(autoCreate, geometry, cleanupStep.Cleanup, cancellationToken))
                 {
-                    return;
+                    return AutomationResult.Failure(
+                        "Could not create or select the Terraria player.",
+                        "Create world automation failed before world selection.");
                 }
 
                 if (poolInstall.InstalledWorld is not null)
@@ -73,21 +79,28 @@ internal sealed class CreateWorldWorkflow : IDisposable
                     AppLogger.Info(
                         $"Create world automation installed pooled world {poolInstall.InstalledWorld.WorldFileName}; " +
                         "stopped at world select.");
-                    return;
+                    return AutomationResult.Success(
+                        $"Create world automation installed pooled world {poolInstall.InstalledWorld.WorldFileName}.");
                 }
 
-                if (!await RunWorldCreationLoopAsync(autoCreate, geometry, cancellationToken))
+                CreateWorldLoopResult loopResult = await RunWorldCreationLoopAsync(autoCreate, geometry, cancellationToken);
+                if (!loopResult.ContinueFromMainMenu)
                 {
-                    return;
+                    return loopResult.Result;
                 }
             }
         }
         catch (OperationCanceledException)
         {
+            return AutomationResult.CancelledByUser("Create world automation was cancelled.");
         }
         catch (Exception ex)
         {
             AppLogger.Error(ex, "Create world automation failed.");
+            return AutomationResult.Failure(
+                "Create world automation failed.",
+                "Create world automation threw an unhandled exception.",
+                ex);
         }
     }
 
@@ -130,16 +143,20 @@ internal sealed class CreateWorldWorkflow : IDisposable
         string worldGenSignature,
         CancellationToken cancellationToken)
     {
-        WorldPoolEntry? installedPooledWorld = null;
+        CreateWorldPoolInstallStep installStep = CreateWorldPoolInstallStep.NotInstalled();
         bool succeeded = await automation.RunStepAsync(
             "install pooled world",
             _ =>
             {
-                installedPooledWorld = TryInstallPooledWorld(settings, worldGenSignature);
-                return Task.FromResult(true);
+                installStep = TryInstallPooledWorld(settings, worldGenSignature);
+                return Task.FromResult(installStep.Succeeded);
             },
             cancellationToken);
-        return new CreateWorldPoolInstallStep(succeeded, installedPooledWorld);
+        return succeeded
+            ? installStep
+            : CreateWorldPoolInstallStep.Failed(
+                installStep.UserMessage,
+                installStep.DiagnosticMessage);
     }
 
     private async Task<bool> CreatePlayerAndOpenWorldSelectAsync(
@@ -193,7 +210,7 @@ internal sealed class CreateWorldWorkflow : IDisposable
         return true;
     }
 
-    private async Task<bool> RunWorldCreationLoopAsync(
+    private async Task<CreateWorldLoopResult> RunWorldCreationLoopAsync(
         AutoCreateWorldSettings settings,
         TerrariaMenuGeometry geometry,
         CancellationToken cancellationToken)
@@ -205,12 +222,18 @@ internal sealed class CreateWorldWorkflow : IDisposable
             CreateWorldAttemptResult createResult = await CreateOneWorldAsync(settings, geometry, cancellationToken);
             if (createResult == CreateWorldAttemptResult.RetryFromMainMenu)
             {
-                return await ReturnToMainMenuFromAdvancedSeedPageAsync(geometry, cancellationToken);
+                return await ReturnToMainMenuFromAdvancedSeedPageAsync(geometry, cancellationToken)
+                    ? CreateWorldLoopResult.Continue()
+                    : CreateWorldLoopResult.Failure(
+                        "Could not return Terraria to the main menu after seed pre-screening.",
+                        "Create world automation failed to return to the main menu after pyramid seed pre-screen rejection.");
             }
 
             if (createResult == CreateWorldAttemptResult.Failed)
             {
-                return false;
+                return CreateWorldLoopResult.Failure(
+                    "Could not create the Terraria world.",
+                    "Create world automation failed while configuring or creating the world.");
             }
 
             await zenithStarCatchAutomation.RunAsync(settings, cancellationToken);
@@ -219,27 +242,34 @@ internal sealed class CreateWorldWorkflow : IDisposable
             AppLogger.Info($"Create world automation pyramid filter outcome: {outcome}.");
             if (outcome != PyramidFilterOutcome.Rejected)
             {
-                return false;
+                return CreateWorldLoopResult.Finished(
+                    $"Create world automation stopped with pyramid filter outcome {outcome}.");
             }
 
             if (settings.ReturnToMainMenuOnFilterFailure)
             {
-                return await ReturnToMainMenuByBackTwiceAsync(geometry, cancellationToken);
+                return await ReturnToMainMenuByBackTwiceAsync(geometry, cancellationToken)
+                    ? CreateWorldLoopResult.Continue()
+                    : CreateWorldLoopResult.Failure(
+                        "Could not return Terraria to the main menu after rejecting the world.",
+                        "Create world automation failed to return to the main menu after pyramid filter rejection.");
             }
 
             if (!await PrepareRejectedWorldSelectRetryAsync(cancellationToken))
             {
-                return false;
+                return CreateWorldLoopResult.Failure(
+                    "Could not prepare Terraria for another world creation attempt.",
+                    "Create world automation failed to clean up rejected world files before retrying.");
             }
         }
     }
 
-    private WorldPoolEntry? TryInstallPooledWorld(AutoCreateWorldSettings settings, string signature)
+    private CreateWorldPoolInstallStep TryInstallPooledWorld(AutoCreateWorldSettings settings, string signature)
     {
         if (worldPool is null ||
             !settings.EnableWorldPool)
         {
-            return null;
+            return CreateWorldPoolInstallStep.NotInstalled();
         }
 
         while (worldPool.TryPeekFirst(signature, out WorldPoolEntry entry))
@@ -280,14 +310,16 @@ internal sealed class CreateWorldWorkflow : IDisposable
                 AppLogger.Info(
                     $"Create world automation installed pooled world {entry.WorldFileName} " +
                     $"to '{Path.GetFileName(installedPath)}' ({actualMetadata.FormatWorldOptions()}).");
-                return entry;
+                return CreateWorldPoolInstallStep.Installed(entry);
             }
 
             AppLogger.Info($"Create world automation could not install pooled world {entry.WorldFileName}: {message}");
-            return null;
+            return CreateWorldPoolInstallStep.Failed(
+                "Could not install a pooled Terraria world.",
+                $"Create world automation could not install pooled world {entry.WorldFileName}: {message}");
         }
 
-        return null;
+        return CreateWorldPoolInstallStep.NotInstalled();
     }
 
     private async Task<CreateWorldAttemptResult> CreateOneWorldAsync(
@@ -717,7 +749,47 @@ internal readonly record struct CreateWorldActivationStep(bool Succeeded, Size C
 
 internal readonly record struct CreateWorldCleanupStep(bool Succeeded, TerrariaSaveCleanupResult Cleanup);
 
-internal readonly record struct CreateWorldPoolInstallStep(bool Succeeded, WorldPoolEntry? InstalledWorld);
+internal readonly record struct CreateWorldPoolInstallStep(
+    bool Succeeded,
+    WorldPoolEntry? InstalledWorld,
+    string UserMessage,
+    string DiagnosticMessage)
+{
+    public static CreateWorldPoolInstallStep NotInstalled()
+    {
+        return new CreateWorldPoolInstallStep(true, null, string.Empty, string.Empty);
+    }
+
+    public static CreateWorldPoolInstallStep Installed(WorldPoolEntry installedWorld)
+    {
+        return new CreateWorldPoolInstallStep(true, installedWorld, string.Empty, string.Empty);
+    }
+
+    public static CreateWorldPoolInstallStep Failed(string userMessage, string diagnosticMessage)
+    {
+        return new CreateWorldPoolInstallStep(false, null, userMessage, diagnosticMessage);
+    }
+}
+
+internal readonly record struct CreateWorldLoopResult(
+    bool ContinueFromMainMenu,
+    AutomationResult Result)
+{
+    public static CreateWorldLoopResult Continue()
+    {
+        return new CreateWorldLoopResult(true, AutomationResult.Success());
+    }
+
+    public static CreateWorldLoopResult Finished(string diagnostic)
+    {
+        return new CreateWorldLoopResult(false, AutomationResult.Success(diagnostic));
+    }
+
+    public static CreateWorldLoopResult Failure(string userMessage, string diagnostic)
+    {
+        return new CreateWorldLoopResult(false, AutomationResult.Failure(userMessage, diagnostic));
+    }
+}
 
 internal enum CreateWorldAttemptResult
 {
