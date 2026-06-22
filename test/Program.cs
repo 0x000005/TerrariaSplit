@@ -155,6 +155,7 @@ var legacyTests = new (string Name, Action Test)[]
 var tests = legacyTests
     .Concat(HotkeyTests.All())
     .Concat(AutomationRunnerTests.All())
+    .Concat(AutomationScopeTests.All())
     .Concat(LoadWorldValidationTests.All())
     .Concat(HighPrecisionSchedulerTests.All())
     .Concat(MainShellRefactorTests.All())

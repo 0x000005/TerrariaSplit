@@ -10,6 +10,7 @@ internal sealed class CreateWorldWorkflow : IDisposable
 
     private readonly TerrariaSavePreparation savePreparation = new();
     private readonly TerrariaAutomationContext automation = new("Create world");
+    private readonly WindowActivationService windowActivation;
     private readonly ZenithStarCatchAutomation zenithStarCatchAutomation;
     private readonly PyramidFilterAutomation pyramidFilterAutomation;
     private readonly PyramidSeedPreScreenAutomation pyramidSeedPreScreenAutomation;
@@ -23,6 +24,7 @@ internal sealed class CreateWorldWorkflow : IDisposable
     public CreateWorldWorkflow(WorldPoolStore? worldPool = null)
     {
         this.worldPool = worldPool;
+        windowActivation = new WindowActivationService(automation, "Create world");
         zenithStarCatchAutomation = new ZenithStarCatchAutomation(automation);
         pyramidFilterAutomation = new PyramidFilterAutomation(automation);
         pyramidSeedPreScreenAutomation = new PyramidSeedPreScreenAutomation(automation);
@@ -108,22 +110,8 @@ internal sealed class CreateWorldWorkflow : IDisposable
 
     private async Task<CreateWorldActivationStep> ActivateTerrariaAsync(CancellationToken cancellationToken)
     {
-        Size clientSize = Size.Empty;
-        bool succeeded = await automation.RunStepAsync(
-            "activate Terraria window",
-            _ =>
-            {
-                if (!automation.TryActivate(out Size activatedSize))
-                {
-                    AppLogger.Info("Create world automation could not activate Terraria window.");
-                    return Task.FromResult(false);
-                }
-
-                clientSize = activatedSize;
-                return Task.FromResult(true);
-            },
-            cancellationToken);
-        return new CreateWorldActivationStep(succeeded, clientSize);
+        WindowActivationResult activation = await windowActivation.ActivateAsync(cancellationToken);
+        return new CreateWorldActivationStep(activation.Succeeded, activation.ClientSize);
     }
 
     private async Task<CreateWorldCleanupStep> RunSaveCleanupAsync(CancellationToken cancellationToken)
@@ -529,9 +517,10 @@ internal sealed class CreateWorldWorkflow : IDisposable
         TerrariaMenuGeometry geometry,
         CancellationToken cancellationToken)
     {
-        if (!automation.TryActivate(out _, pyramidFilterPostDelayMilliseconds))
+        if (!windowActivation.TryReactivate(
+                "before clicking back out of a rejected world",
+                pyramidFilterPostDelayMilliseconds))
         {
-            AppLogger.Info("Create world automation could not reactivate Terraria before clicking back out of a rejected world.");
             return false;
         }
 
@@ -560,9 +549,10 @@ internal sealed class CreateWorldWorkflow : IDisposable
         TerrariaMenuGeometry geometry,
         CancellationToken cancellationToken)
     {
-        if (!automation.TryActivate(out _, pyramidFilterPostDelayMilliseconds))
+        if (!windowActivation.TryReactivate(
+                "before returning from rejected pre-screen seed",
+                pyramidFilterPostDelayMilliseconds))
         {
-            AppLogger.Info("Create world automation could not reactivate Terraria before returning from rejected pre-screen seed.");
             return false;
         }
 
@@ -589,9 +579,10 @@ internal sealed class CreateWorldWorkflow : IDisposable
 
     private async Task<bool> PrepareRejectedWorldSelectRetryAsync(CancellationToken cancellationToken)
     {
-        if (!automation.TryActivate(out _, pyramidFilterPostDelayMilliseconds))
+        if (!windowActivation.TryReactivate(
+                "before retrying a rejected world",
+                pyramidFilterPostDelayMilliseconds))
         {
-            AppLogger.Info("Create world automation could not reactivate Terraria before retrying a rejected world.");
             return false;
         }
 

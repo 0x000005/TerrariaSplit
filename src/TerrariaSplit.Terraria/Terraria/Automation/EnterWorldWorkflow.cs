@@ -1,11 +1,15 @@
-using System.Drawing;
-
 namespace TerrariaSplit.Terraria.Automation;
 
 internal sealed class EnterWorldWorkflow : IDisposable
 {
     private readonly TerrariaAutomationContext automation = new("Enter world");
+    private readonly WindowActivationService windowActivation;
     private TimeSpan menuActionDelay = TimeSpan.FromMilliseconds(AppSettingsDefaults.Automation.AutoCreate.MenuActionDelayMilliseconds);
+
+    public EnterWorldWorkflow()
+    {
+        windowActivation = new WindowActivationService(automation, "Enter world");
+    }
 
     public async Task<AutomationResult> RunAsync(AppSettings settings, PracticeWorldSlot slot, CancellationToken cancellationToken = default)
     {
@@ -23,28 +27,13 @@ internal sealed class EnterWorldWorkflow : IDisposable
                     validation.Exception);
             }
 
-            Size clientSize = Size.Empty;
-            if (!await automation.RunStepAsync(
-                    "activate Terraria window",
-                    _ =>
-                    {
-                        if (!automation.TryActivate(out Size activatedSize))
-                        {
-                            AppLogger.Info("Enter world automation could not activate Terraria window.");
-                            return Task.FromResult(false);
-                        }
-
-                        clientSize = activatedSize;
-                        return Task.FromResult(true);
-                    },
-                    cancellationToken))
+            WindowActivationResult activation = await windowActivation.ActivateAsync(cancellationToken);
+            if (!activation.Succeeded)
             {
-                return AutomationResult.Failure(
-                    "Could not activate the Terraria window.",
-                    "Enter world automation could not activate Terraria window.");
+                return AutomationResult.Failure(activation.UserMessage, activation.DiagnosticMessage);
             }
 
-            TerrariaMenuGeometry geometry = TerrariaMenuGeometry.From(clientSize);
+            TerrariaMenuGeometry geometry = TerrariaMenuGeometry.From(activation.ClientSize);
             OperationResult install = await InstallPracticeSaveFilesAsync(slot, cancellationToken);
             if (install.Failed)
             {

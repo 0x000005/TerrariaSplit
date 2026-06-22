@@ -47,9 +47,8 @@ internal sealed class HeadlessWorldGenerator : IDisposable
             return HeadlessWorldGenResult.Skipped;
         }
 
-        Directory.CreateDirectory(scratchDirectory);
         StopRecordedServer(serverExePath);
-        CleanScratch();
+        using TemporaryDirectoryScope scratch = TemporaryDirectoryScope.Prepare(scratchDirectory);
 
         TerrariaCopiedSeed copiedSeed = TerrariaCopiedSeedBuilder.Create(settings);
         string worldName = TerrariaWorldNameGenerator.Create(appLanguage);
@@ -57,30 +56,16 @@ internal sealed class HeadlessWorldGenerator : IDisposable
         string configPath = Path.Combine(scratchDirectory, "server-config.txt");
         File.WriteAllText(configPath, BuildServerConfig(settings, copiedSeed.Text, worldName, serverLanguage), new UTF8Encoding(false));
 
-        Process? process = null;
-        int? processId = null;
         string? worldPath;
-        try
+        using (StartTrackedServer(serverExePath, configPath))
         {
-            process = StartServer(serverExePath, configPath);
-            processId = TryGetProcessId(process);
-            TrackCurrentProcess(process, serverExePath);
             worldPath = await WaitForStableWorldFileAsync(cancellationToken);
-        }
-        finally
-        {
-            if (process is not null)
-            {
-                processId ??= TryGetProcessId(process);
-                TryKill(process);
-                ClearCurrentProcess(processId);
-            }
         }
 
         if (worldPath is null)
         {
             AppLogger.Info("World pool headless generation produced no world file.");
-            CleanScratch();
+            scratch.Clean();
             return HeadlessWorldGenResult.Miss;
         }
 
@@ -127,7 +112,7 @@ internal sealed class HeadlessWorldGenerator : IDisposable
             $"metadata={metadataDetail}, expected={copiedSeed.Metadata.FormatWorldOptions()}, keep={keep}.");
         if (!keep)
         {
-            CleanScratch();
+            scratch.Clean();
             return new HeadlessWorldGenResult(candidateItemFound, false, string.Empty, default, Generated: true);
         }
 
@@ -160,6 +145,16 @@ internal sealed class HeadlessWorldGenerator : IDisposable
         return process;
     }
 
+    private ProcessLifecycleGuard StartTrackedServer(string serverExePath, string configPath)
+    {
+        Process process = StartServer(serverExePath, configPath);
+        return new ProcessLifecycleGuard(
+            process,
+            trackedProcess => TrackCurrentProcess(trackedProcess, serverExePath),
+            ClearCurrentProcess,
+            "World pool failed to stop headless Terraria server.");
+    }
+
     private void TrackCurrentProcess(Process process, string serverExePath)
     {
         lock (currentProcessSync)
@@ -172,7 +167,7 @@ internal sealed class HeadlessWorldGenerator : IDisposable
             new ServerProcessMarker
             {
                 ProcessId = process.Id,
-                StartTimeUtcTicks = TryGetProcessStartTimeUtcTicks(process, out long ticks) ? ticks : 0,
+                StartTimeUtcTicks = ProcessLifecycleGuard.TryGetProcessStartTimeUtcTicks(process, out long ticks) ? ticks : 0,
                 ServerExePath = Path.GetFullPath(serverExePath)
             },
             "world pool server marker");
@@ -182,42 +177,13 @@ internal sealed class HeadlessWorldGenerator : IDisposable
     {
         lock (currentProcessSync)
         {
-            if (currentProcess is not null && ProcessIdMatches(currentProcess, processId))
+            if (currentProcess is not null && ProcessLifecycleGuard.ProcessIdMatches(currentProcess, processId))
             {
                 currentProcess = null;
             }
         }
 
-        TryDeleteFile(serverPidPath);
-    }
-
-    private static bool ProcessIdMatches(Process process, int? processId)
-    {
-        if (!processId.HasValue)
-        {
-            return true;
-        }
-
-        try
-        {
-            return process.Id == processId.Value;
-        }
-        catch (Exception ex) when (ex is InvalidOperationException or ObjectDisposedException)
-        {
-            return true;
-        }
-    }
-
-    private static int? TryGetProcessId(Process process)
-    {
-        try
-        {
-            return process.Id;
-        }
-        catch (Exception ex) when (ex is InvalidOperationException or ObjectDisposedException)
-        {
-            return null;
-        }
+        TemporaryDirectoryScope.TryDeleteFile(serverPidPath);
     }
 
     private void StopRecordedServer(string serverExePath)
@@ -234,7 +200,7 @@ internal sealed class HeadlessWorldGenerator : IDisposable
             if (IsMarkedServerProcess(process, marker, serverExePath))
             {
                 AppLogger.Info($"Stopping stale world pool TerrariaServer.exe process {marker.ProcessId}.");
-                TryKill(process);
+                ProcessLifecycleGuard.TryKill(process, "World pool failed to stop headless Terraria server.");
             }
             else
             {
@@ -246,14 +212,14 @@ internal sealed class HeadlessWorldGenerator : IDisposable
         }
         finally
         {
-            TryDeleteFile(serverPidPath);
+            TemporaryDirectoryScope.TryDeleteFile(serverPidPath);
         }
     }
 
     private static bool IsMarkedServerProcess(Process process, ServerProcessMarker marker, string serverExePath)
     {
         if (marker.StartTimeUtcTicks > 0 &&
-            (!TryGetProcessStartTimeUtcTicks(process, out long currentTicks) || currentTicks != marker.StartTimeUtcTicks))
+            (!ProcessLifecycleGuard.TryGetProcessStartTimeUtcTicks(process, out long currentTicks) || currentTicks != marker.StartTimeUtcTicks))
         {
             return false;
         }
@@ -261,7 +227,7 @@ internal sealed class HeadlessWorldGenerator : IDisposable
         string expectedPath = string.IsNullOrWhiteSpace(marker.ServerExePath)
             ? serverExePath
             : marker.ServerExePath;
-        return !TryGetProcessPath(process, out string? processPath) || SamePath(processPath, expectedPath);
+        return !ProcessLifecycleGuard.TryGetProcessPath(process, out string? processPath) || SamePath(processPath, expectedPath);
     }
 
     private static bool SamePath(string? left, string? right)
@@ -278,59 +244,6 @@ internal sealed class HeadlessWorldGenerator : IDisposable
         catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
         {
             return string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
-        }
-    }
-
-    private static bool TryGetProcessStartTimeUtcTicks(Process process, out long ticks)
-    {
-        try
-        {
-            ticks = process.StartTime.ToUniversalTime().Ticks;
-            return true;
-        }
-        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception or NotSupportedException)
-        {
-            ticks = 0;
-            return false;
-        }
-    }
-
-    private static bool TryGetProcessPath(Process process, out string? path)
-    {
-        try
-        {
-            path = process.MainModule?.FileName;
-            return !string.IsNullOrWhiteSpace(path);
-        }
-        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception or NotSupportedException)
-        {
-            path = null;
-            return false;
-        }
-    }
-
-    private static void TryKill(Process? process)
-    {
-        if (process is null)
-        {
-            return;
-        }
-
-        try
-        {
-            if (!process.HasExited)
-            {
-                process.Kill(entireProcessTree: true);
-                process.WaitForExit((int)TimeSpan.FromSeconds(5).TotalMilliseconds);
-            }
-        }
-        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception or NotSupportedException or ObjectDisposedException)
-        {
-            AppLogger.Error(ex, "World pool failed to stop headless Terraria server.");
-        }
-        finally
-        {
-            process.Dispose();
         }
     }
 
@@ -440,34 +353,7 @@ internal sealed class HeadlessWorldGenerator : IDisposable
 
     public void ClearScratch()
     {
-        CleanScratch();
-    }
-
-    private void CleanScratch()
-    {
-        if (!Directory.Exists(scratchDirectory))
-        {
-            return;
-        }
-
-        foreach (string file in Directory.EnumerateFiles(scratchDirectory, "*", SearchOption.AllDirectories))
-        {
-            TryDeleteFile(file);
-        }
-    }
-
-    private static void TryDeleteFile(string path)
-    {
-        try
-        {
-            if (File.Exists(path))
-            {
-                File.Delete(path);
-            }
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-        }
+        TemporaryDirectoryScope.CleanDirectory(scratchDirectory);
     }
 
     public void Dispose()
@@ -485,9 +371,9 @@ internal sealed class HeadlessWorldGenerator : IDisposable
             currentProcess = null;
         }
 
-        TryKill(processToKill);
-        TryDeleteFile(serverPidPath);
-        CleanScratch();
+        ProcessLifecycleGuard.TryKill(processToKill, "World pool failed to stop headless Terraria server.");
+        TemporaryDirectoryScope.TryDeleteFile(serverPidPath);
+        ClearScratch();
     }
 
     private sealed class ServerProcessMarker
