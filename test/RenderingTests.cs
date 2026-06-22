@@ -21,6 +21,7 @@ internal static class RenderingTests
         yield return ("OverlayFontCache keeps main timer font independent from milliseconds visibility", OverlayFontCacheKeepsMainTimerFontIndependentFromMillisecondsVisibility);
         yield return ("OverlayFontCache honors configured font families", OverlayFontCacheHonorsConfiguredFontFamilies);
         yield return ("BossIconCache crops animated item textures", BossIconCacheCropsAnimatedItemTextures);
+        yield return ("BossIconCache animates GIF icon frames", BossIconCacheAnimatesGifIconFrames);
         yield return ("BossIconCache loads boss icons from Icons Bosses", BossIconCacheLoadsBossIconsFromIconsBosses);
         yield return ("SplitSoundSelector routes equal times to not-faster sounds", SplitSoundSelectorRoutesEqualTimesToNotFasterSounds);
         yield return ("SplitSoundSelector treats missing comparison data as faster", SplitSoundSelectorTreatsMissingComparisonDataAsFaster);
@@ -265,6 +266,52 @@ internal static class RenderingTests
             TestAssert.Equal(8, lit.Height);
             TestAssert.Equal(Color.Red.ToArgb(), lit.GetPixel(0, 0).ToArgb());
             TestAssert.Equal(Color.Red.ToArgb(), lit.GetPixel(0, lit.Height - 1).ToArgb());
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
+
+    private static void BossIconCacheAnimatesGifIconFrames()
+    {
+        string directory = Path.Combine(
+            Path.GetTempPath(),
+            "TerrariaSplit.Tests",
+            "gif-icon-animation-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        string path = Path.Combine(directory, "animated.gif");
+        try
+        {
+            byte[] gif = Convert.FromBase64String(
+                "R0lGODlhAgACAIEAAP8AAAAAAAAAAAAAACH/C05FVFNDQVBFMi4wAwEAAAAh+QQICgAAACwAAAAAAgACAAAIBgABCAQQEAAh+QQIFAAAACwAAAAAAgACAIEAAP8AAAAAAAAAAAAIBgABCAQQEAA7");
+            File.WriteAllBytes(path, gif);
+
+            var definition = new SplitDefinition(
+                "split:animated",
+                "Animated",
+                SplitCondition.Fact("fact:animated"),
+                [path],
+                ["custom-icon:split:animated"],
+                ["custom-icon:split:animated"]);
+
+            using var cache = new BossIconCache();
+            IconPair icons = cache.Load(definition, path, new AppSettings());
+            TestAssert.Equal(true, icons.IsAnimated);
+
+            using var first = new Bitmap(icons.GetLitImage(DateTime.UnixEpoch));
+            using var second = new Bitmap(icons.GetLitImage(DateTime.UnixEpoch.AddMilliseconds(150)));
+            using var looped = new Bitmap(icons.GetLitImage(DateTime.UnixEpoch.AddMilliseconds(300)));
+            TestAssert.Equal(Color.Red.ToArgb(), first.GetPixel(0, 0).ToArgb());
+            TestAssert.Equal(Color.Blue.ToArgb(), second.GetPixel(0, 0).ToArgb());
+            TestAssert.Equal(Color.Red.ToArgb(), looped.GetPixel(0, 0).ToArgb());
+
+            cache.BeginRenderFrame();
+            cache.TrackRendered(icons);
+            TestAssert.Equal(true, cache.AnimatedIconUsedInCurrentFrame);
         }
         finally
         {

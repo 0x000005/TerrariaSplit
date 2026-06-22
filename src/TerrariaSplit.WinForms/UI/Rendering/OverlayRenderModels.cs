@@ -47,7 +47,9 @@ internal sealed record OverlayRenderContext(
     }
 }
 
-internal readonly record struct OverlayRenderResult(bool SplitCompletionAnimationActive);
+internal readonly record struct OverlayRenderResult(
+    bool SplitCompletionAnimationActive,
+    bool AnimatedIconsActive = false);
 
 internal sealed record OverlayFrame(
     AppSettings Settings,

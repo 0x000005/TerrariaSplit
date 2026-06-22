@@ -38,7 +38,8 @@ internal sealed partial class MainForm : Form
             overlayShell.StatusOverlayPartialClipBounds);
         overlayShell.Animations.UpdateAfterRender(result);
 
-        overlayShell.RecordStatusOverlayRender(ComputeStatusOverlayDynamicKey(elapsed));
+        overlayShell.RecordStatusOverlayRender(ComputeStatusOverlayDynamicKey(elapsed), result.AnimatedIconsActive);
+        UpdateStatusPaintSchedulerState();
     }
 
     private StatusOverlayDynamicKey ComputeStatusOverlayDynamicKey(TimeSpan elapsed)

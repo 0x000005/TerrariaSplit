@@ -125,7 +125,8 @@ internal sealed partial class MainForm : Form
 
     private void RenderStatusOverlayTick()
     {
-        if (overlayShell.Animations.SplitCompletionAnimation is not null)
+        if (overlayShell.Animations.SplitCompletionAnimation is not null ||
+            overlayShell.AnimatedStatusIconsActive)
         {
             overlayShell.WindowController.RenderImmediately();
             return;
@@ -152,6 +153,12 @@ internal sealed partial class MainForm : Form
             return;
         }
 
+        if (overlayShell.AnimatedStatusIconsActive)
+        {
+            overlayShell.WindowController.RenderImmediately();
+            return;
+        }
+
         if (overlayShell.CanSkipRunningStatusOverlayFrame(
                 StatusOverlayHighlightsActive,
                 ComputeStatusOverlayDynamicKey(timerElapsed)))
@@ -169,7 +176,9 @@ internal sealed partial class MainForm : Form
     {
         bool shouldRun = !windowShell.IsClosing &&
             !runtimeShell.IsOverlayPaintSuspended &&
-            (timerPhase == SplitTimerPhase.Running || overlayShell.Animations.SplitCompletionAnimation is not null);
+            (timerPhase == SplitTimerPhase.Running ||
+                overlayShell.Animations.SplitCompletionAnimation is not null ||
+                overlayShell.AnimatedStatusIconsActive);
         if (shouldRun && !runtimeShell.StatusPaintScheduler.IsRunning)
         {
             runtimeShell.StatusPaintScheduler.Start(runtimeShell.StatusPaintInterval);

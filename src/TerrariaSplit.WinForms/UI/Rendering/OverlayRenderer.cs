@@ -21,6 +21,7 @@ internal static class OverlayRenderer
             context.SplitCompletionAnimation is not null;
         float listOpacity = animationVisible ? 1f - animationOpacity : 1f;
 
+        resources.BossIcons.BeginRenderFrame();
         SplitListRenderer.Render(graphics, context, resources, listOpacity, clipBounds);
 
         if (animationVisible && context.SplitCompletionAnimation is not null)
@@ -34,7 +35,7 @@ internal static class OverlayRenderer
                 animationOpacity);
         }
 
-        return new OverlayRenderResult(animationActive);
+        return new OverlayRenderResult(animationActive, resources.BossIcons.AnimatedIconUsedInCurrentFrame);
     }
 
     public static void RenderTimer(

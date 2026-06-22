@@ -319,6 +319,7 @@ internal static class SplitListRenderer
         {
             int iconIndex = iconOrder[0];
             IconPair icon = resources.BossIcons.Load(definition, definition.IconFileNames[iconIndex], context.Settings);
+            resources.BossIcons.TrackRendered(icon);
             bool lit = IsIconLit(context, status, definition, iconIndex);
             int singleIconSize = Math.Min(
                 Math.Min(Math.Max(12, context.ScaleInt((int)Math.Round(iconSettings.FontSize * sizeScale))), rect.Height),
@@ -328,7 +329,11 @@ internal static class SplitListRenderer
                 rect.Y + Math.Max(0, (rect.Height - singleIconSize) / 2),
                 singleIconSize,
                 singleIconSize);
-            Image image = lit ? icon.Lit : brighten ? icon.Current : icon.Undefeated;
+            Image image = lit
+                ? icon.GetLitImage(context.NowUtc)
+                : brighten
+                    ? icon.GetCurrentImage(context.NowUtc)
+                    : icon.GetUndefeatedImage(context.NowUtc);
             TextEffectRenderer.DrawImage(graphics, image, iconRect, opacity);
             return;
         }
@@ -344,8 +349,13 @@ internal static class SplitListRenderer
         {
             int iconIndex = iconOrder[i];
             IconPair icon = resources.BossIcons.Load(definition, definition.IconFileNames[iconIndex], context.Settings);
+            resources.BossIcons.TrackRendered(icon);
             bool lit = IsIconLit(context, status, definition, iconIndex);
-            Image image = lit ? icon.Lit : brighten ? icon.Current : icon.Undefeated;
+            Image image = lit
+                ? icon.GetLitImage(context.NowUtc)
+                : brighten
+                    ? icon.GetCurrentImage(context.NowUtc)
+                    : icon.GetUndefeatedImage(context.NowUtc);
             TextEffectRenderer.DrawImage(
                 graphics,
                 image,

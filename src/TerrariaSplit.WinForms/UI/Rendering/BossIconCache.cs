@@ -5,7 +5,21 @@ namespace TerrariaSplit.UI.Rendering;
 
 internal sealed class BossIconCache : IDisposable
 {
+    private const int FrameDelayPropertyId = 0x5100;
+
     private readonly Dictionary<string, IconPair> cache = new(StringComparer.OrdinalIgnoreCase);
+
+    public bool AnimatedIconUsedInCurrentFrame { get; private set; }
+
+    public void BeginRenderFrame()
+    {
+        AnimatedIconUsedInCurrentFrame = false;
+    }
+
+    public void TrackRendered(IconPair iconPair)
+    {
+        AnimatedIconUsedInCurrentFrame |= iconPair.IsAnimated;
+    }
 
     public IconPair Load(SplitDefinition definition, string fileName, AppSettings settings)
     {
@@ -18,26 +32,110 @@ internal sealed class BossIconCache : IDisposable
             return iconPair;
         }
 
-        Bitmap lit = File.Exists(path) ? LoadIconBitmap(path, iconKey) : CreatePlaceholderIcon();
-        Bitmap undefeated = CreateBossChecklistUndefeatedIcon(
-            lit,
+        IconFrameSet lit = File.Exists(path) ? LoadIconFrameSet(path, iconKey) : IconFrameSet.Static(CreatePlaceholderIcon());
+        IconFrameSet undefeated = lit.Map(frame => CreateBossChecklistUndefeatedIcon(
+            frame,
             settings.Overlay.UndefeatedIconGrayscalePercent,
-            settings.Overlay.UndefeatedIconBrightnessPercent);
-        Bitmap current = CreateBossChecklistUndefeatedIcon(
-            lit,
+            settings.Overlay.UndefeatedIconBrightnessPercent));
+        IconFrameSet current = lit.Map(frame => CreateBossChecklistUndefeatedIcon(
+            frame,
             Math.Max(0, settings.Overlay.UndefeatedIconGrayscalePercent - settings.Overlay.CurrentBossIconGrayscaleWeakenPercent),
-            Math.Min(100, settings.Overlay.UndefeatedIconBrightnessPercent + settings.Overlay.CurrentBossIconBrightnessBoostPercent));
+            Math.Min(100, settings.Overlay.UndefeatedIconBrightnessPercent + settings.Overlay.CurrentBossIconBrightnessBoostPercent)));
         iconPair = new IconPair(lit, undefeated, current);
         cache[cacheKey] = iconPair;
         return iconPair;
     }
 
-    private static Bitmap LoadIconBitmap(string path, string iconKey)
+    private static IconFrameSet LoadIconFrameSet(string path, string iconKey)
     {
         using var source = new Bitmap(path);
+        if (TryCreateImageAnimationFrames(source, out IReadOnlyList<Bitmap> frames, out IReadOnlyList<int> delays))
+        {
+            return new IconFrameSet(frames, delays);
+        }
+
         return TryCreateItemAnimationFrame(source, iconKey, out Bitmap? frame)
-            ? frame
-            : new Bitmap(source);
+            ? IconFrameSet.Static(frame)
+            : IconFrameSet.Static(new Bitmap(source));
+    }
+
+    private static bool TryCreateImageAnimationFrames(
+        Bitmap source,
+        out IReadOnlyList<Bitmap> frames,
+        out IReadOnlyList<int> delays)
+    {
+        frames = [];
+        delays = [];
+        Guid timeDimensionGuid = source.FrameDimensionsList.FirstOrDefault(guid => guid == FrameDimension.Time.Guid);
+        if (timeDimensionGuid == Guid.Empty)
+        {
+            return false;
+        }
+
+        var dimension = new FrameDimension(timeDimensionGuid);
+        int frameCount = source.GetFrameCount(dimension);
+        if (frameCount <= 1)
+        {
+            return false;
+        }
+
+        int[] frameDelays = GetFrameDelays(source, frameCount);
+        var animationFrames = new List<Bitmap>(frameCount);
+        try
+        {
+            for (int i = 0; i < frameCount; i++)
+            {
+                source.SelectActiveFrame(dimension, i);
+                animationFrames.Add(CloneCurrentFrame(source));
+            }
+        }
+        catch
+        {
+            foreach (Bitmap frame in animationFrames)
+            {
+                frame.Dispose();
+            }
+
+            throw;
+        }
+
+        frames = animationFrames;
+        delays = frameDelays;
+        return true;
+    }
+
+    private static int[] GetFrameDelays(Image source, int frameCount)
+    {
+        var delays = Enumerable.Repeat(IconFrameSet.DefaultFrameDelayMs, frameCount).ToArray();
+        try
+        {
+            PropertyItem? item = source.GetPropertyItem(FrameDelayPropertyId);
+            byte[]? values = item?.Value;
+            if (values is null)
+            {
+                return delays;
+            }
+
+            for (int i = 0; i < frameCount && i * 4 + 3 < values.Length; i++)
+            {
+                int hundredths = BitConverter.ToInt32(values, i * 4);
+                delays[i] = Math.Max(IconFrameSet.MinimumFrameDelayMs, hundredths * 10);
+            }
+        }
+        catch (ArgumentException)
+        {
+        }
+
+        return delays;
+    }
+
+    private static Bitmap CloneCurrentFrame(Image source)
+    {
+        var frame = new Bitmap(source.Width, source.Height, PixelFormat.Format32bppArgb);
+        using Graphics graphics = Graphics.FromImage(frame);
+        graphics.Clear(Color.Transparent);
+        graphics.DrawImage(source, 0, 0, source.Width, source.Height);
+        return frame;
     }
 
     private static bool TryCreateItemAnimationFrame(Bitmap source, string iconKey, out Bitmap frame)
@@ -74,6 +172,7 @@ internal sealed class BossIconCache : IDisposable
         }
 
         cache.Clear();
+        AnimatedIconUsedInCurrentFrame = false;
     }
 
     public void Dispose()
@@ -237,12 +336,124 @@ internal sealed class BossIconCache : IDisposable
     }
 }
 
-internal sealed record IconPair(Image Lit, Image Undefeated, Image Current) : IDisposable
+internal sealed class IconPair : IDisposable
 {
+    private readonly IconFrameSet lit;
+    private readonly IconFrameSet undefeated;
+    private readonly IconFrameSet current;
+
+    public IconPair(IconFrameSet lit, IconFrameSet undefeated, IconFrameSet current)
+    {
+        this.lit = lit;
+        this.undefeated = undefeated;
+        this.current = current;
+    }
+
+    public Image Lit => lit.First;
+
+    public Image Undefeated => undefeated.First;
+
+    public Image Current => current.First;
+
+    public bool IsAnimated => lit.IsAnimated;
+
+    public Image GetLitImage(DateTime nowUtc)
+    {
+        return lit.GetFrame(nowUtc);
+    }
+
+    public Image GetUndefeatedImage(DateTime nowUtc)
+    {
+        return undefeated.GetFrame(nowUtc);
+    }
+
+    public Image GetCurrentImage(DateTime nowUtc)
+    {
+        return current.GetFrame(nowUtc);
+    }
+
     public void Dispose()
     {
-        Lit.Dispose();
-        Undefeated.Dispose();
-        Current.Dispose();
+        lit.Dispose();
+        undefeated.Dispose();
+        current.Dispose();
+    }
+}
+
+internal sealed class IconFrameSet : IDisposable
+{
+    public const int DefaultFrameDelayMs = 100;
+    public const int MinimumFrameDelayMs = 20;
+
+    private readonly IReadOnlyList<Bitmap> frames;
+    private readonly IReadOnlyList<int> delays;
+    private readonly int totalDurationMs;
+
+    public IconFrameSet(IReadOnlyList<Bitmap> frames, IReadOnlyList<int> delays)
+    {
+        if (frames.Count == 0)
+        {
+            throw new ArgumentException("Icon frame set must contain at least one frame.", nameof(frames));
+        }
+
+        this.frames = frames;
+        this.delays = NormalizeDelays(delays, frames.Count);
+        totalDurationMs = this.delays.Sum();
+    }
+
+    public Image First => frames[0];
+
+    public bool IsAnimated => frames.Count > 1;
+
+    public static IconFrameSet Static(Bitmap frame)
+    {
+        return new IconFrameSet([frame], [DefaultFrameDelayMs]);
+    }
+
+    public IconFrameSet Map(Func<Bitmap, Bitmap> transform)
+    {
+        return new IconFrameSet(frames.Select(transform).ToArray(), delays.ToArray());
+    }
+
+    public Image GetFrame(DateTime nowUtc)
+    {
+        if (frames.Count == 1)
+        {
+            return frames[0];
+        }
+
+        long elapsedMs = Math.Max(0, (long)(nowUtc.ToUniversalTime() - DateTime.UnixEpoch).TotalMilliseconds);
+        int position = (int)(elapsedMs % totalDurationMs);
+        int cursor = 0;
+        for (int i = 0; i < frames.Count; i++)
+        {
+            cursor += delays[i];
+            if (position < cursor)
+            {
+                return frames[i];
+            }
+        }
+
+        return frames[^1];
+    }
+
+    public void Dispose()
+    {
+        foreach (Bitmap frame in frames)
+        {
+            frame.Dispose();
+        }
+    }
+
+    private static IReadOnlyList<int> NormalizeDelays(IReadOnlyList<int> source, int count)
+    {
+        var normalized = new int[count];
+        for (int i = 0; i < count; i++)
+        {
+            int delay = i < source.Count ? source[i] : DefaultFrameDelayMs;
+            normalized[i] = Math.Max(MinimumFrameDelayMs, delay);
+        }
+
+        return normalized;
     }
 }

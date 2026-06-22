@@ -434,6 +434,14 @@ internal static class MainShellRefactorTests
             false,
             new StatusOverlayDynamicKey(1, "+0.20", Color.Green.ToArgb())));
 
+        shell.RecordStatusOverlayRender(key, animatedIconsActive: true);
+        TestAssert.Equal(true, shell.AnimatedStatusIconsActive);
+        TestAssert.Equal(false, shell.CanSkipRunningStatusOverlayFrame(false, key));
+
+        shell.RecordStatusOverlayRender(key);
+        TestAssert.Equal(false, shell.AnimatedStatusIconsActive);
+        TestAssert.Equal(true, shell.CanSkipRunningStatusOverlayFrame(false, key));
+
         shell.MarkStatusOverlayStaticContentDirty();
         TestAssert.Equal(true, shell.StatusOverlayContentDirty);
         TestAssert.Equal(null, shell.LastStatusOverlayDynamicKey);

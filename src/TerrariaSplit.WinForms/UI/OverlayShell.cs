@@ -20,6 +20,8 @@ internal sealed class OverlayShell : IDisposable
 
     public bool StatusOverlayContentDirty { get; private set; } = true;
 
+    public bool AnimatedStatusIconsActive { get; private set; }
+
     public StatusOverlayDynamicKey? LastStatusOverlayDynamicKey { get; private set; }
 
     public Rectangle? StatusOverlayPartialClipBounds { get; private set; }
@@ -92,13 +94,15 @@ internal sealed class OverlayShell : IDisposable
         StatusOverlayDynamicKey currentKey)
     {
         return !StatusOverlayContentDirty &&
+            !AnimatedStatusIconsActive &&
             !highlightsActive &&
             LastStatusOverlayDynamicKey is StatusOverlayDynamicKey previousKey &&
             currentKey == previousKey;
     }
 
-    public void RecordStatusOverlayRender(StatusOverlayDynamicKey dynamicKey)
+    public void RecordStatusOverlayRender(StatusOverlayDynamicKey dynamicKey, bool animatedIconsActive = false)
     {
+        AnimatedStatusIconsActive = animatedIconsActive;
         LastStatusOverlayDynamicKey = dynamicKey;
         if (StatusOverlayPartialClipBounds is null)
         {

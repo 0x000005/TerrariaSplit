@@ -291,7 +291,8 @@ internal static class SplitCompletionAnimationRenderer
         }
 
         IconPair icon = resources.BossIcons.Load(animation.Definition, iconFileName, context.Settings);
-        TextEffectRenderer.DrawImage(graphics, icon.Lit, iconRect, opacity);
+        resources.BossIcons.TrackRendered(icon);
+        TextEffectRenderer.DrawImage(graphics, icon.GetLitImage(context.NowUtc), iconRect, opacity);
     }
 
     private static void DrawTimes(
