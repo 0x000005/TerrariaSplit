@@ -154,14 +154,16 @@ internal sealed class UiSettingsPage : SettingsPageBase
 
     public override void Apply(AppSettings settings)
     {
-        ApplyColumnSettings("Icon", settings.Overlay.Columns.Icon);
-        ApplyColumnSettings("Time", settings.Overlay.Columns.Time);
-        ApplyColumnSettings("Delta", settings.Overlay.Columns.Delta);
-        ApplyColumnSettings("AttachedIcon", settings.Overlay.Columns.AttachedIcon);
-        ApplyColumnSettings("AttachedTime", settings.Overlay.Columns.AttachedTime);
-        ApplyColumnSettings("AttachedDelta", settings.Overlay.Columns.AttachedDelta);
-        ApplyFontSettings("Timer", settings.Overlay.Columns.Timer);
-        ApplyFontSettings("TimerMilliseconds", settings.Overlay.Columns.TimerMilliseconds);
+        foreach (UiColumnDescriptor descriptor in UiColumnDescriptors.SplitDisplay)
+        {
+            ApplyColumnSettings(descriptor, EnsureColumn(settings.Overlay.Columns, descriptor));
+        }
+
+        foreach (UiColumnDescriptor descriptor in UiColumnDescriptors.TimerDisplay)
+        {
+            ApplyFontSettings(descriptor, EnsureColumn(settings.Overlay.Columns, descriptor));
+        }
+
         if (ApplyGroupSettings(settings))
         {
             Context.NotifyModelChanged(SettingsModelChange.RouteChanged);
@@ -171,26 +173,7 @@ internal sealed class UiSettingsPage : SettingsPageBase
         settings.Overlay.Columns.TimerOffsetX = SettingsValueParser.ParseIntBox(timerOffsetXBox, 0, -2000, 2000);
         settings.Overlay.Columns.TimerOffsetY = SettingsValueParser.ParseIntBox(timerOffsetYBox, 0, -2000, 2000);
         settings.Overlay.TextEffects ??= new UiTextEffectSettings();
-        settings.Overlay.TextEffects.IconOpacityPercent = SettingsValueParser.ParseIntBox(iconOpacityBox, 100, 0, 100);
-        settings.Overlay.TextEffects.TimeOpacityPercent = SettingsValueParser.ParseIntBox(timeOpacityBox, 100, 0, 100);
-        settings.Overlay.TextEffects.TimeShadowPercent = SettingsValueParser.ParseIntBox(timeShadowBox, 0, 0, 100);
-        settings.Overlay.TextEffects.TimeOutlineThicknessPercent = SettingsValueParser.ParseIntBox(timeOutlineThicknessBox, 0, 0, 200);
-        settings.Overlay.TextEffects.DeltaOpacityPercent = SettingsValueParser.ParseIntBox(deltaOpacityBox, 100, 0, 100);
-        settings.Overlay.TextEffects.DeltaShadowPercent = SettingsValueParser.ParseIntBox(deltaShadowBox, 0, 0, 100);
-        settings.Overlay.TextEffects.DeltaOutlineThicknessPercent = SettingsValueParser.ParseIntBox(deltaOutlineThicknessBox, 0, 0, 200);
-        settings.Overlay.TextEffects.AttachedIconOpacityPercent = SettingsValueParser.ParseIntBox(attachedIconOpacityBox, 100, 0, 100);
-        settings.Overlay.TextEffects.AttachedTimeOpacityPercent = SettingsValueParser.ParseIntBox(attachedTimeOpacityBox, 100, 0, 100);
-        settings.Overlay.TextEffects.AttachedTimeShadowPercent = SettingsValueParser.ParseIntBox(attachedTimeShadowBox, 0, 0, 100);
-        settings.Overlay.TextEffects.AttachedTimeOutlineThicknessPercent = SettingsValueParser.ParseIntBox(attachedTimeOutlineThicknessBox, 0, 0, 200);
-        settings.Overlay.TextEffects.AttachedDeltaOpacityPercent = SettingsValueParser.ParseIntBox(attachedDeltaOpacityBox, 100, 0, 100);
-        settings.Overlay.TextEffects.AttachedDeltaShadowPercent = SettingsValueParser.ParseIntBox(attachedDeltaShadowBox, 0, 0, 100);
-        settings.Overlay.TextEffects.AttachedDeltaOutlineThicknessPercent = SettingsValueParser.ParseIntBox(attachedDeltaOutlineThicknessBox, 0, 0, 200);
-        settings.Overlay.TextEffects.TimerOpacityPercent = SettingsValueParser.ParseIntBox(timerOpacityBox, 100, 0, 100);
-        settings.Overlay.TextEffects.TimerShadowPercent = SettingsValueParser.ParseIntBox(timerShadowBox, 0, 0, 100);
-        settings.Overlay.TextEffects.TimerOutlineThicknessPercent = SettingsValueParser.ParseIntBox(timerOutlineThicknessBox, 0, 0, 200);
-        settings.Overlay.TextEffects.TimerMillisecondsOpacityPercent = SettingsValueParser.ParseIntBox(timerMillisecondsOpacityBox, 100, 0, 100);
-        settings.Overlay.TextEffects.TimerMillisecondsShadowPercent = SettingsValueParser.ParseIntBox(timerMillisecondsShadowBox, 0, 0, 100);
-        settings.Overlay.TextEffects.TimerMillisecondsOutlineThicknessPercent = SettingsValueParser.ParseIntBox(timerMillisecondsOutlineThicknessBox, 0, 0, 200);
+        ApplyTextEffectSettings(settings.Overlay.TextEffects);
     }
 
     private void AddColumnSettingsSection(TableLayoutPanel parent)
@@ -210,66 +193,28 @@ internal sealed class UiSettingsPage : SettingsPageBase
         Factory.AddHeaderRow(grid, ContentAlignment.MiddleLeft, "Column", "Show", "Width", "Font family", "Size", "Bold", "Opacity %", "Shadow %", "Outline %");
         AddColumnSettingsRow(
             grid,
-            "Icon",
-            "Icon",
-            Draft.Overlay.Columns.Icon,
-            opacityBox: iconOpacityBox,
-            opacityPercent: Draft.Overlay.TextEffects.IconOpacityPercent,
-            showFontFamily: false,
-            showBold: false);
+            UiColumnDescriptors.Icon,
+            EnsureColumn(Draft.Overlay.Columns, UiColumnDescriptors.Icon));
         AddColumnSettingsRow(
             grid,
-            "Time",
-            "Time",
-            Draft.Overlay.Columns.Time,
-            timeOpacityBox,
-            Draft.Overlay.TextEffects.TimeOpacityPercent,
-            timeShadowBox,
-            Draft.Overlay.TextEffects.TimeShadowPercent,
-            timeOutlineThicknessBox,
-            Draft.Overlay.TextEffects.TimeOutlineThicknessPercent);
+            UiColumnDescriptors.Time,
+            EnsureColumn(Draft.Overlay.Columns, UiColumnDescriptors.Time));
         AddColumnSettingsRow(
             grid,
-            "Delta",
-            "Delta",
-            Draft.Overlay.Columns.Delta,
-            deltaOpacityBox,
-            Draft.Overlay.TextEffects.DeltaOpacityPercent,
-            deltaShadowBox,
-            Draft.Overlay.TextEffects.DeltaShadowPercent,
-            deltaOutlineThicknessBox,
-            Draft.Overlay.TextEffects.DeltaOutlineThicknessPercent);
+            UiColumnDescriptors.Delta,
+            EnsureColumn(Draft.Overlay.Columns, UiColumnDescriptors.Delta));
         AddColumnSettingsRow(
             grid,
-            "Icon (attached)",
-            "AttachedIcon",
-            Draft.Overlay.Columns.AttachedIcon,
-            opacityBox: attachedIconOpacityBox,
-            opacityPercent: Draft.Overlay.TextEffects.AttachedIconOpacityPercent,
-            showFontFamily: false,
-            showBold: false);
+            UiColumnDescriptors.AttachedIcon,
+            EnsureColumn(Draft.Overlay.Columns, UiColumnDescriptors.AttachedIcon));
         AddColumnSettingsRow(
             grid,
-            "Time (attached)",
-            "AttachedTime",
-            Draft.Overlay.Columns.AttachedTime,
-            attachedTimeOpacityBox,
-            Draft.Overlay.TextEffects.AttachedTimeOpacityPercent,
-            attachedTimeShadowBox,
-            Draft.Overlay.TextEffects.AttachedTimeShadowPercent,
-            attachedTimeOutlineThicknessBox,
-            Draft.Overlay.TextEffects.AttachedTimeOutlineThicknessPercent);
+            UiColumnDescriptors.AttachedTime,
+            EnsureColumn(Draft.Overlay.Columns, UiColumnDescriptors.AttachedTime));
         AddColumnSettingsRow(
             grid,
-            "Delta (attached)",
-            "AttachedDelta",
-            Draft.Overlay.Columns.AttachedDelta,
-            attachedDeltaOpacityBox,
-            Draft.Overlay.TextEffects.AttachedDeltaOpacityPercent,
-            attachedDeltaShadowBox,
-            Draft.Overlay.TextEffects.AttachedDeltaShadowPercent,
-            attachedDeltaOutlineThicknessBox,
-            Draft.Overlay.TextEffects.AttachedDeltaOutlineThicknessPercent);
+            UiColumnDescriptors.AttachedDelta,
+            EnsureColumn(Draft.Overlay.Columns, UiColumnDescriptors.AttachedDelta));
 
         SettingsUiFactory.AddSectionControl(section, grid);
         SettingsUiFactory.AddSection(parent, section);
@@ -315,41 +260,34 @@ internal sealed class UiSettingsPage : SettingsPageBase
 
     private void AddColumnSettingsRow(
         TableLayoutPanel grid,
-        string label,
-        string key,
-        UiColumnSettings value,
-        TextBox? opacityBox = null,
-        int opacityPercent = 100,
-        TextBox? shadowBox = null,
-        int shadowPercent = 0,
-        TextBox? outlineThicknessBox = null,
-        int outlineThicknessPercent = 0,
-        bool showFontFamily = true,
-        bool showBold = true)
+        UiColumnDescriptor descriptor,
+        UiColumnSettings value)
     {
         var showBox = CreateCenteredCheckBox(value.Show);
         TextBox widthBox = Factory.CreateNumberBox(value.Width, 1, 1000);
-        FontFamilySelector? fontFamilyBox = showFontFamily ? CreateFontFamilyBox(value.FontFamily) : null;
+        FontFamilySelector? fontFamilyBox = descriptor.ShowFontFamily ? CreateFontFamilyBox(value.FontFamily) : null;
         TextBox fontBox = Factory.CreateDecimalBox(value.FontSize, 6, 96);
-        Control opacityControl = CreateEffectCell(opacityBox, opacityPercent, 100);
-        Control shadowControl = CreateEffectCell(shadowBox, shadowPercent, 100);
-        Control outlineThicknessControl = CreateEffectCell(outlineThicknessBox, outlineThicknessPercent, 200);
+        TextEffectBoxes effectBoxes = GetTextEffectBoxes(descriptor.TextEffect);
+        UiTextEffectSettings textEffects = Draft.Overlay.TextEffects;
+        Control opacityControl = CreateEffectCell(effectBoxes.Opacity, descriptor.TextEffect.GetOpacity(textEffects), 100);
+        Control shadowControl = CreateEffectCell(effectBoxes.Shadow, descriptor.TextEffect.GetShadow?.Invoke(textEffects) ?? 0, 100);
+        Control outlineThicknessControl = CreateEffectCell(effectBoxes.Outline, descriptor.TextEffect.GetOutline?.Invoke(textEffects) ?? 0, 200);
         Control fontFamilyControl = fontFamilyBox is null
             ? CreateEmptySettingsCell()
             : Factory.CreateCenteredCell(fontFamilyBox, 210);
 
         CheckBox? boldBox = null;
         Control boldControl = CreateEmptySettingsCell();
-        if (showBold)
+        if (descriptor.ShowBold)
         {
             boldBox = CreateCenteredCheckBox(value.Bold);
             boldControl = Factory.CreateCenteredCell(boldBox, 28);
         }
 
-        columnControls[key] = new ColumnControls(showBox, widthBox, fontFamilyBox, fontBox, boldBox);
+        columnControls[descriptor.Key] = new ColumnControls(showBox, widthBox, fontFamilyBox, fontBox, boldBox);
 
         int row = Factory.AddGridRow(grid);
-        grid.Controls.Add(Factory.CreateRowLabel(label), 0, row);
+        grid.Controls.Add(Factory.CreateRowLabel(descriptor.Label), 0, row);
         grid.Controls.Add(Factory.CreateCenteredCell(showBox, 28), 1, row);
         grid.Controls.Add(Factory.CreateCenteredCell(widthBox, 86), 2, row);
         grid.Controls.Add(fontFamilyControl, 3, row);
@@ -376,26 +314,12 @@ internal sealed class UiSettingsPage : SettingsPageBase
         Factory.AddHeaderRow(grid, ContentAlignment.MiddleLeft, "Section", "Show", "Font family", "Size", "Bold", "Opacity %", "Shadow %", "Outline %");
         AddFontSettingsRow(
             grid,
-            "Before decimal",
-            "Timer",
-            Draft.Overlay.Columns.Timer,
-            timerOpacityBox,
-            Draft.Overlay.TextEffects.TimerOpacityPercent,
-            timerShadowBox,
-            Draft.Overlay.TextEffects.TimerShadowPercent,
-            timerOutlineThicknessBox,
-            Draft.Overlay.TextEffects.TimerOutlineThicknessPercent);
+            UiColumnDescriptors.Timer,
+            EnsureColumn(Draft.Overlay.Columns, UiColumnDescriptors.Timer));
         AddFontSettingsRow(
             grid,
-            "After decimal",
-            "TimerMilliseconds",
-            Draft.Overlay.Columns.TimerMilliseconds,
-            timerMillisecondsOpacityBox,
-            Draft.Overlay.TextEffects.TimerMillisecondsOpacityPercent,
-            timerMillisecondsShadowBox,
-            Draft.Overlay.TextEffects.TimerMillisecondsShadowPercent,
-            timerMillisecondsOutlineThicknessBox,
-            Draft.Overlay.TextEffects.TimerMillisecondsOutlineThicknessPercent);
+            UiColumnDescriptors.TimerMilliseconds,
+            EnsureColumn(Draft.Overlay.Columns, UiColumnDescriptors.TimerMilliseconds));
 
         ConfigureNumberBox(timerOffsetXBox, Draft.Overlay.Columns.TimerOffsetX, -2000, 2000);
         ConfigureNumberBox(timerOffsetYBox, Draft.Overlay.Columns.TimerOffsetY, -2000, 2000);
@@ -433,27 +357,22 @@ internal sealed class UiSettingsPage : SettingsPageBase
 
     private void AddFontSettingsRow(
         TableLayoutPanel grid,
-        string label,
-        string key,
-        UiColumnSettings value,
-        TextBox opacityBox,
-        int opacityPercent,
-        TextBox shadowBox,
-        int shadowPercent,
-        TextBox outlineThicknessBox,
-        int outlineThicknessPercent)
+        UiColumnDescriptor descriptor,
+        UiColumnSettings value)
     {
         var showBox = CreateCenteredCheckBox(value.Show);
         FontFamilySelector fontFamilyBox = CreateFontFamilyBox(value.FontFamily);
         TextBox fontBox = Factory.CreateDecimalBox(value.FontSize, 6, 96);
-        Control opacityControl = CreateEffectCell(opacityBox, opacityPercent, 100);
-        Control shadowControl = CreateEffectCell(shadowBox, shadowPercent, 100);
-        Control outlineThicknessControl = CreateEffectCell(outlineThicknessBox, outlineThicknessPercent, 200);
+        TextEffectBoxes effectBoxes = GetTextEffectBoxes(descriptor.TextEffect);
+        UiTextEffectSettings textEffects = Draft.Overlay.TextEffects;
+        Control opacityControl = CreateEffectCell(effectBoxes.Opacity, descriptor.TextEffect.GetOpacity(textEffects), 100);
+        Control shadowControl = CreateEffectCell(effectBoxes.Shadow, descriptor.TextEffect.GetShadow?.Invoke(textEffects) ?? 0, 100);
+        Control outlineThicknessControl = CreateEffectCell(effectBoxes.Outline, descriptor.TextEffect.GetOutline?.Invoke(textEffects) ?? 0, 200);
         var boldBox = CreateCenteredCheckBox(value.Bold);
 
-        fontControls[key] = new FontControls(showBox, fontFamilyBox, fontBox, boldBox);
+        fontControls[descriptor.Key] = new FontControls(showBox, fontFamilyBox, fontBox, boldBox);
         int row = Factory.AddGridRow(grid);
-        grid.Controls.Add(Factory.CreateRowLabel(label), 0, row);
+        grid.Controls.Add(Factory.CreateRowLabel(descriptor.Label), 0, row);
         grid.Controls.Add(Factory.CreateCenteredCell(showBox, 28), 1, row);
         grid.Controls.Add(Factory.CreateCenteredCell(fontFamilyBox, 210), 2, row);
         grid.Controls.Add(Factory.CreateCenteredCell(fontBox, 92), 3, row);
@@ -567,6 +486,35 @@ internal sealed class UiSettingsPage : SettingsPageBase
         settings.Overlay.EnableDynamicDeltaTimeUnits = enableDynamicDeltaTimeUnitsBox.Checked;
     }
 
+    private void ApplyTextEffectSettings(UiTextEffectSettings textEffects)
+    {
+        foreach (UiTextEffectDescriptor descriptor in UiTextEffectDescriptors.All)
+        {
+            TextEffectBoxes boxes = GetTextEffectBoxes(descriptor);
+            descriptor.SetOpacity(
+                textEffects,
+                SettingsValueParser.ParseIntBox(boxes.Opacity, descriptor.GetOpacity(textEffects), 0, 100));
+
+            if (descriptor.GetShadow is not null &&
+                descriptor.SetShadow is not null &&
+                boxes.Shadow is not null)
+            {
+                descriptor.SetShadow(
+                    textEffects,
+                    SettingsValueParser.ParseIntBox(boxes.Shadow, descriptor.GetShadow(textEffects), 0, 100));
+            }
+
+            if (descriptor.GetOutline is not null &&
+                descriptor.SetOutline is not null &&
+                boxes.Outline is not null)
+            {
+                descriptor.SetOutline(
+                    textEffects,
+                    SettingsValueParser.ParseIntBox(boxes.Outline, descriptor.GetOutline(textEffects), 0, 200));
+            }
+        }
+    }
+
     private void UpdateCollapseSplitDetailsAvailability()
     {
         collapseSplitDetailsOnCompletionBox.Enabled = expandSplitDetailsBox.Checked;
@@ -585,9 +533,9 @@ internal sealed class UiSettingsPage : SettingsPageBase
         earlyDeltaTimeSecondsBox.Enabled = showEarlyDeltaTimeBox.Checked;
     }
 
-    private void ApplyColumnSettings(string key, UiColumnSettings target)
+    private void ApplyColumnSettings(UiColumnDescriptor descriptor, UiColumnSettings target)
     {
-        if (!columnControls.TryGetValue(key, out ColumnControls? controls))
+        if (!columnControls.TryGetValue(descriptor.Key, out ColumnControls? controls))
         {
             return;
         }
@@ -606,9 +554,9 @@ internal sealed class UiSettingsPage : SettingsPageBase
         }
     }
 
-    private void ApplyFontSettings(string key, UiColumnSettings target)
+    private void ApplyFontSettings(UiColumnDescriptor descriptor, UiColumnSettings target)
     {
-        if (!fontControls.TryGetValue(key, out FontControls? controls))
+        if (!fontControls.TryGetValue(descriptor.Key, out FontControls? controls))
         {
             return;
         }
@@ -625,7 +573,38 @@ internal sealed class UiSettingsPage : SettingsPageBase
         return UiFontFactory.Default.NormalizeFamilyName(string.IsNullOrWhiteSpace(selected) ? fallback : selected);
     }
 
+    private UiColumnSettings EnsureColumn(UiColumnLayoutSettings columns, UiColumnDescriptor descriptor)
+    {
+        UiColumnSettings? column = descriptor.GetValue(columns);
+        if (column is not null)
+        {
+            return column;
+        }
+
+        column = new UiColumnSettings();
+        descriptor.SetValue(columns, column);
+        return column;
+    }
+
+    private TextEffectBoxes GetTextEffectBoxes(UiTextEffectDescriptor descriptor)
+    {
+        return descriptor.Key switch
+        {
+            nameof(UiTextEffectSettings.IconOpacityPercent) => new TextEffectBoxes(iconOpacityBox, null, null),
+            nameof(UiTextEffectSettings.TimeOpacityPercent) => new TextEffectBoxes(timeOpacityBox, timeShadowBox, timeOutlineThicknessBox),
+            nameof(UiTextEffectSettings.DeltaOpacityPercent) => new TextEffectBoxes(deltaOpacityBox, deltaShadowBox, deltaOutlineThicknessBox),
+            nameof(UiTextEffectSettings.AttachedIconOpacityPercent) => new TextEffectBoxes(attachedIconOpacityBox, null, null),
+            nameof(UiTextEffectSettings.AttachedTimeOpacityPercent) => new TextEffectBoxes(attachedTimeOpacityBox, attachedTimeShadowBox, attachedTimeOutlineThicknessBox),
+            nameof(UiTextEffectSettings.AttachedDeltaOpacityPercent) => new TextEffectBoxes(attachedDeltaOpacityBox, attachedDeltaShadowBox, attachedDeltaOutlineThicknessBox),
+            nameof(UiTextEffectSettings.TimerOpacityPercent) => new TextEffectBoxes(timerOpacityBox, timerShadowBox, timerOutlineThicknessBox),
+            nameof(UiTextEffectSettings.TimerMillisecondsOpacityPercent) => new TextEffectBoxes(timerMillisecondsOpacityBox, timerMillisecondsShadowBox, timerMillisecondsOutlineThicknessBox),
+            _ => throw new NotSupportedException($"Unsupported text effect descriptor: {descriptor.Key}.")
+        };
+    }
+
     private sealed record ColumnControls(CheckBox Show, TextBox Width, FontFamilySelector? FontFamily, TextBox FontSize, CheckBox? Bold);
 
     private sealed record FontControls(CheckBox Show, FontFamilySelector FontFamily, TextBox FontSize, CheckBox Bold);
+
+    private readonly record struct TextEffectBoxes(TextBox Opacity, TextBox? Shadow, TextBox? Outline);
 }

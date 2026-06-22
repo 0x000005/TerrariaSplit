@@ -65,6 +65,8 @@ var legacyTests = new (string Name, Action Test)[]
     ("SettingsNormalizer normalizes timer overlay refresh settings", TestSettingsNormalizeTimerOverlayRefresh),
     ("SettingsNormalizer normalizes practice world slots", TestSettingsNormalizePracticeWorlds),
     ("SettingsNormalizer clamps text effects", TestSettingsNormalizeTextEffects),
+    ("UI text effect descriptors cover effect fields", TestUiTextEffectDescriptorsCoverEffectFields),
+    ("UI column descriptors cover overlay columns", TestUiColumnDescriptorsCoverOverlayColumns),
     ("SettingsNormalizer derives split icons from conditions", TestSettingsNormalizeDerivesSplitIconsFromConditions),
     ("SettingsNormalizer assigns internal split ids", TestSettingsNormalizerAssignsInternalSplitIds),
     ("SettingsNormalizer normalizes UI font families", TestSettingsNormalizeUiFontFamilies),
@@ -1765,6 +1767,59 @@ static void TestSettingsNormalizeTextEffects()
     SettingsNormalizer.Normalize(settings);
     AssertEqual(100, settings.Overlay.TextEffects.TimeOpacityPercent);
     AssertEqual(0, settings.Overlay.TextEffects.TimerShadowPercent);
+}
+
+static void TestUiTextEffectDescriptorsCoverEffectFields()
+{
+    AssertEqual(8, UiTextEffectDescriptors.All.Count);
+    AssertEqual(
+        UiTextEffectDescriptors.All.Count,
+        UiTextEffectDescriptors.All.Select(descriptor => descriptor.Key).Distinct(StringComparer.Ordinal).Count());
+    AssertEqual(6, UiTextEffectDescriptors.All.Count(descriptor => descriptor.GetShadow is not null && descriptor.SetShadow is not null));
+    AssertEqual(6, UiTextEffectDescriptors.All.Count(descriptor => descriptor.GetOutline is not null && descriptor.SetOutline is not null));
+
+    UiTextEffectSettings effects = new();
+    foreach (UiTextEffectDescriptor descriptor in UiTextEffectDescriptors.All)
+    {
+        descriptor.SetOpacity(effects, 12);
+        AssertEqual(12, descriptor.GetOpacity(effects));
+
+        if (descriptor.GetShadow is not null && descriptor.SetShadow is not null)
+        {
+            descriptor.SetShadow(effects, 34);
+            AssertEqual(34, descriptor.GetShadow(effects));
+        }
+
+        if (descriptor.GetOutline is not null && descriptor.SetOutline is not null)
+        {
+            descriptor.SetOutline(effects, 56);
+            AssertEqual(56, descriptor.GetOutline(effects));
+        }
+    }
+
+    AssertEqual(12, effects.IconOpacityPercent);
+    AssertEqual(12, effects.AttachedIconOpacityPercent);
+    AssertEqual(34, effects.TimerMillisecondsShadowPercent);
+    AssertEqual(56, effects.AttachedDeltaOutlineThicknessPercent);
+}
+
+static void TestUiColumnDescriptorsCoverOverlayColumns()
+{
+    AssertEqual(
+        "Icon|Time|Delta|AttachedIcon|AttachedTime|AttachedDelta|Timer|TimerMilliseconds",
+        string.Join("|", UiColumnDescriptors.All.Select(descriptor => descriptor.Key)));
+    AssertEqual(6, UiColumnDescriptors.SplitDisplay.Count);
+    AssertEqual(2, UiColumnDescriptors.TimerDisplay.Count);
+    AssertEqual(false, UiColumnDescriptors.Icon.ShowFontFamily);
+    AssertEqual(false, UiColumnDescriptors.Icon.ShowBold);
+    AssertEqual(false, UiColumnDescriptors.Timer.ShowWidth);
+
+    UiColumnLayoutSettings columns = AppSettingsDefaults.Create().Overlay.Columns;
+    foreach (UiColumnDescriptor descriptor in UiColumnDescriptors.All)
+    {
+        AssertEqual(true, descriptor.GetValue(columns) is not null);
+        AssertEqual(true, UiTextEffectDescriptors.All.Contains(descriptor.TextEffect));
+    }
 }
 
 static void TestSettingsNormalizeDerivesSplitIconsFromConditions()
