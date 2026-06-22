@@ -1,7 +1,7 @@
 <Project>
   <PropertyGroup>
-    <TerrariaSplitMemoryProbeProject>$(MSBuildThisFileDirectory)..\..\..\TerrariaSplit.MemoryProbe\TerrariaSplit.MemoryProbe.csproj</TerrariaSplitMemoryProbeProject>
-    <TerrariaSplitMemoryProbeProjectDirectory>$(MSBuildThisFileDirectory)..\..\..\TerrariaSplit.MemoryProbe\</TerrariaSplitMemoryProbeProjectDirectory>
+    <TerrariaSplitMemoryProbeProject>$(MSBuildThisFileDirectory)..\..\TerrariaSplit.MemoryProbe\TerrariaSplit.MemoryProbe.csproj</TerrariaSplitMemoryProbeProject>
+    <TerrariaSplitMemoryProbeProjectDirectory>$(MSBuildThisFileDirectory)..\..\TerrariaSplit.MemoryProbe\</TerrariaSplitMemoryProbeProjectDirectory>
     <TerrariaSplitMemoryProbeTargetFramework>net10.0-windows</TerrariaSplitMemoryProbeTargetFramework>
     <TerrariaSplitMemoryProbeRuntimeIdentifier>win-x86</TerrariaSplitMemoryProbeRuntimeIdentifier>
     <TerrariaSplitMemoryProbePlatformTarget>x86</TerrariaSplitMemoryProbePlatformTarget>
