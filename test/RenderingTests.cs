@@ -35,6 +35,7 @@ internal static class RenderingTests
         yield return ("SplitListRenderer keeps ever owned item icons lit after item leaves inventory", SplitListRendererKeepsEverOwnedItemIconsLitAfterItemLeavesInventory);
         yield return ("SplitListRenderer lights target override ever owned item icons", SplitListRendererLightsTargetOverrideEverOwnedItemIcons);
         yield return ("SplitListRenderer preserves current split depth curve", SplitListRendererPreservesCurrentSplitDepthCurve);
+        yield return ("SplitRowPaintOrder paints far rows first", SplitRowPaintOrderPaintsFarRowsFirst);
         yield return ("SplitListRenderer partial region redraw matches full render", SplitListRendererPartialRegionMatchesFullRender);
         yield return ("SplitCompletionAnimationFactory filters OR completion icons to matched target", SplitCompletionAnimationFactoryFiltersOrCompletionIconsToMatchedTarget);
         yield return ("SplitCompletionAnimationFactory creates animation with split delta", SplitCompletionAnimationFactoryCreatesAnimationWithSplitDelta);
@@ -1041,6 +1042,25 @@ internal static class RenderingTests
         Nearly(0.432f, SplitListRenderer.GetCurrentSplitDepthOpacity(settings, rowIndex: 0, focusIndex: 2, baseOpacity: 0.8f));
         Nearly(0.304f, SplitListRenderer.GetCurrentSplitDepthOpacity(settings, rowIndex: 5, focusIndex: 2, baseOpacity: 0.8f));
         Nearly(0.224f, SplitListRenderer.GetCurrentSplitDepthOpacity(settings, rowIndex: 6, focusIndex: 2, baseOpacity: 0.8f));
+    }
+
+    private static void SplitRowPaintOrderPaintsFarRowsFirst()
+    {
+        SplitDisplayRow[] rows =
+        [
+            new(0, 0),
+            new(1, 1),
+            new(2, 2),
+            new(3, 3),
+            new(4, 4)
+        ];
+
+        int[] orderedRows = SplitRowPaintOrder.Create(rows, focusIndex: 2)
+            .Select(row => row.RowIndex)
+            .ToArray();
+
+        TestAssert.Equal("0|4|1|3|2", string.Join("|", orderedRows));
+        TestAssert.Equal(true, ReferenceEquals(rows, SplitRowPaintOrder.Create(rows, focusIndex: -1)));
     }
 
     private static void SplitListRendererLightsFactsOnlyAfterTimerStarts()

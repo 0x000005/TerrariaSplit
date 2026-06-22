@@ -19,31 +19,9 @@ internal static class SplitListRenderer
             context.VisibleStatusRowCount,
             context.IgnoreVisibleGroupLimit);
         int focusIndex = GetCurrentSplitHighlightIndex(context, rows);
-        if (focusIndex < 0)
+        foreach (SplitDisplayRow row in SplitRowPaintOrder.Create(rows, focusIndex))
         {
-            foreach (SplitDisplayRow row in rows)
-            {
-                RenderRow(graphics, context, resources, listOpacity, row, focusIndex, clipBounds);
-            }
-
-            return;
-        }
-
-        // Paint rows farthest from the focused row first so nearer (scaled-up)
-        // rows draw on top; ties resolve to the lower index, matching the
-        // previous OrderByDescending(distance).ThenBy(index) ordering.
-        int maxDistance = rows.Count == 0
-            ? 0
-            : rows.Max(row => Math.Abs(row.RowIndex - focusIndex));
-        for (int distance = maxDistance; distance >= 0; distance--)
-        {
-            foreach (SplitDisplayRow row in rows)
-            {
-                if (Math.Abs(row.RowIndex - focusIndex) == distance)
-                {
-                    RenderRow(graphics, context, resources, listOpacity, row, focusIndex, clipBounds);
-                }
-            }
+            RenderRow(graphics, context, resources, listOpacity, row, focusIndex, clipBounds);
         }
     }
 
