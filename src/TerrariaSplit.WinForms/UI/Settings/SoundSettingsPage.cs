@@ -35,7 +35,8 @@ internal sealed class SoundSettingsPage : SettingsPageBase
         {
             AddSoundRow(
                 grid,
-                descriptor.Label,
+                GetSoundLabel(descriptor),
+                descriptor.PrefixWithFinalGroupName,
                 descriptor.Key,
                 descriptor.GetValue(Draft.Overlay.Sounds));
         }
@@ -44,7 +45,20 @@ internal sealed class SoundSettingsPage : SettingsPageBase
         SettingsUiFactory.AddSection(parent, section);
     }
 
-    private void AddSoundRow(TableLayoutPanel grid, string label, string key, string value)
+    private string GetSoundLabel(SoundDescriptor descriptor)
+    {
+        if (!descriptor.PrefixWithFinalGroupName)
+        {
+            return descriptor.Label;
+        }
+
+        string finalGroupName = SplitRouteGroups.Build(Draft).LastOrDefault() is RouteGroup finalGroup
+            ? SplitRouteGroups.GetGroupDisplayName(finalGroup, Draft)
+            : Context.Localize("Final group");
+        return $"{finalGroupName}{Context.Localize(": ")}{Context.Localize(descriptor.Label)}";
+    }
+
+    private void AddSoundRow(TableLayoutPanel grid, string label, bool labelIsLocalized, string key, string value)
     {
         TextBox textBox = Factory.CreateTextBox(value);
         soundTextBoxes[key] = textBox;
@@ -56,7 +70,7 @@ internal sealed class SoundSettingsPage : SettingsPageBase
         clearButton.Click += (_, _) => textBox.Text = string.Empty;
 
         int row = Factory.AddGridRow(grid);
-        grid.Controls.Add(Factory.CreateRowLabel(label), 0, row);
+        grid.Controls.Add(labelIsLocalized ? Factory.CreateRawRowLabel(label) : Factory.CreateRowLabel(label), 0, row);
         grid.Controls.Add(textBox, 1, row);
         grid.Controls.Add(browseButton, 2, row);
         grid.Controls.Add(clearButton, 3, row);

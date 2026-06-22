@@ -4,7 +4,7 @@ internal static class SplitSoundSelector
 {
     public static string GetPath(
         UiSoundSettings sounds,
-        SplitDefinition definition,
+        bool isFinalGroupCompletion,
         TimeSpan splitTime,
         TimeSpan? referenceSplit,
         TimeSpan? segmentTime,
@@ -17,29 +17,29 @@ internal static class SplitSoundSelector
 
         return GetPath(
             sounds,
-            definition,
+            isFinalGroupCompletion,
             cumulativeFasterThanReference,
             segmentFasterThanPersonalBest);
     }
 
     public static string GetPath(
         UiSoundSettings sounds,
-        SplitDefinition definition,
+        bool isFinalGroupCompletion,
         bool cumulativeFasterThanReference,
         bool segmentFasterThanPersonalBest)
     {
-        if (SplitCatalog.IsMoonLordSplit(definition))
+        if (isFinalGroupCompletion)
         {
-            string moonLordPath = (cumulativeFasterThanReference, segmentFasterThanPersonalBest) switch
+            string finalGroupPath = (cumulativeFasterThanReference, segmentFasterThanPersonalBest) switch
             {
-                (false, false) => sounds.MoonLordBehindReferenceBehindSegment,
-                (false, true) => sounds.MoonLordBehindReferenceAheadSegment,
-                (true, false) => sounds.MoonLordAheadReferenceBehindSegment,
-                _ => sounds.MoonLordAheadReferenceAheadSegment
+                (false, false) => sounds.FinalGroupBehindReferenceBehindSegment,
+                (false, true) => sounds.FinalGroupBehindReferenceAheadSegment,
+                (true, false) => sounds.FinalGroupAheadReferenceBehindSegment,
+                _ => sounds.FinalGroupAheadReferenceAheadSegment
             };
-            if (!string.IsNullOrWhiteSpace(moonLordPath))
+            if (!string.IsNullOrWhiteSpace(finalGroupPath))
             {
-                return moonLordPath;
+                return finalGroupPath;
             }
         }
 

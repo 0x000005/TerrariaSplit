@@ -82,10 +82,10 @@ internal static class SettingsDescriptors
         new("Stage reached: cumulative not faster, segment faster", nameof(UiSoundSettings.SplitBehindReferenceAheadSegment), sounds => sounds.SplitBehindReferenceAheadSegment, (sounds, value) => sounds.SplitBehindReferenceAheadSegment = value),
         new("Stage reached: cumulative faster, segment not faster", nameof(UiSoundSettings.SplitAheadReferenceBehindSegment), sounds => sounds.SplitAheadReferenceBehindSegment, (sounds, value) => sounds.SplitAheadReferenceBehindSegment = value),
         new("Stage reached: cumulative faster, segment faster", nameof(UiSoundSettings.SplitAheadReferenceAheadSegment), sounds => sounds.SplitAheadReferenceAheadSegment, (sounds, value) => sounds.SplitAheadReferenceAheadSegment = value),
-        new("Moon Lord: cumulative not faster, segment not faster", nameof(UiSoundSettings.MoonLordBehindReferenceBehindSegment), sounds => sounds.MoonLordBehindReferenceBehindSegment, (sounds, value) => sounds.MoonLordBehindReferenceBehindSegment = value),
-        new("Moon Lord: cumulative not faster, segment faster", nameof(UiSoundSettings.MoonLordBehindReferenceAheadSegment), sounds => sounds.MoonLordBehindReferenceAheadSegment, (sounds, value) => sounds.MoonLordBehindReferenceAheadSegment = value),
-        new("Moon Lord: cumulative faster, segment not faster", nameof(UiSoundSettings.MoonLordAheadReferenceBehindSegment), sounds => sounds.MoonLordAheadReferenceBehindSegment, (sounds, value) => sounds.MoonLordAheadReferenceBehindSegment = value),
-        new("Moon Lord: cumulative faster, segment faster", nameof(UiSoundSettings.MoonLordAheadReferenceAheadSegment), sounds => sounds.MoonLordAheadReferenceAheadSegment, (sounds, value) => sounds.MoonLordAheadReferenceAheadSegment = value)
+        new("cumulative not faster, segment not faster", nameof(UiSoundSettings.FinalGroupBehindReferenceBehindSegment), sounds => sounds.FinalGroupBehindReferenceBehindSegment, (sounds, value) => sounds.FinalGroupBehindReferenceBehindSegment = value, PrefixWithFinalGroupName: true),
+        new("cumulative not faster, segment faster", nameof(UiSoundSettings.FinalGroupBehindReferenceAheadSegment), sounds => sounds.FinalGroupBehindReferenceAheadSegment, (sounds, value) => sounds.FinalGroupBehindReferenceAheadSegment = value, PrefixWithFinalGroupName: true),
+        new("cumulative faster, segment not faster", nameof(UiSoundSettings.FinalGroupAheadReferenceBehindSegment), sounds => sounds.FinalGroupAheadReferenceBehindSegment, (sounds, value) => sounds.FinalGroupAheadReferenceBehindSegment = value, PrefixWithFinalGroupName: true),
+        new("cumulative faster, segment faster", nameof(UiSoundSettings.FinalGroupAheadReferenceAheadSegment), sounds => sounds.FinalGroupAheadReferenceAheadSegment, (sounds, value) => sounds.FinalGroupAheadReferenceAheadSegment = value, PrefixWithFinalGroupName: true)
     ];
 }
 
@@ -111,7 +111,8 @@ internal sealed record SoundDescriptor(
     string Label,
     string Key,
     Func<UiSoundSettings, string> GetValue,
-    Action<UiSoundSettings, string> SetValue);
+    Action<UiSoundSettings, string> SetValue,
+    bool PrefixWithFinalGroupName = false);
 
 internal static class SettingsBinder
 {

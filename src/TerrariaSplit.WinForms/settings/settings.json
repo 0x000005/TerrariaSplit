@@ -999,10 +999,10 @@
     "SplitBehindReferenceAheadSegment": "",
     "SplitAheadReferenceBehindSegment": "",
     "SplitAheadReferenceAheadSegment": "",
-    "MoonLordBehindReferenceBehindSegment": "",
-    "MoonLordBehindReferenceAheadSegment": "",
-    "MoonLordAheadReferenceBehindSegment": "",
-    "MoonLordAheadReferenceAheadSegment": ""
+    "FinalGroupBehindReferenceBehindSegment": "",
+    "FinalGroupBehindReferenceAheadSegment": "",
+    "FinalGroupAheadReferenceBehindSegment": "",
+    "FinalGroupAheadReferenceAheadSegment": ""
   },
   "Columns": {
     "ScalePercent": 100,

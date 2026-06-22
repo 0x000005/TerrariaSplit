@@ -115,7 +115,7 @@ var legacyTests = new (string Name, Action Test)[]
     ("Debug sequence uses pooled world path when pool has a world", TestDebugSequenceUsesPooledWorldPath),
     ("Settings form applies timer start sound", TestSettingsFormAppliesTimerStartSound),
     ("Settings form applies resume sound", TestSettingsFormAppliesResumeSound),
-    ("Settings form applies Moon Lord split sound", TestSettingsFormAppliesMoonLordSplitSound),
+    ("Settings form applies final group split sound", TestSettingsFormAppliesFinalGroupSplitSound),
     ("Settings form locks reference controls when PB reference is enabled", TestSettingsFormLocksReferenceControlsForPersonalBestReference),
     ("Settings form applies text outline and shadow colors", TestSettingsFormAppliesTextOutlineAndShadowColors),
     ("Main form preserves size when applying non-layout settings", TestMainFormPreservesSizeWhenApplyingNonLayoutSettings),
@@ -1300,8 +1300,8 @@ static void TestDefaultReferenceTimesMatchDefaultSettingsRoute()
         }
     }
 
-    AssertEqual("0:51.00", referenceSet.Splits["condition:split:item-857:complete"]);
     AssertEqual("6:50.00", referenceSet.Splits["condition:split:item-167:complete"]);
+    AssertEqual("48:12.63", referenceSet.Splits["condition:split:boss-moon-lord:boss-moon-lord-defeated-istrue-1"]);
 }
 
 static void TestAppSettingsStoreWritesEmbeddedDefaultsWhenSettingsFileIsInvalid()
@@ -4581,17 +4581,17 @@ static void TestSettingsFormAppliesResumeSound()
     });
 }
 
-static void TestSettingsFormAppliesMoonLordSplitSound()
+static void TestSettingsFormAppliesFinalGroupSplitSound()
 {
     RunSta(() =>
     {
         using var form = new SettingsForm(new AppSettings());
         SoundSettingsPage page = form.PageHost.GetOrCreatePage<SoundSettingsPage>(SettingsPageId.Sounds);
-        page.SoundTextBoxes[nameof(UiSoundSettings.MoonLordAheadReferenceAheadSegment)].Text = "sounds\\moonlord-best.wav";
+        page.SoundTextBoxes[nameof(UiSoundSettings.FinalGroupAheadReferenceAheadSegment)].Text = "sounds\\final-best.wav";
 
         form.ApplyForTests();
 
-        AssertEqual("sounds\\moonlord-best.wav", form.Result.Overlay.Sounds.MoonLordAheadReferenceAheadSegment);
+        AssertEqual("sounds\\final-best.wav", form.Result.Overlay.Sounds.FinalGroupAheadReferenceAheadSegment);
     });
 }
 

@@ -964,7 +964,7 @@ internal static class MainShellRefactorTests
         RunSta(() =>
         {
             var factory = new SettingsUiFactory(static key => key);
-            using Label label = factory.CreateRowLabel("Moon Lord: cumulative not faster, segment not faster");
+            using Label label = factory.CreateRowLabel("Final group: cumulative not faster, segment not faster");
 
             TestAssert.Equal(true, label.AutoEllipsis);
             TestAssert.Equal(false, label.AutoSize);

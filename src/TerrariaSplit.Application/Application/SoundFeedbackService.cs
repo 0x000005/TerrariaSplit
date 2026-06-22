@@ -15,6 +15,7 @@ internal static class SoundFeedbackService
         }
 
         SplitDefinition definition = statuses[completedIndex].Definition;
+        bool isFinalGroupCompletion = IsFinalGroupCompletion(settings, definition.Id);
         TimeSpan? referenceSplit = ReferenceSplitSetService.TryGetReferenceSplit(settings, definition, out TimeSpan configuredReferenceSplit)
             ? configuredReferenceSplit
             : null;
@@ -27,10 +28,17 @@ internal static class SoundFeedbackService
 
         return SplitSoundSelector.GetPath(
             settings.Overlay.Sounds,
-            definition,
+            isFinalGroupCompletion,
             splitTime,
             referenceSplit,
             segmentTime,
             personalBestSegment);
+    }
+
+    private static bool IsFinalGroupCompletion(AppSettings settings, string splitId)
+    {
+        List<RouteGroup> groups = SplitRouteGroups.Build(settings);
+        return groups.Count > 0 &&
+            groups[^1].Entries.Any(entry => string.Equals(entry.Id, splitId, StringComparison.OrdinalIgnoreCase));
     }
 }

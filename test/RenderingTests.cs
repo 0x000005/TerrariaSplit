@@ -25,8 +25,9 @@ internal static class RenderingTests
         yield return ("BossIconCache crops animated item textures", BossIconCacheCropsAnimatedItemTextures);
         yield return ("BossIconCache animates GIF icon frames", BossIconCacheAnimatesGifIconFrames);
         yield return ("BossIconCache loads boss icons from Icons Bosses", BossIconCacheLoadsBossIconsFromIconsBosses);
-        yield return ("SplitSoundSelector routes equal times to not-faster sounds", SplitSoundSelectorRoutesEqualTimesToNotFasterSounds);
+        yield return ("SplitSoundSelector routes final group completions to final group sounds", SplitSoundSelectorRoutesFinalGroupCompletionsToFinalGroupSounds);
         yield return ("SplitSoundSelector treats missing comparison data as faster", SplitSoundSelectorTreatsMissingComparisonDataAsFaster);
+        yield return ("SoundFeedbackService uses final group sounds for route final group", SoundFeedbackServiceUsesFinalGroupSoundsForRouteFinalGroup);
         yield return ("SplitRenderData filters OR completion icons to matched target", SplitRenderDataFiltersOrCompletionIconsToMatchedTarget);
         yield return ("SplitRenderData filters active OR icons to satisfied targets", SplitRenderDataFiltersActiveOrIconsToSatisfiedTargets);
         yield return ("SplitDisplayRows shows attached rows for active following anchor", SplitDisplayRowsShowsAttachedRowsForActiveFollowingAnchor);
@@ -481,48 +482,34 @@ internal static class RenderingTests
         TestAssert.Equal(false, lit.Width == itemIcon.Width && lit.Height == itemIcon.Height);
     }
 
-    private static void SplitSoundSelectorRoutesEqualTimesToNotFasterSounds()
+    private static void SplitSoundSelectorRoutesFinalGroupCompletionsToFinalGroupSounds()
     {
         var sounds = new UiSoundSettings
         {
             SplitBehindReferenceBehindSegment = "normal-notfaster-notfaster.wav",
             SplitAheadReferenceAheadSegment = "normal-faster-faster.wav",
-            MoonLordBehindReferenceBehindSegment = "moonlord-notfaster-notfaster.wav"
+            FinalGroupBehindReferenceBehindSegment = "final-notfaster-notfaster.wav"
         };
-        var normalDefinition = new SplitDefinition(
-            "split:skeletron",
-            "Skeletron",
-            SplitCatalog.CreateBossFactCondition(SplitCatalog.Skeletron),
-            Array.Empty<string>(),
-            Array.Empty<string>(),
-            [SplitCatalog.Skeletron]);
-        var moonLordDefinition = new SplitDefinition(
-            "split:moon-lord",
-            "Moon Lord",
-            SplitCatalog.CreateBossFactCondition(SplitCatalog.MoonLord),
-            Array.Empty<string>(),
-            Array.Empty<string>(),
-            [SplitCatalog.MoonLord]);
 
         TestAssert.Equal(
             "normal-notfaster-notfaster.wav",
             SplitSoundSelector.GetPath(
                 sounds,
-                normalDefinition,
+                isFinalGroupCompletion: false,
                 cumulativeFasterThanReference: false,
                 segmentFasterThanPersonalBest: false));
         TestAssert.Equal(
             "normal-faster-faster.wav",
             SplitSoundSelector.GetPath(
                 sounds,
-                normalDefinition,
+                isFinalGroupCompletion: false,
                 cumulativeFasterThanReference: true,
                 segmentFasterThanPersonalBest: true));
         TestAssert.Equal(
-            "moonlord-notfaster-notfaster.wav",
+            "final-notfaster-notfaster.wav",
             SplitSoundSelector.GetPath(
                 sounds,
-                moonLordDefinition,
+                isFinalGroupCompletion: true,
                 cumulativeFasterThanReference: false,
                 segmentFasterThanPersonalBest: false));
     }
@@ -534,19 +521,11 @@ internal static class RenderingTests
             SplitBehindReferenceBehindSegment = "normal-notfaster-notfaster.wav",
             SplitAheadReferenceAheadSegment = "normal-faster-faster.wav"
         };
-        var definition = new SplitDefinition(
-            "split:skeletron",
-            "Skeletron",
-            SplitCatalog.CreateBossFactCondition(SplitCatalog.Skeletron),
-            Array.Empty<string>(),
-            Array.Empty<string>(),
-            [SplitCatalog.Skeletron]);
-
         TestAssert.Equal(
             "normal-faster-faster.wav",
             SplitSoundSelector.GetPath(
                 sounds,
-                definition,
+                isFinalGroupCompletion: false,
                 splitTime: TimeSpan.FromMinutes(3),
                 referenceSplit: null,
                 segmentTime: null,
@@ -555,11 +534,72 @@ internal static class RenderingTests
             "normal-notfaster-notfaster.wav",
             SplitSoundSelector.GetPath(
                 sounds,
-                definition,
+                isFinalGroupCompletion: false,
                 splitTime: TimeSpan.FromMinutes(3),
                 referenceSplit: TimeSpan.FromMinutes(3),
                 segmentTime: TimeSpan.FromMinutes(3),
                 personalBestSegment: TimeSpan.FromMinutes(3)));
+    }
+
+    private static void SoundFeedbackServiceUsesFinalGroupSoundsForRouteFinalGroup()
+    {
+        var firstDefinition = new SplitDefinition(
+            "split:first",
+            "First",
+            SplitCondition.Fact("fact:first"),
+            [],
+            [],
+            []);
+        var finalDefinition = new SplitDefinition(
+            "split:final",
+            "Final",
+            SplitCondition.Fact("fact:final"),
+            [],
+            [],
+            []);
+        var settings = new AppSettings
+        {
+            Route =
+            {
+                SplitRoute =
+                [
+                    new SplitRouteEntry
+                    {
+                        Id = firstDefinition.Id,
+                        DisplayName = firstDefinition.DisplayName,
+                        Enabled = true,
+                        Condition = firstDefinition.Condition.Clone()
+                    },
+                    new SplitRouteEntry
+                    {
+                        Id = finalDefinition.Id,
+                        DisplayName = "Wall of Flesh",
+                        Enabled = true,
+                        Condition = finalDefinition.Condition.Clone()
+                    }
+                ]
+            },
+            Overlay =
+            {
+                Sounds = new UiSoundSettings
+                {
+                    SplitAheadReferenceAheadSegment = "normal-faster-faster.wav",
+                    FinalGroupAheadReferenceAheadSegment = "final-faster-faster.wav"
+                }
+            }
+        };
+        SplitStatusSnapshot[] statuses =
+        [
+            new(firstDefinition, TimeSpan.FromSeconds(10), IsSkipped: false, CompletedFactKeys: []),
+            new(finalDefinition, TimeSpan.FromSeconds(20), IsSkipped: false, CompletedFactKeys: [])
+        ];
+
+        TestAssert.Equal(
+            "normal-faster-faster.wav",
+            SoundFeedbackService.GetSplitSoundPath(settings, statuses, completedIndex: 0));
+        TestAssert.Equal(
+            "final-faster-faster.wav",
+            SoundFeedbackService.GetSplitSoundPath(settings, statuses, completedIndex: 1));
     }
 
     private static void SplitRenderDataFiltersOrCompletionIconsToMatchedTarget()

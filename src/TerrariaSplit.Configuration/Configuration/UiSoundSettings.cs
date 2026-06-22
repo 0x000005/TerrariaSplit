@@ -10,8 +10,8 @@ public sealed class UiSoundSettings
     public string SplitBehindReferenceAheadSegment { get; set; } = string.Empty;
     public string SplitAheadReferenceBehindSegment { get; set; } = string.Empty;
     public string SplitAheadReferenceAheadSegment { get; set; } = string.Empty;
-    public string MoonLordBehindReferenceBehindSegment { get; set; } = string.Empty;
-    public string MoonLordBehindReferenceAheadSegment { get; set; } = string.Empty;
-    public string MoonLordAheadReferenceBehindSegment { get; set; } = string.Empty;
-    public string MoonLordAheadReferenceAheadSegment { get; set; } = string.Empty;
+    public string FinalGroupBehindReferenceBehindSegment { get; set; } = string.Empty;
+    public string FinalGroupBehindReferenceAheadSegment { get; set; } = string.Empty;
+    public string FinalGroupAheadReferenceBehindSegment { get; set; } = string.Empty;
+    public string FinalGroupAheadReferenceAheadSegment { get; set; } = string.Empty;
 }
