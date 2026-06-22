@@ -2,33 +2,79 @@ namespace TerrariaSplit.Terraria.Memory;
 
 internal sealed class BiomeFactProvider
 {
+    private Dictionary<string, byte?>? lastZoneValues;
+    private bool lastReadsAll;
+    private string[]? lastBiomeIds;
+    private TerrariaGameFacts? lastFacts;
+
     public TerrariaGameFacts Read(IProcessMemoryReader memory, TerrariaMemoryContext context)
     {
+        return Read(memory, context, TerrariaFactReadPlan.ReadAll);
+    }
+
+    public TerrariaGameFacts Read(
+        IProcessMemoryReader memory,
+        TerrariaMemoryContext context,
+        TerrariaFactReadPlan readPlan)
+    {
         if (context.Is64Bit ||
+            !readPlan.ReadsBiomeFacts ||
             context.BiomeLayout is null ||
-            !TerrariaLocalPlayerResolver.TryResolve(memory, context.BiomeLayout, out IntPtr localPlayerAddress))
+            !TryResolveLocalPlayer(memory, context, out IntPtr localPlayerAddress))
         {
             return TerrariaGameFacts.Unknown;
         }
 
-        Dictionary<string, byte?> zoneValues = ReadZoneValues(memory, context.BiomeLayout, localPlayerAddress);
+        Dictionary<string, byte?> zoneValues = ReadZoneValues(memory, context.BiomeLayout, localPlayerAddress, readPlan);
+        string[] selectedBiomeIds = GetSelectedBiomeIds(readPlan);
+        if (lastZoneValues is not null &&
+            lastFacts is not null &&
+            SelectionEquals(readPlan, selectedBiomeIds) &&
+            ZoneValuesEqual(lastZoneValues, zoneValues))
+        {
+            return lastFacts;
+        }
+
         TerrariaGameFacts.Builder builder = TerrariaGameFacts.CreateBuilder();
-        foreach (TerrariaBiomeDefinition biome in TerrariaBiomeCatalog.Items)
+        IEnumerable<TerrariaBiomeDefinition> biomes = readPlan.ReadsAll
+            ? TerrariaBiomeCatalog.Items
+            : selectedBiomeIds
+                .Select(id => TerrariaBiomeCatalog.ById.TryGetValue(id, out TerrariaBiomeDefinition? biome) ? biome : null)
+                .Where(biome => biome is not null)
+                .Cast<TerrariaBiomeDefinition>();
+        foreach (TerrariaBiomeDefinition biome in biomes)
         {
             bool? value = TryEvaluateBiomeRule(zoneValues, biome.Rule);
             builder.SetBoolean(SplitCatalog.CreateBiomeActiveFactKey(biome.Id), value);
         }
 
-        return builder.Build();
+        TerrariaGameFacts facts = builder.Build();
+        lastZoneValues = new Dictionary<string, byte?>(zoneValues, StringComparer.OrdinalIgnoreCase);
+        lastReadsAll = readPlan.ReadsAll;
+        lastBiomeIds = selectedBiomeIds;
+        lastFacts = facts;
+        return facts;
+    }
+
+    private static bool TryResolveLocalPlayer(
+        IProcessMemoryReader memory,
+        TerrariaMemoryContext context,
+        out IntPtr localPlayerAddress)
+    {
+        localPlayerAddress = context.LocalPlayerAddress;
+        return localPlayerAddress != IntPtr.Zero ||
+            (context.BiomeLayout is not null &&
+                TerrariaLocalPlayerResolver.TryResolve(memory, context.BiomeLayout, out localPlayerAddress));
     }
 
     private static Dictionary<string, byte?> ReadZoneValues(
         IProcessMemoryReader memory,
         TerrariaBiomeMemoryLayout layout,
-        IntPtr localPlayerAddress)
+        IntPtr localPlayerAddress,
+        TerrariaFactReadPlan readPlan)
     {
         Dictionary<string, byte?> values = new(StringComparer.OrdinalIgnoreCase);
-        foreach (string zoneFieldName in TerrariaBiomeCatalog.RequiredZoneFieldNames)
+        foreach (string zoneFieldName in GetRequiredZoneFieldNames(readPlan))
         {
             if (!layout.ZoneBitsByteFieldOffsets.TryGetValue(zoneFieldName, out int offset) ||
                 !memory.TryReadBytes(IntPtr.Add(localPlayerAddress, offset), 1, out byte[]? bytes) ||
@@ -42,6 +88,23 @@ internal sealed class BiomeFactProvider
         }
 
         return values;
+    }
+
+    private static IEnumerable<string> GetRequiredZoneFieldNames(TerrariaFactReadPlan readPlan)
+    {
+        if (readPlan.ReadsAll)
+        {
+            return TerrariaBiomeCatalog.RequiredZoneFieldNames;
+        }
+
+        return readPlan.BiomeIds
+            .Select(id => TerrariaBiomeCatalog.ById.TryGetValue(id, out TerrariaBiomeDefinition? biome) ? biome : null)
+            .Where(biome => biome is not null)
+            .Cast<TerrariaBiomeDefinition>()
+            .SelectMany(biome => biome.Rule.ZoneBits)
+            .Select(bit => bit.ZoneFieldName)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 
     private static bool? TryEvaluateBiomeRule(
@@ -103,5 +166,43 @@ internal sealed class BiomeFactProvider
         }
 
         return (zoneValue.Value & (1 << zoneBit.BitIndex)) != 0;
+    }
+
+    private static bool ZoneValuesEqual(
+        IReadOnlyDictionary<string, byte?> left,
+        IReadOnlyDictionary<string, byte?> right)
+    {
+        if (left.Count != right.Count)
+        {
+            return false;
+        }
+
+        foreach ((string key, byte? value) in left)
+        {
+            if (!right.TryGetValue(key, out byte? otherValue) || otherValue != value)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private bool SelectionEquals(TerrariaFactReadPlan readPlan, IReadOnlyList<string> selectedBiomeIds)
+    {
+        if (lastReadsAll != readPlan.ReadsAll)
+        {
+            return false;
+        }
+
+        return readPlan.ReadsAll ||
+            (lastBiomeIds is not null && lastBiomeIds.SequenceEqual(selectedBiomeIds, StringComparer.OrdinalIgnoreCase));
+    }
+
+    private static string[] GetSelectedBiomeIds(TerrariaFactReadPlan readPlan)
+    {
+        return readPlan.ReadsAll
+            ? []
+            : readPlan.BiomeIds.OrderBy(biomeId => biomeId, StringComparer.OrdinalIgnoreCase).ToArray();
     }
 }

@@ -559,7 +559,11 @@ internal static class SplitListRenderer
             return false;
         }
 
-        return factKeys.Any(factKey => IsFactSatisfied(context.Snapshot.Facts, factKey, displayDefinition.IconKeys[iconIndex]));
+        return factKeys.Any(factKey => IsFactSatisfied(
+            context.Snapshot.Facts,
+            factKey,
+            displayDefinition.IconKeys[iconIndex],
+            displayDefinition.Condition));
     }
 
     private static bool TryGetIconFactKeys(
@@ -628,7 +632,8 @@ internal static class SplitListRenderer
     private static bool IsFactSatisfied(
         TerrariaGameFacts facts,
         string factKey,
-        string targetId)
+        string targetId,
+        SplitCondition splitCondition)
     {
         if (!SplitCatalog.TryGetTarget(targetId, out SplitTargetDefinition target))
         {
@@ -639,8 +644,63 @@ internal static class SplitListRenderer
         return target.Kind switch
         {
             SplitTargetKind.Boss => value.AsBoolean() == true,
-            SplitTargetKind.Item => value.AsInteger() is > 0,
+            SplitTargetKind.Item => IsItemFactSatisfied(facts, factKey, target, splitCondition),
             SplitTargetKind.Npc => value.AsBoolean() == true,
+            _ => false
+        };
+    }
+
+    private static bool IsItemFactSatisfied(
+        TerrariaGameFacts facts,
+        string factKey,
+        SplitTargetDefinition target,
+        SplitCondition splitCondition)
+    {
+        if (!TryGetTargetItemId(target, factKey, out int itemId))
+        {
+            return false;
+        }
+
+        int requiredQuantity = GetMinimumRequiredItemQuantity(splitCondition, itemId);
+        return facts.Get(factKey).AsInteger() is int currentQuantity &&
+            currentQuantity >= requiredQuantity;
+    }
+
+    private static bool TryGetTargetItemId(SplitTargetDefinition target, string factKey, out int itemId)
+    {
+        return SplitCatalog.TryParseItemTargetId(target.Id, out itemId) ||
+            SplitCatalog.TryParseItemFactKey(target.FactKey, out itemId) ||
+            SplitCatalog.TryParseItemFactKey(factKey, out itemId);
+    }
+
+    private static int GetMinimumRequiredItemQuantity(SplitCondition splitCondition, int itemId)
+    {
+        int? minimumQuantity = null;
+        foreach (SplitCondition factCondition in splitCondition.GetFactConditions())
+        {
+            if (!SplitCatalog.TryParseItemFactKey(factCondition.FactKey, out int conditionItemId) ||
+                conditionItemId != itemId ||
+                !TryGetPositiveItemQuantityRequirement(factCondition, out int requiredQuantity))
+            {
+                continue;
+            }
+
+            minimumQuantity = minimumQuantity.HasValue
+                ? Math.Min(minimumQuantity.Value, requiredQuantity)
+                : requiredQuantity;
+        }
+
+        return minimumQuantity ?? 1;
+    }
+
+    private static bool TryGetPositiveItemQuantityRequirement(SplitCondition condition, out int requiredQuantity)
+    {
+        requiredQuantity = Math.Max(1, condition.Value);
+        return SplitFactComparison.Normalize(condition.Comparison) switch
+        {
+            SplitFactComparison.AtLeast => true,
+            SplitFactComparison.Equal => true,
+            SplitFactComparison.IsTrue => true,
             _ => false
         };
     }

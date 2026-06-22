@@ -253,6 +253,16 @@ static void TestRuntimePerformancePaintDiagnostics()
         TimeSpan.FromMilliseconds(1)));
     tracker.RecordTimerOverlayPaintDispatchSkipped();
     tracker.RecordTimerOverlayPaintInputSkipped();
+    tracker.RecordTimerOverlayLayeredUpdate(new LayeredWindowUpdateDiagnostics(
+        TimeSpan.FromMilliseconds(2),
+        WindowPixelCount: 1000,
+        UpdatedPixelCount: 1000,
+        IsRegion: false));
+    tracker.RecordTimerOverlayLayeredUpdate(new LayeredWindowUpdateDiagnostics(
+        TimeSpan.FromMilliseconds(4),
+        WindowPixelCount: 1000,
+        UpdatedPixelCount: 200,
+        IsRegion: true));
 
     RuntimePerformanceDiagnostics snapshot = tracker.Snapshot();
     AssertEqual(2, snapshot.StatusPaintTickCount);
@@ -264,6 +274,12 @@ static void TestRuntimePerformancePaintDiagnostics()
     Nearly(10d, snapshot.ActualTimerOverlayPaintTickIntervalMilliseconds, 0.1d);
     Nearly(0.375d, snapshot.AverageStatusPaintTickDelayMilliseconds, 0.001d);
     Nearly(0.875d, snapshot.AverageTimerOverlayPaintTickDelayMilliseconds, 0.001d);
+    AssertEqual(2, snapshot.TimerOverlayLayeredUpdateCount);
+    AssertEqual(1, snapshot.TimerOverlayLayeredFullUpdateCount);
+    AssertEqual(1, snapshot.TimerOverlayLayeredRegionUpdateCount);
+    Nearly(3d, snapshot.AverageTimerOverlayLayeredUpdateMilliseconds, 0.001d);
+    Nearly(600d, snapshot.AverageTimerOverlayLayeredUpdatedPixels, 0.001d);
+    Nearly(1000d, snapshot.AverageTimerOverlayLayeredWindowPixels, 0.001d);
 }
 
 static void TestRunEventProcessorSuppressesAttachedSplitCompletionAnimation()

@@ -12,11 +12,15 @@ internal static class TerrariaMemoryResolverTests
         yield return ("TerrariaMemoryResolver emits boss facts from progression fallback", EmitsBossFactsFromProgressionFallback);
         yield return ("ItemFactProvider returns unknown without item layout", ItemFactProviderReturnsUnknownWithoutItemLayout);
         yield return ("ItemFactProvider aggregates inventory and bank stacks", ItemFactProviderAggregatesInventoryAndBankStacks);
+        yield return ("ItemFactProvider filters observed item facts", ItemFactProviderFiltersObservedItemFacts);
+        yield return ("ItemFactProvider skips reads without observed item facts", ItemFactProviderSkipsReadsWithoutObservedItemFacts);
         yield return ("ItemFactProvider keeps inventory counts when optional banks are unavailable", ItemFactProviderKeepsInventoryCountsWhenOptionalBanksAreUnavailable);
         yield return ("NpcFactProvider returns unknown without NPC layout", NpcFactProviderReturnsUnknownWithoutNpcLayout);
         yield return ("NpcFactProvider emits town NPC presence facts", NpcFactProviderEmitsTownNpcPresenceFacts);
+        yield return ("NpcFactProvider filters observed NPC facts", NpcFactProviderFiltersObservedNpcFacts);
         yield return ("BiomeFactProvider returns unknown without biome layout", BiomeFactProviderReturnsUnknownWithoutBiomeLayout);
         yield return ("BiomeFactProvider emits derived biome facts", BiomeFactProviderEmitsDerivedBiomeFacts);
+        yield return ("BiomeFactProvider reads only observed biome zone fields", BiomeFactProviderReadsOnlyObservedBiomeZoneFields);
     }
 
     private static void KeepsPrimaryUpdateTimeMenuAddressWhenReadable()
@@ -178,6 +182,58 @@ internal static class TerrariaMemoryResolverTests
         TestAssert.Equal(0, facts.Get(SplitCatalog.CreateItemFactKey(52)).AsInteger());
     }
 
+    private static void ItemFactProviderFiltersObservedItemFacts()
+    {
+        var provider = new ItemFactProvider();
+        var memory = new FakeProcessMemoryReader(is64Bit: false);
+        TerrariaItemMemoryLayout layout = CreateTestItemLayout();
+        IntPtr player = new(0x1000);
+        IntPtr inventory = new(0x2000);
+        IntPtr firstItem = new(0x5000);
+        IntPtr secondItem = new(0x5020);
+
+        WriteEmptyItemArray(memory, layout, player, layout.PlayerArmorFieldOffset, new IntPtr(0x2100));
+        WriteEmptyItemArray(memory, layout, player, layout.PlayerDyeFieldOffset, new IntPtr(0x2200));
+        WriteEmptyItemArray(memory, layout, player, layout.PlayerMiscEquipsFieldOffset, new IntPtr(0x2300));
+        WriteEmptyItemArray(memory, layout, player, layout.PlayerMiscDyesFieldOffset, new IntPtr(0x2400));
+        memory.WritePointerValue(IntPtr.Add(player, layout.PlayerInventoryFieldOffset), inventory);
+        memory.WriteInt32(IntPtr.Add(inventory, layout.ManagedArrayLengthOffset), 2);
+        memory.WritePointerValue(IntPtr.Add(inventory, layout.ManagedArrayFirstElementOffset), firstItem);
+        memory.WritePointerValue(IntPtr.Add(inventory, layout.ManagedArrayFirstElementOffset + layout.ObjectReferenceSize), secondItem);
+        WriteItem(memory, layout, firstItem, itemId: 50, stack: 3);
+        WriteItem(memory, layout, secondItem, itemId: 51, stack: 4);
+
+        TerrariaFactReadPlan readPlan = TerrariaFactReadPlan.FromObservedFactKeys(
+            [SplitCatalog.CreateItemEverOwnedFactKey(50)]);
+        TerrariaGameFacts facts = provider.Read(
+            memory,
+            new TerrariaMemoryContext(null, IntPtr.Zero, player, layout, null, null, Is64Bit: false),
+            readPlan);
+
+        TestAssert.Equal(2, facts.Values.Count);
+        TestAssert.Equal(3, facts.Get(SplitCatalog.CreateItemFactKey(50)).AsInteger());
+        TestAssert.Equal(3, facts.Get(SplitCatalog.CreateItemEverOwnedFactKey(50)).AsInteger());
+        TestAssert.Equal(FactValueKind.Unknown, facts.Get(SplitCatalog.CreateItemFactKey(51)).Kind);
+        TestAssert.Equal(FactValueKind.Unknown, facts.Get(SplitCatalog.CreateItemEverOwnedFactKey(51)).Kind);
+    }
+
+    private static void ItemFactProviderSkipsReadsWithoutObservedItemFacts()
+    {
+        var provider = new ItemFactProvider();
+        var memory = new FakeProcessMemoryReader(is64Bit: false);
+        TerrariaItemMemoryLayout layout = CreateTestItemLayout();
+        TerrariaFactReadPlan readPlan = TerrariaFactReadPlan.FromObservedFactKeys(
+            [SplitCatalog.BossFacts[0].FactKey]);
+
+        TerrariaGameFacts facts = provider.Read(
+            memory,
+            new TerrariaMemoryContext(null, IntPtr.Zero, new IntPtr(0x1000), layout, null, null, Is64Bit: false),
+            readPlan);
+
+        TestAssert.Equal(0, facts.Values.Count);
+        TestAssert.Equal(0, memory.ReadBytesCallCount);
+    }
+
     private static void ItemFactProviderKeepsInventoryCountsWhenOptionalBanksAreUnavailable()
     {
         var provider = new ItemFactProvider();
@@ -253,6 +309,34 @@ internal static class TerrariaMemoryResolverTests
         TestAssert.Equal(true, facts.Get(SplitCatalog.CreateNpcPresentFactKey(22)).AsBoolean());
     }
 
+    private static void NpcFactProviderFiltersObservedNpcFacts()
+    {
+        var provider = new NpcFactProvider();
+        var memory = new FakeProcessMemoryReader(is64Bit: false);
+        TerrariaNpcMemoryLayout layout = CreateTestNpcLayout();
+        IntPtr npcArray = new(0xA000);
+        IntPtr merchant = new(0xA100);
+        IntPtr guide = new(0xA200);
+
+        memory.WritePointerValue(layout.NpcArrayStaticFieldAddress, npcArray);
+        memory.WriteInt32(IntPtr.Add(npcArray, layout.ManagedArrayLengthOffset), 2);
+        memory.WritePointerValue(IntPtr.Add(npcArray, layout.ManagedArrayFirstElementOffset), merchant);
+        memory.WritePointerValue(IntPtr.Add(npcArray, layout.ManagedArrayFirstElementOffset + layout.ObjectReferenceSize), guide);
+        WriteNpc(memory, layout, merchant, npcId: 17, active: true, townNpc: true);
+        WriteNpc(memory, layout, guide, npcId: 22, active: true, townNpc: true);
+
+        TerrariaFactReadPlan readPlan = TerrariaFactReadPlan.FromObservedFactKeys(
+            [SplitCatalog.CreateNpcPresentFactKey(17)]);
+        TerrariaGameFacts facts = provider.Read(
+            memory,
+            new TerrariaMemoryContext(null, IntPtr.Zero, IntPtr.Zero, null, layout, null, Is64Bit: false),
+            readPlan);
+
+        TestAssert.Equal(1, facts.Values.Count);
+        TestAssert.Equal(true, facts.Get(SplitCatalog.CreateNpcPresentFactKey(17)).AsBoolean());
+        TestAssert.Equal(FactValueKind.Unknown, facts.Get(SplitCatalog.CreateNpcPresentFactKey(22)).Kind);
+    }
+
     private static void BiomeFactProviderReturnsUnknownWithoutBiomeLayout()
     {
         var provider = new BiomeFactProvider();
@@ -317,6 +401,32 @@ internal static class TerrariaMemoryResolverTests
         TestAssert.Equal(false, facts.Get(SplitCatalog.CreateBiomeActiveFactKey("jungle")).AsBoolean());
         TestAssert.Equal(false, facts.Get(SplitCatalog.CreateBiomeActiveFactKey("snow")).AsBoolean());
         TestAssert.Equal(false, facts.Get(SplitCatalog.CreateBiomeActiveFactKey("aether")).AsBoolean());
+    }
+
+    private static void BiomeFactProviderReadsOnlyObservedBiomeZoneFields()
+    {
+        var provider = new BiomeFactProvider();
+        var memory = new FakeProcessMemoryReader(is64Bit: false);
+        TerrariaBiomeMemoryLayout layout = CreateTestBiomeLayout();
+        IntPtr player = new(0xB000);
+
+        memory.WriteByte(IntPtr.Add(player, layout.ZoneBitsByteFieldOffsets["zone1"]), 0b0001_0000);
+        memory.WriteByte(IntPtr.Add(player, layout.ZoneBitsByteFieldOffsets["zone2"]), 0);
+        memory.WriteByte(IntPtr.Add(player, layout.ZoneBitsByteFieldOffsets["zone3"]), 0b0000_0010);
+        memory.WriteByte(IntPtr.Add(player, layout.ZoneBitsByteFieldOffsets["zone4"]), 0);
+        memory.WriteByte(IntPtr.Add(player, layout.ZoneBitsByteFieldOffsets["zone5"]), 0);
+
+        TerrariaFactReadPlan readPlan = TerrariaFactReadPlan.FromObservedFactKeys(
+            [SplitCatalog.CreateBiomeActiveFactKey("jungle")]);
+        TerrariaGameFacts facts = provider.Read(
+            memory,
+            new TerrariaMemoryContext(null, IntPtr.Zero, player, null, null, layout, Is64Bit: false),
+            readPlan);
+
+        TestAssert.Equal(1, facts.Values.Count);
+        TestAssert.Equal(true, facts.Get(SplitCatalog.CreateBiomeActiveFactKey("jungle")).AsBoolean());
+        TestAssert.Equal(FactValueKind.Unknown, facts.Get(SplitCatalog.CreateBiomeActiveFactKey("desert")).Kind);
+        TestAssert.Equal(2, memory.ReadBytesCallCount);
     }
 
     private static byte[] BuildUpdateTimeCode(IntPtr gameMenuAddress)
@@ -553,6 +663,8 @@ internal static class TerrariaMemoryResolverTests
 
         public bool Is64Bit { get; }
 
+        public int ReadBytesCallCount { get; private set; }
+
         public IEnumerable<MemoryPage> ExecutablePages() => executablePages;
 
         public IEnumerable<MemoryPage> ExecutablePrivatePages() =>
@@ -617,6 +729,7 @@ internal static class TerrariaMemoryResolverTests
 
         public bool TryReadBytes(IntPtr address, int count, [NotNullWhen(true)] out byte[]? result)
         {
+            ReadBytesCallCount++;
             result = new byte[count];
             long start = address.ToInt64();
             for (int index = 0; index < count; index++)

@@ -29,7 +29,8 @@ internal static partial class DebugSettingsSnapshotBuilder
                 ("Sampling frequency", snapshot.Performance.WatcherPoll),
                 ("Control frequency", snapshot.Performance.ControlTick),
                 ("Split timer refresh rate", snapshot.Performance.StatusPaint),
-                ("Main timer refresh rate", snapshot.Performance.TimerPaint)
+                ("Main timer refresh rate", snapshot.Performance.TimerPaint),
+                ("Main timer layered update", snapshot.Performance.TimerLayeredUpdate)
             ]);
 
         AppendReportSection(

@@ -2,27 +2,59 @@ namespace TerrariaSplit.Terraria.Memory;
 
 internal sealed class NpcFactProvider
 {
+    private HashSet<int>? lastPresentNpcIds;
+    private bool lastReadsAll;
+    private int[]? lastNpcIds;
+    private TerrariaGameFacts? lastFacts;
+
     public TerrariaGameFacts Read(IProcessMemoryReader memory, TerrariaMemoryContext context)
     {
+        return Read(memory, context, TerrariaFactReadPlan.ReadAll);
+    }
+
+    public TerrariaGameFacts Read(
+        IProcessMemoryReader memory,
+        TerrariaMemoryContext context,
+        TerrariaFactReadPlan readPlan)
+    {
         if (context.Is64Bit ||
+            !readPlan.ReadsNpcFacts ||
             context.NpcLayout is null ||
-            !TryReadPresentNpcIds(memory, context.NpcLayout, out HashSet<int> presentNpcIds))
+            !TryReadPresentNpcIds(memory, context.NpcLayout, readPlan, out HashSet<int> presentNpcIds))
         {
             return TerrariaGameFacts.Unknown;
         }
 
-        TerrariaGameFacts.Builder builder = TerrariaGameFacts.CreateBuilder();
-        foreach (TerrariaNpcDefinition npc in TerrariaNpcCatalog.Items)
+        int[] selectedNpcIds = GetSelectedNpcIds(readPlan);
+        if (lastPresentNpcIds is not null &&
+            lastFacts is not null &&
+            SelectionEquals(readPlan, selectedNpcIds) &&
+            lastPresentNpcIds.SetEquals(presentNpcIds))
         {
-            builder.SetBoolean(SplitCatalog.CreateNpcPresentFactKey(npc.Id), presentNpcIds.Contains(npc.Id));
+            return lastFacts;
         }
 
-        return builder.Build();
+        TerrariaGameFacts.Builder builder = TerrariaGameFacts.CreateBuilder();
+        IEnumerable<int> npcIds = readPlan.ReadsAll
+            ? TerrariaNpcCatalog.Items.Select(npc => npc.Id)
+            : selectedNpcIds;
+        foreach (int npcId in npcIds)
+        {
+            builder.SetBoolean(SplitCatalog.CreateNpcPresentFactKey(npcId), presentNpcIds.Contains(npcId));
+        }
+
+        TerrariaGameFacts facts = builder.Build();
+        lastPresentNpcIds = new HashSet<int>(presentNpcIds);
+        lastReadsAll = readPlan.ReadsAll;
+        lastNpcIds = selectedNpcIds;
+        lastFacts = facts;
+        return facts;
     }
 
     private static bool TryReadPresentNpcIds(
         IProcessMemoryReader memory,
         TerrariaNpcMemoryLayout layout,
+        TerrariaFactReadPlan readPlan,
         out HashSet<int> presentNpcIds)
     {
         presentNpcIds = new HashSet<int>();
@@ -59,12 +91,38 @@ internal sealed class NpcFactProvider
             }
 
             readAnyNpc = true;
-            if (active && townNpc && TerrariaNpcCatalog.ById.ContainsKey(type))
+            if (active &&
+                townNpc &&
+                (readPlan.ReadsAll
+                    ? TerrariaNpcCatalog.ById.ContainsKey(type)
+                    : readPlan.IncludesNpcId(type)))
             {
                 presentNpcIds.Add(type);
+                if (!readPlan.ReadsAll && presentNpcIds.Count == readPlan.NpcIds.Count)
+                {
+                    break;
+                }
             }
         }
 
         return readAnyNpc;
+    }
+
+    private bool SelectionEquals(TerrariaFactReadPlan readPlan, IReadOnlyList<int> selectedNpcIds)
+    {
+        if (lastReadsAll != readPlan.ReadsAll)
+        {
+            return false;
+        }
+
+        return readPlan.ReadsAll ||
+            (lastNpcIds is not null && lastNpcIds.SequenceEqual(selectedNpcIds));
+    }
+
+    private static int[] GetSelectedNpcIds(TerrariaFactReadPlan readPlan)
+    {
+        return readPlan.ReadsAll
+            ? []
+            : readPlan.NpcIds.OrderBy(npcId => npcId).ToArray();
     }
 }

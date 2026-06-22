@@ -2,14 +2,32 @@ namespace TerrariaSplit.Terraria.Memory;
 
 internal sealed class BossFactProvider
 {
+    private TerrariaGameFacts? lastFacts;
+
     public TerrariaGameFacts Read(IProcessMemoryReader memory, TerrariaMemoryContext context)
     {
+        return Read(memory, context, TerrariaFactReadPlan.ReadAll);
+    }
+
+    public TerrariaGameFacts Read(
+        IProcessMemoryReader memory,
+        TerrariaMemoryContext context,
+        TerrariaFactReadPlan readPlan)
+    {
         TerrariaGameFacts.Builder builder = TerrariaGameFacts.CreateBuilder();
+        if (!readPlan.ReadsBossFacts)
+        {
+            return TerrariaGameFacts.Unknown;
+        }
+
+        BossFactDescriptor[] bosses = SplitCatalog.BossFacts
+            .Where(boss => readPlan.IncludesBossFactKey(boss.FactKey))
+            .ToArray();
         byte[]? flagBytes = null;
         int minimumOffset = 0;
-        bool hasFlagBlock = TryReadFlagBlock(memory, context, out flagBytes, out minimumOffset);
+        bool hasFlagBlock = TryReadFlagBlock(memory, context, bosses, out flagBytes, out minimumOffset);
 
-        foreach (BossFactDescriptor boss in SplitCatalog.BossFacts)
+        foreach (BossFactDescriptor boss in bosses)
         {
             bool? value = boss.AddressKind switch
             {
@@ -20,23 +38,33 @@ internal sealed class BossFactProvider
             builder.SetBoolean(boss.FactKey, value);
         }
 
-        return builder.Build();
+        TerrariaGameFacts facts = builder.Build();
+        if (lastFacts is not null && facts.Equals(lastFacts))
+        {
+            return lastFacts;
+        }
+
+        lastFacts = facts;
+        return facts;
     }
 
     private static bool TryReadFlagBlock(
         IProcessMemoryReader memory,
         TerrariaMemoryContext context,
+        IReadOnlyCollection<BossFactDescriptor> bosses,
         out byte[]? bytes,
         out int minimumOffset)
     {
         bytes = null;
         minimumOffset = 0;
-        if (context.BossFlags is null || context.BossFlags.BaseAddress == IntPtr.Zero)
+        if (context.BossFlags is null ||
+            context.BossFlags.BaseAddress == IntPtr.Zero ||
+            !bosses.Any(boss => boss.AddressKind == BossFactAddressKind.BossFlagBlock))
         {
             return false;
         }
 
-        int[] offsets = SplitCatalog.BossFacts
+        int[] offsets = bosses
             .Where(boss => boss.AddressKind == BossFactAddressKind.BossFlagBlock)
             .Select(boss => boss.Offset)
             .ToArray();

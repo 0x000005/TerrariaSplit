@@ -98,6 +98,7 @@ internal sealed partial class MainForm : Form
             callback => BeginInvoke(callback),
             elapsed => performance.RecordTimerOverlayPaint(elapsed),
             tick => performance.RecordTimerOverlayPaintTick(tick),
+            performance.RecordTimerOverlayLayeredUpdate,
             performance.RecordTimerOverlayPaintDispatchSkipped,
             performance.RecordTimerOverlayPaintInputSkipped);
         overlayShell.AttachRuntimeComponents(
@@ -209,6 +210,5 @@ internal sealed partial class MainForm : Form
     }
 
 }
-
 
 

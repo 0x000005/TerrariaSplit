@@ -48,7 +48,19 @@ public readonly record struct RuntimePerformanceDiagnostics(
     double MaxControlTickIntervalMilliseconds,
     double MaxWatcherPollIntervalMilliseconds,
     double MaxStatusPaintIntervalMilliseconds,
-    double MaxTimerOverlayPaintIntervalMilliseconds)
+    double MaxTimerOverlayPaintIntervalMilliseconds,
+    int TimerOverlayLayeredUpdateCount,
+    int TimerOverlayLayeredFullUpdateCount,
+    int TimerOverlayLayeredRegionUpdateCount,
+    double LastTimerOverlayLayeredUpdateMilliseconds,
+    double AverageTimerOverlayLayeredUpdateMilliseconds,
+    double MaxTimerOverlayLayeredUpdateMilliseconds,
+    double LastTimerOverlayLayeredUpdatedPixels,
+    double AverageTimerOverlayLayeredUpdatedPixels,
+    double MaxTimerOverlayLayeredUpdatedPixels,
+    double LastTimerOverlayLayeredWindowPixels,
+    double AverageTimerOverlayLayeredWindowPixels,
+    double MaxTimerOverlayLayeredWindowPixels)
 {
     public static RuntimePerformanceDiagnostics Empty => new(
         ControlTickCount: 0,
@@ -96,8 +108,26 @@ public readonly record struct RuntimePerformanceDiagnostics(
         MaxControlTickIntervalMilliseconds: 0,
         MaxWatcherPollIntervalMilliseconds: 0,
         MaxStatusPaintIntervalMilliseconds: 0,
-        MaxTimerOverlayPaintIntervalMilliseconds: 0);
+        MaxTimerOverlayPaintIntervalMilliseconds: 0,
+        TimerOverlayLayeredUpdateCount: 0,
+        TimerOverlayLayeredFullUpdateCount: 0,
+        TimerOverlayLayeredRegionUpdateCount: 0,
+        LastTimerOverlayLayeredUpdateMilliseconds: 0,
+        AverageTimerOverlayLayeredUpdateMilliseconds: 0,
+        MaxTimerOverlayLayeredUpdateMilliseconds: 0,
+        LastTimerOverlayLayeredUpdatedPixels: 0,
+        AverageTimerOverlayLayeredUpdatedPixels: 0,
+        MaxTimerOverlayLayeredUpdatedPixels: 0,
+        LastTimerOverlayLayeredWindowPixels: 0,
+        AverageTimerOverlayLayeredWindowPixels: 0,
+        MaxTimerOverlayLayeredWindowPixels: 0);
 }
+
+public readonly record struct LayeredWindowUpdateDiagnostics(
+    TimeSpan Elapsed,
+    int WindowPixelCount,
+    int UpdatedPixelCount,
+    bool IsRegion);
 
 public sealed class RuntimePerformanceTracker
 {
@@ -114,6 +144,9 @@ public sealed class RuntimePerformanceTracker
     private readonly RollingPerformanceCounter timerOverlayPaintTickIntervals = new();
     private readonly RollingPerformanceCounter statusPaintTickDelays = new();
     private readonly RollingPerformanceCounter timerOverlayPaintTickDelays = new();
+    private readonly RollingPerformanceCounter timerOverlayLayeredUpdates = new();
+    private readonly RollingPerformanceCounter timerOverlayLayeredUpdatedPixels = new();
+    private readonly RollingPerformanceCounter timerOverlayLayeredWindowPixels = new();
     private DateTime? lastControlTickUtc;
     private DateTime? lastWatcherPollUtc;
     private DateTime? lastStatusPaintUtc;
@@ -127,6 +160,8 @@ public sealed class RuntimePerformanceTracker
     private int statusPaintDispatchSkipCount;
     private int timerOverlayPaintDispatchSkipCount;
     private int timerOverlayPaintInputSkipCount;
+    private int timerOverlayLayeredFullUpdateCount;
+    private int timerOverlayLayeredRegionUpdateCount;
 
     public TimeSpan ControlTickInterval { get; set; }
 
@@ -225,6 +260,24 @@ public sealed class RuntimePerformanceTracker
         }
     }
 
+    public void RecordTimerOverlayLayeredUpdate(LayeredWindowUpdateDiagnostics update)
+    {
+        lock (sync)
+        {
+            timerOverlayLayeredUpdates.Record(update.Elapsed);
+            timerOverlayLayeredUpdatedPixels.Record(update.UpdatedPixelCount);
+            timerOverlayLayeredWindowPixels.Record(update.WindowPixelCount);
+            if (update.IsRegion)
+            {
+                timerOverlayLayeredRegionUpdateCount++;
+            }
+            else
+            {
+                timerOverlayLayeredFullUpdateCount++;
+            }
+        }
+    }
+
     public RuntimePerformanceDiagnostics Snapshot()
     {
         lock (sync)
@@ -275,7 +328,19 @@ public sealed class RuntimePerformanceTracker
                 controlTickIntervals.MaxMilliseconds,
                 watcherPollIntervals.MaxMilliseconds,
                 statusPaintIntervals.MaxMilliseconds,
-                timerOverlayPaintIntervals.MaxMilliseconds);
+                timerOverlayPaintIntervals.MaxMilliseconds,
+                timerOverlayLayeredUpdates.TotalCount,
+                timerOverlayLayeredFullUpdateCount,
+                timerOverlayLayeredRegionUpdateCount,
+                timerOverlayLayeredUpdates.LastMilliseconds,
+                timerOverlayLayeredUpdates.AverageMilliseconds,
+                timerOverlayLayeredUpdates.MaxMilliseconds,
+                timerOverlayLayeredUpdatedPixels.LastMilliseconds,
+                timerOverlayLayeredUpdatedPixels.AverageMilliseconds,
+                timerOverlayLayeredUpdatedPixels.MaxMilliseconds,
+                timerOverlayLayeredWindowPixels.LastMilliseconds,
+                timerOverlayLayeredWindowPixels.AverageMilliseconds,
+                timerOverlayLayeredWindowPixels.MaxMilliseconds);
         }
     }
 

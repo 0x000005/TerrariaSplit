@@ -297,6 +297,11 @@ public sealed class TerrariaMonitorCoordinator : IDisposable
 
     private long QueueRuntimeCommand(RuntimeCommand command)
     {
+        if (command.Kind == RuntimeCommandKind.SetDefinitions)
+        {
+            watcher.SetObservedFactKeys(RuntimeObservedFactKeys.FromDefinitions(command.Definitions));
+        }
+
         return watcherLoop.QueueCommand(command);
     }
 

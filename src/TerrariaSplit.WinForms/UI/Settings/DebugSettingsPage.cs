@@ -29,6 +29,7 @@ internal sealed partial class DebugSettingsPage : SettingsPageBase
         Label watcherPollValue = CreateValueLabel();
         Label statusPaintValue = CreateValueLabel();
         Label timerPaintValue = CreateValueLabel();
+        Label timerLayeredUpdateValue = CreateValueLabel();
 
         Label processIdValue = CreateValueLabel();
         Label processStartTimeValue = CreateValueLabel();
@@ -129,6 +130,7 @@ internal sealed partial class DebugSettingsPage : SettingsPageBase
             AddValueRow(performanceGrid, owner, "Control frequency", controlTickValue);
             AddValueRow(performanceGrid, owner, "Split timer refresh rate", statusPaintValue);
             AddValueRow(performanceGrid, owner, "Main timer refresh rate", timerPaintValue);
+            AddValueRow(performanceGrid, owner, "Main timer layered update", timerLayeredUpdateValue);
             AddSectionControl(performanceSection, performanceGrid);
             AddSection(content, performanceSection);
 
@@ -270,6 +272,7 @@ internal sealed partial class DebugSettingsPage : SettingsPageBase
             SetValue(controlTickValue, snapshot.Performance.ControlTick);
             SetValue(statusPaintValue, snapshot.Performance.StatusPaint);
             SetValue(timerPaintValue, snapshot.Performance.TimerPaint);
+            SetValue(timerLayeredUpdateValue, snapshot.Performance.TimerLayeredUpdate);
 
             SetValue(processIdValue, snapshot.Window.ProcessId);
             SetValue(processStartTimeValue, snapshot.Window.ProcessStartTime);

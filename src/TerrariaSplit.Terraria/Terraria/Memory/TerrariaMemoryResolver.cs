@@ -209,11 +209,15 @@ internal sealed class TerrariaMemoryResolver
         return true;
     }
 
-    public TerrariaGameFacts ReadGameFacts(IProcessMemoryReader memory)
+    public TerrariaGameFacts ReadGameFacts(
+        IProcessMemoryReader memory,
+        IReadOnlyCollection<string>? observedFactKeys = null)
     {
-        TerrariaMemoryContext context = CreateContext(memory);
-        TerrariaGameFacts facts = factReader.Read(memory, context);
+        TerrariaFactReadPlan readPlan = TerrariaFactReadPlan.FromObservedFactKeys(observedFactKeys);
+        TerrariaMemoryContext context = CreateContext(memory, readPlan);
+        TerrariaGameFacts facts = factReader.Read(memory, context, readPlan);
         if (context.BossFlags is not null &&
+            readPlan.ReadsBossFacts &&
             !facts.Values.Any(value => value.Key.StartsWith("boss:", StringComparison.OrdinalIgnoreCase) &&
                 value.Value.Kind != FactValueKind.Unknown))
         {
@@ -221,6 +225,7 @@ internal sealed class TerrariaMemoryResolver
         }
 
         if (context.HardmodeAddress != IntPtr.Zero &&
+            readPlan.IncludesBossFactKey(SplitCatalog.BossFacts.First(boss => boss.AddressKind == BossFactAddressKind.Hardmode).FactKey) &&
             facts.Get(SplitCatalog.BossFacts.First(boss => boss.AddressKind == BossFactAddressKind.Hardmode).FactKey).Kind == FactValueKind.Unknown)
         {
             hardmodeAddress = IntPtr.Zero;
@@ -229,26 +234,49 @@ internal sealed class TerrariaMemoryResolver
         return facts;
     }
 
-    private TerrariaMemoryContext CreateContext(IProcessMemoryReader memory)
+    private TerrariaMemoryContext CreateContext(IProcessMemoryReader memory, TerrariaFactReadPlan readPlan)
     {
-        TerrariaItemMemoryLayout? itemLayout = clrMemoryResolver.TryGetItemLayout(memory, out TerrariaItemMemoryLayout resolvedItemLayout)
+        TerrariaItemMemoryLayout? itemLayout = readPlan.ReadsItemFacts &&
+            clrMemoryResolver.TryGetItemLayout(memory, out TerrariaItemMemoryLayout resolvedItemLayout)
             ? resolvedItemLayout
             : null;
-        TerrariaNpcMemoryLayout? npcLayout = clrMemoryResolver.TryGetNpcLayout(memory, out TerrariaNpcMemoryLayout resolvedNpcLayout)
+        TerrariaNpcMemoryLayout? npcLayout = readPlan.ReadsNpcFacts &&
+            clrMemoryResolver.TryGetNpcLayout(memory, out TerrariaNpcMemoryLayout resolvedNpcLayout)
             ? resolvedNpcLayout
             : null;
-        TerrariaBiomeMemoryLayout? biomeLayout = clrMemoryResolver.TryGetBiomeLayout(memory, out TerrariaBiomeMemoryLayout resolvedBiomeLayout)
+        TerrariaBiomeMemoryLayout? biomeLayout = readPlan.ReadsBiomeFacts &&
+            clrMemoryResolver.TryGetBiomeLayout(memory, out TerrariaBiomeMemoryLayout resolvedBiomeLayout)
             ? resolvedBiomeLayout
             : null;
+        IntPtr localPlayerAddress = ResolveLocalPlayerAddress(memory, itemLayout, biomeLayout);
 
         return new TerrariaMemoryContext(
             bossFlagsBaseAddress == IntPtr.Zero ? null : new BossFlagMemoryBlock(bossFlagsBaseAddress),
             hardmodeAddress,
-            LocalPlayerAddress: IntPtr.Zero,
+            localPlayerAddress,
             itemLayout,
             npcLayout,
             biomeLayout,
             memory.Is64Bit);
+    }
+
+    private static IntPtr ResolveLocalPlayerAddress(
+        IProcessMemoryReader memory,
+        TerrariaItemMemoryLayout? itemLayout,
+        TerrariaBiomeMemoryLayout? biomeLayout)
+    {
+        if (memory.Is64Bit)
+        {
+            return IntPtr.Zero;
+        }
+
+        TerrariaLocalPlayerMemoryLayout? layout = itemLayout is not null
+            ? itemLayout
+            : biomeLayout;
+        return layout is not null &&
+            TerrariaLocalPlayerResolver.TryResolve(memory, layout, out IntPtr localPlayerAddress)
+            ? localPlayerAddress
+            : IntPtr.Zero;
     }
 
     public TerrariaWorldGenerationState ReadWorldGenerationState(IProcessMemoryReader memory)

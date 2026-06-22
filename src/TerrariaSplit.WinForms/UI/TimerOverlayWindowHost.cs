@@ -8,6 +8,7 @@ internal sealed class TimerOverlayWindowHost : IDisposable
     private readonly Action<Action> mainThreadDispatch;
     private readonly Action<TimeSpan> recordPaint;
     private readonly Action<HighPrecisionSchedulerTick> recordPaintTick;
+    private readonly Action<LayeredWindowUpdateDiagnostics> recordLayeredUpdate;
     private readonly Action recordPaintDispatchSkipped;
     private readonly Action recordPaintInputSkipped;
     private readonly object sync = new();
@@ -28,12 +29,14 @@ internal sealed class TimerOverlayWindowHost : IDisposable
         Action<Action> mainThreadDispatch,
         Action<TimeSpan> recordPaint,
         Action<HighPrecisionSchedulerTick> recordPaintTick,
+        Action<LayeredWindowUpdateDiagnostics> recordLayeredUpdate,
         Action recordPaintDispatchSkipped,
         Action recordPaintInputSkipped)
     {
         this.mainThreadDispatch = mainThreadDispatch;
         this.recordPaint = recordPaint;
         this.recordPaintTick = recordPaintTick;
+        this.recordLayeredUpdate = recordLayeredUpdate;
         this.recordPaintDispatchSkipped = recordPaintDispatchSkipped;
         this.recordPaintInputSkipped = recordPaintInputSkipped;
     }
@@ -190,6 +193,7 @@ internal sealed class TimerOverlayWindowHost : IDisposable
         using var overlayForm = new TimerOverlayForm(
             recordPaint,
             recordPaintTick,
+            recordLayeredUpdate,
             recordPaintDispatchSkipped,
             recordPaintInputSkipped,
             IsInteractionBlocked);

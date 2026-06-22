@@ -41,7 +41,8 @@ internal sealed class OverlayWindowController : IDisposable
         Func<Graphics, bool> draw,
         Action<TimeSpan> recordPaint,
         Action<Action>? dispatch = null,
-        Func<Bitmap, bool>? updateLayeredBitmap = null)
+        Func<Bitmap, bool>? updateLayeredBitmap = null,
+        Action<LayeredWindowUpdateDiagnostics>? recordLayeredUpdate = null)
     {
         this.owner = owner;
         this.draw = draw;
@@ -50,7 +51,7 @@ internal sealed class OverlayWindowController : IDisposable
         renderQueuedCallback = RenderQueued;
         if (updateLayeredBitmap is null)
         {
-            renderTarget = new LayeredWindowRenderTarget();
+            renderTarget = new LayeredWindowRenderTarget(recordLayeredUpdate);
             this.updateLayeredBitmap = bitmap => LayeredWindowUpdater.Update(owner, bitmap);
         }
         else
@@ -122,6 +123,23 @@ internal sealed class OverlayWindowController : IDisposable
     /// </summary>
     public bool RenderRegionImmediately(Rectangle dirtyRect)
     {
+        return RenderRegionImmediatelyCore(
+            target => target.RenderRegion(owner, draw, ConfigureGraphics, dirtyRect));
+    }
+
+    /// <summary>
+    /// Redraws a dirty region measured on the configured render graphics.
+    /// Returns false when no persistent render target is available so the
+    /// caller can fall back to a full render.
+    /// </summary>
+    public bool RenderRegionImmediately(Func<Graphics, Rectangle> resolveDirtyRect)
+    {
+        return RenderRegionImmediatelyCore(
+            target => target.RenderRegion(owner, draw, ConfigureGraphics, resolveDirtyRect));
+    }
+
+    private bool RenderRegionImmediatelyCore(Func<LayeredWindowRenderTarget, bool> render)
+    {
         if (!owner.IsHandleCreated || owner.IsDisposed || owner.Disposing || disposed)
         {
             renderPending = false;
@@ -148,7 +166,7 @@ internal sealed class OverlayWindowController : IDisposable
                 return true;
             }
 
-            if (!renderTarget.RenderRegion(owner, draw, ConfigureGraphics, dirtyRect))
+            if (!render(renderTarget))
             {
                 StaticAppLogger.Instance.Info($"Layered overlay region update failed. Win32Error={Marshal.GetLastWin32Error()}.");
             }

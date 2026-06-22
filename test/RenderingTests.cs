@@ -18,6 +18,8 @@ internal static class RenderingTests
         yield return ("TextEffectGeometry fits images without stretching", TextEffectGeometryFitsImagesWithoutStretching);
         yield return ("TextEffectRenderer draws direct styled string", TextEffectRendererDrawsDirectStyledString);
         yield return ("TextEffectRenderer draws direct shadow-only text", TextEffectRendererDrawsDirectShadowOnlyText);
+        yield return ("TimerRenderer paint bounds contain scaled text effects", TimerRendererPaintBoundsContainScaledTextEffects);
+        yield return ("TimerRenderer paint frame isolates milliseconds changes", TimerRendererPaintFrameIsolatesMillisecondsChanges);
         yield return ("OverlayFontCache keeps main timer font independent from milliseconds visibility", OverlayFontCacheKeepsMainTimerFontIndependentFromMillisecondsVisibility);
         yield return ("OverlayFontCache honors configured font families", OverlayFontCacheHonorsConfiguredFontFamilies);
         yield return ("BossIconCache crops animated item textures", BossIconCacheCropsAnimatedItemTextures);
@@ -35,6 +37,7 @@ internal static class RenderingTests
         yield return ("SplitListRenderer shows skipped time for skipped splits", SplitListRendererShowsSkippedTimeForSkippedSplits);
         yield return ("SplitListRenderer lights facts only after timer starts", SplitListRendererLightsFactsOnlyAfterTimerStarts);
         yield return ("SplitListRenderer keeps ever owned item icons lit after item leaves inventory", SplitListRendererKeepsEverOwnedItemIconsLitAfterItemLeavesInventory);
+        yield return ("SplitListRenderer lights all item icons at required quantity", SplitListRendererLightsAllItemIconsAtRequiredQuantity);
         yield return ("SplitListRenderer lights target override ever owned item icons", SplitListRendererLightsTargetOverrideEverOwnedItemIcons);
         yield return ("SplitListRenderer preserves current split depth curve", SplitListRendererPreservesCurrentSplitDepthCurve);
         yield return ("SplitRowPaintOrder paints far rows first", SplitRowPaintOrderPaintsFarRowsFirst);
@@ -145,6 +148,136 @@ internal static class RenderingTests
             supersampleEffects: false);
 
         TestAssert.Equal(true, HasVisiblePixel(bitmap));
+    }
+
+    private static void TimerRendererPaintBoundsContainScaledTextEffects()
+    {
+        var settings = new AppSettings
+        {
+            General =
+            {
+                ShowMouseClickThroughIndicator = true
+            },
+            Overlay =
+            {
+                Columns =
+                {
+                    ScalePercent = 175,
+                    TimerOffsetX = 21,
+                    TimerOffsetY = 13,
+                    Timer =
+                    {
+                        FontSize = 42f,
+                        Bold = true
+                    },
+                    TimerMilliseconds =
+                    {
+                        FontSize = 25f,
+                        Bold = true
+                    }
+                },
+                TextEffects =
+                {
+                    TimerShadowPercent = 100,
+                    TimerOutlineThicknessPercent = 100,
+                    TimerMillisecondsShadowPercent = 100,
+                    TimerMillisecondsOutlineThicknessPercent = 100
+                }
+            }
+        };
+        SplitLayout layout = new(
+            new Rectangle(32, 24, 900, 72),
+            new Rectangle(32, 150, 900, 210),
+            RowGap: 12);
+        var context = new OverlayRenderContext(
+            settings,
+            UiPalette.From(settings.Overlay.Colors),
+            TestSnapshots.Terraria(isGameMenu: false),
+            [],
+            CurrentSplitIndex: 0,
+            SplitTimerPhase.Running,
+            TimeSpan.FromSeconds(86.55),
+            layout,
+            VisibleStatusRowCount: 1,
+            MouseClickThrough: false,
+            SplitCompletionAnimation: null,
+            SegmentBestDeltaHighlights: new Dictionary<int, SegmentBestDeltaHighlight>(),
+            NowUtc: new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+
+        using var resources = new OverlayRenderResources();
+        using var bitmap = new Bitmap(1100, 460, PixelFormat.Format32bppPArgb);
+        bitmap.SetResolution(144f, 144f);
+        using Graphics graphics = Graphics.FromImage(bitmap);
+        ConfigureOverlayGraphics(graphics);
+        graphics.Clear(Color.Transparent);
+
+        Rectangle paintBounds = TimerRenderer.GetTimerPaintBounds(graphics, context, resources);
+        OverlayRenderer.RenderTimer(graphics, context, resources);
+        Rectangle actualBounds = GetVisiblePixelBounds(bitmap);
+
+        TestAssert.Equal(true, actualBounds.Width > 0);
+        TestAssert.Equal(true, actualBounds.Height > 0);
+        if (!paintBounds.Contains(actualBounds))
+        {
+            throw new InvalidOperationException($"Timer paint bounds '{paintBounds}' did not contain rendered bounds '{actualBounds}'.");
+        }
+    }
+
+    private static void TimerRendererPaintFrameIsolatesMillisecondsChanges()
+    {
+        var settings = new AppSettings
+        {
+            Overlay =
+            {
+                EnableTimerGradientColor = false,
+                Columns =
+                {
+                    ScalePercent = 150,
+                    Timer =
+                    {
+                        FontSize = 40f,
+                        Bold = true
+                    },
+                    TimerMilliseconds =
+                    {
+                        FontSize = 22f,
+                        Bold = true
+                    }
+                }
+            }
+        };
+        SplitLayout layout = new(
+            new Rectangle(20, 20, 800, 70),
+            new Rectangle(20, 150, 800, 180),
+            RowGap: 12);
+        var context = new OverlayRenderContext(
+            settings,
+            UiPalette.From(settings.Overlay.Colors),
+            TestSnapshots.Terraria(isGameMenu: false),
+            [],
+            CurrentSplitIndex: 0,
+            SplitTimerPhase.Running,
+            TimeSpan.FromSeconds(26.55),
+            layout,
+            VisibleStatusRowCount: 1,
+            MouseClickThrough: true,
+            SplitCompletionAnimation: null,
+            SegmentBestDeltaHighlights: new Dictionary<int, SegmentBestDeltaHighlight>(),
+            NowUtc: new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+
+        using var resources = new OverlayRenderResources();
+        using var bitmap = new Bitmap(960, 420, PixelFormat.Format32bppPArgb);
+        using Graphics graphics = Graphics.FromImage(bitmap);
+        ConfigureOverlayGraphics(graphics);
+
+        TimerPaintFrame first = TimerRenderer.GetTimerPaintFrame(graphics, context, resources);
+        TimerPaintFrame second = TimerRenderer.GetTimerPaintFrame(
+            graphics,
+            context with { TimerElapsed = TimeSpan.FromSeconds(26.56) },
+            resources);
+
+        TestAssert.Equal(first.Main, second.Main);
+        TestAssert.Equal(false, first.Milliseconds.Equals(second.Milliseconds));
     }
 
     private static void OverlayFontCacheKeepsMainTimerFontIndependentFromMillisecondsVisibility()
@@ -1364,6 +1497,91 @@ internal static class RenderingTests
         TestAssert.Equal(false, InvokeIsIconLit(context, unlitStatus, definition, iconIndex: 0));
     }
 
+    private static void SplitListRendererLightsAllItemIconsAtRequiredQuantity()
+    {
+        const int itemId = 520;
+        const int otherItemId = 43;
+        string itemTargetId = SplitCatalog.CreateItemTargetId(itemId);
+        string otherItemTargetId = SplitCatalog.CreateItemTargetId(otherItemId);
+        string currentItemFactKey = SplitCatalog.CreateItemFactKey(itemId);
+        string everOwnedFactKey = SplitCatalog.CreateItemEverOwnedFactKey(itemId);
+        string otherItemFactKey = SplitCatalog.CreateItemFactKey(otherItemId);
+        var settings = new AppSettings
+        {
+            Overlay =
+            {
+                EnableDefeatedBossIconLighting = true
+            },
+            Route =
+            {
+                SplitRoute =
+                [
+                    new SplitRouteEntry
+                    {
+                        Id = "split:item-520",
+                        DisplayName = "Summon Prep",
+                        Enabled = true,
+                        Condition = SplitCondition.All(
+                        [
+                            SplitCatalog.CreateItemEverOwnedCondition(otherItemId, 1),
+                            SplitCatalog.CreateItemEverOwnedCondition(itemId, 9)
+                        ]),
+                        IconTargetIds = [otherItemTargetId, itemTargetId],
+                        IconOverride = new SplitIconOverride
+                        {
+                            Source = SplitIconOverrideSource.All
+                        }
+                    }
+                ]
+            }
+        };
+        SettingsNormalizer.Normalize(settings);
+        SplitDefinition definition = SplitCatalog.Build(settings).Single();
+        TestAssert.Equal(0, definition.IconLightingConditions.Count);
+        TestAssert.Equal(otherItemTargetId, definition.IconKeys[0]);
+        TestAssert.Equal(itemTargetId, definition.IconKeys[1]);
+        var status = new SplitStatusSnapshot(
+            definition,
+            null,
+            IsSkipped: false,
+            CompletedFactKeys: []);
+        var context = new OverlayRenderContext(
+            settings,
+            UiPalette.From(settings.Overlay.Colors),
+            TestSnapshots.Terraria(
+                isGameMenu: false,
+                bossStates: CreateFacts((otherItemFactKey, 1), (currentItemFactKey, 8))),
+            [status],
+            CurrentSplitIndex: 0,
+            SplitTimerPhase.Running,
+            TimeSpan.FromSeconds(5),
+            new SplitLayout(new Rectangle(0, 0, 120, 32), new Rectangle(0, 40, 120, 64), 6),
+            VisibleStatusRowCount: 1,
+            MouseClickThrough: false,
+            SplitCompletionAnimation: null,
+            SegmentBestDeltaHighlights: new Dictionary<int, SegmentBestDeltaHighlight>(),
+            NowUtc: new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+
+        TestAssert.Equal(true, InvokeIsIconLit(context, status, definition, iconIndex: 0));
+        TestAssert.Equal(false, InvokeIsIconLit(context, status, definition, iconIndex: 1));
+
+        OverlayRenderContext exactQuantityContext = context with
+        {
+            Snapshot = TestSnapshots.Terraria(
+                isGameMenu: false,
+                bossStates: CreateFacts((otherItemFactKey, 1), (currentItemFactKey, 9)))
+        };
+        TestAssert.Equal(true, InvokeIsIconLit(exactQuantityContext, status, definition, iconIndex: 1));
+
+        OverlayRenderContext rememberedQuantityContext = context with
+        {
+            Snapshot = TestSnapshots.Terraria(
+                isGameMenu: false,
+                bossStates: CreateFacts((otherItemFactKey, 1), (currentItemFactKey, 0), (everOwnedFactKey, 9)))
+        };
+        TestAssert.Equal(true, InvokeIsIconLit(rememberedQuantityContext, status, definition, iconIndex: 1));
+    }
+
     private static void SplitListRendererLightsTargetOverrideEverOwnedItemIcons()
     {
         const int itemId = 520;
@@ -2191,5 +2409,32 @@ internal static class RenderingTests
         }
 
         return false;
+    }
+
+    private static Rectangle GetVisiblePixelBounds(Bitmap bitmap)
+    {
+        int left = bitmap.Width;
+        int top = bitmap.Height;
+        int right = -1;
+        int bottom = -1;
+        for (int y = 0; y < bitmap.Height; y++)
+        {
+            for (int x = 0; x < bitmap.Width; x++)
+            {
+                if (bitmap.GetPixel(x, y).A == 0)
+                {
+                    continue;
+                }
+
+                left = Math.Min(left, x);
+                top = Math.Min(top, y);
+                right = Math.Max(right, x);
+                bottom = Math.Max(bottom, y);
+            }
+        }
+
+        return right < left || bottom < top
+            ? Rectangle.Empty
+            : Rectangle.FromLTRB(left, top, right + 1, bottom + 1);
     }
 }

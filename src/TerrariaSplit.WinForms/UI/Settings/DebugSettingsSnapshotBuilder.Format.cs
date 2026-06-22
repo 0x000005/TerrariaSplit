@@ -201,6 +201,38 @@ internal static partial class DebugSettingsSnapshotBuilder
             localize);
     }
 
+    private static string FormatTimerLayeredUpdateSummary(
+        RuntimeDebugSnapshot debugSnapshot,
+        Func<string, string> localize)
+    {
+        RuntimePerformanceDiagnostics performance = debugSnapshot.Performance;
+        if (performance.TimerOverlayLayeredUpdateCount == 0)
+        {
+            return localize("Waiting for samples");
+        }
+
+        double averageCoverage = performance.AverageTimerOverlayLayeredWindowPixels > 0
+            ? performance.AverageTimerOverlayLayeredUpdatedPixels / performance.AverageTimerOverlayLayeredWindowPixels
+            : 0;
+        double lastCoverage = performance.LastTimerOverlayLayeredWindowPixels > 0
+            ? performance.LastTimerOverlayLayeredUpdatedPixels / performance.LastTimerOverlayLayeredWindowPixels
+            : 0;
+        return string.Format(
+            CultureInfo.InvariantCulture,
+            localize("updates {0}, full {1}, region {2}, avg {3}, max {4}, avg area {5}/{6} ({7}), last area {8}/{9} ({10})"),
+            performance.TimerOverlayLayeredUpdateCount,
+            performance.TimerOverlayLayeredFullUpdateCount,
+            performance.TimerOverlayLayeredRegionUpdateCount,
+            FormatMilliseconds(performance.AverageTimerOverlayLayeredUpdateMilliseconds),
+            FormatMilliseconds(performance.MaxTimerOverlayLayeredUpdateMilliseconds),
+            FormatPixels(performance.AverageTimerOverlayLayeredUpdatedPixels),
+            FormatPixels(performance.AverageTimerOverlayLayeredWindowPixels),
+            FormatPercent(averageCoverage),
+            FormatPixels(performance.LastTimerOverlayLayeredUpdatedPixels),
+            FormatPixels(performance.LastTimerOverlayLayeredWindowPixels),
+            FormatPercent(lastCoverage));
+    }
+
     private static string FormatRefreshRateSummary(
         double configuredIntervalMilliseconds,
         double actualIntervalMilliseconds,
@@ -254,6 +286,16 @@ internal static partial class DebugSettingsSnapshotBuilder
     private static string FormatMilliseconds(double milliseconds)
     {
         return milliseconds.ToString("0.###", CultureInfo.InvariantCulture) + " ms";
+    }
+
+    private static string FormatPixels(double pixels)
+    {
+        return Math.Max(0d, pixels).ToString("0", CultureInfo.InvariantCulture) + " px";
+    }
+
+    private static string FormatPercent(double ratio)
+    {
+        return Math.Clamp(ratio, 0d, 1d).ToString("P1", CultureInfo.InvariantCulture);
     }
 
     private static string FormatFrequency(double intervalMilliseconds, Func<string, string> localize)

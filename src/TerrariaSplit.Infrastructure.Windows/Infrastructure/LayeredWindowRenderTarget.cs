@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
@@ -27,6 +28,12 @@ public sealed class LayeredWindowRenderTarget : IDisposable
     private Size size;
     private IntPtr scratch;
     private SolidBrush? clearBrush;
+    private readonly Action<LayeredWindowUpdateDiagnostics>? recordUpdate;
+
+    public LayeredWindowRenderTarget(Action<LayeredWindowUpdateDiagnostics>? recordUpdate = null)
+    {
+        this.recordUpdate = recordUpdate;
+    }
 
     public bool Render(Form form, Func<Graphics, bool> draw, Action<Graphics> configureGraphics)
     {
@@ -63,21 +70,34 @@ public sealed class LayeredWindowRenderTarget : IDisposable
     /// </summary>
     public bool RenderRegion(Form form, Func<Graphics, bool> draw, Action<Graphics> configureGraphics, Rectangle dirtyRect)
     {
+        return RenderRegion(form, draw, configureGraphics, _ => dirtyRect);
+    }
+
+    /// <summary>
+    /// Redraws a measured dirty region on the persistent surface and pushes
+    /// only that region to the compositor. The region callback runs after the
+    /// graphics object has been configured so callers can measure text with the
+    /// same rendering settings used by the draw callback.
+    /// </summary>
+    public bool RenderRegion(Form form, Func<Graphics, bool> draw, Action<Graphics> configureGraphics, Func<Graphics, Rectangle> resolveDirtyRect)
+    {
         Size clientSize = form.ClientSize;
         if (bitmap is null || size != clientSize)
         {
             return Render(form, draw, configureGraphics);
         }
 
-        dirtyRect.Intersect(new Rectangle(Point.Empty, size));
-        if (dirtyRect.Width <= 0 || dirtyRect.Height <= 0)
-        {
-            return true;
-        }
-
+        Rectangle dirtyRect;
         using (Graphics graphics = Graphics.FromImage(bitmap))
         {
             configureGraphics(graphics);
+            dirtyRect = resolveDirtyRect(graphics);
+            dirtyRect.Intersect(new Rectangle(Point.Empty, size));
+            if (dirtyRect.Width <= 0 || dirtyRect.Height <= 0)
+            {
+                return true;
+            }
+
             graphics.SetClip(dirtyRect);
             graphics.CompositingMode = CompositingMode.SourceCopy;
             graphics.FillRectangle(clearBrush ??= new SolidBrush(Color.Transparent), dirtyRect);
@@ -265,7 +285,8 @@ public sealed class LayeredWindowRenderTarget : IDisposable
                 AlphaFormat = AcSrcAlpha
             };
 
-            return UpdateLayeredWindow(
+            long startTimestamp = Stopwatch.GetTimestamp();
+            bool result = UpdateLayeredWindow(
                 form.Handle,
                 screenDc,
                 ref destination,
@@ -275,6 +296,12 @@ public sealed class LayeredWindowRenderTarget : IDisposable
                 0,
                 ref blend,
                 UlwAlpha);
+            recordUpdate?.Invoke(new LayeredWindowUpdateDiagnostics(
+                Stopwatch.GetElapsedTime(startTimestamp),
+                GetPixelCount(size.Width, size.Height),
+                GetPixelCount(size.Width, size.Height),
+                IsRegion: false));
+            return result;
         }
         finally
         {
@@ -338,12 +365,25 @@ public sealed class LayeredWindowRenderTarget : IDisposable
                 DirtyRect = scratch + ScratchDirtyRectOffset
             };
 
-            return UpdateLayeredWindowIndirect(form.Handle, ref info);
+            long startTimestamp = Stopwatch.GetTimestamp();
+            bool result = UpdateLayeredWindowIndirect(form.Handle, ref info);
+            recordUpdate?.Invoke(new LayeredWindowUpdateDiagnostics(
+                Stopwatch.GetElapsedTime(startTimestamp),
+                GetPixelCount(size.Width, size.Height),
+                GetPixelCount(dirtyRect.Width, dirtyRect.Height),
+                IsRegion: true));
+            return result;
         }
         finally
         {
             ReleaseDC(IntPtr.Zero, screenDc);
         }
+    }
+
+    private static int GetPixelCount(int width, int height)
+    {
+        long pixels = Math.Max(0L, (long)width * height);
+        return pixels > int.MaxValue ? int.MaxValue : (int)pixels;
     }
 
 }

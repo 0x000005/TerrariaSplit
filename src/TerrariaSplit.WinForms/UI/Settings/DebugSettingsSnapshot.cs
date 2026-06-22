@@ -28,7 +28,8 @@ internal sealed record DebugPerformanceSnapshot(
     string WatcherPoll,
     string ControlTick,
     string StatusPaint,
-    string TimerPaint);
+    string TimerPaint,
+    string TimerLayeredUpdate);
 
 internal sealed record DebugWindowInfoSnapshot(
     string ProcessId,

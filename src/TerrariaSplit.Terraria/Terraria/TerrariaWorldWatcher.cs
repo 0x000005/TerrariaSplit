@@ -40,6 +40,7 @@ public sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
     private (string Stage, string Detail, int ProcessId, bool StartPending)? operationalTextKey;
     private string? cachedOperationalStage;
     private string? cachedOperationalStatus;
+    private string[]? observedFactKeys;
 
     public TerrariaWorldWatcher()
         : this(Terraria1456Memory.Profile)
@@ -128,8 +129,12 @@ public sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
                 status);
         }
 
-        TerrariaGameFacts facts = resolver.ReadGameFacts(memory);
-        TerrariaWorldGenerationState worldGeneration = resolver.ReadWorldGenerationState(memory);
+        TerrariaGameFacts facts = resolver.ReadGameFacts(
+            memory,
+            System.Threading.Volatile.Read(ref observedFactKeys));
+        TerrariaWorldGenerationState worldGeneration = isGameMenu
+            ? resolver.ReadWorldGenerationState(memory)
+            : TerrariaWorldGenerationState.Unknown;
 
         bool enteredWorld = !awaitingInitialMenuObservation
             && previousGameMenu == true
@@ -157,6 +162,17 @@ public sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
     {
         resolver.SetProcess(null);
         process?.Dispose();
+    }
+
+    public void SetObservedFactKeys(IReadOnlySet<string> factKeys)
+    {
+        string[] keys = factKeys
+            .Where(key => !string.IsNullOrWhiteSpace(key))
+            .Select(key => key.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(key => key, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        System.Threading.Volatile.Write(ref observedFactKeys, keys);
     }
 
     public TerrariaWatcherDiagnostics GetDiagnostics()

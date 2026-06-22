@@ -62,7 +62,8 @@ internal static partial class DebugSettingsSnapshotBuilder
             FormatWatcherPollSummary(debugSnapshot, advanced, localize),
             FormatControlTickSummary(debugSnapshot, advanced, localize),
             FormatStatusPaintSummary(debugSnapshot, localize),
-            FormatTimerPaintSummary(debugSnapshot, localize));
+            FormatTimerPaintSummary(debugSnapshot, localize),
+            FormatTimerLayeredUpdateSummary(debugSnapshot, localize));
     }
 
     private static DebugWindowInfoSnapshot BuildWindowInfo(

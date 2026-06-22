@@ -86,6 +86,7 @@ internal static class MainShellCompositionRoot
         Action<Action> dispatch,
         Action<TimeSpan> recordPaint,
         Action<HighPrecisionSchedulerTick> recordPaintTick,
+        Action<LayeredWindowUpdateDiagnostics> recordLayeredUpdate,
         Action recordDispatchSkipped,
         Action recordInputSkipped)
     {
@@ -93,6 +94,7 @@ internal static class MainShellCompositionRoot
             dispatch,
             recordPaint,
             recordPaintTick,
+            recordLayeredUpdate,
             recordDispatchSkipped,
             recordInputSkipped);
     }

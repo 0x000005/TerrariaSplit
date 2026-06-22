@@ -34,10 +34,15 @@ internal sealed class TimerOverlayForm : Form
     private OverlayCompositeLayout? currentLayout;
     private TimerOverlayRenderState? currentState;
     private int paintDispatchPending;
+    private TimerPaintFrame? previousRunningTimerPaintFrame;
+    private TimeSpan? currentPaintTimerElapsed;
+    private bool runningTimerPaintRequiresFullRender;
+    private bool renderingRunningTimerRegion;
 
     public TimerOverlayForm(
         Action<TimeSpan> recordPaint,
         Action<HighPrecisionSchedulerTick> recordPaintTick,
+        Action<LayeredWindowUpdateDiagnostics> recordLayeredUpdate,
         Action recordPaintDispatchSkipped,
         Action recordPaintInputSkipped,
         Func<bool> isInteractionBlocked)
@@ -50,7 +55,8 @@ internal sealed class TimerOverlayForm : Form
         overlayWindowController = new OverlayWindowController(
             this,
             DrawOverlay,
-            recordPaint);
+            recordPaint,
+            recordLayeredUpdate: recordLayeredUpdate);
         Text = MainTimerWindowTitle;
         FormBorderStyle = FormBorderStyle.None;
         ShowInTaskbar = false;
@@ -102,7 +108,7 @@ internal sealed class TimerOverlayForm : Form
     protected override void OnShown(EventArgs e)
     {
         base.OnShown(e);
-        overlayWindowController.QueueRender();
+        QueueFullRender();
     }
 
     protected override void OnPaintBackground(PaintEventArgs e)
@@ -111,7 +117,7 @@ internal sealed class TimerOverlayForm : Form
 
     protected override void OnPaint(PaintEventArgs e)
     {
-        overlayWindowController.QueueRender();
+        QueueFullRender();
     }
 
     protected override void OnMouseDown(MouseEventArgs e)
@@ -182,14 +188,14 @@ internal sealed class TimerOverlayForm : Form
     protected override void OnMove(EventArgs e)
     {
         base.OnMove(e);
-        overlayWindowController.QueueRender();
+        QueueFullRender();
         NotifyUserResizeBoundsChanged();
     }
 
     protected override void OnResize(EventArgs e)
     {
         base.OnResize(e);
-        overlayWindowController.QueueRender();
+        QueueFullRender();
         NotifyUserResizeBoundsChanged();
     }
 
@@ -258,7 +264,7 @@ internal sealed class TimerOverlayForm : Form
     {
         currentLayout = layout;
         ApplyWindowBounds(layout.TimerScreenBounds);
-        overlayWindowController.QueueRender();
+        QueueFullRender();
     }
 
     public void ApplyRenderState(TimerOverlayRenderState renderState, bool forceRender)
@@ -271,7 +277,7 @@ internal sealed class TimerOverlayForm : Form
         UpdateTimerOverlayPaintSchedulerState();
         if (forceRender || ShouldRenderImmediately(previousState, renderState, previousMouseClickThrough))
         {
-            overlayWindowController.QueueRender();
+            QueueFullRender();
         }
     }
 
@@ -297,7 +303,7 @@ internal sealed class TimerOverlayForm : Form
         UpdateTimerOverlayPaintSchedulerState();
         if (!paintSuspended)
         {
-            overlayWindowController.QueueRender();
+            QueueFullRender();
         }
     }
 
@@ -327,12 +333,12 @@ internal sealed class TimerOverlayForm : Form
     {
         mouseClickThrough = enabled;
         overlayWindowController.ApplyWindowStyle(mouseClickThrough, IsInteractionBlocked());
-        overlayWindowController.QueueRender();
+        QueueFullRender();
     }
 
     public void RequestRender()
     {
-        overlayWindowController.QueueRender();
+        QueueFullRender();
     }
 
     public void ApplyWindowBounds(Rectangle bounds)
@@ -417,7 +423,7 @@ internal sealed class TimerOverlayForm : Form
 
             if (!UiInputMessageProbe.HasPendingInputMessage())
             {
-                overlayWindowController.RenderImmediately();
+                RenderTimerOverlayPaintTick();
             }
             else
             {
@@ -428,6 +434,157 @@ internal sealed class TimerOverlayForm : Form
         {
             Interlocked.Exchange(ref paintDispatchPending, 0);
         }
+    }
+
+    private void QueueFullRender()
+    {
+        previousRunningTimerPaintFrame = null;
+        runningTimerPaintRequiresFullRender = true;
+        overlayWindowController.QueueRender();
+    }
+
+    private void RenderTimerOverlayPaintTick()
+    {
+        TimeSpan? timerElapsed = TryGetRunningTimerElapsed();
+        if (timerElapsed.HasValue && TryRenderRunningTimerRegion(timerElapsed.Value))
+        {
+            return;
+        }
+
+        previousRunningTimerPaintFrame = null;
+        RenderImmediately(timerElapsed);
+    }
+
+    private TimeSpan? TryGetRunningTimerElapsed()
+    {
+        if (currentState?.TimerState.Phase != SplitTimerPhase.Running)
+        {
+            return null;
+        }
+
+        long nowTimestamp = Stopwatch.GetTimestamp();
+        return SplitTimer.ElapsedAt(currentState.TimerState, nowTimestamp);
+    }
+
+    private void RenderImmediately(TimeSpan? timerElapsed)
+    {
+        currentPaintTimerElapsed = timerElapsed;
+        try
+        {
+            overlayWindowController.RenderImmediately();
+            runningTimerPaintRequiresFullRender = false;
+            previousRunningTimerPaintFrame = null;
+        }
+        finally
+        {
+            currentPaintTimerElapsed = null;
+        }
+    }
+
+    private bool TryRenderRunningTimerRegion(TimeSpan timerElapsed)
+    {
+        if (currentLayout is null || runningTimerPaintRequiresFullRender)
+        {
+            return false;
+        }
+
+        TimerPaintFrame? currentPaintFrame = null;
+        bool rendered;
+        currentPaintTimerElapsed = timerElapsed;
+        renderingRunningTimerRegion = true;
+        try
+        {
+            rendered = overlayWindowController.RenderRegionImmediately(graphics =>
+            {
+                RunningTimerPaintUpdate update = GetRunningTimerPaintUpdate(graphics, timerElapsed);
+                currentPaintFrame = update.Frame;
+                return update.DirtyRect ?? Rectangle.Empty;
+            });
+        }
+        finally
+        {
+            renderingRunningTimerRegion = false;
+            currentPaintTimerElapsed = null;
+        }
+
+        if (rendered && currentPaintFrame.HasValue)
+        {
+            previousRunningTimerPaintFrame = currentPaintFrame.Value;
+        }
+
+        return rendered;
+    }
+
+    private RunningTimerPaintUpdate GetRunningTimerPaintUpdate(Graphics graphics, TimeSpan timerElapsed)
+    {
+        if (currentLayout is not OverlayCompositeLayout layout || currentState is null)
+        {
+            return new RunningTimerPaintUpdate(TimerPaintFrame.Empty, null);
+        }
+
+        OverlayRenderContext context = CreateRenderContext(layout, currentState, timerElapsed);
+        TimerPaintFrame frame = TimerRenderer.GetTimerPaintFrame(graphics, context, renderResources);
+        Rectangle compositeDirtyRect = GetChangedTimerPaintBounds(previousRunningTimerPaintFrame, frame);
+        if (compositeDirtyRect.Width <= 0 || compositeDirtyRect.Height <= 0)
+        {
+            return new RunningTimerPaintUpdate(frame, null);
+        }
+
+        int guard = GetRunningTimerPaintGuard(graphics);
+        compositeDirtyRect.Inflate(guard, guard);
+
+        Rectangle localDirtyRect = layout.ToTimerLocal(compositeDirtyRect);
+        localDirtyRect.Intersect(new Rectangle(Point.Empty, ClientSize));
+        return new RunningTimerPaintUpdate(
+            frame,
+            localDirtyRect.Width > 0 && localDirtyRect.Height > 0
+                ? localDirtyRect
+                : null);
+    }
+
+    private static int GetRunningTimerPaintGuard(Graphics graphics)
+    {
+        float dpiScale = Math.Max(graphics.DpiX, graphics.DpiY) / 96f;
+        return Math.Clamp((int)Math.Ceiling(2f * dpiScale), 2, 8);
+    }
+
+    private static Rectangle GetChangedTimerPaintBounds(TimerPaintFrame? previousFrame, TimerPaintFrame currentFrame)
+    {
+        if (!previousFrame.HasValue)
+        {
+            return currentFrame.PaintBounds;
+        }
+
+        Rectangle dirty = Rectangle.Empty;
+        TimerPaintFrame previous = previousFrame.Value;
+        AddChangedTimerElementBounds(ref dirty, previous.Main, currentFrame.Main);
+        AddChangedTimerElementBounds(ref dirty, previous.Milliseconds, currentFrame.Milliseconds);
+        AddChangedTimerElementBounds(ref dirty, previous.Indicator, currentFrame.Indicator);
+        return dirty;
+    }
+
+    private static void AddChangedTimerElementBounds(
+        ref Rectangle dirty,
+        TimerPaintElement previous,
+        TimerPaintElement current)
+    {
+        if (previous.Equals(current))
+        {
+            return;
+        }
+
+        AddTimerElementBounds(ref dirty, previous);
+        AddTimerElementBounds(ref dirty, current);
+    }
+
+    private static void AddTimerElementBounds(ref Rectangle dirty, TimerPaintElement element)
+    {
+        if (!element.HasPaint)
+        {
+            return;
+        }
+
+        dirty = dirty.IsEmpty ? element.Bounds : Rectangle.Union(dirty, element.Bounds);
     }
 
     private bool CanDispatchToUiThread()
@@ -467,26 +624,19 @@ internal sealed class TimerOverlayForm : Form
             return true;
         }
 
-        long nowTimestamp = Stopwatch.GetTimestamp();
-        TimeSpan timerElapsed = SplitTimer.ElapsedAt(currentState.TimerState, nowTimestamp);
+        TimeSpan timerElapsed = currentPaintTimerElapsed ??
+            SplitTimer.ElapsedAt(currentState.TimerState, Stopwatch.GetTimestamp());
         graphics.TranslateTransform(-layout.TimerLocalBounds.X, -layout.TimerLocalBounds.Y);
         try
         {
-            var context = new OverlayRenderContext(
-                currentState.Settings,
-                currentState.Palette,
-                UnknownSnapshot,
-                currentState.Statuses,
-                currentState.CurrentSplitIndex,
-                currentState.TimerState.Phase,
-                timerElapsed,
-                layout.Layout,
-                1,
-                currentState.MouseClickThrough,
-                null,
-                EmptySegmentBestDeltaHighlights,
-                DateTime.UtcNow);
+            OverlayRenderContext context = CreateRenderContext(layout, currentState, timerElapsed);
             OverlayRenderer.RenderTimer(graphics, context, renderResources);
+            if (!renderingRunningTimerRegion && currentState.TimerState.Phase == SplitTimerPhase.Running)
+            {
+                runningTimerPaintRequiresFullRender = false;
+                previousRunningTimerPaintFrame = null;
+            }
+
             return true;
         }
         finally
@@ -494,6 +644,29 @@ internal sealed class TimerOverlayForm : Form
             graphics.ResetTransform();
         }
     }
+
+    private static OverlayRenderContext CreateRenderContext(
+        OverlayCompositeLayout layout,
+        TimerOverlayRenderState state,
+        TimeSpan timerElapsed)
+    {
+        return new OverlayRenderContext(
+            state.Settings,
+            state.Palette,
+            UnknownSnapshot,
+            state.Statuses,
+            state.CurrentSplitIndex,
+            state.TimerState.Phase,
+            timerElapsed,
+            layout.Layout,
+            1,
+            state.MouseClickThrough,
+            null,
+            EmptySegmentBestDeltaHighlights,
+            DateTime.UtcNow);
+    }
+
+    private readonly record struct RunningTimerPaintUpdate(TimerPaintFrame Frame, Rectangle? DirtyRect);
 
     private bool IsTimerInteractionPoint(Point point)
     {
