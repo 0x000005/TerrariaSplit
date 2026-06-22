@@ -18,6 +18,7 @@ internal sealed class CreateWorldWorkflow : IDisposable
     private TimeSpan shortActionDelay = TimeSpan.FromMilliseconds(AppSettingsDefaults.Automation.AutoCreate.ShortActionDelayMilliseconds);
     private TimeSpan menuActionDelay = TimeSpan.FromMilliseconds(AppSettingsDefaults.Automation.AutoCreate.MenuActionDelayMilliseconds);
     private int pyramidFilterPostDelayMilliseconds = AppSettingsDefaults.Automation.AutoCreate.PyramidFilterPostDelayMilliseconds;
+    private AutomationResult? lastFailure;
 
     public CreateWorldWorkflow(WorldPoolStore? worldPool = null)
     {
@@ -35,6 +36,7 @@ internal sealed class CreateWorldWorkflow : IDisposable
     public async Task<AutomationResult> RunAsync(AppSettings settings, CancellationToken cancellationToken = default)
     {
         automation.BeginRun();
+        lastFailure = null;
         try
         {
             AutoCreateWorldSettings autoCreate = settings.Automation.AutoCreate;
@@ -63,12 +65,12 @@ internal sealed class CreateWorldWorkflow : IDisposable
                 CreateWorldPoolInstallStep poolInstall = await InstallPooledWorldAsync(autoCreate, worldGenSignature, cancellationToken);
                 if (!poolInstall.Succeeded)
                 {
-                    return AutomationResult.Failure(poolInstall.UserMessage, poolInstall.DiagnosticMessage);
+                    return BuildFailure(poolInstall.UserMessage, poolInstall.DiagnosticMessage);
                 }
 
                 if (!await CreatePlayerAndOpenWorldSelectAsync(autoCreate, geometry, cleanupStep.Cleanup, cancellationToken))
                 {
-                    return AutomationResult.Failure(
+                    return BuildFailure(
                         "Could not create or select the Terraria player.",
                         "Create world automation failed before world selection.");
                 }
@@ -231,9 +233,9 @@ internal sealed class CreateWorldWorkflow : IDisposable
 
             if (createResult == CreateWorldAttemptResult.Failed)
             {
-                return CreateWorldLoopResult.Failure(
+                return CreateWorldLoopResult.Failure(BuildFailure(
                     "Could not create the Terraria world.",
-                    "Create world automation failed while configuring or creating the world.");
+                    "Create world automation failed while configuring or creating the world."));
             }
 
             await zenithStarCatchAutomation.RunAsync(settings, cancellationToken);
@@ -363,20 +365,14 @@ internal sealed class CreateWorldWorkflow : IDisposable
             return true;
         }
 
-        if (!TrySetClipboardTextWithBackup(settings.PlayerTemplateCode, out string? previousText, out bool hadPreviousText))
+        using ClipboardBackupScope? clipboard = TrySetClipboardText(settings.PlayerTemplateCode);
+        if (clipboard is null)
         {
             return false;
         }
 
-        try
-        {
-            return await automation.ClickAsync("character clothing tab", geometry.CharacterClothingCategoryButton(), shortActionDelay, cancellationToken) &&
-                await automation.ClickAsync("paste player template", geometry.CharacterTemplatePasteButton(), menuActionDelay, cancellationToken);
-        }
-        finally
-        {
-            RestoreClipboardText(previousText, hadPreviousText);
-        }
+        return await automation.ClickAsync("character clothing tab", geometry.CharacterClothingCategoryButton(), shortActionDelay, cancellationToken) &&
+            await automation.ClickAsync("paste player template", geometry.CharacterTemplatePasteButton(), menuActionDelay, cancellationToken);
     }
 
     private async Task<bool> ApplyPlayerDifficultyAsync(
@@ -437,6 +433,9 @@ internal sealed class CreateWorldWorkflow : IDisposable
 
         if (!preScreenResult.CanCreateWorld)
         {
+            RecordFailure(AutomationResult.Failure(
+                "Could not choose an accepted world seed.",
+                $"Create world automation pyramid seed pre-screen failed: {preScreenResult.Detail}"));
             return WorldSeedOptionsResult.Failed;
         }
 
@@ -460,6 +459,9 @@ internal sealed class CreateWorldWorkflow : IDisposable
             if (!AutoCreateSpecialWorldSeed.TryNormalize(rawSeed, out string specialSeed))
             {
                 AppLogger.Info($"Create world automation found an unknown special seed: {rawSeed}");
+                RecordFailure(AutomationResult.Failure(
+                    $"Unknown Terraria special seed: {rawSeed}",
+                    $"Create world automation found an unknown special seed: {rawSeed}"));
                 return false;
             }
         }
@@ -494,30 +496,24 @@ internal sealed class CreateWorldWorkflow : IDisposable
         TerrariaMenuGeometry geometry,
         CancellationToken cancellationToken)
     {
-        if (!TrySetClipboardTextWithBackup(worldSeed, out string? previousText, out bool hadPreviousText))
+        using ClipboardBackupScope? clipboard = TrySetClipboardText(worldSeed);
+        if (clipboard is null)
         {
             return false;
         }
 
-        try
+        if (!await automation.ClickAsync("world seed field", geometry.AdvancedSeedTextButton(), menuActionDelay, cancellationToken))
         {
-            if (!await automation.ClickAsync("world seed field", geometry.AdvancedSeedTextButton(), menuActionDelay, cancellationToken))
-            {
-                return false;
-            }
+            return false;
+        }
 
-            automation.ThrowIfCancellationRequested(cancellationToken);
-            automation.Window.PressModifiedKey(Keys.ControlKey, Keys.A);
-            await automation.DelayAsync(shortActionDelay, cancellationToken);
-            automation.ThrowIfCancellationRequested(cancellationToken);
-            automation.Window.PressModifiedKey(Keys.ControlKey, Keys.V);
-            await automation.DelayAsync(shortActionDelay, cancellationToken);
-            return await automation.ClickAsync("submit world seed", geometry.VirtualKeyboardSubmitButton(), menuActionDelay, cancellationToken);
-        }
-        finally
-        {
-            RestoreClipboardText(previousText, hadPreviousText);
-        }
+        automation.ThrowIfCancellationRequested(cancellationToken);
+        automation.Window.PressModifiedKey(Keys.ControlKey, Keys.A);
+        await automation.DelayAsync(shortActionDelay, cancellationToken);
+        automation.ThrowIfCancellationRequested(cancellationToken);
+        automation.Window.PressModifiedKey(Keys.ControlKey, Keys.V);
+        await automation.DelayAsync(shortActionDelay, cancellationToken);
+        return await automation.ClickAsync("submit world seed", geometry.VirtualKeyboardSubmitButton(), menuActionDelay, cancellationToken);
     }
 
     private async Task<bool> ClickPlayerAsync(
@@ -633,71 +629,47 @@ internal sealed class CreateWorldWorkflow : IDisposable
     {
         string normalizedName = string.IsNullOrWhiteSpace(playerName) ? "1" : playerName.Trim();
 
-        if (!TrySetClipboardTextWithBackup(normalizedName, out string? previousText, out bool hadPreviousText))
+        using ClipboardBackupScope? clipboard = TrySetClipboardText(normalizedName);
+        if (clipboard is null)
         {
             return false;
         }
 
-        try
+        automation.ThrowIfCancellationRequested(cancellationToken);
+        automation.Window.PressModifiedKey(Keys.ControlKey, Keys.A);
+        await automation.DelayAsync(shortActionDelay, cancellationToken);
+        automation.ThrowIfCancellationRequested(cancellationToken);
+        automation.Window.PressModifiedKey(Keys.ControlKey, Keys.V);
+        await automation.DelayAsync(shortActionDelay, cancellationToken);
+        return await automation.ClickAsync("submit player name", geometry.VirtualKeyboardSubmitButton(), menuActionDelay, cancellationToken);
+    }
+
+    private ClipboardBackupScope? TrySetClipboardText(string text)
+    {
+        AutomationResult result = ClipboardBackupScope.TrySetText(text, out ClipboardBackupScope? scope);
+        if (result.Failed)
         {
-            automation.ThrowIfCancellationRequested(cancellationToken);
-            automation.Window.PressModifiedKey(Keys.ControlKey, Keys.A);
-            await automation.DelayAsync(shortActionDelay, cancellationToken);
-            automation.ThrowIfCancellationRequested(cancellationToken);
-            automation.Window.PressModifiedKey(Keys.ControlKey, Keys.V);
-            await automation.DelayAsync(shortActionDelay, cancellationToken);
-            return await automation.ClickAsync("submit player name", geometry.VirtualKeyboardSubmitButton(), menuActionDelay, cancellationToken);
+            RecordFailure(result);
         }
-        finally
+
+        return scope;
+    }
+
+    private void RecordFailure(AutomationResult result)
+    {
+        if (result.Failed)
         {
-            RestoreClipboardText(previousText, hadPreviousText);
+            lastFailure = result;
         }
     }
 
-    private static bool TrySetClipboardTextWithBackup(string text, out string? previousText, out bool hadPreviousText)
+    private AutomationResult BuildFailure(string userMessage, string diagnostic)
     {
-        return TrySetClipboardText(text, out previousText, out hadPreviousText);
-    }
-
-    private static bool TrySetClipboardText(string text, out string? previousText, out bool hadPreviousText)
-    {
-        previousText = null;
-        hadPreviousText = false;
-        try
-        {
-            hadPreviousText = Clipboard.ContainsText();
-            if (hadPreviousText)
-            {
-                previousText = Clipboard.GetText();
-            }
-
-            Clipboard.SetText(text);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            AppLogger.Error(ex, "Create world automation failed to set clipboard text.");
-            return false;
-        }
-    }
-
-    private static void RestoreClipboardText(string? previousText, bool hadPreviousText)
-    {
-        try
-        {
-            if (hadPreviousText && previousText is not null)
-            {
-                Clipboard.SetText(previousText);
-            }
-            else
-            {
-                Clipboard.Clear();
-            }
-        }
-        catch (Exception ex)
-        {
-            AppLogger.Error(ex, "Create world automation failed to restore clipboard text.");
-        }
+        AutomationResult? failure = lastFailure;
+        lastFailure = null;
+        return failure is { Failed: true }
+            ? failure
+            : AutomationResult.Failure(userMessage, diagnostic);
     }
 
     public void Dispose()
@@ -788,6 +760,11 @@ internal readonly record struct CreateWorldLoopResult(
     public static CreateWorldLoopResult Failure(string userMessage, string diagnostic)
     {
         return new CreateWorldLoopResult(false, AutomationResult.Failure(userMessage, diagnostic));
+    }
+
+    public static CreateWorldLoopResult Failure(AutomationResult result)
+    {
+        return new CreateWorldLoopResult(false, result);
     }
 }
 
