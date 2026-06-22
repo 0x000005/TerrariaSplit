@@ -209,7 +209,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
 
     private void ConditionListMouseDown(object? sender, MouseEventArgs e)
     {
-        if (advancedConditionMode)
+        if (conditionController.AdvancedMode)
         {
             return;
         }
@@ -231,7 +231,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
 
     private void ConditionListMouseMove(object? sender, MouseEventArgs e)
     {
-        if (advancedConditionMode)
+        if (conditionController.AdvancedMode)
         {
             return;
         }
@@ -247,7 +247,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
 
     private void ConditionListDragOver(object? sender, DragEventArgs e)
     {
-        if (advancedConditionMode)
+        if (conditionController.AdvancedMode)
         {
             e.Effect = DragDropEffects.None;
             return;
@@ -260,7 +260,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
 
     private void ConditionListDragDrop(object? sender, DragEventArgs e)
     {
-        if (advancedConditionMode)
+        if (conditionController.AdvancedMode)
         {
             return;
         }
@@ -277,7 +277,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
 
     private void MoveConditionFact(int sourceIndex, int insertionIndex)
     {
-        if (advancedConditionMode)
+        if (conditionController.AdvancedMode)
         {
             return;
         }

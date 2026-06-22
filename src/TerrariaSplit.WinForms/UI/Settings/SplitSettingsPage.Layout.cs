@@ -136,7 +136,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
         iconOverrideBox = CreateIconOverrideBox();
         iconOverrideBox.SelectedIndexChanged += (_, _) =>
         {
-            if (updatingUi || updatingConditionSettings)
+            if (updatingUi || conditionController.UpdatingSettings)
             {
                 return;
             }
@@ -145,7 +145,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
         };
         iconOverrideBox.SelectionCommitted += (_, _) =>
         {
-            if (!updatingUi && !updatingConditionSettings)
+            if (!updatingUi && !conditionController.UpdatingSettings)
             {
                 PickCustomIconOverrideFileIfSelected();
             }
@@ -157,7 +157,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
         iconOverrideFileBox.PlaceholderText = Context.Localize("Custom image");
         iconOverrideFileBox.TextChanged += (_, _) =>
         {
-            if (!updatingUi && !updatingConditionSettings)
+            if (!updatingUi && !conditionController.UpdatingSettings)
             {
                 MarkSelectedEntryDirty();
             }
@@ -348,7 +348,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
         string targetId = iconOverride.TargetId?.Trim() ?? string.Empty;
         string filePath = iconOverride.FilePath?.Trim() ?? string.Empty;
 
-        updatingConditionSettings = true;
+        conditionController.UpdatingSettings = true;
         try
         {
             iconOverrideBox.SuspendLayout();
@@ -399,7 +399,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
         }
         finally
         {
-            updatingConditionSettings = false;
+            conditionController.UpdatingSettings = false;
         }
     }
 

@@ -32,15 +32,9 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
     private Button addTargetToNewGroupButton = null!;
     private Button advancedConditionButton = null!;
     private Label statusLabel = null!;
-    private SplitCondition currentCondition = SplitCondition.AtLeast([], 1);
-
     private bool updatingUi;
-    private bool updatingConditionSettings;
     private bool refreshingRouteList;
     private bool routeDirty;
-    private bool preserveCurrentCondition;
-    private bool advancedConditionMode;
-    private string advancedConditionError = string.Empty;
     private int loadedRouteEntryIndex = -1;
 
     private List<SplitRouteEntry> routeEntries => routeDraft.Entries;
@@ -79,7 +73,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
 
     internal TextBox AdvancedConditionBoxForTests => advancedConditionBox;
 
-    internal bool AdvancedConditionModeForTests => advancedConditionMode;
+    internal bool AdvancedConditionModeForTests => conditionController.AdvancedMode;
 
     protected override Control BuildPage(SettingsPageContext context)
     {
@@ -104,7 +98,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
     {
         if (!SaveSelectedEntryFromControls())
         {
-            throw new SettingsApplyFailedException(advancedConditionError);
+            throw new SettingsApplyFailedException(conditionController.AdvancedError);
         }
 
         routeDraft.EnsureEntryIds();
@@ -132,7 +126,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
     {
         if (!SaveSelectedEntryFromControls())
         {
-            statusLabel.Text = advancedConditionError;
+            statusLabel.Text = conditionController.AdvancedError;
             return;
         }
 

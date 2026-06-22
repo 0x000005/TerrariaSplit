@@ -8,7 +8,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
 {
     private void AddFactToCurrentSplit()
     {
-        if (advancedConditionMode)
+        if (conditionController.AdvancedMode)
         {
             CopySelectedTargetReferenceId();
             return;
@@ -60,7 +60,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
 
     private void RemoveSelectedFact()
     {
-        if (advancedConditionMode)
+        if (conditionController.AdvancedMode)
         {
             return;
         }
@@ -97,7 +97,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
 
     private void ToggleAdvancedConditionMode()
     {
-        if (!advancedConditionMode)
+        if (!conditionController.AdvancedMode)
         {
             SetAdvancedConditionMode(true);
             return;
@@ -105,25 +105,25 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
 
         if (string.IsNullOrWhiteSpace(advancedConditionBox.Text))
         {
-            currentCondition = SplitCondition.AtLeast([], 1);
-            preserveCurrentCondition = true;
-            advancedConditionError = string.Empty;
+            conditionController.CurrentCondition = SplitCondition.AtLeast([], 1);
+            conditionController.PreserveCurrentCondition = true;
+            conditionController.AdvancedError = string.Empty;
             SplitIconOverride emptyOverride = GetCurrentIconOverride();
-            RenderConditionList(currentCondition, emptyOverride);
+            RenderConditionList(conditionController.CurrentCondition, emptyOverride);
             SetAdvancedConditionMode(false, updateText: false);
             return;
         }
 
         if (!TryCommitAdvancedConditionText())
         {
-            ShowAdvancedConditionWarning(advancedConditionError);
+            ShowAdvancedConditionWarning(conditionController.AdvancedError);
             return;
         }
 
         if (!SplitConditionEditorMode.CanUseBasicEditor(GetCurrentCondition()))
         {
-            advancedConditionError = Context.Localize("Advanced condition cannot be converted to basic editor without losing structure.");
-            ShowAdvancedConditionWarning(advancedConditionError);
+            conditionController.AdvancedError = Context.Localize("Advanced condition cannot be converted to basic editor without losing structure.");
+            ShowAdvancedConditionWarning(conditionController.AdvancedError);
             return;
         }
 
@@ -139,7 +139,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
             message = Context.Localize("Invalid advanced condition.");
         }
 
-        advancedConditionError = message;
+        conditionController.AdvancedError = message;
         statusLabel.Text = message;
         Context.Dialogs.ShowWarning(message, Context.Localize("TerrariaSplit Settings"));
     }
@@ -150,8 +150,8 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
         bool updateText = true,
         bool markDirty = true)
     {
-        bool changed = advancedConditionMode != enabled;
-        advancedConditionMode = enabled;
+        bool changed = conditionController.AdvancedMode != enabled;
+        conditionController.AdvancedMode = enabled;
         if (updateEntry && TryGetSelectedRouteEntry(out SplitRouteEntry entry))
         {
             if (entry.UseAdvancedConditionEditor != enabled)
@@ -166,15 +166,15 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
 
         if (enabled && updateText)
         {
-            bool previousUpdating = updatingConditionSettings;
-            updatingConditionSettings = true;
+            bool previousUpdating = conditionController.UpdatingSettings;
+            conditionController.UpdatingSettings = true;
             try
             {
                 advancedConditionBox.Text = SplitConditionText.Format(GetCurrentCondition(), Draft.General.Language);
             }
             finally
             {
-                updatingConditionSettings = previousUpdating;
+                conditionController.UpdatingSettings = previousUpdating;
             }
         }
 
@@ -190,7 +190,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
 
     private void UpdateAdvancedConditionFromText()
     {
-        if (updatingUi || updatingConditionSettings || !advancedConditionMode)
+        if (updatingUi || conditionController.UpdatingSettings || !conditionController.AdvancedMode)
         {
             return;
         }
@@ -206,9 +206,9 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
 
     private bool TryCommitCurrentEditor()
     {
-        if (!advancedConditionMode)
+        if (!conditionController.AdvancedMode)
         {
-            advancedConditionError = string.Empty;
+            conditionController.AdvancedError = string.Empty;
             return true;
         }
 
@@ -217,9 +217,9 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
             return true;
         }
 
-        if (string.IsNullOrWhiteSpace(advancedConditionError))
+        if (string.IsNullOrWhiteSpace(conditionController.AdvancedError))
         {
-            advancedConditionError = Context.Localize("Invalid advanced condition.");
+            conditionController.AdvancedError = Context.Localize("Invalid advanced condition.");
         }
 
         return false;
@@ -227,14 +227,14 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
 
     private bool TryCommitAdvancedConditionText(bool updateStatusOnFailure = true)
     {
-        if (!advancedConditionMode)
+        if (!conditionController.AdvancedMode)
         {
             return true;
         }
 
         if (!SplitConditionText.TryParse(advancedConditionBox.Text, Draft.General.Language, out SplitCondition condition, out string errorMessage))
         {
-            advancedConditionError = errorMessage;
+            conditionController.AdvancedError = errorMessage;
             if (updateStatusOnFailure)
             {
                 statusLabel.Text = errorMessage;
@@ -243,14 +243,14 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
             return false;
         }
 
-        advancedConditionError = string.Empty;
-        currentCondition = condition;
-        preserveCurrentCondition = true;
+        conditionController.AdvancedError = string.Empty;
+        conditionController.CurrentCondition = condition;
+        conditionController.PreserveCurrentCondition = true;
         if (TryGetSelectedRouteEntry(out SplitRouteEntry entry))
         {
             entry.Condition = GetCurrentCondition();
             entry.IconTargetIds = SplitCatalog.InferTargetIds(entry.Condition).ToList();
-            entry.UseAdvancedConditionEditor = advancedConditionMode;
+            entry.UseAdvancedConditionEditor = conditionController.AdvancedMode;
             SplitIconOverride previousOverride = GetCurrentIconOverride();
             RefreshIconOverrideOptions(previousOverride);
             entry.IconOverride = GetCurrentIconOverride();
@@ -261,7 +261,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
 
     private void UpdateConditionEditorAvailability()
     {
-        bool basic = !advancedConditionMode;
+        bool basic = !conditionController.AdvancedMode;
         conditionMatchModeBox.Enabled = basic;
         conditionList.Enabled = basic;
         removeConditionButton.Enabled = basic;
@@ -281,10 +281,10 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
             return;
         }
 
-        updatingConditionSettings = true;
+        conditionController.UpdatingSettings = true;
         try
         {
-            if (!advancedConditionMode &&
+            if (!conditionController.AdvancedMode &&
                 TryGetSelectedConditionItem(out ConditionListItem item) &&
                 IsItemCondition(item.Condition))
             {
@@ -298,13 +298,13 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
         }
         finally
         {
-            updatingConditionSettings = false;
+            conditionController.UpdatingSettings = false;
         }
     }
 
     private void UpdateSelectedConditionQuantity()
     {
-        if (updatingUi || updatingConditionSettings || advancedConditionMode)
+        if (updatingUi || conditionController.UpdatingSettings || conditionController.AdvancedMode)
         {
             return;
         }
@@ -334,7 +334,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
 
     private void UpdateSelectedConditionMatchCount()
     {
-        if (updatingUi || updatingConditionSettings || advancedConditionMode)
+        if (updatingUi || conditionController.UpdatingSettings || conditionController.AdvancedMode)
         {
             return;
         }
@@ -350,8 +350,8 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
 
     private SplitCondition GetCurrentCondition()
     {
-        return preserveCurrentCondition
-            ? currentCondition.Clone()
+        return conditionController.PreserveCurrentCondition
+            ? conditionController.CurrentCondition.Clone()
             : BuildConditionFromList();
     }
 
@@ -365,8 +365,8 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
 
     private void UseBasicConditionFromList()
     {
-        preserveCurrentCondition = false;
-        currentCondition = BuildConditionFromList();
+        conditionController.PreserveCurrentCondition = false;
+        conditionController.CurrentCondition = BuildConditionFromList();
     }
 
     private int GetConditionMatchCountFromSelection()
@@ -405,8 +405,8 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
         int normalizedRequiredCount = conditionCount <= 0
             ? 1
             : Math.Clamp(selectedRequiredCount, 1, conditionCount);
-        bool previousUpdating = updatingConditionSettings;
-        updatingConditionSettings = true;
+        bool previousUpdating = conditionController.UpdatingSettings;
+        conditionController.UpdatingSettings = true;
         try
         {
             conditionMatchModeBox.Items.Clear();
@@ -448,7 +448,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
         }
         finally
         {
-            updatingConditionSettings = previousUpdating;
+            conditionController.UpdatingSettings = previousUpdating;
         }
     }
 
@@ -495,12 +495,12 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
 
     private void RenderConditionList(SplitCondition condition, SplitIconOverride? selectedOverride = null)
     {
-        currentCondition = (condition ?? SplitCondition.All([])).Clone();
-        currentCondition.Normalize();
-        preserveCurrentCondition = true;
-        SplitCondition flat = currentCondition.ToFlatGroup();
-        bool previousUpdating = updatingConditionSettings;
-        updatingConditionSettings = true;
+        conditionController.CurrentCondition = (condition ?? SplitCondition.All([])).Clone();
+        conditionController.CurrentCondition.Normalize();
+        conditionController.PreserveCurrentCondition = true;
+        SplitCondition flat = conditionController.CurrentCondition.ToFlatGroup();
+        bool previousUpdating = conditionController.UpdatingSettings;
+        conditionController.UpdatingSettings = true;
         conditionList.BeginUpdate();
         try
         {
@@ -523,7 +523,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
         finally
         {
             conditionList.EndUpdate();
-            updatingConditionSettings = previousUpdating;
+            conditionController.UpdatingSettings = previousUpdating;
         }
 
         RefreshIconOverrideOptions(selectedOverride);

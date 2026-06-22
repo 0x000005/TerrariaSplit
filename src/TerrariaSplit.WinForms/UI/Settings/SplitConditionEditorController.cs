@@ -8,6 +8,16 @@ internal sealed class SplitConditionEditorController
     private int dragIndex = -1;
     private Point dragStartPoint;
 
+    public SplitCondition CurrentCondition { get; set; } = SplitCondition.AtLeast([], 1);
+
+    public bool PreserveCurrentCondition { get; set; }
+
+    public bool AdvancedMode { get; set; }
+
+    public string AdvancedError { get; set; } = string.Empty;
+
+    public bool UpdatingSettings { get; set; }
+
     public void CancelDrag()
     {
         dragIndex = -1;

@@ -124,8 +124,8 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
             splitAttachedBox.Enabled = false;
             conditionList.Items.Clear();
             RefreshConditionMatchOptions(1);
-            currentCondition = SplitCondition.AtLeast([], 1);
-            preserveCurrentCondition = false;
+            conditionController.CurrentCondition = SplitCondition.AtLeast([], 1);
+            conditionController.PreserveCurrentCondition = false;
             SetAdvancedConditionMode(false, updateEntry: false, updateText: false, markDirty: false);
             RefreshIconOverrideOptions(new SplitIconOverride());
             LoadSelectedConditionSettings();
@@ -158,7 +158,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
         entry.Condition = GetCurrentCondition();
         entry.IconTargetIds = SplitCatalog.InferTargetIds(entry.Condition).ToList();
         entry.IconOverride = GetCurrentIconOverride();
-        entry.UseAdvancedConditionEditor = advancedConditionMode;
+        entry.UseAdvancedConditionEditor = conditionController.AdvancedMode;
         return true;
     }
 
