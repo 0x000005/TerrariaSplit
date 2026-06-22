@@ -10,7 +10,7 @@ internal sealed partial class MainForm : Form
         long startTimestamp = Stopwatch.GetTimestamp();
         try
         {
-            monitorCoordinator.Tick(
+            runtimeShell.MonitorCoordinator.Tick(
                 timerPhase,
                 settings.Advanced?.EnableTerrariaUiScalePatch == true);
             ProcessUiTick();
@@ -18,7 +18,7 @@ internal sealed partial class MainForm : Form
         finally
         {
             UpdateStatusPaintSchedulerState();
-            performance.RecordControlTick(Stopwatch.GetElapsedTime(startTimestamp));
+            runtimeShell.Performance.RecordControlTick(Stopwatch.GetElapsedTime(startTimestamp));
         }
     }
 
@@ -36,7 +36,7 @@ internal sealed partial class MainForm : Form
 
         try
         {
-            BeginInvoke(dispatchedControlTick);
+            BeginInvoke(runtimeShell.DispatchedControlTick);
         }
         catch (ObjectDisposedException)
         {
@@ -65,7 +65,7 @@ internal sealed partial class MainForm : Form
 
     private void QueueStatusPaintTick(HighPrecisionSchedulerTick tick)
     {
-        performance.RecordStatusPaintTick(tick);
+        runtimeShell.Performance.RecordStatusPaintTick(tick);
 
         if (!CanDispatchToUiThread())
         {
@@ -74,13 +74,13 @@ internal sealed partial class MainForm : Form
 
         if (!runtimeShell.TryMarkStatusPaintDispatchPending())
         {
-            performance.RecordStatusPaintDispatchSkipped();
+            runtimeShell.Performance.RecordStatusPaintDispatchSkipped();
             return;
         }
 
         try
         {
-            BeginInvoke(dispatchedStatusPaintTick);
+            BeginInvoke(runtimeShell.DispatchedStatusPaintTick);
         }
         catch (ObjectDisposedException)
         {
@@ -119,7 +119,7 @@ internal sealed partial class MainForm : Form
 
     private void ProcessUiTick()
     {
-        monitorCoordinator.UpdateRunPhase(timerPhase);
+        runtimeShell.MonitorCoordinator.UpdateRunPhase(timerPhase);
         UpdateWindowTitle();
     }
 
@@ -170,13 +170,13 @@ internal sealed partial class MainForm : Form
         bool shouldRun = !windowShell.IsClosing &&
             !runtimeShell.IsOverlayPaintSuspended &&
             (timerPhase == SplitTimerPhase.Running || overlayShell.Animations.SplitCompletionAnimation is not null);
-        if (shouldRun && !statusPaintScheduler.IsRunning)
+        if (shouldRun && !runtimeShell.StatusPaintScheduler.IsRunning)
         {
-            statusPaintScheduler.Start(runtimeShell.StatusPaintInterval);
+            runtimeShell.StatusPaintScheduler.Start(runtimeShell.StatusPaintInterval);
         }
-        else if (!shouldRun && statusPaintScheduler.IsRunning)
+        else if (!shouldRun && runtimeShell.StatusPaintScheduler.IsRunning)
         {
-            statusPaintScheduler.Stop();
+            runtimeShell.StatusPaintScheduler.Stop();
         }
     }
 
@@ -184,8 +184,8 @@ internal sealed partial class MainForm : Form
     {
         // Poll durations are recorded on the watcher thread via recordPoll; this
         // handler only sees published (changed or heartbeat) completions.
-        performance.WatcherPollInterval = notification.NextPollInterval;
-        performance.ProcessLookupInterval = notification.ProcessLookupInterval;
+        runtimeShell.Performance.WatcherPollInterval = notification.NextPollInterval;
+        runtimeShell.Performance.ProcessLookupInterval = notification.ProcessLookupInterval;
 
         runtimeShell.ApplyWatcherNotification(notification);
         UpdateConfiguredRefreshIntervals();
@@ -238,7 +238,7 @@ internal sealed partial class MainForm : Form
 
     private void SubmitRuntimeCommand(RuntimeCommand command)
     {
-        AcceptRuntimeCommandSequence(monitorCoordinator.SubmitRuntimeCommand(command));
+        AcceptRuntimeCommandSequence(runtimeShell.MonitorCoordinator.SubmitRuntimeCommand(command));
     }
 
     private void AcceptRuntimeCommandSequence(long sequence)
@@ -278,12 +278,12 @@ internal sealed partial class MainForm : Form
 
     internal RuntimePerformanceDiagnostics GetRuntimeDiagnostics()
     {
-        return performance.Snapshot();
+        return runtimeShell.Performance.Snapshot();
     }
 
     internal RuntimeDebugSnapshot GetRuntimeDebugSnapshot()
     {
-        return runtimeShell.CreateDebugSnapshot(performance.Snapshot(), timerPhase);
+        return runtimeShell.CreateDebugSnapshot(runtimeShell.Performance.Snapshot(), timerPhase);
     }
 
     internal int GetWorldPoolCount(AppSettings settings)
@@ -390,15 +390,15 @@ internal sealed partial class MainForm : Form
     private T RunWithSuspendedRuntimeOverlayPaint<T>(Func<T> action)
     {
         RuntimeOverlayPaintSuspension suspension =
-            runtimeShell.BeginOverlayPaintSuspension(controlScheduler.IsRunning);
+            runtimeShell.BeginOverlayPaintSuspension(runtimeShell.ControlScheduler.IsRunning);
         if (suspension.Started)
         {
             if (suspension.ShouldStopControlScheduler)
             {
-                controlScheduler.Stop();
+                runtimeShell.ControlScheduler.Stop();
             }
 
-            monitorCoordinator.ApplyUiDispatchSuspended(true);
+            runtimeShell.MonitorCoordinator.ApplyUiDispatchSuspended(true);
         }
 
         UpdateStatusPaintSchedulerState();
@@ -423,10 +423,10 @@ internal sealed partial class MainForm : Form
 
             if (resume.Completed)
             {
-                monitorCoordinator.ApplyUiDispatchSuspended(false);
+                runtimeShell.MonitorCoordinator.ApplyUiDispatchSuspended(false);
                 if (resume.ShouldRestartControlScheduler)
                 {
-                    controlScheduler.Start(runtimeShell.ControlTickInterval);
+                    runtimeShell.ControlScheduler.Start(runtimeShell.ControlTickInterval);
                 }
             }
 

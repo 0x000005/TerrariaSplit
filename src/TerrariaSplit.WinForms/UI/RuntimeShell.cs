@@ -2,13 +2,19 @@ using System.Threading;
 
 namespace TerrariaSplit.UI;
 
-internal sealed class RuntimeShell
+internal sealed class RuntimeShell : IDisposable
 {
     private readonly object watcherStateLock = new();
     private int controlTickDispatchPending;
     private int statusPaintDispatchPending;
     private int overlayPaintSuspensionCount;
     private bool controlSchedulerSuspendedForOverlayPaint;
+    private TerrariaMonitorCoordinator? monitorCoordinator;
+    private HighPrecisionScheduler? controlScheduler;
+    private HighPrecisionScheduler? statusPaintScheduler;
+    private RuntimePerformanceTracker? performance;
+    private Action dispatchedControlTick = static () => { };
+    private Action dispatchedStatusPaintTick = static () => { };
     private TerrariaWatchSnapshot snapshot = RuntimeDebugSnapshot.Empty.WatchSnapshot;
     private TerrariaWatcherDiagnostics watcherDiagnostics = TerrariaWatcherDiagnosticsDefaults.Empty;
 
@@ -29,11 +35,45 @@ internal sealed class RuntimeShell
         }
     }
 
+    public TerrariaMonitorCoordinator MonitorCoordinator =>
+        monitorCoordinator ?? throw new InvalidOperationException("Terraria monitor coordinator has not been attached.");
+
+    public HighPrecisionScheduler ControlScheduler =>
+        controlScheduler ?? throw new InvalidOperationException("Control scheduler has not been attached.");
+
+    public HighPrecisionScheduler StatusPaintScheduler =>
+        statusPaintScheduler ?? throw new InvalidOperationException("Status paint scheduler has not been attached.");
+
+    public RuntimePerformanceTracker Performance =>
+        performance ?? throw new InvalidOperationException("Runtime performance tracker has not been attached.");
+
+    public Action DispatchedControlTick => dispatchedControlTick;
+
+    public Action DispatchedStatusPaintTick => dispatchedStatusPaintTick;
+
     public TimeSpan ControlTickInterval { get; private set; }
 
     public TimeSpan StatusPaintInterval { get; private set; }
 
     public bool IsOverlayPaintSuspended => overlayPaintSuspensionCount > 0;
+
+    public void AttachDispatchActions(Action dispatchedControlTick, Action dispatchedStatusPaintTick)
+    {
+        this.dispatchedControlTick = dispatchedControlTick;
+        this.dispatchedStatusPaintTick = dispatchedStatusPaintTick;
+    }
+
+    public void AttachRuntimeComponents(
+        TerrariaMonitorCoordinator monitorCoordinator,
+        HighPrecisionScheduler controlScheduler,
+        HighPrecisionScheduler statusPaintScheduler,
+        RuntimePerformanceTracker performance)
+    {
+        this.monitorCoordinator = monitorCoordinator;
+        this.controlScheduler = controlScheduler;
+        this.statusPaintScheduler = statusPaintScheduler;
+        this.performance = performance;
+    }
 
     public bool TryMarkControlTickDispatchPending()
     {
@@ -127,6 +167,13 @@ internal sealed class RuntimeShell
         {
             return new RuntimeDebugSnapshot(snapshot, watcherDiagnostics, performance, timerPhase);
         }
+    }
+
+    public void Dispose()
+    {
+        controlScheduler?.Dispose();
+        statusPaintScheduler?.Dispose();
+        monitorCoordinator?.Dispose();
     }
 }
 

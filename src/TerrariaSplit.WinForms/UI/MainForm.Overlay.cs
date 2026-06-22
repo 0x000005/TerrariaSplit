@@ -409,19 +409,19 @@ internal sealed partial class MainForm : Form
         TimeSpan nextControlInterval = ResolveControlTickInterval();
         if (runtimeShell.UpdateControlTickInterval(nextControlInterval))
         {
-            controlScheduler.UpdateInterval(runtimeShell.ControlTickInterval);
+            runtimeShell.ControlScheduler.UpdateInterval(runtimeShell.ControlTickInterval);
         }
 
-        performance.ControlTickInterval = runtimeShell.ControlTickInterval;
+        runtimeShell.Performance.ControlTickInterval = runtimeShell.ControlTickInterval;
 
         TimeSpan nextStatusPaintInterval = ResolveRunningStatusPaintInterval();
         if (runtimeShell.UpdateStatusPaintInterval(nextStatusPaintInterval))
         {
-            statusPaintScheduler.UpdateInterval(runtimeShell.StatusPaintInterval);
+            runtimeShell.StatusPaintScheduler.UpdateInterval(runtimeShell.StatusPaintInterval);
         }
 
-        performance.StatusPaintInterval = runtimeShell.StatusPaintInterval;
-        monitorCoordinator.UpdateReadyWatcherPollInterval(ResolveReadyWatcherPollInterval());
+        runtimeShell.Performance.StatusPaintInterval = runtimeShell.StatusPaintInterval;
+        runtimeShell.MonitorCoordinator.UpdateReadyWatcherPollInterval(ResolveReadyWatcherPollInterval());
     }
 
     private TimeSpan ResolveReadyWatcherPollInterval()
@@ -481,7 +481,7 @@ internal sealed partial class MainForm : Form
         int timerRefreshHz = RefreshRateSettings.NormalizeTimerOverlayRefreshHz(
             settings.Advanced?.TimerOverlayRefreshHz ?? AppSettingsDefaults.Advanced.TimerOverlayRefreshHz);
         TimeSpan interval = RefreshRateSettings.ToInterval(timerRefreshHz);
-        performance.TimerOverlayPaintInterval = interval;
+        runtimeShell.Performance.TimerOverlayPaintInterval = interval;
         overlayShell.TimerOverlayHost.ApplyRefreshInterval(interval);
     }
 

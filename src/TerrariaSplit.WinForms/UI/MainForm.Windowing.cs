@@ -141,10 +141,8 @@ internal sealed partial class MainForm : Form
         }
 
         runtimeResourcesDisposed = true;
-        controlScheduler.Dispose();
-        statusPaintScheduler.Dispose();
         hotkeyShell.Dispose();
-        monitorCoordinator.Dispose();
+        runtimeShell.Dispose();
         worldPoolFillService.Dispose();
         automationShell.Dispose();
         settingsShell.Dispose();

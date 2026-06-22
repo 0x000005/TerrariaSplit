@@ -22,15 +22,11 @@ internal sealed partial class MainForm : Form
     private readonly WorldPoolFillService worldPoolFillService;
     private readonly MainFormContextMenuBuilder contextMenuBuilder;
     private readonly SoundPlayerService soundPlayer;
-    private readonly HighPrecisionScheduler controlScheduler;
-    private readonly HighPrecisionScheduler statusPaintScheduler;
     private readonly HotkeyShell hotkeyShell;
     private readonly ContextMenuStrip contextMenu;
-    private readonly RuntimePerformanceTracker performance;
     private readonly ApplicationController applicationController;
     private readonly ApplicationShellEffectExecutor effectExecutor;
     private readonly SettingsShell settingsShell;
-    private readonly TerrariaMonitorCoordinator monitorCoordinator;
     private readonly RuntimeShell runtimeShell = new(
         DefaultControlTickInterval,
         RefreshRateSettings.ToInterval(AppSettingsDefaults.Advanced.RunningStatusPaintHz));
@@ -40,8 +36,6 @@ internal sealed partial class MainForm : Form
     private readonly WindowShell windowShell = new();
     private bool runtimeResourcesDisposed;
 
-    private readonly Action dispatchedControlTick;
-    private readonly Action dispatchedStatusPaintTick;
     private AppSettings settings => applicationController.Settings;
 
     private ApplicationViewState viewState => applicationController.ViewState;
@@ -58,8 +52,7 @@ internal sealed partial class MainForm : Form
 
     public MainForm(bool registerGlobalHotkeys = true)
     {
-        dispatchedControlTick = DispatchedControlTick;
-        dispatchedStatusPaintTick = DispatchedStatusPaintTick;
+        runtimeShell.AttachDispatchActions(DispatchedControlTick, DispatchedStatusPaintTick);
         MainShellServices services = MainShellCompositionRoot.CreateCore(ShowPersonalBestUpdateConfirmation);
         worldPoolStore = services.WorldPoolStore;
         settingsSnapshots = services.SettingsSnapshots;
@@ -75,11 +68,11 @@ internal sealed partial class MainForm : Form
             registerGlobalHotkeys,
             ShowHotkeyWarning);
         contextMenu = services.ContextMenu;
-        performance = services.Performance;
         applicationController = services.ApplicationController;
         RefreshTimerOverlaySettingsSnapshot();
         overlayShell.RefreshPalette(settings);
-        monitorCoordinator = MainShellCompositionRoot.CreateMonitorCoordinator(
+        RuntimePerformanceTracker performance = services.Performance;
+        TerrariaMonitorCoordinator monitorCoordinator = MainShellCompositionRoot.CreateMonitorCoordinator(
             callback => BeginInvoke(callback),
             appLogger,
             performance);
@@ -193,19 +186,24 @@ internal sealed partial class MainForm : Form
         };
         ContextMenuStrip = contextMenu;
 
-        controlScheduler = MainShellCompositionRoot.CreateControlScheduler(QueueControlTick);
-        statusPaintScheduler = MainShellCompositionRoot.CreateStatusPaintScheduler(QueueStatusPaintTick);
+        HighPrecisionScheduler controlScheduler = MainShellCompositionRoot.CreateControlScheduler(QueueControlTick);
+        HighPrecisionScheduler statusPaintScheduler = MainShellCompositionRoot.CreateStatusPaintScheduler(QueueStatusPaintTick);
+        runtimeShell.AttachRuntimeComponents(
+            monitorCoordinator,
+            controlScheduler,
+            statusPaintScheduler,
+            performance);
 
         runtimeShell.UpdateControlTickInterval(ResolveControlTickInterval());
-        controlScheduler.Start(runtimeShell.ControlTickInterval);
+        runtimeShell.ControlScheduler.Start(runtimeShell.ControlTickInterval);
 
         runtimeShell.UpdateStatusPaintInterval(ResolveRunningStatusPaintInterval());
 
-        performance.ControlTickInterval = runtimeShell.ControlTickInterval;
-        performance.StatusPaintInterval = runtimeShell.StatusPaintInterval;
-        performance.WatcherPollInterval = monitorCoordinator.WatcherPollInterval;
-        performance.ProcessLookupInterval = monitorCoordinator.ProcessLookupInterval;
-        monitorCoordinator.UpdateReadyWatcherPollInterval(ResolveReadyWatcherPollInterval());
+        runtimeShell.Performance.ControlTickInterval = runtimeShell.ControlTickInterval;
+        runtimeShell.Performance.StatusPaintInterval = runtimeShell.StatusPaintInterval;
+        runtimeShell.Performance.WatcherPollInterval = runtimeShell.MonitorCoordinator.WatcherPollInterval;
+        runtimeShell.Performance.ProcessLookupInterval = runtimeShell.MonitorCoordinator.ProcessLookupInterval;
+        runtimeShell.MonitorCoordinator.UpdateReadyWatcherPollInterval(ResolveReadyWatcherPollInterval());
     }
 
 }
