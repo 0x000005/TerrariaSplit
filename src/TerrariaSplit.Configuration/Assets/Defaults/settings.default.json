@@ -886,7 +886,7 @@
         "Show": true,
         "Width": 200,
         "FontFamily": "Segoe UI",
-        "FontSize": 6,
+        "FontSize": 24,
         "Bold": true
       },
       "AttachedIcon": {
