@@ -17,7 +17,9 @@ internal sealed class UiSettingsPage : SettingsPageBase
     private readonly CheckBox showAllVisibleGroupsAfterFinalGroupBox = new();
     private readonly CheckBox expandSplitDetailsBox = new();
     private readonly CheckBox collapseSplitDetailsOnCompletionBox = new();
+    private readonly CheckBox showAllMultiConditionMainGroupsAfterFinalGroupBox = new();
     private readonly CheckBox autoHideAttachedGroupsBox = new();
+    private readonly CheckBox showAllAttachedGroupsAfterFinalGroupBox = new();
     private readonly CheckBox showEarlyDeltaTimeBox = new();
     private readonly TextBox earlyDeltaTimeSecondsBox = new();
     private readonly CheckBox enableDynamicDeltaTimeUnitsBox = new();
@@ -62,7 +64,11 @@ internal sealed class UiSettingsPage : SettingsPageBase
 
     internal CheckBox CollapseSplitDetailsOnCompletionBoxForTests => collapseSplitDetailsOnCompletionBox;
 
+    internal CheckBox ShowAllMultiConditionMainGroupsAfterFinalGroupBoxForTests => showAllMultiConditionMainGroupsAfterFinalGroupBox;
+
     internal CheckBox AutoHideAttachedGroupsBoxForTests => autoHideAttachedGroupsBox;
+
+    internal CheckBox ShowAllAttachedGroupsAfterFinalGroupBoxForTests => showAllAttachedGroupsAfterFinalGroupBox;
 
     internal CheckBox ShowEarlyDeltaTimeBoxForTests => showEarlyDeltaTimeBox;
 
@@ -258,21 +264,28 @@ internal sealed class UiSettingsPage : SettingsPageBase
         SettingsUiFactory.AddSectionControl(section, Factory.CreateSubsectionLabel("Main groups"));
         TableLayoutPanel mainGrid = Factory.CreateTwoColumnGrid(280f);
         ConfigureCheckBox(expandSplitDetailsBox, Draft.Route.ExpandSplitDetails);
-        expandSplitDetailsBox.CheckedChanged += (_, _) => UpdateCollapseSplitDetailsAvailability();
+        expandSplitDetailsBox.CheckedChanged += (_, _) => UpdateMainGroupVisibilityOptionAvailability();
         ConfigureCheckBox(collapseSplitDetailsOnCompletionBox, Draft.Route.CollapseSplitDetailsOnCompletion);
+        collapseSplitDetailsOnCompletionBox.CheckedChanged += (_, _) => UpdateMainGroupVisibilityOptionAvailability();
+        ConfigureCheckBox(showAllMultiConditionMainGroupsAfterFinalGroupBox, Draft.Route.ShowAllMultiConditionMainGroupsAfterFinalGroup);
         Factory.AddSettingRow(mainGrid, "Auto expand multi-condition main groups", expandSplitDetailsBox);
         Factory.AddSettingRow(mainGrid, "Collapse after completion", collapseSplitDetailsOnCompletionBox);
+        Factory.AddSettingRow(mainGrid, "Uncollapse multi-condition main groups after final group completion", showAllMultiConditionMainGroupsAfterFinalGroupBox);
         SettingsUiFactory.AddSectionControl(section, mainGrid);
 
         SettingsUiFactory.AddSectionControl(section, Factory.CreateSubsectionLabel("Attached groups"));
         TableLayoutPanel attachedGrid = Factory.CreateTwoColumnGrid(280f);
         ConfigureCheckBox(autoHideAttachedGroupsBox, Draft.Route.AutoHideAttachedGroups);
+        autoHideAttachedGroupsBox.CheckedChanged += (_, _) => UpdateAttachedGroupVisibilityOptionAvailability();
+        ConfigureCheckBox(showAllAttachedGroupsAfterFinalGroupBox, Draft.Route.ShowAllAttachedGroupsAfterFinalGroup);
         Factory.AddSettingRow(attachedGrid, "Auto hide attached groups", autoHideAttachedGroupsBox);
+        Factory.AddSettingRow(attachedGrid, "Uncollapse attached groups after final group completion", showAllAttachedGroupsAfterFinalGroupBox);
         SettingsUiFactory.AddSectionControl(section, attachedGrid);
 
         SettingsUiFactory.AddSection(parent, section);
         UpdateVisibleGroupCountLimitAvailability();
-        UpdateCollapseSplitDetailsAvailability();
+        UpdateMainGroupVisibilityOptionAvailability();
+        UpdateAttachedGroupVisibilityOptionAvailability();
     }
 
     private void AddColumnSettingsRow(
@@ -471,8 +484,10 @@ internal sealed class UiSettingsPage : SettingsPageBase
 
         bool showFinalGroup = showFinalGroupBox.Checked;
         bool showAllVisibleGroupsAfterFinalGroup = showAllVisibleGroupsAfterFinalGroupBox.Checked;
+        bool showAllAttachedGroupsAfterFinalGroup = showAllAttachedGroupsAfterFinalGroupBox.Checked;
         bool expand = expandSplitDetailsBox.Checked;
         bool collapse = collapseSplitDetailsOnCompletionBox.Checked;
+        bool showAllMultiConditionMainGroupsAfterFinalGroup = showAllMultiConditionMainGroupsAfterFinalGroupBox.Checked;
         bool autoHideAttachedGroups = autoHideAttachedGroupsBox.Checked;
         bool changed =
             settings.Route.EnableVisibleGroupCountLimit != enableVisibleGroupCountLimit ||
@@ -480,8 +495,10 @@ internal sealed class UiSettingsPage : SettingsPageBase
             settings.Route.CurrentGroupPosition != currentGroupPosition ||
             settings.Route.ShowFinalGroup != showFinalGroup ||
             settings.Route.ShowAllVisibleGroupsAfterFinalGroup != showAllVisibleGroupsAfterFinalGroup ||
+            settings.Route.ShowAllAttachedGroupsAfterFinalGroup != showAllAttachedGroupsAfterFinalGroup ||
             settings.Route.ExpandSplitDetails != expand ||
             settings.Route.CollapseSplitDetailsOnCompletion != collapse ||
+            settings.Route.ShowAllMultiConditionMainGroupsAfterFinalGroup != showAllMultiConditionMainGroupsAfterFinalGroup ||
             settings.Route.AutoHideAttachedGroups != autoHideAttachedGroups;
 
         settings.Route.EnableVisibleGroupCountLimit = enableVisibleGroupCountLimit;
@@ -489,8 +506,10 @@ internal sealed class UiSettingsPage : SettingsPageBase
         settings.Route.CurrentGroupPosition = currentGroupPosition;
         settings.Route.ShowFinalGroup = showFinalGroup;
         settings.Route.ShowAllVisibleGroupsAfterFinalGroup = showAllVisibleGroupsAfterFinalGroup;
+        settings.Route.ShowAllAttachedGroupsAfterFinalGroup = showAllAttachedGroupsAfterFinalGroup;
         settings.Route.ExpandSplitDetails = expand;
         settings.Route.CollapseSplitDetailsOnCompletion = collapse;
+        settings.Route.ShowAllMultiConditionMainGroupsAfterFinalGroup = showAllMultiConditionMainGroupsAfterFinalGroup;
         settings.Route.AutoHideAttachedGroups = autoHideAttachedGroups;
         return changed;
     }
@@ -535,9 +554,16 @@ internal sealed class UiSettingsPage : SettingsPageBase
         }
     }
 
-    private void UpdateCollapseSplitDetailsAvailability()
+    private void UpdateMainGroupVisibilityOptionAvailability()
     {
         collapseSplitDetailsOnCompletionBox.Enabled = expandSplitDetailsBox.Checked;
+        showAllMultiConditionMainGroupsAfterFinalGroupBox.Enabled =
+            expandSplitDetailsBox.Checked && collapseSplitDetailsOnCompletionBox.Checked;
+    }
+
+    private void UpdateAttachedGroupVisibilityOptionAvailability()
+    {
+        showAllAttachedGroupsAfterFinalGroupBox.Enabled = autoHideAttachedGroupsBox.Checked;
     }
 
     private void UpdateVisibleGroupCountLimitAvailability()

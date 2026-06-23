@@ -32,9 +32,9 @@ internal static class SplitDisplayRows
         int minimumRowCount,
         bool ignoreVisibleGroupLimit = false)
     {
-        List<AttachedBlock> lockedBlocks = settings?.Route.AutoHideAttachedGroups == false
-            ? new List<AttachedBlock>()
-            : GetLockedAttachedBlocks(statuses);
+        List<AttachedBlock> lockedBlocks = ShouldAutoHideAttachedGroups(settings, statuses)
+            ? GetLockedAttachedBlocks(statuses)
+            : new List<AttachedBlock>();
         Dictionary<int, int> attachedRowOverrides = BuildAttachedRowOverrides(statuses, lockedBlocks);
         var baseRows = new List<SplitDisplayRow>(statuses.Count);
         for (int index = 0; index < statuses.Count; index++)
@@ -159,6 +159,24 @@ internal static class SplitDisplayRows
     private static bool IsMarkedComplete(SplitStatusSnapshot status)
     {
         return status.IsCompleted || status.IsSkipped;
+    }
+
+    private static bool ShouldAutoHideAttachedGroups(
+        AppSettings? settings,
+        IReadOnlyList<SplitStatusSnapshot> statuses)
+    {
+        if (settings?.Route.AutoHideAttachedGroups == false)
+        {
+            return false;
+        }
+
+        return settings?.Route.ShowAllAttachedGroupsAfterFinalGroup != true ||
+            !IsFinalGroupComplete(statuses);
+    }
+
+    internal static bool IsFinalGroupComplete(IReadOnlyList<SplitStatusSnapshot> statuses)
+    {
+        return statuses.Count > 0 && IsMarkedComplete(statuses[^1]);
     }
 
     private static int GetReservedExpansionRowCount(AppSettings? settings, SplitDefinition definition)

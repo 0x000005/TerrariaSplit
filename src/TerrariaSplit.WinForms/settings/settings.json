@@ -856,6 +856,8 @@
   "CurrentGroupPosition": 3,
   "ShowFinalGroup": false,
   "ShowAllVisibleGroupsAfterFinalGroup": true,
+  "ShowAllAttachedGroupsAfterFinalGroup": true,
+  "ShowAllMultiConditionMainGroupsAfterFinalGroup": true,
   "AutoHideAttachedGroups": true,
   "ReferenceSplitSets": [],
   "ActiveReferenceSplitSet": "WR",

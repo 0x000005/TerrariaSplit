@@ -938,6 +938,21 @@ internal static class RenderingTests
             TestAssert.Equal(new SplitDisplayRow(i, i), showAllAfterCompletedAnchorRows[i]);
         }
 
+        var finalCompleted = hiddenAfterCompletedAnchor.ToArray();
+        finalCompleted[5] = new SplitStatusSnapshot(next, TimeSpan.FromSeconds(2), IsSkipped: false, CompletedFactKeys: []);
+        IReadOnlyList<SplitDisplayRow> defaultAfterFinalRows = SplitDisplayRows.Build(new AppSettings(), finalCompleted);
+        TestAssert.Equal(6, defaultAfterFinalRows.Count);
+        for (int i = 0; i < defaultAfterFinalRows.Count; i++)
+        {
+            TestAssert.Equal(new SplitDisplayRow(i, i), defaultAfterFinalRows[i]);
+        }
+
+        var keepHiddenAfterFinalSettings = new AppSettings { Route = { ShowAllAttachedGroupsAfterFinalGroup = false } };
+        IReadOnlyList<SplitDisplayRow> keepHiddenAfterFinalRows =
+            SplitDisplayRows.Build(keepHiddenAfterFinalSettings, finalCompleted);
+        TestAssert.Equal(4, keepHiddenAfterFinalRows.Count);
+        TestAssert.Equal(false, keepHiddenAfterFinalRows.Any(row => row.StatusIndex is 2 or 3));
+
         var firstAttached = new[]
         {
             new SplitStatusSnapshot(attachedA, null, IsSkipped: false, CompletedFactKeys: []),
@@ -1376,7 +1391,11 @@ internal static class RenderingTests
             }
         };
         var completed = new[] { previousCompleted, expandedCompleted };
+        settings.Route.ShowAllMultiConditionMainGroupsAfterFinalGroup = false;
         TestAssert.Equal(2, SplitDisplayRows.Build(settings, completed).Count);
+
+        settings.Route.ShowAllMultiConditionMainGroupsAfterFinalGroup = true;
+        TestAssert.Equal(3, SplitDisplayRows.Build(settings, completed).Count);
 
         settings.Route.CollapseSplitDetailsOnCompletion = false;
         TestAssert.Equal(3, SplitDisplayRows.Build(settings, completed).Count);

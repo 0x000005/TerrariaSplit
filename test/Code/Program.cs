@@ -1123,6 +1123,8 @@ static void TestLocalizer()
     AssertEqual("\u9644\u5C5E\u7EC4", Localizer.Get("Attached groups", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
     AssertEqual("\u9644\u5C5E\u7EC4", Localizer.Get("Attached group marker", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
     AssertEqual("\u81EA\u52A8\u9690\u85CF\u9644\u5C5E\u7EC4", Localizer.Get("Auto hide attached groups", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u6700\u7EC8\u7EC4\u5B8C\u6210\u540E\u53D6\u6D88\u6298\u53E0\u9644\u5C5E\u7EC4", Localizer.Get("Uncollapse attached groups after final group completion", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u6700\u7EC8\u7EC4\u5B8C\u6210\u540E\u53D6\u6D88\u6298\u53E0\u591A\u6761\u4EF6\u4E3B\u8981\u7EC4", Localizer.Get("Uncollapse multi-condition main groups after final group completion", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
     AssertEqual("\u5B8C\u6210\u5F53\u524D\u9636\u6BB5\u65F6\u70B9\u4EAE\u56FE\u6807", Localizer.Get("Light icons when current stage completed", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
     AssertEqual("\u4E3B\u9636\u6BB5\u5B8C\u6210\u52A8\u753B", Localizer.Get("Main stage completion animation", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
     AssertEqual("\u7EC4", Localizer.Get("BOSS Group", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
@@ -1176,6 +1178,8 @@ static void TestLegacyFlatSettingsJsonMigratesToSections()
       "CurrentGroupPosition": 3,
       "ShowFinalGroup": true,
       "ShowAllVisibleGroupsAfterFinalGroup": false,
+      "ShowAllAttachedGroupsAfterFinalGroup": false,
+      "ShowAllMultiConditionMainGroupsAfterFinalGroup": false,
       "UsePersonalBestAsReferenceTime": true,
       "ShowSplitCompletionAnimation": false,
       "AutoCreate": {
@@ -1196,6 +1200,8 @@ static void TestLegacyFlatSettingsJsonMigratesToSections()
     AssertEqual(3, settings.Route.CurrentGroupPosition);
     AssertEqual(true, settings.Route.ShowFinalGroup);
     AssertEqual(false, settings.Route.ShowAllVisibleGroupsAfterFinalGroup);
+    AssertEqual(false, settings.Route.ShowAllAttachedGroupsAfterFinalGroup);
+    AssertEqual(false, settings.Route.ShowAllMultiConditionMainGroupsAfterFinalGroup);
     AssertEqual(true, settings.Comparison.UsePersonalBestAsReferenceTime);
     AssertEqual(false, settings.Overlay.ShowSplitCompletionAnimation);
     AssertEqual(true, settings.Automation.AutoCreate.EnablePyramidFilter);
@@ -2497,11 +2503,31 @@ static void TestSettingsFormAppliesVisibleGroupCountLimit()
         using var form = new SettingsForm(AppSettingsDefaults.Create());
         UiSettingsPage page = form.PageHost.GetOrCreatePage<UiSettingsPage>(SettingsPageId.Ui);
 
+        AssertEqual(true, page.ShowAllMultiConditionMainGroupsAfterFinalGroupBoxForTests.Enabled);
+        page.CollapseSplitDetailsOnCompletionBoxForTests.Checked = false;
+        AssertEqual(false, page.ShowAllMultiConditionMainGroupsAfterFinalGroupBoxForTests.Enabled);
+        page.CollapseSplitDetailsOnCompletionBoxForTests.Checked = true;
+        AssertEqual(true, page.ShowAllMultiConditionMainGroupsAfterFinalGroupBoxForTests.Enabled);
+        page.ExpandSplitDetailsBoxForTests.Checked = false;
+        AssertEqual(false, page.CollapseSplitDetailsOnCompletionBoxForTests.Enabled);
+        AssertEqual(false, page.ShowAllMultiConditionMainGroupsAfterFinalGroupBoxForTests.Enabled);
+        page.ExpandSplitDetailsBoxForTests.Checked = true;
+        AssertEqual(true, page.CollapseSplitDetailsOnCompletionBoxForTests.Enabled);
+        AssertEqual(true, page.ShowAllMultiConditionMainGroupsAfterFinalGroupBoxForTests.Enabled);
+
+        AssertEqual(true, page.ShowAllAttachedGroupsAfterFinalGroupBoxForTests.Enabled);
+        page.AutoHideAttachedGroupsBoxForTests.Checked = false;
+        AssertEqual(false, page.ShowAllAttachedGroupsAfterFinalGroupBoxForTests.Enabled);
+        page.AutoHideAttachedGroupsBoxForTests.Checked = true;
+        AssertEqual(true, page.ShowAllAttachedGroupsAfterFinalGroupBoxForTests.Enabled);
+
         page.VisibleGroupCountLimitEnabledBoxForTests.Checked = true;
         page.VisibleGroupCountLimitBoxForTests.Text = "5";
         page.CurrentGroupPositionBoxForTests.Text = "3";
         page.ShowFinalGroupBoxForTests.Checked = true;
         page.ShowAllVisibleGroupsAfterFinalGroupBoxForTests.Checked = false;
+        page.ShowAllAttachedGroupsAfterFinalGroupBoxForTests.Checked = false;
+        page.ShowAllMultiConditionMainGroupsAfterFinalGroupBoxForTests.Checked = false;
 
         form.ApplyForTests();
 
@@ -2510,11 +2536,15 @@ static void TestSettingsFormAppliesVisibleGroupCountLimit()
         AssertEqual(3, form.Result.Route.CurrentGroupPosition);
         AssertEqual(true, form.Result.Route.ShowFinalGroup);
         AssertEqual(false, form.Result.Route.ShowAllVisibleGroupsAfterFinalGroup);
+        AssertEqual(false, form.Result.Route.ShowAllAttachedGroupsAfterFinalGroup);
+        AssertEqual(false, form.Result.Route.ShowAllMultiConditionMainGroupsAfterFinalGroup);
 
         page.VisibleGroupCountLimitBoxForTests.Text = "2";
         page.CurrentGroupPositionBoxForTests.Text = "9";
         page.ShowFinalGroupBoxForTests.Checked = false;
         page.ShowAllVisibleGroupsAfterFinalGroupBoxForTests.Checked = true;
+        page.ShowAllAttachedGroupsAfterFinalGroupBoxForTests.Checked = true;
+        page.ShowAllMultiConditionMainGroupsAfterFinalGroupBoxForTests.Checked = true;
 
         form.ApplyForTests();
 
@@ -2523,6 +2553,8 @@ static void TestSettingsFormAppliesVisibleGroupCountLimit()
         AssertEqual(2, form.Result.Route.CurrentGroupPosition);
         AssertEqual(false, form.Result.Route.ShowFinalGroup);
         AssertEqual(true, form.Result.Route.ShowAllVisibleGroupsAfterFinalGroup);
+        AssertEqual(true, form.Result.Route.ShowAllAttachedGroupsAfterFinalGroup);
+        AssertEqual(true, form.Result.Route.ShowAllMultiConditionMainGroupsAfterFinalGroup);
 
         page.VisibleGroupCountLimitBoxForTests.Text = "0";
         page.CurrentGroupPositionBoxForTests.Text = "9";

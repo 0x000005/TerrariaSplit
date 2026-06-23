@@ -34,6 +34,8 @@ public static class SettingsJsonSectionMigrator
         nameof(RouteSettings.CurrentGroupPosition),
         nameof(RouteSettings.ShowFinalGroup),
         nameof(RouteSettings.ShowAllVisibleGroupsAfterFinalGroup),
+        nameof(RouteSettings.ShowAllAttachedGroupsAfterFinalGroup),
+        nameof(RouteSettings.ShowAllMultiConditionMainGroupsAfterFinalGroup),
         nameof(RouteSettings.AutoHideAttachedGroups)
     ];
 

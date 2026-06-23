@@ -143,6 +143,8 @@ public sealed class RouteSettings
     public int CurrentGroupPosition { get; set; } = 3;
     public bool ShowFinalGroup { get; set; }
     public bool ShowAllVisibleGroupsAfterFinalGroup { get; set; } = true;
+    public bool ShowAllAttachedGroupsAfterFinalGroup { get; set; } = true;
+    public bool ShowAllMultiConditionMainGroupsAfterFinalGroup { get; set; } = true;
     public bool AutoHideAttachedGroups { get; set; } = true;
 }
 

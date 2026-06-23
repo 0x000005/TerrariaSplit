@@ -73,6 +73,8 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
         { "Current group position", "当前组位置" },
         { "Always show final group", "始终显示最终组" },
         { "Remove limit after final group completion", "最终组完成后取消限制" },
+        { "Uncollapse attached groups after final group completion", "最终组完成后取消折叠附属组" },
+        { "Uncollapse multi-condition main groups after final group completion", "最终组完成后取消折叠多条件主要组" },
         { "Attached groups", "附属组" },
         { "Attached group", "附属组" },
         { "Attached group marker", "附属组" },

@@ -58,7 +58,7 @@ internal static class SplitExpandedConditionRows
             return false;
         }
 
-        if (status.IsCompleted && settings.Route.CollapseSplitDetailsOnCompletion)
+        if (status.IsCompleted && ShouldCollapseCompletedRows(settings, statuses))
         {
             return false;
         }
@@ -88,6 +88,19 @@ internal static class SplitExpandedConditionRows
         }
 
         return true;
+    }
+
+    private static bool ShouldCollapseCompletedRows(
+        AppSettings settings,
+        IReadOnlyList<SplitStatusSnapshot> statuses)
+    {
+        if (!settings.Route.CollapseSplitDetailsOnCompletion)
+        {
+            return false;
+        }
+
+        return !settings.Route.ShowAllMultiConditionMainGroupsAfterFinalGroup ||
+            !SplitDisplayRows.IsFinalGroupComplete(statuses);
     }
 
     public static bool TryGetRow(
