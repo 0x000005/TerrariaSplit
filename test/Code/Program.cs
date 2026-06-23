@@ -5265,7 +5265,7 @@ static object? InvokePrivate(object target, string name, params object?[] args)
 static string GetTestOutputDirectory(params string[] segments)
 {
     string path = Path.Combine(
-        [FindSourceRoot(), "test", "test-output", .. segments, Guid.NewGuid().ToString("N")]);
+        [FindSourceRoot(), "test", "Temp", "Output", .. segments, Guid.NewGuid().ToString("N")]);
     Directory.CreateDirectory(path);
     return path;
 }

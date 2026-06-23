@@ -15,3 +15,6 @@
 ## 验证
 - 修改自动化步骤、筛塔循环、世界文件二验或失败策略后，运行 `AutomationRunnerTests` 和 `Pyramid seed pre-screen` 聚焦测试。
 - 改动依赖真实 Terraria 窗口或鼠标位置时，在最终回复说明需要人工验证的界面路径。
+
+## 预筛塔
+- 预筛塔请参考`pyramid-prescan-maintenance.md`。

@@ -1,10 +1,12 @@
 # 测试层说明
 
 ## 职责
-- 本目录是自定义测试工程，入口在 `Program.cs`，通过 `dotnet run --project test\TerrariaSplit.Tests.csproj` 执行。
-- 测试项目当前只编译 `test/*.cs`；子目录里的诊断工具需要按各自说明单独构建或运行。
+- 本目录是自定义测试工程，入口在 `Code/Program.cs`，通过 `dotnet run --project test\TerrariaSplit.Tests.csproj` 执行。
+- 根目录只保留 `TerrariaSplit.Tests.csproj` 和 `AGENTS.md`；测试代码放在 `Code/`，测试过程临时文件放在 `Temp/`，可保留测试结果放在 `Results/`。
+- 不要再创建 `test-output/`、`.verify/`、`.codex-*/` 或仓库根目录 `artifacts/verify/`；构建中间产物、测试输出、临时 probe 输出都进 `Temp/`。
+- 测试项目编译 `Code/*.cs` 和 `Code/Diagnostics/*.cs`；更深子目录默认不参与编译。
 - 测试应帮助维护模块边界、核心行为和外部集成适配的可预测性。
-- `PyramidPreScreenMetrics.cs` 和 `PyramidPreScreenTrace.cs` 是诊断/评估工具；`OfficialProbe/` 是官方流程对照工具，不属于主程序运行路径。
+- `Code/Diagnostics/PyramidPreScreenMetrics.cs` 和 `Code/Diagnostics/PyramidPreScreenTrace.cs` 是显式命令触发的诊断/评估工具；`Results/Metrics/` 放已提交的评估 CSV；`Code/OfficialProbe/` 是官方流程对照工具，不属于主程序运行路径。
 
 ## 编码原则
 - 测试保持 deterministic，优先使用 fake watcher、fake patch applier、显式 timestamp 和小型 fixture。

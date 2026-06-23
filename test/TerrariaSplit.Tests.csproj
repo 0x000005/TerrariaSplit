@@ -1,4 +1,11 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<Project>
+
+  <PropertyGroup>
+    <BaseIntermediateOutputPath>Temp\obj\</BaseIntermediateOutputPath>
+    <BaseOutputPath>Temp\bin\</BaseOutputPath>
+  </PropertyGroup>
+
+  <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -10,7 +17,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="*.cs" />
+    <Compile Include="Code\*.cs" />
+    <Compile Include="Code\Diagnostics\*.cs" />
     <ProjectReference Include="..\src\TerrariaSplit.Application\TerrariaSplit.Application.csproj" />
     <ProjectReference Include="..\src\TerrariaSplit.Configuration\TerrariaSplit.Configuration.csproj" />
     <ProjectReference Include="..\src\TerrariaSplit.Domain\TerrariaSplit.Domain.csproj" />
@@ -21,5 +29,7 @@
     <ProjectReference Include="..\src\TerrariaSplit.Terraria\TerrariaSplit.Terraria.csproj" />
     <ProjectReference Include="..\src\TerrariaSplit.WinForms\TerrariaSplit.WinForms.csproj" />
   </ItemGroup>
+
+  <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
 
 </Project>

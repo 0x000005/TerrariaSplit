@@ -184,13 +184,13 @@ dotnet run --project test\TerrariaSplit.Tests.csproj
 入口在：
 
 ```text
-test/PyramidPreScreenMetrics.cs
+test/Code/Diagnostics/PyramidPreScreenMetrics.cs
 ```
 
 常用命令：
 
 ```powershell
-dotnet run -c Release --project test\TerrariaSplit.Tests.csproj -- pyramid-metrics "D:\Worlds" --csv test\metrics-worlds-current-release.csv --diagnose-errors --diagnostics-csv test\metrics-worlds-diagnostics-current.csv
+dotnet run -c Release --project test\TerrariaSplit.Tests.csproj -- pyramid-metrics "D:\Worlds" --csv test\Results\Metrics\metrics-worlds-current-release.csv --diagnose-errors --diagnostics-csv test\Results\Metrics\metrics-worlds-diagnostics-current.csv
 ```
 
 选项：
@@ -215,7 +215,7 @@ dotnet run -c Release --project test\TerrariaSplit.Tests.csproj -- pyramid-metri
 入口在：
 
 ```text
-test/PyramidPreScreenTrace.cs
+test/Code/Diagnostics/PyramidPreScreenTrace.cs
 ```
 
 命令：
@@ -247,13 +247,13 @@ dotnet run -c Release --project test\TerrariaSplit.Tests.csproj -- pyramid-trace
 入口在：
 
 ```text
-test/OfficialProbe/OfficialPyramidPassProbe.cs
+test/Code/OfficialProbe/OfficialPyramidPassProbe.cs
 ```
 
 说明在：
 
 ```text
-test/OfficialProbe/README.md
+test/Code/OfficialProbe/README.md
 ```
 
 它加载真实 Terraria `1.4.5.6` assembly，记录官方 pass-stop CSV。用于证明某个规则是否来自官方机制，而不是数据集特化。
@@ -261,9 +261,9 @@ test/OfficialProbe/README.md
 典型运行：
 
 ```powershell
-test\OfficialProbe\bin\OfficialPyramidPassProbe.exe `
+test\Temp\OfficialProbe\bin\OfficialPyramidPassProbe.exe `
   --deps "D:\OneDrive - huzhaoran\Creative\Terraria\reference\Terraria1456\pyramid-probe\exactgen\bin" `
-  --out test\official-pyramid-pass-diagnostics-current.csv `
+  --out test\Results\official-pyramid-pass-diagnostics-current.csv `
   220205531 1572599072 546717794
 ```
 
@@ -427,7 +427,7 @@ Crimson 是 FP/FN 的共同高风险点。后续不要整体回退或整体放�
 1. 跑大集基线：
 
 ```powershell
-dotnet run -c Release --project test\TerrariaSplit.Tests.csproj -- pyramid-metrics "D:\Worlds" --csv test\metrics-worlds-current-release.csv --diagnose-errors --diagnostics-csv test\metrics-worlds-diagnostics-current.csv
+dotnet run -c Release --project test\TerrariaSplit.Tests.csproj -- pyramid-metrics "D:\Worlds" --csv test\Results\Metrics\metrics-worlds-current-release.csv --diagnose-errors --diagnostics-csv test\Results\Metrics\metrics-worlds-diagnostics-current.csv
 ```
 
 2. 按错误类别分组，先看 FP/itemMismatch，再看 `simulated-no-chest`，最后才看 hard-risk FN。
@@ -446,7 +446,7 @@ dotnet run -c Release --project test\TerrariaSplit.Tests.csproj -- pyramid-trace
 
 ```powershell
 dotnet build test\TerrariaSplit.Tests.csproj
-dotnet run -c Release --project test\TerrariaSplit.Tests.csproj -- pyramid-metrics "D:\Worlds" --csv test\metrics-worlds-after-change-release.csv --diagnose-errors --diagnostics-csv test\metrics-worlds-diagnostics-after-change.csv
+dotnet run -c Release --project test\TerrariaSplit.Tests.csproj -- pyramid-metrics "D:\Worlds" --csv test\Results\Metrics\metrics-worlds-after-change-release.csv --diagnose-errors --diagnostics-csv test\Results\Metrics\metrics-worlds-diagnostics-after-change.csv
 ```
 
 7. 接受标准：

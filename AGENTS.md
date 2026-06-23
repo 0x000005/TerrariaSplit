@@ -4,7 +4,6 @@
 - 本文件适用于整个仓库；进入子目录前先检查更近的 `AGENTS.md`，内层规则优先。
 - 本项目是 C# / .NET 10 的 Terraria 分段计时器，主程序是 WinForms 桌面应用。
 - 仓库按 `src/`、`test/`、`docs/` 分层；`publish/`、`bin/`、`obj/` 和各种 `.codex-*` 目录都是本地产物。
-- 开发时先理解现有信息流和项目引用方向，再改代码；不要为局部任务引入第二套并行架构。
 
 ## 常用命令
 - 构建解决方案：`dotnet build TerrariaSplit.slnx`
@@ -13,7 +12,7 @@
 - 发布主程序：`dotnet publish src\TerrariaSplit.WinForms\TerrariaSplit.WinForms.csproj -c Release -o publish`
 - 跳过探针构建：给构建或发布命令追加 `-p:TerrariaSplitSkipMemoryProbe=true`
 - 金字塔预筛聚焦测试：`$env:TERRARIA_SPLIT_TEST_FILTER='Pyramid seed pre-screen'; dotnet run --project test\TerrariaSplit.Tests.csproj`
-- 金字塔预筛数据集评估：`dotnet run -c Release --project test\TerrariaSplit.Tests.csproj -- pyramid-metrics <world-folder> --csv test\metrics-current-release.csv`
+- 金字塔预筛数据集评估：`dotnet run -c Release --project test\TerrariaSplit.Tests.csproj -- pyramid-metrics <world-folder> --csv test\Results\Metrics\metrics-current-release.csv`
 
 ## 当前项目结构
 - `src/TerrariaSplit.Domain/`：纯领域规则。计时、boss split、路线、分组、时间格式和比较逻辑应优先放在这里。
@@ -27,7 +26,7 @@
 - `src/TerrariaSplit.Terraria/`：Terraria 外部集成。包含进程定位、内存读取、窗口/存档处理、自动化和世界生成预筛。
 - `src/TerrariaSplit.WinForms/`：桌面入口和 UI shell。`UI/` 负责窗口、输入、overlay、设置页和渲染；`Build/` 放主程序构建集成。
 - `src/TerrariaSplit.MemoryProbe/`：独立 x86 探针工具，用 CLRMD 读取 Terraria 托管对象布局；由主程序构建目标复制/发布。
-- `test/`：自定义测试工程，入口是 `Program.cs`；测试项目只默认编译 `test/*.cs`。
+- `test/`：自定义测试工程，入口是 `test/Code/Program.cs`；根目录只保留 `TerrariaSplit.Tests.csproj` 和 `AGENTS.md`，测试代码放在 `test/Code/`，过程临时文件放在 `test/Temp/`，可保留测试结果放在 `test/Results/`。
 - `docs/`：用户和维护者文档。复杂流程或可见行为改变后，同步更新对应说明。
 
 ## 依赖方向
@@ -47,18 +46,13 @@
 - 设置变更要同时考虑默认值、归一化、序列化、当前 run 收尾、UI 刷新和持久化。
 
 ## 工作原则
+- 不要在仓库根目录或功能目录下创建 `.verify/`、`.codex-*/`、`test-output/`、`artifacts/verify/` 这类临时验证目录；测试过程临时文件统一放在 `test/Temp/`，需要保留的测试结果统一放在 `test/Results/`。
+- 开发时先理解现有信息流和项目引用方向，再改代码；不要为局部任务引入第二套并行架构。
 - 优先沿用已有 helper、模型、测试风格和目录级规则；只有在减少真实复杂度时才新增抽象。
 - 不要删除或回滚用户已有改动，除非用户明确要求。
 - 不要升级 SDK、目标框架或核心依赖，除非用户明确要求。
 - 不要让低层模块依赖更外层的 UI、WinForms shell 或平台实现。
-- 金字塔种子预筛已经整合在 `src/TerrariaSplit.Terraria/Terraria/WorldGeneration/`；不要重新引入外层独立模拟入口。
-- 世界生成预筛规则必须来自官方生成机制或可解释的局部模拟差异；不要为单个种子加入黑名单、白名单或数据集特化阈值。
 - 参考 Terraria 源码 `..\reference\Terraria1456` 时，只把必要事实沉淀成项目内模型、局部复刻或小注释。
-
-## 构建与发布约定
-- `Directory.Build.props` 和 `Directory.Build.targets` 负责全局构建约定；Release/publish 默认不保留 `.pdb`。
-- `src/TerrariaSplit.WinForms/Build/MemoryProbe.targets` 会构建 `src/TerrariaSplit.MemoryProbe/`，构建时复制到主程序输出子目录，发布时复制 `TerrariaSplit.MemoryProbe.exe` 到发布目录。
-- 临时 metrics、trace、official probe 输出、publish 结果和构建产物不要提交；只有明确刷新基线或评估报告时才保留。
 
 ## 验证要求
 - 修改业务逻辑、架构边界、配置、存储、渲染数据结构或项目引用后，运行 `dotnet run --project test\TerrariaSplit.Tests.csproj`。

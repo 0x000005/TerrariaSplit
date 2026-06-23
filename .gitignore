@@ -23,7 +23,11 @@ publish/
 .buildverify/
 .build-check/
 .verify/
-test/test-output/
+artifacts/
+test/Temp/*
+!test/Temp/.gitkeep
+test-output/
+**/test-output/
 codex-build-check/
 promo-animation/
 **/.check/
