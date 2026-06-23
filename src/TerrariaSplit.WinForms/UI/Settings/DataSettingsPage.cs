@@ -36,6 +36,10 @@ internal sealed class DataSettingsPage : SettingsPageBase
 
     internal IReadOnlyDictionary<string, TextBox> SplitTextBoxes => splitTextBoxes;
 
+    internal CheckBox AutoUpdatePersonalBestDataBoxForTests => autoUpdatePersonalBestDataBox;
+
+    internal CheckBox AskBeforeUpdatingPersonalBestDataBoxForTests => askBeforeUpdatingPersonalBestDataBox;
+
     public DataSettingsPage()
         : this(new SplitTimeSetRepository())
     {
@@ -138,9 +142,11 @@ internal sealed class DataSettingsPage : SettingsPageBase
     {
         ConfigureCheckBox(autoUpdatePersonalBestDataBox, Draft.Comparison.AutoUpdatePersonalBestData);
         ConfigureCheckBox(askBeforeUpdatingPersonalBestDataBox, Draft.Comparison.AskBeforeUpdatingPersonalBestData);
-        TableLayoutPanel autoUpdateSection = Factory.CreateSection("Personal Data");
+        autoUpdatePersonalBestDataBox.CheckedChanged += (_, _) => RefreshPersonalBestUpdateOptions();
+        RefreshPersonalBestUpdateOptions();
+        TableLayoutPanel autoUpdateSection = Factory.CreateSection("Auto update personal data");
         TableLayoutPanel autoUpdateGrid = Factory.CreateTwoColumnGrid(280f);
-        Factory.AddSettingRow(autoUpdateGrid, "Auto update personal data", autoUpdatePersonalBestDataBox);
+        Factory.AddSettingRow(autoUpdateGrid, "Enabled", autoUpdatePersonalBestDataBox);
         Factory.AddSettingRow(autoUpdateGrid, "Ask before updating personal data", askBeforeUpdatingPersonalBestDataBox);
         SettingsUiFactory.AddSectionControl(autoUpdateSection, autoUpdateGrid);
         SettingsUiFactory.AddSection(parent, autoUpdateSection);
@@ -164,6 +170,11 @@ internal sealed class DataSettingsPage : SettingsPageBase
         PopulatePersonalBestSegmentGrid();
         SettingsUiFactory.AddSectionControl(personalBestSegmentSection, personalBestSegmentGrid);
         SettingsUiFactory.AddSection(parent, personalBestSegmentSection);
+    }
+
+    private void RefreshPersonalBestUpdateOptions()
+    {
+        askBeforeUpdatingPersonalBestDataBox.Enabled = autoUpdatePersonalBestDataBox.Checked;
     }
 
     private void PopulateReferenceDataGrid()

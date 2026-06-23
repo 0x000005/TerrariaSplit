@@ -315,6 +315,11 @@ internal static class SplitListRenderer
             return;
         }
 
+        ImageRenderStyle iconStyle = OverlayTextStyles.GetIconImageStyle(
+            context.Settings,
+            context.Palette,
+            definition.IsAttached);
+
         if (count == 1)
         {
             int iconIndex = iconOrder[0];
@@ -334,7 +339,7 @@ internal static class SplitListRenderer
                 : brighten
                     ? icon.GetCurrentImage(context.NowUtc)
                     : icon.GetUndefeatedImage(context.NowUtc);
-            TextEffectRenderer.DrawImage(graphics, image, iconRect, opacity);
+            TextEffectRenderer.DrawImage(graphics, image, iconRect, opacity, iconStyle);
             return;
         }
 
@@ -360,7 +365,8 @@ internal static class SplitListRenderer
                 graphics,
                 image,
                 new Rectangle(startX + i * (size + iconGap), y, size, size),
-                opacity);
+                opacity,
+                iconStyle);
         }
     }
 

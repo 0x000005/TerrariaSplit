@@ -136,12 +136,13 @@ public sealed class HotkeySettings
 public sealed class RouteSettings
 {
     public List<SplitRouteEntry> SplitRoute { get; set; } = new();
-    public bool ExpandSplitDetails { get; set; }
+    public bool ExpandSplitDetails { get; set; } = true;
     public bool CollapseSplitDetailsOnCompletion { get; set; } = true;
     public bool EnableVisibleGroupCountLimit { get; set; }
     public int VisibleGroupCountLimit { get; set; } = 5;
     public int CurrentGroupPosition { get; set; } = 3;
     public bool ShowFinalGroup { get; set; }
+    public bool ShowAllVisibleGroupsAfterFinalGroup { get; set; } = true;
     public bool AutoHideAttachedGroups { get; set; } = true;
 }
 
@@ -173,7 +174,7 @@ public sealed class OverlaySettings
     public int CurrentSplitHighlightScalePercent { get; set; } = 112;
     public int CurrentSplitDepthStrengthPercent { get; set; } = 45;
     public bool ShowEarlyDeltaTime { get; set; } = true;
-    public int EarlyDeltaTimeSeconds { get; set; } = 60;
+    public int EarlyDeltaTimeSeconds { get; set; } = 120;
     public bool EnableDynamicDeltaTimeUnits { get; set; } = true;
     public bool EnableDeltaGradientColor { get; set; } = true;
     public bool EnableCurrentDeltaGradientColor { get; set; } = true;

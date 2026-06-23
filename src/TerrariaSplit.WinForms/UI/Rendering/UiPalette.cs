@@ -7,7 +7,19 @@ internal readonly record struct TextRenderStyle(
     Color Outline,
     Color Shadow,
     int ShadowPercent,
-    int OutlineThicknessPercent);
+    int OutlineThicknessPercent,
+    bool LinearEffects = false);
+
+internal readonly record struct ImageRenderStyle(
+    Color Outline,
+    Color Shadow,
+    int ShadowPercent,
+    int OutlineThicknessPercent)
+{
+    public static ImageRenderStyle Empty => new(Color.Empty, Color.Empty, 0, 0);
+
+    public bool HasEffects => ShadowPercent > 0 || OutlineThicknessPercent > 0;
+}
 
 internal readonly record struct UiPalette(
     Color ReferenceText,
@@ -19,6 +31,8 @@ internal readonly record struct UiPalette(
     Color SplitText,
     Color SplitTextOutline,
     Color SplitTextShadow,
+    Color IconOutline,
+    Color IconShadow,
     Color DeltaAheadText,
     Color DeltaAheadTextOutline,
     Color DeltaAheadTextShadow,
@@ -60,6 +74,8 @@ internal readonly record struct UiPalette(
             ColorText.Parse(settings.SplitText, Color.FromArgb(240, 160, 64)),
             ColorText.Parse(settings.SplitTextOutline, Color.FromArgb(16, 16, 16)),
             ColorText.Parse(settings.SplitTextShadow, Color.Black),
+            ColorText.Parse(settings.IconOutline, Color.FromArgb(16, 16, 16)),
+            ColorText.Parse(settings.IconShadow, Color.Black),
             ColorText.Parse(settings.DeltaAheadText, Color.LightGreen),
             ColorText.Parse(settings.DeltaAheadTextOutline, Color.FromArgb(16, 16, 16)),
             ColorText.Parse(settings.DeltaAheadTextShadow, Color.Black),

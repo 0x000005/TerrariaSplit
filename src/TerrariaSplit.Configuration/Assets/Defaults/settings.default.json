@@ -708,6 +708,7 @@
     "VisibleGroupCountLimit": 5,
     "CurrentGroupPosition": 3,
     "ShowFinalGroup": false,
+    "ShowAllVisibleGroupsAfterFinalGroup": true,
     "AutoHideAttachedGroups": true
   },
   "Comparison": {
@@ -818,6 +819,8 @@
       "SplitText": "#F0A040",
       "SplitTextOutline": "#101010",
       "SplitTextShadow": "#000000",
+      "IconOutline": "#101010",
+      "IconShadow": "#000000",
       "DeltaAheadText": "#30FF30",
       "DeltaAheadTextOutline": "#101010",
       "DeltaAheadTextShadow": "#000000",
@@ -872,16 +875,16 @@
       },
       "Time": {
         "Show": true,
-        "Width": 180,
+        "Width": 200,
         "FontFamily": "Segoe UI",
-        "FontSize": 18,
+        "FontSize": 24,
         "Bold": true
       },
       "Delta": {
         "Show": true,
         "Width": 200,
         "FontFamily": "Segoe UI",
-        "FontSize": 18,
+        "FontSize": 6,
         "Bold": true
       },
       "AttachedIcon": {
@@ -893,56 +896,60 @@
       },
       "AttachedTime": {
         "Show": true,
-        "Width": 180,
+        "Width": 200,
         "FontFamily": "Segoe UI",
-        "FontSize": 18,
+        "FontSize": 24,
         "Bold": true
       },
       "AttachedDelta": {
         "Show": true,
         "Width": 200,
         "FontFamily": "Segoe UI",
-        "FontSize": 18,
+        "FontSize": 24,
         "Bold": true
       },
       "Timer": {
         "Show": true,
         "Width": 0,
         "FontFamily": "Segoe UI",
-        "FontSize": 44,
+        "FontSize": 55,
         "Bold": true
       },
       "TimerMilliseconds": {
         "Show": true,
         "Width": 0,
         "FontFamily": "Segoe UI",
-        "FontSize": 30,
+        "FontSize": 35,
         "Bold": true
       },
-      "TimerOffsetX": 165,
+      "TimerOffsetX": 130,
       "TimerOffsetY": 0
     },
     "TextEffects": {
       "IconOpacityPercent": 100,
+      "IconShadowPercent": 20,
+      "IconOutlineThicknessPercent": 0,
       "TimeOpacityPercent": 100,
-      "TimeShadowPercent": 0,
-      "TimeOutlineThicknessPercent": 100,
+      "TimeShadowPercent": 40,
+      "TimeOutlineThicknessPercent": 30,
       "DeltaOpacityPercent": 100,
-      "DeltaShadowPercent": 0,
-      "DeltaOutlineThicknessPercent": 100,
+      "DeltaShadowPercent": 40,
+      "DeltaOutlineThicknessPercent": 30,
       "AttachedIconOpacityPercent": 100,
+      "AttachedIconShadowPercent": 20,
+      "AttachedIconOutlineThicknessPercent": 0,
       "AttachedTimeOpacityPercent": 100,
-      "AttachedTimeShadowPercent": 0,
-      "AttachedTimeOutlineThicknessPercent": 100,
+      "AttachedTimeShadowPercent": 40,
+      "AttachedTimeOutlineThicknessPercent": 30,
       "AttachedDeltaOpacityPercent": 100,
-      "AttachedDeltaShadowPercent": 0,
-      "AttachedDeltaOutlineThicknessPercent": 100,
+      "AttachedDeltaShadowPercent": 40,
+      "AttachedDeltaOutlineThicknessPercent": 30,
       "TimerOpacityPercent": 100,
       "TimerShadowPercent": 0,
-      "TimerOutlineThicknessPercent": 100,
+      "TimerOutlineThicknessPercent": 25,
       "TimerMillisecondsOpacityPercent": 100,
       "TimerMillisecondsShadowPercent": 0,
-      "TimerMillisecondsOutlineThicknessPercent": 100
+      "TimerMillisecondsOutlineThicknessPercent": 33
     },
     "EnableDefeatedBossIconLighting": true,
     "UndefeatedIconGrayscalePercent": 80,

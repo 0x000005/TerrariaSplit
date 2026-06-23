@@ -15,10 +15,10 @@ public static class UiTextEffectDescriptors
         nameof(UiTextEffectSettings.IconOpacityPercent),
         effects => effects.IconOpacityPercent,
         (effects, value) => effects.IconOpacityPercent = value,
-        null,
-        null,
-        null,
-        null);
+        effects => effects.IconShadowPercent,
+        (effects, value) => effects.IconShadowPercent = value,
+        effects => effects.IconOutlineThicknessPercent,
+        (effects, value) => effects.IconOutlineThicknessPercent = value);
 
     public static UiTextEffectDescriptor Time { get; } = new(
         nameof(UiTextEffectSettings.TimeOpacityPercent),
@@ -42,10 +42,10 @@ public static class UiTextEffectDescriptors
         nameof(UiTextEffectSettings.AttachedIconOpacityPercent),
         effects => effects.AttachedIconOpacityPercent,
         (effects, value) => effects.AttachedIconOpacityPercent = value,
-        null,
-        null,
-        null,
-        null);
+        effects => effects.AttachedIconShadowPercent,
+        (effects, value) => effects.AttachedIconShadowPercent = value,
+        effects => effects.AttachedIconOutlineThicknessPercent,
+        (effects, value) => effects.AttachedIconOutlineThicknessPercent = value);
 
     public static UiTextEffectDescriptor AttachedTime { get; } = new(
         nameof(UiTextEffectSettings.AttachedTimeOpacityPercent),

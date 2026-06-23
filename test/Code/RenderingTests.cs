@@ -15,9 +15,15 @@ internal static class RenderingTests
         yield return ("UiPalette maps configured text colors", UiPaletteMapsConfiguredTextColors);
         yield return ("LayeredWindowNative preserves Win32 struct layouts", LayeredWindowNativePreservesWin32StructLayouts);
         yield return ("TextEffectGeometry applies opacity without changing RGB", TextEffectGeometryAppliesOpacity);
+        yield return ("TextEffectGeometry maps linear style effects linearly", TextEffectGeometryMapsLinearStyleEffectsLinearly);
+        yield return ("TextEffectGeometry scales text shadow offset by strength", TextEffectGeometryScalesTextShadowOffsetByStrength);
         yield return ("TextEffectGeometry fits images without stretching", TextEffectGeometryFitsImagesWithoutStretching);
         yield return ("TextEffectRenderer draws direct styled string", TextEffectRendererDrawsDirectStyledString);
         yield return ("TextEffectRenderer draws direct shadow-only text", TextEffectRendererDrawsDirectShadowOnlyText);
+        yield return ("TextEffectRenderer draws image outline and shadow", TextEffectRendererDrawsImageOutlineAndShadow);
+        yield return ("TextEffectRenderer scales image effects to 100 percent", TextEffectRendererScalesImageEffectsTo100Percent);
+        yield return ("TextEffectRenderer scales image shadow offset by strength", TextEffectRendererScalesImageShadowOffsetByStrength);
+        yield return ("TextEffectRenderer uses slot size for image shadow offset", TextEffectRendererUsesSlotSizeForImageShadowOffset);
         yield return ("TimerRenderer paint bounds contain scaled text effects", TimerRendererPaintBoundsContainScaledTextEffects);
         yield return ("TimerRenderer paint frame isolates milliseconds changes", TimerRendererPaintFrameIsolatesMillisecondsChanges);
         yield return ("OverlayFontCache keeps main timer font independent from milliseconds visibility", OverlayFontCacheKeepsMainTimerFontIndependentFromMillisecondsVisibility);
@@ -60,6 +66,8 @@ internal static class RenderingTests
             TimerText = "#112233",
             TimerTextOutline = "#445566",
             TimerTextShadow = "#778899",
+            IconOutline = "#102030",
+            IconShadow = "#405060",
             SplitCompletionSegmentLabelText = "#8899AA",
             SplitCompletionLabelText = "#99AABB",
             SplitCompletionSegmentTimeText = "#AABBCC",
@@ -71,6 +79,8 @@ internal static class RenderingTests
         TestAssert.Equal(Color.FromArgb(0x11, 0x22, 0x33), palette.TimerText);
         TestAssert.Equal(Color.FromArgb(0x44, 0x55, 0x66), palette.TimerTextOutline);
         TestAssert.Equal(Color.FromArgb(0x77, 0x88, 0x99), palette.TimerTextShadow);
+        TestAssert.Equal(Color.FromArgb(0x10, 0x20, 0x30), palette.IconOutline);
+        TestAssert.Equal(Color.FromArgb(0x40, 0x50, 0x60), palette.IconShadow);
         TestAssert.Equal(Color.FromArgb(0x88, 0x99, 0xAA), palette.SplitCompletionSegmentLabelText);
         TestAssert.Equal(Color.FromArgb(0x99, 0xAA, 0xBB), palette.SplitCompletionLabelText);
         TestAssert.Equal(Color.FromArgb(0xAA, 0xBB, 0xCC), palette.SplitCompletionSegmentTimeText);
@@ -96,6 +106,30 @@ internal static class RenderingTests
         TestAssert.Equal(10, color.R);
         TestAssert.Equal(20, color.G);
         TestAssert.Equal(30, color.B);
+    }
+
+    private static void TextEffectGeometryMapsLinearStyleEffectsLinearly()
+    {
+        var style = new TextRenderStyle(Color.White, Color.Black, Color.Black, 50, 50, LinearEffects: true);
+
+        Nearly(0.5f, TextEffectGeometry.GetTextShadowOpacity(style));
+    }
+
+    private static void TextEffectGeometryScalesTextShadowOffsetByStrength()
+    {
+        using var bitmap = new Bitmap(100, 100);
+        using Graphics graphics = Graphics.FromImage(bitmap);
+        using var font = new Font(UiTheme.FontFamilyName, 32f, FontStyle.Regular, GraphicsUnit.Pixel);
+        var referenceStyle = new TextRenderStyle(Color.White, Color.Black, Color.Black, 20, 0);
+        var strongStyle = new TextRenderStyle(Color.White, Color.Black, Color.Black, 100, 0);
+
+        float baseline = TextEffectGeometry.GetTextShadowOffset(graphics, font);
+        float expectedReferenceOffset = Math.Clamp(
+            baseline * TextEffectGeometry.TextShadowPercentOffsetScale,
+            TextEffectGeometry.TextShadowMinOffset,
+            TextEffectGeometry.TextShadowDynamicMaxOffset);
+        Nearly(expectedReferenceOffset, TextEffectGeometry.GetTextShadowOffset(graphics, font, referenceStyle));
+        TestAssert.Equal(true, TextEffectGeometry.GetTextShadowOffset(graphics, font, strongStyle) > baseline);
     }
 
     private static void TextEffectGeometryFitsImagesWithoutStretching()
@@ -149,6 +183,148 @@ internal static class RenderingTests
             supersampleEffects: false);
 
         TestAssert.Equal(true, HasVisiblePixel(bitmap));
+    }
+
+    private static void TextEffectRendererDrawsImageOutlineAndShadow()
+    {
+        using var source = new Bitmap(8, 8, PixelFormat.Format32bppPArgb);
+        using (Graphics sourceGraphics = Graphics.FromImage(source))
+        {
+            sourceGraphics.Clear(Color.Transparent);
+            using var brush = new SolidBrush(Color.White);
+            sourceGraphics.FillRectangle(brush, 0, 0, 8, 8);
+        }
+
+        using var bitmap = new Bitmap(48, 48, PixelFormat.Format32bppPArgb);
+        using Graphics graphics = Graphics.FromImage(bitmap);
+        graphics.Clear(Color.Transparent);
+        var bounds = new Rectangle(16, 16, 16, 16);
+
+        TextEffectRenderer.DrawImage(
+            graphics,
+            source,
+            bounds,
+            1f,
+            new ImageRenderStyle(Color.Black, Color.Black, ShadowPercent: 20, OutlineThicknessPercent: 100));
+
+        Rectangle visibleBounds = GetVisiblePixelBounds(bitmap);
+        TestAssert.Equal(true, visibleBounds.Left < bounds.Left || visibleBounds.Top < bounds.Top);
+        TestAssert.Equal(true, visibleBounds.Right > bounds.Right || visibleBounds.Bottom > bounds.Bottom);
+    }
+
+    private static void TextEffectRendererScalesImageEffectsTo100Percent()
+    {
+        int outline20 = RenderImageOutlineSampleAlpha(20);
+        int outline100 = RenderImageOutlineSampleAlpha(100);
+        int shadow20 = RenderImageShadowSampleAlpha(20);
+        int shadow100 = RenderImageShadowSampleAlpha(100);
+
+        TestAssert.Equal(true, outline20 > 0);
+        TestAssert.Equal(true, outline100 > outline20);
+        TestAssert.Equal(true, shadow20 > 0);
+        TestAssert.Equal(true, shadow100 > shadow20);
+    }
+
+    private static void TextEffectRendererScalesImageShadowOffsetByStrength()
+    {
+        using var source = CreateSolidIconSource();
+        var bounds = new Rectangle(40, 40, 80, 80);
+
+        using Bitmap reference = RenderImageShadowOffsetSample(source, bounds, 20);
+        using Bitmap strong = RenderImageShadowOffsetSample(source, bounds, 100);
+
+        int y = bounds.Top + bounds.Height / 2;
+        TestAssert.Equal(true, reference.GetPixel(bounds.Right + 1, y).A > 0);
+        TestAssert.Equal(0, reference.GetPixel(bounds.Right + 3, y).A);
+        TestAssert.Equal(true, strong.GetPixel(bounds.Right + 4, y).A > 0);
+        TestAssert.Equal(0, strong.GetPixel(bounds.Right + 6, y).A);
+    }
+
+    private static Bitmap RenderImageShadowOffsetSample(Image source, Rectangle bounds, int shadowPercent)
+    {
+        var bitmap = new Bitmap(180, 180, PixelFormat.Format32bppPArgb);
+        using Graphics graphics = Graphics.FromImage(bitmap);
+        graphics.Clear(Color.Transparent);
+        TextEffectRenderer.DrawImage(
+            graphics,
+            source,
+            bounds,
+            1f,
+            new ImageRenderStyle(Color.Black, Color.Black, ShadowPercent: shadowPercent, OutlineThicknessPercent: 0));
+        return bitmap;
+    }
+
+    private static void TextEffectRendererUsesSlotSizeForImageShadowOffset()
+    {
+        using var source = new Bitmap(16, 8, PixelFormat.Format32bppPArgb);
+        using (Graphics sourceGraphics = Graphics.FromImage(source))
+        {
+            sourceGraphics.Clear(Color.Transparent);
+            using var brush = new SolidBrush(Color.White);
+            sourceGraphics.FillRectangle(brush, 0, 0, 16, 8);
+        }
+
+        using var bitmap = new Bitmap(72, 72, PixelFormat.Format32bppPArgb);
+        using Graphics graphics = Graphics.FromImage(bitmap);
+        graphics.Clear(Color.Transparent);
+        var slotBounds = new Rectangle(16, 16, 32, 32);
+        Rectangle drawBounds = TextEffectRenderer.GetAspectFitBounds(source, slotBounds);
+
+        TextEffectRenderer.DrawImage(
+            graphics,
+            source,
+            slotBounds,
+            1f,
+            new ImageRenderStyle(Color.Black, Color.Black, ShadowPercent: 100, OutlineThicknessPercent: 0));
+
+        int y = drawBounds.Top + drawBounds.Height / 2;
+        TestAssert.Equal(true, bitmap.GetPixel(drawBounds.Right + 2, y).A > 0);
+    }
+
+    private static int RenderImageOutlineSampleAlpha(int outlinePercent)
+    {
+        using var source = CreateSolidIconSource();
+        using var bitmap = new Bitmap(72, 72, PixelFormat.Format32bppPArgb);
+        using Graphics graphics = Graphics.FromImage(bitmap);
+        graphics.Clear(Color.Transparent);
+        var bounds = new Rectangle(16, 16, 32, 32);
+
+        TextEffectRenderer.DrawImage(
+            graphics,
+            source,
+            bounds,
+            1f,
+            new ImageRenderStyle(Color.Black, Color.Black, ShadowPercent: 0, OutlineThicknessPercent: outlinePercent));
+
+        return bitmap.GetPixel(bounds.Left - 1, bounds.Top + bounds.Height / 2).A;
+    }
+
+    private static int RenderImageShadowSampleAlpha(int shadowPercent)
+    {
+        using var source = CreateSolidIconSource();
+        using var bitmap = new Bitmap(72, 72, PixelFormat.Format32bppPArgb);
+        using Graphics graphics = Graphics.FromImage(bitmap);
+        graphics.Clear(Color.Transparent);
+        var bounds = new Rectangle(16, 16, 32, 32);
+
+        TextEffectRenderer.DrawImage(
+            graphics,
+            source,
+            bounds,
+            1f,
+            new ImageRenderStyle(Color.Black, Color.Black, ShadowPercent: shadowPercent, OutlineThicknessPercent: 0));
+
+        return bitmap.GetPixel(bounds.Right + 1, bounds.Top + bounds.Height / 2).A;
+    }
+
+    private static Bitmap CreateSolidIconSource()
+    {
+        var source = new Bitmap(8, 8, PixelFormat.Format32bppPArgb);
+        using Graphics sourceGraphics = Graphics.FromImage(source);
+        sourceGraphics.Clear(Color.Transparent);
+        using var brush = new SolidBrush(Color.White);
+        sourceGraphics.FillRectangle(brush, 0, 0, 8, 8);
+        return source;
     }
 
     private static void TimerRendererPaintBoundsContainScaledTextEffects()
@@ -2107,12 +2283,17 @@ internal static class RenderingTests
                 TextEffects = new UiTextEffectSettings
                 {
                     IconOpacityPercent = 15,
+                    IconShadowPercent = 9,
+                    IconOutlineThicknessPercent = 10,
                     TimeOpacityPercent = 16,
                     TimeShadowPercent = 11,
                     TimeOutlineThicknessPercent = 12,
                     DeltaOpacityPercent = 26,
                     DeltaShadowPercent = 21,
                     DeltaOutlineThicknessPercent = 22,
+                    AttachedIconOpacityPercent = 17,
+                    AttachedIconShadowPercent = 19,
+                    AttachedIconOutlineThicknessPercent = 20,
                     TimerOpacityPercent = 36,
                     TimerShadowPercent = 31,
                     TimerOutlineThicknessPercent = 32,
@@ -2124,6 +2305,8 @@ internal static class RenderingTests
         };
         UiPalette palette = UiPalette.From(settings.Overlay.Colors);
 
+        ImageRenderStyle icon = OverlayTextStyles.GetIconImageStyle(settings, palette);
+        ImageRenderStyle attachedIcon = OverlayTextStyles.GetIconImageStyle(settings, palette, attached: true);
         TextRenderStyle split = OverlayTextStyles.GetSplitTextStyle(settings, palette);
         TextRenderStyle delta = OverlayTextStyles.GetDeltaTextStyle(settings, new SplitComparison(TimeSpan.FromSeconds(-1), true), palette);
         TextRenderStyle timer = OverlayTextStyles.GetTimerTextStyle(
@@ -2144,18 +2327,27 @@ internal static class RenderingTests
             milliseconds: true);
 
         Nearly(0.15f, OverlayTextStyles.GetIconOpacity(settings));
+        Nearly(0.17f, OverlayTextStyles.GetIconOpacity(settings, attached: true));
         Nearly(0.16f, OverlayTextStyles.GetTimeTextOpacity(settings));
         Nearly(0.26f, OverlayTextStyles.GetDeltaTextOpacity(settings));
         Nearly(0.36f, OverlayTextStyles.GetTimerTextOpacity(settings, milliseconds: false));
         Nearly(0.46f, OverlayTextStyles.GetTimerTextOpacity(settings, milliseconds: true));
+        TestAssert.Equal(9, icon.ShadowPercent);
+        TestAssert.Equal(10, icon.OutlineThicknessPercent);
+        TestAssert.Equal(19, attachedIcon.ShadowPercent);
+        TestAssert.Equal(20, attachedIcon.OutlineThicknessPercent);
         TestAssert.Equal(11, split.ShadowPercent);
         TestAssert.Equal(12, split.OutlineThicknessPercent);
+        TestAssert.Equal(true, split.LinearEffects);
         TestAssert.Equal(21, delta.ShadowPercent);
         TestAssert.Equal(22, delta.OutlineThicknessPercent);
+        TestAssert.Equal(true, delta.LinearEffects);
         TestAssert.Equal(31, timer.ShadowPercent);
         TestAssert.Equal(32, timer.OutlineThicknessPercent);
+        TestAssert.Equal(false, timer.LinearEffects);
         TestAssert.Equal(41, milliseconds.ShadowPercent);
         TestAssert.Equal(42, milliseconds.OutlineThicknessPercent);
+        TestAssert.Equal(false, milliseconds.LinearEffects);
     }
 
     private static void OverlayTextStylesIncludesAttachedGroupsInTimerComparison()

@@ -133,6 +133,19 @@ internal static class OverlayTextStyles
             : settings.Overlay.TextEffects.IconOpacityPercent);
     }
 
+    public static ImageRenderStyle GetIconImageStyle(AppSettings settings, UiPalette palette, bool attached = false)
+    {
+        return new ImageRenderStyle(
+            palette.IconOutline,
+            palette.IconShadow,
+            attached
+                ? settings.Overlay.TextEffects.AttachedIconShadowPercent
+                : settings.Overlay.TextEffects.IconShadowPercent,
+            attached
+                ? settings.Overlay.TextEffects.AttachedIconOutlineThicknessPercent
+                : settings.Overlay.TextEffects.IconOutlineThicknessPercent);
+    }
+
     public static float GetTimeTextOpacity(AppSettings settings, bool attached = false)
     {
         return GetOpacity(attached
@@ -182,7 +195,8 @@ internal static class OverlayTextStyles
             palette.SplitTextOutline,
             palette.SplitTextShadow,
             attached ? settings.Overlay.TextEffects.AttachedTimeShadowPercent : settings.Overlay.TextEffects.TimeShadowPercent,
-            attached ? settings.Overlay.TextEffects.AttachedTimeOutlineThicknessPercent : settings.Overlay.TextEffects.TimeOutlineThicknessPercent);
+            attached ? settings.Overlay.TextEffects.AttachedTimeOutlineThicknessPercent : settings.Overlay.TextEffects.TimeOutlineThicknessPercent,
+            LinearEffects: true);
     }
 
     public static TextRenderStyle GetDeltaTextStyle(
@@ -385,7 +399,8 @@ internal static class OverlayTextStyles
             outline,
             shadow,
             attached ? settings.Overlay.TextEffects.AttachedTimeShadowPercent : settings.Overlay.TextEffects.TimeShadowPercent,
-            attached ? settings.Overlay.TextEffects.AttachedTimeOutlineThicknessPercent : settings.Overlay.TextEffects.TimeOutlineThicknessPercent);
+            attached ? settings.Overlay.TextEffects.AttachedTimeOutlineThicknessPercent : settings.Overlay.TextEffects.TimeOutlineThicknessPercent,
+            LinearEffects: true);
     }
 
     private static TextRenderStyle CreateDeltaTextStyle(
@@ -400,7 +415,8 @@ internal static class OverlayTextStyles
             outline,
             shadow,
             attached ? settings.Overlay.TextEffects.AttachedDeltaShadowPercent : settings.Overlay.TextEffects.DeltaShadowPercent,
-            attached ? settings.Overlay.TextEffects.AttachedDeltaOutlineThicknessPercent : settings.Overlay.TextEffects.DeltaOutlineThicknessPercent);
+            attached ? settings.Overlay.TextEffects.AttachedDeltaOutlineThicknessPercent : settings.Overlay.TextEffects.DeltaOutlineThicknessPercent,
+            LinearEffects: true);
     }
 
     private static TextRenderStyle CreateTimerTextStyle(

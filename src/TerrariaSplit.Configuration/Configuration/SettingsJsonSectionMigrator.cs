@@ -33,6 +33,7 @@ public static class SettingsJsonSectionMigrator
         nameof(RouteSettings.VisibleGroupCountLimit),
         nameof(RouteSettings.CurrentGroupPosition),
         nameof(RouteSettings.ShowFinalGroup),
+        nameof(RouteSettings.ShowAllVisibleGroupsAfterFinalGroup),
         nameof(RouteSettings.AutoHideAttachedGroups)
     ];
 

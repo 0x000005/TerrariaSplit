@@ -52,6 +52,18 @@ internal static class SettingsDescriptors
             nameof(UiColorSettings.TimerPausedTextShadow), colors => colors.TimerPausedTextShadow, (colors, value) => colors.TimerPausedTextShadow = value)
     ];
 
+    public static IReadOnlyList<ColorDescriptor> IconColors { get; } =
+    [
+        new("Icon outline",
+            nameof(UiColorSettings.IconOutline),
+            colors => colors.IconOutline,
+            (colors, value) => colors.IconOutline = value),
+        new("Icon shadow",
+            nameof(UiColorSettings.IconShadow),
+            colors => colors.IconShadow,
+            (colors, value) => colors.IconShadow = value)
+    ];
+
     public static IReadOnlyList<ColorDescriptor> AnimationColors { get; } =
     [
         new("Segment time hint text",
@@ -125,6 +137,11 @@ internal static class SettingsBinder
             ApplyColor(colorTextBoxes, descriptor.TextKey, value => descriptor.SetText(targetSettings.Overlay.Colors, value));
             ApplyColor(colorTextBoxes, descriptor.OutlineKey, value => descriptor.SetOutline(targetSettings.Overlay.Colors, value));
             ApplyColor(colorTextBoxes, descriptor.ShadowKey, value => descriptor.SetShadow(targetSettings.Overlay.Colors, value));
+        }
+
+        foreach (ColorDescriptor descriptor in SettingsDescriptors.IconColors)
+        {
+            ApplyColor(colorTextBoxes, descriptor.Key, value => descriptor.SetValue(targetSettings.Overlay.Colors, value));
         }
 
         foreach (ColorDescriptor descriptor in SettingsDescriptors.AnimationColors)

@@ -47,7 +47,7 @@ var legacyTests = new (string Name, Action Test)[]
     ("Legacy flat settings JSON migrates to sections", TestLegacyFlatSettingsJsonMigratesToSections),
     ("SettingsSerializer writes schema document", TestSettingsSerializerWritesSchemaDocument),
     ("Settings JSON migrates legacy document values", TestSettingsJsonMigratesLegacyDocumentValues),
-    ("Default attached split display matches primary display", TestDefaultAttachedSplitDisplayMatchesPrimaryDisplay),
+    ("Default UI page settings match tuned overlay layout", TestDefaultUiPageSettingsMatchTunedOverlayLayout),
     ("Default reference times match default settings route", TestDefaultReferenceTimesMatchDefaultSettingsRoute),
     ("AppSettingsStore writes embedded defaults when settings file is invalid", TestAppSettingsStoreWritesEmbeddedDefaultsWhenSettingsFileIsInvalid),
     ("SplitTimeSetStore writes embedded WR when reference files are invalid", TestSplitTimeSetStoreWritesEmbeddedWrWhenReferenceFilesAreInvalid),
@@ -86,8 +86,10 @@ var legacyTests = new (string Name, Action Test)[]
     ("Settings form applies text effects from UI page", TestSettingsFormAppliesTextEffectsFromUiPage),
     ("Settings form applies attached split display settings", TestSettingsFormAppliesAttachedSplitDisplaySettings),
     ("Settings form applies visible group count limit", TestSettingsFormAppliesVisibleGroupCountLimit),
+    ("Main form completed run visible group limit option", TestMainFormCompletedRunVisibleGroupLimitOption),
     ("Settings form applies UI font families", TestSettingsFormAppliesUiFontFamilies),
     ("Settings form applies practice world slots", TestSettingsFormAppliesPracticeWorldSlots),
+    ("Settings form disables personal data update prompt when auto update is disabled", TestSettingsFormDisablesPersonalDataUpdatePromptWhenAutoUpdateIsDisabled),
     ("Settings form preserves advanced split route", TestSettingsFormPreservesAdvancedSplitRoute),
     ("Settings form keeps advanced condition mode per group", TestSettingsFormKeepsAdvancedConditionModePerGroup),
     ("Settings form warns and blocks lossy advanced condition downgrade", TestSettingsFormBlocksLossyAdvancedConditionDowngrade),
@@ -1108,10 +1110,14 @@ static void TestLocalizer()
     AssertEqual("\u53C2\u8003\u65F6\u95F4", Localizer.Get("Reference Data", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
     AssertEqual("\u4F7F\u7528 PB \u4F5C\u4E3A\u53C2\u8003\u65F6\u95F4", Localizer.Get("Use PB as reference time", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
     AssertEqual("\u5F53\u524D\u53C2\u8003\u7EC4", Localizer.Get("Active group", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
-    AssertEqual("\u4E2A\u4EBA\u6700\u4F73\u66F4\u65B0", Localizer.Get("Personal Data", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u81EA\u52A8\u66F4\u65B0\u4E2A\u4EBA\u6570\u636E", Localizer.Get("Auto update personal data", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
     AssertEqual("\u4E2A\u4EBA\u6700\u4F73\u7D2F\u8BA1", Localizer.Get("Personal Cumulative Best", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
     AssertEqual("\u4E2A\u4EBA\u6700\u4F73\u5355\u6BB5", Localizer.Get("Personal segment best", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
     AssertEqual("\u5F53\u524D\u6570\u636E\u6587\u4EF6", Localizer.Get("Active file", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u56FE\u6807\u989C\u8272", Localizer.Get("Icon Colors", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u56FE\u6807\u7C7B\u578B", Localizer.Get("Icon type", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u56FE\u6807\u63CF\u8FB9", Localizer.Get("Icon outline", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u56FE\u6807\u9634\u5F71", Localizer.Get("Icon shadow", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
     AssertEqual("m:ss \u6216 h:mm:ss", Localizer.Get("m:ss or h:mm:ss", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
     AssertEqual("\u4E3B\u8981\u7EC4", Localizer.Get("Main groups", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
     AssertEqual("\u9644\u5C5E\u7EC4", Localizer.Get("Attached groups", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
@@ -1169,6 +1175,7 @@ static void TestLegacyFlatSettingsJsonMigratesToSections()
       "VisibleGroupCountLimit": 5,
       "CurrentGroupPosition": 3,
       "ShowFinalGroup": true,
+      "ShowAllVisibleGroupsAfterFinalGroup": false,
       "UsePersonalBestAsReferenceTime": true,
       "ShowSplitCompletionAnimation": false,
       "AutoCreate": {
@@ -1188,6 +1195,7 @@ static void TestLegacyFlatSettingsJsonMigratesToSections()
     AssertEqual(5, settings.Route.VisibleGroupCountLimit);
     AssertEqual(3, settings.Route.CurrentGroupPosition);
     AssertEqual(true, settings.Route.ShowFinalGroup);
+    AssertEqual(false, settings.Route.ShowAllVisibleGroupsAfterFinalGroup);
     AssertEqual(true, settings.Comparison.UsePersonalBestAsReferenceTime);
     AssertEqual(false, settings.Overlay.ShowSplitCompletionAnimation);
     AssertEqual(true, settings.Automation.AutoCreate.EnablePyramidFilter);
@@ -1261,13 +1269,22 @@ static void TestSettingsJsonMigratesLegacyDocumentValues()
     AssertEqual(false, settings.Route.SplitRoute[0].ExpandDetails);
 }
 
-static void TestDefaultAttachedSplitDisplayMatchesPrimaryDisplay()
+static void TestDefaultUiPageSettingsMatchTunedOverlayLayout()
 {
     AppSettings settings = AppSettingsDefaults.Create();
 
     AssertColumnMatches(settings.Overlay.Columns.Icon, settings.Overlay.Columns.AttachedIcon);
     AssertColumnMatches(settings.Overlay.Columns.Time, settings.Overlay.Columns.AttachedTime);
-    AssertColumnMatches(settings.Overlay.Columns.Delta, settings.Overlay.Columns.AttachedDelta);
+    AssertEqual(6f, settings.Overlay.Columns.Delta.FontSize);
+    AssertEqual(24f, settings.Overlay.Columns.AttachedDelta.FontSize);
+    AssertEqual(130, settings.Overlay.Columns.TimerOffsetX);
+    AssertEqual(55f, settings.Overlay.Columns.Timer.FontSize);
+    AssertEqual(35f, settings.Overlay.Columns.TimerMilliseconds.FontSize);
+    AssertEqual(20, settings.Overlay.TextEffects.IconShadowPercent);
+    AssertEqual(40, settings.Overlay.TextEffects.TimeShadowPercent);
+    AssertEqual(30, settings.Overlay.TextEffects.TimeOutlineThicknessPercent);
+    AssertEqual(25, settings.Overlay.TextEffects.TimerOutlineThicknessPercent);
+    AssertEqual(33, settings.Overlay.TextEffects.TimerMillisecondsOutlineThicknessPercent);
 }
 
 static void AssertColumnMatches(UiColumnSettings expected, UiColumnSettings actual)
@@ -1942,36 +1959,44 @@ static void TestSettingsNormalizeTextEffects()
             TextEffects = new UiTextEffectSettings
             {
                 IconOpacityPercent = -1,
+                IconShadowPercent = 900,
+                IconOutlineThicknessPercent = 900,
                 TimeOpacityPercent = 101,
                 TimeShadowPercent = -1,
                 TimeOutlineThicknessPercent = 101,
                 DeltaOpacityPercent = 900,
                 DeltaShadowPercent = -99,
                 DeltaOutlineThicknessPercent = 900,
+                AttachedIconShadowPercent = 900,
+                AttachedIconOutlineThicknessPercent = -5,
                 TimerOpacityPercent = -1,
                 TimerShadowPercent = -1,
                 TimerOutlineThicknessPercent = 101,
                 TimerMillisecondsOpacityPercent = 142,
-                TimerMillisecondsShadowPercent = 42,
-                TimerMillisecondsOutlineThicknessPercent = 77
+                TimerMillisecondsShadowPercent = 900,
+                TimerMillisecondsOutlineThicknessPercent = 900
             }
         }
     };
 
     SettingsNormalizer.Normalize(settings);
     AssertEqual(0, settings.Overlay.TextEffects.IconOpacityPercent);
+    AssertEqual(100, settings.Overlay.TextEffects.IconShadowPercent);
+    AssertEqual(100, settings.Overlay.TextEffects.IconOutlineThicknessPercent);
     AssertEqual(100, settings.Overlay.TextEffects.TimeOpacityPercent);
     AssertEqual(0, settings.Overlay.TextEffects.TimeShadowPercent);
-    AssertEqual(101, settings.Overlay.TextEffects.TimeOutlineThicknessPercent);
+    AssertEqual(100, settings.Overlay.TextEffects.TimeOutlineThicknessPercent);
     AssertEqual(100, settings.Overlay.TextEffects.DeltaOpacityPercent);
     AssertEqual(0, settings.Overlay.TextEffects.DeltaShadowPercent);
-    AssertEqual(200, settings.Overlay.TextEffects.DeltaOutlineThicknessPercent);
+    AssertEqual(100, settings.Overlay.TextEffects.DeltaOutlineThicknessPercent);
+    AssertEqual(100, settings.Overlay.TextEffects.AttachedIconShadowPercent);
+    AssertEqual(0, settings.Overlay.TextEffects.AttachedIconOutlineThicknessPercent);
     AssertEqual(0, settings.Overlay.TextEffects.TimerOpacityPercent);
     AssertEqual(0, settings.Overlay.TextEffects.TimerShadowPercent);
-    AssertEqual(101, settings.Overlay.TextEffects.TimerOutlineThicknessPercent);
+    AssertEqual(100, settings.Overlay.TextEffects.TimerOutlineThicknessPercent);
     AssertEqual(100, settings.Overlay.TextEffects.TimerMillisecondsOpacityPercent);
-    AssertEqual(42, settings.Overlay.TextEffects.TimerMillisecondsShadowPercent);
-    AssertEqual(77, settings.Overlay.TextEffects.TimerMillisecondsOutlineThicknessPercent);
+    AssertEqual(100, settings.Overlay.TextEffects.TimerMillisecondsShadowPercent);
+    AssertEqual(100, settings.Overlay.TextEffects.TimerMillisecondsOutlineThicknessPercent);
 
     settings.Overlay.TextEffects = null!;
     SettingsNormalizer.Normalize(settings);
@@ -1985,8 +2010,8 @@ static void TestUiTextEffectDescriptorsCoverEffectFields()
     AssertEqual(
         UiTextEffectDescriptors.All.Count,
         UiTextEffectDescriptors.All.Select(descriptor => descriptor.Key).Distinct(StringComparer.Ordinal).Count());
-    AssertEqual(6, UiTextEffectDescriptors.All.Count(descriptor => descriptor.GetShadow is not null && descriptor.SetShadow is not null));
-    AssertEqual(6, UiTextEffectDescriptors.All.Count(descriptor => descriptor.GetOutline is not null && descriptor.SetOutline is not null));
+    AssertEqual(8, UiTextEffectDescriptors.All.Count(descriptor => descriptor.GetShadow is not null && descriptor.SetShadow is not null));
+    AssertEqual(8, UiTextEffectDescriptors.All.Count(descriptor => descriptor.GetOutline is not null && descriptor.SetOutline is not null));
 
     UiTextEffectSettings effects = new();
     foreach (UiTextEffectDescriptor descriptor in UiTextEffectDescriptors.All)
@@ -2008,7 +2033,11 @@ static void TestUiTextEffectDescriptorsCoverEffectFields()
     }
 
     AssertEqual(12, effects.IconOpacityPercent);
+    AssertEqual(34, effects.IconShadowPercent);
+    AssertEqual(56, effects.IconOutlineThicknessPercent);
     AssertEqual(12, effects.AttachedIconOpacityPercent);
+    AssertEqual(34, effects.AttachedIconShadowPercent);
+    AssertEqual(56, effects.AttachedIconOutlineThicknessPercent);
     AssertEqual(34, effects.TimerMillisecondsShadowPercent);
     AssertEqual(56, effects.AttachedDeltaOutlineThicknessPercent);
 }
@@ -2370,6 +2399,8 @@ static void TestSettingsFormAppliesTextEffectsFromUiPage()
         using var form = new SettingsForm(new AppSettings());
         UiSettingsPage page = form.PageHost.GetOrCreatePage<UiSettingsPage>(SettingsPageId.Ui);
         page.IconOpacityBox.Text = "55";
+        page.IconShadowBox.Text = "650";
+        page.IconOutlineThicknessBox.Text = "650";
         page.TimeOpacityBox.Text = "65";
         page.TimeShadowBox.Text = "25";
         page.TimeOutlineThicknessBox.Text = "30";
@@ -2380,12 +2411,14 @@ static void TestSettingsFormAppliesTextEffectsFromUiPage()
         page.TimerShadowBox.Text = "25";
         page.TimerOutlineThicknessBox.Text = "30";
         page.TimerMillisecondsOpacityBox.Text = "95";
-        page.TimerMillisecondsShadowBox.Text = "45";
-        page.TimerMillisecondsOutlineThicknessBox.Text = "50";
+        page.TimerMillisecondsShadowBox.Text = "650";
+        page.TimerMillisecondsOutlineThicknessBox.Text = "650";
 
         form.ApplyForTests();
 
         AssertEqual(55, form.Result.Overlay.TextEffects.IconOpacityPercent);
+        AssertEqual(100, form.Result.Overlay.TextEffects.IconShadowPercent);
+        AssertEqual(100, form.Result.Overlay.TextEffects.IconOutlineThicknessPercent);
         AssertEqual(65, form.Result.Overlay.TextEffects.TimeOpacityPercent);
         AssertEqual(25, form.Result.Overlay.TextEffects.TimeShadowPercent);
         AssertEqual(30, form.Result.Overlay.TextEffects.TimeOutlineThicknessPercent);
@@ -2396,8 +2429,8 @@ static void TestSettingsFormAppliesTextEffectsFromUiPage()
         AssertEqual(25, form.Result.Overlay.TextEffects.TimerShadowPercent);
         AssertEqual(30, form.Result.Overlay.TextEffects.TimerOutlineThicknessPercent);
         AssertEqual(95, form.Result.Overlay.TextEffects.TimerMillisecondsOpacityPercent);
-        AssertEqual(45, form.Result.Overlay.TextEffects.TimerMillisecondsShadowPercent);
-        AssertEqual(50, form.Result.Overlay.TextEffects.TimerMillisecondsOutlineThicknessPercent);
+        AssertEqual(100, form.Result.Overlay.TextEffects.TimerMillisecondsShadowPercent);
+        AssertEqual(100, form.Result.Overlay.TextEffects.TimerMillisecondsOutlineThicknessPercent);
     });
 }
 
@@ -2413,6 +2446,8 @@ static void TestSettingsFormAppliesAttachedSplitDisplaySettings()
         page.GetColumnWidthBoxForTests("AttachedIcon").Text = "212";
         page.GetColumnFontSizeBoxForTests("AttachedIcon").Text = "41";
         page.AttachedIconOpacityBox.Text = "44";
+        page.AttachedIconShadowBox.Text = "650";
+        page.AttachedIconOutlineThicknessBox.Text = "650";
 
         page.GetColumnWidthBoxForTests("AttachedTime").Text = "122";
         SetFontFamilySelectorValue(page.GetFontFamilySelectorForTests("AttachedTime"), selectedFamily);
@@ -2436,6 +2471,8 @@ static void TestSettingsFormAppliesAttachedSplitDisplaySettings()
         AssertEqual(41f, form.Result.Overlay.Columns.AttachedIcon.FontSize);
         AssertEqual(false, form.Result.Overlay.Columns.AttachedIcon.Bold);
         AssertEqual(44, form.Result.Overlay.TextEffects.AttachedIconOpacityPercent);
+        AssertEqual(100, form.Result.Overlay.TextEffects.AttachedIconShadowPercent);
+        AssertEqual(100, form.Result.Overlay.TextEffects.AttachedIconOutlineThicknessPercent);
         AssertEqual(122, form.Result.Overlay.Columns.AttachedTime.Width);
         AssertEqual(UiFontFactory.Default.NormalizeFamilyName(selectedFamily), form.Result.Overlay.Columns.AttachedTime.FontFamily);
         AssertEqual(18.5f, form.Result.Overlay.Columns.AttachedTime.FontSize);
@@ -2464,6 +2501,7 @@ static void TestSettingsFormAppliesVisibleGroupCountLimit()
         page.VisibleGroupCountLimitBoxForTests.Text = "5";
         page.CurrentGroupPositionBoxForTests.Text = "3";
         page.ShowFinalGroupBoxForTests.Checked = true;
+        page.ShowAllVisibleGroupsAfterFinalGroupBoxForTests.Checked = false;
 
         form.ApplyForTests();
 
@@ -2471,10 +2509,12 @@ static void TestSettingsFormAppliesVisibleGroupCountLimit()
         AssertEqual(5, form.Result.Route.VisibleGroupCountLimit);
         AssertEqual(3, form.Result.Route.CurrentGroupPosition);
         AssertEqual(true, form.Result.Route.ShowFinalGroup);
+        AssertEqual(false, form.Result.Route.ShowAllVisibleGroupsAfterFinalGroup);
 
         page.VisibleGroupCountLimitBoxForTests.Text = "2";
         page.CurrentGroupPositionBoxForTests.Text = "9";
         page.ShowFinalGroupBoxForTests.Checked = false;
+        page.ShowAllVisibleGroupsAfterFinalGroupBoxForTests.Checked = true;
 
         form.ApplyForTests();
 
@@ -2482,6 +2522,7 @@ static void TestSettingsFormAppliesVisibleGroupCountLimit()
         AssertEqual(2, form.Result.Route.VisibleGroupCountLimit);
         AssertEqual(2, form.Result.Route.CurrentGroupPosition);
         AssertEqual(false, form.Result.Route.ShowFinalGroup);
+        AssertEqual(true, form.Result.Route.ShowAllVisibleGroupsAfterFinalGroup);
 
         page.VisibleGroupCountLimitBoxForTests.Text = "0";
         page.CurrentGroupPositionBoxForTests.Text = "9";
@@ -2490,6 +2531,47 @@ static void TestSettingsFormAppliesVisibleGroupCountLimit()
 
         AssertEqual(1, form.Result.Route.VisibleGroupCountLimit);
         AssertEqual(1, form.Result.Route.CurrentGroupPosition);
+    });
+}
+
+static void TestMainFormCompletedRunVisibleGroupLimitOption()
+{
+    RunSta(() =>
+    {
+        AppSettings settings = AppSettingsDefaults.Create();
+        settings.Route.EnableVisibleGroupCountLimit = true;
+        settings.Route.VisibleGroupCountLimit = 3;
+        settings.Route.ShowAllVisibleGroupsAfterFinalGroup = true;
+
+        using var form = new MainForm(registerGlobalHotkeys: false);
+        _ = form.Handle;
+        SetMainFormSettings(form, settings);
+
+        ApplicationController controller = GetPrivateField<ApplicationController>(form, "applicationController");
+        AppSettings activeSettings = controller.Settings;
+        SplitStatusSnapshot[] completedStatuses = SplitCatalog.Build(activeSettings)
+            .Select((definition, index) => new SplitStatusSnapshot(
+                definition,
+                TimeSpan.FromSeconds(index + 1),
+                IsSkipped: false,
+                CompletedFactKeys: []))
+            .ToArray();
+        SetPrivateField(
+            controller,
+            "<ViewState>k__BackingField",
+            new ApplicationViewState(
+                activeSettings,
+                RuntimeRunSnapshot.Empty,
+                completedStatuses,
+                CurrentSplitIndex: completedStatuses.Length,
+                TimerState: new SplitTimerState(SplitTimerPhase.Paused, TimeSpan.FromSeconds(120), 0),
+                StatusHash: 0,
+                HasRuntimeSnapshot: false));
+
+        AssertEqual(true, (bool)(InvokePrivate(form, "ShouldIgnoreVisibleGroupLimitForCompletedRun") ?? false));
+
+        activeSettings.Route.ShowAllVisibleGroupsAfterFinalGroup = false;
+        AssertEqual(false, (bool)(InvokePrivate(form, "ShouldIgnoreVisibleGroupLimitForCompletedRun") ?? true));
     });
 }
 
@@ -4615,6 +4697,32 @@ static void TestSettingsFormLocksReferenceControlsForPersonalBestReference()
     });
 }
 
+static void TestSettingsFormDisablesPersonalDataUpdatePromptWhenAutoUpdateIsDisabled()
+{
+    RunSta(() =>
+    {
+        using var form = new SettingsForm(new AppSettings
+        {
+            Comparison =
+            {
+                AutoUpdatePersonalBestData = false,
+                AskBeforeUpdatingPersonalBestData = true
+            }
+        });
+        DataSettingsPage page = form.PageHost.GetOrCreatePage<DataSettingsPage>(SettingsPageId.Data);
+
+        AssertEqual(false, page.AutoUpdatePersonalBestDataBoxForTests.Checked);
+        AssertEqual(false, page.AskBeforeUpdatingPersonalBestDataBoxForTests.Enabled);
+        AssertEqual(true, page.AskBeforeUpdatingPersonalBestDataBoxForTests.Checked);
+
+        page.AutoUpdatePersonalBestDataBoxForTests.Checked = true;
+        AssertEqual(true, page.AskBeforeUpdatingPersonalBestDataBoxForTests.Enabled);
+
+        page.AutoUpdatePersonalBestDataBoxForTests.Checked = false;
+        AssertEqual(false, page.AskBeforeUpdatingPersonalBestDataBoxForTests.Enabled);
+    });
+}
+
 static void TestSettingsFormAppliesTextOutlineAndShadowColors()
 {
     RunSta(() =>
@@ -4626,6 +4734,8 @@ static void TestSettingsFormAppliesTextOutlineAndShadowColors()
         colorTextBoxes[nameof(UiColorSettings.ReferenceTextShadow)].Text = "#445566";
         colorTextBoxes[nameof(UiColorSettings.TimerPausedTextOutline)].Text = "#778899";
         colorTextBoxes[nameof(UiColorSettings.TimerPausedTextShadow)].Text = "#AABBCC";
+        colorTextBoxes[nameof(UiColorSettings.IconOutline)].Text = "#010203";
+        colorTextBoxes[nameof(UiColorSettings.IconShadow)].Text = "#040506";
         colorTextBoxes[nameof(UiColorSettings.SplitCompletionSegmentLabelText)].Text = "#DDEEFF";
         colorTextBoxes[nameof(UiColorSettings.SplitCompletionLabelText)].Text = "#FEDCBA";
         colorTextBoxes[nameof(UiColorSettings.SplitCompletionSegmentTimeText)].Text = "#123ABC";
@@ -4637,6 +4747,8 @@ static void TestSettingsFormAppliesTextOutlineAndShadowColors()
         AssertEqual("#445566", form.Result.Overlay.Colors.ReferenceTextShadow);
         AssertEqual("#778899", form.Result.Overlay.Colors.TimerPausedTextOutline);
         AssertEqual("#AABBCC", form.Result.Overlay.Colors.TimerPausedTextShadow);
+        AssertEqual("#010203", form.Result.Overlay.Colors.IconOutline);
+        AssertEqual("#040506", form.Result.Overlay.Colors.IconShadow);
         AssertEqual("#DDEEFF", form.Result.Overlay.Colors.SplitCompletionSegmentLabelText);
         AssertEqual("#FEDCBA", form.Result.Overlay.Colors.SplitCompletionLabelText);
         AssertEqual("#123ABC", form.Result.Overlay.Colors.SplitCompletionSegmentTimeText);
@@ -4649,6 +4761,7 @@ static void TestColorSettingsLabelsFollowRequestedOrder()
     string[] labels =
     [
         .. SettingsDescriptors.TextColors.Select(descriptor => descriptor.Label),
+        .. SettingsDescriptors.IconColors.Select(descriptor => descriptor.Label),
         .. SettingsDescriptors.AnimationColors.Select(descriptor => descriptor.Label)
     ];
 
@@ -4665,6 +4778,8 @@ static void TestColorSettingsLabelsFollowRequestedOrder()
         "Main timer (total fast)",
         "Main timer (total slow)",
         "Main timer (paused)",
+        "Icon outline",
+        "Icon shadow",
         "Segment time hint text",
         "Cumulative time hint text",
         "Segment time",

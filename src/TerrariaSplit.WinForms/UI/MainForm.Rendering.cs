@@ -295,7 +295,9 @@ internal sealed partial class MainForm : Form
 
     private bool ShouldIgnoreVisibleGroupLimitForCompletedRun()
     {
-        if (timerPhase != SplitTimerPhase.Paused ||
+        if (!settings.Route.EnableVisibleGroupCountLimit ||
+            !settings.Route.ShowAllVisibleGroupsAfterFinalGroup ||
+            timerPhase != SplitTimerPhase.Paused ||
             splitStatuses.Count == 0 ||
             currentSplitIndex < splitStatuses.Count)
         {

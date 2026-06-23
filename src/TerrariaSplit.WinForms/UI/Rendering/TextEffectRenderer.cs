@@ -9,6 +9,13 @@ namespace TerrariaSplit.UI.Rendering;
 internal static class TextEffectRenderer
 {
     private const int SupersampleScale = 3;
+    private const int MaxImageEffectPercent = 100;
+    private const float ImageShadowOffsetScale = 0.6f;
+    private const int ImageShadowReferencePercent = 20;
+    private const float ImageShadowPercentOffsetScale = 0.6f;
+    private const int ImageShadowReferenceMaxOffset = 3;
+    private const int ImageShadowMaxOffset = 5;
+    private const float ImageShadowOpacityScale = 0.8f;
 
     public static void DrawText(
         Graphics graphics,
@@ -226,7 +233,33 @@ internal static class TextEffectRenderer
 
     public static void DrawImage(Graphics graphics, Image image, Rectangle bounds, float opacity, float brighten = 0f)
     {
+        DrawImage(graphics, image, bounds, opacity, ImageRenderStyle.Empty, brighten);
+    }
+
+    public static void DrawImage(
+        Graphics graphics,
+        Image image,
+        Rectangle bounds,
+        float opacity,
+        ImageRenderStyle style,
+        float brighten = 0f)
+    {
         Rectangle drawBounds = GetAspectFitBounds(image, bounds);
+        if (drawBounds.IsEmpty)
+        {
+            return;
+        }
+
+        if (style.HasEffects)
+        {
+            DrawImageEffects(graphics, image, bounds, drawBounds, style, opacity);
+        }
+
+        DrawImageCore(graphics, image, drawBounds, opacity, brighten);
+    }
+
+    private static void DrawImageCore(Graphics graphics, Image image, Rectangle drawBounds, float opacity, float brighten)
+    {
         if (opacity >= 0.99f && brighten <= 0.001f)
         {
             graphics.DrawImage(image, drawBounds);
@@ -244,6 +277,147 @@ internal static class TextEffectRenderer
             Matrix40 = brightness * 0.08f,
             Matrix41 = brightness * 0.08f,
             Matrix42 = brightness * 0.08f
+        };
+        attributes.SetColorMatrix(matrix, ColorMatrixFlag.Default, ColorAdjustType.Bitmap);
+        graphics.DrawImage(
+            image,
+            drawBounds,
+            0,
+            0,
+            image.Width,
+            image.Height,
+            GraphicsUnit.Pixel,
+            attributes);
+    }
+
+    private static void DrawImageEffects(
+        Graphics graphics,
+        Image image,
+        Rectangle effectBounds,
+        Rectangle drawBounds,
+        ImageRenderStyle style,
+        float opacity)
+    {
+        float shadowOpacity = GetImageShadowOpacity(style.ShadowPercent) * opacity;
+        if (shadowOpacity > 0f)
+        {
+            int shadowOffset = GetImageShadowOffset(effectBounds, style.ShadowPercent);
+            DrawTintedImage(
+                graphics,
+                image,
+                OffsetRectangle(drawBounds, shadowOffset, shadowOffset),
+                style.Shadow,
+                shadowOpacity);
+        }
+
+        int outlineRadius = GetImageOutlineRadius(effectBounds, style.OutlineThicknessPercent);
+        float outlineOpacity = GetImageOutlineOpacity(style.OutlineThicknessPercent) * opacity;
+        if (outlineRadius <= 0 || outlineOpacity <= 0f)
+        {
+            return;
+        }
+
+        ReadOnlySpan<Point> offsets =
+        [
+            new Point(-outlineRadius, 0),
+            new Point(outlineRadius, 0),
+            new Point(0, -outlineRadius),
+            new Point(0, outlineRadius),
+            new Point(-outlineRadius, -outlineRadius),
+            new Point(outlineRadius, -outlineRadius),
+            new Point(-outlineRadius, outlineRadius),
+            new Point(outlineRadius, outlineRadius)
+        ];
+        foreach (Point offset in offsets)
+        {
+            DrawTintedImage(
+                graphics,
+                image,
+                OffsetRectangle(drawBounds, offset.X, offset.Y),
+                style.Outline,
+                outlineOpacity);
+        }
+    }
+
+    private static Rectangle OffsetRectangle(Rectangle rectangle, int x, int y)
+    {
+        return new Rectangle(rectangle.X + x, rectangle.Y + y, rectangle.Width, rectangle.Height);
+    }
+
+    private static int GetImageShadowOffset(Rectangle drawBounds, int shadowPercent)
+    {
+        if (shadowPercent <= 0)
+        {
+            return 0;
+        }
+
+        int size = Math.Min(drawBounds.Width, drawBounds.Height);
+        int referenceOffset = Math.Clamp(
+            (int)Math.Round(size * TextEffectGeometry.TextShadowOffsetRatio * ImageShadowOffsetScale),
+            (int)TextEffectGeometry.TextShadowMinOffset,
+            ImageShadowReferenceMaxOffset);
+        float amount = Math.Clamp(shadowPercent, 0, MaxImageEffectPercent) /
+            (float)ImageShadowReferencePercent *
+            ImageShadowPercentOffsetScale;
+        int offset = Math.Clamp(
+            (int)Math.Round(referenceOffset * amount),
+            (int)TextEffectGeometry.TextShadowMinOffset,
+            ImageShadowMaxOffset);
+        return offset;
+    }
+
+    private static int GetImageOutlineRadius(Rectangle drawBounds, int thicknessPercent)
+    {
+        if (thicknessPercent <= 0)
+        {
+            return 0;
+        }
+
+        int size = Math.Min(drawBounds.Width, drawBounds.Height);
+        float amount = Math.Clamp(thicknessPercent, 0, MaxImageEffectPercent) / (float)MaxImageEffectPercent;
+        int radius = (int)Math.Ceiling(size * 0.055f * amount);
+        return Math.Clamp(radius, 1, 6);
+    }
+
+    private static float GetImageOutlineOpacity(int outlinePercent)
+    {
+        float amount = Math.Clamp(outlinePercent, 0, MaxImageEffectPercent) / (float)MaxImageEffectPercent;
+        return amount <= 0f
+            ? 0f
+            : Math.Clamp(MathF.Pow(amount, 0.65f), 0f, 1f);
+    }
+
+    private static float GetImageShadowOpacity(int shadowPercent)
+    {
+        return Math.Clamp(
+            TextEffectGeometry.GetTextShadowOpacity(shadowPercent) * ImageShadowOpacityScale,
+            0f,
+            1f);
+    }
+
+    private static void DrawTintedImage(
+        Graphics graphics,
+        Image image,
+        Rectangle drawBounds,
+        Color color,
+        float opacity)
+    {
+        float alpha = Math.Clamp(opacity, 0f, 1f) * (color.A / 255f);
+        if (alpha <= 0.001f)
+        {
+            return;
+        }
+
+        using var attributes = new ImageAttributes();
+        var matrix = new ColorMatrix
+        {
+            Matrix00 = 0f,
+            Matrix11 = 0f,
+            Matrix22 = 0f,
+            Matrix33 = alpha,
+            Matrix40 = color.R / 255f,
+            Matrix41 = color.G / 255f,
+            Matrix42 = color.B / 255f
         };
         attributes.SetColorMatrix(matrix, ColorMatrixFlag.Default, ColorAdjustType.Bitmap);
         graphics.DrawImage(
@@ -392,12 +566,12 @@ internal static class TextEffectRenderer
             return;
         }
 
-        float shadowOpacity = TextEffectGeometry.GetTextShadowOpacity(style.ShadowPercent);
+        float shadowOpacity = TextEffectGeometry.GetTextShadowOpacity(style);
         if (shadowOpacity > 0f)
         {
             using GraphicsPath shadowPath = (GraphicsPath)path.Clone();
             using var matrix = new Matrix();
-            float offset = TextEffectGeometry.GetTextShadowOffset(graphics, font);
+            float offset = TextEffectGeometry.GetTextShadowOffset(graphics, font, style);
             matrix.Translate(offset, offset);
             shadowPath.Transform(matrix);
 
@@ -407,7 +581,7 @@ internal static class TextEffectRenderer
 
         if (style.OutlineThicknessPercent > 0)
         {
-            float radius = TextEffectGeometry.GetTextOutlineRadius(graphics, font, style.OutlineThicknessPercent);
+            float radius = TextEffectGeometry.GetTextOutlineRadius(graphics, font, style);
             using var outlinePen = new Pen(WithOpacity(style.Outline, opacity), Math.Max(0.2f, radius * 2f))
             {
                 LineJoin = LineJoin.Round,
@@ -444,10 +618,10 @@ internal static class TextEffectRenderer
         StringFormat format,
         float opacity)
     {
-        float shadowOpacity = TextEffectGeometry.GetTextShadowOpacity(style.ShadowPercent);
+        float shadowOpacity = TextEffectGeometry.GetTextShadowOpacity(style);
         if (shadowOpacity > 0f)
         {
-            int offset = (int)Math.Round(TextEffectGeometry.GetTextShadowOffset(graphics, font));
+            int offset = (int)Math.Round(TextEffectGeometry.GetTextShadowOffset(graphics, font, style));
             Rectangle shadowBounds = new(bounds.X + offset, bounds.Y + offset, bounds.Width, bounds.Height);
             using var shadowBrush = new SolidBrush(WithOpacity(style.Shadow, opacity * shadowOpacity));
             graphics.DrawString(text, font, shadowBrush, shadowBounds, format);
@@ -467,10 +641,10 @@ internal static class TextEffectRenderer
         StringFormat format,
         float opacity)
     {
-        float shadowOpacity = TextEffectGeometry.GetTextShadowOpacity(style.ShadowPercent);
+        float shadowOpacity = TextEffectGeometry.GetTextShadowOpacity(style);
         if (shadowOpacity > 0f)
         {
-            float offset = TextEffectGeometry.GetTextShadowOffset(graphics, font);
+            float offset = TextEffectGeometry.GetTextShadowOffset(graphics, font, style);
             using var shadowBrush = new SolidBrush(WithOpacity(style.Shadow, opacity * shadowOpacity));
             graphics.DrawString(text, font, shadowBrush, x + offset, y + offset, format);
         }

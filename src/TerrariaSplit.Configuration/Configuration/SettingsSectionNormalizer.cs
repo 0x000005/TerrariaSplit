@@ -93,26 +93,26 @@ public static class SettingsSectionNormalizer
     {
         foreach (UiTextEffectDescriptor descriptor in UiTextEffectDescriptors.All)
         {
-            descriptor.SetOpacity(effects, ClampPercent(descriptor.GetOpacity(effects)));
+            descriptor.SetOpacity(effects, ClampOpacityPercent(descriptor.GetOpacity(effects)));
             if (descriptor.GetShadow is not null && descriptor.SetShadow is not null)
             {
-                descriptor.SetShadow(effects, ClampPercent(descriptor.GetShadow(effects)));
+                descriptor.SetShadow(effects, ClampEffectPercent(descriptor.GetShadow(effects)));
             }
 
             if (descriptor.GetOutline is not null && descriptor.SetOutline is not null)
             {
-                descriptor.SetOutline(effects, ClampOutlinePercent(descriptor.GetOutline(effects)));
+                descriptor.SetOutline(effects, ClampEffectPercent(descriptor.GetOutline(effects)));
             }
         }
     }
 
-    private static int ClampPercent(int value)
+    private static int ClampOpacityPercent(int value)
     {
         return Math.Clamp(value, 0, 100);
     }
 
-    private static int ClampOutlinePercent(int value)
+    private static int ClampEffectPercent(int value)
     {
-        return Math.Clamp(value, 0, 200);
+        return Math.Clamp(value, 0, 100);
     }
 }

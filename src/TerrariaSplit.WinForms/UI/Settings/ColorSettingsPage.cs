@@ -49,6 +49,18 @@ internal sealed class ColorSettingsPage : SettingsPageBase
         SettingsUiFactory.AddSectionControl(textSection, textGrid);
         SettingsUiFactory.AddSection(parent, textSection);
 
+        TableLayoutPanel iconSection = Factory.CreateSection("Icon Colors");
+        TableLayoutPanel iconGrid = Factory.CreateGrid(
+            SettingsUiFactory.ColumnStylePercent(100f),
+            SettingsUiFactory.ColumnStyleAbsolute(214f),
+            SettingsUiFactory.ColumnStyleAbsolute(214f));
+
+        Factory.AddHeaderRow(iconGrid, "Icon type", "Outline", "Shadow");
+        AddIconColorRow(iconGrid);
+
+        SettingsUiFactory.AddSectionControl(iconSection, iconGrid);
+        SettingsUiFactory.AddSection(parent, iconSection);
+
         TableLayoutPanel animationSection = Factory.CreateSection("Animation Colors");
         TableLayoutPanel animationGrid = Factory.CreateGrid(
             SettingsUiFactory.ColumnStylePercent(100f),
@@ -85,6 +97,17 @@ internal sealed class ColorSettingsPage : SettingsPageBase
         grid.Controls.Add(CreateColorEditor(shadowKey, shadowValue), 3, row);
     }
 
+    private void AddIconColorRow(TableLayoutPanel grid)
+    {
+        ColorDescriptor outline = GetIconColorDescriptor(nameof(UiColorSettings.IconOutline));
+        ColorDescriptor shadow = GetIconColorDescriptor(nameof(UiColorSettings.IconShadow));
+
+        int row = Factory.AddGridRow(grid);
+        grid.Controls.Add(Factory.CreateRowLabel("Icon"), 0, row);
+        grid.Controls.Add(CreateColorEditor(outline.Key, outline.GetValue(Draft.Overlay.Colors)), 1, row);
+        grid.Controls.Add(CreateColorEditor(shadow.Key, shadow.GetValue(Draft.Overlay.Colors)), 2, row);
+    }
+
     private void AddColorRow(TableLayoutPanel grid, string label, string key, string value)
     {
         int row = Factory.AddGridRow(grid);
@@ -119,6 +142,19 @@ internal sealed class ColorSettingsPage : SettingsPageBase
         editor.Controls.Add(textBox, 0, 0);
         editor.Controls.Add(pickButton, 1, 0);
         return editor;
+    }
+
+    private static ColorDescriptor GetIconColorDescriptor(string key)
+    {
+        foreach (ColorDescriptor descriptor in SettingsDescriptors.IconColors)
+        {
+            if (string.Equals(descriptor.Key, key, StringComparison.Ordinal))
+            {
+                return descriptor;
+            }
+        }
+
+        throw new InvalidOperationException($"Missing icon color descriptor: {key}");
     }
 
     private Button CreateColorButton(TextBox textBox)
@@ -160,6 +196,15 @@ internal sealed class ColorSettingsPage : SettingsPageBase
             if (descriptor.ShadowKey == key)
             {
                 descriptor.SetShadow(Draft.Overlay.Colors, normalized);
+                return;
+            }
+        }
+
+        foreach (ColorDescriptor descriptor in SettingsDescriptors.IconColors)
+        {
+            if (descriptor.Key == key)
+            {
+                descriptor.SetValue(Draft.Overlay.Colors, normalized);
                 return;
             }
         }

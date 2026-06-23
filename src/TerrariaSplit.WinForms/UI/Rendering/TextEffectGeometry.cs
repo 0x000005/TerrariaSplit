@@ -5,6 +5,13 @@ namespace TerrariaSplit.UI.Rendering;
 
 internal static class TextEffectGeometry
 {
+    public const float TextShadowOffsetRatio = 0.08f;
+    public const float TextShadowMinOffset = 1f;
+    public const float TextShadowMaxOffset = 4f;
+    public const int TextShadowReferencePercent = 20;
+    public const float TextShadowPercentOffsetScale = 0.6f;
+    public const float TextShadowDynamicMaxOffset = 5f;
+
     public static Rectangle GetAspectFitBounds(Size imageSize, Rectangle bounds)
     {
         if (imageSize.Width <= 0 ||
@@ -98,8 +105,8 @@ internal static class TextEffectGeometry
         TextRenderStyle style)
     {
         RectangleF bounds = path.GetBounds();
-        float shadowOffset = GetTextShadowOpacity(style.ShadowPercent) > 0f
-            ? GetTextShadowOffset(graphics, font)
+        float shadowOffset = GetTextShadowOpacity(style) > 0f
+            ? GetTextShadowOffset(graphics, font, style)
             : 0f;
         if (shadowOffset > 0f)
         {
@@ -112,9 +119,7 @@ internal static class TextEffectGeometry
                     bounds.Height));
         }
 
-        float outlineRadius = style.OutlineThicknessPercent > 0
-            ? GetTextOutlineRadius(graphics, font, style.OutlineThicknessPercent)
-            : 0f;
+        float outlineRadius = GetTextOutlineRadius(graphics, font, style);
         float padding = MathF.Ceiling(Math.Max(outlineRadius, shadowOffset) + 3f);
         return RectangleF.FromLTRB(
             MathF.Floor(bounds.Left - padding),
@@ -125,25 +130,82 @@ internal static class TextEffectGeometry
 
     public static float GetTextShadowOpacity(int shadowPercent)
     {
-        float amount = Math.Clamp(shadowPercent, 0, 100) / 100f;
+        float amount = Math.Clamp(shadowPercent, 0, 100) / 10f;
         if (amount <= 0f)
         {
             return 0f;
         }
 
-        return Math.Clamp(0.08f + 0.58f * MathF.Pow(amount, 0.85f), 0f, 0.66f);
+        if (amount <= 1f)
+        {
+            return Math.Clamp(0.08f + 0.58f * MathF.Pow(amount, 0.85f), 0f, 0.66f);
+        }
+
+        return Math.Clamp(0.66f + 0.34f * ((amount - 1f) / 4f), 0f, 1f);
+    }
+
+    public static float GetTextShadowOpacity(TextRenderStyle style)
+    {
+        return style.LinearEffects
+            ? Math.Clamp(style.ShadowPercent, 0, 100) / 100f
+            : GetTextShadowOpacity(style.ShadowPercent);
     }
 
     public static float GetTextShadowOffset(Graphics graphics, Font font)
     {
-        return Math.Clamp(GetFontPixelsPerEm(graphics, font) * 0.08f, 1f, 4f);
+        return GetTextShadowReferenceOffset(graphics, font);
+    }
+
+    private static float GetTextShadowReferenceOffset(Graphics graphics, Font font)
+    {
+        return Math.Clamp(
+            GetFontPixelsPerEm(graphics, font) * TextShadowOffsetRatio,
+            TextShadowMinOffset,
+            TextShadowMaxOffset);
+    }
+
+    public static float GetTextShadowOffset(Graphics graphics, Font font, TextRenderStyle style)
+    {
+        if (style.ShadowPercent <= 0)
+        {
+            return 0f;
+        }
+
+        float referenceOffset = GetTextShadowReferenceOffset(graphics, font);
+        float amount = Math.Clamp(style.ShadowPercent, 0, 100) /
+            (float)TextShadowReferencePercent *
+            TextShadowPercentOffsetScale;
+        float offset = Math.Clamp(
+            referenceOffset * amount,
+            TextShadowMinOffset,
+            TextShadowDynamicMaxOffset);
+        return offset;
     }
 
     public static float GetTextOutlineRadius(Graphics graphics, Font font, int thicknessPercent)
     {
-        float amount = Math.Clamp(thicknessPercent, 0, 200) / 200f;
+        float amount = Math.Clamp(thicknessPercent, 0, 100) / 40f;
         float radius = GetFontPixelsPerEm(graphics, font) * 0.075f * amount + 0.15f;
-        return Math.Clamp(radius, 0.2f, 3.5f);
+        return Math.Clamp(radius, 0.2f, 8f);
+    }
+
+    public static float GetTextOutlineRadius(Graphics graphics, Font font, TextRenderStyle style)
+    {
+        if (!style.LinearEffects)
+        {
+            return style.OutlineThicknessPercent > 0
+                ? GetTextOutlineRadius(graphics, font, style.OutlineThicknessPercent)
+                : 0f;
+        }
+
+        if (style.OutlineThicknessPercent <= 0)
+        {
+            return 0f;
+        }
+
+        float amount = Math.Clamp(style.OutlineThicknessPercent, 0, 100) / 40f;
+        float radius = GetFontPixelsPerEm(graphics, font) * 0.075f * amount;
+        return Math.Clamp(radius, 0.2f, 8f);
     }
 
     public static float[] CreateColorPositions(int count)

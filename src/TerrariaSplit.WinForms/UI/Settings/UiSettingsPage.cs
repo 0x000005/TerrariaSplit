@@ -14,6 +14,7 @@ internal sealed class UiSettingsPage : SettingsPageBase
     private readonly TextBox visibleGroupCountLimitBox = new();
     private readonly TextBox currentGroupPositionBox = new();
     private readonly CheckBox showFinalGroupBox = new();
+    private readonly CheckBox showAllVisibleGroupsAfterFinalGroupBox = new();
     private readonly CheckBox expandSplitDetailsBox = new();
     private readonly CheckBox collapseSplitDetailsOnCompletionBox = new();
     private readonly CheckBox autoHideAttachedGroupsBox = new();
@@ -21,6 +22,8 @@ internal sealed class UiSettingsPage : SettingsPageBase
     private readonly TextBox earlyDeltaTimeSecondsBox = new();
     private readonly CheckBox enableDynamicDeltaTimeUnitsBox = new();
     private readonly TextBox iconOpacityBox = new();
+    private readonly TextBox iconShadowBox = new();
+    private readonly TextBox iconOutlineThicknessBox = new();
     private readonly TextBox timeOpacityBox = new();
     private readonly TextBox timeShadowBox = new();
     private readonly TextBox timeOutlineThicknessBox = new();
@@ -28,6 +31,8 @@ internal sealed class UiSettingsPage : SettingsPageBase
     private readonly TextBox deltaShadowBox = new();
     private readonly TextBox deltaOutlineThicknessBox = new();
     private readonly TextBox attachedIconOpacityBox = new();
+    private readonly TextBox attachedIconShadowBox = new();
+    private readonly TextBox attachedIconOutlineThicknessBox = new();
     private readonly TextBox attachedTimeOpacityBox = new();
     private readonly TextBox attachedTimeShadowBox = new();
     private readonly TextBox attachedTimeOutlineThicknessBox = new();
@@ -51,6 +56,8 @@ internal sealed class UiSettingsPage : SettingsPageBase
 
     internal CheckBox ShowFinalGroupBoxForTests => showFinalGroupBox;
 
+    internal CheckBox ShowAllVisibleGroupsAfterFinalGroupBoxForTests => showAllVisibleGroupsAfterFinalGroupBox;
+
     internal CheckBox ExpandSplitDetailsBoxForTests => expandSplitDetailsBox;
 
     internal CheckBox CollapseSplitDetailsOnCompletionBoxForTests => collapseSplitDetailsOnCompletionBox;
@@ -65,6 +72,10 @@ internal sealed class UiSettingsPage : SettingsPageBase
 
     internal TextBox IconOpacityBox => iconOpacityBox;
 
+    internal TextBox IconShadowBox => iconShadowBox;
+
+    internal TextBox IconOutlineThicknessBox => iconOutlineThicknessBox;
+
     internal TextBox TimeOpacityBox => timeOpacityBox;
 
     internal TextBox TimeShadowBox => timeShadowBox;
@@ -78,6 +89,10 @@ internal sealed class UiSettingsPage : SettingsPageBase
     internal TextBox DeltaOutlineThicknessBox => deltaOutlineThicknessBox;
 
     internal TextBox AttachedIconOpacityBox => attachedIconOpacityBox;
+
+    internal TextBox AttachedIconShadowBox => attachedIconShadowBox;
+
+    internal TextBox AttachedIconOutlineThicknessBox => attachedIconOutlineThicknessBox;
 
     internal TextBox AttachedTimeOpacityBox => attachedTimeOpacityBox;
 
@@ -232,10 +247,12 @@ internal sealed class UiSettingsPage : SettingsPageBase
         ConfigureNumberBox(visibleGroupCountLimitBox, visibleGroupCountLimit, 1, 100);
         ConfigureNumberBox(currentGroupPositionBox, Draft.Route.CurrentGroupPosition, 1, visibleGroupCountLimit);
         ConfigureCheckBox(showFinalGroupBox, Draft.Route.ShowFinalGroup);
+        ConfigureCheckBox(showAllVisibleGroupsAfterFinalGroupBox, Draft.Route.ShowAllVisibleGroupsAfterFinalGroup);
         Factory.AddSettingRow(visibleGrid, "Enabled", visibleGroupCountLimitEnabledBox);
         Factory.AddSettingRow(visibleGrid, "Visible group count", visibleGroupCountLimitBox);
         Factory.AddSettingRow(visibleGrid, "Current group position", currentGroupPositionBox);
-        Factory.AddSettingRow(visibleGrid, "Show final group", showFinalGroupBox);
+        Factory.AddSettingRow(visibleGrid, "Always show final group", showFinalGroupBox);
+        Factory.AddSettingRow(visibleGrid, "Remove limit after final group completion", showAllVisibleGroupsAfterFinalGroupBox);
         SettingsUiFactory.AddSectionControl(section, visibleGrid);
 
         SettingsUiFactory.AddSectionControl(section, Factory.CreateSubsectionLabel("Main groups"));
@@ -271,7 +288,7 @@ internal sealed class UiSettingsPage : SettingsPageBase
         UiTextEffectSettings textEffects = Draft.Overlay.TextEffects;
         Control opacityControl = CreateEffectCell(effectBoxes.Opacity, descriptor.TextEffect.GetOpacity(textEffects), 100);
         Control shadowControl = CreateEffectCell(effectBoxes.Shadow, descriptor.TextEffect.GetShadow?.Invoke(textEffects) ?? 0, 100);
-        Control outlineThicknessControl = CreateEffectCell(effectBoxes.Outline, descriptor.TextEffect.GetOutline?.Invoke(textEffects) ?? 0, 200);
+        Control outlineThicknessControl = CreateEffectCell(effectBoxes.Outline, descriptor.TextEffect.GetOutline?.Invoke(textEffects) ?? 0, 100);
         Control fontFamilyControl = fontFamilyBox is null
             ? CreateEmptySettingsCell()
             : Factory.CreateCenteredCell(fontFamilyBox, 210);
@@ -367,7 +384,7 @@ internal sealed class UiSettingsPage : SettingsPageBase
         UiTextEffectSettings textEffects = Draft.Overlay.TextEffects;
         Control opacityControl = CreateEffectCell(effectBoxes.Opacity, descriptor.TextEffect.GetOpacity(textEffects), 100);
         Control shadowControl = CreateEffectCell(effectBoxes.Shadow, descriptor.TextEffect.GetShadow?.Invoke(textEffects) ?? 0, 100);
-        Control outlineThicknessControl = CreateEffectCell(effectBoxes.Outline, descriptor.TextEffect.GetOutline?.Invoke(textEffects) ?? 0, 200);
+        Control outlineThicknessControl = CreateEffectCell(effectBoxes.Outline, descriptor.TextEffect.GetOutline?.Invoke(textEffects) ?? 0, 100);
         var boldBox = CreateCenteredCheckBox(value.Bold);
 
         fontControls[descriptor.Key] = new FontControls(showBox, fontFamilyBox, fontBox, boldBox);
@@ -453,6 +470,7 @@ internal sealed class UiSettingsPage : SettingsPageBase
             visibleGroupCountLimit);
 
         bool showFinalGroup = showFinalGroupBox.Checked;
+        bool showAllVisibleGroupsAfterFinalGroup = showAllVisibleGroupsAfterFinalGroupBox.Checked;
         bool expand = expandSplitDetailsBox.Checked;
         bool collapse = collapseSplitDetailsOnCompletionBox.Checked;
         bool autoHideAttachedGroups = autoHideAttachedGroupsBox.Checked;
@@ -461,6 +479,7 @@ internal sealed class UiSettingsPage : SettingsPageBase
             settings.Route.VisibleGroupCountLimit != visibleGroupCountLimit ||
             settings.Route.CurrentGroupPosition != currentGroupPosition ||
             settings.Route.ShowFinalGroup != showFinalGroup ||
+            settings.Route.ShowAllVisibleGroupsAfterFinalGroup != showAllVisibleGroupsAfterFinalGroup ||
             settings.Route.ExpandSplitDetails != expand ||
             settings.Route.CollapseSplitDetailsOnCompletion != collapse ||
             settings.Route.AutoHideAttachedGroups != autoHideAttachedGroups;
@@ -469,6 +488,7 @@ internal sealed class UiSettingsPage : SettingsPageBase
         settings.Route.VisibleGroupCountLimit = visibleGroupCountLimit;
         settings.Route.CurrentGroupPosition = currentGroupPosition;
         settings.Route.ShowFinalGroup = showFinalGroup;
+        settings.Route.ShowAllVisibleGroupsAfterFinalGroup = showAllVisibleGroupsAfterFinalGroup;
         settings.Route.ExpandSplitDetails = expand;
         settings.Route.CollapseSplitDetailsOnCompletion = collapse;
         settings.Route.AutoHideAttachedGroups = autoHideAttachedGroups;
@@ -510,7 +530,7 @@ internal sealed class UiSettingsPage : SettingsPageBase
             {
                 descriptor.SetOutline(
                     textEffects,
-                    SettingsValueParser.ParseIntBox(boxes.Outline, descriptor.GetOutline(textEffects), 0, 200));
+                    SettingsValueParser.ParseIntBox(boxes.Outline, descriptor.GetOutline(textEffects), 0, 100));
             }
         }
     }
@@ -526,6 +546,7 @@ internal sealed class UiSettingsPage : SettingsPageBase
         visibleGroupCountLimitBox.Enabled = enabled;
         currentGroupPositionBox.Enabled = enabled;
         showFinalGroupBox.Enabled = enabled;
+        showAllVisibleGroupsAfterFinalGroupBox.Enabled = enabled;
     }
 
     private void UpdateEarlyDeltaAvailability()
@@ -590,10 +611,10 @@ internal sealed class UiSettingsPage : SettingsPageBase
     {
         return descriptor.Key switch
         {
-            nameof(UiTextEffectSettings.IconOpacityPercent) => new TextEffectBoxes(iconOpacityBox, null, null),
+            nameof(UiTextEffectSettings.IconOpacityPercent) => new TextEffectBoxes(iconOpacityBox, iconShadowBox, iconOutlineThicknessBox),
             nameof(UiTextEffectSettings.TimeOpacityPercent) => new TextEffectBoxes(timeOpacityBox, timeShadowBox, timeOutlineThicknessBox),
             nameof(UiTextEffectSettings.DeltaOpacityPercent) => new TextEffectBoxes(deltaOpacityBox, deltaShadowBox, deltaOutlineThicknessBox),
-            nameof(UiTextEffectSettings.AttachedIconOpacityPercent) => new TextEffectBoxes(attachedIconOpacityBox, null, null),
+            nameof(UiTextEffectSettings.AttachedIconOpacityPercent) => new TextEffectBoxes(attachedIconOpacityBox, attachedIconShadowBox, attachedIconOutlineThicknessBox),
             nameof(UiTextEffectSettings.AttachedTimeOpacityPercent) => new TextEffectBoxes(attachedTimeOpacityBox, attachedTimeShadowBox, attachedTimeOutlineThicknessBox),
             nameof(UiTextEffectSettings.AttachedDeltaOpacityPercent) => new TextEffectBoxes(attachedDeltaOpacityBox, attachedDeltaShadowBox, attachedDeltaOutlineThicknessBox),
             nameof(UiTextEffectSettings.TimerOpacityPercent) => new TextEffectBoxes(timerOpacityBox, timerShadowBox, timerOutlineThicknessBox),
