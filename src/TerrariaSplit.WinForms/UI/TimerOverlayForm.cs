@@ -34,6 +34,8 @@ internal sealed class TimerOverlayForm : Form
     private OverlayCompositeLayout? currentLayout;
     private TimerOverlayRenderState? currentState;
     private int paintDispatchPending;
+    private int renderStateRevision;
+    private int queuedPaintStateRevision;
     private TimerPaintFrame? previousRunningTimerPaintFrame;
     private TimeSpan? currentPaintTimerElapsed;
     private bool runningTimerPaintRequiresFullRender;
@@ -273,11 +275,12 @@ internal sealed class TimerOverlayForm : Form
         bool previousMouseClickThrough = mouseClickThrough;
         currentState = renderState;
         mouseClickThrough = renderState.MouseClickThrough;
+        Interlocked.Increment(ref renderStateRevision);
         overlayWindowController.ApplyWindowStyle(mouseClickThrough, IsInteractionBlocked());
         UpdateTimerOverlayPaintSchedulerState();
         if (forceRender || ShouldRenderImmediately(previousState, renderState, previousMouseClickThrough))
         {
-            QueueFullRender();
+            RenderStateChange(renderState);
         }
     }
 
@@ -392,12 +395,14 @@ internal sealed class TimerOverlayForm : Form
             return;
         }
 
+        int queuedStateRevision = Volatile.Read(ref renderStateRevision);
         if (Interlocked.Exchange(ref paintDispatchPending, 1) == 1)
         {
             recordPaintDispatchSkipped();
             return;
         }
 
+        Volatile.Write(ref queuedPaintStateRevision, queuedStateRevision);
         try
         {
             BeginInvoke(dispatchedPaintTick);
@@ -421,6 +426,11 @@ internal sealed class TimerOverlayForm : Form
                 return;
             }
 
+            if (IsQueuedPaintStateStale())
+            {
+                return;
+            }
+
             if (!UiInputMessageProbe.HasPendingInputMessage())
             {
                 RenderTimerOverlayPaintTick();
@@ -436,11 +446,30 @@ internal sealed class TimerOverlayForm : Form
         }
     }
 
+    private bool IsQueuedPaintStateStale()
+    {
+        return Volatile.Read(ref queuedPaintStateRevision) !=
+            Volatile.Read(ref renderStateRevision);
+    }
+
     private void QueueFullRender()
     {
         previousRunningTimerPaintFrame = null;
         runningTimerPaintRequiresFullRender = true;
         overlayWindowController.QueueRender();
+    }
+
+    private void RenderStateChange(TimerOverlayRenderState renderState)
+    {
+        previousRunningTimerPaintFrame = null;
+        runningTimerPaintRequiresFullRender = true;
+        if (renderState.TimerState.Phase == SplitTimerPhase.Running)
+        {
+            overlayWindowController.QueueRender();
+            return;
+        }
+
+        RenderImmediately(timerElapsed: null);
     }
 
     private void RenderTimerOverlayPaintTick()
