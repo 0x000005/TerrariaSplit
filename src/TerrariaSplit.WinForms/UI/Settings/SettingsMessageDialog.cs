@@ -10,7 +10,7 @@ internal sealed class SettingsMessageDialog : Form
     private const int FooterHeight = 76;
     private const int BodyHorizontalPadding = 48;
     private const int BodyVerticalPadding = 38;
-    private const int MaxMessageRows = 10;
+    private const int MessageHeightSafetyPadding = 12;
 
     private readonly Panel titleBar;
     private bool dragging;
@@ -74,12 +74,9 @@ internal sealed class SettingsMessageDialog : Form
             string.IsNullOrEmpty(message) ? " " : message,
             font,
             new Size(textWidth, int.MaxValue),
-            TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl | TextFormatFlags.NoPadding);
-        int rows = Math.Clamp(
-            (int)Math.Ceiling((double)Math.Max(lineHeight, measured.Height) / lineHeight),
-            1,
-            MaxMessageRows);
-        int height = TitleBarHeight + FooterHeight + BodyVerticalPadding + rows * lineHeight;
+            TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl | TextFormatFlags.NoPrefix);
+        int messageHeight = Math.Max(lineHeight, measured.Height) + MessageHeightSafetyPadding;
+        int height = TitleBarHeight + FooterHeight + BodyVerticalPadding + messageHeight;
         return new Size(DialogWidth, height);
     }
 

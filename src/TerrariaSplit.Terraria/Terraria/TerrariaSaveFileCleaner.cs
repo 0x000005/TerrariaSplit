@@ -6,6 +6,7 @@ public sealed class TerrariaSaveFileCleaner
 {
     private const int MaxDeletedBackupFolders = 50;
     private const string FavoritesFileName = "favorites.json";
+    private static readonly string[] BackupSuffixes = [".bak", ".bak2"];
 
     public TerrariaSaveCleanupResult MoveNonFavoritesToBackup()
     {
@@ -69,19 +70,31 @@ public sealed class TerrariaSaveFileCleaner
         }
 
         int moved = 0;
-        foreach (string playerFile in Directory.EnumerateFiles(playersPath, "*.plr", SearchOption.TopDirectoryOnly))
+        HashSet<string> playerFileNames = Directory.EnumerateFiles(playersPath, "*", SearchOption.TopDirectoryOnly)
+            .Select(Path.GetFileName)
+            .Where(fileName => fileName is not null && TryGetPlayerFileNameFromSaveFamily(fileName, out _))
+            .Select(fileName =>
+            {
+                TryGetPlayerFileNameFromSaveFamily(fileName!, out string playerFileName);
+                return playerFileName;
+            })
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (string fileName in playerFileNames.OrderBy(static name => name, StringComparer.OrdinalIgnoreCase))
         {
-            string fileName = Path.GetFileName(playerFile);
             if (favorites.Contains(fileName))
             {
                 continue;
             }
 
-            string stem = Path.GetFileNameWithoutExtension(playerFile);
-            MoveFileIfExists(playerFile, Path.Combine(backupRoot, "Players", fileName));
-            MoveFileIfExists(playerFile + ".bak", Path.Combine(backupRoot, "Players", fileName + ".bak"));
-            MoveDirectoryIfExists(Path.Combine(playersPath, stem), Path.Combine(backupRoot, "Players", stem));
-            moved++;
+            string playerFile = Path.Combine(playersPath, fileName);
+            string stem = Path.GetFileNameWithoutExtension(fileName);
+            bool movedAny = MoveSaveFileWithBackups(playerFile, Path.Combine(backupRoot, "Players", fileName));
+            movedAny |= MoveDirectoryIfExists(Path.Combine(playersPath, stem), Path.Combine(backupRoot, "Players", stem));
+            if (movedAny)
+            {
+                moved++;
+            }
         }
 
         return moved;
@@ -96,20 +109,110 @@ public sealed class TerrariaSaveFileCleaner
         }
 
         int moved = 0;
-        foreach (string worldFile in Directory.EnumerateFiles(worldsPath, "*.wld", SearchOption.TopDirectoryOnly))
+        HashSet<string> worldFileNames = Directory.EnumerateFiles(worldsPath, "*", SearchOption.TopDirectoryOnly)
+            .Select(Path.GetFileName)
+            .Where(fileName => fileName is not null && TryGetWorldFileNameFromSaveFamily(fileName, out _))
+            .Select(fileName =>
+            {
+                TryGetWorldFileNameFromSaveFamily(fileName!, out string worldFileName);
+                return worldFileName;
+            })
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (string fileName in worldFileNames.OrderBy(static name => name, StringComparer.OrdinalIgnoreCase))
         {
-            string fileName = Path.GetFileName(worldFile);
             if (favorites.Contains(fileName))
             {
                 continue;
             }
 
-            string stem = Path.GetFileNameWithoutExtension(worldFile);
-            MoveFileIfExists(worldFile, Path.Combine(backupRoot, "Worlds", fileName));
-            MoveFileIfExists(worldFile + ".bak", Path.Combine(backupRoot, "Worlds", fileName + ".bak"));
-            MoveFileIfExists(Path.Combine(worldsPath, stem + ".twld"), Path.Combine(backupRoot, "Worlds", stem + ".twld"));
-            MoveFileIfExists(Path.Combine(worldsPath, stem + ".twld.bak"), Path.Combine(backupRoot, "Worlds", stem + ".twld.bak"));
-            moved++;
+            string worldFile = Path.Combine(worldsPath, fileName);
+            string stem = Path.GetFileNameWithoutExtension(fileName);
+            bool movedAny = MoveSaveFileWithBackups(worldFile, Path.Combine(backupRoot, "Worlds", fileName));
+            movedAny |= MoveSaveFileWithBackups(
+                Path.Combine(worldsPath, stem + ".twld"),
+                Path.Combine(backupRoot, "Worlds", stem + ".twld"));
+            if (movedAny)
+            {
+                moved++;
+            }
+        }
+
+        return moved;
+    }
+
+    private static bool TryGetPlayerFileNameFromSaveFamily(string fileName, out string playerFileName)
+    {
+        if (fileName.EndsWith(".plr", StringComparison.OrdinalIgnoreCase))
+        {
+            playerFileName = fileName;
+            return true;
+        }
+
+        if (TryRemoveBackupSuffix(fileName, out string saveFileName) &&
+            saveFileName.EndsWith(".plr", StringComparison.OrdinalIgnoreCase))
+        {
+            playerFileName = saveFileName;
+            return true;
+        }
+
+        playerFileName = string.Empty;
+        return false;
+    }
+
+    private static bool TryGetWorldFileNameFromSaveFamily(string fileName, out string worldFileName)
+    {
+        if (fileName.EndsWith(".wld", StringComparison.OrdinalIgnoreCase))
+        {
+            worldFileName = fileName;
+            return true;
+        }
+
+        if (TryRemoveBackupSuffix(fileName, out string saveFileName) &&
+            saveFileName.EndsWith(".wld", StringComparison.OrdinalIgnoreCase))
+        {
+            worldFileName = saveFileName;
+            return true;
+        }
+
+        if (fileName.EndsWith(".twld", StringComparison.OrdinalIgnoreCase))
+        {
+            worldFileName = Path.GetFileNameWithoutExtension(fileName) + ".wld";
+            return true;
+        }
+
+        if (TryRemoveBackupSuffix(fileName, out saveFileName) &&
+            saveFileName.EndsWith(".twld", StringComparison.OrdinalIgnoreCase))
+        {
+            worldFileName = Path.GetFileNameWithoutExtension(saveFileName) + ".wld";
+            return true;
+        }
+
+        worldFileName = string.Empty;
+        return false;
+    }
+
+    private static bool TryRemoveBackupSuffix(string fileName, out string saveFileName)
+    {
+        foreach (string suffix in BackupSuffixes)
+        {
+            if (fileName.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+            {
+                saveFileName = fileName[..^suffix.Length];
+                return true;
+            }
+        }
+
+        saveFileName = string.Empty;
+        return false;
+    }
+
+    private static bool MoveSaveFileWithBackups(string source, string destination)
+    {
+        bool moved = MoveFileIfExists(source, destination);
+        foreach (string suffix in BackupSuffixes)
+        {
+            moved |= MoveFileIfExists(source + suffix, destination + suffix);
         }
 
         return moved;
@@ -145,26 +248,28 @@ public sealed class TerrariaSaveFileCleaner
         }
     }
 
-    private static void MoveFileIfExists(string source, string destination)
+    private static bool MoveFileIfExists(string source, string destination)
     {
         if (!File.Exists(source))
         {
-            return;
+            return false;
         }
 
         Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
         File.Move(source, GetAvailablePath(destination));
+        return true;
     }
 
-    private static void MoveDirectoryIfExists(string source, string destination)
+    private static bool MoveDirectoryIfExists(string source, string destination)
     {
         if (!Directory.Exists(source))
         {
-            return;
+            return false;
         }
 
         Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
         Directory.Move(source, GetAvailablePath(destination));
+        return true;
     }
 
     private static string GetAvailablePath(string path)

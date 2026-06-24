@@ -1,9 +1,9 @@
 {
-  "PauseResumeKey": "F12",
+  "PauseResumeKey": "F8",
   "ResetKey": "F6",
   "MouseClickThroughKey": "F9",
-  "CreateWorldKey": "F7",
-  "PracticeWorldKey": "F8",
+  "CreateWorldKey": "None",
+  "PracticeWorldKey": "None",
   "ShowMouseClickThroughIndicator": true,
   "Language": "\u4E2D\u6587",
   "AlwaysOnTop": true,

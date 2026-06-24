@@ -126,11 +126,11 @@ public sealed class GeneralSettings
 
 public sealed class HotkeySettings
 {
-    public string PauseResumeKey { get; set; } = "F12";
+    public string PauseResumeKey { get; set; } = "F8";
     public string ResetKey { get; set; } = "F6";
     public string MouseClickThroughKey { get; set; } = "F9";
-    public string CreateWorldKey { get; set; } = "F7";
-    public string PracticeWorldKey { get; set; } = "F8";
+    public string CreateWorldKey { get; set; } = "None";
+    public string PracticeWorldKey { get; set; } = "None";
 }
 
 public sealed class RouteSettings

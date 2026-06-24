@@ -33,6 +33,7 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
         { "If Terraria's options menu was already opened before enabling, restart Terraria for the change to take effect.", "如果启用前已经打开过 Terraria 选项菜单，可能需要重启 Terraria 后生效。" },
         { "This changes the running Terraria process memory; enable with caution.", "该功能会修改正在运行的 Terraria 进程内存，启用需谨慎。" },
         { "Hotkeys", "快捷键" },
+        { "Hotkeys support a single key, or a Ctrl / Alt / Shift chord. Press Esc in a hotkey box to disable that shortcut.", "快捷键支持单键，或以 Ctrl / Alt / Shift 开始的组合键。在快捷键输入框中按 Esc 可禁用该快捷键。" },
         { "General Options", "常规选项" },
         { "Language", "语言" },
         { "Pause / Resume", "暂停 / 继续" },
@@ -48,6 +49,7 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
         { "{0}: {1} is duplicated; only the first action using this key is active.", "{0}：{1} 与其他快捷键重复；只有第一个使用该按键的动作会生效。" },
         { "{0}: {1} is not allowed as a hotkey.", "{0}：{1} 不允许作为快捷键。" },
         { "{0}: {1} registration failed. It may be used by another program. ({2})", "{0}：{1} 注册失败，可能已被其他程序占用。（{2}）" },
+        { "Create World hotkey {0} is now active. Please read the Create World notes in the Automation settings tab first. Enabling this blindly may delete your save files by mistake.", "创建世界快捷键 {0} 已启用。请务必先阅读设置自动化选项卡中关于创建世界的有关提示，盲目启用可能会误删你的存档文件。" },
         { "Always on top", "置顶显示" },
         { "Practice mode", "练习模式" },
         { "Allow manual time editing", "允许手动修改时间" },
@@ -373,13 +375,17 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Create World creates a world automatically. Load World copies the selected player and world saves, then opens Single Player.", "\u521B\u5EFA\u4E16\u754C\u4F1A\u81EA\u52A8\u521B\u5EFA\u4E16\u754C\uFF1B\u52A0\u8F7D\u4E16\u754C\u4F1A\u590D\u5236\u9009\u4E2D\u7684\u4EBA\u7269\u548C\u4E16\u754C\u5B58\u6863\uFF0C\u7136\u540E\u6253\u5F00\u5355\u4EBA\u6E38\u620F\u3002" }
       , { "Create World creates a world automatically by simulating mouse and keyboard input.", "\u521B\u5EFA\u4E16\u754C\u4F1A\u901A\u8FC7\u6A21\u62DF\u9F20\u6807\u548C\u952E\u76D8\u64CD\u4F5C\u81EA\u52A8\u521B\u5EFA\u4E16\u754C\u3002" }
       , { "Load World copies the selected player and/or world files to Terraria's save folder, then opens Single Player.", "\u52A0\u8F7D\u4E16\u754C\u4F1A\u590D\u5236\u9009\u4E2D\u7684\u4EBA\u7269\u6216\u4E16\u754C\u6587\u4EF6\u5230\u6CF0\u62C9\u745E\u4E9A\u5B58\u6863\u6587\u4EF6\u5939\uFF0C\u7136\u540E\u6253\u5F00\u5355\u4EBA\u6E38\u620F\u3002" }
-      , { "Create World deletes all non-favorite players and worlds.", "\u521B\u5EFA\u4E16\u754C\u4F1A\u5220\u9664\u6240\u6709\u975E\u6536\u85CF\u7684\u4EBA\u7269\u548C\u4E16\u754C\u3002" }
+      , { "Create World deletes files in the save folders except favorite players and worlds.", "\u4F1A\u5220\u9664\u5B58\u6863\u6587\u4EF6\u5939\u4E2D\u9664\u4E86\u6536\u85CF\u7684\u4EBA\u7269\u548C\u4E16\u754C\u4EE5\u5916\u7684\u6587\u4EF6\u3002" }
       , { "Automatically creates or enters a world by simulating mouse and keyboard input.", "\u901A\u8FC7\u6A21\u62DF\u9F20\u6807\u548C\u952E\u76D8\u64CD\u4F5C\u81EA\u52A8\u521B\u5EFA\u6216\u8FDB\u5165\u4E16\u754C\u3002" }
       , { "Do not choose players or worlds in the default save location.", "\u8BF7\u4E0D\u8981\u9009\u62E9\u5728\u9ED8\u8BA4\u5B58\u6863\u4F4D\u7F6E\u7684\u4EBA\u7269\u6216\u4E16\u754C\u3002" }
       , { "Do not choose favorite players or worlds.", "\u8BF7\u4E0D\u8981\u9009\u62E9\u6536\u85CF\u7684\u4EBA\u7269\u6216\u4E16\u754C\u3002" }
       , { "Deletes all non-favorite players and worlds.", "\u4F1A\u5220\u9664\u6240\u6709\u975E\u6536\u85CF\u7684\u4EBA\u7269\u548C\u4E16\u754C\u3002" }
       , { "The most recent 50 deletions are kept in the backup folder.", "\u6700\u8FD150\u6B21\u5220\u9664\u4F1A\u4FDD\u7559\u5728\u5907\u4EFD\u6587\u4EF6\u5939\u4E2D\u3002" }
       , { "Open folder", "\u6253\u5F00\u6587\u4EF6\u5939" }
+      , { "Open save folder", "\u6253\u5F00\u5B58\u6863\u6587\u4EF6\u5939" }
+      , { "Open backup folder", "\u6253\u5F00\u5907\u4EFD\u6587\u4EF6\u5939" }
+      , { "If clicks are too fast for your computer to respond, adjust the delay settings at the bottom of this page.", "\u5982\u679C\u70B9\u51FB\u901F\u5EA6\u592A\u5FEB\u800C\u4F60\u7684\u7535\u8111\u6765\u4E0D\u53CA\u54CD\u5E94\uFF0C\u4F60\u53EF\u4EE5\u8C03\u6574\u672C\u9875\u5E95\u90E8\u7684\u5EF6\u8FDF\u8BBE\u7F6E\u3002" }
+      , { "Could not open save folder.", "\u65E0\u6CD5\u6253\u5F00\u5B58\u6863\u6587\u4EF6\u5939\u3002" }
       , { "Could not open backup folder.", "\u65E0\u6CD5\u6253\u5F00\u5907\u4EFD\u6587\u4EF6\u5939\u3002" }
       , { "Timing", "\u65F6\u95F4" }
       , { "Delay", "\u5EF6\u8FDF" }

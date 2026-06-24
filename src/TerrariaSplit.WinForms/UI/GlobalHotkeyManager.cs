@@ -72,6 +72,12 @@ internal sealed class GlobalHotkeyManager : IHotkeyRegistrationManager
         HashSet<HotkeyChord> registeredChords,
         List<HotkeyRegistrationWarning> warnings)
     {
+        if (keys == Keys.None)
+        {
+            logger.Info($"Skipped unassigned hotkey for {action}.");
+            return;
+        }
+
         if (!TryCreateChord(keys, out HotkeyChord chord))
         {
             logger.Info($"Ignored invalid hotkey for {action}: {keys}.");

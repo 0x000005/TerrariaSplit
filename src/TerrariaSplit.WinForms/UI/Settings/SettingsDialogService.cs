@@ -188,4 +188,25 @@ internal sealed class SettingsDialogService
                 localizeTitle("Create World"));
         }
     }
+
+    public void OpenTerrariaSaveFolder(Func<string, string> localizeTitle)
+    {
+        try
+        {
+            string saveRoot = TerrariaSavePaths.SaveRoot();
+            Directory.CreateDirectory(saveRoot);
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = saveRoot,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            StaticAppLogger.Instance.Error(ex, "Failed to open Terraria save folder.");
+            ShowWarning(
+                localize("Could not open save folder."),
+                localizeTitle("Create World"));
+        }
+    }
 }

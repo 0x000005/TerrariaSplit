@@ -6,11 +6,15 @@ internal sealed class SettingsHotkeyTextBox : TextBox
 {
     public Keys Hotkey { get; private set; } = Keys.None;
 
+    public event EventHandler? HotkeyCaptured;
+
     public void SetHotkey(Keys hotkey)
     {
-        Hotkey = HotkeyKeyValidator.TryNormalize(hotkey, out Keys normalizedHotkey)
-            ? normalizedHotkey
-            : Keys.F12;
+        Hotkey = hotkey == Keys.None
+            ? Keys.None
+            : HotkeyKeyValidator.TryNormalize(hotkey, out Keys normalizedHotkey)
+                ? normalizedHotkey
+                : Keys.None;
         Text = HotkeyKeyValidator.Format(Hotkey);
     }
 
@@ -33,12 +37,21 @@ internal sealed class SettingsHotkeyTextBox : TextBox
 
     private bool TryCaptureHotkey(Keys keyData)
     {
+        if ((keyData & Keys.KeyCode) == Keys.Escape &&
+            (keyData & Keys.Modifiers) == Keys.None)
+        {
+            SetHotkey(Keys.None);
+            HotkeyCaptured?.Invoke(this, EventArgs.Empty);
+            return true;
+        }
+
         if (!HotkeyKeyValidator.IsAllowed(keyData))
         {
             return false;
         }
 
         SetHotkey(keyData);
+        HotkeyCaptured?.Invoke(this, EventArgs.Empty);
         return true;
     }
 }

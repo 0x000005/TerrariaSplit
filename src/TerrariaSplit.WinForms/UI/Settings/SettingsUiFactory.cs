@@ -532,7 +532,7 @@ internal sealed class SettingsUiFactory
         control.Top = Math.Max(0, (panel.ClientSize.Height - control.Height) / 2);
     }
 
-    private static void UpdateWrappedLabelHeight(Label label)
+    internal static void UpdateWrappedLabelHeight(Label label)
     {
         int width = label.Width;
         if (width <= 0 && label.Parent is not null)

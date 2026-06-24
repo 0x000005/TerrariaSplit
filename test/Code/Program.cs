@@ -108,6 +108,7 @@ var legacyTests = new (string Name, Action Test)[]
     ("Settings form localizes target library and conditions", TestSettingsFormLocalizesTargetLibraryAndConditions),
     ("Settings form updates effects route rows dynamically", TestSettingsFormUpdatesEffectsRouteRowsDynamically),
     ("Settings hotkey box captures modifier chords", TestSettingsHotkeyBoxCapturesModifierChords),
+    ("Settings create world hotkey warns when enabled", TestSettingsCreateWorldHotkeyWarnsWhenEnabled),
     ("Settings form collapses zenith special seed dependencies", TestSettingsFormCollapsesZenithSpecialSeedDependencies),
     ("Settings form saves The Constant special seed", TestSettingsFormSavesTheConstantSpecialSeed),
     ("Settings form saves pyramid item filter", TestSettingsFormSavesPyramidItemFilter),
@@ -161,6 +162,7 @@ var tests = legacyTests
     .Concat(AutomationRunnerTests.All())
     .Concat(AutomationScopeTests.All())
     .Concat(LoadWorldValidationTests.All())
+    .Concat(TerrariaSaveFileCleanerTests.All())
     .Concat(HighPrecisionSchedulerTests.All())
     .Concat(MainShellRefactorTests.All())
     .Concat(ArchitectureDependencyTests.All())
@@ -2197,8 +2199,8 @@ static void TestAppSettingsInvalidHotkeyFallback()
     AssertEqual(Keys.F12, settings.GetPauseResumeKeys());
     AssertEqual(Keys.F6, settings.GetResetKeys());
     AssertEqual(Keys.F9, settings.GetMouseClickThroughKeys());
-    AssertEqual(Keys.F7, settings.GetCreateWorldKeys());
-    AssertEqual(Keys.F8, settings.GetPracticeWorldKeys());
+    AssertEqual(Keys.None, settings.GetCreateWorldKeys());
+    AssertEqual(Keys.None, settings.GetPracticeWorldKeys());
 }
 
 static void TestAppSettingsParsesModifierHotkeys()
@@ -3534,6 +3536,40 @@ static void TestSettingsHotkeyBoxCapturesModifierChords()
         PressHotkeyBoxKey(textBox, Keys.Alt | Keys.Shift | Keys.A);
         AssertEqual(Keys.Alt | Keys.Shift | Keys.A, textBox.Hotkey);
         AssertEqual("Alt + Shift + A", textBox.Text);
+
+        PressHotkeyBoxKey(textBox, Keys.Escape);
+        AssertEqual(Keys.None, textBox.Hotkey);
+        AssertEqual("None", textBox.Text);
+    });
+}
+
+static void TestSettingsCreateWorldHotkeyWarnsWhenEnabled()
+{
+    RunSta(() =>
+    {
+        var messages = new List<string>();
+        using var form = new SettingsForm(
+            new AppSettings(),
+            messageBoxPresenter: (_, message, title, buttons, icon) =>
+            {
+                messages.Add(message);
+                AssertEqual("Hotkey warning", title);
+                AssertEqual(MessageBoxButtons.OK, buttons);
+                AssertEqual(MessageBoxIcon.Warning, icon);
+                return DialogResult.OK;
+            });
+        GeneralSettingsPage page = form.PageHost.GetOrCreatePage<GeneralSettingsPage>(SettingsPageId.General);
+
+        PressHotkeyBoxKey(page.CreateWorldKeyBox, Keys.F7);
+        PressHotkeyBoxKey(page.CreateWorldKeyBox, Keys.F10);
+        PressHotkeyBoxKey(page.PracticeWorldKeyBox, Keys.F8);
+        PressHotkeyBoxKey(page.CreateWorldKeyBox, Keys.Escape);
+        PressHotkeyBoxKey(page.CreateWorldKeyBox, Keys.F11);
+
+        AssertEqual(Keys.F11, page.CreateWorldKeyBox.Hotkey);
+        AssertEqual(2, messages.Count);
+        AssertEqual(true, messages[0].Contains("Create World hotkey F7 is now active. Please read the Create World notes", StringComparison.Ordinal));
+        AssertEqual(true, messages[1].Contains("Create World hotkey F11 is now active. Please read the Create World notes", StringComparison.Ordinal));
     });
 }
 

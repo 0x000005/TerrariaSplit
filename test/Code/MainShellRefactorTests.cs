@@ -759,7 +759,7 @@ internal static class MainShellRefactorTests
                 .OfType<ToolStripMenuItem>()
                 .Single(menuItem => menuItem.Name == MainFormContextMenuBuilder.PyramidFilterToggleItemName);
 
-            TestAssert.Equal("\u7B5B\u5854", item.Text);
+            TestAssert.Equal("\u7B5B\u9009\u91D1\u5B57\u5854", item.Text);
             TestAssert.Equal(true, item.Checked);
 
             item.PerformClick();
@@ -908,7 +908,7 @@ internal static class MainShellRefactorTests
                 static key => key);
 
             TestAssert.Equal(true, tenLines.ClientSize.Height > oneLine.ClientSize.Height);
-            TestAssert.Equal(tenLines.ClientSize.Height, twelveLines.ClientSize.Height);
+            TestAssert.Equal(true, twelveLines.ClientSize.Height > tenLines.ClientSize.Height);
         });
     }
 

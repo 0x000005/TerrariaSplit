@@ -6,7 +6,7 @@ internal static class AppSettingsHotkeys
 {
     public static Keys GetPauseResumeKeys(this AppSettings settings)
     {
-        return ParseKey(settings.Hotkeys.PauseResumeKey, Keys.F12);
+        return ParseKey(settings.Hotkeys.PauseResumeKey, Keys.F8);
     }
 
     public static Keys GetResetKeys(this AppSettings settings)
@@ -21,12 +21,12 @@ internal static class AppSettingsHotkeys
 
     public static Keys GetCreateWorldKeys(this AppSettings settings)
     {
-        return ParseKey(settings.Hotkeys.CreateWorldKey, Keys.F7);
+        return ParseKey(settings.Hotkeys.CreateWorldKey, Keys.None);
     }
 
     public static Keys GetPracticeWorldKeys(this AppSettings settings)
     {
-        return ParseKey(settings.Hotkeys.PracticeWorldKey, Keys.F8);
+        return ParseKey(settings.Hotkeys.PracticeWorldKey, Keys.None);
     }
 
     private static Keys ParseKey(string? value, Keys fallback)

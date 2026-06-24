@@ -178,7 +178,7 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
         AddDelaySection(parent);
     }
 
-    private Control CreateBackupNoticeRow(Color warningColor)
+    private Control CreateFolderNoticeRow(string text, string buttonText, EventHandler openFolder, Color warningColor)
     {
         var row = new TableLayoutPanel
         {
@@ -188,27 +188,31 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
             ColumnCount = 2,
             Dock = DockStyle.Top,
             Margin = new Padding(0, 8, 0, 8),
-            Padding = Padding.Empty
+            Padding = Padding.Empty,
+            RowCount = 1
         };
         UiTheme.EnableDoubleBuffering(row);
         row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
         row.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        row.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
         Label label = Factory.CreateWrappedFieldLabel(
-            "The most recent 50 deletions are kept in the backup folder.",
+            text,
             warningColor);
         label.Dock = DockStyle.Fill;
         label.Margin = new Padding(0, 0, 12, 0);
+        label.MinimumSize = new Size(0, 36);
         label.TextAlign = ContentAlignment.MiddleLeft;
 
-        Button openButton = Factory.CreateSmallButton("Open folder");
+        Button openButton = Factory.CreateSmallButton(buttonText);
         openButton.Width = 252;
         openButton.MinimumSize = new Size(252, 36);
         openButton.Margin = Padding.Empty;
-        openButton.Click += (_, _) => Dialogs.OpenAutoCreateBackupFolder(Context.Localize);
+        openButton.Click += openFolder;
 
         row.Controls.Add(label, 0, 0);
         row.Controls.Add(openButton, 1, 0);
+        row.Layout += (_, _) => SettingsUiFactory.UpdateWrappedLabelHeight(label);
         return row;
     }
 
@@ -223,10 +227,23 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
                 UiTheme.Text));
         SettingsUiFactory.AddSectionControl(
             createSection,
-            Factory.CreateWrappedFieldLabel(
-                "Create World deletes all non-favorite players and worlds.",
+            CreateFolderNoticeRow(
+                "Create World deletes files in the save folders except favorite players and worlds.",
+                "Open save folder",
+                (_, _) => Dialogs.OpenTerrariaSaveFolder(Context.Localize),
                 warningColor));
-        SettingsUiFactory.AddSectionControl(createSection, CreateBackupNoticeRow(warningColor));
+        SettingsUiFactory.AddSectionControl(
+            createSection,
+            CreateFolderNoticeRow(
+                "The most recent 50 deletions are kept in the backup folder.",
+                "Open backup folder",
+                (_, _) => Dialogs.OpenAutoCreateBackupFolder(Context.Localize),
+                warningColor));
+        SettingsUiFactory.AddSectionControl(
+            createSection,
+            Factory.CreateWrappedFieldLabel(
+                "If clicks are too fast for your computer to respond, adjust the delay settings at the bottom of this page.",
+                UiTheme.Text));
 
         SettingsUiFactory.AddSectionControl(createSection, Factory.CreateSubsectionLabel("Player options"));
         TableLayoutPanel createGrid = Factory.CreateGrid(
