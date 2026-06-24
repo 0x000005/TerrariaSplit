@@ -40,12 +40,11 @@ internal sealed class AutomationShell : IDisposable
         try
         {
             AutomationResult result = await worldAutomation.StartCreateWorldAsync(settingsSnapshots.CreateSnapshot(getSettings()));
-            ShowAutomationFailure("Create world failed", result);
+            LogAutomationFailure(result);
         }
         catch (Exception ex)
         {
             logger.Error(ex, "Unhandled create world automation error.");
-            ShowFailure("Create world failed", "Create world automation failed.");
         }
     }
 
@@ -118,6 +117,14 @@ internal sealed class AutomationShell : IDisposable
 
     private void ShowAutomationFailure(string title, AutomationResult result)
     {
+        if (LogAutomationFailure(result))
+        {
+            ShowFailure(title, result.UserMessage);
+        }
+    }
+
+    private bool LogAutomationFailure(AutomationResult result)
+    {
         if (result.Succeeded || result.Cancelled)
         {
             if (!string.IsNullOrWhiteSpace(result.DiagnosticMessage))
@@ -125,7 +132,7 @@ internal sealed class AutomationShell : IDisposable
                 logger.Info(result.DiagnosticMessage);
             }
 
-            return;
+            return false;
         }
 
         if (result.Exception is not null)
@@ -137,7 +144,7 @@ internal sealed class AutomationShell : IDisposable
             logger.Info(result.DiagnosticMessage);
         }
 
-        ShowFailure(title, result.UserMessage);
+        return true;
     }
 
     private void ShowFailure(string title, string message)

@@ -3,6 +3,7 @@ namespace TerrariaSplit.Terraria.Memory;
 internal sealed record TerrariaItemMemoryLayout(
     IntPtr PlayerArrayStaticFieldAddress,
     IntPtr MyPlayerStaticFieldAddress,
+    IntPtr MouseItemStaticFieldAddress,
     int PlayerArmorFieldOffset,
     int PlayerDyeFieldOffset,
     int PlayerMiscEquipsFieldOffset,

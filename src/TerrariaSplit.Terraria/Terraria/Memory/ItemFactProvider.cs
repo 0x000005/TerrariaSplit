@@ -3,6 +3,7 @@ namespace TerrariaSplit.Terraria.Memory;
 internal sealed class ItemFactProvider
 {
     private Dictionary<int, int>? lastCounts;
+    private Dictionary<int, int>? lastRawCounts;
     private bool lastReadsAll;
     private int[]? lastItemIds;
     private TerrariaGameFacts? lastFacts;
@@ -26,11 +27,20 @@ internal sealed class ItemFactProvider
         }
 
         Dictionary<int, int> counts = new();
+        HashSet<IntPtr> seenItemAddresses = new();
         bool allContainersRead = true;
         foreach (PlayerItemContainerDescriptor container in CreateContainers(context.ItemLayout))
         {
-            allContainersRead &= ReadContainer(memory, localPlayerAddress, context.ItemLayout, container, counts, readPlan);
+            allContainersRead &= ReadContainer(
+                memory,
+                localPlayerAddress,
+                context.ItemLayout,
+                container,
+                counts,
+                seenItemAddresses,
+                readPlan);
         }
+        ReadMouseItem(memory, context.ItemLayout, counts, seenItemAddresses, readPlan);
 
         if (!allContainersRead)
         {
@@ -38,11 +48,14 @@ internal sealed class ItemFactProvider
         }
 
         int[] selectedItemIds = GetSelectedItemIds(readPlan);
+        bool sameSelection = SelectionEquals(readPlan, selectedItemIds);
+        Dictionary<int, int> publishedCounts = StabilizeCounts(counts, sameSelection);
         if (lastCounts is not null &&
             lastFacts is not null &&
-            SelectionEquals(readPlan, selectedItemIds) &&
-            CountsEqual(lastCounts, counts))
+            sameSelection &&
+            CountsEqual(lastCounts, publishedCounts))
         {
+            lastRawCounts = new Dictionary<int, int>(counts);
             return lastFacts;
         }
 
@@ -52,7 +65,7 @@ internal sealed class ItemFactProvider
             : selectedItemIds;
         foreach (int itemId in itemIds)
         {
-            counts.TryGetValue(itemId, out int count);
+            publishedCounts.TryGetValue(itemId, out int count);
             builder.SetInteger(SplitCatalog.CreateItemFactKey(itemId), count);
             if (!readPlan.ReadsAll)
             {
@@ -61,7 +74,8 @@ internal sealed class ItemFactProvider
         }
 
         TerrariaGameFacts facts = builder.Build();
-        lastCounts = new Dictionary<int, int>(counts);
+        lastCounts = publishedCounts;
+        lastRawCounts = new Dictionary<int, int>(counts);
         lastReadsAll = readPlan.ReadsAll;
         lastItemIds = selectedItemIds;
         lastFacts = facts;
@@ -88,7 +102,7 @@ internal sealed class ItemFactProvider
             new("miscEquips", layout.PlayerMiscEquipsFieldOffset, IsArraySlot: true),
             new("miscDyes", layout.PlayerMiscDyesFieldOffset, IsArraySlot: true),
             new("trashItem", layout.PlayerTrashItemFieldOffset, IsArraySlot: false, IsRequired: false),
-            new("inventory", layout.PlayerInventoryFieldOffset, IsArraySlot: true),
+            new("inventory", layout.PlayerInventoryFieldOffset, IsArraySlot: true, ExcludedArraySlotIndex: 58),
             new("bank", layout.PlayerBankFieldOffset, IsArraySlot: false, IsChest: true, IsRequired: false),
             new("bank2", layout.PlayerBank2FieldOffset, IsArraySlot: false, IsChest: true, IsRequired: false),
             new("bank3", layout.PlayerBank3FieldOffset, IsArraySlot: false, IsChest: true, IsRequired: false),
@@ -102,6 +116,7 @@ internal sealed class ItemFactProvider
         TerrariaItemMemoryLayout layout,
         PlayerItemContainerDescriptor container,
         Dictionary<int, int> counts,
+        HashSet<IntPtr> seenItemAddresses,
         TerrariaFactReadPlan readPlan)
     {
         IntPtr fieldAddress = IntPtr.Add(playerAddress, container.FieldOffset);
@@ -115,16 +130,32 @@ internal sealed class ItemFactProvider
         {
             IntPtr itemArrayFieldAddress = IntPtr.Add(objectAddress, layout.ChestItemArrayFieldOffset);
             read = memory.TryReadPointerValue(itemArrayFieldAddress, out IntPtr chestItemArrayAddress) &&
-                ReadItemArray(memory, layout, chestItemArrayAddress, counts, readPlan);
+                ReadItemArray(memory, layout, chestItemArrayAddress, counts, seenItemAddresses, readPlan);
         }
         else
         {
             read = container.IsArraySlot
-                ? ReadItemArray(memory, layout, objectAddress, counts, readPlan)
-                : ReadItemObject(memory, layout, objectAddress, counts, readPlan);
+                ? ReadItemArray(memory, layout, objectAddress, counts, seenItemAddresses, readPlan, container.ExcludedArraySlotIndex)
+                : ReadItemObject(memory, layout, objectAddress, counts, seenItemAddresses, readPlan);
         }
 
         return read || !container.IsRequired;
+    }
+
+    private static void ReadMouseItem(
+        IProcessMemoryReader memory,
+        TerrariaItemMemoryLayout layout,
+        Dictionary<int, int> counts,
+        HashSet<IntPtr> seenItemAddresses,
+        TerrariaFactReadPlan readPlan)
+    {
+        if (layout.MouseItemStaticFieldAddress == IntPtr.Zero ||
+            !memory.TryReadPointerValue(layout.MouseItemStaticFieldAddress, out IntPtr mouseItemAddress))
+        {
+            return;
+        }
+
+        _ = ReadItemObject(memory, layout, mouseItemAddress, counts, seenItemAddresses, readPlan);
     }
 
     private static bool ReadItemArray(
@@ -132,7 +163,9 @@ internal sealed class ItemFactProvider
         TerrariaItemMemoryLayout layout,
         IntPtr arrayAddress,
         Dictionary<int, int> counts,
-        TerrariaFactReadPlan readPlan)
+        HashSet<IntPtr> seenItemAddresses,
+        TerrariaFactReadPlan readPlan,
+        int? excludedSlotIndex = null)
     {
         if (arrayAddress == IntPtr.Zero ||
             !memory.TryReadInt32(IntPtr.Add(arrayAddress, layout.ManagedArrayLengthOffset), out int length) ||
@@ -150,11 +183,16 @@ internal sealed class ItemFactProvider
         bool anyRead = false;
         for (int i = 0; i < length; i++)
         {
+            if (excludedSlotIndex == i)
+            {
+                continue;
+            }
+
             IntPtr elementAddress = IntPtr.Add(
                 arrayAddress,
                 layout.ManagedArrayFirstElementOffset + i * layout.ObjectReferenceSize);
             if (memory.TryReadPointerValue(elementAddress, out IntPtr itemAddress) &&
-                ReadItemObject(memory, layout, itemAddress, counts, readPlan))
+                ReadItemObject(memory, layout, itemAddress, counts, seenItemAddresses, readPlan))
             {
                 anyRead = true;
             }
@@ -168,13 +206,23 @@ internal sealed class ItemFactProvider
         TerrariaItemMemoryLayout layout,
         IntPtr itemAddress,
         Dictionary<int, int> counts,
+        HashSet<IntPtr> seenItemAddresses,
         TerrariaFactReadPlan readPlan)
     {
-        if (itemAddress == IntPtr.Zero ||
-            !memory.TryReadInt32(IntPtr.Add(itemAddress, layout.ItemTypeFieldOffset), out int itemType) ||
+        if (itemAddress == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        if (!memory.TryReadInt32(IntPtr.Add(itemAddress, layout.ItemTypeFieldOffset), out int itemType) ||
             !memory.TryReadInt32(IntPtr.Add(itemAddress, layout.ItemStackFieldOffset), out int stack))
         {
             return false;
+        }
+
+        if (!seenItemAddresses.Add(itemAddress))
+        {
+            return true;
         }
 
         if (itemType <= 0 ||
@@ -188,6 +236,38 @@ internal sealed class ItemFactProvider
         counts.TryGetValue(itemType, out int existing);
         counts[itemType] = existing + stack;
         return true;
+    }
+
+    private Dictionary<int, int> StabilizeCounts(IReadOnlyDictionary<int, int> rawCounts, bool sameSelection)
+    {
+        if (!sameSelection || lastCounts is null || lastRawCounts is null)
+        {
+            return new Dictionary<int, int>(rawCounts);
+        }
+
+        Dictionary<int, int> publishedCounts = new();
+        HashSet<int> itemIds = new(rawCounts.Keys);
+        itemIds.UnionWith(lastCounts.Keys);
+
+        foreach (int itemId in itemIds)
+        {
+            rawCounts.TryGetValue(itemId, out int rawCount);
+            lastCounts.TryGetValue(itemId, out int lastPublishedCount);
+            lastRawCounts.TryGetValue(itemId, out int lastRawCount);
+
+            int publishedCount = rawCount;
+            if (rawCount > lastPublishedCount && rawCount != lastRawCount)
+            {
+                publishedCount = lastPublishedCount;
+            }
+
+            if (publishedCount > 0)
+            {
+                publishedCounts[itemId] = publishedCount;
+            }
+        }
+
+        return publishedCounts;
     }
 
     private bool SelectionEquals(TerrariaFactReadPlan readPlan, IReadOnlyList<int> selectedItemIds)
@@ -233,5 +313,6 @@ internal sealed class ItemFactProvider
         int FieldOffset,
         bool IsArraySlot,
         bool IsChest = false,
-        bool IsRequired = true);
+        bool IsRequired = true,
+        int? ExcludedArraySlotIndex = null);
 }

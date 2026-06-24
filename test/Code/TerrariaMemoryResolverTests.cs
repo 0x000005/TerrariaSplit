@@ -12,6 +12,11 @@ internal static class TerrariaMemoryResolverTests
         yield return ("TerrariaMemoryResolver emits boss facts from progression fallback", EmitsBossFactsFromProgressionFallback);
         yield return ("ItemFactProvider returns unknown without item layout", ItemFactProviderReturnsUnknownWithoutItemLayout);
         yield return ("ItemFactProvider aggregates inventory and bank stacks", ItemFactProviderAggregatesInventoryAndBankStacks);
+        yield return ("ItemFactProvider counts mouse item once", ItemFactProviderCountsMouseItemOnce);
+        yield return ("ItemFactProvider skips stale inventory cursor clone", ItemFactProviderSkipsStaleInventoryCursorClone);
+        yield return ("ItemFactProvider deduplicates shared item references", ItemFactProviderDeduplicatesSharedItemReferences);
+        yield return ("ItemFactProvider suppresses unconfirmed count increase", ItemFactProviderSuppressesUnconfirmedCountIncrease);
+        yield return ("ItemFactProvider confirms stable count increase", ItemFactProviderConfirmsStableCountIncrease);
         yield return ("ItemFactProvider filters observed item facts", ItemFactProviderFiltersObservedItemFacts);
         yield return ("ItemFactProvider skips reads without observed item facts", ItemFactProviderSkipsReadsWithoutObservedItemFacts);
         yield return ("ItemFactProvider keeps inventory counts when optional banks are unavailable", ItemFactProviderKeepsInventoryCountsWhenOptionalBanksAreUnavailable);
@@ -180,6 +185,185 @@ internal static class TerrariaMemoryResolverTests
         TestAssert.Equal(7, facts.Get(SplitCatalog.CreateItemFactKey(50)).AsInteger());
         TestAssert.Equal(1, facts.Get(SplitCatalog.CreateItemFactKey(51)).AsInteger());
         TestAssert.Equal(0, facts.Get(SplitCatalog.CreateItemFactKey(52)).AsInteger());
+    }
+
+    private static void ItemFactProviderCountsMouseItemOnce()
+    {
+        var provider = new ItemFactProvider();
+        var memory = new FakeProcessMemoryReader(is64Bit: false);
+        TerrariaItemMemoryLayout layout = CreateTestItemLayout();
+        IntPtr player = new(0x1000);
+        IntPtr inventory = new(0x2000);
+        IntPtr inventoryStack = new(0x5000);
+        IntPtr cursorClone = new(0x5100);
+        IntPtr mouseItem = new(0x5200);
+
+        WriteEmptyItemArray(memory, layout, player, layout.PlayerArmorFieldOffset, new IntPtr(0x2100));
+        WriteEmptyItemArray(memory, layout, player, layout.PlayerDyeFieldOffset, new IntPtr(0x2200));
+        WriteEmptyItemArray(memory, layout, player, layout.PlayerMiscEquipsFieldOffset, new IntPtr(0x2300));
+        WriteEmptyItemArray(memory, layout, player, layout.PlayerMiscDyesFieldOffset, new IntPtr(0x2400));
+        memory.WritePointerValue(IntPtr.Add(player, layout.PlayerInventoryFieldOffset), inventory);
+        memory.WriteInt32(IntPtr.Add(inventory, layout.ManagedArrayLengthOffset), 59);
+        memory.WritePointerValue(IntPtr.Add(inventory, layout.ManagedArrayFirstElementOffset), inventoryStack);
+        memory.WritePointerValue(
+            IntPtr.Add(inventory, layout.ManagedArrayFirstElementOffset + 58 * layout.ObjectReferenceSize),
+            cursorClone);
+        memory.WritePointerValue(layout.MouseItemStaticFieldAddress, mouseItem);
+        WriteItem(memory, layout, inventoryStack, itemId: 50, stack: 48);
+        WriteItem(memory, layout, cursorClone, itemId: 50, stack: 1);
+        WriteItem(memory, layout, mouseItem, itemId: 50, stack: 1);
+
+        TerrariaFactReadPlan readPlan = TerrariaFactReadPlan.FromObservedFactKeys(
+            [SplitCatalog.CreateItemEverOwnedFactKey(50)]);
+        TerrariaGameFacts facts = provider.Read(
+            memory,
+            new TerrariaMemoryContext(null, IntPtr.Zero, player, layout, null, null, Is64Bit: false),
+            readPlan);
+
+        TestAssert.Equal(49, facts.Get(SplitCatalog.CreateItemFactKey(50)).AsInteger());
+        TestAssert.Equal(49, facts.Get(SplitCatalog.CreateItemEverOwnedFactKey(50)).AsInteger());
+    }
+
+    private static void ItemFactProviderSkipsStaleInventoryCursorClone()
+    {
+        var provider = new ItemFactProvider();
+        var memory = new FakeProcessMemoryReader(is64Bit: false);
+        TerrariaItemMemoryLayout layout = CreateTestItemLayout();
+        IntPtr player = new(0x1000);
+        IntPtr inventory = new(0x2000);
+        IntPtr inventoryStack = new(0x5000);
+        IntPtr cursorClone = new(0x5100);
+        IntPtr emptyMouseItem = new(0x5200);
+
+        WriteEmptyItemArray(memory, layout, player, layout.PlayerArmorFieldOffset, new IntPtr(0x2100));
+        WriteEmptyItemArray(memory, layout, player, layout.PlayerDyeFieldOffset, new IntPtr(0x2200));
+        WriteEmptyItemArray(memory, layout, player, layout.PlayerMiscEquipsFieldOffset, new IntPtr(0x2300));
+        WriteEmptyItemArray(memory, layout, player, layout.PlayerMiscDyesFieldOffset, new IntPtr(0x2400));
+        memory.WritePointerValue(IntPtr.Add(player, layout.PlayerInventoryFieldOffset), inventory);
+        memory.WriteInt32(IntPtr.Add(inventory, layout.ManagedArrayLengthOffset), 59);
+        memory.WritePointerValue(IntPtr.Add(inventory, layout.ManagedArrayFirstElementOffset), inventoryStack);
+        memory.WritePointerValue(
+            IntPtr.Add(inventory, layout.ManagedArrayFirstElementOffset + 58 * layout.ObjectReferenceSize),
+            cursorClone);
+        memory.WritePointerValue(layout.MouseItemStaticFieldAddress, emptyMouseItem);
+        WriteItem(memory, layout, inventoryStack, itemId: 50, stack: 49);
+        WriteItem(memory, layout, cursorClone, itemId: 50, stack: 1);
+        WriteItem(memory, layout, emptyMouseItem, itemId: 0, stack: 0);
+
+        TerrariaFactReadPlan readPlan = TerrariaFactReadPlan.FromObservedFactKeys(
+            [SplitCatalog.CreateItemEverOwnedFactKey(50)]);
+        TerrariaGameFacts facts = provider.Read(
+            memory,
+            new TerrariaMemoryContext(null, IntPtr.Zero, player, layout, null, null, Is64Bit: false),
+            readPlan);
+
+        TestAssert.Equal(49, facts.Get(SplitCatalog.CreateItemFactKey(50)).AsInteger());
+        TestAssert.Equal(49, facts.Get(SplitCatalog.CreateItemEverOwnedFactKey(50)).AsInteger());
+    }
+
+    private static void ItemFactProviderDeduplicatesSharedItemReferences()
+    {
+        var provider = new ItemFactProvider();
+        var memory = new FakeProcessMemoryReader(is64Bit: false);
+        TerrariaItemMemoryLayout layout = CreateTestItemLayout();
+        IntPtr player = new(0x1000);
+        IntPtr inventory = new(0x2000);
+        IntPtr sharedStack = new(0x5000);
+
+        WriteEmptyItemArray(memory, layout, player, layout.PlayerArmorFieldOffset, new IntPtr(0x2100));
+        WriteEmptyItemArray(memory, layout, player, layout.PlayerDyeFieldOffset, new IntPtr(0x2200));
+        WriteEmptyItemArray(memory, layout, player, layout.PlayerMiscEquipsFieldOffset, new IntPtr(0x2300));
+        WriteEmptyItemArray(memory, layout, player, layout.PlayerMiscDyesFieldOffset, new IntPtr(0x2400));
+        memory.WritePointerValue(IntPtr.Add(player, layout.PlayerInventoryFieldOffset), inventory);
+        memory.WriteInt32(IntPtr.Add(inventory, layout.ManagedArrayLengthOffset), 2);
+        memory.WritePointerValue(IntPtr.Add(inventory, layout.ManagedArrayFirstElementOffset), sharedStack);
+        memory.WritePointerValue(
+            IntPtr.Add(inventory, layout.ManagedArrayFirstElementOffset + layout.ObjectReferenceSize),
+            sharedStack);
+        WriteItem(memory, layout, sharedStack, itemId: 50, stack: 1);
+
+        TerrariaFactReadPlan readPlan = TerrariaFactReadPlan.FromObservedFactKeys(
+            [SplitCatalog.CreateItemEverOwnedFactKey(50)]);
+        TerrariaGameFacts facts = provider.Read(
+            memory,
+            new TerrariaMemoryContext(null, IntPtr.Zero, player, layout, null, null, Is64Bit: false),
+            readPlan);
+
+        TestAssert.Equal(1, facts.Get(SplitCatalog.CreateItemFactKey(50)).AsInteger());
+        TestAssert.Equal(1, facts.Get(SplitCatalog.CreateItemEverOwnedFactKey(50)).AsInteger());
+    }
+
+    private static void ItemFactProviderSuppressesUnconfirmedCountIncrease()
+    {
+        var provider = new ItemFactProvider();
+        var memory = new FakeProcessMemoryReader(is64Bit: false);
+        TerrariaItemMemoryLayout layout = CreateTestItemLayout();
+        IntPtr player = new(0x1000);
+        IntPtr inventoryStack = new(0x5000);
+        IntPtr mouseItem = new(0x5100);
+        TerrariaFactReadPlan readPlan = TerrariaFactReadPlan.FromObservedFactKeys(
+            [SplitCatalog.CreateItemEverOwnedFactKey(50)]);
+
+        WriteBasicInventory(memory, layout, player, inventoryStack, mouseItem);
+        WriteItem(memory, layout, inventoryStack, itemId: 50, stack: 48);
+        WriteItem(memory, layout, mouseItem, itemId: 0, stack: 0);
+
+        TerrariaGameFacts initialFacts = provider.Read(
+            memory,
+            new TerrariaMemoryContext(null, IntPtr.Zero, player, layout, null, null, Is64Bit: false),
+            readPlan);
+
+        WriteItem(memory, layout, inventoryStack, itemId: 50, stack: 48);
+        WriteItem(memory, layout, mouseItem, itemId: 50, stack: 2);
+        TerrariaGameFacts transientFacts = provider.Read(
+            memory,
+            new TerrariaMemoryContext(null, IntPtr.Zero, player, layout, null, null, Is64Bit: false),
+            readPlan);
+
+        WriteItem(memory, layout, inventoryStack, itemId: 50, stack: 48);
+        WriteItem(memory, layout, mouseItem, itemId: 0, stack: 0);
+        TerrariaGameFacts settledFacts = provider.Read(
+            memory,
+            new TerrariaMemoryContext(null, IntPtr.Zero, player, layout, null, null, Is64Bit: false),
+            readPlan);
+
+        TestAssert.Equal(48, initialFacts.Get(SplitCatalog.CreateItemEverOwnedFactKey(50)).AsInteger());
+        TestAssert.Equal(48, transientFacts.Get(SplitCatalog.CreateItemEverOwnedFactKey(50)).AsInteger());
+        TestAssert.Equal(48, settledFacts.Get(SplitCatalog.CreateItemEverOwnedFactKey(50)).AsInteger());
+    }
+
+    private static void ItemFactProviderConfirmsStableCountIncrease()
+    {
+        var provider = new ItemFactProvider();
+        var memory = new FakeProcessMemoryReader(is64Bit: false);
+        TerrariaItemMemoryLayout layout = CreateTestItemLayout();
+        IntPtr player = new(0x1000);
+        IntPtr inventoryStack = new(0x5000);
+        IntPtr mouseItem = new(0x5100);
+        TerrariaFactReadPlan readPlan = TerrariaFactReadPlan.FromObservedFactKeys(
+            [SplitCatalog.CreateItemEverOwnedFactKey(50)]);
+
+        WriteBasicInventory(memory, layout, player, inventoryStack, mouseItem);
+        WriteItem(memory, layout, inventoryStack, itemId: 50, stack: 48);
+        WriteItem(memory, layout, mouseItem, itemId: 0, stack: 0);
+        _ = provider.Read(
+            memory,
+            new TerrariaMemoryContext(null, IntPtr.Zero, player, layout, null, null, Is64Bit: false),
+            readPlan);
+
+        WriteItem(memory, layout, inventoryStack, itemId: 50, stack: 48);
+        WriteItem(memory, layout, mouseItem, itemId: 50, stack: 2);
+        TerrariaGameFacts firstIncreasedFacts = provider.Read(
+            memory,
+            new TerrariaMemoryContext(null, IntPtr.Zero, player, layout, null, null, Is64Bit: false),
+            readPlan);
+        TerrariaGameFacts confirmedFacts = provider.Read(
+            memory,
+            new TerrariaMemoryContext(null, IntPtr.Zero, player, layout, null, null, Is64Bit: false),
+            readPlan);
+
+        TestAssert.Equal(48, firstIncreasedFacts.Get(SplitCatalog.CreateItemEverOwnedFactKey(50)).AsInteger());
+        TestAssert.Equal(50, confirmedFacts.Get(SplitCatalog.CreateItemEverOwnedFactKey(50)).AsInteger());
     }
 
     private static void ItemFactProviderFiltersObservedItemFacts()
@@ -546,6 +730,7 @@ internal static class TerrariaMemoryResolverTests
         return new TerrariaItemMemoryLayout(
             PlayerArrayStaticFieldAddress: new IntPtr(0x9000),
             MyPlayerStaticFieldAddress: new IntPtr(0x9010),
+            MouseItemStaticFieldAddress: new IntPtr(0x9018),
             PlayerArmorFieldOffset: 0x10,
             PlayerDyeFieldOffset: 0x14,
             PlayerMiscEquipsFieldOffset: 0x18,
@@ -636,6 +821,24 @@ internal static class TerrariaMemoryResolverTests
     {
         memory.WritePointerValue(IntPtr.Add(playerAddress, fieldOffset), itemAddress);
         WriteItem(memory, layout, itemAddress, itemId: 0, stack: 0);
+    }
+
+    private static void WriteBasicInventory(
+        FakeProcessMemoryReader memory,
+        TerrariaItemMemoryLayout layout,
+        IntPtr playerAddress,
+        IntPtr firstInventoryItemAddress,
+        IntPtr mouseItemAddress)
+    {
+        IntPtr inventory = new(0x2000);
+        WriteEmptyItemArray(memory, layout, playerAddress, layout.PlayerArmorFieldOffset, new IntPtr(0x2100));
+        WriteEmptyItemArray(memory, layout, playerAddress, layout.PlayerDyeFieldOffset, new IntPtr(0x2200));
+        WriteEmptyItemArray(memory, layout, playerAddress, layout.PlayerMiscEquipsFieldOffset, new IntPtr(0x2300));
+        WriteEmptyItemArray(memory, layout, playerAddress, layout.PlayerMiscDyesFieldOffset, new IntPtr(0x2400));
+        memory.WritePointerValue(IntPtr.Add(playerAddress, layout.PlayerInventoryFieldOffset), inventory);
+        memory.WriteInt32(IntPtr.Add(inventory, layout.ManagedArrayLengthOffset), 59);
+        memory.WritePointerValue(IntPtr.Add(inventory, layout.ManagedArrayFirstElementOffset), firstInventoryItemAddress);
+        memory.WritePointerValue(layout.MouseItemStaticFieldAddress, mouseItemAddress);
     }
 
     private static void WriteEmptyBank(

@@ -209,20 +209,26 @@ internal sealed class TerrariaClrMemoryResolver
 
             ClrStaticField? playerStatic = mainType.GetStaticFieldByName("player");
             ClrStaticField? myPlayerStatic = mainType.GetStaticFieldByName("myPlayer");
+            ClrStaticField? mouseItemStatic = mainType.GetStaticFieldByName("mouseItem");
             ClrStaticField? npcStatic = mainType.GetStaticFieldByName("npc");
             ClrAppDomain? domain = runtime.AppDomains.FirstOrDefault(appDomain =>
                 playerStatic?.IsInitialized(appDomain) == true &&
                 myPlayerStatic?.IsInitialized(appDomain) == true &&
+                mouseItemStatic?.IsInitialized(appDomain) == true &&
                 npcStatic?.IsInitialized(appDomain) == true);
-            if (playerStatic is null || myPlayerStatic is null || npcStatic is null || domain is null)
+            if (playerStatic is null || myPlayerStatic is null || mouseItemStatic is null || npcStatic is null || domain is null)
             {
                 return false;
             }
 
             ulong playerStaticAddress = playerStatic.GetAddress(domain);
             ulong myPlayerStaticAddress = myPlayerStatic.GetAddress(domain);
+            ulong mouseItemStaticAddress = mouseItemStatic.GetAddress(domain);
             ulong npcStaticAddress = npcStatic.GetAddress(domain);
-            if (playerStaticAddress == 0 || myPlayerStaticAddress == 0 || npcStaticAddress == 0)
+            if (playerStaticAddress == 0 ||
+                myPlayerStaticAddress == 0 ||
+                mouseItemStaticAddress == 0 ||
+                npcStaticAddress == 0)
             {
                 return false;
             }
@@ -297,6 +303,7 @@ internal sealed class TerrariaClrMemoryResolver
                 itemLayout = new TerrariaItemMemoryLayout(
                     ToIntPtr(playerStaticAddress),
                     ToIntPtr(myPlayerStaticAddress),
+                    ToIntPtr(mouseItemStaticAddress),
                     GetRequiredFieldOffset(playerType, "armor", localPlayer.Address),
                     GetRequiredFieldOffset(playerType, "dye", localPlayer.Address),
                     GetRequiredFieldOffset(playerType, "miscEquips", localPlayer.Address),
@@ -684,6 +691,7 @@ internal sealed class TerrariaClrMemoryResolver
     private sealed record ItemLayoutProbeDto(
         long PlayerArrayStaticFieldAddress,
         long MyPlayerStaticFieldAddress,
+        long MouseItemStaticFieldAddress,
         int PlayerArmorFieldOffset,
         int PlayerDyeFieldOffset,
         int PlayerMiscEquipsFieldOffset,
@@ -714,6 +722,7 @@ internal sealed class TerrariaClrMemoryResolver
             return new TerrariaItemMemoryLayout(
                 new IntPtr(PlayerArrayStaticFieldAddress),
                 new IntPtr(MyPlayerStaticFieldAddress),
+                new IntPtr(MouseItemStaticFieldAddress),
                 PlayerArmorFieldOffset,
                 PlayerDyeFieldOffset,
                 PlayerMiscEquipsFieldOffset,
