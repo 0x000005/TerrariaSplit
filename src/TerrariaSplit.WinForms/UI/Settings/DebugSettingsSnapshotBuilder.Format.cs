@@ -111,7 +111,8 @@ internal static partial class DebugSettingsSnapshotBuilder
         if (!debugSnapshot.WatchSnapshot.IsAttached || !debugSnapshot.WatchSnapshot.IsReady)
         {
             return FormatConfiguredHzWaitingSummary(
-                RefreshRateSettings.NormalizeReadyWatcherPollHz(advanced.ReadyWatcherPollHz),
+                RefreshRateSettings.NormalizeReadyWatcherPollHz(
+                    advanced.ReadyWatcherPollHz),
                 "Waiting for attached memory",
                 localize);
         }
@@ -132,7 +133,8 @@ internal static partial class DebugSettingsSnapshotBuilder
         if (!debugSnapshot.WatchSnapshot.IsAttached || !debugSnapshot.WatchSnapshot.IsReady)
         {
             return FormatConfiguredHzWaitingSummary(
-                RefreshRateSettings.NormalizeReadyUiControlHz(advanced.ReadyUiControlHz),
+                RefreshRateSettings.NormalizeReadyUiControlHz(
+                    advanced.ReadyUiControlHz),
                 "Waiting for attached memory",
                 localize);
         }

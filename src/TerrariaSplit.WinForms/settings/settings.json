@@ -1179,10 +1179,10 @@
   },
   "Advanced": {
     "EnableTerrariaUiScalePatch": false,
-    "ReadyWatcherPollHz": 240,
-    "ReadyUiControlHz": 120,
-    "RunningStatusPaintHz": 120,
-    "TimerOverlayRefreshHz": 120
+    "ReadyWatcherPollHz": 200,
+    "ReadyUiControlHz": 100,
+    "RunningStatusPaintHz": 100,
+    "TimerOverlayRefreshHz": 100
   },
   "EnableDefeatedBossIconLighting": true,
   "UndefeatedIconGrayscalePercent": 80,

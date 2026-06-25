@@ -57,12 +57,12 @@ internal sealed class AdvancedSettingsPage : SettingsPageBase
                 Draft.Advanced?.ReadyUiControlHz ?? AppSettingsDefaults.Advanced.ReadyUiControlHz));
         ConfigureFrequencyBox(
             runningStatusPaintHzBox,
-            RefreshRateSettings.StandardRefreshHzOptions,
+            RefreshRateSettings.PaintRefreshHzOptions,
             RefreshRateSettings.NormalizeRunningStatusPaintHz(
                 Draft.Advanced?.RunningStatusPaintHz ?? AppSettingsDefaults.Advanced.RunningStatusPaintHz));
         ConfigureFrequencyBox(
             timerOverlayRefreshHzBox,
-            RefreshRateSettings.StandardRefreshHzOptions,
+            RefreshRateSettings.PaintRefreshHzOptions,
             RefreshRateSettings.NormalizeTimerOverlayRefreshHz(
                 Draft.Advanced?.TimerOverlayRefreshHz ?? AppSettingsDefaults.Advanced.TimerOverlayRefreshHz));
 
@@ -106,6 +106,12 @@ internal sealed class AdvancedSettingsPage : SettingsPageBase
 
     private static void ConfigureFrequencyBox(ThemedDropDownList comboBox, IReadOnlyList<int> options, int selected)
     {
+        FillFrequencyBox(comboBox, options, selected);
+        comboBox.Dock = DockStyle.Fill;
+    }
+
+    private static void FillFrequencyBox(ThemedDropDownList comboBox, IReadOnlyList<int> options, int selected)
+    {
         comboBox.Items.Clear();
         foreach (int hz in options)
         {
@@ -119,8 +125,6 @@ internal sealed class AdvancedSettingsPage : SettingsPageBase
         {
             comboBox.SelectedIndex = 0;
         }
-
-        comboBox.Dock = DockStyle.Fill;
     }
 
     private static int GetSelectedFrequency(ThemedDropDownList comboBox, int fallback)

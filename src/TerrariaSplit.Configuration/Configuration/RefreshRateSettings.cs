@@ -2,17 +2,18 @@ namespace TerrariaSplit.Configuration;
 
 public static class RefreshRateSettings
 {
-    public static readonly int[] ReadyWatcherPollHzOptions = [120, 240, 480, 960];
-    public static readonly int[] StandardRefreshHzOptions = [60, 90, 120, 180, 240];
+    public static readonly int[] ReadyWatcherPollHzOptions = [100, 200, 400, 800];
+    public static readonly int[] StandardRefreshHzOptions = [50, 100, 200, 300];
+    public static readonly int[] PaintRefreshHzOptions = [50, 100, 200, 300];
 
-    public const int MinReadyWatcherPollHz = 120;
-    public const int MaxReadyWatcherPollHz = 960;
-    public const int MinReadyUiControlHz = 60;
-    public const int MaxReadyUiControlHz = 240;
-    public const int MinRunningStatusPaintHz = 60;
-    public const int MaxRunningStatusPaintHz = 240;
-    public const int MinTimerOverlayRefreshHz = 60;
-    public const int MaxTimerOverlayRefreshHz = 240;
+    public const int MinReadyWatcherPollHz = 100;
+    public const int MaxReadyWatcherPollHz = 800;
+    public const int MinReadyUiControlHz = 50;
+    public const int MaxReadyUiControlHz = 300;
+    public const int MinRunningStatusPaintHz = 50;
+    public const int MaxRunningStatusPaintHz = 300;
+    public const int MinTimerOverlayRefreshHz = 50;
+    public const int MaxTimerOverlayRefreshHz = 300;
 
     public static int NormalizeReadyWatcherPollHz(int value)
     {
@@ -26,12 +27,12 @@ public static class RefreshRateSettings
 
     public static int NormalizeRunningStatusPaintHz(int value)
     {
-        return NormalizeOption(value, StandardRefreshHzOptions);
+        return NormalizeOption(value, PaintRefreshHzOptions);
     }
 
     public static int NormalizeTimerOverlayRefreshHz(int value)
     {
-        return NormalizeOption(value, StandardRefreshHzOptions);
+        return NormalizeOption(value, PaintRefreshHzOptions);
     }
 
     public static TimeSpan ToInterval(int hz)

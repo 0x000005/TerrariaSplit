@@ -16,7 +16,7 @@ obj/
 **/obj/
 publish/
 **/publish/
-
+test/Results
 # Local verification and temporary outputs
 .tmp/
 .check/

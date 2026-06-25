@@ -1910,20 +1910,20 @@ static void TestSettingsNormalizeTimerOverlayRefresh()
     };
 
     SettingsNormalizer.Normalize(settings);
-    AssertEqual(960, settings.Advanced.ReadyWatcherPollHz);
-    AssertEqual(60, settings.Advanced.ReadyUiControlHz);
-    AssertEqual(240, settings.Advanced.RunningStatusPaintHz);
-    AssertEqual(240, settings.Advanced.TimerOverlayRefreshHz);
+    AssertEqual(800, settings.Advanced.ReadyWatcherPollHz);
+    AssertEqual(50, settings.Advanced.ReadyUiControlHz);
+    AssertEqual(300, settings.Advanced.RunningStatusPaintHz);
+    AssertEqual(300, settings.Advanced.TimerOverlayRefreshHz);
 
     settings.Advanced.ReadyWatcherPollHz = 1;
     settings.Advanced.ReadyUiControlHz = 999;
     settings.Advanced.RunningStatusPaintHz = 1;
     settings.Advanced.TimerOverlayRefreshHz = 1;
     SettingsNormalizer.Normalize(settings);
-    AssertEqual(120, settings.Advanced.ReadyWatcherPollHz);
-    AssertEqual(240, settings.Advanced.ReadyUiControlHz);
-    AssertEqual(60, settings.Advanced.RunningStatusPaintHz);
-    AssertEqual(60, settings.Advanced.TimerOverlayRefreshHz);
+    AssertEqual(100, settings.Advanced.ReadyWatcherPollHz);
+    AssertEqual(300, settings.Advanced.ReadyUiControlHz);
+    AssertEqual(50, settings.Advanced.RunningStatusPaintHz);
+    AssertEqual(50, settings.Advanced.TimerOverlayRefreshHz);
 }
 
 static void TestSettingsNormalizePracticeWorlds()
@@ -5194,10 +5194,10 @@ static void TestSettingsFormAppliesTimerOverlayRefreshSettings()
 
         form.ApplyForTests();
 
-        AssertEqual(480, form.Result.Advanced.ReadyWatcherPollHz);
-        AssertEqual(180, form.Result.Advanced.ReadyUiControlHz);
-        AssertEqual(60, form.Result.Advanced.RunningStatusPaintHz);
-        AssertEqual(90, form.Result.Advanced.TimerOverlayRefreshHz);
+        AssertEqual(400, form.Result.Advanced.ReadyWatcherPollHz);
+        AssertEqual(300, form.Result.Advanced.ReadyUiControlHz);
+        AssertEqual(50, form.Result.Advanced.RunningStatusPaintHz);
+        AssertEqual(100, form.Result.Advanced.TimerOverlayRefreshHz);
     });
 }
 
