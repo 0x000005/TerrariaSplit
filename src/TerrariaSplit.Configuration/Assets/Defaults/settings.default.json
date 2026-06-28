@@ -1041,6 +1041,11 @@
   },
   "Advanced": {
     "EnableTerrariaUiScalePatch": false,
+    "EnableRtssOverlay": false,
+    "RtssExecutablePath": "",
+    "RtssOverlayX": 10,
+    "RtssOverlayY": 10,
+    "RtssOverlayZoom": 3,
     "ReadyWatcherPollHz": 200,
     "ReadyUiControlHz": 100,
     "RunningStatusPaintHz": 100,

@@ -31,10 +31,15 @@ internal sealed partial class MainForm : Form
         DefaultControlTickInterval,
         RefreshRateSettings.ToInterval(AppSettingsDefaults.Advanced.RunningStatusPaintHz));
     private readonly OverlayShell overlayShell = new();
+    private readonly RtssOverlayPublisher rtssOverlayPublisher = new();
+    private readonly HighPrecisionScheduler rtssOverlayScheduler;
     private readonly ProgramModalWindowCoordinator modalWindows;
     private readonly MainWindowModalInputRouter mainWindowModalInputRouter;
     private readonly WindowShell windowShell = new();
+    private int rtssOverlayDispatchPending;
     private bool runtimeResourcesDisposed;
+    private RtssOverlayPublishStatus lastRtssOverlayStatus = RtssOverlayPublishStatus.Disabled;
+    private string lastRtssOverlayMessage = string.Empty;
 
     private AppSettings settings => applicationController.Settings;
 
@@ -53,6 +58,7 @@ internal sealed partial class MainForm : Form
     public MainForm(bool registerGlobalHotkeys = true)
     {
         runtimeShell.AttachDispatchActions(DispatchedControlTick, DispatchedStatusPaintTick);
+        rtssOverlayScheduler = new HighPrecisionScheduler("TerrariaSplit RTSS overlay", QueueRtssOverlayTick);
         MainShellServices services = MainShellCompositionRoot.CreateCore(ShowPersonalBestUpdateConfirmation);
         worldPoolStore = services.WorldPoolStore;
         settingsSnapshots = services.SettingsSnapshots;
@@ -207,6 +213,7 @@ internal sealed partial class MainForm : Form
         runtimeShell.Performance.WatcherPollInterval = runtimeShell.MonitorCoordinator.WatcherPollInterval;
         runtimeShell.Performance.ProcessLookupInterval = runtimeShell.MonitorCoordinator.ProcessLookupInterval;
         runtimeShell.MonitorCoordinator.UpdateReadyWatcherPollInterval(ResolveReadyWatcherPollInterval());
+        UpdateRtssOverlaySchedulerState();
     }
 
 }

@@ -87,6 +87,20 @@ public static class SettingsJsonSectionMigrator
         nameof(OverlaySettings.CurrentBossIconBrightnessBoostPercent)
     ];
 
+    private static readonly string[] AdvancedKeys =
+    [
+        nameof(AdvancedSettings.EnableTerrariaUiScalePatch),
+        nameof(AdvancedSettings.EnableRtssOverlay),
+        nameof(AdvancedSettings.RtssExecutablePath),
+        nameof(AdvancedSettings.RtssOverlayX),
+        nameof(AdvancedSettings.RtssOverlayY),
+        nameof(AdvancedSettings.RtssOverlayZoom),
+        nameof(AdvancedSettings.ReadyWatcherPollHz),
+        nameof(AdvancedSettings.ReadyUiControlHz),
+        nameof(AdvancedSettings.RunningStatusPaintHz),
+        nameof(AdvancedSettings.TimerOverlayRefreshHz)
+    ];
+
     public static AppSettings? Deserialize(string json, JsonSerializerOptions options)
     {
         JsonNode? node = JsonNode.Parse(json);
@@ -159,6 +173,7 @@ public static class SettingsJsonSectionMigrator
         MoveKeys(root, nameof(AppSettings.Comparison), ComparisonKeys);
         MoveKeys(root, nameof(AppSettings.Overlay), OverlayKeys);
         MoveKey(root, nameof(AppSettings.Automation), nameof(AutomationSettings.AutoCreate));
+        MoveKeys(root, nameof(AppSettings.Advanced), AdvancedKeys);
     }
 
     private static void MigrateVisibleGroupCountLimit(JsonObject root)

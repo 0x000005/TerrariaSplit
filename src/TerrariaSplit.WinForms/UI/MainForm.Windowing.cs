@@ -159,7 +159,9 @@ internal sealed partial class MainForm : Form
 
         runtimeResourcesDisposed = true;
         hotkeyShell.Dispose();
+        rtssOverlayScheduler.Dispose();
         runtimeShell.Dispose();
+        rtssOverlayPublisher.Dispose();
         worldPoolFillService.Dispose();
         automationShell.Dispose();
         settingsShell.Dispose();

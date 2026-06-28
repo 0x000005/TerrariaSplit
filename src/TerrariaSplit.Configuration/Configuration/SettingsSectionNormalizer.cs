@@ -50,6 +50,10 @@ public static class SettingsSectionNormalizer
 
     public static void NormalizeAdvanced(AdvancedSettings advanced)
     {
+        advanced.RtssExecutablePath = advanced.RtssExecutablePath?.Trim() ?? string.Empty;
+        advanced.RtssOverlayX = Math.Clamp(advanced.RtssOverlayX, -10000, 10000);
+        advanced.RtssOverlayY = Math.Clamp(advanced.RtssOverlayY, -10000, 10000);
+        advanced.RtssOverlayZoom = Math.Clamp(advanced.RtssOverlayZoom, 1, 8);
         advanced.ReadyWatcherPollHz = RefreshRateSettings.NormalizeReadyWatcherPollHz(advanced.ReadyWatcherPollHz);
         advanced.ReadyUiControlHz = RefreshRateSettings.NormalizeReadyUiControlHz(advanced.ReadyUiControlHz);
         advanced.RunningStatusPaintHz = RefreshRateSettings.NormalizeRunningStatusPaintHz(advanced.RunningStatusPaintHz);

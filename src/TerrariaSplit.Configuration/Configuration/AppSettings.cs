@@ -204,6 +204,11 @@ public sealed class AutomationSettings
 public sealed class AdvancedSettings
 {
     public bool EnableTerrariaUiScalePatch { get; set; }
+    public bool EnableRtssOverlay { get; set; }
+    public string RtssExecutablePath { get; set; } = string.Empty;
+    public int RtssOverlayX { get; set; } = 10;
+    public int RtssOverlayY { get; set; } = 10;
+    public int RtssOverlayZoom { get; set; } = 1;
     public int ReadyWatcherPollHz { get; set; }
     public int ReadyUiControlHz { get; set; }
     public int RunningStatusPaintHz { get; set; }

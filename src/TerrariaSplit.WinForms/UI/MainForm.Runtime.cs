@@ -92,6 +92,32 @@ internal sealed partial class MainForm : Form
         }
     }
 
+    private void QueueRtssOverlayTick(HighPrecisionSchedulerTick tick)
+    {
+        if (!CanDispatchToUiThread())
+        {
+            return;
+        }
+
+        if (System.Threading.Interlocked.Exchange(ref rtssOverlayDispatchPending, 1) != 0)
+        {
+            return;
+        }
+
+        try
+        {
+            BeginInvoke(new Action(DispatchedRtssOverlayTick));
+        }
+        catch (ObjectDisposedException)
+        {
+            System.Threading.Interlocked.Exchange(ref rtssOverlayDispatchPending, 0);
+        }
+        catch (InvalidOperationException)
+        {
+            System.Threading.Interlocked.Exchange(ref rtssOverlayDispatchPending, 0);
+        }
+    }
+
     private void DispatchedStatusPaintTick()
     {
         try
@@ -112,6 +138,21 @@ internal sealed partial class MainForm : Form
         }
     }
 
+    private void DispatchedRtssOverlayTick()
+    {
+        try
+        {
+            if (CanDispatchToUiThread())
+            {
+                PublishRtssOverlay();
+            }
+        }
+        finally
+        {
+            System.Threading.Interlocked.Exchange(ref rtssOverlayDispatchPending, 0);
+        }
+    }
+
     private bool CanDispatchToUiThread()
     {
         return !windowShell.IsClosing && IsHandleCreated && !IsDisposed && !Disposing;
@@ -121,6 +162,11 @@ internal sealed partial class MainForm : Form
     {
         runtimeShell.MonitorCoordinator.UpdateRunPhase(timerPhase);
         UpdateWindowTitle();
+        UpdateRtssOverlaySchedulerState();
+        if (!rtssOverlayScheduler.IsRunning)
+        {
+            PublishRtssOverlay();
+        }
     }
 
     private void RenderStatusOverlayTick()
@@ -187,6 +233,20 @@ internal sealed partial class MainForm : Form
         {
             runtimeShell.StatusPaintScheduler.Stop();
         }
+    }
+
+    private void UpdateRtssOverlaySchedulerState()
+    {
+        bool shouldRun = !windowShell.IsClosing &&
+            settings.Advanced?.EnableRtssOverlay == true &&
+            timerPhase == SplitTimerPhase.Running;
+        if (shouldRun)
+        {
+            rtssOverlayScheduler.Start(ResolveTimerOverlayRefreshInterval());
+            return;
+        }
+
+        rtssOverlayScheduler.Stop();
     }
 
     private void HandleWatcherPollCompleted(WatcherPollNotification notification)
@@ -393,7 +453,12 @@ internal sealed partial class MainForm : Form
     {
         UpdateOverlayLayoutContextIfChanged();
         UpdateStatusPaintSchedulerState();
+        UpdateRtssOverlaySchedulerState();
         PublishTimerOverlaySnapshot();
+        if (!rtssOverlayScheduler.IsRunning)
+        {
+            PublishRtssOverlay();
+        }
     }
 
     private T RunWithSuspendedRuntimeOverlayPaint<T>(Func<T> action)
@@ -440,6 +505,7 @@ internal sealed partial class MainForm : Form
             }
 
             UpdateStatusPaintSchedulerState();
+            UpdateRtssOverlaySchedulerState();
             QueueStatusOverlayRender();
         }
     }

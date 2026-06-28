@@ -36,6 +36,7 @@ internal sealed partial class MainForm : Form
         UpdateConfiguredRefreshIntervals();
         UpdateTimerOverlayRefreshInterval();
         PublishTimerOverlaySnapshot(true);
+        PublishRtssOverlay();
         worldPoolFillService.UpdateSettings(settings);
         Invalidate();
     }
@@ -404,6 +405,33 @@ internal sealed partial class MainForm : Form
             force);
     }
 
+    private void PublishRtssOverlay()
+    {
+        RtssOverlayPublishResult result = rtssOverlayPublisher.Publish(settings, viewState);
+        HandleRtssOverlayPublishResult(result);
+    }
+
+    private void HandleRtssOverlayPublishResult(RtssOverlayPublishResult result)
+    {
+        if (result.Status == RtssOverlayPublishStatus.Disabled)
+        {
+            lastRtssOverlayStatus = result.Status;
+            lastRtssOverlayMessage = string.Empty;
+            return;
+        }
+
+        string message = string.IsNullOrWhiteSpace(result.Message)
+            ? result.Status.ToString()
+            : result.Message;
+        if (result.Status != lastRtssOverlayStatus ||
+            !string.Equals(message, lastRtssOverlayMessage, StringComparison.Ordinal))
+        {
+            appLogger.Info($"RTSS overlay status: {message}");
+            lastRtssOverlayStatus = result.Status;
+            lastRtssOverlayMessage = message;
+        }
+    }
+
     private void UpdateConfiguredRefreshIntervals()
     {
         TimeSpan nextControlInterval = ResolveControlTickInterval();
@@ -478,11 +506,17 @@ internal sealed partial class MainForm : Form
             return;
         }
 
-        int timerRefreshHz = RefreshRateSettings.NormalizeTimerOverlayRefreshHz(
-            settings.Advanced?.TimerOverlayRefreshHz ?? AppSettingsDefaults.Advanced.TimerOverlayRefreshHz);
-        TimeSpan interval = RefreshRateSettings.ToInterval(timerRefreshHz);
+        TimeSpan interval = ResolveTimerOverlayRefreshInterval();
         runtimeShell.Performance.TimerOverlayPaintInterval = interval;
         overlayShell.TimerOverlayHost.ApplyRefreshInterval(interval);
+        rtssOverlayScheduler.UpdateInterval(interval);
+    }
+
+    private TimeSpan ResolveTimerOverlayRefreshInterval()
+    {
+        int timerRefreshHz = RefreshRateSettings.NormalizeTimerOverlayRefreshHz(
+            settings.Advanced?.TimerOverlayRefreshHz ?? AppSettingsDefaults.Advanced.TimerOverlayRefreshHz);
+        return RefreshRateSettings.ToInterval(timerRefreshHz);
     }
 
     private void HandleTimerOverlayRightClickRequested(TimerOverlayRightClickRequest request)

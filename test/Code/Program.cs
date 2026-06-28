@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.Drawing;
+using System.IO.MemoryMappedFiles;
 using System.Reflection;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Xml.Linq;
@@ -66,6 +68,7 @@ var legacyTests = new (string Name, Action Test)[]
     ("Terraria world name generator follows GUI rules", TestTerrariaWorldNameGeneratorFollowsGuiRules),
     ("SettingsNormalizer clamps auto-create timings", TestSettingsNormalize),
     ("SettingsNormalizer normalizes timer overlay refresh settings", TestSettingsNormalizeTimerOverlayRefresh),
+    ("SettingsNormalizer migrates flat advanced settings", TestSettingsJsonMigratesFlatAdvancedSettings),
     ("SettingsNormalizer normalizes practice world slots", TestSettingsNormalizePracticeWorlds),
     ("SettingsNormalizer clamps text effects", TestSettingsNormalizeTextEffects),
     ("UI text effect descriptors cover effect fields", TestUiTextEffectDescriptorsCoverEffectFields),
@@ -132,7 +135,16 @@ var legacyTests = new (string Name, Action Test)[]
     ("Main form grows height when split route grows", TestMainFormGrowsHeightWhenSplitRouteGrows),
     ("Settings form applies current delta gradient option", TestSettingsFormAppliesCurrentDeltaGradientOption),
     ("Settings form applies advanced UI scale patch option", TestSettingsFormAppliesAdvancedUiScalePatchOption),
+    ("Settings form applies RTSS fullscreen projection option", TestSettingsFormAppliesRtssOverlayOption),
+    ("Settings form disables RTSS overlay options until enabled", TestSettingsFormDisablesRtssOverlayOptionsUntilEnabled),
+    ("Settings form rejects RTSS overlay without executable", TestSettingsFormRejectsRtssOverlayWithoutExecutable),
+    ("Settings form rejects invalid RTSS overlay zoom", TestSettingsFormRejectsInvalidRtssOverlayZoom),
     ("Settings form applies timer overlay refresh settings", TestSettingsFormAppliesTimerOverlayRefreshSettings),
+    ("RTSS overlay text projects only the main timer", TestRtssOverlayTextFormatterProjectsOnlyMainTimer),
+    ("RTSS overlay waits quietly until Terraria starts", TestRtssOverlayPublisherWaitsQuietlyUntilTerrariaStarts),
+    ("RTSS OSD writer updates an owned slot", TestRtssOsdWriterUpdatesOwnedSlot),
+    ("RTSS OSD writer detects a hooked target process", TestRtssOsdWriterDetectsTargetProcess),
+    ("RTSS OSD writer updates target style", TestRtssOsdWriterUpdatesTargetStyle),
     ("Settings form keeps uncreated animation fields unchanged", TestSettingsFormKeepsUncreatedAnimationFieldsUnchanged),
     ("Color settings labels follow requested order", TestColorSettingsLabelsFollowRequestedOrder),
     ("Terraria UI scale patch rewrites target IL constants", TestTerrariaUiScalePatchPlan),
@@ -1184,6 +1196,11 @@ static void TestLegacyFlatSettingsJsonMigratesToSections()
       "ShowAllMultiConditionMainGroupsAfterFinalGroup": false,
       "UsePersonalBestAsReferenceTime": true,
       "ShowSplitCompletionAnimation": false,
+      "EnableRtssOverlay": true,
+      "RtssExecutablePath": "C:\\Tools\\RTSS\\RTSS.exe",
+      "RtssOverlayX": -20,
+      "RtssOverlayY": 42,
+      "RtssOverlayZoom": 3,
       "AutoCreate": {
         "EnablePyramidFilter": true
       }
@@ -1206,6 +1223,11 @@ static void TestLegacyFlatSettingsJsonMigratesToSections()
     AssertEqual(false, settings.Route.ShowAllMultiConditionMainGroupsAfterFinalGroup);
     AssertEqual(true, settings.Comparison.UsePersonalBestAsReferenceTime);
     AssertEqual(false, settings.Overlay.ShowSplitCompletionAnimation);
+    AssertEqual(true, settings.Advanced.EnableRtssOverlay);
+    AssertEqual("C:\\Tools\\RTSS\\RTSS.exe", settings.Advanced.RtssExecutablePath);
+    AssertEqual(-20, settings.Advanced.RtssOverlayX);
+    AssertEqual(42, settings.Advanced.RtssOverlayY);
+    AssertEqual(3, settings.Advanced.RtssOverlayZoom);
     AssertEqual(true, settings.Automation.AutoCreate.EnablePyramidFilter);
 
     string persisted = JsonSerializer.Serialize(new SettingsDocument(settings), JsonFileStore.JsonOptions);
@@ -1220,9 +1242,13 @@ static void TestLegacyFlatSettingsJsonMigratesToSections()
     AssertEqual(true, settingsRoot.TryGetProperty(nameof(AppSettings.Comparison), out _));
     AssertEqual(true, settingsRoot.TryGetProperty(nameof(AppSettings.Overlay), out _));
     AssertEqual(true, settingsRoot.TryGetProperty(nameof(AppSettings.Automation), out _));
+    AssertEqual(true, settingsRoot.TryGetProperty(nameof(AppSettings.Advanced), out _));
     AssertEqual(false, settingsRoot.TryGetProperty("Language", out _));
     AssertEqual(false, settingsRoot.TryGetProperty("PauseResumeKey", out _));
     AssertEqual(false, settingsRoot.TryGetProperty("SplitRoute", out _));
+    AssertEqual(false, settingsRoot.TryGetProperty("EnableRtssOverlay", out _));
+    AssertEqual(false, settingsRoot.TryGetProperty("RtssExecutablePath", out _));
+    AssertEqual(false, settingsRoot.TryGetProperty("RtssOverlayX", out _));
     AssertEqual(false, settingsRoot.TryGetProperty("AutoCreate", out _));
 }
 
@@ -1894,6 +1920,11 @@ static void TestSettingsNormalize()
     settings.Advanced = null!;
     SettingsNormalizer.Normalize(settings);
     AssertEqual(false, settings.Advanced.EnableTerrariaUiScalePatch);
+    AssertEqual(false, settings.Advanced.EnableRtssOverlay);
+    AssertEqual(string.Empty, settings.Advanced.RtssExecutablePath);
+    AssertEqual(10, settings.Advanced.RtssOverlayX);
+    AssertEqual(10, settings.Advanced.RtssOverlayY);
+    AssertEqual(1, settings.Advanced.RtssOverlayZoom);
 }
 
 static void TestSettingsNormalizeTimerOverlayRefresh()
@@ -1902,6 +1933,10 @@ static void TestSettingsNormalizeTimerOverlayRefresh()
     {
         Advanced = new AdvancedSettings
         {
+            RtssExecutablePath = " C:\\Tools\\RTSS\\RTSS.exe ",
+            RtssOverlayX = -20000,
+            RtssOverlayY = 20000,
+            RtssOverlayZoom = 99,
             ReadyWatcherPollHz = 999,
             ReadyUiControlHz = 1,
             RunningStatusPaintHz = 999,
@@ -1910,6 +1945,10 @@ static void TestSettingsNormalizeTimerOverlayRefresh()
     };
 
     SettingsNormalizer.Normalize(settings);
+    AssertEqual("C:\\Tools\\RTSS\\RTSS.exe", settings.Advanced.RtssExecutablePath);
+    AssertEqual(-10000, settings.Advanced.RtssOverlayX);
+    AssertEqual(10000, settings.Advanced.RtssOverlayY);
+    AssertEqual(8, settings.Advanced.RtssOverlayZoom);
     AssertEqual(800, settings.Advanced.ReadyWatcherPollHz);
     AssertEqual(50, settings.Advanced.ReadyUiControlHz);
     AssertEqual(300, settings.Advanced.RunningStatusPaintHz);
@@ -1919,11 +1958,45 @@ static void TestSettingsNormalizeTimerOverlayRefresh()
     settings.Advanced.ReadyUiControlHz = 999;
     settings.Advanced.RunningStatusPaintHz = 1;
     settings.Advanced.TimerOverlayRefreshHz = 1;
+    settings.Advanced.RtssOverlayZoom = 0;
     SettingsNormalizer.Normalize(settings);
+    AssertEqual(1, settings.Advanced.RtssOverlayZoom);
     AssertEqual(100, settings.Advanced.ReadyWatcherPollHz);
     AssertEqual(300, settings.Advanced.ReadyUiControlHz);
     AssertEqual(50, settings.Advanced.RunningStatusPaintHz);
     AssertEqual(50, settings.Advanced.TimerOverlayRefreshHz);
+}
+
+static void TestSettingsJsonMigratesFlatAdvancedSettings()
+{
+    const string json = """
+    {
+      "EnableTerrariaUiScalePatch": true,
+      "EnableRtssOverlay": true,
+      "RtssExecutablePath": "C:\\Tools\\RTSS\\RTSS.exe",
+      "RtssOverlayX": -12,
+      "RtssOverlayY": 34,
+      "RtssOverlayZoom": 4,
+      "ReadyWatcherPollHz": 400,
+      "ReadyUiControlHz": 300,
+      "RunningStatusPaintHz": 50,
+      "TimerOverlayRefreshHz": 100
+    }
+    """;
+
+    AppSettings settings = SettingsSerializer.ReadSettingsFromJson(json, "flat advanced settings")
+        ?? throw new InvalidOperationException("Flat advanced settings could not be read.");
+
+    AssertEqual(true, settings.Advanced.EnableTerrariaUiScalePatch);
+    AssertEqual(true, settings.Advanced.EnableRtssOverlay);
+    AssertEqual("C:\\Tools\\RTSS\\RTSS.exe", settings.Advanced.RtssExecutablePath);
+    AssertEqual(-12, settings.Advanced.RtssOverlayX);
+    AssertEqual(34, settings.Advanced.RtssOverlayY);
+    AssertEqual(4, settings.Advanced.RtssOverlayZoom);
+    AssertEqual(400, settings.Advanced.ReadyWatcherPollHz);
+    AssertEqual(300, settings.Advanced.ReadyUiControlHz);
+    AssertEqual(50, settings.Advanced.RunningStatusPaintHz);
+    AssertEqual(100, settings.Advanced.TimerOverlayRefreshHz);
 }
 
 static void TestSettingsNormalizePracticeWorlds()
@@ -5179,6 +5252,129 @@ static void TestSettingsFormAppliesAdvancedUiScalePatchOption()
     });
 }
 
+static void TestSettingsFormAppliesRtssOverlayOption()
+{
+    RunSta(() =>
+    {
+        using var form = new SettingsForm(new AppSettings());
+        AdvancedSettingsPage page = form.PageHost.GetOrCreatePage<AdvancedSettingsPage>(SettingsPageId.Advanced);
+        page.EnableRtssOverlayBox.Checked = true;
+        page.RtssExecutablePathBox.Text = "C:\\Tools\\RTSS\\RTSS.exe";
+        page.RtssOverlayXBox.Text = "-64";
+        page.RtssOverlayYBox.Text = "48";
+        page.RtssOverlayZoomBox.Text = "3";
+
+        form.ApplyForTests();
+
+        AssertEqual(true, form.Result.Advanced.EnableRtssOverlay);
+        AssertEqual("C:\\Tools\\RTSS\\RTSS.exe", form.Result.Advanced.RtssExecutablePath);
+        AssertEqual(-64, form.Result.Advanced.RtssOverlayX);
+        AssertEqual(48, form.Result.Advanced.RtssOverlayY);
+        AssertEqual(3, form.Result.Advanced.RtssOverlayZoom);
+    });
+}
+
+static void TestSettingsFormDisablesRtssOverlayOptionsUntilEnabled()
+{
+    RunSta(() =>
+    {
+        using var form = new SettingsForm(new AppSettings());
+        AdvancedSettingsPage page = form.PageHost.GetOrCreatePage<AdvancedSettingsPage>(SettingsPageId.Advanced);
+
+        AssertEqual(false, page.EnableRtssOverlayBox.Checked);
+        AssertEqual(false, page.RtssExecutablePathBox.Enabled);
+        AssertEqual(false, page.RtssExecutableBrowseButton?.Enabled);
+        AssertEqual(false, page.RtssOverlayXBox.Enabled);
+        AssertEqual(false, page.RtssOverlayYBox.Enabled);
+        AssertEqual(false, page.RtssOverlayZoomBox.Enabled);
+
+        page.RtssOverlayZoomBox.Text = "9";
+        form.ApplyForTests();
+        AssertEqual(false, form.Result.Advanced.EnableRtssOverlay);
+        AssertEqual(8, form.Result.Advanced.RtssOverlayZoom);
+
+        page.EnableRtssOverlayBox.Checked = true;
+        AssertEqual(true, page.RtssExecutablePathBox.Enabled);
+        AssertEqual(true, page.RtssExecutableBrowseButton?.Enabled);
+        AssertEqual(true, page.RtssOverlayXBox.Enabled);
+        AssertEqual(true, page.RtssOverlayYBox.Enabled);
+        AssertEqual(true, page.RtssOverlayZoomBox.Enabled);
+
+        page.RtssExecutablePathBox.Text = "C:\\Tools\\RTSS\\RTSS.exe";
+        page.RtssOverlayZoomBox.Text = "3";
+        form.ApplyForTests();
+        AssertEqual(true, form.Result.Advanced.EnableRtssOverlay);
+        AssertEqual(3, form.Result.Advanced.RtssOverlayZoom);
+    });
+}
+
+static void TestSettingsFormRejectsRtssOverlayWithoutExecutable()
+{
+    RunSta(() =>
+    {
+        var warnings = new List<(string Message, string Title, MessageBoxButtons Buttons, MessageBoxIcon Icon)>();
+        using var form = new SettingsForm(
+            new AppSettings(),
+            messageBoxPresenter: (_, message, title, buttons, icon) =>
+            {
+                warnings.Add((message, title, buttons, icon));
+                return DialogResult.OK;
+            });
+        AdvancedSettingsPage page = form.PageHost.GetOrCreatePage<AdvancedSettingsPage>(SettingsPageId.Advanced);
+        page.EnableRtssOverlayBox.Checked = true;
+        page.RtssExecutablePathBox.Text = " ";
+        page.RtssOverlayZoomBox.Text = "3";
+
+        AssertEqual(false, form.TryApplyForTests(out string message));
+        AssertEqual("RTSS executable is required when RTSS fullscreen projection is enabled.", message);
+        AssertEqual(0, warnings.Count);
+
+        InvokePrivate(form, "ApplyAndNotify");
+        AssertEqual(1, warnings.Count);
+        AssertEqual(message, warnings[0].Message);
+        AssertEqual("TerrariaSplit Settings", warnings[0].Title);
+        AssertEqual(MessageBoxButtons.OK, warnings[0].Buttons);
+        AssertEqual(MessageBoxIcon.Warning, warnings[0].Icon);
+        AssertEqual(false, form.Result.Advanced.EnableRtssOverlay);
+    });
+}
+
+static void TestSettingsFormRejectsInvalidRtssOverlayZoom()
+{
+    RunSta(() =>
+    {
+        var warnings = new List<(string Message, string Title, MessageBoxButtons Buttons, MessageBoxIcon Icon)>();
+        using var form = new SettingsForm(
+            new AppSettings(),
+            messageBoxPresenter: (_, message, title, buttons, icon) =>
+            {
+                warnings.Add((message, title, buttons, icon));
+                return DialogResult.OK;
+            });
+        AdvancedSettingsPage page = form.PageHost.GetOrCreatePage<AdvancedSettingsPage>(SettingsPageId.Advanced);
+        page.EnableRtssOverlayBox.Checked = true;
+        page.RtssExecutablePathBox.Text = "C:\\Tools\\RTSS\\RTSS.exe";
+
+        page.RtssOverlayZoomBox.Text = "1.5";
+        AssertEqual(false, form.TryApplyForTests(out string decimalMessage));
+        AssertEqual("RTSS zoom must be an integer from 1 to 8.", decimalMessage);
+        AssertEqual(0, warnings.Count);
+
+        page.RtssOverlayZoomBox.Text = "9";
+        AssertEqual(false, form.TryApplyForTests(out string rangeMessage));
+        AssertEqual("RTSS zoom must be an integer from 1 to 8.", rangeMessage);
+        AssertEqual(0, warnings.Count);
+
+        InvokePrivate(form, "ApplyAndNotify");
+        AssertEqual(1, warnings.Count);
+        AssertEqual(rangeMessage, warnings[0].Message);
+        AssertEqual("TerrariaSplit Settings", warnings[0].Title);
+        AssertEqual(MessageBoxButtons.OK, warnings[0].Buttons);
+        AssertEqual(MessageBoxIcon.Warning, warnings[0].Icon);
+        AssertEqual(false, form.Result.Advanced.EnableRtssOverlay);
+    });
+}
+
 static void TestSettingsFormAppliesTimerOverlayRefreshSettings()
 {
     RunSta(() =>
@@ -5199,6 +5395,318 @@ static void TestSettingsFormAppliesTimerOverlayRefreshSettings()
         AssertEqual(50, form.Result.Advanced.RunningStatusPaintHz);
         AssertEqual(100, form.Result.Advanced.TimerOverlayRefreshHz);
     });
+}
+
+static void TestRtssOverlayTextFormatterProjectsOnlyMainTimer()
+{
+    var settings = new AppSettings
+    {
+        Comparison =
+        {
+            ActiveReferenceSplitSet = "WR",
+            ReferenceSplitSets =
+            [
+                new ReferenceSplitSet
+                {
+                    Name = "WR",
+                    Splits = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                }
+            ]
+        },
+        Overlay =
+        {
+            EnableTimerGradientColor = false,
+            Colors = new UiColorSettings
+            {
+                TimerPausedText = "#30FF90",
+                TimerAheadText = "#00AA00",
+                TimerBehindText = "#AA0000"
+            }
+        },
+        Route =
+        {
+            SplitRoute =
+            [
+                new SplitRouteEntry
+                {
+                    Id = "split:rtss",
+                    DisplayName = "RTSS",
+                    Enabled = true,
+                    Condition = SplitCondition.Fact("fact:rtss")
+                }
+            ]
+        },
+        Advanced =
+        {
+            RtssOverlayX = -64,
+            RtssOverlayY = 48,
+            RtssOverlayZoom = 3
+        }
+    };
+    SettingsNormalizer.Normalize(settings);
+    ReferenceSplitSetService.GetActiveReferenceSet(settings).Splits[SingleCumulativeKey(settings, "split:rtss")] = "0:20.00";
+    IReadOnlyList<SplitStatusSnapshot> statuses = SplitCatalog.Build(settings)
+        .Select(SplitStatusSnapshot.FromDefinition)
+        .ToArray();
+    var viewState = new ApplicationViewState(
+        settings,
+        RuntimeRunSnapshot.Empty,
+        statuses,
+        CurrentSplitIndex: 0,
+        new SplitTimerState(SplitTimerPhase.Paused, TimeSpan.FromMilliseconds(12340), 0),
+        StatusHash: 0,
+        HasRuntimeSnapshot: true);
+    var aheadState = viewState with
+    {
+        TimerState = new SplitTimerState(SplitTimerPhase.Running, TimeSpan.FromSeconds(10), 0)
+    };
+    var behindState = viewState with
+    {
+        TimerState = new SplitTimerState(SplitTimerPhase.Running, TimeSpan.FromSeconds(30), 0)
+    };
+
+    string text = RtssOverlayTextFormatter.Format(viewState, timestamp: 0);
+    string aheadText = RtssOverlayTextFormatter.Format(aheadState, timestamp: 0);
+    string behindText = RtssOverlayTextFormatter.Format(behindState, timestamp: 0);
+    RtssOsdStyle style = RtssOverlayTextFormatter.CreateStyle(viewState, timestamp: 0);
+    RtssOsdStyle aheadStyle = RtssOverlayTextFormatter.CreateStyle(aheadState, timestamp: 0);
+    RtssOsdStyle behindStyle = RtssOverlayTextFormatter.CreateStyle(behindState, timestamp: 0);
+    RtssOsdStyle targetStyle = RtssOverlayTextFormatter.CreateTargetStyle(style);
+
+    AssertEqual("<S=300><C=30FF90>00:12.34<C><S>", text);
+    AssertEqual("<S=300><C=00AA00>00:10.00<C><S>", aheadText);
+    AssertEqual("<S=300><C=AA0000>00:30.00<C><S>", behindText);
+    AssertEqual(new RtssOsdStyle(-64, 48, 3, 0x30FF90), style);
+    AssertEqual(new RtssOsdStyle(-64, 48, 3, 0x00AA00), aheadStyle);
+    AssertEqual(new RtssOsdStyle(-64, 48, 3, 0xAA0000), behindStyle);
+    AssertEqual(new RtssOsdStyle(-64, 48, 1, 0x30FF90), targetStyle);
+
+    settings.Overlay.EnableTimerGradientColor = true;
+    settings.Overlay.DeltaGradientCurve = DeltaGradientCurves.Linear;
+    settings.Overlay.DeltaGradientThresholdSeconds = 20;
+    settings.Overlay.Colors.TimerText = "#202020";
+    UiPalette gradientPalette = UiPalette.From(settings.Overlay.Colors);
+    int expectedGradientRgb = OverlayColorMath.GetGradientDeltaColor(
+        settings,
+        TimeSpan.FromSeconds(-10),
+        gradientPalette.TimerAheadText,
+        gradientPalette.TimerText,
+        gradientPalette.TimerBehindText).ToArgb() & 0x00FFFFFF;
+    RtssOsdStyle gradientAheadStyle = RtssOverlayTextFormatter.CreateStyle(aheadState, timestamp: 0);
+
+    AssertEqual(new RtssOsdStyle(-64, 48, 3, expectedGradientRgb), gradientAheadStyle);
+    AssertEqual(
+        $"<S=300><C={expectedGradientRgb:X6}>00:10.00<C><S>",
+        RtssOverlayTextFormatter.Format(aheadState, timestamp: 0, gradientAheadStyle));
+}
+
+static void TestRtssOverlayPublisherWaitsQuietlyUntilTerrariaStarts()
+{
+    var settings = new AppSettings
+    {
+        Advanced =
+        {
+            EnableRtssOverlay = true
+        }
+    };
+    var viewState = new ApplicationViewState(
+        settings,
+        RuntimeRunSnapshot.Empty,
+        [],
+        CurrentSplitIndex: 0,
+        new SplitTimerState(SplitTimerPhase.Running, TimeSpan.Zero, Stopwatch.GetTimestamp()),
+        StatusHash: 0,
+        HasRuntimeSnapshot: true);
+
+    using var waitingPublisher = new RtssOverlayPublisher(
+        new RtssOsdWriter("TerrariaSplitMissingRtss-" + Guid.NewGuid().ToString("N"), "TerrariaSplit.Tests"),
+        isTerrariaProcessRunning: () => false,
+        isRtssProcessRunning: () => false);
+    RtssOverlayPublishResult waiting = waitingPublisher.Publish(settings, viewState);
+
+    AssertEqual(RtssOverlayPublishStatus.WaitingForTerraria, waiting.Status);
+    AssertEqual(false, waiting.NeedsUserAttention);
+
+    using var missingRtssPublisher = new RtssOverlayPublisher(
+        new RtssOsdWriter("TerrariaSplitMissingRtss-" + Guid.NewGuid().ToString("N"), "TerrariaSplit.Tests"),
+        isTerrariaProcessRunning: () => true,
+        isRtssProcessRunning: () => false);
+    RtssOverlayPublishResult missingRtss = missingRtssPublisher.Publish(settings, viewState);
+
+    AssertEqual(RtssOverlayPublishStatus.MissingRtssExecutablePath, missingRtss.Status);
+    AssertEqual(true, missingRtss.NeedsUserAttention);
+
+    string invalidDirectory = GetTestOutputDirectory("rtss-publisher-invalid");
+    try
+    {
+        settings.Advanced.RtssExecutablePath = Path.Combine(invalidDirectory, "RTSS.exe");
+        using var invalidPathPublisher = new RtssOverlayPublisher(
+            new RtssOsdWriter("TerrariaSplitInvalidRtss-" + Guid.NewGuid().ToString("N"), "TerrariaSplit.Tests"),
+            isTerrariaProcessRunning: () => true,
+            isRtssProcessRunning: () => false);
+        RtssOverlayPublishResult invalidPath = invalidPathPublisher.Publish(settings, viewState);
+
+        AssertEqual(RtssOverlayPublishStatus.InvalidRtssExecutablePath, invalidPath.Status);
+        AssertEqual(true, invalidPath.NeedsUserAttention);
+    }
+    finally
+    {
+        DeleteDirectoryIfExists(invalidDirectory);
+    }
+
+    string configuredDirectory = GetTestOutputDirectory("rtss-publisher-configured");
+    try
+    {
+        string fakeRtssPath = Path.Combine(configuredDirectory, "RTSS.exe");
+        File.WriteAllBytes(fakeRtssPath, Array.Empty<byte>());
+        settings.Advanced.RtssExecutablePath = fakeRtssPath;
+        using var configuredPublisher = new RtssOverlayPublisher(
+            new RtssOsdWriter("TerrariaSplitConfiguredRtss-" + Guid.NewGuid().ToString("N"), "TerrariaSplit.Tests"),
+            isTerrariaProcessRunning: () => true,
+            isRtssProcessRunning: () => false);
+        RtssOverlayPublishResult configuredRtss = configuredPublisher.Publish(settings, viewState);
+
+        AssertEqual(RtssOverlayPublishStatus.WaitingForRtss, configuredRtss.Status);
+        AssertEqual(false, configuredRtss.NeedsUserAttention);
+    }
+    finally
+    {
+        DeleteDirectoryIfExists(configuredDirectory);
+    }
+
+}
+
+static void TestRtssOsdWriterUpdatesOwnedSlot()
+{
+    const uint rtssSignature = 0x52545353;
+    const uint rtssVersion = 0x0002000E;
+    const int osdEntrySize = 512 + 4096;
+    const int osdArrayOffset = 64;
+    const int osdArraySize = 2;
+    const int osdFrameOffset = 32;
+    const int osdBusyOffset = 36;
+    const int slotOffset = osdArrayOffset + osdEntrySize;
+    const int ownerOffset = slotOffset + 256;
+    const int extendedTextOffset = slotOffset + 512;
+    string mappingName = "TerrariaSplitRtssTest-" + Guid.NewGuid().ToString("N");
+
+    using MemoryMappedFile memory = MemoryMappedFile.CreateNew(
+        mappingName,
+        osdArrayOffset + osdEntrySize * osdArraySize,
+        MemoryMappedFileAccess.ReadWrite);
+    using MemoryMappedViewAccessor accessor = memory.CreateViewAccessor(0, 0, MemoryMappedFileAccess.ReadWrite);
+    accessor.Write(0, rtssSignature);
+    accessor.Write(4, rtssVersion);
+    accessor.Write(20, osdEntrySize);
+    accessor.Write(24, osdArrayOffset);
+    accessor.Write(28, osdArraySize);
+    accessor.Write(osdFrameOffset, 0u);
+    accessor.Write(osdBusyOffset, 0);
+
+    using var writer = new RtssOsdWriter(mappingName, "TerrariaSplit.Tests");
+    RtssOsdUpdateResult result = writer.TryUpdate("TerrariaSplit\n00:01.23");
+
+    AssertEqual(true, result.Success);
+    AssertEqual("TerrariaSplit.Tests", ReadMappedString(accessor, ownerOffset, 256, Encoding.ASCII));
+    AssertEqual("TerrariaSplit\n00:01.23", ReadMappedString(accessor, extendedTextOffset, 4096, Encoding.UTF8));
+    AssertEqual(1u, accessor.ReadUInt32(osdFrameOffset));
+
+    result = writer.Clear();
+
+    AssertEqual(true, result.Success);
+    AssertEqual(string.Empty, ReadMappedString(accessor, ownerOffset, 256, Encoding.ASCII));
+    AssertEqual(string.Empty, ReadMappedString(accessor, extendedTextOffset, 4096, Encoding.UTF8));
+    AssertEqual(2u, accessor.ReadUInt32(osdFrameOffset));
+}
+
+static void TestRtssOsdWriterDetectsTargetProcess()
+{
+    const uint rtssSignature = 0x52545353;
+    const uint rtssVersion = 0x0002000E;
+    const int osdEntrySize = 512 + 4096;
+    const int osdArrayOffset = 64;
+    const int osdArraySize = 2;
+    const int appEntrySize = 1024;
+    const int appArrayOffset = osdArrayOffset + osdEntrySize * osdArraySize;
+    const int appArraySize = 2;
+    const int appEntryOffset = appArrayOffset;
+    string mappingName = "TerrariaSplitRtssTargetTest-" + Guid.NewGuid().ToString("N");
+
+    using MemoryMappedFile memory = MemoryMappedFile.CreateNew(
+        mappingName,
+        appArrayOffset + appEntrySize * appArraySize,
+        MemoryMappedFileAccess.ReadWrite);
+    using MemoryMappedViewAccessor accessor = memory.CreateViewAccessor(0, 0, MemoryMappedFileAccess.ReadWrite);
+    accessor.Write(0, rtssSignature);
+    accessor.Write(4, rtssVersion);
+    accessor.Write(8, appEntrySize);
+    accessor.Write(12, appArrayOffset);
+    accessor.Write(16, appArraySize);
+    accessor.Write(20, osdEntrySize);
+    accessor.Write(24, osdArrayOffset);
+    accessor.Write(28, osdArraySize);
+    accessor.Write(appEntryOffset, 4242u);
+    WriteMappedString(accessor, appEntryOffset + 4, 260, "Terraria.exe", Encoding.ASCII);
+
+    using var writer = new RtssOsdWriter(mappingName, "TerrariaSplit.Tests");
+    RtssTargetProcessResult found = writer.TryGetTargetProcess("Terraria.exe");
+    RtssTargetProcessResult missing = writer.TryGetTargetProcess("OtherGame.exe");
+
+    AssertEqual(RtssTargetProcessStatus.Found, found.Status);
+    AssertEqual(4242, found.ProcessId);
+    AssertEqual("Terraria.exe", found.ProcessName);
+    AssertEqual(RtssTargetProcessStatus.NotFound, missing.Status);
+}
+
+static void TestRtssOsdWriterUpdatesTargetStyle()
+{
+    const uint rtssSignature = 0x52545353;
+    const uint rtssVersion = 0x0002000E;
+    const int osdEntrySize = 512 + 4096;
+    const int osdArrayOffset = 64;
+    const int osdArraySize = 2;
+    const int appEntrySize = 1024;
+    const int appArrayOffset = osdArrayOffset + osdEntrySize * osdArraySize;
+    const int appArraySize = 2;
+    const int appEntryOffset = appArrayOffset;
+    const int osdFrameOffset = 32;
+    const int osdBusyOffset = 36;
+    const int appOsdXOffset = appEntryOffset + 316;
+    const int appOsdYOffset = appEntryOffset + 320;
+    const int appOsdPixelOffset = appEntryOffset + 324;
+    const int appOsdColorOffset = appEntryOffset + 328;
+    string mappingName = "TerrariaSplitRtssStyleTest-" + Guid.NewGuid().ToString("N");
+
+    using MemoryMappedFile memory = MemoryMappedFile.CreateNew(
+        mappingName,
+        appArrayOffset + appEntrySize * appArraySize,
+        MemoryMappedFileAccess.ReadWrite);
+    using MemoryMappedViewAccessor accessor = memory.CreateViewAccessor(0, 0, MemoryMappedFileAccess.ReadWrite);
+    accessor.Write(0, rtssSignature);
+    accessor.Write(4, rtssVersion);
+    accessor.Write(8, appEntrySize);
+    accessor.Write(12, appArrayOffset);
+    accessor.Write(16, appArraySize);
+    accessor.Write(20, osdEntrySize);
+    accessor.Write(24, osdArrayOffset);
+    accessor.Write(28, osdArraySize);
+    accessor.Write(osdFrameOffset, 0u);
+    accessor.Write(osdBusyOffset, 0);
+    accessor.Write(appEntryOffset, 4242u);
+    WriteMappedString(accessor, appEntryOffset + 4, 260, "Terraria.exe", Encoding.ASCII);
+
+    using var writer = new RtssOsdWriter(mappingName, "TerrariaSplit.Tests");
+    RtssOsdUpdateResult result = writer.TryUpdateTargetStyle(
+        "Terraria.exe",
+        new RtssOsdStyle(-64, 48, 3, 0x30FF90));
+
+    AssertEqual(true, result.Success);
+    AssertEqual(unchecked((uint)-64), accessor.ReadUInt32(appOsdXOffset));
+    AssertEqual(48u, accessor.ReadUInt32(appOsdYOffset));
+    AssertEqual(3u, accessor.ReadUInt32(appOsdPixelOffset));
+    AssertEqual(0x30FF90u, accessor.ReadUInt32(appOsdColorOffset));
+    AssertEqual(1u, accessor.ReadUInt32(osdFrameOffset));
+    AssertEqual(0, accessor.ReadInt32(osdBusyOffset));
 }
 
 static void TestTerrariaUiScalePatchPlan()
@@ -5548,6 +6056,36 @@ static void AssertEqual<T>(T expected, T actual)
     {
         throw new InvalidOperationException($"Expected {expected}, got {actual}.");
     }
+}
+
+static string ReadMappedString(
+    MemoryMappedViewAccessor accessor,
+    long offset,
+    int length,
+    Encoding encoding)
+{
+    byte[] bytes = new byte[length];
+    accessor.ReadArray(offset, bytes, 0, bytes.Length);
+    int count = Array.IndexOf(bytes, (byte)0);
+    if (count < 0)
+    {
+        count = bytes.Length;
+    }
+
+    return encoding.GetString(bytes, 0, count);
+}
+
+static void WriteMappedString(
+    MemoryMappedViewAccessor accessor,
+    long offset,
+    int length,
+    string value,
+    Encoding encoding)
+{
+    byte[] bytes = new byte[length];
+    byte[] valueBytes = encoding.GetBytes(value);
+    Array.Copy(valueBytes, bytes, Math.Min(valueBytes.Length, length - 1));
+    accessor.WriteArray(offset, bytes, 0, bytes.Length);
 }
 
 static DirectorySnapshot SnapshotDirectory(string path)
