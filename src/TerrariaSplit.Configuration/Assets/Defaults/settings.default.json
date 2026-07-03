@@ -1,7 +1,7 @@
 ﻿{
   "General": {
     "ShowMouseClickThroughIndicator": true,
-    "Language": "\u4E2D\u6587",
+    "Language": "English",
     "AlwaysOnTop": true,
     "PracticeMode": false
   },
@@ -964,6 +964,7 @@
       "PlayerName": "",
       "PlayerTemplateCode": "",
       "PlayerDifficulty": "Softcore",
+      "PreserveExistingSaves": false,
       "WorldSize": "Small",
       "WorldDifficulty": "Classic",
       "WorldEvil": "Crimson",

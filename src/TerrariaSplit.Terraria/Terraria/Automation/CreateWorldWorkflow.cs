@@ -52,7 +52,7 @@ internal sealed class CreateWorldWorkflow : IDisposable
 
                 TerrariaMenuGeometry geometry = TerrariaMenuGeometry.From(activation.ClientSize);
 
-                CreateWorldCleanupStep cleanupStep = await RunSaveCleanupAsync(cancellationToken);
+                CreateWorldCleanupStep cleanupStep = await RunSaveCleanupAsync(autoCreate, cancellationToken);
                 if (!cleanupStep.Succeeded)
                 {
                     return AutomationResult.Failure(
@@ -111,14 +111,18 @@ internal sealed class CreateWorldWorkflow : IDisposable
         return new CreateWorldActivationStep(activation.Succeeded, activation.ClientSize);
     }
 
-    private async Task<CreateWorldCleanupStep> RunSaveCleanupAsync(CancellationToken cancellationToken)
+    private async Task<CreateWorldCleanupStep> RunSaveCleanupAsync(
+        AutoCreateWorldSettings settings,
+        CancellationToken cancellationToken)
     {
         TerrariaSaveCleanupResult cleanup = default;
         bool succeeded = await automation.RunStepAsync(
-            "save cleanup",
+            settings.PreserveExistingSaves ? "save inventory snapshot" : "save cleanup",
             _ =>
             {
-                cleanup = savePreparation.MoveNonFavoritesToBackup();
+                cleanup = settings.PreserveExistingSaves
+                    ? ReadPreservedSaveCleanupSnapshot()
+                    : savePreparation.MoveNonFavoritesToBackup();
                 return Task.FromResult(true);
             },
             cancellationToken);
@@ -191,11 +195,11 @@ internal sealed class CreateWorldWorkflow : IDisposable
                         "Create world automation failed to return to the main menu after pyramid filter rejection.");
             }
 
-            if (!await menuDriver.PrepareRejectedWorldSelectRetryAsync(cancellationToken))
+            if (!await menuDriver.PrepareRejectedWorldSelectRetryAsync(settings, cancellationToken))
             {
                 return CreateWorldLoopResult.Failure(
                     "Could not prepare Terraria for another world creation attempt.",
-                    "Create world automation failed to clean up rejected world files before retrying.");
+                    "Create world automation failed to prepare world select before retrying.");
             }
         }
     }
@@ -204,6 +208,23 @@ internal sealed class CreateWorldWorkflow : IDisposable
     {
         automation.ConfigureTiming(settings);
         menuDriver.ConfigureTiming(settings);
+    }
+
+    private TerrariaSaveCleanupResult ReadPreservedSaveCleanupSnapshot()
+    {
+        TerrariaSaveInventorySnapshot inventory = savePreparation.ReadInventorySnapshot();
+        string saveRoot = TerrariaSavePaths.SaveRoot();
+        StaticAppLogger.Instance.Info(
+            $"Create world automation preserved existing save files; " +
+            $"players={inventory.PlayerFiles}, worlds={inventory.WorldFiles}, " +
+            $"favoritePlayers={inventory.FavoritePlayers}, favoriteWorlds={inventory.FavoriteWorlds}.");
+        return new TerrariaSaveCleanupResult(
+            saveRoot,
+            string.Empty,
+            inventory.FavoritePlayers,
+            inventory.FavoriteWorlds,
+            MovedPlayers: 0,
+            MovedWorlds: 0);
     }
 
     public void Dispose()

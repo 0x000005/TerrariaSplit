@@ -196,13 +196,22 @@ internal sealed class WorldCreationMenuDriver
         return await ReturnToMainMenuByBackTwiceAsync(geometry, cancellationToken);
     }
 
-    public async Task<bool> PrepareRejectedWorldSelectRetryAsync(CancellationToken cancellationToken)
+    public async Task<bool> PrepareRejectedWorldSelectRetryAsync(
+        AutoCreateWorldSettings settings,
+        CancellationToken cancellationToken)
     {
         if (!windowActivation.TryReactivate(
                 "before retrying a rejected world",
                 pyramidFilterPostDelayMilliseconds))
         {
             return false;
+        }
+
+        if (settings.PreserveExistingSaves)
+        {
+            StaticAppLogger.Instance.Info(
+                "Create world automation preserved the rejected world before retrying from world select.");
+            return true;
         }
 
         TerrariaWorldCleanupResult cleanup = default;
@@ -387,11 +396,13 @@ internal sealed class WorldCreationMenuDriver
 
     private async Task<bool> ClickPlayerAsync(
         TerrariaMenuGeometry geometry,
-        int favoritePlayers,
+        int favoritePlayerCount,
         CancellationToken cancellationToken)
     {
-        Point point = geometry.PlayerPlayButton(favoritePlayers);
-        return await automation.ClickOnceAsync("first non-favorite player play button", point, menuActionDelay, cancellationToken);
+        // Terraria lists favorites first; the freshly saved non-favorite player is newest,
+        // so it lands on the first non-favorite row even when old non-favorites are kept.
+        Point point = geometry.PlayerPlayButton(favoritePlayerCount);
+        return await automation.ClickOnceAsync("created player play button", point, menuActionDelay, cancellationToken);
     }
 
     private async Task<bool> ConfirmPlayerNameAsync(

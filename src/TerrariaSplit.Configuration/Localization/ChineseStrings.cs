@@ -67,7 +67,7 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
         { "{0}: {1} is duplicated; only the first action using this key is active.", "{0}：{1} 与其他快捷键重复；只有第一个使用该按键的动作会生效。" },
         { "{0}: {1} is not allowed as a hotkey.", "{0}：{1} 不允许作为快捷键。" },
         { "{0}: {1} registration failed. It may be used by another program. ({2})", "{0}：{1} 注册失败，可能已被其他程序占用。（{2}）" },
-        { "Create World hotkey {0} is now active. Please read the Create World notes in the Automation settings tab first. Enabling this blindly may delete your save files by mistake.", "创建世界快捷键 {0} 已启用。请务必先阅读设置自动化选项卡中关于创建世界的有关提示，盲目启用可能会误删你的存档文件。" },
+        { "Create World hotkey {0} is now active. Please read the Create World notes in the Automation settings tab first. Enabling this blindly may move save files to the backup folder unless existing saves are kept.", "\u521B\u5EFA\u4E16\u754C\u5FEB\u6377\u952E {0} \u5DF2\u542F\u7528\u3002\u8BF7\u52A1\u5FC5\u5148\u9605\u8BFB\u8BBE\u7F6E\u81EA\u52A8\u5316\u9009\u9879\u5361\u4E2D\u5173\u4E8E\u521B\u5EFA\u4E16\u754C\u7684\u6709\u5173\u63D0\u793A\uFF0C\u76F2\u76EE\u542F\u7528\u53EF\u80FD\u4F1A\u628A\u5B58\u6863\u6587\u4EF6\u79FB\u5230\u5907\u4EFD\u6587\u4EF6\u5939\uFF0C\u9664\u975E\u5DF2\u542F\u7528\u4FDD\u7559\u5B58\u6863\u3002" },
         { "Always on top", "置顶显示" },
         { "Practice mode", "练习模式" },
         { "Allow manual time editing", "允许手动修改时间" },
@@ -394,6 +394,9 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Create World creates a world automatically by simulating mouse and keyboard input.", "\u521B\u5EFA\u4E16\u754C\u4F1A\u901A\u8FC7\u6A21\u62DF\u9F20\u6807\u548C\u952E\u76D8\u64CD\u4F5C\u81EA\u52A8\u521B\u5EFA\u4E16\u754C\u3002" }
       , { "Load World copies the selected player and/or world files to Terraria's save folder, then opens Single Player.", "\u52A0\u8F7D\u4E16\u754C\u4F1A\u590D\u5236\u9009\u4E2D\u7684\u4EBA\u7269\u6216\u4E16\u754C\u6587\u4EF6\u5230\u6CF0\u62C9\u745E\u4E9A\u5B58\u6863\u6587\u4EF6\u5939\uFF0C\u7136\u540E\u6253\u5F00\u5355\u4EBA\u6E38\u620F\u3002" }
       , { "Create World deletes files in the save folders except favorite players and worlds.", "\u4F1A\u5220\u9664\u5B58\u6863\u6587\u4EF6\u5939\u4E2D\u9664\u4E86\u6536\u85CF\u7684\u4EBA\u7269\u548C\u4E16\u754C\u4EE5\u5916\u7684\u6587\u4EF6\u3002" }
+      , { "By default, Create World moves non-favorite players and worlds to the backup folder before creating.", "\u9ED8\u8BA4\u60C5\u51B5\u4E0B\uFF0C\u521B\u5EFA\u4E16\u754C\u4F1A\u5728\u521B\u5EFA\u524D\u628A\u975E\u6536\u85CF\u4EBA\u7269\u548C\u4E16\u754C\u79FB\u5230\u5907\u4EFD\u6587\u4EF6\u5939\u3002" }
+      , { "When existing saves are not preserved, the most recent 50 cleanup batches are kept in the backup folder.", "\u672A\u542F\u7528\u4FDD\u7559\u5B58\u6863\u65F6\uFF0C\u6700\u8FD1 50 \u6B21\u6E05\u7406\u6279\u6B21\u4F1A\u4FDD\u7559\u5728\u5907\u4EFD\u6587\u4EF6\u5939\u3002" }
+      , { "If existing saves are preserved, newly created players are selected from the first non-favorite row and rejected pyramid worlds are kept.", "\u542F\u7528\u4FDD\u7559\u5B58\u6863\u65F6\uFF0C\u65B0\u5EFA\u4EBA\u7269\u4F1A\u4ECE\u975E\u6536\u85CF\u533A\u7B2C\u4E00\u884C\u9009\u4E2D\uFF0C\u7B5B\u5854\u88AB\u62D2\u7EDD\u7684\u4E16\u754C\u4E5F\u4F1A\u4FDD\u7559\u3002" }
       , { "Automatically creates or enters a world by simulating mouse and keyboard input.", "\u901A\u8FC7\u6A21\u62DF\u9F20\u6807\u548C\u952E\u76D8\u64CD\u4F5C\u81EA\u52A8\u521B\u5EFA\u6216\u8FDB\u5165\u4E16\u754C\u3002" }
       , { "Do not choose players or worlds in the default save location.", "\u8BF7\u4E0D\u8981\u9009\u62E9\u5728\u9ED8\u8BA4\u5B58\u6863\u4F4D\u7F6E\u7684\u4EBA\u7269\u6216\u4E16\u754C\u3002" }
       , { "Do not choose favorite players or worlds.", "\u8BF7\u4E0D\u8981\u9009\u62E9\u6536\u85CF\u7684\u4EBA\u7269\u6216\u4E16\u754C\u3002" }
@@ -411,6 +414,7 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Player options", "\u4EBA\u7269\u9009\u9879" }
       , { "Player name", "\u4EBA\u7269\u540D\u79F0" }
       , { "Player difficulty", "\u4EBA\u7269\u96BE\u5EA6" }
+      , { "Keep existing players and worlds", "\u4FDD\u7559\u73B0\u6709\u4EBA\u7269\u548C\u4E16\u754C" }
       , { "Player code", "\u4EBA\u7269\u4EE3\u7801" }
       , { "World", "\u4E16\u754C" }
       , { "World options", "\u4E16\u754C\u9009\u9879" }

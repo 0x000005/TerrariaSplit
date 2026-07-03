@@ -220,6 +220,7 @@ public sealed class AutoCreateWorldSettings
     public string PlayerName { get; set; } = string.Empty;
     public string PlayerTemplateCode { get; set; } = string.Empty;
     public string PlayerDifficulty { get; set; } = AutoCreatePlayerDifficulty.Softcore;
+    public bool PreserveExistingSaves { get; set; }
     public string WorldSize { get; set; } = AutoCreateWorldSize.Small;
     public string WorldDifficulty { get; set; } = AutoCreateWorldDifficulty.Classic;
     public string WorldEvil { get; set; } = AutoCreateWorldEvil.Crimson;

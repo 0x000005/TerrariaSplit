@@ -118,6 +118,7 @@ var legacyTests = new (string Name, Action Test)[]
     ("Settings form applies Zenith star catch options", TestSettingsFormAppliesZenithStarCatchOptions),
     ("Settings form gates Zenith star catch behind Zenith seed", TestSettingsFormGatesZenithStarCatchBehindZenithSeed),
     ("Settings form keeps world pool independent from pyramid filter", TestSettingsFormKeepsWorldPoolIndependentFromPyramidFilter),
+    ("Settings form saves preserve existing saves option", TestSettingsFormSavesPreserveExistingSavesOption),
     ("Debug sequence uses pooled world path when pool has a world", TestDebugSequenceUsesPooledWorldPath),
     ("Settings form applies timer start sound", TestSettingsFormAppliesTimerStartSound),
     ("Settings form applies resume sound", TestSettingsFormAppliesResumeSound),
@@ -1084,6 +1085,8 @@ static void TestTerrariaMenuGeometry()
     AssertEqual(new Point(282, 830), geometry.SelectMenuBackButton());
     AssertEqual(new Point(580, 534), geometry.CreatePlayerButton());
     AssertEqual(new Point(320, 534), geometry.CreateWorldBackButton());
+    AssertEqual(new Point(158, 311), geometry.PlayerPlayButton(0));
+    AssertEqual(new Point(158, 513), geometry.PlayerPlayButton(2));
     AssertEqual(new Point(450, 230), geometry.AdvancedSeedTextButton());
     AssertEqual(new Point(342, 287), geometry.AdvancedSpecialSeedButton(AutoCreateSpecialWorldSeed.NotTheBees));
 }
@@ -1107,8 +1110,10 @@ static void TestLocalizer()
     AssertEqual("\u5355\u6BB5\u65F6\u95F4\u63D0\u793A\u6587\u672C", Localizer.Get("Segment time hint text", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
     AssertEqual("\u7D2F\u79EF\u65F6\u95F4\u63D0\u793A\u6587\u672C", Localizer.Get("Cumulative time hint text", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
     AssertEqual("\u5206\u6BB5\u70B9\uFF1A\u7D2F\u79EF\u65F6\u95F4\u5FEB\u4E8E\u53C2\u8003\uFF0C\u5355\u6BB5\u65F6\u95F4\u5FEB\u4E8E PB", Localizer.Get("Stage reached: cumulative faster, segment faster", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual(true, Localizer.Get("Create World hotkey {0} is now active. Please read the Create World notes in the Automation settings tab first. Enabling this blindly may move save files to the backup folder unless existing saves are kept.", new AppSettings { General = { Language = "\u4E2D\u6587" } }).Contains("\u79FB\u5230\u5907\u4EFD\u6587\u4EF6\u5939", StringComparison.Ordinal));
     AssertEqual("\u4EBA\u7269\u9009\u9879", Localizer.Get("Player options", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
     AssertEqual("\u4E16\u754C\u9009\u9879", Localizer.Get("World options", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u4FDD\u7559\u73B0\u6709\u4EBA\u7269\u548C\u4E16\u754C", Localizer.Get("Keep existing players and worlds", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
     AssertEqual("\u5929\u9876\u63A5\u661F", Localizer.Get("Zenith star catch", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
     AssertEqual("\u7B5B\u9009\u91D1\u5B57\u5854", Localizer.Get("Pyramid filter", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
     AssertEqual("\u6307\u5B9A\u7269\u54C1", Localizer.Get("Required pyramid items", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
@@ -1916,6 +1921,7 @@ static void TestSettingsNormalize()
         AutoCreatePyramidFilterItem.ToMask(AutoCreatePyramidFilterItem.ParseList(" \u98DE\u6BEF | sandstorm | unknown ")));
     AssertEqual(10, AppSettingsDefaults.AutoCreate.WorldPoolTargetCount);
     AssertEqual(false, AppSettingsDefaults.AutoCreate.ReturnToMainMenuOnFilterFailure);
+    AssertEqual(false, AppSettingsDefaults.AutoCreate.PreserveExistingSaves);
 
     settings.Advanced = null!;
     SettingsNormalizer.Normalize(settings);
@@ -3642,7 +3648,9 @@ static void TestSettingsCreateWorldHotkeyWarnsWhenEnabled()
         AssertEqual(Keys.F11, page.CreateWorldKeyBox.Hotkey);
         AssertEqual(2, messages.Count);
         AssertEqual(true, messages[0].Contains("Create World hotkey F7 is now active. Please read the Create World notes", StringComparison.Ordinal));
+        AssertEqual(true, messages[0].Contains("may move save files to the backup folder unless existing saves are kept", StringComparison.Ordinal));
         AssertEqual(true, messages[1].Contains("Create World hotkey F11 is now active. Please read the Create World notes", StringComparison.Ordinal));
+        AssertEqual(true, messages[1].Contains("may move save files to the backup folder unless existing saves are kept", StringComparison.Ordinal));
     });
 }
 
@@ -3808,6 +3816,31 @@ static void TestSettingsFormKeepsWorldPoolIndependentFromPyramidFilter()
 
         AssertEqual(true, page.AutoCreateWorldPoolBox.Enabled);
         AssertEqual(false, page.AutoCreateWorldPoolTargetBox.Enabled);
+    });
+}
+
+static void TestSettingsFormSavesPreserveExistingSavesOption()
+{
+    RunSta(() =>
+    {
+        using var form = new SettingsForm(new AppSettings
+        {
+            Automation =
+            {
+                AutoCreate = new AutoCreateWorldSettings
+                {
+                    PreserveExistingSaves = false
+                }
+            }
+        });
+        AutomationSettingsPage page = form.PageHost.GetOrCreatePage<AutomationSettingsPage>(SettingsPageId.Automation);
+
+        AssertEqual(false, page.AutoCreatePreserveExistingSavesBox.Checked);
+        page.AutoCreatePreserveExistingSavesBox.Checked = true;
+
+        form.ApplyForTests();
+
+        AssertEqual(true, form.Result.Automation.AutoCreate.PreserveExistingSaves);
     });
 }
 

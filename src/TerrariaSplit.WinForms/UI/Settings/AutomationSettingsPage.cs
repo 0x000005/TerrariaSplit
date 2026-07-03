@@ -14,6 +14,7 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
     private readonly TextBox autoCreatePlayerNameBox = new();
     private readonly TextBox autoCreatePlayerTemplateCodeBox = new();
     private readonly ThemedDropDownList autoCreatePlayerDifficultyBox = new();
+    private readonly CheckBox autoCreatePreserveExistingSavesBox = new();
     private readonly ThemedDropDownList autoCreateWorldSizeBox = new();
     private readonly ThemedDropDownList autoCreateWorldDifficultyBox = new();
     private readonly ThemedDropDownList autoCreateWorldEvilBox = new();
@@ -41,6 +42,7 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
 
     internal IReadOnlyList<PracticeSlotControls> PracticeSlots => practiceSlotControls;
     internal IReadOnlyDictionary<string, CheckBox> AutoCreateSpecialSeedBoxes => autoCreateSpecialSeedBoxes;
+    internal CheckBox AutoCreatePreserveExistingSavesBox => autoCreatePreserveExistingSavesBox;
     internal CheckBox AutoCreateZenithStarCatchBox => autoCreateZenithStarCatchBox;
     internal IReadOnlyDictionary<string, CheckBox> AutoCreateZenithStarCatchStageBoxes => autoCreateZenithStarCatchStageBoxes;
     internal ThemedSlider AutoCreateZenithStarCatchSpeedBar => autoCreateZenithStarCatchSpeedBar;
@@ -62,6 +64,7 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
         settings.Automation.AutoCreate.PlayerTemplateCode = autoCreatePlayerTemplateCodeBox.Text.Trim();
         settings.Automation.AutoCreate.PlayerDifficulty = AutoCreatePlayerDifficulty.Normalize(
             GetSelectedOption(autoCreatePlayerDifficultyBox, AutoCreatePlayerDifficulty.Softcore));
+        settings.Automation.AutoCreate.PreserveExistingSaves = autoCreatePreserveExistingSavesBox.Checked;
         settings.Automation.AutoCreate.WorldSize = AutoCreateWorldSize.Normalize(
             GetSelectedOption(autoCreateWorldSizeBox, AutoCreateWorldSize.Medium));
         settings.Automation.AutoCreate.WorldDifficulty = AutoCreateWorldDifficulty.Normalize(
@@ -148,6 +151,7 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
         autoCreatePlayerTemplateCodeBox.PlaceholderText = Context.Localize("Empty = default character");
 
         ConfigureOptionBox(autoCreatePlayerDifficultyBox, AutoCreatePlayerDifficulty.All, Draft.Automation.AutoCreate.PlayerDifficulty);
+        ConfigureCheckBox(autoCreatePreserveExistingSavesBox, Draft.Automation.AutoCreate.PreserveExistingSaves);
         ConfigureOptionBox(autoCreateWorldSizeBox, AutoCreateWorldSize.All, Draft.Automation.AutoCreate.WorldSize);
         ConfigureOptionBox(autoCreateWorldDifficultyBox, AutoCreateWorldDifficulty.All, Draft.Automation.AutoCreate.WorldDifficulty);
         ConfigureOptionBox(autoCreateWorldEvilBox, AutoCreateWorldEvil.All, Draft.Automation.AutoCreate.WorldEvil);
@@ -228,17 +232,22 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
         SettingsUiFactory.AddSectionControl(
             createSection,
             CreateFolderNoticeRow(
-                "Create World deletes files in the save folders except favorite players and worlds.",
+                "By default, Create World moves non-favorite players and worlds to the backup folder before creating.",
                 "Open save folder",
                 (_, _) => Dialogs.OpenTerrariaSaveFolder(Context.Localize),
                 warningColor));
         SettingsUiFactory.AddSectionControl(
             createSection,
             CreateFolderNoticeRow(
-                "The most recent 50 deletions are kept in the backup folder.",
+                "When existing saves are not preserved, the most recent 50 cleanup batches are kept in the backup folder.",
                 "Open backup folder",
                 (_, _) => Dialogs.OpenAutoCreateBackupFolder(Context.Localize),
                 warningColor));
+        SettingsUiFactory.AddSectionControl(
+            createSection,
+            Factory.CreateWrappedFieldLabel(
+                "If existing saves are preserved, newly created players are selected from the first non-favorite row and rejected pyramid worlds are kept.",
+                UiTheme.Text));
         SettingsUiFactory.AddSectionControl(
             createSection,
             Factory.CreateWrappedFieldLabel(
@@ -251,6 +260,7 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
             SettingsUiFactory.ColumnStyleAbsolute(360f));
         Factory.AddSettingRow(createGrid, "Player name", autoCreatePlayerNameBox);
         Factory.AddSettingRow(createGrid, "Player difficulty", autoCreatePlayerDifficultyBox);
+        Factory.AddSettingRow(createGrid, "Keep existing players and worlds", autoCreatePreserveExistingSavesBox);
         SettingsUiFactory.AddSectionControl(createSection, createGrid);
         SettingsUiFactory.AddSectionControl(createSection, Factory.CreateFieldLabel("Player code"));
         SettingsUiFactory.AddSectionControl(createSection, autoCreatePlayerTemplateCodeBox);

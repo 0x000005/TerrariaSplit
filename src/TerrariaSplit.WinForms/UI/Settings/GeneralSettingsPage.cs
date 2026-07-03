@@ -112,7 +112,7 @@ internal sealed class GeneralSettingsPage : SettingsPageBase
             {
                 ShowAutomationHotkeyWarning(
                     createWorldKeyBox,
-                    "Create World hotkey {0} is now active. Please read the Create World notes in the Automation settings tab first. Enabling this blindly may delete your save files by mistake.");
+                    "Create World hotkey {0} is now active. Please read the Create World notes in the Automation settings tab first. Enabling this blindly may move save files to the backup folder unless existing saves are kept.");
             }
 
             previousCreateWorldHotkey = currentCreateWorldHotkey;
