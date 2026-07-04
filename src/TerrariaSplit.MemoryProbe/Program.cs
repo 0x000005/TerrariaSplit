@@ -6,53 +6,85 @@ namespace TerrariaSplit.MemoryProbe;
 
 internal static class Program
 {
+    private const int X86ArrayLengthOffset = 0x4;
+    private const int X86ArrayFirstElementFallbackOffset = 0x8;
+    private const int X86InstanceFieldOffsetBias = 0x4;
+    private const int X86ObjectReferenceSize = 4;
+    private const int UiStateNestedReferenceScanStart = 0x8;
+    private const int UiStateNestedReferenceScanEnd = 0x300;
     private static readonly string[] ZoneBitsByteFieldNames = ["zone1", "zone2", "zone3", "zone4", "zone5"];
+    private static readonly IReadOnlyDictionary<string, string> BossNpcFieldByFactKey =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["boss:king-slime:defeated"] = "downedSlimeKing",
+            ["boss:eye-of-cthulhu:defeated"] = "downedBoss1",
+            ["boss:eater-of-worlds:defeated"] = "downedBoss2",
+            ["boss:brain-of-cthulhu:defeated"] = "downedBoss2",
+            ["boss:queen-bee:defeated"] = "downedQueenBee",
+            ["boss:skeletron:defeated"] = "downedBoss3",
+            ["boss:deerclops:defeated"] = "downedDeerclops",
+            ["boss:queen-slime:defeated"] = "downedQueenSlime",
+            ["boss:destroyer:defeated"] = "downedMechBoss1",
+            ["boss:twins:defeated"] = "downedMechBoss2",
+            ["boss:skeletron-prime:defeated"] = "downedMechBoss3",
+            ["boss:plantera:defeated"] = "downedPlantBoss",
+            ["boss:golem:defeated"] = "downedGolemBoss",
+            ["boss:duke-fishron:defeated"] = "downedFishron",
+            ["boss:empress-of-light:defeated"] = "downedEmpressOfLight",
+            ["boss:lunatic-cultist:defeated"] = "downedAncientCultist",
+            ["boss:moon-lord:defeated"] = "downedMoonlord"
+        };
 
     private static int Main(string[] args)
     {
         if (args.Length != 2 ||
-            !string.Equals(args[0], "item-layout", StringComparison.OrdinalIgnoreCase) ||
             !int.TryParse(args[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out int processId))
         {
-            WriteResponse(new ItemLayoutProbeResponse(false, "usage: item-layout <pid>", null));
+            WriteResponse(new RuntimeLayoutProbeResponse(false, "usage: runtime-layout <pid>", null));
+            return 2;
+        }
+
+        if (!string.Equals(args[0], "runtime-layout", StringComparison.OrdinalIgnoreCase))
+        {
+            WriteResponse(new RuntimeLayoutProbeResponse(false, "usage: runtime-layout <pid>", null));
             return 2;
         }
 
         if (Environment.Is64BitProcess)
         {
-            WriteResponse(new ItemLayoutProbeResponse(false, "memory probe must run as x86", null));
+            WriteResponse(new RuntimeLayoutProbeResponse(false, "memory probe must run as x86", null));
             return 3;
         }
 
         try
         {
-            if (!TryResolveItemLayout(processId, out ItemLayoutDto? layout))
+            if (!TryResolveRuntimeLayout(processId, out RuntimeLayoutDto? layout) || layout is null)
             {
-                WriteResponse(new ItemLayoutProbeResponse(false, "item layout unavailable", null));
+                WriteResponse(new RuntimeLayoutProbeResponse(false, "runtime layout unavailable", null));
                 return 1;
             }
 
-            WriteResponse(new ItemLayoutProbeResponse(true, null, layout));
+            WriteResponse(new RuntimeLayoutProbeResponse(true, null, layout));
             return 0;
         }
         catch (InvalidOperationException ex)
         {
-            WriteResponse(new ItemLayoutProbeResponse(false, ex.Message, null));
+            WriteResponse(new RuntimeLayoutProbeResponse(false, ex.Message, null));
             return 1;
         }
         catch (UnauthorizedAccessException ex)
         {
-            WriteResponse(new ItemLayoutProbeResponse(false, ex.Message, null));
+            WriteResponse(new RuntimeLayoutProbeResponse(false, ex.Message, null));
             return 1;
         }
         catch (ClrDiagnosticsException ex)
         {
-            WriteResponse(new ItemLayoutProbeResponse(false, ex.Message, null));
+            WriteResponse(new RuntimeLayoutProbeResponse(false, ex.Message, null));
             return 1;
         }
     }
 
-    private static bool TryResolveItemLayout(int targetProcessId, out ItemLayoutDto? layout)
+    private static bool TryResolveRuntimeLayout(int targetProcessId, out RuntimeLayoutDto? layout)
     {
         layout = null;
 
@@ -65,130 +97,258 @@ internal static class Program
 
         using ClrRuntime runtime = clrInfo.CreateRuntime();
         ClrType? mainType = FindType(runtime, "Terraria.Main");
+        ClrType? npcType = FindType(runtime, "Terraria.NPC");
+        ClrAppDomain? domain = FindDomain(runtime, mainType);
+        if (mainType is null || domain is null)
+        {
+            return false;
+        }
+
+        CoreLayoutDto core = ResolveCoreLayout(mainType, domain);
+        Dictionary<string, long> bossFacts = ResolveBossFactAddresses(mainType, npcType, domain);
+        PlayerItemLayoutDto? item = ResolveItemLayout(runtime, mainType, domain);
+        NpcLayoutDto? npc = ResolveNpcLayout(runtime, mainType, domain);
+        BiomeLayoutDto? biome = ResolveBiomeLayout(runtime, mainType, domain);
+        SeedUiLayoutDto? seedUi = ResolveSeedUiLayout(runtime, core.MenuUiStaticFieldAddress);
+        WorldGenerationLayoutDto worldGeneration = ResolveWorldGenerationLayout(runtime, core.StatusTextStaticFieldAddress, domain);
+        int resolvedFieldCount =
+            CountNonZero(core.GameMenuStaticFieldAddress, core.StatusTextStaticFieldAddress, core.MenuUiStaticFieldAddress) +
+            bossFacts.Count(pair => pair.Value != 0) +
+            CountItemFields(item) +
+            CountNpcFields(npc) +
+            CountBiomeFields(biome) +
+            CountSeedFields(seedUi) +
+            CountWorldGenerationFields(worldGeneration);
+
+        layout = new RuntimeLayoutDto(
+            TerrariaVersion: null,
+            core,
+            new BossLayoutDto(bossFacts),
+            item,
+            npc,
+            biome,
+            seedUi,
+            worldGeneration,
+            resolvedFieldCount);
+        return core.GameMenuStaticFieldAddress != 0 || resolvedFieldCount > 0;
+    }
+
+    private static CoreLayoutDto ResolveCoreLayout(ClrType mainType, ClrAppDomain domain)
+    {
+        return new CoreLayoutDto(
+            GetStaticFieldAddress(mainType, domain, "gameMenu"),
+            GetStaticFieldAddress(mainType, domain, "statusText"),
+            GetStaticFieldAddress(mainType, domain, "MenuUI"));
+    }
+
+    private static Dictionary<string, long> ResolveBossFactAddresses(
+        ClrType mainType,
+        ClrType? npcType,
+        ClrAppDomain domain)
+    {
+        Dictionary<string, long> addresses = new(StringComparer.OrdinalIgnoreCase);
+        addresses["boss:wall-of-flesh:defeated"] = GetStaticFieldAddress(mainType, domain, "hardMode");
+        if (npcType is null)
+        {
+            return addresses;
+        }
+
+        foreach ((string factKey, string fieldName) in BossNpcFieldByFactKey)
+        {
+            addresses[factKey] = GetStaticFieldAddress(npcType, domain, fieldName);
+        }
+
+        return addresses;
+    }
+
+    private static PlayerItemLayoutDto? ResolveItemLayout(ClrRuntime runtime, ClrType mainType, ClrAppDomain domain)
+    {
         ClrType? playerType = FindType(runtime, "Terraria.Player");
         ClrType? chestType = FindType(runtime, "Terraria.Chest");
         ClrType? itemType = FindType(runtime, "Terraria.Item");
+        if (playerType is null || chestType is null || itemType is null)
+        {
+            return null;
+        }
+
+        long playerStaticAddress = GetStaticFieldAddress(mainType, domain, "player");
+        long myPlayerStaticAddress = GetStaticFieldAddress(mainType, domain, "myPlayer");
+        long mouseItemStaticAddress = GetStaticFieldAddress(mainType, domain, "mouseItem");
+        if (playerStaticAddress == 0 || myPlayerStaticAddress == 0 || mouseItemStaticAddress == 0)
+        {
+            return null;
+        }
+
+        int arrayFirstElementOffset = TryGetArrayFirstElementOffset(mainType, domain, "player") ??
+            X86ArrayFirstElementFallbackOffset;
+        return new PlayerItemLayoutDto(
+            playerStaticAddress,
+            myPlayerStaticAddress,
+            mouseItemStaticAddress,
+            GetRequiredFieldOffset(playerType, "armor"),
+            GetRequiredFieldOffset(playerType, "dye"),
+            GetRequiredFieldOffset(playerType, "miscEquips"),
+            GetRequiredFieldOffset(playerType, "miscDyes"),
+            GetRequiredFieldOffset(playerType, "trashItem"),
+            GetRequiredFieldOffset(playerType, "inventory"),
+            GetRequiredFieldOffset(playerType, "bank"),
+            GetRequiredFieldOffset(playerType, "bank2"),
+            GetRequiredFieldOffset(playerType, "bank3"),
+            GetRequiredFieldOffset(playerType, "bank4"),
+            GetRequiredFieldOffset(chestType, "item"),
+            GetRequiredFieldOffset(itemType, "type"),
+            GetRequiredFieldOffset(itemType, "stack"),
+            X86ArrayLengthOffset,
+            arrayFirstElementOffset,
+            X86ObjectReferenceSize);
+    }
+
+    private static NpcLayoutDto? ResolveNpcLayout(ClrRuntime runtime, ClrType mainType, ClrAppDomain domain)
+    {
         ClrType? npcType = FindType(runtime, "Terraria.NPC");
-        if (mainType is null || playerType is null || chestType is null || itemType is null || npcType is null)
+        if (npcType is null)
         {
-            return false;
+            return null;
         }
 
-        ClrStaticField? playerStatic = mainType.GetStaticFieldByName("player");
-        ClrStaticField? myPlayerStatic = mainType.GetStaticFieldByName("myPlayer");
-        ClrStaticField? mouseItemStatic = mainType.GetStaticFieldByName("mouseItem");
-        ClrStaticField? npcStatic = mainType.GetStaticFieldByName("npc");
-        ClrAppDomain? domain = runtime.AppDomains.FirstOrDefault(appDomain =>
-            playerStatic?.IsInitialized(appDomain) == true &&
-            myPlayerStatic?.IsInitialized(appDomain) == true &&
-            mouseItemStatic?.IsInitialized(appDomain) == true &&
-            npcStatic?.IsInitialized(appDomain) == true);
-        if (playerStatic is null || myPlayerStatic is null || mouseItemStatic is null || npcStatic is null || domain is null)
+        long npcStaticAddress = GetStaticFieldAddress(mainType, domain, "npc");
+        if (npcStaticAddress == 0)
         {
-            return false;
+            return null;
         }
 
-        ulong playerStaticAddress = playerStatic.GetAddress(domain);
-        ulong myPlayerStaticAddress = myPlayerStatic.GetAddress(domain);
-        ulong mouseItemStaticAddress = mouseItemStatic.GetAddress(domain);
-        ulong npcStaticAddress = npcStatic.GetAddress(domain);
-        if (playerStaticAddress == 0 ||
-            myPlayerStaticAddress == 0 ||
-            mouseItemStaticAddress == 0 ||
-            npcStaticAddress == 0)
+        int arrayFirstElementOffset = TryGetArrayFirstElementOffset(mainType, domain, "npc") ??
+            X86ArrayFirstElementFallbackOffset;
+        return new NpcLayoutDto(
+            npcStaticAddress,
+            GetRequiredFieldOffset(npcType, "type"),
+            GetRequiredFieldOffset(npcType, "active"),
+            GetRequiredFieldOffset(npcType, "townNPC"),
+            GetRequiredFieldOffset(npcType, "homeless"),
+            GetRequiredFieldOffset(npcType, "homeTileX"),
+            GetRequiredFieldOffset(npcType, "homeTileY"),
+            X86ArrayLengthOffset,
+            arrayFirstElementOffset,
+            X86ObjectReferenceSize);
+    }
+
+    private static BiomeLayoutDto? ResolveBiomeLayout(ClrRuntime runtime, ClrType mainType, ClrAppDomain domain)
+    {
+        ClrType? playerType = FindType(runtime, "Terraria.Player");
+        if (playerType is null)
         {
-            return false;
+            return null;
         }
 
-        ClrObject playerArrayObject = playerStatic.ReadObject(domain);
-        int myPlayer = myPlayerStatic.Read<int>(domain);
-        if (playerArrayObject.IsNull || myPlayer < 0)
+        long playerStaticAddress = GetStaticFieldAddress(mainType, domain, "player");
+        long myPlayerStaticAddress = GetStaticFieldAddress(mainType, domain, "myPlayer");
+        if (playerStaticAddress == 0 || myPlayerStaticAddress == 0)
         {
-            return false;
+            return null;
         }
 
-        ClrArray playerArray = playerArrayObject.AsArray();
-        if (myPlayer >= playerArray.Length)
+        Dictionary<string, int> zoneBitsByteFieldOffsets = ResolveZoneBitsByteFieldOffsets(playerType);
+        if (zoneBitsByteFieldOffsets.Count == 0)
         {
-            return false;
+            return null;
         }
 
-        ulong localPlayerAddress = ReadFirstArrayReference(playerArray, myPlayer);
-        if (localPlayerAddress == 0)
-        {
-            return false;
-        }
-
-        int arrayFirstElementOffset = GetArrayFirstElementOffset(playerArray.Type, playerArray.Address);
-        ClrObject localPlayer = runtime.Heap.GetObject(localPlayerAddress);
-        if (localPlayer.IsNull)
-        {
-            return false;
-        }
-
-        ClrInstanceField inventoryField = GetRequiredField(playerType, "inventory");
-        ClrObject inventoryArrayObject = inventoryField.ReadObject(localPlayer.Address, interior: false);
-        if (inventoryArrayObject.IsNull)
-        {
-            return false;
-        }
-
-        ClrArray inventoryArray = inventoryArrayObject.AsArray();
-        if (inventoryArray.Length == 0)
-        {
-            return false;
-        }
-
-        ulong firstItemAddress = ReadFirstNonNullArrayReference(inventoryArray);
-        if (firstItemAddress == 0)
-        {
-            return false;
-        }
-
-        ClrObject npcArrayObject = npcStatic.ReadObject(domain);
-        if (npcArrayObject.IsNull)
-        {
-            return false;
-        }
-
-        ClrArray npcArray = npcArrayObject.AsArray();
-        ulong firstNpcAddress = ReadFirstNonNullArrayReference(npcArray);
-        if (firstNpcAddress == 0)
-        {
-            return false;
-        }
-
-        Dictionary<string, int> zoneBitsByteFieldOffsets = ResolveZoneBitsByteFieldOffsets(playerType, localPlayerAddress);
-
-        layout = new ItemLayoutDto(
-            unchecked((long)playerStaticAddress),
-            unchecked((long)myPlayerStaticAddress),
-            unchecked((long)mouseItemStaticAddress),
-            GetRequiredFieldOffset(playerType, "armor", localPlayer.Address),
-            GetRequiredFieldOffset(playerType, "dye", localPlayer.Address),
-            GetRequiredFieldOffset(playerType, "miscEquips", localPlayer.Address),
-            GetRequiredFieldOffset(playerType, "miscDyes", localPlayer.Address),
-            GetRequiredFieldOffset(playerType, "trashItem", localPlayer.Address),
-            GetRequiredFieldOffset(playerType, "inventory", localPlayer.Address),
-            GetRequiredFieldOffset(playerType, "bank", localPlayer.Address),
-            GetRequiredFieldOffset(playerType, "bank2", localPlayer.Address),
-            GetRequiredFieldOffset(playerType, "bank3", localPlayer.Address),
-            GetRequiredFieldOffset(playerType, "bank4", localPlayer.Address),
-            GetChestItemArrayFieldOffset(chestType, playerType, localPlayer),
-            GetRequiredFieldOffset(itemType, "type", firstItemAddress),
-            GetRequiredFieldOffset(itemType, "stack", firstItemAddress),
-            unchecked((long)npcStaticAddress),
-            GetRequiredFieldOffset(npcType, "type", firstNpcAddress),
-            GetRequiredFieldOffset(npcType, "active", firstNpcAddress),
-            GetRequiredFieldOffset(npcType, "townNPC", firstNpcAddress),
-            GetRequiredFieldOffset(npcType, "homeless", firstNpcAddress),
-            GetRequiredFieldOffset(npcType, "homeTileX", firstNpcAddress),
-            GetRequiredFieldOffset(npcType, "homeTileY", firstNpcAddress),
+        int arrayFirstElementOffset = TryGetArrayFirstElementOffset(mainType, domain, "player") ??
+            X86ArrayFirstElementFallbackOffset;
+        return new BiomeLayoutDto(
+            playerStaticAddress,
+            myPlayerStaticAddress,
             zoneBitsByteFieldOffsets,
-            ManagedArrayLengthOffset: 0x4,
-            ManagedArrayFirstElementOffset: arrayFirstElementOffset,
-            ObjectReferenceSize: 4);
-        return true;
+            X86ArrayLengthOffset,
+            arrayFirstElementOffset,
+            X86ObjectReferenceSize);
+    }
+
+    private static SeedUiLayoutDto? ResolveSeedUiLayout(ClrRuntime runtime, long menuUiStaticFieldAddress)
+    {
+        ClrType? userInterfaceType = FindType(runtime, "Terraria.UI.UserInterface");
+        ClrType? worldCreationType = FindType(runtime, "Terraria.GameContent.UI.States.UIWorldCreation");
+        ClrType? worldCreationAdvancedType = FindType(runtime, "Terraria.GameContent.UI.States.UIWorldCreationAdvanced");
+        ClrType? characterNameButtonType = FindType(runtime, "Terraria.GameContent.UI.Elements.UICharacterNameButton");
+        if (menuUiStaticFieldAddress == 0 ||
+            userInterfaceType is null ||
+            worldCreationType is null ||
+            characterNameButtonType is null ||
+            !TryGetFieldOffset(userInterfaceType, "_currentState", out int currentStateOffset) ||
+            !TryGetFieldOffset(worldCreationType, "_optionwWorldName", out int worldNameOffset) ||
+            !TryGetFieldOffset(worldCreationType, "_optionSeed", out int seedOffset) ||
+            !TryGetFieldOffset(worldCreationType, "_namePlate", out int namePlateOffset) ||
+            !TryGetFieldOffset(worldCreationType, "_seedPlate", out int seedPlateOffset) ||
+            !TryGetFieldOffset(characterNameButtonType, "actualContents", out int actualContentsOffset))
+        {
+            return null;
+        }
+
+        int advancedCreationStateOffset = -1;
+        int advancedSeedPlateOffset = -1;
+        if (worldCreationAdvancedType is not null)
+        {
+            _ = TryGetFieldOffset(worldCreationAdvancedType, "_creationState", out advancedCreationStateOffset);
+            _ = TryGetFieldOffset(worldCreationAdvancedType, "_seedPlate", out advancedSeedPlateOffset);
+        }
+
+        return new SeedUiLayoutDto(
+            menuUiStaticFieldAddress,
+            currentStateOffset,
+            UiStateNestedReferenceScanStart,
+            UiStateNestedReferenceScanEnd,
+            advancedCreationStateOffset,
+            advancedSeedPlateOffset,
+            worldNameOffset,
+            seedOffset,
+            namePlateOffset,
+            seedPlateOffset,
+            actualContentsOffset,
+            X86ObjectReferenceSize);
+    }
+
+    private static WorldGenerationLayoutDto ResolveWorldGenerationLayout(
+        ClrRuntime runtime,
+        long statusTextStaticFieldAddress,
+        ClrAppDomain domain)
+    {
+        ClrType? worldGeneratorType = FindType(runtime, "Terraria.WorldBuilding.WorldGenerator");
+        ClrType? generationProgressType = FindType(runtime, "Terraria.WorldBuilding.GenerationProgress");
+        ClrType? controllerType = FindType(runtime, "Terraria.WorldBuilding.WorldGenerator+Controller");
+        ClrType? genPassType = FindType(runtime, "Terraria.WorldBuilding.GenPass");
+
+        long currentGenerationProgressAddress = worldGeneratorType is null
+            ? 0
+            : GetStaticFieldAddress(worldGeneratorType, domain, "CurrentGenerationProgress");
+        long currentControllerAddress = worldGeneratorType is null
+            ? 0
+            : GetStaticFieldAddress(worldGeneratorType, domain, "CurrentController");
+
+        return new WorldGenerationLayoutDto(
+            statusTextStaticFieldAddress,
+            currentGenerationProgressAddress,
+            currentControllerAddress,
+            GetOptionalFieldOffset(generationProgressType, "_message"),
+            GetOptionalFieldOffset(generationProgressType, "_value"),
+            GetOptionalFieldOffset(generationProgressType, "_totalWeightedProgress"),
+            GetOptionalFieldOffset(generationProgressType, "TotalWeight"),
+            GetOptionalFieldOffset(generationProgressType, "CurrentPassWeight"),
+            GetOptionalFieldOffset(controllerType, "_generator"),
+            GetOptionalFieldOffset(worldGeneratorType, "_currentPass"),
+            GetOptionalFieldOffset(genPassType, "Name"));
+    }
+
+    private static ClrAppDomain? FindDomain(ClrRuntime runtime, ClrType? mainType)
+    {
+        if (mainType is null)
+        {
+            return null;
+        }
+
+        ClrStaticField? gameMenuStatic = mainType.GetStaticFieldByName("gameMenu");
+        return runtime.AppDomains.FirstOrDefault(appDomain =>
+                gameMenuStatic?.IsInitialized(appDomain) == true) ??
+            runtime.AppDomains.FirstOrDefault();
     }
 
     private static ClrType? FindType(ClrRuntime runtime, string typeName)
@@ -205,60 +365,53 @@ internal static class Program
         return null;
     }
 
-    private static ClrInstanceField GetRequiredField(ClrType type, string fieldName)
+    private static long GetStaticFieldAddress(ClrType type, ClrAppDomain domain, string fieldName)
     {
-        ClrInstanceField? field = type.GetFieldByName(fieldName);
-        if (field is null)
+        ClrStaticField? field = type.GetStaticFieldByName(fieldName);
+        if (field is null || !field.IsInitialized(domain))
+        {
+            return 0;
+        }
+
+        return unchecked((long)field.GetAddress(domain));
+    }
+
+    private static int GetRequiredFieldOffset(ClrType type, string fieldName)
+    {
+        if (!TryGetFieldOffset(type, fieldName, out int offset))
         {
             throw new InvalidOperationException($"Missing CLR field {type.Name}.{fieldName}.");
         }
 
-        return field;
+        return offset;
     }
 
-    private static int GetRequiredFieldOffset(ClrType type, string fieldName, ulong objectAddress)
+    private static int GetOptionalFieldOffset(ClrType? type, string fieldName)
     {
-        ClrInstanceField field = GetRequiredField(type, fieldName);
-        ulong fieldAddress = field.GetAddress(objectAddress, interior: false);
-        if (fieldAddress < objectAddress)
+        return type is not null && TryGetFieldOffset(type, fieldName, out int offset)
+            ? offset
+            : -1;
+    }
+
+    private static bool TryGetFieldOffset(ClrType type, string fieldName, out int offset)
+    {
+        ClrInstanceField? field = type.GetFieldByName(fieldName);
+        if (field is null)
         {
-            throw new InvalidOperationException($"Invalid CLR field address {type.Name}.{fieldName}.");
+            offset = -1;
+            return false;
         }
 
-        return checked((int)(fieldAddress - objectAddress));
+        offset = field.Offset + X86InstanceFieldOffsetBias;
+        return true;
     }
 
-    private static int GetFieldOffset(ClrType type, string fieldName)
-    {
-        return GetRequiredField(type, fieldName).Offset;
-    }
-
-    private static int GetChestItemArrayFieldOffset(ClrType chestType, ClrType playerType, ClrObject localPlayer)
-    {
-        foreach (string bankFieldName in new[] { "bank", "bank2", "bank3", "bank4" })
-        {
-            ClrInstanceField? bankField = playerType.GetFieldByName(bankFieldName);
-            if (bankField is null)
-            {
-                continue;
-            }
-
-            ClrObject chestObject = bankField.ReadObject(localPlayer.Address, interior: false);
-            if (!chestObject.IsNull)
-            {
-                return GetRequiredFieldOffset(chestType, "item", chestObject.Address);
-            }
-        }
-
-        return GetFieldOffset(chestType, "item");
-    }
-
-    private static Dictionary<string, int> ResolveZoneBitsByteFieldOffsets(ClrType playerType, ulong playerAddress)
+    private static Dictionary<string, int> ResolveZoneBitsByteFieldOffsets(ClrType playerType)
     {
         Dictionary<string, int> offsets = new(StringComparer.OrdinalIgnoreCase);
         foreach (string zoneFieldName in ZoneBitsByteFieldNames)
         {
-            if (TryGetFieldOffset(playerType, zoneFieldName, playerAddress, out int offset))
+            if (TryGetFieldOffset(playerType, zoneFieldName, out int offset))
             {
                 offsets[zoneFieldName] = offset;
             }
@@ -267,69 +420,118 @@ internal static class Program
         return offsets;
     }
 
-    private static bool TryGetFieldOffset(ClrType type, string fieldName, ulong objectAddress, out int offset)
+    private static int? TryGetArrayFirstElementOffset(ClrType mainType, ClrAppDomain domain, string staticFieldName)
     {
-        offset = 0;
-        ClrInstanceField? field = type.GetFieldByName(fieldName);
-        if (field is null)
+        ClrStaticField? staticField = mainType.GetStaticFieldByName(staticFieldName);
+        if (staticField is null || !staticField.IsInitialized(domain))
         {
-            return false;
+            return null;
         }
 
-        if (objectAddress != 0)
+        ClrObject arrayObject = staticField.ReadObject(domain);
+        if (arrayObject.IsNull)
         {
-            ulong fieldAddress = field.GetAddress(objectAddress, interior: false);
-            if (fieldAddress >= objectAddress)
-            {
-                offset = checked((int)(fieldAddress - objectAddress));
-                return true;
-            }
+            return null;
         }
 
-        offset = field.Offset;
-        return true;
-    }
-
-    private static int GetArrayFirstElementOffset(ClrType arrayType, ulong arrayAddress)
-    {
-        ulong elementAddress = arrayType.GetArrayElementAddress(arrayAddress, 0);
-        if (elementAddress < arrayAddress)
+        ClrArray array = arrayObject.AsArray();
+        if (array.Length <= 0)
         {
-            throw new InvalidOperationException($"Invalid CLR array element address {arrayType.Name}.");
+            return X86ArrayFirstElementFallbackOffset;
         }
 
-        return checked((int)(elementAddress - arrayAddress));
+        ulong elementAddress = array.Type.GetArrayElementAddress(array.Address, 0);
+        return elementAddress >= array.Address
+            ? checked((int)(elementAddress - array.Address))
+            : null;
     }
 
-    private static ulong ReadFirstArrayReference(ClrArray array, int index)
+    private static int CountNonZero(params long[] addresses)
     {
-        IEnumerable<ulong>? values = array.ReadValues<ulong>(index, 1);
-        return values?.FirstOrDefault() ?? 0;
+        return addresses.Count(address => address != 0);
     }
 
-    private static ulong ReadFirstNonNullArrayReference(ClrArray array)
+    private static int CountItemFields(PlayerItemLayoutDto? item)
     {
-        for (int i = 0; i < array.Length; i++)
-        {
-            ulong address = ReadFirstArrayReference(array, i);
-            if (address != 0)
-            {
-                return address;
-            }
-        }
-
-        return 0;
+        return item is null
+            ? 0
+            : CountNonZero(
+                item.PlayerArrayStaticFieldAddress,
+                item.MyPlayerStaticFieldAddress,
+                item.MouseItemStaticFieldAddress) + 16;
     }
 
-    private static void WriteResponse(ItemLayoutProbeResponse response)
+    private static int CountNpcFields(NpcLayoutDto? npc)
+    {
+        return npc is null
+            ? 0
+            : CountNonZero(npc.NpcArrayStaticFieldAddress) + 9;
+    }
+
+    private static int CountBiomeFields(BiomeLayoutDto? biome)
+    {
+        return biome is null
+            ? 0
+            : CountNonZero(biome.PlayerArrayStaticFieldAddress, biome.MyPlayerStaticFieldAddress) +
+                (biome.ZoneBitsByteFieldOffsets?.Count ?? 0) + 3;
+    }
+
+    private static int CountSeedFields(SeedUiLayoutDto? seedUi)
+    {
+        return seedUi is null
+            ? 0
+            : CountNonZero(seedUi.MenuUiStaticFieldAddress) + 11;
+    }
+
+    private static int CountWorldGenerationFields(WorldGenerationLayoutDto worldGeneration)
+    {
+        return CountNonZero(
+                worldGeneration.StatusTextStaticFieldAddress,
+                worldGeneration.CurrentGenerationProgressStaticFieldAddress,
+                worldGeneration.CurrentControllerStaticFieldAddress) +
+            CountPresentOffsets(
+                worldGeneration.GenerationProgressMessageFieldOffset,
+                worldGeneration.GenerationProgressValueFieldOffset,
+                worldGeneration.GenerationProgressTotalWeightedProgressFieldOffset,
+                worldGeneration.GenerationProgressTotalWeightFieldOffset,
+                worldGeneration.GenerationProgressCurrentPassWeightFieldOffset,
+                worldGeneration.ControllerGeneratorFieldOffset,
+                worldGeneration.WorldGeneratorCurrentPassFieldOffset,
+                worldGeneration.GenPassNameFieldOffset);
+    }
+
+    private static int CountPresentOffsets(params int[] offsets)
+    {
+        return offsets.Count(offset => offset >= 0);
+    }
+
+    private static void WriteResponse<T>(T response)
     {
         Console.WriteLine(JsonSerializer.Serialize(response));
     }
 }
 
-internal sealed record ItemLayoutProbeResponse(bool Success, string? Error, ItemLayoutDto? Layout);
+internal sealed record RuntimeLayoutProbeResponse(bool Success, string? Error, RuntimeLayoutDto? Layout);
 
-internal sealed record ItemLayoutDto(
+internal sealed record RuntimeLayoutDto(
+    string? TerrariaVersion,
+    CoreLayoutDto Core,
+    BossLayoutDto Boss,
+    PlayerItemLayoutDto? Item,
+    NpcLayoutDto? Npc,
+    BiomeLayoutDto? Biome,
+    SeedUiLayoutDto? SeedUi,
+    WorldGenerationLayoutDto WorldGeneration,
+    int ResolvedFieldCount);
+
+internal sealed record CoreLayoutDto(
+    long GameMenuStaticFieldAddress,
+    long StatusTextStaticFieldAddress,
+    long MenuUiStaticFieldAddress);
+
+internal sealed record BossLayoutDto(Dictionary<string, long> FactStaticFieldAddresses);
+
+internal sealed record PlayerItemLayoutDto(
     long PlayerArrayStaticFieldAddress,
     long MyPlayerStaticFieldAddress,
     long MouseItemStaticFieldAddress,
@@ -346,6 +548,11 @@ internal sealed record ItemLayoutDto(
     int ChestItemArrayFieldOffset,
     int ItemTypeFieldOffset,
     int ItemStackFieldOffset,
+    int ManagedArrayLengthOffset,
+    int ManagedArrayFirstElementOffset,
+    int ObjectReferenceSize);
+
+internal sealed record NpcLayoutDto(
     long NpcArrayStaticFieldAddress,
     int NpcTypeFieldOffset,
     int NpcActiveFieldOffset,
@@ -353,7 +560,41 @@ internal sealed record ItemLayoutDto(
     int NpcHomelessFieldOffset,
     int NpcHomeTileXFieldOffset,
     int NpcHomeTileYFieldOffset,
+    int ManagedArrayLengthOffset,
+    int ManagedArrayFirstElementOffset,
+    int ObjectReferenceSize);
+
+internal sealed record BiomeLayoutDto(
+    long PlayerArrayStaticFieldAddress,
+    long MyPlayerStaticFieldAddress,
     Dictionary<string, int>? ZoneBitsByteFieldOffsets,
     int ManagedArrayLengthOffset,
     int ManagedArrayFirstElementOffset,
     int ObjectReferenceSize);
+
+internal sealed record SeedUiLayoutDto(
+    long MenuUiStaticFieldAddress,
+    int UserInterfaceCurrentStateFieldOffset,
+    int UiStateNestedReferenceScanStart,
+    int UiStateNestedReferenceScanEnd,
+    int WorldCreationAdvancedCreationStateFieldOffset,
+    int WorldCreationAdvancedSeedPlateFieldOffset,
+    int WorldNameFieldOffset,
+    int SeedFieldOffset,
+    int NamePlateFieldOffset,
+    int SeedPlateFieldOffset,
+    int CharacterNameButtonActualContentsOffset,
+    int ObjectReferenceSize);
+
+internal sealed record WorldGenerationLayoutDto(
+    long StatusTextStaticFieldAddress,
+    long CurrentGenerationProgressStaticFieldAddress,
+    long CurrentControllerStaticFieldAddress,
+    int GenerationProgressMessageFieldOffset,
+    int GenerationProgressValueFieldOffset,
+    int GenerationProgressTotalWeightedProgressFieldOffset,
+    int GenerationProgressTotalWeightFieldOffset,
+    int GenerationProgressCurrentPassWeightFieldOffset,
+    int ControllerGeneratorFieldOffset,
+    int WorldGeneratorCurrentPassFieldOffset,
+    int GenPassNameFieldOffset);

@@ -26,7 +26,7 @@ internal static partial class DebugSettingsSnapshotBuilder
             BuildQuickStatus(window, watch, lastUpdated, localize),
             BuildPerformance(debugSnapshot, advanced, localize),
             BuildWindowInfo(window, diagnostics, localize),
-            BuildAutomation(window, inventory, autoCreate, worldPoolCountProvider, localize),
+            BuildAutomation(window, diagnostics, inventory, autoCreate, worldPoolCountProvider, localize),
             BuildBossProgress(watch.Facts, localize),
             BuildWorldGeneration(watch, diagnostics, localize),
             BuildMemory(diagnostics, localize),
@@ -73,7 +73,7 @@ internal static partial class DebugSettingsSnapshotBuilder
     {
         string menuScale = localize("Unknown");
         string logicalMenuSize = localize("Unknown");
-        if (TryCreateGeometry(window.ClientSize, out TerrariaMenuGeometry geometry))
+        if (TryCreateGeometry(window.ClientSize, diagnostics.ProcessVersion, out TerrariaMenuGeometry geometry))
         {
             menuScale = FormatScale(geometry.Scale);
             logicalMenuSize = FormatLogicalSize(geometry);
@@ -100,13 +100,14 @@ internal static partial class DebugSettingsSnapshotBuilder
 
     private static DebugAutomationSnapshot BuildAutomation(
         TerrariaWindowSnapshot window,
+        TerrariaWatcherDiagnostics diagnostics,
         TerrariaSaveInventorySnapshot inventory,
         AutoCreateWorldSettings autoCreate,
         Func<int> worldPoolCountProvider,
         Func<string, string> localize)
     {
         string autoCreateSequence = localize("Unavailable because client size is unknown.");
-        if (TryCreateGeometry(window.ClientSize, out TerrariaMenuGeometry geometry))
+        if (TryCreateGeometry(window.ClientSize, diagnostics.ProcessVersion, out TerrariaMenuGeometry geometry))
         {
             autoCreateSequence = BuildAutoCreateSequenceText(
                 autoCreate,
@@ -186,15 +187,16 @@ internal static partial class DebugSettingsSnapshotBuilder
         TerrariaWatcherDiagnostics diagnostics,
         Func<string, string> localize)
     {
+        TerrariaLayoutProbeDiagnostics probe = diagnostics.LayoutProbe;
         return new DebugMemorySnapshot(
-            diagnostics.SignatureScanAttempts.ToString(CultureInfo.InvariantCulture),
-            FormatTimestamp(diagnostics.LastSignatureScanUtc, localize),
-            FormatScanStats(diagnostics.LastSignatureScan, localize),
-            FormatScanFailures(diagnostics.LastSignatureScan, localize),
+            probe.Attempts.ToString(CultureInfo.InvariantCulture),
+            FormatTimestamp(probe.LastAttemptUtc, localize),
+            FormatLayoutStatus(diagnostics, localize),
+            FormatProbeError(probe, localize),
             FormatAddress(diagnostics.MainModuleBaseAddress, localize),
             FormatByteCount(diagnostics.MainModuleSize, localize),
-            FormatAddress(diagnostics.UpdateTimeAddress, localize),
-            FormatAddress(diagnostics.BossFlagsBaseAddress, localize),
+            FormatAddress(diagnostics.GameMenuAddress, localize),
+            FormatBossFactAddressCount(diagnostics.BossFactAddressCount, localize),
             FormatAddress(diagnostics.HardmodeAddress, localize),
             FormatAddress(diagnostics.CurrentGenerationProgressAddress, localize),
             FormatAddress(diagnostics.CurrentControllerAddress, localize),

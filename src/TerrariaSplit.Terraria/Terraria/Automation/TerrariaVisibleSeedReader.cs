@@ -10,6 +10,7 @@ internal sealed class TerrariaVisibleSeedReader : IPyramidVisibleSeedReader, IDi
 
     private readonly Process process;
     private readonly ProcessMemoryReader memory;
+    private readonly TerrariaMemoryResolver resolver = new();
     private readonly TerrariaWorldCreationSeedReader seedReader = new();
     private readonly Func<TimeSpan, CancellationToken, Task> delayAsync;
 
@@ -21,6 +22,7 @@ internal sealed class TerrariaVisibleSeedReader : IPyramidVisibleSeedReader, IDi
         this.process = process;
         this.memory = memory;
         this.delayAsync = delayAsync;
+        resolver.SetProcess(process);
         seedReader.Reset();
     }
 
@@ -53,7 +55,7 @@ internal sealed class TerrariaVisibleSeedReader : IPyramidVisibleSeedReader, IDi
 
     public string? ReadCurrentSeed()
     {
-        TerrariaWorldCreationSeedSnapshot snapshot = seedReader.Read(memory);
+        TerrariaWorldCreationSeedSnapshot snapshot = ReadSeedSnapshot();
         return snapshot.Status == TerrariaWorldCreationSeedStatus.Seed &&
             !string.IsNullOrWhiteSpace(snapshot.SeedText)
             ? snapshot.SeedText
@@ -72,7 +74,7 @@ internal sealed class TerrariaVisibleSeedReader : IPyramidVisibleSeedReader, IDi
         {
             cancellationToken.ThrowIfCancellationRequested();
             readAttempts++;
-            TerrariaWorldCreationSeedSnapshot snapshot = seedReader.Read(memory);
+            TerrariaWorldCreationSeedSnapshot snapshot = ReadSeedSnapshot();
             lastStatus = snapshot.Status;
             if (snapshot.Status == TerrariaWorldCreationSeedStatus.Seed &&
                 !string.IsNullOrWhiteSpace(snapshot.SeedText))
@@ -98,6 +100,13 @@ internal sealed class TerrariaVisibleSeedReader : IPyramidVisibleSeedReader, IDi
 
     public void Dispose()
     {
+        resolver.SetProcess(null);
         process.Dispose();
+    }
+
+    private TerrariaWorldCreationSeedSnapshot ReadSeedSnapshot()
+    {
+        _ = resolver.Resolve(memory);
+        return seedReader.Read(memory, resolver.SeedUiLayout);
     }
 }

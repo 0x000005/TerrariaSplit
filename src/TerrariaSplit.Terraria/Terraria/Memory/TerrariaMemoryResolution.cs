@@ -1,22 +1,21 @@
 namespace TerrariaSplit.Terraria.Memory;
 
 internal readonly record struct TerrariaMemoryResolution(
-    IntPtr UpdateTimeAddress,
     IntPtr GameMenuAddress,
-    IntPtr GameMenuSecondaryAddress,
-    IntPtr BossFlagsBaseAddress,
+    IntPtr StatusTextAddress,
+    IntPtr MenuUiAddress,
+    int BossFactAddressCount,
     IntPtr HardmodeAddress,
     IntPtr CurrentGenerationProgressAddress,
     IntPtr CurrentControllerAddress,
-    bool UsingBossProgressionMenuFallback,
-    bool UsingGameMenuFallback,
-    bool UsingBossProgressionFallback)
+    bool HasSeedUiLayout)
 {
     public bool HasGameMenuAddress => GameMenuAddress != IntPtr.Zero;
 
-    public bool HasResolvedBossAddresses => BossFlagsBaseAddress != IntPtr.Zero && HardmodeAddress != IntPtr.Zero;
+    public bool HasResolvedBossAddresses => BossFactAddressCount > 0;
 
     public bool HasResolvedWorldGenerationAddresses =>
+        StatusTextAddress != IntPtr.Zero ||
         CurrentGenerationProgressAddress != IntPtr.Zero &&
         CurrentControllerAddress != IntPtr.Zero;
 }

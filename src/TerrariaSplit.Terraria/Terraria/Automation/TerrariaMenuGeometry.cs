@@ -2,13 +2,25 @@ using System.Drawing;
 
 namespace TerrariaSplit.Terraria.Automation;
 
-public readonly record struct TerrariaMenuGeometry(float Scale, float LogicalWidth, float LogicalHeight)
+public readonly record struct TerrariaMenuGeometry(
+    float Scale,
+    float LogicalWidth,
+    float LogicalHeight,
+    TerrariaMenuProfile Profile)
 {
     public static TerrariaMenuGeometry From(Size clientSize)
     {
+        return From(clientSize, TerrariaMenuProfile.Modern1456);
+    }
+
+    public static TerrariaMenuGeometry From(Size clientSize, TerrariaMenuProfile profile)
+    {
         // Terraria's PreDrawMenu scales menu UI up to a logical 900px height unless disabled in config.
         float scale = GetMainMenuScale(clientSize.Height);
-        return new TerrariaMenuGeometry(scale, clientSize.Width / scale, clientSize.Height / scale);
+        TerrariaMenuProfile selectedProfile = string.IsNullOrWhiteSpace(profile.Name)
+            ? TerrariaMenuProfile.Modern1456
+            : profile;
+        return new TerrariaMenuGeometry(scale, clientSize.Width / scale, clientSize.Height / scale, selectedProfile);
     }
 
     public Point MainMenuSinglePlayer()
@@ -30,6 +42,11 @@ public readonly record struct TerrariaMenuGeometry(float Scale, float LogicalWid
 
     public Point CreatePlayerButton()
     {
+        if (Profile.UsesLegacyCharacterCreationWizard)
+        {
+            return LegacyMenuButton(top: 220f, spacing: 38f, index: 6, offset: 6f, itemScale: 0.9f);
+        }
+
         return ToClient(LogicalWidth / 2f + 130f, 534f);
     }
 
@@ -43,6 +60,18 @@ public readonly record struct TerrariaMenuGeometry(float Scale, float LogicalWid
         return ToClient(LogicalWidth / 2f - 176f, 294f);
     }
 
+    public Point CharacterTemplateCategoryButton()
+    {
+        return Profile.Kind == TerrariaMenuProfileKind.Legacy1449
+            ? CharacterGenderCategoryButton1449()
+            : CharacterClothingCategoryButton();
+    }
+
+    private Point CharacterGenderCategoryButton1449()
+    {
+        return ToClient(LogicalWidth / 2f - 170f, 294f);
+    }
+
     public Point CharacterInfoCategoryButton()
     {
         return ToClient(LogicalWidth / 2f - 224f, 294f);
@@ -50,11 +79,27 @@ public readonly record struct TerrariaMenuGeometry(float Scale, float LogicalWid
 
     public Point CharacterTemplatePasteButton()
     {
+        if (Profile.Kind == TerrariaMenuProfileKind.Legacy1449)
+        {
+            return ToClient(LogicalWidth / 2f, 461f);
+        }
+
         return ToClient(LogicalWidth / 2f + 110f, 475f);
     }
 
     public Point PlayerDifficultyButton(string playerDifficulty)
     {
+        if (Profile.UsesLegacyCharacterCreationWizard)
+        {
+            int legacyIndex = AutoCreatePlayerDifficulty.Normalize(playerDifficulty) switch
+            {
+                AutoCreatePlayerDifficulty.Mediumcore => 2,
+                AutoCreatePlayerDifficulty.Hardcore => 3,
+                _ => 1
+            };
+            return LegacyMenuButton(top: 250f, spacing: 50f, index: legacyIndex, offset: 25f, itemScale: 1f);
+        }
+
         float y = AutoCreatePlayerDifficulty.Normalize(playerDifficulty) switch
         {
             AutoCreatePlayerDifficulty.Journey => 403f,
@@ -63,6 +108,16 @@ public readonly record struct TerrariaMenuGeometry(float Scale, float LogicalWid
             _ => 430f
         };
         return ToClient(LogicalWidth / 2f - 146f, y);
+    }
+
+    public Point PlayerDifficultyMenuButton()
+    {
+        if (Profile.UsesLegacyCharacterCreationWizard)
+        {
+            return LegacyMenuButton(top: 220f, spacing: 38f, index: 5, offset: 0f, itemScale: 0.75f);
+        }
+
+        return CharacterInfoCategoryButton();
     }
 
     public Point CreateWorldButton()
@@ -114,6 +169,11 @@ public readonly record struct TerrariaMenuGeometry(float Scale, float LogicalWid
         return ToClient(LogicalWidth / 2f - 220f, 274f);
     }
 
+    public Point WorldSeedFieldButton()
+    {
+        return ToClient(LogicalWidth / 2f, 274f);
+    }
+
     public Point AdvancedSeedRandomizeButton()
     {
         return ToClient(LogicalWidth / 2f - 220f, 230f);
@@ -155,6 +215,11 @@ public readonly record struct TerrariaMenuGeometry(float Scale, float LogicalWid
         return ToClient(left + 33f, itemTop + 79f);
     }
 
+    private Point LegacyMenuButton(float top, float spacing, int index, float offset, float itemScale)
+    {
+        return ToClient(LogicalWidth / 2f, top + spacing * index + offset + 25f * itemScale);
+    }
+
     private Point ToClient(float logicalX, float logicalY)
     {
         return new Point(
@@ -169,37 +234,11 @@ public readonly record struct TerrariaMenuGeometry(float Scale, float LogicalWid
 
     private static float GetMainMenuScale(int clientHeight)
     {
-        if (IsMainMenuUpscaleDisabled())
+        if (TerrariaMenuProfile.IsMainMenuUpscaleDisabled())
         {
             return 1f;
         }
 
         return Math.Max(1f, clientHeight / 900f);
-    }
-
-    private static bool IsMainMenuUpscaleDisabled()
-    {
-        try
-        {
-            string configPath = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
-                "My Games",
-                "Terraria",
-                "config.json");
-            if (!File.Exists(configPath))
-            {
-                return false;
-            }
-
-            using FileStream stream = File.OpenRead(configPath);
-            using System.Text.Json.JsonDocument document = System.Text.Json.JsonDocument.Parse(stream);
-            return document.RootElement.TryGetProperty("SettingDontScaleMainMenuUp", out System.Text.Json.JsonElement value) &&
-                value.ValueKind == System.Text.Json.JsonValueKind.True;
-        }
-        catch (Exception ex)
-        {
-            StaticAppLogger.Instance.Error(ex, "Failed to read Terraria main menu scale setting.");
-            return false;
-        }
     }
 }

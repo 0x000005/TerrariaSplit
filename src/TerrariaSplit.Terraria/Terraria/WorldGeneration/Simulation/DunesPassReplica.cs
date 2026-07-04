@@ -9,6 +9,19 @@ internal static class DunesPassReplica
 
     public static void Apply(WorldGenContext context, GenerationProgress progress)
     {
+        Apply(context, progress, includeModernDungeonSetup: true);
+    }
+
+    public static void ApplyLegacy1449(WorldGenContext context, GenerationProgress progress)
+    {
+        Apply(context, progress, includeModernDungeonSetup: false);
+    }
+
+    private static void Apply(
+        WorldGenContext context,
+        GenerationProgress progress,
+        bool includeModernDungeonSetup)
+    {
         WorldGenState state = context.State ??
             throw new InvalidOperationException("Dunes replica requires a WorldGenState.");
         if (!state.Options.IsTargetScope)
@@ -17,7 +30,10 @@ internal static class DunesPassReplica
         }
 
         UnifiedRandom random = context.Random;
-        SetupDungeonGenVarVariablesForTarget(random);
+        if (includeModernDungeonSetup)
+        {
+            SetupDungeonGenVarVariablesForTarget(random);
+        }
 
         int width = state.Options.Dimensions.Width;
         int duneCount = random.Next(1, 3);

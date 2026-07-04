@@ -357,52 +357,7 @@ internal sealed partial class MainForm : Form
 
     internal int GetWorldPoolCount(AppSettings settings)
     {
-        return worldPoolStore.Count(WorldPoolSignature.From(settings));
-    }
-
-    private bool ShowPersonalBestUpdateConfirmation(string promptText)
-    {
-        if (InvokeRequired)
-        {
-            try
-            {
-                object? result = Invoke(new Func<bool>(() => ShowPersonalBestUpdateConfirmation(promptText)));
-                return result is bool value && value;
-            }
-            catch (ObjectDisposedException)
-            {
-                return false;
-            }
-            catch (InvalidOperationException)
-            {
-                return false;
-            }
-        }
-
-        bool wasClickThrough = overlayShell.MouseClickThrough;
-        if (wasClickThrough)
-        {
-            SetMouseClickThrough(false);
-        }
-
-        try
-        {
-            return RunWithSuspendedRuntimeOverlayPaint(() =>
-            {
-                using var form = new PersonalBestUpdatePromptForm(
-                    promptText,
-                    timeoutSeconds: 10,
-                    settings);
-                return modalWindows.ShowDialog(form) != DialogResult.No;
-            });
-        }
-        finally
-        {
-            if (wasClickThrough)
-            {
-                SetMouseClickThrough(true);
-            }
-        }
+        return worldPoolFillService.GetPoolCount(settings);
     }
 
     private void OpenStatistics()

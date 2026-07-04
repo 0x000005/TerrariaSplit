@@ -33,7 +33,9 @@ internal sealed class EnterWorldWorkflow : IDisposable
                 return AutomationResult.Failure(activation.UserMessage, activation.DiagnosticMessage);
             }
 
-            TerrariaMenuGeometry geometry = TerrariaMenuGeometry.From(activation.ClientSize);
+            TerrariaMenuProfile menuProfile = TerrariaMenuProfile.ResolveRunningProcess();
+            TerrariaMenuGeometry geometry = TerrariaMenuGeometry.From(activation.ClientSize, menuProfile);
+            StaticAppLogger.Instance.Info($"Enter world automation using menu profile: {menuProfile.Name}.");
             OperationResult install = await InstallPracticeSaveFilesAsync(slot, cancellationToken);
             if (install.Failed)
             {

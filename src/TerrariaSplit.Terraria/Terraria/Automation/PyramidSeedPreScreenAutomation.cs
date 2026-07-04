@@ -24,6 +24,13 @@ internal sealed class PyramidSeedPreScreenAutomation
         TimeSpan clickDelay,
         CancellationToken cancellationToken)
     {
+        if (!geometry.Profile.SupportsPyramidSeedPreScreen)
+        {
+            string unsupportedProfileDetail = $"{geometry.Profile.Name} does not expose the modern advanced seed randomize control.";
+            StaticAppLogger.Instance.Info($"Pyramid seed pre-screen skipped: {unsupportedProfileDetail}");
+            return PyramidSeedPreScreenAutomationResult.FromContinueWithoutPreScreen(unsupportedProfileDetail);
+        }
+
         if (!IsEnabledFor(settings))
         {
             bool randomized = await RandomizeOnceAsync("randomize visible seed", geometry, clickDelay, cancellationToken);
@@ -68,6 +75,69 @@ internal sealed class PyramidSeedPreScreenAutomation
         }
     }
 
+    public async Task<PyramidSeedPreScreenAutomationResult> RandomizeCurrentSeedUntilAcceptedAsync(
+        AutoCreateWorldSettings settings,
+        TerrariaMenuGeometry geometry,
+        TimeSpan clickDelay,
+        CancellationToken cancellationToken)
+    {
+        if (!IsEnabledFor(settings))
+        {
+            return PyramidSeedPreScreenAutomationResult.FromAccepted();
+        }
+
+        if (!TerrariaVisibleSeedReader.TryCreate(
+                automation.DelayAsync,
+                out TerrariaVisibleSeedReader? seedReader,
+                out string detail))
+        {
+            StaticAppLogger.Instance.Info($"Pyramid seed pre-screen could not start seed reader for 1.4.4.9 seed randomizer; randomizing once and continuing without prediction: {detail}");
+            return await RandomizeLegacyOnceAndContinueWithoutPredictionAsync(geometry, clickDelay, detail, cancellationToken);
+        }
+
+        if (seedReader is null)
+        {
+            const string missingReaderDetail = "Visible seed reader was not created.";
+            StaticAppLogger.Instance.Info($"Pyramid seed pre-screen could not start seed reader for 1.4.4.9 seed randomizer; randomizing once and continuing without prediction: {missingReaderDetail}");
+            return await RandomizeLegacyOnceAndContinueWithoutPredictionAsync(geometry, clickDelay, missingReaderDetail, cancellationToken);
+        }
+
+        using (seedReader)
+        {
+            StaticAppLogger.Instance.Info("Pyramid seed pre-screen active for 1.4.4.9 small crimson world; seedReadTimeout=1000ms.");
+            var loop = new PyramidSeedPreScreenLoop(evaluator, StaticAppLogger.Instance.Info);
+            PyramidSeedPreScreenLoopResult result = await loop.RunAsync(
+                settings,
+                new TerrariaLegacy1449SeedRandomizer(automation, geometry, clickDelay),
+                seedReader,
+                cancellationToken);
+            return result.Status switch
+            {
+                PyramidSeedPreScreenLoopStatus.Accepted => PyramidSeedPreScreenAutomationResult.FromAccepted(),
+                PyramidSeedPreScreenLoopStatus.RejectedSeed => PyramidSeedPreScreenAutomationResult.FromRetryFromMainMenu(result.Detail),
+                PyramidSeedPreScreenLoopStatus.SeedReadFailed or PyramidSeedPreScreenLoopStatus.PredictionUnavailable =>
+                    PyramidSeedPreScreenAutomationResult.FromContinueWithoutPreScreen(result.Detail),
+                _ => PyramidSeedPreScreenAutomationResult.FromFailed(result.Detail)
+            };
+        }
+    }
+
+    private async Task<PyramidSeedPreScreenAutomationResult> RandomizeLegacyOnceAndContinueWithoutPredictionAsync(
+        TerrariaMenuGeometry geometry,
+        TimeSpan clickDelay,
+        string detail,
+        CancellationToken cancellationToken)
+    {
+        bool randomized = await automation.ClickAsync(
+            "randomize 1.4.4.9 visible seed without pre-screen",
+            geometry.WorldAdvancedSeedButton(),
+            clickDelay,
+            cancellationToken);
+        return randomized
+            ? PyramidSeedPreScreenAutomationResult.FromContinueWithoutPreScreen(detail)
+            : PyramidSeedPreScreenAutomationResult.FromFailed("1.4.4.9 visible seed randomize click failed.");
+    }
+
     private async Task<PyramidSeedPreScreenAutomationResult> RandomizeOnceAndContinueWithoutPredictionAsync(
         TerrariaMenuGeometry geometry,
         TimeSpan clickDelay,
@@ -110,6 +180,32 @@ internal sealed class PyramidSeedPreScreenAutomation
             return automation.ClickAsync(
                 $"randomize visible seed pre-screen attempt {attempt}",
                 geometry.AdvancedSeedRandomizeButton(),
+                clickDelay,
+                cancellationToken);
+        }
+    }
+
+    private sealed class TerrariaLegacy1449SeedRandomizer : IPyramidSeedRandomizer
+    {
+        private readonly TerrariaAutomationContext automation;
+        private readonly TerrariaMenuGeometry geometry;
+        private readonly TimeSpan clickDelay;
+
+        public TerrariaLegacy1449SeedRandomizer(
+            TerrariaAutomationContext automation,
+            TerrariaMenuGeometry geometry,
+            TimeSpan clickDelay)
+        {
+            this.automation = automation;
+            this.geometry = geometry;
+            this.clickDelay = clickDelay;
+        }
+
+        public Task<bool> RandomizeVisibleSeedAsync(int attempt, CancellationToken cancellationToken)
+        {
+            return automation.ClickAsync(
+                $"randomize 1.4.4.9 visible seed pre-screen attempt {attempt}",
+                geometry.WorldAdvancedSeedButton(),
                 clickDelay,
                 cancellationToken);
         }

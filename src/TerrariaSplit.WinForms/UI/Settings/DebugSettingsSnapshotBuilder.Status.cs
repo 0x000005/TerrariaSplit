@@ -174,14 +174,17 @@ internal static partial class DebugSettingsSnapshotBuilder
 
         if (ContainsStatusText(status, "not ready") ||
             ContainsStatusText(status, "pending") ||
+            ContainsStatusText(status, "resolving") ||
             ContainsStatusText(status, "scanning") ||
-            ContainsStatusText(status, "found signature but not"))
+            ContainsStatusText(status, "did not resolve") ||
+            ContainsStatusText(status, "without Terraria.Main.gameMenu"))
         {
             return false;
         }
 
         return status.StartsWith("attached to Terraria", StringComparison.OrdinalIgnoreCase) ||
             status.StartsWith("ready", StringComparison.OrdinalIgnoreCase) ||
+            status.StartsWith("runtime layout ready", StringComparison.OrdinalIgnoreCase) ||
             status.StartsWith("timer ready", StringComparison.OrdinalIgnoreCase);
     }
 

@@ -49,8 +49,14 @@ public sealed class WorldPoolFillService : IDisposable
             loggedMissingServer = false;
         }
 
-        store.EnsureSignature(WorldPoolSignature.From(clone));
+        store.EnsureSignature(WorldPoolRuntimeVersion.SignatureFromCurrentRuntime(clone));
         EnsureLoopRunning();
+    }
+
+    public int GetPoolCount(AppSettings currentSettings)
+    {
+        AppSettings clone = settingsSnapshots.CreateSnapshot(currentSettings);
+        return store.Count(WorldPoolRuntimeVersion.SignatureFromCurrentRuntime(clone));
     }
 
     private void EnsureLoopRunning()
@@ -121,14 +127,8 @@ public sealed class WorldPoolFillService : IDisposable
             return false;
         }
 
-        string signature = WorldPoolSignature.From(current);
-        if (store.Count(signature) >= autoCreate.WorldPoolTargetCount)
-        {
-            return false;
-        }
-
-        string? serverExe = TerrariaServerLocator.TryResolve();
-        if (serverExe is null)
+        TerrariaServerTarget? serverTarget = TerrariaServerLocator.TryResolveTarget();
+        if (serverTarget is null)
         {
             lock (sync)
             {
@@ -142,7 +142,14 @@ public sealed class WorldPoolFillService : IDisposable
             return false;
         }
 
-        HeadlessWorldGenResult result = await generator.GenerateAndScanAsync(serverExe, current.General.Language, autoCreate, cancellationToken);
+        string signature = WorldPoolRuntimeVersion.SignatureFromServerTarget(current, serverTarget.Value);
+        store.EnsureSignature(signature);
+        if (store.Count(signature) >= autoCreate.WorldPoolTargetCount)
+        {
+            return false;
+        }
+
+        HeadlessWorldGenResult result = await generator.GenerateAndScanAsync(serverTarget.Value, current.General.Language, autoCreate, cancellationToken);
         try
         {
             if (result.Keep &&
@@ -177,7 +184,7 @@ public sealed class WorldPoolFillService : IDisposable
 
         AutoCreateWorldSettings autoCreate = current.Automation.AutoCreate;
         return autoCreate.EnableWorldPool &&
-            string.Equals(WorldPoolSignature.From(current), signature, StringComparison.Ordinal);
+            string.Equals(WorldPoolRuntimeVersion.SignatureFromCurrentRuntime(current), signature, StringComparison.Ordinal);
     }
 
     public void Dispose()

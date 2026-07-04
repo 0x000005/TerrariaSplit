@@ -6,60 +6,37 @@ namespace TerrariaSplit.Terraria.Memory;
 
 internal sealed class TerrariaMemoryResolver
 {
-    private const int X86GenerationProgressMessageFieldOffset = 0x24;
-    private const int X86GenerationProgressValueFieldOffset = 0x4;
-    private const int X86GenerationProgressTotalWeightedProgressFieldOffset = 0xC;
-    private const int X86GenerationProgressTotalWeightFieldOffset = 0x14;
-    private const int X86GenerationProgressCurrentPassWeightFieldOffset = 0x1C;
-    private const int X86ControllerGeneratorFieldOffset = 16;
-    private const int X86WorldGeneratorCurrentPassFieldOffset = 0x18;
-    private const int X86GenPassNameFieldOffset = 0xC;
+    private static readonly string HardmodeFactKey = SplitCatalog.BossFacts
+        .First(boss => boss.AddressKind == BossFactAddressKind.Hardmode)
+        .FactKey;
 
-    private readonly TerrariaMemoryProfile profile;
-    private readonly BossFlagAddressResolver bossFlagAddressResolver = new();
-    private readonly TerrariaClrMemoryResolver clrMemoryResolver = new();
+    private readonly TerrariaClrMemoryResolver clrMemoryResolver;
     private readonly TerrariaGameFactReader factReader = new();
-    private IntPtr updateTimeAddress;
-    private IntPtr gameMenuAddress;
-    private IntPtr gameMenuSecondaryAddress;
-    private IntPtr bossFlagsBaseAddress;
-    private IntPtr hardmodeAddress;
-    private IntPtr currentGenerationProgressAddress;
-    private IntPtr currentControllerAddress;
-    private bool usingBossProgressionMenuFallback;
-    private bool usingGameMenuFallback;
-    private bool usingBossProgressionFallback;
+    private TerrariaRuntimeMemoryLayout? runtimeLayout;
 
-    public TerrariaMemoryResolver(TerrariaMemoryProfile profile)
+    public TerrariaMemoryResolver()
+        : this(new TerrariaClrMemoryResolver())
     {
-        this.profile = profile;
     }
 
-    public int SignatureScanAttempts { get; private set; }
+    internal TerrariaMemoryResolver(TerrariaClrMemoryResolver clrMemoryResolver)
+    {
+        this.clrMemoryResolver = clrMemoryResolver;
+    }
 
-    public DateTime? LastSignatureScanUtc { get; private set; }
+    public TerrariaLayoutProbeDiagnostics ProbeDiagnostics => clrMemoryResolver.ProbeDiagnostics;
 
-    public SignatureScanDiagnostics? LastSignatureScan { get; private set; }
+    public string LayoutStatus => clrMemoryResolver.LayoutStatus;
 
-    public TerrariaMemoryResolution Resolution => new(
-        updateTimeAddress,
-        gameMenuAddress,
-        gameMenuSecondaryAddress,
-        bossFlagsBaseAddress,
-        hardmodeAddress,
-        currentGenerationProgressAddress,
-        currentControllerAddress,
-        usingBossProgressionMenuFallback,
-        usingGameMenuFallback,
-        usingBossProgressionFallback);
+    public TerrariaMemoryResolution Resolution => BuildResolution(runtimeLayout);
 
-    public bool HasGameMenuAddress => gameMenuAddress != IntPtr.Zero;
+    public TerrariaWorldCreationSeedMemoryLayout? SeedUiLayout => runtimeLayout?.SeedUi;
 
-    public bool HasResolvedBossAddresses => bossFlagsBaseAddress != IntPtr.Zero && hardmodeAddress != IntPtr.Zero;
+    public bool HasGameMenuAddress => runtimeLayout?.Core.GameMenuStaticFieldAddress != IntPtr.Zero;
 
-    public bool HasResolvedWorldGenerationAddresses =>
-        currentGenerationProgressAddress != IntPtr.Zero &&
-        currentControllerAddress != IntPtr.Zero;
+    public bool HasResolvedBossAddresses => runtimeLayout?.Boss.ResolvedFactCount > 0;
+
+    public bool HasResolvedWorldGenerationAddresses => runtimeLayout?.WorldGeneration.HasAnySource == true;
 
     public void SetProcess(Process? process)
     {
@@ -69,144 +46,58 @@ internal sealed class TerrariaMemoryResolver
     public void Reset()
     {
         clrMemoryResolver.Reset();
-        updateTimeAddress = IntPtr.Zero;
-        gameMenuAddress = IntPtr.Zero;
-        gameMenuSecondaryAddress = IntPtr.Zero;
-        bossFlagsBaseAddress = IntPtr.Zero;
-        hardmodeAddress = IntPtr.Zero;
-        currentGenerationProgressAddress = IntPtr.Zero;
-        currentControllerAddress = IntPtr.Zero;
-        usingBossProgressionMenuFallback = false;
-        usingGameMenuFallback = false;
-        usingBossProgressionFallback = false;
-        SignatureScanAttempts = 0;
-        LastSignatureScanUtc = null;
-        LastSignatureScan = null;
+        runtimeLayout = null;
     }
 
     public void ResetResolvedAddresses()
     {
-        updateTimeAddress = IntPtr.Zero;
-        gameMenuAddress = IntPtr.Zero;
-        gameMenuSecondaryAddress = IntPtr.Zero;
-        bossFlagsBaseAddress = IntPtr.Zero;
-        hardmodeAddress = IntPtr.Zero;
-        currentGenerationProgressAddress = IntPtr.Zero;
-        currentControllerAddress = IntPtr.Zero;
-        usingBossProgressionMenuFallback = false;
-        usingGameMenuFallback = false;
-        usingBossProgressionFallback = false;
+        clrMemoryResolver.ResetLayout();
+        runtimeLayout = null;
+    }
+
+    internal void SetRuntimeLayoutForTests(TerrariaRuntimeMemoryLayout layout)
+    {
+        runtimeLayout = layout;
     }
 
     public TerrariaMemoryResolveResult Resolve(IProcessMemoryReader memory)
     {
-        SignatureScanAttempts++;
-        LastSignatureScanUtc = DateTime.UtcNow;
-
-        IntPtr resolvedUpdateTimeAddress = SignatureScanner.Scan(
-            memory,
-            profile.UpdateTimeSignature,
-            profile.SignatureScanScopeLabel,
-            out SignatureScanDiagnostics updateTimeScanDiagnostics);
-        LastSignatureScan = updateTimeScanDiagnostics;
-        if (resolvedUpdateTimeAddress != IntPtr.Zero)
-        {
-            updateTimeAddress = resolvedUpdateTimeAddress;
-            if (TryResolveGameMenuFromUpdateTime(memory, resolvedUpdateTimeAddress, out bool isGameMenu))
-            {
-                usingBossProgressionMenuFallback = false;
-                usingGameMenuFallback = false;
-                TryResolveBossAddressesWithFallbacks(memory, resolvedUpdateTimeAddress);
-                TryResolveWorldGenerationAddresses(memory);
-                return new TerrariaMemoryResolveResult(
-                    BuildResolutionStage(),
-                    BuildResolutionStatusDetail(),
-                    isGameMenu);
-            }
-        }
-
-        IntPtr fallbackAnchorAddress = SignatureScanner.Scan(
-            memory,
-            profile.GameMenuFallbackSignature,
-            profile.SignatureScanScopeLabel,
-            out SignatureScanDiagnostics fallbackScanDiagnostics);
-        LastSignatureScan = fallbackScanDiagnostics;
-        if (fallbackAnchorAddress != IntPtr.Zero &&
-            TryResolveGameMenuFromFallback(memory, fallbackAnchorAddress, out bool fallbackGameMenu))
-        {
-            updateTimeAddress = fallbackAnchorAddress;
-            usingBossProgressionMenuFallback = false;
-            usingGameMenuFallback = true;
-            TryResolveBossAddressesWithFallbacks(memory, null);
-            TryResolveWorldGenerationAddresses(memory);
-            return new TerrariaMemoryResolveResult(
-                BuildResolutionStage(),
-                BuildResolutionStatusDetail(),
-                fallbackGameMenu);
-        }
-
-        if (TryResolveGameMenuFromBossProgressionFallback(memory, out bool bossProgressionGameMenu))
-        {
-            usingBossProgressionMenuFallback = true;
-            usingGameMenuFallback = false;
-            usingBossProgressionFallback = true;
-            TryResolveWorldGenerationAddresses(memory);
-            return new TerrariaMemoryResolveResult(
-                BuildResolutionStage(),
-                BuildResolutionStatusDetail(),
-                bossProgressionGameMenu);
-        }
-
-        if (gameMenuAddress != IntPtr.Zero)
+        if (!EnsureRuntimeLayout(memory, out TerrariaRuntimeMemoryLayout layout))
         {
             return new TerrariaMemoryResolveResult(
-                BuildResolutionStage(),
-                BuildResolutionStatusDetail(),
+                "layout resolving",
+                "waiting for MemoryProbe runtime layout",
                 null);
         }
 
-        updateTimeAddress = IntPtr.Zero;
-        if (resolvedUpdateTimeAddress != IntPtr.Zero)
+        if (layout.Core.GameMenuStaticFieldAddress == IntPtr.Zero)
         {
             return new TerrariaMemoryResolveResult(
-                "menu state pointer unreadable",
-                "found UpdateTime signature but neither primary nor fallback menu-state route resolved",
+                "core layout missing",
+                "MemoryProbe did not resolve Terraria.Main.gameMenu",
                 null);
+        }
+
+        if (TryReadGameMenuState(memory, out bool isGameMenu))
+        {
+            return new TerrariaMemoryResolveResult(
+                BuildResolutionStage(),
+                BuildResolutionStatusDetail(),
+                isGameMenu);
         }
 
         return new TerrariaMemoryResolveResult(
-            "signature missing",
-            "waiting for UpdateTime signature",
+            "menu state unreadable",
+            "MemoryProbe resolved Terraria.Main.gameMenu, but the static field address is unreadable",
             null);
     }
 
     public bool TryReadGameMenuState(IProcessMemoryReader memory, out bool isGameMenu)
     {
         isGameMenu = false;
-
-        if (gameMenuAddress == IntPtr.Zero)
-        {
-            return false;
-        }
-
-        if (!memory.TryReadBool(gameMenuAddress, out bool firstValue))
-        {
-            return false;
-        }
-
-        if (gameMenuSecondaryAddress == IntPtr.Zero)
-        {
-            isGameMenu = firstValue;
-            return true;
-        }
-
-        if (!memory.TryReadBool(gameMenuSecondaryAddress, out bool secondValue))
-        {
-            return false;
-        }
-
-        isGameMenu = firstValue || secondValue;
-        return true;
+        IntPtr gameMenuAddress = runtimeLayout?.Core.GameMenuStaticFieldAddress ?? IntPtr.Zero;
+        return gameMenuAddress != IntPtr.Zero &&
+            memory.TryReadBool(gameMenuAddress, out isGameMenu);
     }
 
     public TerrariaGameFacts ReadGameFacts(
@@ -215,49 +106,49 @@ internal sealed class TerrariaMemoryResolver
     {
         TerrariaFactReadPlan readPlan = TerrariaFactReadPlan.FromObservedFactKeys(observedFactKeys);
         TerrariaMemoryContext context = CreateContext(memory, readPlan);
-        TerrariaGameFacts facts = factReader.Read(memory, context, readPlan);
-        if (context.BossFlags is not null &&
-            readPlan.ReadsBossFacts &&
-            !facts.Values.Any(value => value.Key.StartsWith("boss:", StringComparison.OrdinalIgnoreCase) &&
-                value.Value.Kind != FactValueKind.Unknown))
-        {
-            bossFlagsBaseAddress = IntPtr.Zero;
-        }
-
-        if (context.HardmodeAddress != IntPtr.Zero &&
-            readPlan.IncludesBossFactKey(SplitCatalog.BossFacts.First(boss => boss.AddressKind == BossFactAddressKind.Hardmode).FactKey) &&
-            facts.Get(SplitCatalog.BossFacts.First(boss => boss.AddressKind == BossFactAddressKind.Hardmode).FactKey).Kind == FactValueKind.Unknown)
-        {
-            hardmodeAddress = IntPtr.Zero;
-        }
-
-        return facts;
+        return factReader.Read(memory, context, readPlan);
     }
 
     private TerrariaMemoryContext CreateContext(IProcessMemoryReader memory, TerrariaFactReadPlan readPlan)
     {
-        TerrariaItemMemoryLayout? itemLayout = readPlan.ReadsItemFacts &&
-            clrMemoryResolver.TryGetItemLayout(memory, out TerrariaItemMemoryLayout resolvedItemLayout)
-            ? resolvedItemLayout
+        _ = readPlan;
+        _ = EnsureRuntimeLayout(memory, out TerrariaRuntimeMemoryLayout layout);
+        TerrariaItemMemoryLayout? itemLayout = readPlan.ReadsItemFacts
+            ? layout.Item
             : null;
-        TerrariaNpcMemoryLayout? npcLayout = readPlan.ReadsNpcFacts &&
-            clrMemoryResolver.TryGetNpcLayout(memory, out TerrariaNpcMemoryLayout resolvedNpcLayout)
-            ? resolvedNpcLayout
+        TerrariaNpcMemoryLayout? npcLayout = readPlan.ReadsNpcFacts
+            ? layout.Npc
             : null;
-        TerrariaBiomeMemoryLayout? biomeLayout = readPlan.ReadsBiomeFacts &&
-            clrMemoryResolver.TryGetBiomeLayout(memory, out TerrariaBiomeMemoryLayout resolvedBiomeLayout)
-            ? resolvedBiomeLayout
+        TerrariaBiomeMemoryLayout? biomeLayout = readPlan.ReadsBiomeFacts
+            ? layout.Biome
             : null;
         IntPtr localPlayerAddress = ResolveLocalPlayerAddress(memory, itemLayout, biomeLayout);
 
         return new TerrariaMemoryContext(
-            bossFlagsBaseAddress == IntPtr.Zero ? null : new BossFlagMemoryBlock(bossFlagsBaseAddress),
-            hardmodeAddress,
+            readPlan.ReadsBossFacts ? layout.Boss : null,
             localPlayerAddress,
             itemLayout,
             npcLayout,
             biomeLayout,
             memory.Is64Bit);
+    }
+
+    private bool EnsureRuntimeLayout(IProcessMemoryReader memory, out TerrariaRuntimeMemoryLayout layout)
+    {
+        if (runtimeLayout is not null)
+        {
+            layout = runtimeLayout;
+            return true;
+        }
+
+        if (clrMemoryResolver.TryGetRuntimeLayout(memory, out layout))
+        {
+            runtimeLayout = layout;
+            return true;
+        }
+
+        layout = EmptyRuntimeLayout();
+        return false;
     }
 
     private static IntPtr ResolveLocalPlayerAddress(
@@ -281,276 +172,156 @@ internal sealed class TerrariaMemoryResolver
 
     public TerrariaWorldGenerationState ReadWorldGenerationState(IProcessMemoryReader memory)
     {
-        if (memory.Is64Bit)
+        if (memory.Is64Bit ||
+            !EnsureRuntimeLayout(memory, out TerrariaRuntimeMemoryLayout layout))
         {
-            return new TerrariaWorldGenerationState(
-                null,
-                null,
-                null,
-                null);
+            return TerrariaWorldGenerationState.Unknown;
         }
 
+        TerrariaWorldGenerationMemoryLayout worldGeneration = layout.WorldGeneration;
         string? currentPassName = null;
         string? progressMessage = null;
         double? currentProgress = null;
         double? totalProgress = null;
 
-        if (TryReadObjectSlot(memory, ref currentGenerationProgressAddress, out IntPtr progressObjectAddress) &&
+        if (worldGeneration.HasStructuredProgress &&
+            TryReadObjectSlot(memory, worldGeneration.CurrentGenerationProgressStaticFieldAddress, out IntPtr progressObjectAddress) &&
             progressObjectAddress != IntPtr.Zero)
         {
-            TryReadGenerationProgress(memory, progressObjectAddress, out progressMessage, out currentProgress, out totalProgress);
+            TryReadGenerationProgress(
+                memory,
+                worldGeneration,
+                progressObjectAddress,
+                out progressMessage,
+                out currentProgress,
+                out totalProgress);
         }
 
-        if (TryReadObjectSlot(memory, ref currentControllerAddress, out IntPtr controllerObjectAddress) &&
+        if (worldGeneration.HasStructuredController &&
+            TryReadObjectSlot(memory, worldGeneration.CurrentControllerStaticFieldAddress, out IntPtr controllerObjectAddress) &&
             controllerObjectAddress != IntPtr.Zero)
         {
-            currentPassName = ReadCurrentPassName(memory, controllerObjectAddress);
+            currentPassName = ReadCurrentPassName(memory, worldGeneration, controllerObjectAddress);
         }
 
-        return new TerrariaWorldGenerationState(
+        var structuredState = new TerrariaWorldGenerationState(
             currentPassName,
             progressMessage,
             currentProgress,
             totalProgress);
+        if (structuredState.HasAnyData)
+        {
+            return structuredState;
+        }
+
+        return TryReadStatusTextFallback(memory, worldGeneration, out TerrariaWorldGenerationState statusTextState)
+            ? statusTextState
+            : TerrariaWorldGenerationState.Unknown;
     }
 
     public string BuildResolutionStage()
     {
-        if (HasResolvedBossAddresses && HasResolvedWorldGenerationAddresses)
+        if (runtimeLayout is null)
         {
-            if (usingGameMenuFallback && usingBossProgressionFallback)
-            {
-                return "ready via fallback";
-            }
-
-            if (usingGameMenuFallback)
-            {
-                return "ready via gameMenu fallback";
-            }
-
-            if (usingBossProgressionMenuFallback)
-            {
-                return "ready via boss progression menu fallback";
-            }
-
-            if (usingBossProgressionFallback)
-            {
-                return "ready via boss fallback";
-            }
-
-            return "ready";
+            return "layout resolving";
         }
 
-        if (HasResolvedBossAddresses)
+        if (!runtimeLayout.HasCore)
         {
-            if (usingGameMenuFallback)
-            {
-                return "world generation pointers pending via fallback";
-            }
-
-            return usingBossProgressionMenuFallback
-                ? "world generation pointers pending via boss progression menu fallback"
-                : "world generation pointers pending";
+            return "core layout missing";
         }
 
-        if (usingGameMenuFallback)
+        bool bossReady = runtimeLayout.Boss.ResolvedFactCount > 0;
+        bool worldGenerationReady = runtimeLayout.WorldGeneration.HasAnySource;
+        return (bossReady, worldGenerationReady) switch
         {
-            return "timer ready via fallback";
-        }
-
-        return usingBossProgressionMenuFallback
-            ? "timer ready via boss progression menu fallback"
-            : "boss pointers pending";
+            (true, true) => "ready",
+            (true, false) => "world generation layout pending",
+            (false, true) => "boss layout pending",
+            _ => "fact layouts pending"
+        };
     }
 
     public string BuildResolutionStatusDetail()
     {
-        if (HasResolvedBossAddresses && HasResolvedWorldGenerationAddresses)
+        if (runtimeLayout is null)
         {
-            return BuildResolutionStage();
+            return $"MemoryProbe layout {clrMemoryResolver.LayoutStatus}";
         }
 
-        if (HasResolvedBossAddresses)
+        if (!runtimeLayout.HasCore)
         {
-            if (usingGameMenuFallback)
-            {
-                return "timer and boss pointers ready via fallback; world generation scan pending";
-            }
-
-            return usingBossProgressionMenuFallback
-                ? "timer and boss pointers ready via boss progression menu fallback; world generation scan pending"
-                : "timer and boss pointers ready; world generation scan pending";
+            return "MemoryProbe returned a layout without Terraria.Main.gameMenu";
         }
 
-        if (usingGameMenuFallback)
+        bool bossReady = runtimeLayout.Boss.ResolvedFactCount > 0;
+        bool worldGenerationReady = runtimeLayout.WorldGeneration.HasAnySource;
+        return (bossReady, worldGenerationReady) switch
         {
-            return "timer ready via fallback; boss scan pending";
-        }
-
-        return usingBossProgressionMenuFallback
-            ? "timer ready via boss progression menu fallback; boss scan pending"
-            : "boss scan pending";
+            (true, true) => "runtime layout ready",
+            (true, false) => "timer and boss layouts ready; world generation layout unavailable",
+            (false, true) => "timer and world generation layouts ready; boss layout unavailable",
+            _ => "timer layout ready; fact layouts unavailable"
+        };
     }
 
-    private void TryResolveWorldGenerationAddresses(IProcessMemoryReader memory)
+    private static TerrariaMemoryResolution BuildResolution(TerrariaRuntimeMemoryLayout? layout)
     {
-        if (currentControllerAddress == IntPtr.Zero)
+        if (layout is null)
         {
-            TryResolveInlineAddress(memory, profile.CurrentControllerSignature, profile.CurrentControllerInlineAddressOffset, static (reader, address) =>
-                reader.TryReadPointerValue(address, out _), out currentControllerAddress);
+            return default;
         }
 
-        if (currentGenerationProgressAddress == IntPtr.Zero)
-        {
-            TryResolveInlineAddress(memory, profile.CurrentGenerationProgressSignature, profile.CurrentGenerationProgressInlineAddressOffset, static (reader, address) =>
-                reader.TryReadPointerValue(address, out _), out currentGenerationProgressAddress);
-        }
-
-        int slotSize = memory.Is64Bit ? 8 : 4;
-        if (currentControllerAddress == IntPtr.Zero &&
-            currentGenerationProgressAddress != IntPtr.Zero)
-        {
-            IntPtr adjacentControllerAddress = IntPtr.Add(currentGenerationProgressAddress, slotSize);
-            if (memory.TryReadPointerValue(adjacentControllerAddress, out _))
-            {
-                currentControllerAddress = adjacentControllerAddress;
-            }
-        }
-
-        if (currentGenerationProgressAddress == IntPtr.Zero &&
-            currentControllerAddress != IntPtr.Zero)
-        {
-            IntPtr adjacentProgressAddress = IntPtr.Add(currentControllerAddress, -slotSize);
-            if (memory.TryReadPointerValue(adjacentProgressAddress, out _))
-            {
-                currentGenerationProgressAddress = adjacentProgressAddress;
-            }
-        }
-    }
-
-    private bool TryResolveBossAddressesWithFallbacks(IProcessMemoryReader memory, IntPtr? resolvedUpdateTimeAddress)
-    {
-        if (bossFlagAddressResolver.TryResolve(
-            memory,
-            profile,
-            resolvedUpdateTimeAddress,
-            out BossFlagAddressResolution resolution,
-            out SignatureScanDiagnostics? scanDiagnostics))
-        {
-            bossFlagsBaseAddress = resolution.BossFlags.BaseAddress;
-            hardmodeAddress = resolution.HardmodeAddress;
-            usingBossProgressionFallback = resolution.UsedProgressionFallback;
-            if (scanDiagnostics is not null)
-            {
-                LastSignatureScan = scanDiagnostics;
-            }
-
-            return true;
-        }
-
-        bossFlagsBaseAddress = IntPtr.Zero;
-        hardmodeAddress = IntPtr.Zero;
-        usingBossProgressionFallback = false;
-        return false;
-    }
-
-    private bool TryResolveGameMenuFromUpdateTime(
-        IProcessMemoryReader memory,
-        IntPtr resolvedUpdateTimeAddress,
-        out bool isGameMenu)
-    {
-        isGameMenu = false;
-
-        IntPtr pointerLocation = IntPtr.Add(resolvedUpdateTimeAddress, profile.GameMenuPointerOffset);
-        if (!memory.TryReadPointer(pointerLocation, out IntPtr resolvedGameMenuAddress))
-        {
-            return false;
-        }
-
-        if (!memory.TryReadBool(resolvedGameMenuAddress, out isGameMenu))
-        {
-            return false;
-        }
-
-        gameMenuAddress = resolvedGameMenuAddress;
-        gameMenuSecondaryAddress = IntPtr.Zero;
-        return true;
-    }
-
-    private bool TryResolveGameMenuFromFallback(
-        IProcessMemoryReader memory,
-        IntPtr fallbackAnchorAddress,
-        out bool isGameMenu)
-    {
-        isGameMenu = false;
-
-        IntPtr gameMenuInlineAddressLocation = IntPtr.Add(
-            fallbackAnchorAddress,
-            profile.GameMenuFallbackGameMenuInlineAddressOffset);
-        if (memory.TryReadPointer(gameMenuInlineAddressLocation, out IntPtr resolvedGameMenuAddress) &&
-            memory.TryReadBool(resolvedGameMenuAddress, out isGameMenu))
-        {
-            gameMenuAddress = resolvedGameMenuAddress;
-            gameMenuSecondaryAddress = IntPtr.Zero;
-            return true;
-        }
-
-        return false;
-    }
-
-    private bool TryResolveGameMenuFromBossProgressionFallback(
-        IProcessMemoryReader memory,
-        out bool isGameMenu)
-    {
-        isGameMenu = false;
-        if (!bossFlagAddressResolver.TryResolveFromProgressionFallback(
-            memory,
-            profile,
-            out BossFlagAddressResolution resolution,
-            out _,
-            out SignatureScanDiagnostics? scanDiagnostics))
-        {
-            return false;
-        }
-
-        LastSignatureScan = scanDiagnostics;
-        bossFlagsBaseAddress = resolution.BossFlags.BaseAddress;
-        hardmodeAddress = resolution.HardmodeAddress;
-        IntPtr resolvedGameMenuAddress = IntPtr.Add(
+        layout.Boss.TryGetFactAddress(HardmodeFactKey, out IntPtr hardmodeAddress);
+        return new TerrariaMemoryResolution(
+            layout.Core.GameMenuStaticFieldAddress,
+            layout.Core.StatusTextStaticFieldAddress,
+            layout.Core.MenuUiStaticFieldAddress,
+            layout.Boss.ResolvedFactCount,
             hardmodeAddress,
-            profile.BossProgressionFallbackGameMenuFromHardmodeOffset);
-        if (!memory.TryReadBool(resolvedGameMenuAddress, out isGameMenu))
-        {
-            bossFlagsBaseAddress = IntPtr.Zero;
-            hardmodeAddress = IntPtr.Zero;
-            return false;
-        }
-
-        gameMenuAddress = resolvedGameMenuAddress;
-        gameMenuSecondaryAddress = IntPtr.Zero;
-        return true;
+            layout.WorldGeneration.CurrentGenerationProgressStaticFieldAddress,
+            layout.WorldGeneration.CurrentControllerStaticFieldAddress,
+            layout.SeedUi is not null);
     }
 
+    private static TerrariaRuntimeMemoryLayout EmptyRuntimeLayout()
+    {
+        return new TerrariaRuntimeMemoryLayout(
+            null,
+            new TerrariaCoreMemoryLayout(IntPtr.Zero, IntPtr.Zero, IntPtr.Zero),
+            new TerrariaBossMemoryLayout(new Dictionary<string, IntPtr>(StringComparer.OrdinalIgnoreCase)),
+            null,
+            null,
+            null,
+            null,
+            new TerrariaWorldGenerationMemoryLayout(
+                IntPtr.Zero,
+                IntPtr.Zero,
+                IntPtr.Zero,
+                -1,
+                -1,
+                -1,
+                -1,
+                -1,
+                -1,
+                -1,
+                -1),
+            0);
+    }
 
-    private static bool TryReadObjectSlot(IProcessMemoryReader memory, ref IntPtr slotAddress, out IntPtr objectAddress)
+    private static bool TryReadObjectSlot(
+        IProcessMemoryReader memory,
+        IntPtr slotAddress,
+        out IntPtr objectAddress)
     {
         objectAddress = IntPtr.Zero;
-        if (slotAddress == IntPtr.Zero)
-        {
-            return false;
-        }
-
-        if (memory.TryReadPointerValue(slotAddress, out objectAddress))
-        {
-            return true;
-        }
-
-        slotAddress = IntPtr.Zero;
-        return false;
+        return slotAddress != IntPtr.Zero &&
+            memory.TryReadPointerValue(slotAddress, out objectAddress);
     }
 
     private static bool TryReadGenerationProgress(
         IProcessMemoryReader memory,
+        TerrariaWorldGenerationMemoryLayout layout,
         IntPtr progressObjectAddress,
         out string? progressMessage,
         out double? currentProgress,
@@ -560,7 +331,7 @@ internal sealed class TerrariaMemoryResolver
         currentProgress = null;
         totalProgress = null;
 
-        IntPtr messageFieldAddress = IntPtr.Add(progressObjectAddress, X86GenerationProgressMessageFieldOffset);
+        IntPtr messageFieldAddress = IntPtr.Add(progressObjectAddress, layout.GenerationProgressMessageFieldOffset);
         if (memory.TryReadPointerValue(messageFieldAddress, out IntPtr messageObjectAddress) &&
             messageObjectAddress != IntPtr.Zero &&
             ManagedObjectMemoryReader.TryReadManagedString(memory, messageObjectAddress, out string? messageTemplate) &&
@@ -569,14 +340,14 @@ internal sealed class TerrariaMemoryResolver
             progressMessage = messageTemplate;
         }
 
-        if (memory.TryReadDouble(IntPtr.Add(progressObjectAddress, X86GenerationProgressValueFieldOffset), out double value))
+        if (memory.TryReadDouble(IntPtr.Add(progressObjectAddress, layout.GenerationProgressValueFieldOffset), out double value))
         {
             currentProgress = value;
         }
 
-        if (memory.TryReadDouble(IntPtr.Add(progressObjectAddress, X86GenerationProgressTotalWeightedProgressFieldOffset), out double totalWeightedProgress) &&
-            memory.TryReadDouble(IntPtr.Add(progressObjectAddress, X86GenerationProgressTotalWeightFieldOffset), out double totalWeight) &&
-            memory.TryReadDouble(IntPtr.Add(progressObjectAddress, X86GenerationProgressCurrentPassWeightFieldOffset), out double currentPassWeight) &&
+        if (memory.TryReadDouble(IntPtr.Add(progressObjectAddress, layout.GenerationProgressTotalWeightedProgressFieldOffset), out double totalWeightedProgress) &&
+            memory.TryReadDouble(IntPtr.Add(progressObjectAddress, layout.GenerationProgressTotalWeightFieldOffset), out double totalWeight) &&
+            memory.TryReadDouble(IntPtr.Add(progressObjectAddress, layout.GenerationProgressCurrentPassWeightFieldOffset), out double currentPassWeight) &&
             currentProgress.HasValue &&
             totalWeight != 0d)
         {
@@ -591,22 +362,12 @@ internal sealed class TerrariaMemoryResolver
             }
             catch (FormatException)
             {
-                // Leave the raw template when Terraria uses an unexpected format string.
+                // Leave Terraria's raw message template when it uses an unexpected format string.
             }
         }
 
-        if (currentProgress.HasValue &&
-            (!double.IsFinite(currentProgress.Value) || currentProgress.Value < -0.001d || currentProgress.Value > 1.001d))
-        {
-            currentProgress = null;
-        }
-
-        if (totalProgress.HasValue &&
-            (!double.IsFinite(totalProgress.Value) || totalProgress.Value < -0.001d || totalProgress.Value > 1.001d))
-        {
-            totalProgress = null;
-        }
-
+        currentProgress = SanitizeProgress(currentProgress);
+        totalProgress = SanitizeProgress(totalProgress);
         if (string.IsNullOrWhiteSpace(progressMessage))
         {
             currentProgress = null;
@@ -617,21 +378,16 @@ internal sealed class TerrariaMemoryResolver
         return true;
     }
 
-    private static string? ReadCurrentPassName(IProcessMemoryReader memory, IntPtr controllerObjectAddress)
+    private static string? ReadCurrentPassName(
+        IProcessMemoryReader memory,
+        TerrariaWorldGenerationMemoryLayout layout,
+        IntPtr controllerObjectAddress)
     {
-        if (!memory.TryReadPointerValue(IntPtr.Add(controllerObjectAddress, X86ControllerGeneratorFieldOffset), out IntPtr worldGeneratorObjectAddress) ||
-            worldGeneratorObjectAddress == IntPtr.Zero)
-        {
-            return null;
-        }
-
-        if (!memory.TryReadPointerValue(IntPtr.Add(worldGeneratorObjectAddress, X86WorldGeneratorCurrentPassFieldOffset), out IntPtr currentPassObjectAddress) ||
-            currentPassObjectAddress == IntPtr.Zero)
-        {
-            return null;
-        }
-
-        if (!memory.TryReadPointerValue(IntPtr.Add(currentPassObjectAddress, X86GenPassNameFieldOffset), out IntPtr nameObjectAddress) ||
+        if (!memory.TryReadPointerValue(IntPtr.Add(controllerObjectAddress, layout.ControllerGeneratorFieldOffset), out IntPtr worldGeneratorObjectAddress) ||
+            worldGeneratorObjectAddress == IntPtr.Zero ||
+            !memory.TryReadPointerValue(IntPtr.Add(worldGeneratorObjectAddress, layout.WorldGeneratorCurrentPassFieldOffset), out IntPtr currentPassObjectAddress) ||
+            currentPassObjectAddress == IntPtr.Zero ||
+            !memory.TryReadPointerValue(IntPtr.Add(currentPassObjectAddress, layout.GenPassNameFieldOffset), out IntPtr nameObjectAddress) ||
             nameObjectAddress == IntPtr.Zero)
         {
             return null;
@@ -642,38 +398,72 @@ internal sealed class TerrariaMemoryResolver
             : null;
     }
 
-    private bool TryResolveInlineAddress(
+    private static bool TryReadStatusTextFallback(
         IProcessMemoryReader memory,
-        SignaturePattern signature,
-        int inlineAddressOffset,
-        Func<IProcessMemoryReader, IntPtr, bool> validateAddress,
-        out IntPtr resolvedAddress)
+        TerrariaWorldGenerationMemoryLayout layout,
+        out TerrariaWorldGenerationState state)
     {
-        resolvedAddress = IntPtr.Zero;
-
-        IntPtr anchorAddress = SignatureScanner.Scan(
-            memory,
-            signature,
-            profile.SignatureScanScopeLabel,
-            out SignatureScanDiagnostics scanDiagnostics);
-        LastSignatureScan = scanDiagnostics;
-        if (anchorAddress == IntPtr.Zero)
+        state = TerrariaWorldGenerationState.Unknown;
+        if (!layout.HasStatusTextFallback ||
+            !memory.TryReadPointerValue(layout.StatusTextStaticFieldAddress, out IntPtr statusTextObjectAddress) ||
+            statusTextObjectAddress == IntPtr.Zero ||
+            !ManagedObjectMemoryReader.TryReadManagedString(memory, statusTextObjectAddress, out string? statusText) ||
+            string.IsNullOrWhiteSpace(statusText))
         {
             return false;
         }
 
-        IntPtr inlineAddressLocation = IntPtr.Add(anchorAddress, inlineAddressOffset);
-        if (!memory.TryReadPointer(inlineAddressLocation, out IntPtr candidateAddress))
+        state = ParseStatusText(statusText.Trim());
+        return state.HasAnyData;
+    }
+
+    private static TerrariaWorldGenerationState ParseStatusText(string statusText)
+    {
+        string[] parts = statusText.Split(" - ", StringSplitOptions.None);
+        if (parts.Length >= 3 &&
+            TryParsePercent(parts[0], out double totalProgress) &&
+            TryParsePercent(parts[^1], out double currentProgress))
+        {
+            string message = string.Join(" - ", parts.Skip(1).Take(parts.Length - 2));
+            return new TerrariaWorldGenerationState(
+                null,
+                string.IsNullOrWhiteSpace(message) ? statusText : message,
+                currentProgress,
+                totalProgress);
+        }
+
+        return new TerrariaWorldGenerationState(null, statusText, null, null);
+    }
+
+    private static bool TryParsePercent(string value, out double progress)
+    {
+        progress = 0d;
+        string trimmed = value.Trim();
+        if (!trimmed.EndsWith("%", StringComparison.Ordinal))
         {
             return false;
         }
 
-        if (!validateAddress(memory, candidateAddress))
+        trimmed = trimmed[..^1].Trim();
+        if (!double.TryParse(trimmed, NumberStyles.Float, CultureInfo.InvariantCulture, out double percent))
         {
             return false;
         }
 
-        resolvedAddress = candidateAddress;
-        return true;
+        progress = percent / 100d;
+        return double.IsFinite(progress);
+    }
+
+    private static double? SanitizeProgress(double? value)
+    {
+        if (!value.HasValue ||
+            !double.IsFinite(value.Value) ||
+            value.Value < -0.001d ||
+            value.Value > 1.001d)
+        {
+            return null;
+        }
+
+        return value;
     }
 }

@@ -9,6 +9,7 @@ internal static class WorldGenerationMemoryTests
     {
         yield return ("TerrariaMemoryResolver reads world generation progress and pass name", TerrariaMemoryResolverReadsWorldGenerationProgressAndPassName);
         yield return ("TerrariaMemoryResolver ignores progress slots without a valid message string", TerrariaMemoryResolverIgnoresProgressWithoutMessageString);
+        yield return ("TerrariaMemoryResolver reads world generation statusText fallback", TerrariaMemoryResolverReadsWorldGenerationStatusTextFallback);
         yield return ("TerrariaWorldCreationSeedReader reads advanced seed page through visible seed plate", TerrariaWorldCreationSeedReaderReadsAdvancedSeedPage);
         yield return ("TerrariaWorldCreationSeedReader accepts high x86 managed object pointers", TerrariaWorldCreationSeedReaderAcceptsHighX86ManagedObjectPointers);
         yield return ("TerrariaWorldCreationSeedReader reads current state while randomize button is hovered", TerrariaWorldCreationSeedReaderReadsCurrentStateWhileRandomizeButtonIsHovered);
@@ -17,9 +18,11 @@ internal static class WorldGenerationMemoryTests
 
     private static void TerrariaMemoryResolverReadsWorldGenerationProgressAndPassName()
     {
-        var resolver = new TerrariaMemoryResolver(Terraria1456Memory.Profile);
-        SetPrivateField(resolver, "currentGenerationProgressAddress", new IntPtr(0x1000));
-        SetPrivateField(resolver, "currentControllerAddress", new IntPtr(0x1004));
+        var resolver = new TerrariaMemoryResolver();
+        resolver.SetRuntimeLayoutForTests(CreateWorldGenerationRuntimeLayout(
+            statusTextAddress: IntPtr.Zero,
+            progressAddress: new IntPtr(0x1000),
+            controllerAddress: new IntPtr(0x1004)));
 
         var memory = new FakeProcessMemoryReader(is64Bit: false);
         memory.WritePointer(new IntPtr(0x1000), new IntPtr(0x2000));
@@ -47,8 +50,11 @@ internal static class WorldGenerationMemoryTests
 
     private static void TerrariaMemoryResolverIgnoresProgressWithoutMessageString()
     {
-        var resolver = new TerrariaMemoryResolver(Terraria1456Memory.Profile);
-        SetPrivateField(resolver, "currentGenerationProgressAddress", new IntPtr(0x1000));
+        var resolver = new TerrariaMemoryResolver();
+        resolver.SetRuntimeLayoutForTests(CreateWorldGenerationRuntimeLayout(
+            statusTextAddress: IntPtr.Zero,
+            progressAddress: new IntPtr(0x1000),
+            controllerAddress: IntPtr.Zero));
 
         var memory = new FakeProcessMemoryReader(is64Bit: false);
         memory.WritePointer(new IntPtr(0x1000), new IntPtr(0x2000));
@@ -63,6 +69,25 @@ internal static class WorldGenerationMemoryTests
         TestAssert.Equal<string?>(null, state.ProgressMessage);
         TestAssert.Equal<double?>(null, state.CurrentProgress);
         TestAssert.Equal<double?>(null, state.TotalProgress);
+    }
+
+    private static void TerrariaMemoryResolverReadsWorldGenerationStatusTextFallback()
+    {
+        var resolver = new TerrariaMemoryResolver();
+        resolver.SetRuntimeLayoutForTests(CreateWorldGenerationRuntimeLayout(
+            statusTextAddress: new IntPtr(0x1000),
+            progressAddress: IntPtr.Zero,
+            controllerAddress: IntPtr.Zero));
+
+        var memory = new FakeProcessMemoryReader(is64Bit: false);
+        memory.WritePointer(new IntPtr(0x1000), new IntPtr(0x7000));
+        memory.WriteManagedString(new IntPtr(0x7000), "37.5% - Pyramids - 50.0%");
+
+        TerrariaWorldGenerationState state = resolver.ReadWorldGenerationState(memory);
+
+        TestAssert.Equal("Pyramids", state.ProgressMessage);
+        TestAssert.Equal(0.5d, state.CurrentProgress!.Value);
+        TestAssert.Equal(0.375d, state.TotalProgress!.Value);
     }
 
     private static void TerrariaWorldCreationSeedReaderReadsAdvancedSeedPage()
@@ -138,6 +163,7 @@ internal static class WorldGenerationMemoryTests
         var reader = new TerrariaWorldCreationSeedReader();
         var memory = new FakeProcessMemoryReader(is64Bit: false);
         IntPtr menuUiSlot = new(0x100000);
+        TerrariaWorldCreationSeedMemoryLayout layout = CreateTestSeedLayout(menuUiSlot);
         IntPtr menuUiObject = new(0x110000);
         IntPtr advancedState = new(0x895B17D4L);
         IntPtr randomizeButton = new(0x895B1F9CL);
@@ -146,7 +172,6 @@ internal static class WorldGenerationMemoryTests
         IntPtr worldName = new(0x89C20200L);
         IntPtr seedText = new(0x895F3568L);
 
-        SetPrivateField(reader, "menuUiSlotAddress", menuUiSlot);
         memory.WritePointer(menuUiSlot, menuUiObject);
         memory.WritePointer(IntPtr.Add(menuUiObject, currentStateOffset), advancedState);
         memory.WritePointer(IntPtr.Add(menuUiObject, lastElementHoverOffset), randomizeButton);
@@ -158,7 +183,7 @@ internal static class WorldGenerationMemoryTests
         memory.WriteManagedString(worldName, "Hovered Randomize World");
         memory.WriteManagedString(seedText, "2033256499");
 
-        TerrariaWorldCreationSeedSnapshot snapshot = reader.Read(memory);
+        TerrariaWorldCreationSeedSnapshot snapshot = reader.Read(memory, layout);
 
         TestAssert.Equal(TerrariaWorldCreationSeedStatus.Seed, snapshot.Status);
         TestAssert.Equal("2033256499", snapshot.SeedText);
@@ -177,6 +202,7 @@ internal static class WorldGenerationMemoryTests
         var reader = new TerrariaWorldCreationSeedReader();
         var memory = new FakeProcessMemoryReader(is64Bit: false);
         IntPtr menuUiSlot = new(0x100000);
+        TerrariaWorldCreationSeedMemoryLayout layout = CreateTestSeedLayout(menuUiSlot);
         IntPtr menuUiObject = new(0x110000);
         IntPtr unrelatedCurrentState = new(0x120000);
         IntPtr oldCreationState = new(0x130000);
@@ -185,7 +211,6 @@ internal static class WorldGenerationMemoryTests
         IntPtr oldNamePlate = new(0x160000);
         IntPtr oldSeedPlate = new(0x170000);
 
-        SetPrivateField(reader, "menuUiSlotAddress", menuUiSlot);
         SetPrivateField(
             reader,
             "lastSnapshot",
@@ -202,7 +227,7 @@ internal static class WorldGenerationMemoryTests
         memory.WriteManagedString(oldWorldName, "Old World");
         memory.WriteManagedString(oldSeedText, "old-seed");
 
-        TerrariaWorldCreationSeedSnapshot snapshot = reader.Read(memory);
+        TerrariaWorldCreationSeedSnapshot snapshot = reader.Read(memory, layout);
 
         TestAssert.Equal(TerrariaWorldCreationSeedStatus.NotOnWorldCreationPage, snapshot.Status);
         TestAssert.Equal<string?>(null, snapshot.SeedText);
@@ -230,12 +255,60 @@ internal static class WorldGenerationMemoryTests
                 "TryReadFromUiState",
                 BindingFlags.Static | BindingFlags.NonPublic)
             ?? throw new InvalidOperationException("Missing TryReadFromUiState.");
-        object?[] args = [memory, stateObjectAddress, null];
+        object?[] args = [memory, CreateTestSeedLayout(new IntPtr(0x100000)), stateObjectAddress, null];
         _ = (bool)(method.Invoke(null, args)
             ?? throw new InvalidOperationException("TryReadFromUiState returned null."));
 
-        return (TerrariaWorldCreationSeedSnapshot)(args[2]
+        return (TerrariaWorldCreationSeedSnapshot)(args[3]
             ?? throw new InvalidOperationException("TryReadFromUiState did not set snapshot."));
+    }
+
+    private static TerrariaRuntimeMemoryLayout CreateWorldGenerationRuntimeLayout(
+        IntPtr statusTextAddress,
+        IntPtr progressAddress,
+        IntPtr controllerAddress)
+    {
+        return new TerrariaRuntimeMemoryLayout(
+            TerrariaVersion: "test",
+            new TerrariaCoreMemoryLayout(
+                GameMenuStaticFieldAddress: new IntPtr(0x4000),
+                StatusTextStaticFieldAddress: statusTextAddress,
+                MenuUiStaticFieldAddress: IntPtr.Zero),
+            new TerrariaBossMemoryLayout(new Dictionary<string, IntPtr>(StringComparer.OrdinalIgnoreCase)),
+            Item: null,
+            Npc: null,
+            Biome: null,
+            SeedUi: null,
+            WorldGeneration: new TerrariaWorldGenerationMemoryLayout(
+                statusTextAddress,
+                progressAddress,
+                controllerAddress,
+                GenerationProgressMessageFieldOffset: 0x24,
+                GenerationProgressValueFieldOffset: 0x4,
+                GenerationProgressTotalWeightedProgressFieldOffset: 0xC,
+                GenerationProgressTotalWeightFieldOffset: 0x14,
+                GenerationProgressCurrentPassWeightFieldOffset: 0x1C,
+                ControllerGeneratorFieldOffset: 0x10,
+                WorldGeneratorCurrentPassFieldOffset: 0x18,
+                GenPassNameFieldOffset: 0xC),
+            ResolvedFieldCount: 1);
+    }
+
+    private static TerrariaWorldCreationSeedMemoryLayout CreateTestSeedLayout(IntPtr menuUiSlot)
+    {
+        return new TerrariaWorldCreationSeedMemoryLayout(
+            menuUiSlot,
+            UserInterfaceCurrentStateFieldOffset: 0x1C,
+            UiStateNestedReferenceScanStart: 0x8,
+            UiStateNestedReferenceScanEnd: 0x300,
+            WorldCreationAdvancedCreationStateFieldOffset: 0xF0,
+            WorldCreationAdvancedSeedPlateFieldOffset: 0xFC,
+            WorldNameFieldOffset: 0xF0,
+            SeedFieldOffset: 0xF4,
+            NamePlateFieldOffset: 0x10C,
+            SeedPlateFieldOffset: 0x110,
+            CharacterNameButtonActualContentsOffset: 0xFC,
+            ObjectReferenceSize: 4);
     }
 
     private static void SetPrivateField(object target, string fieldName, object? value)

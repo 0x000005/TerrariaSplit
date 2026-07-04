@@ -25,7 +25,6 @@ if (PyramidPreScreenTrace.TryRun(args))
 
 var legacyTests = new (string Name, Action Test)[]
 {
-    ("SignaturePattern matches wildcard bytes", TestSignaturePatternWildcard),
     ("SplitTimerFormatter formats minute and hour values", TestSplitTimerFormatter),
     ("Rolling performance counter keeps a bounded window", TestRollingPerformanceCounter),
     ("Runtime performance tracker separates paint ticks from completed paints", TestRuntimePerformancePaintDiagnostics),
@@ -43,6 +42,7 @@ var legacyTests = new (string Name, Action Test)[]
     ("SplitCatalog builds split icon overrides", TestSplitCatalogBuildsSplitIconOverrides),
     ("Statistics table expands condition rows and keeps route segments", TestStatisticsTableExpandsConditionRowsAndKeepsRouteSegments),
     ("TerrariaMenuGeometry maps 900p menu coordinates", TestTerrariaMenuGeometry),
+    ("Terraria player selection resolves versioned list order", TestTerrariaPlayerSelectionResolvesVersionedListOrder),
     ("Localizer returns English fallback and Chinese Crimson", TestLocalizer),
     ("JsonFileStore writes settings atomically", TestJsonFileStoreWritesAtomically),
     ("Default settings template covers serializable settings", TestDefaultSettingsTemplateCoversSerializableSettings),
@@ -65,6 +65,7 @@ var legacyTests = new (string Name, Action Test)[]
     ("World pool file names use TerrariaSplit timestamp", TestWorldPoolFileNameUsesTerrariaSplitTimestamp),
     ("Terraria seed random matches UnifiedRandom sequence", TestTerrariaSeedRandomMatchesUnifiedRandomSequence),
     ("Terraria copied seed builder formats options", TestTerrariaCopiedSeedBuilderFormatsOptions),
+    ("Terraria 1449 seed text converts special and raw seed text", TestTerrariaLegacy1449SeedTextConvertsSpecialAndRawSeedText),
     ("Terraria world name generator follows GUI rules", TestTerrariaWorldNameGeneratorFollowsGuiRules),
     ("SettingsNormalizer clamps auto-create timings", TestSettingsNormalize),
     ("SettingsNormalizer normalizes timer overlay refresh settings", TestSettingsNormalizeTimerOverlayRefresh),
@@ -149,6 +150,7 @@ var legacyTests = new (string Name, Action Test)[]
     ("Settings form keeps uncreated animation fields unchanged", TestSettingsFormKeepsUncreatedAnimationFieldsUnchanged),
     ("Color settings labels follow requested order", TestColorSettingsLabelsFollowRequestedOrder),
     ("Terraria UI scale patch rewrites target IL constants", TestTerrariaUiScalePatchPlan),
+    ("Terraria UI scale patch marks 1449 unsupported", TestTerrariaUiScalePatchMarks1449Unsupported),
     ("Zenith star catch stop stages follow world generation order", TestZenithStarCatchStageStopRules),
     ("Zenith star catch speed uses logarithmic stepped range", TestZenithStarCatchSpeedRange),
     ("Pyramid scanner reads world metadata", TestPyramidFilterWorldFileScanner),
@@ -157,6 +159,7 @@ var legacyTests = new (string Name, Action Test)[]
     ("Pyramid filter falls back to stable file wait without generation state", TestPyramidFilterFallsBackWithoutGenerationState),
     ("Pyramid filter treats empty item mask as all candidate items", TestPyramidFilterTreatsEmptyItemMaskAsAllCandidateItems),
     ("Pyramid seed pre-screen only enables supported scope", TestPyramidSeedPreScreenScope),
+    ("Pyramid seed pre-screen supports versioned pass plans", TestPyramidSeedPreScreenSupportsVersionedPassPlans),
     ("Pyramid seed pre-screen loop accepts after rejected seed", TestPyramidSeedPreScreenLoopAcceptsAfterRejectedSeed),
     ("Pyramid seed pre-screen loop stops first rejection without local retry", TestPyramidSeedPreScreenLoopStopsFirstRejectionWithoutLocalRetry),
     ("Pyramid seed pre-screen loop retries transient seed read failure", TestPyramidSeedPreScreenLoopRetriesTransientSeedReadFailure),
@@ -209,13 +212,6 @@ foreach ((string name, Action test) in tests)
 if (failures > 0)
 {
     Environment.ExitCode = 1;
-}
-
-static void TestSignaturePatternWildcard()
-{
-    SignaturePattern pattern = SignaturePattern.Parse("AA ?? CC");
-    AssertEqual(1, pattern.FindIn([0x00, 0xAA, 0xBB, 0xCC, 0xDD]));
-    AssertEqual(-1, pattern.FindIn([0xAA, 0xBB, 0xCD]));
 }
 
 static void TestSplitTimerFormatter()
@@ -1084,11 +1080,68 @@ static void TestTerrariaMenuGeometry()
     AssertEqual(new Point(450, 245), geometry.MainMenuSinglePlayer());
     AssertEqual(new Point(282, 830), geometry.SelectMenuBackButton());
     AssertEqual(new Point(580, 534), geometry.CreatePlayerButton());
+    AssertEqual(new Point(274, 294), geometry.CharacterTemplateCategoryButton());
+    AssertEqual(new Point(560, 475), geometry.CharacterTemplatePasteButton());
     AssertEqual(new Point(320, 534), geometry.CreateWorldBackButton());
     AssertEqual(new Point(158, 311), geometry.PlayerPlayButton(0));
     AssertEqual(new Point(158, 513), geometry.PlayerPlayButton(2));
+    AssertEqual(new Point(450, 274), geometry.WorldSeedFieldButton());
     AssertEqual(new Point(450, 230), geometry.AdvancedSeedTextButton());
     AssertEqual(new Point(342, 287), geometry.AdvancedSpecialSeedButton(AutoCreateSpecialWorldSeed.NotTheBees));
+
+    AssertEqual(TerrariaMenuProfileKind.Legacy1449, TerrariaMenuProfile.FromVersion("1.4.4.9").Kind);
+    AssertEqual(TerrariaMenuProfileKind.Legacy1449, TerrariaMenuProfile.FromVersion("v1.4.4.9").Kind);
+    AssertEqual(TerrariaMenuProfileKind.Modern1456, TerrariaMenuProfile.FromVersion("1.4.5.6").Kind);
+
+    TerrariaMenuGeometry legacy = TerrariaMenuGeometry.From(new Size(900, 900), TerrariaMenuProfile.Legacy1449);
+    AssertEqual(new Point(580, 534), legacy.CreatePlayerButton());
+    AssertEqual(new Point(280, 294), legacy.CharacterTemplateCategoryButton());
+    AssertEqual(new Point(450, 461), legacy.CharacterTemplatePasteButton());
+    AssertEqual(new Point(226, 294), legacy.PlayerDifficultyMenuButton());
+    AssertEqual(new Point(304, 403), legacy.PlayerDifficultyButton(AutoCreatePlayerDifficulty.Journey));
+    AssertEqual(new Point(304, 430), legacy.PlayerDifficultyButton(AutoCreatePlayerDifficulty.Softcore));
+    AssertEqual(new Point(304, 458), legacy.PlayerDifficultyButton(AutoCreatePlayerDifficulty.Mediumcore));
+    AssertEqual(new Point(304, 485), legacy.PlayerDifficultyButton(AutoCreatePlayerDifficulty.Hardcore));
+    AssertEqual(new Point(286, 331), legacy.WorldSizeButton(AutoCreateWorldSize.Small));
+    AssertEqual(new Point(450, 331), legacy.WorldSizeButton(AutoCreateWorldSize.Medium));
+    AssertEqual(new Point(614, 331), legacy.WorldSizeButton(AutoCreateWorldSize.Large));
+    AssertEqual(new Point(268, 379), legacy.WorldDifficultyButton(AutoCreateWorldDifficulty.Journey));
+    AssertEqual(new Point(389, 379), legacy.WorldDifficultyButton(AutoCreateWorldDifficulty.Classic));
+    AssertEqual(new Point(511, 379), legacy.WorldDifficultyButton(AutoCreateWorldDifficulty.Expert));
+    AssertEqual(new Point(632, 379), legacy.WorldDifficultyButton(AutoCreateWorldDifficulty.Master));
+    AssertEqual(new Point(286, 427), legacy.WorldEvilButton(AutoCreateWorldEvil.Random));
+    AssertEqual(new Point(450, 427), legacy.WorldEvilButton(AutoCreateWorldEvil.Corruption));
+    AssertEqual(new Point(614, 427), legacy.WorldEvilButton(AutoCreateWorldEvil.Crimson));
+    AssertEqual(new Point(230, 274), legacy.WorldAdvancedSeedButton());
+    AssertEqual(new Point(450, 274), legacy.WorldSeedFieldButton());
+    AssertEqual(new Point(450, 230), legacy.AdvancedSeedTextButton());
+    AssertEqual(new Point(580, 534), legacy.CreateWorldButton());
+}
+
+static void TestTerrariaPlayerSelectionResolvesVersionedListOrder()
+{
+    DateTime now = new(2026, 7, 3, 12, 0, 0, DateTimeKind.Utc);
+    TerrariaPlayerSelectionEntry[] players =
+    [
+        new("Zed.plr", "Zed", true, now.AddMinutes(-20)),
+        new("Alice.plr", "Alice", false, now.AddMinutes(-10)),
+        new("Bob.plr", "Bob", false, now),
+    ];
+
+    AssertEqual(
+        2,
+        TerrariaPlayerSelectionIndexResolver.ResolveCreatedPlayerIndex(
+            TerrariaMenuProfile.Legacy1449,
+            players,
+            "Bob.plr",
+            fallbackIndex: 1));
+    AssertEqual(
+        1,
+        TerrariaPlayerSelectionIndexResolver.ResolveCreatedPlayerIndex(
+            TerrariaMenuProfile.Modern1456,
+            players,
+            "Bob.plr",
+            fallbackIndex: 1));
 }
 
 static void TestLocalizer()
@@ -1113,7 +1166,9 @@ static void TestLocalizer()
     AssertEqual(true, Localizer.Get("Create World hotkey {0} is now active. Please read the Create World notes in the Automation settings tab first. Enabling this blindly may move save files to the backup folder unless existing saves are kept.", new AppSettings { General = { Language = "\u4E2D\u6587" } }).Contains("\u79FB\u5230\u5907\u4EFD\u6587\u4EF6\u5939", StringComparison.Ordinal));
     AssertEqual("\u4EBA\u7269\u9009\u9879", Localizer.Get("Player options", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
     AssertEqual("\u4E16\u754C\u9009\u9879", Localizer.Get("World options", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
-    AssertEqual("\u4FDD\u7559\u73B0\u6709\u4EBA\u7269\u548C\u4E16\u754C", Localizer.Get("Keep existing players and worlds", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u5F3A\u5236\u4FDD\u7559\u6240\u6709\u6587\u4EF6", Localizer.Get("Force keep all files", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u542F\u7528\u540E\uFF0C\u521B\u56FE\u65F6\u4E0D\u4F1A\u5220\u9664\u4EFB\u4F55\u6587\u4EF6\uFF0C\u8FD9\u4F1A\u5BFC\u81F4\u5927\u91CF\u7684\u4E16\u754C\u548C\u4EBA\u7269\u9700\u8981\u624B\u52A8\u6E05\u7406\u3002", Localizer.Get("When enabled, world creation will not delete any files. This can leave many worlds and players to clean up manually.", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u542F\u7528", Localizer.Get("Enabled", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
     AssertEqual("\u5929\u9876\u63A5\u661F", Localizer.Get("Zenith star catch", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
     AssertEqual("\u7B5B\u9009\u91D1\u5B57\u5854", Localizer.Get("Pyramid filter", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
     AssertEqual("\u6307\u5B9A\u7269\u54C1", Localizer.Get("Required pyramid items", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
@@ -1779,6 +1834,9 @@ static void TestWorldPoolSignatureStartsWithTerrariaVersion()
     string signature = WorldPoolSignature.From(settings);
 
     AssertEqual("1.4.5.6|Small|Expert|Crimson|For the Worthy,No Traps|mole people,waterpark|pyramid=1|pyramidItems=5|name=zh-Hans", signature);
+    AssertEqual(
+        "1.4.4.9|Small|Expert|Crimson|For the Worthy,No Traps|mole people,waterpark|pyramid=1|pyramidItems=5|name=zh-Hans",
+        WorldPoolSignature.From(settings, "v1.4.4.9"));
 
     settings.General.Language = LanguageNames.English;
     AssertEqual(
@@ -1789,6 +1847,9 @@ static void TestWorldPoolSignatureStartsWithTerrariaVersion()
     AssertEqual(
         "1.4.5.6|Small|Expert|Crimson|For the Worthy,No Traps|mole people,waterpark|pyramid=1|pyramidItems=7|name=en-US",
         WorldPoolSignature.From(settings));
+
+    AssertEqual(true, new TerrariaServerTarget(@"D:\Games\Terraria_1.4.4.9\TerrariaServer.exe", "1.4.4.9").IsLegacy1449);
+    AssertEqual(false, new TerrariaServerTarget(@"D:\Games\Terraria_1.4.5.6\TerrariaServer.exe", "1.4.5.6").IsLegacy1449);
 }
 
 static void TestWorldPoolFileNameUsesTerrariaSplitTimestamp()
@@ -1844,6 +1905,44 @@ static void TestTerrariaCopiedSeedBuilderFormatsOptions()
 
     AssertEqual("2.2.1.0.42", copiedSeed.Text);
     AssertEqual(new TerrariaWorldSeedMetadata("42", 2, 2, false, 0), copiedSeed.Metadata);
+}
+
+static void TestTerrariaLegacy1449SeedTextConvertsSpecialAndRawSeedText()
+{
+    var settings = new AutoCreateWorldSettings
+    {
+        SpecialSeeds = AutoCreateSpecialWorldSeed.ForTheWorthy,
+        SecretSeeds = string.Empty
+    };
+
+    AssertEqual(true, TerrariaLegacy1449SeedText.TryBuild(settings, out string seedText, out string detail));
+    AssertEqual("fortheworthy", seedText);
+    AssertEqual(true, detail.Contains("fortheworthy", StringComparison.Ordinal));
+
+    settings.SpecialSeeds = $"{AutoCreateSpecialWorldSeed.Drunk}|{AutoCreateSpecialWorldSeed.Remix}";
+    settings.SecretSeeds = "mole people | waterpark";
+
+    AssertEqual(true, TerrariaLegacy1449SeedText.TryBuild(settings, out seedText, out _));
+    AssertEqual("5162020|dontdigup|mole people|waterpark", seedText);
+
+    settings.SpecialSeeds = string.Empty;
+    settings.SecretSeeds = " 123456 ";
+
+    AssertEqual(true, TerrariaLegacy1449SeedText.TryBuild(settings, out seedText, out _));
+    AssertEqual("123456", seedText);
+
+    settings.SpecialSeeds = AutoCreateSpecialWorldSeed.Zenith;
+    settings.SecretSeeds = "123456";
+
+    AssertEqual(true, TerrariaLegacy1449SeedText.TryBuild(settings, out seedText, out _));
+    AssertEqual("getfixedboi|123456", seedText);
+
+    settings.SpecialSeeds = AutoCreateSpecialWorldSeed.Skyblock;
+    settings.SecretSeeds = string.Empty;
+
+    AssertEqual(false, TerrariaLegacy1449SeedText.TryBuild(settings, out seedText, out detail));
+    AssertEqual(string.Empty, seedText);
+    AssertEqual(true, detail.Contains("Skyblock", StringComparison.Ordinal));
 }
 
 static void TestTerrariaWorldNameGeneratorFollowsGuiRules()
@@ -4276,6 +4375,48 @@ static void TestPyramidSeedPreScreenScope()
     AssertEqual(false, PyramidSeedPreScreenAutomation.IsEnabledFor(settings));
 }
 
+static void TestPyramidSeedPreScreenSupportsVersionedPassPlans()
+{
+    AssertEqual(true, PyramidSeedPreScreenEvaluator.IsSupportedTerrariaVersion("1.4.4.9"));
+    AssertEqual(true, PyramidSeedPreScreenEvaluator.IsSupportedTerrariaVersion("v1.4.4.9"));
+    AssertEqual(true, PyramidSeedPreScreenEvaluator.IsSupportedTerrariaVersion("1.4.5.6"));
+    AssertEqual(true, PyramidSeedPreScreenEvaluator.IsSupportedTerrariaVersion(null));
+
+    AssertEqual(
+        TerrariaWorldGenerationVersion.Legacy1449,
+        PyramidSeedPreScreenEvaluator.WorldGenerationVersionFromTerrariaVersion("1.4.4.9"));
+    AssertEqual(
+        TerrariaWorldGenerationVersion.Modern1456,
+        PyramidSeedPreScreenEvaluator.WorldGenerationVersionFromTerrariaVersion("1.4.5.6"));
+
+    IReadOnlyList<string> modern = OfficialPassPlan.PassNamesForDiagnostics(TerrariaWorldGenerationVersion.Modern1456);
+    IReadOnlyList<string> legacy = OfficialPassPlan.PassNamesForDiagnostics(TerrariaWorldGenerationVersion.Legacy1449);
+    AssertEqual(true, IndexOfPass(modern, "Mushroom Patches") < IndexOfPass(modern, "Floating Islands"));
+    AssertEqual(true, IndexOfPass(legacy, "Floating Islands") < IndexOfPass(legacy, "Mushroom Patches"));
+    AssertEqual(true, IndexOfPass(modern, "Slush") < IndexOfPass(modern, "Dungeon"));
+    AssertEqual(true, IndexOfPass(legacy, "Dungeon") < IndexOfPass(legacy, "Slush"));
+
+    var result = TerrariaSplit.Terraria.WorldGeneration.PyramidSeedPreScreen.EvaluateSmallCrimson(
+        "123456",
+        difficultyCode: 1,
+        requiredItemMask: AutoCreatePyramidFilterItem.AllMask,
+        version: TerrariaWorldGenerationVersion.Legacy1449);
+    AssertEqual(PyramidSeedPreScreenStatus.Complete, result.Status);
+}
+
+static int IndexOfPass(IReadOnlyList<string> passNames, string name)
+{
+    for (int i = 0; i < passNames.Count; i++)
+    {
+        if (string.Equals(passNames[i], name, StringComparison.Ordinal))
+        {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
 static void TestPyramidSeedPreScreenLoopAcceptsAfterRejectedSeed()
 {
     var randomizer = new FakePyramidSeedRandomizer();
@@ -5762,6 +5903,14 @@ static void TestTerrariaUiScalePatchPlan()
     {
         AssertEqual(true, ContainsPattern(patched, pattern));
     }
+}
+
+static void TestTerrariaUiScalePatchMarks1449Unsupported()
+{
+    AssertEqual(true, TerrariaUiScalePatch.IsKnownUnsupportedVersion("1.4.4.9"));
+    AssertEqual(true, TerrariaUiScalePatch.IsKnownUnsupportedVersion("v1.4.4.9"));
+    AssertEqual(false, TerrariaUiScalePatch.IsKnownUnsupportedVersion("1.4.5.6"));
+    AssertEqual(false, TerrariaUiScalePatch.IsKnownUnsupportedVersion(null));
 }
 
 static IReadOnlyList<byte[]> GetUiScalePatchPatterns(string propertyName)

@@ -95,7 +95,6 @@ internal sealed class AutomationShell : IDisposable
         if (validation.Failed)
         {
             logger.Info(validation.Message);
-            ShowFailure("Practice world failed", validation.Message);
             return;
         }
 
@@ -106,24 +105,15 @@ internal sealed class AutomationShell : IDisposable
             AutomationResult result = await worldAutomation.StartEnterWorldAsync(
                 settingsSnapshots.CreateSnapshot(getSettings()),
                 selectedSlot);
-            ShowAutomationFailure("Practice world failed", result);
+            LogAutomationFailure(result);
         }
         catch (Exception ex)
         {
             logger.Error(ex, "Unhandled practice world automation error.");
-            ShowFailure("Practice world failed", "Practice world automation failed.");
         }
     }
 
-    private void ShowAutomationFailure(string title, AutomationResult result)
-    {
-        if (LogAutomationFailure(result))
-        {
-            ShowFailure(title, result.UserMessage);
-        }
-    }
-
-    private bool LogAutomationFailure(AutomationResult result)
+    private void LogAutomationFailure(AutomationResult result)
     {
         if (result.Succeeded || result.Cancelled)
         {
@@ -132,7 +122,7 @@ internal sealed class AutomationShell : IDisposable
                 logger.Info(result.DiagnosticMessage);
             }
 
-            return false;
+            return;
         }
 
         if (result.Exception is not null)
@@ -143,16 +133,5 @@ internal sealed class AutomationShell : IDisposable
         {
             logger.Info(result.DiagnosticMessage);
         }
-
-        return true;
-    }
-
-    private void ShowFailure(string title, string message)
-    {
-        string displayMessage = string.IsNullOrWhiteSpace(message)
-            ? "Automation failed."
-            : message;
-        using var dialog = new HotkeyWarningDialog(title, displayMessage);
-        modalWindows.ShowDialog(dialog);
     }
 }

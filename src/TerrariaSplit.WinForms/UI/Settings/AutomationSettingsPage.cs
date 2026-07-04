@@ -246,11 +246,6 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
         SettingsUiFactory.AddSectionControl(
             createSection,
             Factory.CreateWrappedFieldLabel(
-                "If existing saves are preserved, newly created players are selected from the first non-favorite row and rejected pyramid worlds are kept.",
-                UiTheme.Text));
-        SettingsUiFactory.AddSectionControl(
-            createSection,
-            Factory.CreateWrappedFieldLabel(
                 "If clicks are too fast for your computer to respond, adjust the delay settings at the bottom of this page.",
                 UiTheme.Text));
 
@@ -260,7 +255,6 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
             SettingsUiFactory.ColumnStyleAbsolute(360f));
         Factory.AddSettingRow(createGrid, "Player name", autoCreatePlayerNameBox);
         Factory.AddSettingRow(createGrid, "Player difficulty", autoCreatePlayerDifficultyBox);
-        Factory.AddSettingRow(createGrid, "Keep existing players and worlds", autoCreatePreserveExistingSavesBox);
         SettingsUiFactory.AddSectionControl(createSection, createGrid);
         SettingsUiFactory.AddSectionControl(createSection, Factory.CreateFieldLabel("Player code"));
         SettingsUiFactory.AddSectionControl(createSection, autoCreatePlayerTemplateCodeBox);
@@ -280,7 +274,7 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
         TableLayoutPanel seedGrid = Factory.CreateGrid(
             SettingsUiFactory.ColumnStylePercent(100f),
             SettingsUiFactory.ColumnStyleAbsolute(360f));
-        Factory.AddSettingRow(seedGrid, "Secret seeds", autoCreateSecretSeedsBox);
+        Factory.AddSettingRow(seedGrid, "Secret seed / fixed seed", autoCreateSecretSeedsBox);
         SettingsUiFactory.AddSectionControl(createSection, seedGrid);
 
         SettingsUiFactory.AddSectionControl(createSection, Factory.CreateSubsectionLabel("Zenith star catch"));
@@ -314,6 +308,18 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
         Factory.AddSettingRow(worldPoolGrid, "Background world pool", autoCreateWorldPoolBox);
         Factory.AddSettingRow(worldPoolGrid, "World pool size", autoCreateWorldPoolTargetBox);
         SettingsUiFactory.AddSectionControl(createSection, worldPoolGrid);
+
+        SettingsUiFactory.AddSectionControl(createSection, Factory.CreateSubsectionLabel("Force keep all files"));
+        SettingsUiFactory.AddSectionControl(
+            createSection,
+            Factory.CreateWrappedFieldLabel(
+                "When enabled, world creation will not delete any files. This can leave many worlds and players to clean up manually.",
+                UiTheme.Text));
+        TableLayoutPanel existingSavesGrid = Factory.CreateGrid(
+            SettingsUiFactory.ColumnStylePercent(100f),
+            SettingsUiFactory.ColumnStyleAbsolute(360f));
+        Factory.AddSettingRow(existingSavesGrid, "Enabled", autoCreatePreserveExistingSavesBox);
+        SettingsUiFactory.AddSectionControl(createSection, existingSavesGrid);
 
         SettingsUiFactory.AddSection(parent, createSection);
     }

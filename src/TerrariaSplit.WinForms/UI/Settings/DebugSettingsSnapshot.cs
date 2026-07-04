@@ -92,14 +92,14 @@ internal sealed record DebugWorldGenerationSnapshot(
     string TotalProgress);
 
 internal sealed record DebugMemorySnapshot(
-    string ScanAttempts,
-    string LastScan,
-    string ScanPageStats,
-    string ScanFailures,
+    string ProbeAttempts,
+    string LastProbe,
+    string LayoutStatus,
+    string ProbeError,
     string MainModuleBase,
     string MainModuleSize,
-    string UpdateTimeAddress,
-    string BossFlagsAddress,
+    string GameMenuAddress,
+    string BossFactAddresses,
     string HardmodeAddress,
     string GenerationProgressAddress,
     string GenerationControllerAddress,

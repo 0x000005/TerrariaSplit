@@ -5,7 +5,10 @@ namespace TerrariaSplit.UI.Settings;
 
 internal static partial class DebugSettingsSnapshotBuilder
 {
-    private static bool TryCreateGeometry(Size? clientSize, out TerrariaMenuGeometry geometry)
+    private static bool TryCreateGeometry(
+        Size? clientSize,
+        string? terrariaVersion,
+        out TerrariaMenuGeometry geometry)
     {
         if (clientSize is not Size size || size.Width <= 0 || size.Height <= 0)
         {
@@ -13,7 +16,7 @@ internal static partial class DebugSettingsSnapshotBuilder
             return false;
         }
 
-        geometry = TerrariaMenuGeometry.From(size);
+        geometry = TerrariaMenuGeometry.From(size, TerrariaMenuProfile.FromVersion(terrariaVersion));
         return true;
     }
 
@@ -328,42 +331,43 @@ internal static partial class DebugSettingsSnapshotBuilder
         return $"{number} {units[unitIndex]}";
     }
 
-    private static string FormatScanStats(
-        SignatureScanDiagnostics? diagnostics,
+    private static string FormatLayoutStatus(
+        TerrariaWatcherDiagnostics diagnostics,
         Func<string, string> localize)
     {
-        if (diagnostics is not SignatureScanDiagnostics value)
-        {
-            return localize("Unknown");
-        }
-
+        TerrariaLayoutProbeDiagnostics probe = diagnostics.LayoutProbe;
         return string.Format(
             CultureInfo.InvariantCulture,
-            localize("private {0}/{1} scanned, {2} read; image {3}/{4} scanned, {5} read; total {6}; {7}"),
-            value.PrivateExecutablePagesScanned,
-            value.PrivateExecutablePagesSeen,
-            FormatBytes(value.PrivateExecutableBytesScanned),
-            value.ImageExecutablePagesScanned,
-            value.ImageExecutablePagesSeen,
-            FormatBytes(value.ImageExecutableBytesScanned),
-            FormatBytes(value.TotalExecutableBytesScanned),
-            FormatMilliseconds(value.ElapsedMilliseconds));
+            localize("{0}; fields {1}; last success {2}"),
+            localize(string.IsNullOrWhiteSpace(diagnostics.LayoutStatus) ? "Unknown" : diagnostics.LayoutStatus),
+            probe.ResolvedFieldCount.ToString(CultureInfo.InvariantCulture),
+            FormatTimestamp(probe.LastSuccessUtc, localize));
     }
 
-    private static string FormatScanFailures(
-        SignatureScanDiagnostics? diagnostics,
+    private static string FormatProbeError(
+        TerrariaLayoutProbeDiagnostics probe,
         Func<string, string> localize)
     {
-        if (diagnostics is not SignatureScanDiagnostics value)
-        {
-            return localize("Unknown");
-        }
-
+        string error = string.IsNullOrWhiteSpace(probe.LastError)
+            ? localize("None")
+            : probe.LastError!;
+        string exitCode = probe.LastExitCode.HasValue
+            ? probe.LastExitCode.Value.ToString(CultureInfo.InvariantCulture)
+            : localize("Unknown");
         return string.Format(
             CultureInfo.InvariantCulture,
-            localize("read failures {0}, oversized skipped {1}"),
-            value.ReadFailures,
-            value.OversizedPagesSkipped);
+            localize("exit {0}; {1}"),
+            exitCode,
+            error);
+    }
+
+    private static string FormatBossFactAddressCount(
+        int count,
+        Func<string, string> localize)
+    {
+        return count > 0
+            ? string.Format(CultureInfo.InvariantCulture, localize("{0} fields"), count)
+            : localize("Unknown");
     }
 
     private static string FormatPlayerName(string? playerName)

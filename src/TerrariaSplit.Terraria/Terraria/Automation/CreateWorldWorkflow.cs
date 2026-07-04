@@ -50,7 +50,9 @@ internal sealed class CreateWorldWorkflow : IDisposable
                         "Create world automation could not activate Terraria window.");
                 }
 
-                TerrariaMenuGeometry geometry = TerrariaMenuGeometry.From(activation.ClientSize);
+                TerrariaMenuProfile menuProfile = TerrariaMenuProfile.ResolveRunningProcess();
+                TerrariaMenuGeometry geometry = TerrariaMenuGeometry.From(activation.ClientSize, menuProfile);
+                StaticAppLogger.Instance.Info($"Create world automation using menu profile: {menuProfile.Name}.");
 
                 CreateWorldCleanupStep cleanupStep = await RunSaveCleanupAsync(autoCreate, cancellationToken);
                 if (!cleanupStep.Succeeded)
@@ -60,7 +62,7 @@ internal sealed class CreateWorldWorkflow : IDisposable
                         "Create world automation save cleanup step failed.");
                 }
 
-                string worldGenSignature = WorldPoolSignature.From(settings);
+                string worldGenSignature = WorldPoolRuntimeVersion.SignatureFromCurrentRuntime(settings);
                 WorldPoolInstallResult poolInstall = await InstallPooledWorldAsync(autoCreate, worldGenSignature, cancellationToken);
                 if (!poolInstall.Succeeded)
                 {

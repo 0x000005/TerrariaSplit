@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Drawing;
+using System.Reflection;
 using System.Windows.Forms;
 using TerrariaSplit;
 
@@ -37,7 +38,6 @@ internal static class MainShellRefactorTests
         yield return ("MainFormContextMenuBuilder exposes pyramid filter toggle", MainFormContextMenuBuilderExposesPyramidFilterToggle);
         yield return ("PracticeWorldSelectorForm uses save selector text", PracticeWorldSelectorFormUsesSaveSelectorText);
         yield return ("PracticeWorldSelectorForm scales layout with display context", PracticeWorldSelectorFormScalesLayoutWithDisplayContext);
-        yield return ("HotkeyWarningDialog uses plain dialog content", HotkeyWarningDialogUsesPlainDialogContent);
         yield return ("HotkeyShell suppresses repeated registration warnings", HotkeyShellSuppressesRepeatedRegistrationWarnings);
         yield return ("HotkeyShell unregisters when global hotkeys are disabled", HotkeyShellUnregistersWhenGlobalHotkeysAreDisabled);
         yield return ("SettingsMessageDialog uses themed dialog chrome", SettingsMessageDialogUsesThemedDialogChrome);
@@ -805,20 +805,6 @@ internal static class MainShellRefactorTests
         TestAssert.Equal(true, smallScreen.ClientSize.Width <= 800);
     }
 
-    private static void HotkeyWarningDialogUsesPlainDialogContent()
-    {
-        RunSta(() =>
-        {
-            using var dialog = new HotkeyWarningDialog("Hotkey warning", "Ctrl + F10 registration failed.");
-            Control[] controls = EnumerateControls(dialog).ToArray();
-
-            TestAssert.Equal(false, controls.OfType<TextBox>().Any());
-            TestAssert.Equal(
-                true,
-                controls.OfType<Label>().Any(label => label.Text.Contains("Ctrl + F10", StringComparison.Ordinal)));
-        });
-    }
-
     private static void HotkeyShellSuppressesRepeatedRegistrationWarnings()
     {
         var manager = new FakeHotkeyRegistrationManager(
@@ -829,22 +815,22 @@ internal static class MainShellRefactorTests
                 HotkeyRegistrationWarningKind.Duplicate,
                 "Duplicate hotkey.")
         ]);
-        var messages = new List<string>();
         using var shell = new HotkeyShell(
             manager,
             () => new AppSettings { General = { Language = LanguageNames.English } },
             () => new IntPtr(123),
             () => true,
-            registerGlobalHotkeys: true,
-            messages.Add);
+            registerGlobalHotkeys: true);
 
         shell.Register();
         shell.Register();
 
         TestAssert.Equal(2, manager.RegisterCount);
-        TestAssert.Equal(1, messages.Count);
-        TestAssert.Equal(true, messages[0].Contains("Reset", StringComparison.Ordinal));
-        TestAssert.Equal(true, messages[0].Contains("F6", StringComparison.Ordinal));
+        string? lastWarningText = typeof(HotkeyShell)
+            .GetField("lastWarningText", BindingFlags.NonPublic | BindingFlags.Instance)
+            ?.GetValue(shell) as string;
+        TestAssert.Equal(true, lastWarningText?.Contains("Reset", StringComparison.Ordinal));
+        TestAssert.Equal(true, lastWarningText?.Contains("F6", StringComparison.Ordinal));
     }
 
     private static void HotkeyShellUnregistersWhenGlobalHotkeysAreDisabled()
@@ -855,8 +841,7 @@ internal static class MainShellRefactorTests
             () => new AppSettings(),
             () => new IntPtr(123),
             () => true,
-            registerGlobalHotkeys: false,
-            _ => { });
+            registerGlobalHotkeys: false);
 
         shell.Register();
 

@@ -2,7 +2,6 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json;
-using Microsoft.Diagnostics.Runtime;
 using Process = System.Diagnostics.Process;
 
 namespace TerrariaSplit.Terraria.Memory;
@@ -16,9 +15,36 @@ internal sealed class TerrariaClrMemoryResolver
     private Process? process;
     private int? processId;
     private DateTime nextResolveAttemptUtc = DateTime.MinValue;
-    private TerrariaItemMemoryLayout? itemLayout;
-    private TerrariaNpcMemoryLayout? npcLayout;
-    private TerrariaBiomeMemoryLayout? biomeLayout;
+    private TerrariaRuntimeMemoryLayout? runtimeLayout;
+    private int resolveAttempts;
+    private DateTime? lastAttemptUtc;
+    private DateTime? lastSuccessUtc;
+    private int? lastExitCode;
+    private string? lastError;
+
+    public TerrariaLayoutProbeDiagnostics ProbeDiagnostics => new(
+        resolveAttempts,
+        lastAttemptUtc,
+        lastSuccessUtc,
+        LayoutStatus,
+        lastExitCode,
+        lastError,
+        runtimeLayout?.ResolvedFieldCount ?? 0);
+
+    public string LayoutStatus
+    {
+        get
+        {
+            if (runtimeLayout is null)
+            {
+                return DateTime.UtcNow < nextResolveAttemptUtc && resolveAttempts > 0
+                    ? "retrying"
+                    : "unavailable";
+            }
+
+            return IsPartial(runtimeLayout) ? "partial" : "resolved";
+        }
+    }
 
     public void SetProcess(Process? targetProcess)
     {
@@ -34,23 +60,33 @@ internal sealed class TerrariaClrMemoryResolver
 
     public void Reset()
     {
-        itemLayout = null;
-        npcLayout = null;
-        biomeLayout = null;
+        runtimeLayout = null;
+        nextResolveAttemptUtc = DateTime.MinValue;
+        resolveAttempts = 0;
+        lastAttemptUtc = null;
+        lastSuccessUtc = null;
+        lastExitCode = null;
+        lastError = null;
+    }
+
+    public void ResetLayout()
+    {
+        runtimeLayout = null;
         nextResolveAttemptUtc = DateTime.MinValue;
     }
 
-    public bool TryGetItemLayout(IProcessMemoryReader memory, out TerrariaItemMemoryLayout layout)
+    public bool TryGetRuntimeLayout(IProcessMemoryReader memory, out TerrariaRuntimeMemoryLayout layout)
     {
         layout = null!;
         if (memory.Is64Bit)
         {
+            lastError = "x64 Terraria process is not supported by the x86 MemoryProbe resolver";
             return false;
         }
 
-        if (itemLayout is not null)
+        if (runtimeLayout is not null)
         {
-            layout = itemLayout;
+            layout = runtimeLayout;
             return true;
         }
 
@@ -60,101 +96,16 @@ internal sealed class TerrariaClrMemoryResolver
         }
 
         nextResolveAttemptUtc = DateTime.UtcNow + ResolveRetryInterval;
-        if (TryResolveManagedLayouts(
-                processId.Value,
-                memory,
-                out TerrariaItemMemoryLayout? resolvedItemLayout,
-                out TerrariaNpcMemoryLayout? resolvedNpcLayout,
-                out TerrariaBiomeMemoryLayout? resolvedBiomeLayout))
+        resolveAttempts++;
+        lastAttemptUtc = DateTime.UtcNow;
+        if (TryResolveRuntimeLayoutWithMemoryProbe(processId.Value, out TerrariaRuntimeMemoryLayout? resolvedLayout) &&
+            resolvedLayout is not null)
         {
-            itemLayout = resolvedItemLayout;
-            npcLayout = resolvedNpcLayout;
-            biomeLayout = resolvedBiomeLayout;
-            if (resolvedItemLayout is not null)
-            {
-                layout = resolvedItemLayout;
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    public bool TryGetNpcLayout(IProcessMemoryReader memory, out TerrariaNpcMemoryLayout layout)
-    {
-        layout = null!;
-        if (memory.Is64Bit)
-        {
-            return false;
-        }
-
-        if (npcLayout is not null)
-        {
-            layout = npcLayout;
+            runtimeLayout = resolvedLayout;
+            lastSuccessUtc = DateTime.UtcNow;
+            lastError = null;
+            layout = resolvedLayout;
             return true;
-        }
-
-        if (process is null || processId is null || DateTime.UtcNow < nextResolveAttemptUtc)
-        {
-            return false;
-        }
-
-        nextResolveAttemptUtc = DateTime.UtcNow + ResolveRetryInterval;
-        if (TryResolveManagedLayouts(
-                processId.Value,
-                memory,
-                out TerrariaItemMemoryLayout? resolvedItemLayout,
-                out TerrariaNpcMemoryLayout? resolvedNpcLayout,
-                out TerrariaBiomeMemoryLayout? resolvedBiomeLayout))
-        {
-            itemLayout = resolvedItemLayout;
-            npcLayout = resolvedNpcLayout;
-            biomeLayout = resolvedBiomeLayout;
-            if (resolvedNpcLayout is not null)
-            {
-                layout = resolvedNpcLayout;
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    public bool TryGetBiomeLayout(IProcessMemoryReader memory, out TerrariaBiomeMemoryLayout layout)
-    {
-        layout = null!;
-        if (memory.Is64Bit)
-        {
-            return false;
-        }
-
-        if (biomeLayout is not null)
-        {
-            layout = biomeLayout;
-            return true;
-        }
-
-        if (process is null || processId is null || DateTime.UtcNow < nextResolveAttemptUtc)
-        {
-            return false;
-        }
-
-        nextResolveAttemptUtc = DateTime.UtcNow + ResolveRetryInterval;
-        if (TryResolveManagedLayouts(
-                processId.Value,
-                memory,
-                out TerrariaItemMemoryLayout? resolvedItemLayout,
-                out TerrariaNpcMemoryLayout? resolvedNpcLayout,
-                out TerrariaBiomeMemoryLayout? resolvedBiomeLayout))
-        {
-            itemLayout = resolvedItemLayout;
-            npcLayout = resolvedNpcLayout;
-            biomeLayout = resolvedBiomeLayout;
-            if (resolvedBiomeLayout is not null)
-            {
-                layout = resolvedBiomeLayout;
-                return true;
-            }
         }
 
         return false;
@@ -172,195 +123,16 @@ internal sealed class TerrariaClrMemoryResolver
         }
     }
 
-    private static bool TryResolveManagedLayouts(
+    private bool TryResolveRuntimeLayoutWithMemoryProbe(
         int targetProcessId,
-        IProcessMemoryReader memory,
-        out TerrariaItemMemoryLayout? itemLayout,
-        out TerrariaNpcMemoryLayout? npcLayout,
-        out TerrariaBiomeMemoryLayout? biomeLayout)
+        out TerrariaRuntimeMemoryLayout? layout)
     {
-        itemLayout = null;
-        npcLayout = null;
-        biomeLayout = null;
-        if (Environment.Is64BitProcess != memory.Is64Bit)
-        {
-            return TryResolveManagedLayoutsWithMemoryProbe(targetProcessId, out itemLayout, out npcLayout, out biomeLayout);
-        }
-
-        try
-        {
-            using DataTarget target = DataTarget.CreateSnapshotAndAttach(targetProcessId);
-            ClrInfo? clrInfo = target.ClrVersions.FirstOrDefault();
-            if (clrInfo is null)
-            {
-                return false;
-            }
-
-            using ClrRuntime runtime = clrInfo.CreateRuntime();
-            ClrType? mainType = FindType(runtime, "Terraria.Main");
-            ClrType? playerType = FindType(runtime, "Terraria.Player");
-            ClrType? chestType = FindType(runtime, "Terraria.Chest");
-            ClrType? itemType = FindType(runtime, "Terraria.Item");
-            ClrType? npcType = FindType(runtime, "Terraria.NPC");
-            if (mainType is null || playerType is null || chestType is null || itemType is null || npcType is null)
-            {
-                return false;
-            }
-
-            ClrStaticField? playerStatic = mainType.GetStaticFieldByName("player");
-            ClrStaticField? myPlayerStatic = mainType.GetStaticFieldByName("myPlayer");
-            ClrStaticField? mouseItemStatic = mainType.GetStaticFieldByName("mouseItem");
-            ClrStaticField? npcStatic = mainType.GetStaticFieldByName("npc");
-            ClrAppDomain? domain = runtime.AppDomains.FirstOrDefault(appDomain =>
-                playerStatic?.IsInitialized(appDomain) == true &&
-                myPlayerStatic?.IsInitialized(appDomain) == true &&
-                mouseItemStatic?.IsInitialized(appDomain) == true &&
-                npcStatic?.IsInitialized(appDomain) == true);
-            if (playerStatic is null || myPlayerStatic is null || mouseItemStatic is null || npcStatic is null || domain is null)
-            {
-                return false;
-            }
-
-            ulong playerStaticAddress = playerStatic.GetAddress(domain);
-            ulong myPlayerStaticAddress = myPlayerStatic.GetAddress(domain);
-            ulong mouseItemStaticAddress = mouseItemStatic.GetAddress(domain);
-            ulong npcStaticAddress = npcStatic.GetAddress(domain);
-            if (playerStaticAddress == 0 ||
-                myPlayerStaticAddress == 0 ||
-                mouseItemStaticAddress == 0 ||
-                npcStaticAddress == 0)
-            {
-                return false;
-            }
-
-            int arrayLengthOffset = memory.Is64Bit ? 0x8 : 0x4;
-            int objectReferenceSize = memory.Is64Bit ? 8 : 4;
-            int? arrayFirstElementOffset = null;
-
-            ClrObject playerArrayObject = playerStatic.ReadObject(domain);
-            int myPlayer = myPlayerStatic.Read<int>(domain);
-            ulong localPlayerAddress = 0;
-            if (!playerArrayObject.IsNull)
-            {
-                ClrArray playerArray = playerArrayObject.AsArray();
-                arrayFirstElementOffset = GetArrayFirstElementOffset(playerArray.Type, playerArray.Address);
-                if (myPlayer >= 0 && myPlayer < playerArray.Length)
-                {
-                    localPlayerAddress = ReadFirstArrayReference(playerArray, myPlayer);
-                }
-            }
-
-            ClrObject localPlayer = localPlayerAddress == 0
-                ? default
-                : runtime.Heap.GetObject(localPlayerAddress);
-            if (localPlayer.IsNull)
-            {
-                localPlayerAddress = 0;
-            }
-
-            ClrObject npcArrayObject = npcStatic.ReadObject(domain);
-            ulong firstNpcAddress = 0;
-            if (!npcArrayObject.IsNull)
-            {
-                ClrArray npcArray = npcArrayObject.AsArray();
-                arrayFirstElementOffset ??= GetArrayFirstElementOffset(npcArray.Type, npcArray.Address);
-                firstNpcAddress = ReadFirstNonNullArrayReference(npcArray);
-            }
-
-            if (arrayFirstElementOffset is null)
-            {
-                return false;
-            }
-
-            int npcTypeFieldOffset = GetNpcFieldOffset(npcType, "type", firstNpcAddress);
-            int npcActiveFieldOffset = GetNpcFieldOffset(npcType, "active", firstNpcAddress);
-            int npcTownNpcFieldOffset = GetNpcFieldOffset(npcType, "townNPC", firstNpcAddress);
-            int npcHomelessFieldOffset = GetNpcFieldOffset(npcType, "homeless", firstNpcAddress);
-            int npcHomeTileXFieldOffset = GetNpcFieldOffset(npcType, "homeTileX", firstNpcAddress);
-            int npcHomeTileYFieldOffset = GetNpcFieldOffset(npcType, "homeTileY", firstNpcAddress);
-
-            if (localPlayerAddress != 0)
-            {
-                Dictionary<string, int> zoneBitsByteFieldOffsets =
-                    ResolveZoneBitsByteFieldOffsets(playerType, localPlayerAddress);
-                if (zoneBitsByteFieldOffsets.Count > 0)
-                {
-                    biomeLayout = new TerrariaBiomeMemoryLayout(
-                        ToIntPtr(playerStaticAddress),
-                        ToIntPtr(myPlayerStaticAddress),
-                        zoneBitsByteFieldOffsets,
-                        arrayLengthOffset,
-                        arrayFirstElementOffset.Value,
-                        objectReferenceSize);
-                }
-            }
-
-            if (localPlayerAddress != 0 &&
-                TryResolveInventoryArray(playerType, localPlayer, out ClrArray inventoryArray) &&
-                TryReadFirstNonNullArrayReference(inventoryArray, out ulong firstItemAddress))
-            {
-                int itemArrayFirstElementOffset = GetArrayFirstElementOffset(inventoryArray.Type, inventoryArray.Address);
-                itemLayout = new TerrariaItemMemoryLayout(
-                    ToIntPtr(playerStaticAddress),
-                    ToIntPtr(myPlayerStaticAddress),
-                    ToIntPtr(mouseItemStaticAddress),
-                    GetRequiredFieldOffset(playerType, "armor", localPlayer.Address),
-                    GetRequiredFieldOffset(playerType, "dye", localPlayer.Address),
-                    GetRequiredFieldOffset(playerType, "miscEquips", localPlayer.Address),
-                    GetRequiredFieldOffset(playerType, "miscDyes", localPlayer.Address),
-                    GetRequiredFieldOffset(playerType, "trashItem", localPlayer.Address),
-                    GetRequiredFieldOffset(playerType, "inventory", localPlayer.Address),
-                    GetRequiredFieldOffset(playerType, "bank", localPlayer.Address),
-                    GetRequiredFieldOffset(playerType, "bank2", localPlayer.Address),
-                    GetRequiredFieldOffset(playerType, "bank3", localPlayer.Address),
-                    GetRequiredFieldOffset(playerType, "bank4", localPlayer.Address),
-                    GetChestItemArrayFieldOffset(chestType, playerType, localPlayer),
-                    GetRequiredFieldOffset(itemType, "type", firstItemAddress),
-                    GetRequiredFieldOffset(itemType, "stack", firstItemAddress),
-                    arrayLengthOffset,
-                    itemArrayFirstElementOffset,
-                    objectReferenceSize);
-            }
-
-            npcLayout = new TerrariaNpcMemoryLayout(
-                ToIntPtr(npcStaticAddress),
-                npcTypeFieldOffset,
-                npcActiveFieldOffset,
-                npcTownNpcFieldOffset,
-                npcHomelessFieldOffset,
-                npcHomeTileXFieldOffset,
-                npcHomeTileYFieldOffset,
-                arrayLengthOffset,
-                arrayFirstElementOffset.Value,
-                objectReferenceSize);
-            return itemLayout is not null || npcLayout is not null || biomeLayout is not null;
-        }
-        catch (InvalidOperationException)
-        {
-            return false;
-        }
-        catch (UnauthorizedAccessException)
-        {
-            return false;
-        }
-        catch (ClrDiagnosticsException)
-        {
-            return false;
-        }
-    }
-
-    private static bool TryResolveManagedLayoutsWithMemoryProbe(
-        int targetProcessId,
-        out TerrariaItemMemoryLayout? itemLayout,
-        out TerrariaNpcMemoryLayout? npcLayout,
-        out TerrariaBiomeMemoryLayout? biomeLayout)
-    {
-        itemLayout = null;
-        npcLayout = null;
-        biomeLayout = null;
+        layout = null;
         string? probePath = FindMemoryProbeExecutable();
         if (probePath is null)
         {
+            lastExitCode = null;
+            lastError = "TerrariaSplit.MemoryProbe.exe not found";
             return false;
         }
 
@@ -369,41 +141,52 @@ internal sealed class TerrariaClrMemoryResolver
             using Process? probe = StartMemoryProbe(probePath, targetProcessId);
             if (probe is null)
             {
+                lastExitCode = null;
+                lastError = "failed to start TerrariaSplit.MemoryProbe.exe";
                 return false;
             }
 
             if (!probe.WaitForExit(MemoryProbeTimeoutMilliseconds))
             {
                 TryKill(probe);
+                lastExitCode = null;
+                lastError = "MemoryProbe timed out";
                 return false;
             }
 
+            lastExitCode = probe.ExitCode;
             string output = probe.StandardOutput.ReadToEnd();
-            _ = probe.StandardError.ReadToEnd();
-            ItemLayoutProbeResponse? response = JsonSerializer.Deserialize<ItemLayoutProbeResponse>(output.Trim());
+            string errorOutput = probe.StandardError.ReadToEnd();
+            RuntimeLayoutProbeResponse? response =
+                JsonSerializer.Deserialize<RuntimeLayoutProbeResponse>(output.Trim());
             if (response?.Success == true && response.Layout is not null)
             {
-                itemLayout = response.Layout.ToItemMemoryLayout();
-                npcLayout = response.Layout.ToNpcMemoryLayout();
-                biomeLayout = response.Layout.ToBiomeMemoryLayout();
+                layout = response.Layout.ToRuntimeMemoryLayout();
                 return true;
             }
+
+            lastError = response?.Error ??
+                (string.IsNullOrWhiteSpace(errorOutput) ? "MemoryProbe returned no runtime layout" : errorOutput.Trim());
         }
-        catch (InvalidOperationException)
+        catch (InvalidOperationException ex)
         {
-            return false;
+            lastExitCode = null;
+            lastError = ex.Message;
         }
-        catch (Win32Exception)
+        catch (Win32Exception ex)
         {
-            return false;
+            lastExitCode = null;
+            lastError = ex.Message;
         }
-        catch (IOException)
+        catch (IOException ex)
         {
-            return false;
+            lastExitCode = null;
+            lastError = ex.Message;
         }
-        catch (JsonException)
+        catch (JsonException ex)
         {
-            return false;
+            lastExitCode = null;
+            lastError = ex.Message;
         }
 
         return false;
@@ -418,7 +201,7 @@ internal sealed class TerrariaClrMemoryResolver
             RedirectStandardError = true,
             CreateNoWindow = true
         };
-        startInfo.ArgumentList.Add("item-layout");
+        startInfo.ArgumentList.Add("runtime-layout");
         startInfo.ArgumentList.Add(targetProcessId.ToString(CultureInfo.InvariantCulture));
         return Process.Start(startInfo);
     }
@@ -504,191 +287,84 @@ internal sealed class TerrariaClrMemoryResolver
         }
     }
 
-    private static ClrType? FindType(ClrRuntime runtime, string typeName)
+    private static bool IsPartial(TerrariaRuntimeMemoryLayout layout)
     {
-        foreach (ClrModule module in runtime.EnumerateModules())
-        {
-            ClrType? type = module.GetTypeByName(typeName);
-            if (type is not null)
-            {
-                return type;
-            }
-        }
-
-        return null;
+        return !layout.HasCore ||
+            layout.Boss.ResolvedFactCount == 0 ||
+            layout.Item is null ||
+            layout.Npc is null ||
+            layout.Biome is null ||
+            layout.SeedUi is null ||
+            !layout.WorldGeneration.HasAnySource;
     }
 
-    private static int GetRequiredFieldOffset(ClrType type, string fieldName)
-    {
-        ClrInstanceField? field = type.GetFieldByName(fieldName);
-        if (field is null)
-        {
-            throw new InvalidOperationException($"Missing CLR field {type.Name}.{fieldName}.");
-        }
-
-        return field.Offset;
-    }
-
-    private static Dictionary<string, int> ResolveZoneBitsByteFieldOffsets(ClrType playerType, ulong playerAddress)
-    {
-        Dictionary<string, int> offsets = new(StringComparer.OrdinalIgnoreCase);
-        foreach (string zoneFieldName in TerrariaBiomeCatalog.RequiredZoneFieldNames)
-        {
-            if (TryGetFieldOffset(playerType, zoneFieldName, playerAddress, out int offset))
-            {
-                offsets[zoneFieldName] = offset;
-            }
-        }
-
-        return offsets;
-    }
-
-    private static bool TryGetFieldOffset(ClrType type, string fieldName, out int offset)
-    {
-        ClrInstanceField? field = type.GetFieldByName(fieldName);
-        if (field is null)
-        {
-            offset = 0;
-            return false;
-        }
-
-        offset = field.Offset;
-        return true;
-    }
-
-    private static bool TryGetFieldOffset(ClrType type, string fieldName, ulong objectAddress, out int offset)
-    {
-        if (!TryGetFieldOffset(type, fieldName, out offset))
-        {
-            return false;
-        }
-
-        ClrInstanceField? field = type.GetFieldByName(fieldName);
-        if (field is null || objectAddress == 0)
-        {
-            return true;
-        }
-
-        ulong fieldAddress = field.GetAddress(objectAddress, interior: false);
-        if (fieldAddress < objectAddress)
-        {
-            return true;
-        }
-
-        offset = checked((int)(fieldAddress - objectAddress));
-        return true;
-    }
-
-    private static int GetRequiredFieldOffset(ClrType type, string fieldName, ulong objectAddress)
-    {
-        ClrInstanceField? field = type.GetFieldByName(fieldName);
-        if (field is null)
-        {
-            throw new InvalidOperationException($"Missing CLR field {type.Name}.{fieldName}.");
-        }
-
-        ulong fieldAddress = field.GetAddress(objectAddress, interior: false);
-        if (fieldAddress < objectAddress)
-        {
-            throw new InvalidOperationException($"Invalid CLR field address {type.Name}.{fieldName}.");
-        }
-
-        return checked((int)(fieldAddress - objectAddress));
-    }
-
-    private static int GetNpcFieldOffset(ClrType npcType, string fieldName, ulong firstNpcAddress)
-    {
-        return firstNpcAddress == 0
-            ? GetRequiredFieldOffset(npcType, fieldName)
-            : GetRequiredFieldOffset(npcType, fieldName, firstNpcAddress);
-    }
-
-    private static bool TryResolveInventoryArray(ClrType playerType, ClrObject localPlayer, out ClrArray inventoryArray)
-    {
-        inventoryArray = default;
-        ClrInstanceField? inventoryField = playerType.GetFieldByName("inventory");
-        if (inventoryField is null || localPlayer.IsNull)
-        {
-            return false;
-        }
-
-        ClrObject inventoryArrayObject = inventoryField.ReadObject(localPlayer.Address, interior: false);
-        if (inventoryArrayObject.IsNull)
-        {
-            return false;
-        }
-
-        inventoryArray = inventoryArrayObject.AsArray();
-        return inventoryArray.Length > 0;
-    }
-
-    private static int GetChestItemArrayFieldOffset(ClrType chestType, ClrType playerType, ClrObject localPlayer)
-    {
-        foreach (string bankFieldName in new[] { "bank", "bank2", "bank3", "bank4" })
-        {
-            ClrInstanceField? bankField = playerType.GetFieldByName(bankFieldName);
-            if (bankField is null)
-            {
-                continue;
-            }
-
-            ClrObject chestObject = bankField.ReadObject(localPlayer.Address, interior: false);
-            if (!chestObject.IsNull)
-            {
-                return GetRequiredFieldOffset(chestType, "item", chestObject.Address);
-            }
-        }
-
-        return GetRequiredFieldOffset(chestType, "item");
-    }
-
-    private static int GetArrayFirstElementOffset(ClrType arrayType, ulong arrayAddress)
-    {
-        ulong elementAddress = arrayType.GetArrayElementAddress(arrayAddress, 0);
-        if (elementAddress < arrayAddress)
-        {
-            throw new InvalidOperationException($"Invalid CLR array element address {arrayType.Name}.");
-        }
-
-        return checked((int)(elementAddress - arrayAddress));
-    }
-
-    private static ulong ReadFirstArrayReference(ClrArray array, int index)
-    {
-        IEnumerable<ulong>? values = array.ReadValues<ulong>(index, 1);
-        return values?.FirstOrDefault() ?? 0;
-    }
-
-    private static bool TryReadFirstNonNullArrayReference(ClrArray array, out ulong address)
-    {
-        address = ReadFirstNonNullArrayReference(array);
-        return address != 0;
-    }
-
-    private static ulong ReadFirstNonNullArrayReference(ClrArray array)
-    {
-        for (int i = 0; i < array.Length; i++)
-        {
-            ulong address = ReadFirstArrayReference(array, i);
-            if (address != 0)
-            {
-                return address;
-            }
-        }
-
-        return 0;
-    }
-
-    private static IntPtr ToIntPtr(ulong address)
+    private static IntPtr ToIntPtr(long address)
     {
         return IntPtr.Size == 8
-            ? new IntPtr(unchecked((long)address))
+            ? new IntPtr(address)
             : new IntPtr(unchecked((int)address));
     }
 
-    private sealed record ItemLayoutProbeResponse(bool Success, string? Error, ItemLayoutProbeDto? Layout);
+    private sealed record RuntimeLayoutProbeResponse(
+        bool Success,
+        string? Error,
+        RuntimeLayoutProbeDto? Layout);
 
-    private sealed record ItemLayoutProbeDto(
+    private sealed record RuntimeLayoutProbeDto(
+        string? TerrariaVersion,
+        CoreLayoutProbeDto Core,
+        BossLayoutProbeDto Boss,
+        PlayerItemLayoutProbeDto? Item,
+        NpcLayoutProbeDto? Npc,
+        BiomeLayoutProbeDto? Biome,
+        SeedUiLayoutProbeDto? SeedUi,
+        WorldGenerationLayoutProbeDto WorldGeneration,
+        int ResolvedFieldCount)
+    {
+        public TerrariaRuntimeMemoryLayout ToRuntimeMemoryLayout()
+        {
+            return new TerrariaRuntimeMemoryLayout(
+                TerrariaVersion,
+                Core.ToCoreLayout(),
+                Boss.ToBossLayout(),
+                Item?.ToItemMemoryLayout(),
+                Npc?.ToNpcMemoryLayout(),
+                Biome?.ToBiomeMemoryLayout(),
+                SeedUi?.ToSeedUiLayout(),
+                WorldGeneration.ToWorldGenerationLayout(),
+                ResolvedFieldCount);
+        }
+    }
+
+    private sealed record CoreLayoutProbeDto(
+        long GameMenuStaticFieldAddress,
+        long StatusTextStaticFieldAddress,
+        long MenuUiStaticFieldAddress)
+    {
+        public TerrariaCoreMemoryLayout ToCoreLayout()
+        {
+            return new TerrariaCoreMemoryLayout(
+                ToIntPtr(GameMenuStaticFieldAddress),
+                ToIntPtr(StatusTextStaticFieldAddress),
+                ToIntPtr(MenuUiStaticFieldAddress));
+        }
+    }
+
+    private sealed record BossLayoutProbeDto(Dictionary<string, long> FactStaticFieldAddresses)
+    {
+        public TerrariaBossMemoryLayout ToBossLayout()
+        {
+            Dictionary<string, IntPtr> addresses = new(StringComparer.OrdinalIgnoreCase);
+            foreach ((string factKey, long address) in FactStaticFieldAddresses)
+            {
+                addresses[factKey] = ToIntPtr(address);
+            }
+
+            return new TerrariaBossMemoryLayout(addresses);
+        }
+    }
+
+    private sealed record PlayerItemLayoutProbeDto(
         long PlayerArrayStaticFieldAddress,
         long MyPlayerStaticFieldAddress,
         long MouseItemStaticFieldAddress,
@@ -705,14 +381,6 @@ internal sealed class TerrariaClrMemoryResolver
         int ChestItemArrayFieldOffset,
         int ItemTypeFieldOffset,
         int ItemStackFieldOffset,
-        long NpcArrayStaticFieldAddress,
-        int NpcTypeFieldOffset,
-        int NpcActiveFieldOffset,
-        int NpcTownNpcFieldOffset,
-        int NpcHomelessFieldOffset,
-        int NpcHomeTileXFieldOffset,
-        int NpcHomeTileYFieldOffset,
-        Dictionary<string, int>? ZoneBitsByteFieldOffsets,
         int ManagedArrayLengthOffset,
         int ManagedArrayFirstElementOffset,
         int ObjectReferenceSize)
@@ -720,9 +388,9 @@ internal sealed class TerrariaClrMemoryResolver
         public TerrariaItemMemoryLayout ToItemMemoryLayout()
         {
             return new TerrariaItemMemoryLayout(
-                new IntPtr(PlayerArrayStaticFieldAddress),
-                new IntPtr(MyPlayerStaticFieldAddress),
-                new IntPtr(MouseItemStaticFieldAddress),
+                ToIntPtr(PlayerArrayStaticFieldAddress),
+                ToIntPtr(MyPlayerStaticFieldAddress),
+                ToIntPtr(MouseItemStaticFieldAddress),
                 PlayerArmorFieldOffset,
                 PlayerDyeFieldOffset,
                 PlayerMiscEquipsFieldOffset,
@@ -740,11 +408,24 @@ internal sealed class TerrariaClrMemoryResolver
                 ManagedArrayFirstElementOffset,
                 ObjectReferenceSize);
         }
+    }
 
+    private sealed record NpcLayoutProbeDto(
+        long NpcArrayStaticFieldAddress,
+        int NpcTypeFieldOffset,
+        int NpcActiveFieldOffset,
+        int NpcTownNpcFieldOffset,
+        int NpcHomelessFieldOffset,
+        int NpcHomeTileXFieldOffset,
+        int NpcHomeTileYFieldOffset,
+        int ManagedArrayLengthOffset,
+        int ManagedArrayFirstElementOffset,
+        int ObjectReferenceSize)
+    {
         public TerrariaNpcMemoryLayout ToNpcMemoryLayout()
         {
             return new TerrariaNpcMemoryLayout(
-                new IntPtr(NpcArrayStaticFieldAddress),
+                ToIntPtr(NpcArrayStaticFieldAddress),
                 NpcTypeFieldOffset,
                 NpcActiveFieldOffset,
                 NpcTownNpcFieldOffset,
@@ -755,16 +436,87 @@ internal sealed class TerrariaClrMemoryResolver
                 ManagedArrayFirstElementOffset,
                 ObjectReferenceSize);
         }
+    }
 
+    private sealed record BiomeLayoutProbeDto(
+        long PlayerArrayStaticFieldAddress,
+        long MyPlayerStaticFieldAddress,
+        Dictionary<string, int>? ZoneBitsByteFieldOffsets,
+        int ManagedArrayLengthOffset,
+        int ManagedArrayFirstElementOffset,
+        int ObjectReferenceSize)
+    {
         public TerrariaBiomeMemoryLayout ToBiomeMemoryLayout()
         {
             return new TerrariaBiomeMemoryLayout(
-                new IntPtr(PlayerArrayStaticFieldAddress),
-                new IntPtr(MyPlayerStaticFieldAddress),
+                ToIntPtr(PlayerArrayStaticFieldAddress),
+                ToIntPtr(MyPlayerStaticFieldAddress),
                 ZoneBitsByteFieldOffsets ?? new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase),
                 ManagedArrayLengthOffset,
                 ManagedArrayFirstElementOffset,
                 ObjectReferenceSize);
+        }
+    }
+
+    private sealed record SeedUiLayoutProbeDto(
+        long MenuUiStaticFieldAddress,
+        int UserInterfaceCurrentStateFieldOffset,
+        int UiStateNestedReferenceScanStart,
+        int UiStateNestedReferenceScanEnd,
+        int WorldCreationAdvancedCreationStateFieldOffset,
+        int WorldCreationAdvancedSeedPlateFieldOffset,
+        int WorldNameFieldOffset,
+        int SeedFieldOffset,
+        int NamePlateFieldOffset,
+        int SeedPlateFieldOffset,
+        int CharacterNameButtonActualContentsOffset,
+        int ObjectReferenceSize)
+    {
+        public TerrariaWorldCreationSeedMemoryLayout ToSeedUiLayout()
+        {
+            return new TerrariaWorldCreationSeedMemoryLayout(
+                ToIntPtr(MenuUiStaticFieldAddress),
+                UserInterfaceCurrentStateFieldOffset,
+                UiStateNestedReferenceScanStart,
+                UiStateNestedReferenceScanEnd,
+                WorldCreationAdvancedCreationStateFieldOffset,
+                WorldCreationAdvancedSeedPlateFieldOffset,
+                WorldNameFieldOffset,
+                SeedFieldOffset,
+                NamePlateFieldOffset,
+                SeedPlateFieldOffset,
+                CharacterNameButtonActualContentsOffset,
+                ObjectReferenceSize);
+        }
+    }
+
+    private sealed record WorldGenerationLayoutProbeDto(
+        long StatusTextStaticFieldAddress,
+        long CurrentGenerationProgressStaticFieldAddress,
+        long CurrentControllerStaticFieldAddress,
+        int GenerationProgressMessageFieldOffset,
+        int GenerationProgressValueFieldOffset,
+        int GenerationProgressTotalWeightedProgressFieldOffset,
+        int GenerationProgressTotalWeightFieldOffset,
+        int GenerationProgressCurrentPassWeightFieldOffset,
+        int ControllerGeneratorFieldOffset,
+        int WorldGeneratorCurrentPassFieldOffset,
+        int GenPassNameFieldOffset)
+    {
+        public TerrariaWorldGenerationMemoryLayout ToWorldGenerationLayout()
+        {
+            return new TerrariaWorldGenerationMemoryLayout(
+                ToIntPtr(StatusTextStaticFieldAddress),
+                ToIntPtr(CurrentGenerationProgressStaticFieldAddress),
+                ToIntPtr(CurrentControllerStaticFieldAddress),
+                GenerationProgressMessageFieldOffset,
+                GenerationProgressValueFieldOffset,
+                GenerationProgressTotalWeightedProgressFieldOffset,
+                GenerationProgressTotalWeightFieldOffset,
+                GenerationProgressCurrentPassWeightFieldOffset,
+                ControllerGeneratorFieldOffset,
+                WorldGeneratorCurrentPassFieldOffset,
+                GenPassNameFieldOffset);
         }
     }
 }

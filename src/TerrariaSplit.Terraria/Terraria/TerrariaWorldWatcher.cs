@@ -6,8 +6,7 @@ namespace TerrariaSplit.Terraria;
 
 public sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
 {
-    private readonly TerrariaMemoryProfile profile;
-    private readonly TerrariaMemoryResolver resolver;
+    private readonly TerrariaMemoryResolver resolver = new();
     private readonly TerrariaWorldCreationSeedReader worldCreationSeedReader = new();
     private readonly TimeSpan initialScanInterval = TimeSpan.FromMilliseconds(250);
     private readonly TimeSpan rescanInterval = TimeSpan.FromSeconds(2);
@@ -43,14 +42,7 @@ public sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
     private string[]? observedFactKeys;
 
     public TerrariaWorldWatcher()
-        : this(Terraria1456Memory.Profile)
     {
-    }
-
-    internal TerrariaWorldWatcher(TerrariaMemoryProfile profile)
-    {
-        this.profile = profile;
-        resolver = new TerrariaMemoryResolver(profile);
     }
 
     public TerrariaWatchSnapshot Poll()
@@ -182,24 +174,22 @@ public sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
         TerrariaWorldCreationSeedSnapshot worldCreationSeed = ReadWorldCreationSeedDiagnostics();
         return new TerrariaWatcherDiagnostics(
             diagnosticStage,
-            profile.SupportedVersionLabel,
-            profile.SignatureProfileLabel,
+            resolver.LayoutStatus,
             memory?.Is64Bit,
             FormatProcessArchitecture(),
             cachedProcessPath,
             cachedProcessVersion,
             cachedMainModuleBaseAddress,
             cachedMainModuleSize,
-            resolver.SignatureScanAttempts,
-            resolver.LastSignatureScanUtc,
-            resolver.LastSignatureScan,
-            resolution.UpdateTimeAddress,
+            resolver.ProbeDiagnostics,
             resolution.GameMenuAddress,
-            resolution.GameMenuSecondaryAddress,
-            resolution.BossFlagsBaseAddress,
+            resolution.StatusTextAddress,
+            resolution.MenuUiAddress,
+            resolution.BossFactAddressCount,
             resolution.HardmodeAddress,
             resolution.CurrentGenerationProgressAddress,
             resolution.CurrentControllerAddress,
+            resolution.HasSeedUiLayout,
             worldCreationSeed,
             BuildCompatibilityHint(resolution));
     }
@@ -227,7 +217,7 @@ public sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
         previousGameMenu = null;
         awaitingInitialMenuObservation = false;
 
-        Process? candidate = TerrariaProcessFinder.FindNewest(profile);
+        Process? candidate = TerrariaProcessFinder.FindNewest();
         if (candidate is null)
         {
             diagnosticStage = "waiting for process";
@@ -243,8 +233,8 @@ public sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
             resolver.SetProcess(candidate);
             nextProcessLookupUtc = DateTime.MinValue;
             nextScanUtc = DateTime.MinValue;
-            diagnosticStage = "scanning for signature";
-            status = BuildAttachedStatus($"scanning for {profile.SupportedVersionLabel} memory");
+            diagnosticStage = "resolving runtime layout";
+            status = BuildAttachedStatus("resolving MemoryProbe runtime layout");
         }
         catch (Win32Exception ex)
         {
@@ -320,7 +310,7 @@ public sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
 
     private string BuildOperationalStatus()
     {
-        string operationalStatus = resolver.HasResolvedBossAddresses && resolver.BuildResolutionStatusDetail() == "ready"
+        string operationalStatus = resolver.HasResolvedBossAddresses && resolver.BuildResolutionStage() == "ready"
             ? $"attached to Terraria PID {process!.Id}"
             : BuildAttachedStatus(resolver.BuildResolutionStatusDetail());
 
@@ -389,7 +379,7 @@ public sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
         }
 
         nextSeedDiagnosticsReadUtc = now + SeedDiagnosticsReadInterval;
-        lastSeedDiagnostics = worldCreationSeedReader.Read(memory);
+        lastSeedDiagnostics = worldCreationSeedReader.Read(memory, resolver.SeedUiLayout);
         return lastSeedDiagnostics;
     }
 
@@ -488,7 +478,7 @@ public sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
 
         if (memory.Is64Bit)
         {
-            return "Target Terraria process is x64. The current UpdateTime signature was authored from an x86-style function prologue.";
+            return "Target Terraria process is x64. The current managed runtime layout resolver is x86-only.";
         }
 
         if (IsTimerStartPending())
@@ -496,46 +486,29 @@ public sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
             return "Watcher first became ready while Terraria was already in a world. The timer starts only on a menu-to-world transition, so return to the main menu once and enter the world again.";
         }
 
-        if (resolution.UsingBossProgressionMenuFallback)
-        {
-            return "Boss progression fallback resolved hardmode and boss flags, then inferred gameMenu from the Terraria static field layout after the primary menu routes failed.";
-        }
-
-        if (resolution.UsingGameMenuFallback && resolution.UsingBossProgressionFallback)
-        {
-            return "Fallback signatures resolved menu state and boss progression when the primary UpdateTime anchor was unavailable on this runtime.";
-        }
-
-        if (resolution.UsingGameMenuFallback)
-        {
-            return "Fallback menu-state signature resolved a stronger UpdateTime-adjacent gameMenu access pattern when the direct UpdateTime anchor was unavailable on this runtime.";
-        }
-
-        if (resolution.UsingBossProgressionFallback)
-        {
-            return "Boss progression fallback resolved hardmode and boss flags when the UpdateTime-relative boss pointer offsets were unavailable.";
-        }
-
-        if (resolution.UpdateTimeAddress == IntPtr.Zero)
-        {
-            return "UpdateTime did not match any scanned private or image executable page.";
-        }
-
         if (resolution.GameMenuAddress == IntPtr.Zero)
         {
-            return "UpdateTime matched, but the expected menu-state pointer offset did not resolve to readable memory.";
+            TerrariaLayoutProbeDiagnostics probe = resolver.ProbeDiagnostics;
+            return string.IsNullOrWhiteSpace(probe.LastError)
+                ? "MemoryProbe has not resolved Terraria.Main.gameMenu yet."
+                : $"MemoryProbe has not resolved Terraria.Main.gameMenu: {probe.LastError}";
         }
 
         if (!resolution.HasResolvedBossAddresses)
         {
-            return "gameMenu resolved, but boss and hardmode pointers are still pending or unreadable.";
+            return "gameMenu resolved, but boss fact static fields are unavailable in the managed layout.";
         }
 
         if (!resolution.HasResolvedWorldGenerationAddresses)
         {
-            return "Watcher resolved timer and boss pointers, but world generation pointers are still pending or unreadable.";
+            return "Watcher resolved timer and boss layouts, but world generation layout is unavailable. Timer and split facts can still work.";
         }
 
-        return "Watcher resolved all current pointers.";
+        if (!resolution.HasSeedUiLayout)
+        {
+            return "Watcher resolved timer, boss, and world generation layouts. Seed UI layout is unavailable, so visible seed diagnostics may stay Unknown.";
+        }
+
+        return "Watcher resolved the managed runtime layout.";
     }
 }

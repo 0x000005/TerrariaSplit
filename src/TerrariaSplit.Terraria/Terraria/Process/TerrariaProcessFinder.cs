@@ -6,14 +6,11 @@ namespace TerrariaSplit.Terraria.Processes;
 
 internal static class TerrariaProcessFinder
 {
+    private const string ProcessName = "Terraria";
+
     public static Process? FindNewest()
     {
-        return FindNewest(Terraria1456Memory.Profile);
-    }
-
-    public static Process? FindNewest(TerrariaMemoryProfile profile)
-    {
-        Process[] processes = Process.GetProcessesByName(profile.ProcessName);
+        Process[] processes = Process.GetProcessesByName(ProcessName);
         if (processes.Length == 0)
         {
             return null;

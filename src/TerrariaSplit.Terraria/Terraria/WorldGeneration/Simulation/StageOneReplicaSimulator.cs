@@ -2,7 +2,9 @@ namespace TerrariaSplit.Terraria.WorldGeneration.Simulation;
 
 internal sealed class StageOneReplicaSimulator
 {
-    public StageOneReplicaResult Generate(WorldSeedMetadata metadata)
+    public StageOneReplicaResult Generate(
+        WorldSeedMetadata metadata,
+        TerrariaWorldGenerationVersion version = TerrariaWorldGenerationVersion.Modern1456)
     {
         WorldOptions options = WorldOptions.FromMetadata(metadata);
         var state = new WorldGenState(options);
@@ -15,16 +17,17 @@ internal sealed class StageOneReplicaSimulator
         }
 
         var generator = new WorldGenerator(state);
-        OfficialPassPlan.AppendToPyramids(generator);
+        OfficialPassPlan.AppendToPyramids(generator, version);
         WorldGenerationRunResult run = generator.RunUntilInclusive(OfficialPassPlan.StopPassName);
 
         return new StageOneReplicaResult(
             state,
             run,
             IsComplete: run.StoppedEarly && string.Equals(run.StopPassName, OfficialPassPlan.StopPassName, StringComparison.Ordinal),
-            Detail: $"{reset.Detail} {OfficialPassPlan.ImplementedPassCount}/{OfficialPassPlan.PassCount} pass bodies implemented; " +
-                $"{OfficialPassPlan.ExplicitlySkippedPassCount} audited pass bodies skipped; " +
-                $"{OfficialPassPlan.StubPassCount} still stubbed.");
+            Detail: $"{reset.Detail} version={version}; " +
+                $"{OfficialPassPlan.ImplementedPassCountFor(version)}/{OfficialPassPlan.PassCountFor(version)} pass bodies implemented; " +
+                $"{OfficialPassPlan.ExplicitlySkippedPassCountFor(version)} audited pass bodies skipped; " +
+                $"{OfficialPassPlan.StubPassCountFor(version)} still stubbed.");
     }
 }
 

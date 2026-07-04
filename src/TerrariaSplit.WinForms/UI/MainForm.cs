@@ -59,7 +59,7 @@ internal sealed partial class MainForm : Form
     {
         runtimeShell.AttachDispatchActions(DispatchedControlTick, DispatchedStatusPaintTick);
         rtssOverlayScheduler = new HighPrecisionScheduler("TerrariaSplit RTSS overlay", QueueRtssOverlayTick);
-        MainShellServices services = MainShellCompositionRoot.CreateCore(ShowPersonalBestUpdateConfirmation);
+        MainShellServices services = MainShellCompositionRoot.CreateCore(SilentPersonalBestUpdateConfirmation);
         worldPoolStore = services.WorldPoolStore;
         settingsSnapshots = services.SettingsSnapshots;
         appLogger = services.AppLogger;
@@ -71,8 +71,7 @@ internal sealed partial class MainForm : Form
             () => settings,
             () => Handle,
             () => IsHandleCreated,
-            registerGlobalHotkeys,
-            ShowHotkeyWarning);
+            registerGlobalHotkeys);
         contextMenu = services.ContextMenu;
         applicationController = services.ApplicationController;
         RefreshTimerOverlaySettingsSnapshot();
@@ -214,6 +213,13 @@ internal sealed partial class MainForm : Form
         runtimeShell.Performance.ProcessLookupInterval = runtimeShell.MonitorCoordinator.ProcessLookupInterval;
         runtimeShell.MonitorCoordinator.UpdateReadyWatcherPollInterval(ResolveReadyWatcherPollInterval());
         UpdateRtssOverlaySchedulerState();
+    }
+
+    private static bool SilentPersonalBestUpdateConfirmation(string promptText)
+    {
+        StaticAppLogger.Instance.Info(
+            "Personal best update confirmation handled silently during runtime: " + promptText);
+        return true;
     }
 
 }

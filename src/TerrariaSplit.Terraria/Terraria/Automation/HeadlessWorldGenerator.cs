@@ -35,7 +35,7 @@ internal sealed class HeadlessWorldGenerator : IDisposable
     }
 
     public async Task<HeadlessWorldGenResult> GenerateAndScanAsync(
-        string serverExePath,
+        TerrariaServerTarget serverTarget,
         string? appLanguage,
         AutoCreateWorldSettings settings,
         CancellationToken cancellationToken)
@@ -47,17 +47,27 @@ internal sealed class HeadlessWorldGenerator : IDisposable
             return HeadlessWorldGenResult.Skipped;
         }
 
-        StopRecordedServer(serverExePath);
+        StopRecordedServer(serverTarget.ExePath);
         using TemporaryDirectoryScope scratch = TemporaryDirectoryScope.Prepare(scratchDirectory);
 
-        TerrariaCopiedSeed copiedSeed = TerrariaCopiedSeedBuilder.Create(settings);
-        string worldName = TerrariaWorldNameGenerator.Create(appLanguage);
-        string serverLanguage = TerrariaLanguageCodes.FromAppLanguage(appLanguage);
-        string configPath = Path.Combine(scratchDirectory, "server-config.txt");
-        File.WriteAllText(configPath, BuildServerConfig(settings, copiedSeed.Text, worldName, serverLanguage), new UTF8Encoding(false));
+        if (!TryBuildGenerationRequest(serverTarget, appLanguage, settings, out HeadlessWorldGenerationRequest request, out string requestDetail))
+        {
+            StaticAppLogger.Instance.Info($"World pool headless generation skipped: {requestDetail}");
+            scratch.Clean();
+            return HeadlessWorldGenResult.Skipped;
+        }
+
+        List<string> serverArguments = new(request.ServerArguments);
+        if (!string.IsNullOrEmpty(request.ServerConfig))
+        {
+            string configPath = Path.Combine(scratchDirectory, "server-config.txt");
+            File.WriteAllText(configPath, request.ServerConfig, new UTF8Encoding(false));
+            serverArguments.Add("-config");
+            serverArguments.Add(configPath);
+        }
 
         string? worldPath;
-        using (StartTrackedServer(serverExePath, configPath))
+        using (StartTrackedServer(serverTarget.ExePath, serverArguments, request.StandardInputLines))
         {
             worldPath = await WaitForStableWorldFileAsync(cancellationToken);
         }
@@ -90,7 +100,7 @@ internal sealed class HeadlessWorldGenerator : IDisposable
         if (scanner.TryReadWorldSeedMetadata(worldPath, out metadata, out string detail))
         {
             metadataDetail = metadata.FormatWorldOptions();
-            keep = metadata.Equals(copiedSeed.Metadata) &&
+            keep = MetadataMatchesRequest(request, metadata, settings) &&
                 (!settings.EnablePyramidFilter || pyramidFilterMatches);
         }
         else
@@ -109,7 +119,8 @@ internal sealed class HeadlessWorldGenerator : IDisposable
             $"requiredPyramidItems={requiredPyramidItems}, " +
             $"candidateItems={candidateItemFound}, " +
             $"candidateChests={candidateChestsSummary}, " +
-            $"metadata={metadataDetail}, expected={copiedSeed.Metadata.FormatWorldOptions()}, keep={keep}.");
+            $"metadata={metadataDetail}, expected={request.ExpectedDetail}, " +
+            $"mode={request.ModeDetail}, keep={keep}.");
         if (!keep)
         {
             scratch.Clean();
@@ -119,7 +130,98 @@ internal sealed class HeadlessWorldGenerator : IDisposable
         return new HeadlessWorldGenResult(candidateItemFound, true, worldPath, metadata, Generated: true);
     }
 
-    private Process StartServer(string serverExePath, string configPath)
+    private bool TryBuildGenerationRequest(
+        TerrariaServerTarget serverTarget,
+        string? appLanguage,
+        AutoCreateWorldSettings settings,
+        out HeadlessWorldGenerationRequest request,
+        out string detail)
+    {
+        return serverTarget.IsLegacy1449
+            ? TryBuildLegacy1449GenerationRequest(appLanguage, settings, out request, out detail)
+            : TryBuildModernGenerationRequest(appLanguage, settings, out request, out detail);
+    }
+
+    private bool TryBuildModernGenerationRequest(
+        string? appLanguage,
+        AutoCreateWorldSettings settings,
+        out HeadlessWorldGenerationRequest request,
+        out string detail)
+    {
+        TerrariaCopiedSeed copiedSeed = TerrariaCopiedSeedBuilder.Create(settings);
+        string worldName = TerrariaWorldNameGenerator.Create(appLanguage);
+        string serverLanguage = TerrariaLanguageCodes.FromAppLanguage(appLanguage);
+
+        request = new HeadlessWorldGenerationRequest(
+            BuildModernServerConfig(settings, copiedSeed.Text, worldName, serverLanguage),
+            Array.Empty<string>(),
+            copiedSeed.Metadata,
+            Array.Empty<string>(),
+            copiedSeed.Metadata.FormatWorldOptions(),
+            HeadlessWorldGenerationMetadataPolicy.Exact,
+            $"copiedSeed={copiedSeed.Text}");
+        detail = string.Empty;
+        return true;
+    }
+
+    private bool TryBuildLegacy1449GenerationRequest(
+        string? appLanguage,
+        AutoCreateWorldSettings settings,
+        out HeadlessWorldGenerationRequest request,
+        out string detail)
+    {
+        request = default;
+        if (!TerrariaLegacy1449SeedText.TryBuild(settings, out string seedText, out detail))
+        {
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(seedText))
+        {
+            seedText = TerrariaSeedRandom.NextShared().ToString(CultureInfo.InvariantCulture);
+            detail = $"1.4.4.9 world seed field text: {seedText}";
+        }
+
+        int sizeCode = TerrariaWorldSeedOptions.SizeCode(settings.WorldSize);
+        int difficultyCode = TerrariaWorldSeedOptions.CopiedDifficultyCode(settings.WorldDifficulty);
+        int specialSeedMask = TerrariaWorldSeedOptions.SpecialSeedMask(settings.SpecialSeeds);
+        string worldName = TerrariaWorldNameGenerator.Create(appLanguage);
+        string serverLanguage = TerrariaLanguageCodes.FromAppLanguage(appLanguage);
+
+        request = new HeadlessWorldGenerationRequest(
+            BuildLegacy1449ServerConfig(settings, seedText, worldName, serverLanguage),
+            Array.Empty<string>(),
+            new TerrariaWorldSeedMetadata(
+                seedText,
+                sizeCode,
+                difficultyCode,
+                HasCrimson: false,
+                specialSeedMask),
+            Array.Empty<string>(),
+            $"{TerrariaWorldSeedMetadata.FormatExpectedWorldOptions(settings)}, seedText={seedText}",
+            HeadlessWorldGenerationMetadataPolicy.MatchWorldOptionsAndSeedText,
+            detail);
+        return true;
+    }
+
+    private static bool MetadataMatchesRequest(
+        HeadlessWorldGenerationRequest request,
+        TerrariaWorldSeedMetadata metadata,
+        AutoCreateWorldSettings settings)
+    {
+        return request.MetadataPolicy switch
+        {
+            HeadlessWorldGenerationMetadataPolicy.MatchWorldOptionsAndSeedText =>
+                string.Equals(metadata.SeedText, request.ExpectedMetadata.SeedText, StringComparison.Ordinal) &&
+                metadata.MatchesWorldOptions(settings),
+            _ => metadata.Equals(request.ExpectedMetadata)
+        };
+    }
+
+    private Process StartServer(
+        string serverExePath,
+        IReadOnlyList<string> serverArguments,
+        IReadOnlyList<string> standardInputLines)
     {
         var startInfo = new ProcessStartInfo
         {
@@ -131,8 +233,10 @@ internal sealed class HeadlessWorldGenerator : IDisposable
             RedirectStandardError = true,
             RedirectStandardInput = true
         };
-        startInfo.ArgumentList.Add("-config");
-        startInfo.ArgumentList.Add(configPath);
+        foreach (string argument in serverArguments)
+        {
+            startInfo.ArgumentList.Add(argument);
+        }
 
         var process = new Process { StartInfo = startInfo };
         process.OutputDataReceived += (_, _) => { };
@@ -142,12 +246,38 @@ internal sealed class HeadlessWorldGenerator : IDisposable
         // Drain the console pipes so a chatty server cannot block on a full buffer.
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
+        WriteStandardInput(process, standardInputLines);
         return process;
     }
 
-    private ProcessLifecycleGuard StartTrackedServer(string serverExePath, string configPath)
+    private static void WriteStandardInput(Process process, IReadOnlyList<string> lines)
     {
-        Process process = StartServer(serverExePath, configPath);
+        if (lines.Count == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            foreach (string line in lines)
+            {
+                process.StandardInput.WriteLine(line);
+            }
+
+            process.StandardInput.Flush();
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or IOException or ObjectDisposedException)
+        {
+            StaticAppLogger.Instance.Error(ex, "World pool failed to write scripted TerrariaServer input.");
+        }
+    }
+
+    private ProcessLifecycleGuard StartTrackedServer(
+        string serverExePath,
+        IReadOnlyList<string> serverArguments,
+        IReadOnlyList<string> standardInputLines)
+    {
+        Process process = StartServer(serverExePath, serverArguments, standardInputLines);
         return new ProcessLifecycleGuard(
             process,
             trackedProcess => TrackCurrentProcess(trackedProcess, serverExePath),
@@ -325,7 +455,7 @@ internal sealed class HeadlessWorldGenerator : IDisposable
         return path is not null;
     }
 
-    private string BuildServerConfig(
+    private string BuildModernServerConfig(
         AutoCreateWorldSettings settings,
         string copiedSeed,
         string worldName,
@@ -342,6 +472,28 @@ internal sealed class HeadlessWorldGenerator : IDisposable
         builder.AppendLine("worldpath=" + scratchDirectory + Path.DirectorySeparatorChar);
         builder.AppendLine("difficulty=" + TerrariaWorldSeedOptions.ServerDifficultyCode(settings.WorldDifficulty).ToString(CultureInfo.InvariantCulture));
         builder.AppendLine("seed=" + copiedSeed);
+        builder.AppendLine("maxplayers=1");
+        builder.AppendLine("port=" + Random.Shared.Next(7801, 7999).ToString(CultureInfo.InvariantCulture));
+        builder.AppendLine("language=" + serverLanguage);
+        builder.AppendLine("secure=0");
+        builder.AppendLine("upnp=0");
+
+        return builder.ToString();
+    }
+
+    private string BuildLegacy1449ServerConfig(
+        AutoCreateWorldSettings settings,
+        string seedText,
+        string worldName,
+        string serverLanguage)
+    {
+        var builder = new StringBuilder();
+        builder.AppendLine("world=" + Path.Combine(scratchDirectory, WorldFileStem + ".wld"));
+        builder.AppendLine("autocreate=" + TerrariaWorldSeedOptions.SizeCode(settings.WorldSize).ToString(CultureInfo.InvariantCulture));
+        builder.AppendLine("worldname=" + worldName);
+        builder.AppendLine("worldpath=" + scratchDirectory + Path.DirectorySeparatorChar);
+        builder.AppendLine("difficulty=" + TerrariaWorldSeedOptions.ServerDifficultyCode(settings.WorldDifficulty).ToString(CultureInfo.InvariantCulture));
+        builder.AppendLine("seed=" + seedText);
         builder.AppendLine("maxplayers=1");
         builder.AppendLine("port=" + Random.Shared.Next(7801, 7999).ToString(CultureInfo.InvariantCulture));
         builder.AppendLine("language=" + serverLanguage);
@@ -442,6 +594,21 @@ internal sealed class HeadlessWorldGenerator : IDisposable
         }
     }
 }
+
+internal enum HeadlessWorldGenerationMetadataPolicy
+{
+    Exact,
+    MatchWorldOptionsAndSeedText
+}
+
+internal readonly record struct HeadlessWorldGenerationRequest(
+    string ServerConfig,
+    IReadOnlyList<string> ServerArguments,
+    TerrariaWorldSeedMetadata ExpectedMetadata,
+    IReadOnlyList<string> StandardInputLines,
+    string ExpectedDetail,
+    HeadlessWorldGenerationMetadataPolicy MetadataPolicy,
+    string ModeDetail);
 
 internal readonly record struct HeadlessWorldGenResult(
     bool CandidateItemFound,

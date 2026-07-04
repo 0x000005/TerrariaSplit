@@ -8,6 +8,8 @@ namespace TerrariaSplit.Terraria.Memory;
 internal sealed class TerrariaUiScalePatch
 {
     public const int TargetScalePercent = 300;
+    private const string Unsupported1449VersionPrefix = "1.4.4.9";
+    private const string Unsupported1449VersionPrefixWithV = "v1.4.4.9";
     private const int ModuleReadChunkSize = 64 * 1024;
 
     private static readonly UIntPtr MemoryBasicInformationSize =
@@ -113,6 +115,13 @@ internal sealed class TerrariaUiScalePatch
                 return TerrariaUiScalePatchResult.Failed(process.Id, "Terraria main module is unavailable.");
             }
 
+            if (IsKnownUnsupportedVersion(mainModule.FileVersionInfo.FileVersion))
+            {
+                return TerrariaUiScalePatchResult.Unsupported(
+                    process.Id,
+                    "Terraria UI scale patch does not support Terraria 1.4.4.9 yet; no bytes were written.");
+            }
+
             if (!ReadModuleBytes(handle.Value, mainModule, out byte[] moduleBytes, out string failure))
             {
                 return TerrariaUiScalePatchResult.Failed(process.Id, failure);
@@ -145,6 +154,17 @@ internal sealed class TerrariaUiScalePatch
         {
             return TerrariaUiScalePatchResult.Failed(process.Id, ex.Message);
         }
+    }
+
+    internal static bool IsKnownUnsupportedVersion(string? fileVersion)
+    {
+        if (string.IsNullOrWhiteSpace(fileVersion))
+        {
+            return false;
+        }
+
+        return fileVersion.StartsWith(Unsupported1449VersionPrefix, StringComparison.OrdinalIgnoreCase) ||
+            fileVersion.StartsWith(Unsupported1449VersionPrefixWithV, StringComparison.OrdinalIgnoreCase);
     }
 
     internal static TerrariaUiScalePatchPlan CreatePlan(byte[] moduleBytes, IntPtr moduleBaseAddress)

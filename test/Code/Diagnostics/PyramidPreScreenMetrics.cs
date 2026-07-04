@@ -32,7 +32,7 @@ internal static class PyramidPreScreenMetrics
         }
 
         var scanner = new TerrariaWorldFilePyramidScanner();
-        WarmUp(options.WarmupCount);
+        WarmUp(options.WarmupCount, options.WorldGenerationVersion);
 
         int total = 0;
         int readable = 0;
@@ -102,7 +102,8 @@ internal static class PyramidPreScreenMetrics
                 metadata.DifficultyCode,
                 metadata.HasCrimson,
                 metadata.SpecialSeedMask,
-                AutoCreatePyramidFilterItem.AllMask);
+                AutoCreatePyramidFilterItem.AllMask,
+                options.WorldGenerationVersion);
             durations.Add(prediction.DurationMilliseconds);
 
             PyramidTruthClass predicted = ClassifyPrediction(prediction);
@@ -162,7 +163,8 @@ internal static class PyramidPreScreenMetrics
                     predicted,
                     metadata,
                     worldPath,
-                    prediction));
+                    prediction,
+                    options.WorldGenerationVersion));
             }
 
             Console.WriteLine(Row(
@@ -205,14 +207,15 @@ internal static class PyramidPreScreenMetrics
             durations);
     }
 
-    private static void WarmUp(int warmupCount)
+    private static void WarmUp(int warmupCount, TerrariaWorldGenerationVersion worldGenerationVersion)
     {
         for (int i = 0; i < warmupCount; i++)
         {
             _ = PyramidSeedPreScreen.EvaluateSmallCrimson(
                 (540278984 + i).ToString(CultureInfo.InvariantCulture),
                 difficultyCode: 1,
-                requiredItemMask: AutoCreatePyramidFilterItem.AllMask);
+                requiredItemMask: AutoCreatePyramidFilterItem.AllMask,
+                worldGenerationVersion);
         }
     }
 
@@ -276,7 +279,8 @@ internal static class PyramidPreScreenMetrics
         PyramidTruthClass predicted,
         TerrariaWorldSeedMetadata metadata,
         string worldPath,
-        PyramidSeedPreScreenResult prediction)
+        PyramidSeedPreScreenResult prediction,
+        TerrariaWorldGenerationVersion worldGenerationVersion)
     {
         try
         {
@@ -285,7 +289,8 @@ internal static class PyramidPreScreenMetrics
                 metadata.SizeCode,
                 metadata.DifficultyCode,
                 metadata.HasCrimson,
-                metadata.SpecialSeedMask));
+                metadata.SpecialSeedMask),
+                worldGenerationVersion);
             if (!result.IsComplete)
             {
                 return
@@ -758,6 +763,7 @@ internal static class PyramidPreScreenMetrics
         int WarmupCount,
         string CsvPath,
         string DiagnosticsCsvPath,
+        TerrariaWorldGenerationVersion WorldGenerationVersion,
         bool DiagnoseErrors,
         bool DiagnoseAll,
         HashSet<string> DiagnoseSeeds)
@@ -769,6 +775,7 @@ internal static class PyramidPreScreenMetrics
             int warmupCount = 3;
             string csvPath = string.Empty;
             string diagnosticsCsvPath = string.Empty;
+            TerrariaWorldGenerationVersion worldGenerationVersion = TerrariaWorldGenerationVersion.Modern1456;
             bool diagnoseErrors = false;
             bool diagnoseAll = false;
             var diagnoseSeeds = new HashSet<string>(StringComparer.Ordinal);
@@ -798,6 +805,12 @@ internal static class PyramidPreScreenMetrics
                     case "--diagnostics-csv":
                         diagnosticsCsvPath = RequireValue(args, ref i, arg);
                         break;
+                    case "--terraria-version":
+                        worldGenerationVersion = ParseWorldGenerationVersion(RequireValue(args, ref i, arg));
+                        break;
+                    case "--worldgen-version":
+                        worldGenerationVersion = ParseWorldGenerationVersion(RequireValue(args, ref i, arg));
+                        break;
                     case "--seeds":
                         foreach (string seed in RequireValue(args, ref i, arg).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
                         {
@@ -822,6 +835,7 @@ internal static class PyramidPreScreenMetrics
                 Math.Max(0, warmupCount),
                 csvPath,
                 diagnosticsCsvPath,
+                worldGenerationVersion,
                 diagnoseErrors,
                 diagnoseAll,
                 diagnoseSeeds);
@@ -843,6 +857,28 @@ internal static class PyramidPreScreenMetrics
 
             index++;
             return args[index];
+        }
+
+        private static TerrariaWorldGenerationVersion ParseWorldGenerationVersion(string value)
+        {
+            string normalized = value.Trim();
+            if (normalized.Equals("1449", StringComparison.OrdinalIgnoreCase) ||
+                normalized.Equals("1.4.4.9", StringComparison.OrdinalIgnoreCase) ||
+                normalized.Equals("v1.4.4.9", StringComparison.OrdinalIgnoreCase) ||
+                normalized.Equals("legacy1449", StringComparison.OrdinalIgnoreCase))
+            {
+                return TerrariaWorldGenerationVersion.Legacy1449;
+            }
+
+            if (normalized.Equals("1456", StringComparison.OrdinalIgnoreCase) ||
+                normalized.StartsWith("1.4.5", StringComparison.OrdinalIgnoreCase) ||
+                normalized.StartsWith("v1.4.5", StringComparison.OrdinalIgnoreCase) ||
+                normalized.Equals("modern1456", StringComparison.OrdinalIgnoreCase))
+            {
+                return TerrariaWorldGenerationVersion.Modern1456;
+            }
+
+            throw new ArgumentException("Unknown Terraria worldgen version: " + value);
         }
     }
 }

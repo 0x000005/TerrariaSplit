@@ -396,7 +396,6 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Create World deletes files in the save folders except favorite players and worlds.", "\u4F1A\u5220\u9664\u5B58\u6863\u6587\u4EF6\u5939\u4E2D\u9664\u4E86\u6536\u85CF\u7684\u4EBA\u7269\u548C\u4E16\u754C\u4EE5\u5916\u7684\u6587\u4EF6\u3002" }
       , { "By default, Create World moves non-favorite players and worlds to the backup folder before creating.", "\u9ED8\u8BA4\u60C5\u51B5\u4E0B\uFF0C\u521B\u5EFA\u4E16\u754C\u4F1A\u5728\u521B\u5EFA\u524D\u628A\u975E\u6536\u85CF\u4EBA\u7269\u548C\u4E16\u754C\u79FB\u5230\u5907\u4EFD\u6587\u4EF6\u5939\u3002" }
       , { "When existing saves are not preserved, the most recent 50 cleanup batches are kept in the backup folder.", "\u672A\u542F\u7528\u4FDD\u7559\u5B58\u6863\u65F6\uFF0C\u6700\u8FD1 50 \u6B21\u6E05\u7406\u6279\u6B21\u4F1A\u4FDD\u7559\u5728\u5907\u4EFD\u6587\u4EF6\u5939\u3002" }
-      , { "If existing saves are preserved, newly created players are selected from the first non-favorite row and rejected pyramid worlds are kept.", "\u542F\u7528\u4FDD\u7559\u5B58\u6863\u65F6\uFF0C\u65B0\u5EFA\u4EBA\u7269\u4F1A\u4ECE\u975E\u6536\u85CF\u533A\u7B2C\u4E00\u884C\u9009\u4E2D\uFF0C\u7B5B\u5854\u88AB\u62D2\u7EDD\u7684\u4E16\u754C\u4E5F\u4F1A\u4FDD\u7559\u3002" }
       , { "Automatically creates or enters a world by simulating mouse and keyboard input.", "\u901A\u8FC7\u6A21\u62DF\u9F20\u6807\u548C\u952E\u76D8\u64CD\u4F5C\u81EA\u52A8\u521B\u5EFA\u6216\u8FDB\u5165\u4E16\u754C\u3002" }
       , { "Do not choose players or worlds in the default save location.", "\u8BF7\u4E0D\u8981\u9009\u62E9\u5728\u9ED8\u8BA4\u5B58\u6863\u4F4D\u7F6E\u7684\u4EBA\u7269\u6216\u4E16\u754C\u3002" }
       , { "Do not choose favorite players or worlds.", "\u8BF7\u4E0D\u8981\u9009\u62E9\u6536\u85CF\u7684\u4EBA\u7269\u6216\u4E16\u754C\u3002" }
@@ -406,6 +405,8 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Open save folder", "\u6253\u5F00\u5B58\u6863\u6587\u4EF6\u5939" }
       , { "Open backup folder", "\u6253\u5F00\u5907\u4EFD\u6587\u4EF6\u5939" }
       , { "If clicks are too fast for your computer to respond, adjust the delay settings at the bottom of this page.", "\u5982\u679C\u70B9\u51FB\u901F\u5EA6\u592A\u5FEB\u800C\u4F60\u7684\u7535\u8111\u6765\u4E0D\u53CA\u54CD\u5E94\uFF0C\u4F60\u53EF\u4EE5\u8C03\u6574\u672C\u9875\u5E95\u90E8\u7684\u5EF6\u8FDF\u8BBE\u7F6E\u3002" }
+      , { "Force keep all files", "\u5F3A\u5236\u4FDD\u7559\u6240\u6709\u6587\u4EF6" }
+      , { "When enabled, world creation will not delete any files. This can leave many worlds and players to clean up manually.", "\u542F\u7528\u540E\uFF0C\u521B\u56FE\u65F6\u4E0D\u4F1A\u5220\u9664\u4EFB\u4F55\u6587\u4EF6\uFF0C\u8FD9\u4F1A\u5BFC\u81F4\u5927\u91CF\u7684\u4E16\u754C\u548C\u4EBA\u7269\u9700\u8981\u624B\u52A8\u6E05\u7406\u3002" }
       , { "Could not open save folder.", "\u65E0\u6CD5\u6253\u5F00\u5B58\u6863\u6587\u4EF6\u5939\u3002" }
       , { "Could not open backup folder.", "\u65E0\u6CD5\u6253\u5F00\u5907\u4EFD\u6587\u4EF6\u5939\u3002" }
       , { "Timing", "\u65F6\u95F4" }
@@ -414,7 +415,6 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Player options", "\u4EBA\u7269\u9009\u9879" }
       , { "Player name", "\u4EBA\u7269\u540D\u79F0" }
       , { "Player difficulty", "\u4EBA\u7269\u96BE\u5EA6" }
-      , { "Keep existing players and worlds", "\u4FDD\u7559\u73B0\u6709\u4EBA\u7269\u548C\u4E16\u754C" }
       , { "Player code", "\u4EBA\u7269\u4EE3\u7801" }
       , { "World", "\u4E16\u754C" }
       , { "World options", "\u4E16\u754C\u9009\u9879" }
@@ -423,7 +423,7 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "World evil", "\u90AA\u6076\u7C7B\u578B" }
       , { "World seed / secret seed", "\u4E16\u754C\u79CD\u5B50 / \u79D8\u5BC6\u79CD\u5B50" }
       , { "Special seeds", "\u5F69\u86CB\u79CD\u5B50" }
-      , { "Secret seeds", "\u79D8\u5BC6\u79CD\u5B50" }
+      , { "Secret seed / fixed seed", "\u79D8\u5BC6\u79CD\u5B50/\u56FA\u5B9A\u79CD\u5B50" }
       , { "Zenith star catch", "\u5929\u9876\u63A5\u661F" }
       , { "Stop after stage", "\u5728\u4EE5\u4E0B\u9636\u6BB5\u540E\u505C\u6B62" }
       , { "Catch speed", "\u63A5\u661F\u901F\u5EA6" }
@@ -493,7 +493,7 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Auto Create Route", "\u81EA\u52A8\u521B\u56FE\u8DEF\u7EBF" }
       , { "Boss Progress", "BOSS \u8FDB\u5EA6" }
       , { "World Generation", "\u521B\u4E16\u754C\u72B6\u6001" }
-      , { "Memory & Signatures", "\u5185\u5B58\u4E0E\u7B7E\u540D" }
+      , { "Memory & Layout", "\u5185\u5B58\u4E0E\u5E03\u5C40" }
       , { "Catch stars", "\u63A5\u661F\u661F" }
       , { "Catch stars through", "\u63A5\u661F\u661F\u76F4\u5230" }
       , { "Performance", "\u6027\u80FD" }
@@ -530,12 +530,12 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Process version", "\u8FDB\u7A0B\u7248\u672C" }
       , { "Main module base", "\u4E3B\u6A21\u5757\u57FA\u5740" }
       , { "Main module size", "\u4E3B\u6A21\u5757\u5927\u5C0F" }
-      , { "Scan attempts", "\u626B\u63CF\u6B21\u6570" }
-      , { "Last scan", "\u6700\u8FD1\u626B\u63CF" }
-      , { "Scan page stats", "\u5185\u5B58\u9875\u626B\u63CF\u7EDF\u8BA1" }
-      , { "Scan failures", "\u626B\u63CF\u5931\u8D25\u7EDF\u8BA1" }
-      , { "UpdateTime address", "UpdateTime \u5730\u5740" }
-      , { "Boss flags address", "Boss \u6807\u8BB0\u5730\u5740" }
+      , { "Probe attempts", "\u63A2\u9488\u5C1D\u8BD5\u6B21\u6570" }
+      , { "Last probe", "\u6700\u8FD1\u63A2\u9488" }
+      , { "Layout status", "\u5E03\u5C40\u72B6\u6001" }
+      , { "Probe error", "\u63A2\u9488\u9519\u8BEF" }
+      , { "GameMenu address", "GameMenu \u5730\u5740" }
+      , { "Boss fact addresses", "Boss \u4E8B\u5B9E\u5730\u5740" }
       , { "Hardmode address", "Hardmode \u5730\u5740" }
       , { "Current pass", "\u5F53\u524D\u9636\u6BB5" }
       , { "Progress message", "\u8FDB\u5EA6\u6587\u6848" }
@@ -561,6 +561,7 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Single Player", "\u5355\u4EBA\u6E38\u620F" }
       , { "New Player", "\u65B0\u5EFA\u4EBA\u7269" }
       , { "Character Clothing Tab", "\u4EBA\u7269\u5916\u89C2\u9875" }
+      , { "Character Gender Tab", "\u4EBA\u7269\u6027\u522B\u9875" }
       , { "Paste Player Template", "\u7C98\u8D34\u4EBA\u7269\u6A21\u677F" }
       , { "Character Info Tab", "\u4EBA\u7269\u4FE1\u606F\u9875" }
       , { "Create Player", "\u521B\u5EFA\u4EBA\u7269" }
@@ -596,10 +597,22 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "window handle 0x{0}, client rect unavailable", "\u7A97\u53E3\u53E5\u67C4 0x{0}\uFF0C\u5BA2\u6237\u533A\u77E9\u5F62\u4E0D\u53EF\u7528" }
       , { "window handle 0x{0}", "\u7A97\u53E3\u53E5\u67C4 0x{0}" }
       , { "scanning for {0} memory", "\u6B63\u5728\u626B\u63CF {0} \u5185\u5B58" }
+      , { "resolving runtime layout", "\u6B63\u5728\u89E3\u6790\u8FD0\u884C\u65F6\u5E03\u5C40" }
+      , { "resolving MemoryProbe runtime layout", "\u6B63\u5728\u901A\u8FC7 MemoryProbe \u89E3\u6790\u8FD0\u884C\u65F6\u5E03\u5C40" }
+      , { "waiting for MemoryProbe runtime layout", "\u7B49\u5F85 MemoryProbe \u8FD0\u884C\u65F6\u5E03\u5C40" }
+      , { "core layout missing", "\u6838\u5FC3\u5E03\u5C40\u7F3A\u5931" }
+      , { "MemoryProbe did not resolve Terraria.Main.gameMenu", "MemoryProbe \u672A\u89E3\u6790 Terraria.Main.gameMenu" }
+      , { "MemoryProbe resolved Terraria.Main.gameMenu, but the static field address is unreadable", "MemoryProbe \u5DF2\u89E3\u6790 Terraria.Main.gameMenu\uFF0C\u4F46\u9759\u6001\u5B57\u6BB5\u5730\u5740\u4E0D\u53EF\u8BFB" }
+      , { "world generation layout pending", "\u521B\u4E16\u754C\u5E03\u5C40\u7B49\u5F85\u4E2D" }
+      , { "boss layout pending", "Boss \u5E03\u5C40\u7B49\u5F85\u4E2D" }
+      , { "fact layouts pending", "\u4E8B\u5B9E\u5E03\u5C40\u7B49\u5F85\u4E2D" }
+      , { "MemoryProbe returned a layout without Terraria.Main.gameMenu", "MemoryProbe \u8FD4\u56DE\u7684\u5E03\u5C40\u7F3A\u5C11 Terraria.Main.gameMenu" }
+      , { "runtime layout ready", "\u8FD0\u884C\u65F6\u5E03\u5C40\u5C31\u7EEA" }
+      , { "timer and boss layouts ready; world generation layout unavailable", "\u8BA1\u65F6\u5668\u4E0E Boss \u5E03\u5C40\u5C31\u7EEA\uFF1B\u521B\u4E16\u754C\u5E03\u5C40\u4E0D\u53EF\u7528" }
+      , { "timer and world generation layouts ready; boss layout unavailable", "\u8BA1\u65F6\u5668\u4E0E\u521B\u4E16\u754C\u5E03\u5C40\u5C31\u7EEA\uFF1BBoss \u5E03\u5C40\u4E0D\u53EF\u7528" }
+      , { "timer layout ready; fact layouts unavailable", "\u8BA1\u65F6\u5668\u5E03\u5C40\u5C31\u7EEA\uFF1B\u4E8B\u5B9E\u5E03\u5C40\u4E0D\u53EF\u7528" }
       , { "lost menu-state pointer; rescanning", "\u83DC\u5355\u72B6\u6001\u6307\u9488\u5DF2\u4E22\u5931\uFF0C\u6B63\u5728\u91CD\u65B0\u626B\u63CF" }
       , { "menu-state pointer became unreadable", "\u83DC\u5355\u72B6\u6001\u6307\u9488\u53D8\u4E3A\u4E0D\u53EF\u8BFB" }
-      , { "found signature but not menu-state pointer", "\u5DF2\u627E\u5230\u7B7E\u540D\uFF0C\u4F46\u672A\u627E\u5230\u83DC\u5355\u72B6\u6001\u6307\u9488" }
-      , { "waiting for UpdateTime signature", "\u7B49\u5F85 UpdateTime \u7B7E\u540D" }
       , { "ready via fallback", "\u5DF2\u901A\u8FC7\u56DE\u9000\u65B9\u6848\u5C31\u7EEA" }
       , { "ready via gameMenu fallback", "\u5DF2\u901A\u8FC7\u83DC\u5355\u72B6\u6001\u56DE\u9000\u65B9\u6848\u5C31\u7EEA" }
       , { "ready via boss fallback", "\u5DF2\u901A\u8FC7 Boss \u56DE\u9000\u65B9\u6848\u5C31\u7EEA" }
@@ -609,24 +622,20 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "boss scan pending", "Boss \u626B\u63CF\u5F85\u5B8C\u6210" }
       , { "return to menu once to arm timer start", "\u8BF7\u5148\u8FD4\u56DE\u4E00\u6B21\u4E3B\u83DC\u5355\u4EE5\u6FC0\u6D3B\u8BA1\u65F6\u5F00\u59CB" }
       , { "waiting for process", "\u7B49\u5F85\u8FDB\u7A0B" }
-      , { "scanning for signature", "\u6B63\u5728\u626B\u63CF\u7B7E\u540D" }
       , { "cannot read process", "\u65E0\u6CD5\u8BFB\u53D6\u8FDB\u7A0B" }
       , { "cannot attach process", "\u65E0\u6CD5\u9644\u52A0\u8FDB\u7A0B" }
       , { "menu state pointer lost", "\u83DC\u5355\u72B6\u6001\u6307\u9488\u5DF2\u4E22\u5931" }
       , { "menu state target unreadable", "\u83DC\u5355\u72B6\u6001\u76EE\u6807\u4E0D\u53EF\u8BFB" }
       , { "menu state pointer unreadable", "\u83DC\u5355\u72B6\u6001\u6307\u9488\u4E0D\u53EF\u8BFB" }
-      , { "signature missing", "\u672A\u627E\u5230\u7B7E\u540D" }
       , { "start pending", "\u7B49\u5F85\u5F00\u59CB" }
-      , { "UpdateTime x86-style signature with menu-state and boss progression fallbacks", "UpdateTime x86 \u98CE\u683C\u7B7E\u540D\uFF0C\u542B\u83DC\u5355\u72B6\u6001\u4E0E Boss \u8FDB\u5EA6\u56DE\u9000" }
-      , { "Private executable pages, then image executable pages", "\u5148\u626B\u63CF\u79C1\u6709\u53EF\u6267\u884C\u9875\uFF0C\u518D\u626B\u63CF\u6620\u50CF\u53EF\u6267\u884C\u9875" }
       , { "Waiting for Terraria process.", "\u6B63\u5728\u7B49\u5F85 Terraria \u8FDB\u7A0B\u3002" }
-      , { "Target Terraria process is x64. The current UpdateTime signature was authored from an x86-style function prologue.", "\u76EE\u6807 Terraria \u8FDB\u7A0B\u4E3A x64\u3002\u5F53\u524D UpdateTime \u7B7E\u540D\u662F\u6309 x86 \u98CE\u683C\u51FD\u6570\u524D\u5E8F\u7F16\u5199\u7684\u3002" }
+      , { "Target Terraria process is x64. The current managed runtime layout resolver is x86-only.", "\u76EE\u6807 Terraria \u8FDB\u7A0B\u4E3A x64\u3002\u5F53\u524D\u6258\u7BA1\u8FD0\u884C\u65F6\u5E03\u5C40\u89E3\u6790\u5668\u4EC5\u652F\u6301 x86\u3002" }
       , { "Watcher first became ready while Terraria was already in a world. The timer starts only on a menu-to-world transition, so return to the main menu once and enter the world again.", "\u76D1\u6D4B\u5668\u9996\u6B21\u5C31\u7EEA\u65F6\uFF0CTerraria \u5DF2\u7ECF\u5904\u4E8E\u4E16\u754C\u5185\u3002\u8BA1\u65F6\u53EA\u4F1A\u5728\u4ECE\u83DC\u5355\u8FDB\u5165\u4E16\u754C\u7684\u5207\u6362\u65F6\u5F00\u59CB\uFF0C\u6240\u4EE5\u8BF7\u5148\u8FD4\u56DE\u4E3B\u83DC\u5355\u4E00\u6B21\uFF0C\u518D\u91CD\u65B0\u8FDB\u5165\u4E16\u754C\u3002" }
-      , { "Fallback signatures resolved menu state and boss progression when the primary UpdateTime anchor was unavailable on this runtime.", "\u5F53\u524D\u8FD0\u884C\u65F6\u4E0B\u4E3B UpdateTime \u951A\u70B9\u4E0D\u53EF\u7528\uFF0C\u5DF2\u901A\u8FC7\u56DE\u9000\u7B7E\u540D\u89E3\u6790\u83DC\u5355\u72B6\u6001\u548C Boss \u8FDB\u5EA6\u3002" }
-      , { "Fallback menu-state signature resolved a stronger UpdateTime-adjacent gameMenu access pattern when the direct UpdateTime anchor was unavailable on this runtime.", "\u5F53\u524D\u8FD0\u884C\u65F6\u4E0B\u76F4\u63A5 UpdateTime \u951A\u70B9\u4E0D\u53EF\u7528\uFF0C\u5DF2\u901A\u8FC7\u83DC\u5355\u72B6\u6001\u56DE\u9000\u7B7E\u540D\u89E3\u6790\u5230\u66F4\u7A33\u5B9A\u7684\u83DC\u5355\u72B6\u6001\u8BBF\u95EE\u6A21\u5F0F\u3002" }
-      , { "Boss progression fallback resolved hardmode and boss flags when the UpdateTime-relative boss pointer offsets were unavailable.", "\u5F53\u76F8\u5BF9 UpdateTime \u7684 Boss \u6307\u9488\u504F\u79FB\u4E0D\u53EF\u7528\u65F6\uFF0C\u5DF2\u901A\u8FC7 Boss \u8FDB\u5EA6\u56DE\u9000\u89E3\u6790 hardmode \u4E0E Boss \u6807\u8BB0\u3002" }
-      , { "UpdateTime did not match any scanned private or image executable page.", "UpdateTime \u672A\u5728\u4EFB\u4F55\u5DF2\u626B\u63CF\u7684\u79C1\u6709\u6216\u6620\u50CF\u53EF\u6267\u884C\u9875\u4E2D\u5339\u914D\u5230\u3002" }
-      , { "UpdateTime matched, but the expected menu-state pointer offset did not resolve to readable memory.", "UpdateTime \u5DF2\u5339\u914D\uFF0C\u4F46\u9884\u671F\u7684\u83DC\u5355\u72B6\u6001\u6307\u9488\u504F\u79FB\u672A\u80FD\u89E3\u6790\u5230\u53EF\u8BFB\u5185\u5B58\u3002" }
+      , { "MemoryProbe has not resolved Terraria.Main.gameMenu yet.", "MemoryProbe \u5C1A\u672A\u89E3\u6790 Terraria.Main.gameMenu\u3002" }
+      , { "gameMenu resolved, but boss fact static fields are unavailable in the managed layout.", "gameMenu \u5DF2\u89E3\u6790\uFF0C\u4F46\u6258\u7BA1\u5E03\u5C40\u4E2D\u7F3A\u5C11 Boss \u4E8B\u5B9E\u9759\u6001\u5B57\u6BB5\u3002" }
+      , { "Watcher resolved timer and boss layouts, but world generation layout is unavailable. Timer and split facts can still work.", "\u76D1\u6D4B\u5668\u5DF2\u89E3\u6790\u8BA1\u65F6\u5668\u4E0E Boss \u5E03\u5C40\uFF0C\u4F46\u521B\u4E16\u754C\u5E03\u5C40\u4E0D\u53EF\u7528\u3002\u8BA1\u65F6\u4E0E\u5206\u6BB5\u4E8B\u5B9E\u4ECD\u53EF\u5DE5\u4F5C\u3002" }
+      , { "Watcher resolved timer, boss, and world generation layouts. Seed UI layout is unavailable, so visible seed diagnostics may stay Unknown.", "\u76D1\u6D4B\u5668\u5DF2\u89E3\u6790\u8BA1\u65F6\u5668\u3001Boss \u548C\u521B\u4E16\u754C\u5E03\u5C40\u3002\u79CD\u5B50 UI \u5E03\u5C40\u4E0D\u53EF\u7528\uFF0C\u53EF\u89C1\u79CD\u5B50\u8BCA\u65AD\u53EF\u80FD\u4FDD\u6301\u672A\u77E5\u3002" }
+      , { "Watcher resolved the managed runtime layout.", "\u76D1\u6D4B\u5668\u5DF2\u89E3\u6790\u6258\u7BA1\u8FD0\u884C\u65F6\u5E03\u5C40\u3002" }
       , { "gameMenu resolved, but boss and hardmode pointers are still pending or unreadable.", "\u83DC\u5355\u72B6\u6001\u5DF2\u89E3\u6790\uFF0C\u4F46 Boss \u4E0E hardmode \u6307\u9488\u4ECD\u5728\u7B49\u5F85\u89E3\u6790\u6216\u4E0D\u53EF\u8BFB\u3002" }
       , { "Watcher resolved all current pointers.", "\u76D1\u6D4B\u5668\u5DF2\u89E3\u6790\u5F53\u524D\u6240\u6709\u6307\u9488\u3002" }
     };

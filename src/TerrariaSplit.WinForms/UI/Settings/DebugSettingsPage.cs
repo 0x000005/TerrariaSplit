@@ -204,16 +204,16 @@ internal sealed partial class DebugSettingsPage : SettingsPageBase
             AddSectionControl(worldGenerationSection, worldGenerationGrid);
             AddSection(content, worldGenerationSection);
 
-            TableLayoutPanel memorySection = CreateSection(owner, "Memory & Signatures");
+            TableLayoutPanel memorySection = CreateSection(owner, "Memory & Layout");
             TableLayoutPanel memoryGrid = CreateGrid(owner);
-            AddValueRow(memoryGrid, owner, "Scan attempts", scanAttemptsValue);
-            AddValueRow(memoryGrid, owner, "Last scan", lastScanValue);
-            AddValueRow(memoryGrid, owner, "Scan page stats", scanPageStatsValue);
-            AddValueRow(memoryGrid, owner, "Scan failures", scanFailuresValue);
+            AddValueRow(memoryGrid, owner, "Probe attempts", scanAttemptsValue);
+            AddValueRow(memoryGrid, owner, "Last probe", lastScanValue);
+            AddValueRow(memoryGrid, owner, "Layout status", scanPageStatsValue);
+            AddValueRow(memoryGrid, owner, "Probe error", scanFailuresValue);
             AddValueRow(memoryGrid, owner, "Main module base", mainModuleBaseValue);
             AddValueRow(memoryGrid, owner, "Main module size", mainModuleSizeValue);
-            AddValueRow(memoryGrid, owner, "UpdateTime address", updateTimeAddressValue);
-            AddValueRow(memoryGrid, owner, "Boss flags address", bossFlagsAddressValue);
+            AddValueRow(memoryGrid, owner, "GameMenu address", updateTimeAddressValue);
+            AddValueRow(memoryGrid, owner, "Boss fact addresses", bossFlagsAddressValue);
             AddValueRow(memoryGrid, owner, "Hardmode address", hardmodeAddressValue);
             AddValueRow(memoryGrid, owner, "Generation progress address", generationProgressAddressValue);
             AddValueRow(memoryGrid, owner, "Generation controller address", generationControllerAddressValue);
@@ -327,14 +327,14 @@ internal sealed partial class DebugSettingsPage : SettingsPageBase
             SetValue(currentProgressValue, snapshot.WorldGeneration.CurrentProgress);
             SetValue(totalProgressValue, snapshot.WorldGeneration.TotalProgress);
 
-            SetValue(scanAttemptsValue, snapshot.Memory.ScanAttempts);
-            SetValue(lastScanValue, snapshot.Memory.LastScan);
-            SetValue(scanPageStatsValue, snapshot.Memory.ScanPageStats);
-            SetValue(scanFailuresValue, snapshot.Memory.ScanFailures);
+            SetValue(scanAttemptsValue, snapshot.Memory.ProbeAttempts);
+            SetValue(lastScanValue, snapshot.Memory.LastProbe);
+            SetValue(scanPageStatsValue, snapshot.Memory.LayoutStatus);
+            SetValue(scanFailuresValue, snapshot.Memory.ProbeError);
             SetValue(mainModuleBaseValue, snapshot.Memory.MainModuleBase);
             SetValue(mainModuleSizeValue, snapshot.Memory.MainModuleSize);
-            SetValue(updateTimeAddressValue, snapshot.Memory.UpdateTimeAddress);
-            SetValue(bossFlagsAddressValue, snapshot.Memory.BossFlagsAddress);
+            SetValue(updateTimeAddressValue, snapshot.Memory.GameMenuAddress);
+            SetValue(bossFlagsAddressValue, snapshot.Memory.BossFactAddresses);
             SetValue(hardmodeAddressValue, snapshot.Memory.HardmodeAddress);
             SetValue(generationProgressAddressValue, snapshot.Memory.GenerationProgressAddress);
             SetValue(generationControllerAddressValue, snapshot.Memory.GenerationControllerAddress);

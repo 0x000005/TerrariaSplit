@@ -23,19 +23,9 @@ internal sealed class BossFactProvider
         BossFactDescriptor[] bosses = SplitCatalog.BossFacts
             .Where(boss => readPlan.IncludesBossFactKey(boss.FactKey))
             .ToArray();
-        byte[]? flagBytes = null;
-        int minimumOffset = 0;
-        bool hasFlagBlock = TryReadFlagBlock(memory, context, bosses, out flagBytes, out minimumOffset);
-
         foreach (BossFactDescriptor boss in bosses)
         {
-            bool? value = boss.AddressKind switch
-            {
-                BossFactAddressKind.Hardmode => ReadHardmode(memory, context),
-                BossFactAddressKind.BossFlagBlock when hasFlagBlock => ReadFlag(flagBytes!, minimumOffset, boss.Offset),
-                _ => null
-            };
-            builder.SetBoolean(boss.FactKey, value);
+            builder.SetBoolean(boss.FactKey, ReadFact(memory, context, boss.FactKey));
         }
 
         TerrariaGameFacts facts = builder.Build();
@@ -48,48 +38,18 @@ internal sealed class BossFactProvider
         return facts;
     }
 
-    private static bool TryReadFlagBlock(
+    private static bool? ReadFact(
         IProcessMemoryReader memory,
         TerrariaMemoryContext context,
-        IReadOnlyCollection<BossFactDescriptor> bosses,
-        out byte[]? bytes,
-        out int minimumOffset)
+        string factKey)
     {
-        bytes = null;
-        minimumOffset = 0;
-        if (context.BossFlags is null ||
-            context.BossFlags.BaseAddress == IntPtr.Zero ||
-            !bosses.Any(boss => boss.AddressKind == BossFactAddressKind.BossFlagBlock))
-        {
-            return false;
-        }
-
-        int[] offsets = bosses
-            .Where(boss => boss.AddressKind == BossFactAddressKind.BossFlagBlock)
-            .Select(boss => boss.Offset)
-            .ToArray();
-        minimumOffset = offsets.Min();
-        int maximumOffset = offsets.Max();
-        int length = maximumOffset - minimumOffset + 1;
-        return memory.TryReadBytes(IntPtr.Add(context.BossFlags.BaseAddress, minimumOffset), length, out bytes);
-    }
-
-    private static bool? ReadFlag(byte[] bytes, int minimumOffset, int offset)
-    {
-        int index = offset - minimumOffset;
-        return index >= 0 && index < bytes.Length
-            ? bytes[index] != 0
-            : null;
-    }
-
-    private static bool? ReadHardmode(IProcessMemoryReader memory, TerrariaMemoryContext context)
-    {
-        if (context.HardmodeAddress == IntPtr.Zero)
+        if (context.BossLayout is null ||
+            !context.BossLayout.TryGetFactAddress(factKey, out IntPtr address))
         {
             return null;
         }
 
-        return memory.TryReadBool(context.HardmodeAddress, out bool value)
+        return memory.TryReadBool(address, out bool value)
             ? value
             : null;
     }

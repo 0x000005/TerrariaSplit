@@ -33,9 +33,10 @@ internal static class PyramidSeedPreScreen
     public static PyramidSeedPreScreenResult EvaluateSmallCrimson(
         string seedText,
         int difficultyCode,
-        int requiredItemMask)
+        int requiredItemMask,
+        TerrariaWorldGenerationVersion version = TerrariaWorldGenerationVersion.Modern1456)
     {
-        return Evaluate(seedText, sizeCode: 1, difficultyCode, hasCrimson: true, specialSeedMask: 0, requiredItemMask);
+        return Evaluate(seedText, sizeCode: 1, difficultyCode, hasCrimson: true, specialSeedMask: 0, requiredItemMask, version);
     }
 
     public static PyramidSeedPreScreenResult Evaluate(
@@ -44,7 +45,8 @@ internal static class PyramidSeedPreScreen
         int difficultyCode,
         bool hasCrimson,
         int specialSeedMask,
-        int requiredItemMask)
+        int requiredItemMask,
+        TerrariaWorldGenerationVersion version = TerrariaWorldGenerationVersion.Modern1456)
     {
         Stopwatch stopwatch = Stopwatch.StartNew();
         string normalizedSeedText = seedText.Trim();
@@ -79,7 +81,7 @@ internal static class PyramidSeedPreScreen
 
         try
         {
-            StageOneReplicaResult result = new StageOneReplicaSimulator().Generate(metadata);
+            StageOneReplicaResult result = new StageOneReplicaSimulator().Generate(metadata, version);
             if (!result.IsComplete)
             {
                 return CreateResult(

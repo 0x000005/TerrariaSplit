@@ -2,6 +2,11 @@ using System.Diagnostics;
 
 namespace TerrariaSplit.Terraria.Processes;
 
+internal readonly record struct TerrariaServerTarget(string ExePath, string? FileVersion)
+{
+    public bool IsLegacy1449 => TerrariaMenuProfile.IsLegacy1449Version(FileVersion);
+}
+
 // Resolves the path to TerrariaServer.exe, which ships alongside Terraria.exe in the
 // game install. The world pool runs it headlessly to generate worlds in the background,
 // so the lookup must work even when the game itself is not running.
@@ -15,46 +20,62 @@ internal static class TerrariaServerLocator
         @"C:\Program Files\Steam\steamapps\common\Terraria"
     };
 
-    private static string? cachedPath;
+    private static TerrariaServerTarget? cachedTarget;
 
     public static string? TryResolve()
     {
-        if (cachedPath is not null && File.Exists(cachedPath))
+        return TryResolveTarget()?.ExePath;
+    }
+
+    public static TerrariaServerTarget? TryResolveTarget()
+    {
+        if (TryResolveInDirectory(TryGetRunningGameDirectory(), out TerrariaServerTarget runningTarget))
         {
-            return cachedPath;
+            cachedTarget = runningTarget;
+            return runningTarget;
         }
 
-        cachedPath = null;
-        foreach (string? directory in CandidateDirectories())
+        if (cachedTarget is TerrariaServerTarget cached && File.Exists(cached.ExePath))
         {
-            if (string.IsNullOrWhiteSpace(directory))
-            {
-                continue;
-            }
+            cachedTarget = CreateTarget(cached.ExePath);
+            return cachedTarget;
+        }
 
-            try
+        foreach (string directory in DefaultInstallDirectories)
+        {
+            if (TryResolveInDirectory(directory, out TerrariaServerTarget defaultTarget))
             {
-                string candidate = Path.Combine(directory, ServerExeName);
-                if (File.Exists(candidate))
-                {
-                    cachedPath = candidate;
-                    return candidate;
-                }
-            }
-            catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException)
-            {
+                cachedTarget = defaultTarget;
+                return defaultTarget;
             }
         }
 
+        cachedTarget = null;
         return null;
     }
 
-    private static IEnumerable<string?> CandidateDirectories()
+    private static bool TryResolveInDirectory(string? directory, out TerrariaServerTarget target)
     {
-        yield return TryGetRunningGameDirectory();
-        foreach (string directory in DefaultInstallDirectories)
+        target = default;
+        if (string.IsNullOrWhiteSpace(directory))
         {
-            yield return directory;
+            return false;
+        }
+
+        try
+        {
+            string candidate = Path.Combine(directory, ServerExeName);
+            if (!File.Exists(candidate))
+            {
+                return false;
+            }
+
+            target = CreateTarget(candidate);
+            return true;
+        }
+        catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException)
+        {
+            return false;
         }
     }
 
@@ -67,6 +88,36 @@ internal static class TerrariaServerLocator
             return string.IsNullOrWhiteSpace(fileName) ? null : Path.GetDirectoryName(fileName);
         }
         catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception or NotSupportedException)
+        {
+            return null;
+        }
+    }
+
+    private static TerrariaServerTarget CreateTarget(string path)
+    {
+        string fullPath;
+        try
+        {
+            fullPath = Path.GetFullPath(path);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            fullPath = path;
+        }
+
+        return new TerrariaServerTarget(fullPath, TryGetFileVersion(fullPath));
+    }
+
+    private static string? TryGetFileVersion(string path)
+    {
+        try
+        {
+            FileVersionInfo info = FileVersionInfo.GetVersionInfo(path);
+            return string.IsNullOrWhiteSpace(info.FileVersion)
+                ? info.ProductVersion
+                : info.FileVersion;
+        }
+        catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
         {
             return null;
         }

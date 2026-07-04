@@ -7,7 +7,7 @@ internal static class OfficialPassPlan
     // Terraria 1.4.5.6 normal small-world path through Pyramids.
     // Conditional secret-seed-only passes are intentionally excluded for the current
     // stage-1 target corpus: small, normal, crimson, non-secret worlds.
-    private static readonly (string Name, double Weight)[] PassesToPyramids =
+    private static readonly (string Name, double Weight)[] Modern1456PassesToPyramids =
     [
         ("Terrain", 507.352d),
         ("Dunes", 239.7913d),
@@ -52,19 +52,76 @@ internal static class OfficialPassPlan
         ("Pyramids", 6.6884d)
     ];
 
-    public static int PassCount => PassesToPyramids.Length;
+    // Terraria 1.4.4.9 normal small-world path through Pyramids. The implemented
+    // pass bodies are shared where the official code is equivalent; Dunes skips
+    // the 1.4.5.x dungeon setup RNG probes, and the skipped isolated passes keep
+    // the 1.4.4.9 ordering from WorldGen.cs.
+    private static readonly (string Name, double Weight)[] Legacy1449PassesToPyramids =
+    [
+        ("Terrain", 449.3722d),
+        ("Dunes", 239.7913d),
+        ("Ocean Sand", 10.4129d),
+        ("Sand Patches", 452.6755d),
+        ("Tunnels", 4.3622d),
+        ("Mount Caves", 49.9993d),
+        ("Dirt Wall Backgrounds", 328.7817d),
+        ("Rocks In Dirt", 1537.4661d),
+        ("Dirt In Rocks", 1515.2301d),
+        ("Clay", 314.8327d),
+        ("Small Holes", 2955.9258d),
+        ("Dirt Layer Caves", 238.2545d),
+        ("Rock Layer Caves", 2708.3958d),
+        ("Surface Caves", 42.3857d),
+        ("Wavy Caves", 1d),
+        ("Generate Ice Biome", 100.005d),
+        ("Grass", 29.7885d),
+        ("Jungle", 10154.6523d),
+        ("Mud Caves To Grass", 3319.761d),
+        ("Full Desert", 9730.408d),
+        ("Floating Islands", 1364.3461d),
+        ("Mushroom Patches", 743.7686d),
+        ("Marble", 5358.8843d),
+        ("Granite", 2142.6638d),
+        ("Dirt To Mud", 351.3519d),
+        ("Silt", 211.84d),
+        ("Shinies", 237.4298d),
+        ("Webs", 50.6646d),
+        ("Underworld", 8936.494d),
+        ("Corruption", 1094.237d),
+        ("Lakes", 12.1766d),
+        ("Dungeon", 477.1963d),
+        ("Slush", 55.1857d),
+        ("Mountain Caves", 11.4819d),
+        ("Beaches", 7.8287d),
+        ("Gems", 895.426d),
+        ("Gravitating Sand", 933.5295d),
+        ("Create Ocean Caves", 1d),
+        ("Shimmer", 1d),
+        ("Clean Up Dirt", 697.0276d),
+        ("Pyramids", 6.6884d)
+    ];
 
-    public static int ImplementedPassCount => 19;
+    public static int PassCount => PassCountFor(TerrariaWorldGenerationVersion.Modern1456);
 
-    public static int ExplicitlySkippedPassCount => 22;
+    public static int ImplementedPassCount => ImplementedPassCountFor(TerrariaWorldGenerationVersion.Modern1456);
 
-    public static int StubPassCount => PassesToPyramids.Length - ImplementedPassCount - ExplicitlySkippedPassCount;
+    public static int ExplicitlySkippedPassCount => ExplicitlySkippedPassCountFor(TerrariaWorldGenerationVersion.Modern1456);
+
+    public static int StubPassCount => StubPassCountFor(TerrariaWorldGenerationVersion.Modern1456);
 
     public static void AppendToPyramids(WorldGenerator generator)
     {
-        for (int i = 0; i < PassesToPyramids.Length; i++)
+        AppendToPyramids(generator, TerrariaWorldGenerationVersion.Modern1456);
+    }
+
+    public static void AppendToPyramids(
+        WorldGenerator generator,
+        TerrariaWorldGenerationVersion version)
+    {
+        (string Name, double Weight)[] passes = PassesFor(version);
+        for (int i = 0; i < passes.Length; i++)
         {
-            (string name, double weight) = PassesToPyramids[i];
+            (string name, double weight) = passes[i];
             if (string.Equals(name, "Terrain", StringComparison.Ordinal))
             {
                 generator.Append(new DelegateGenPass(name, weight, TerrainPassReplica.Apply));
@@ -73,7 +130,12 @@ internal static class OfficialPassPlan
 
             if (string.Equals(name, "Dunes", StringComparison.Ordinal))
             {
-                generator.Append(new DelegateGenPass(name, weight, DunesPassReplica.Apply));
+                generator.Append(new DelegateGenPass(
+                    name,
+                    weight,
+                    version == TerrariaWorldGenerationVersion.Legacy1449
+                        ? DunesPassReplica.ApplyLegacy1449
+                        : DunesPassReplica.Apply));
                 continue;
             }
 
@@ -318,6 +380,39 @@ internal static class OfficialPassPlan
             {
             }));
         }
+    }
+
+    public static int PassCountFor(TerrariaWorldGenerationVersion version)
+    {
+        return PassesFor(version).Length;
+    }
+
+    public static int ImplementedPassCountFor(TerrariaWorldGenerationVersion version)
+    {
+        _ = version;
+        return 19;
+    }
+
+    public static int ExplicitlySkippedPassCountFor(TerrariaWorldGenerationVersion version)
+    {
+        return PassCountFor(version) - ImplementedPassCountFor(version);
+    }
+
+    public static int StubPassCountFor(TerrariaWorldGenerationVersion version)
+    {
+        return PassCountFor(version) - ImplementedPassCountFor(version) - ExplicitlySkippedPassCountFor(version);
+    }
+
+    public static IReadOnlyList<string> PassNamesForDiagnostics(TerrariaWorldGenerationVersion version)
+    {
+        return PassesFor(version).Select(static pass => pass.Name).ToArray();
+    }
+
+    private static (string Name, double Weight)[] PassesFor(TerrariaWorldGenerationVersion version)
+    {
+        return version == TerrariaWorldGenerationVersion.Legacy1449
+            ? Legacy1449PassesToPyramids
+            : Modern1456PassesToPyramids;
     }
 
     private static void AppendSkippedIsolatedPass(WorldGenerator generator, string name, double weight)
