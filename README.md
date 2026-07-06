@@ -37,6 +37,25 @@ TerrariaSplit 是一款面向 Terraria 的 Windows 分段计时器。它以 Boss
 - 一键创建世界（支持彩蛋、秘密种子）和加载练习存档。
 - 支持金字塔筛选和物品过滤，以及 Zenith 世界自动接星。
 
+### 联机
+
+- 联机模式用于让多名玩家使用同一世界、路线和参考时间进行比赛，并实时查看彼此的进度和排名。
+- 联机模式需要单独启动 Race Server。可以这样指定端口启动：
+
+Windows：
+
+```powershell
+.\TerrariaSplit.Race.Server.exe --urls http://0.0.0.0:5000
+```
+
+Linux：
+
+```bash
+./TerrariaSplit.Race.Server --urls http://0.0.0.0:5000
+```
+
+- 将 `5000` 改为需要的端口号即可。若玩家不在同一内网，服务器需要能通过公网 IP、端口转发或内网穿透服务访问。
+
 
 ## 注意事项
 

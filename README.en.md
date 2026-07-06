@@ -35,6 +35,25 @@ Currently supports Terraria `1.4.5.6` and `1.4.4.9`.
 - Creates worlds with one action, including special and secret seeds, and loads practice saves.
 - Supports pyramid filtering, item filtering, and Zenith auto star catch.
 
+### Online
+
+- Online mode lets multiple players race with the same world, route, and reference times while seeing each other's progress and ranking in real time.
+- Online mode requires a separately started Race Server. Use the following command to start it with a specific port:
+
+Windows:
+
+```powershell
+.\TerrariaSplit.Race.Server.exe --urls http://0.0.0.0:5000
+```
+
+Linux:
+
+```bash
+./TerrariaSplit.Race.Server --urls http://0.0.0.0:5000
+```
+
+- Replace `5000` with the port you want. If players are not on the same LAN, the server must be reachable through a public IP address, port forwarding, or a tunneling service.
+
 ## Notes
 
 - This project was primarily built with AI assistance.
