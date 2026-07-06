@@ -543,7 +543,6 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Stop after stage", "\u5728\u4EE5\u4E0B\u9636\u6BB5\u540E\u505C\u6B62" }
       , { "Catch speed", "\u63A5\u661F\u901F\u5EA6" }
       , { "Filter pyramid", "\u7B5B\u5854" }
-      , { "Pyramid filter", "\u7B5B\u5854" }
       , { "Quick pyramid filter", "\u7B5B\u5854" }
       , { "Required pyramid items", "\u6307\u5B9A\u7269\u54C1" }
       , { "Return to main menu on filter failure", "\u7B5B\u9009\u5931\u8D25\u8FD4\u56DE\u4E3B\u9875\u91CD\u65B0\u521B\u5EFA" }
