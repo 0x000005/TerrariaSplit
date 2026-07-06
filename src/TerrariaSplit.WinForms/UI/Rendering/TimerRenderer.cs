@@ -6,6 +6,9 @@ namespace TerrariaSplit.UI.Rendering;
 
 internal static class TimerRenderer
 {
+    private static readonly Color MouseClickThroughIndicatorColor = Color.FromArgb(255, 179, 92, 255);
+    private static readonly Color PyramidFilterIndicatorColor = Color.FromArgb(255, 202, 154, 48);
+
     public static void Render(
         Graphics graphics,
         OverlayRenderContext context,
@@ -16,31 +19,27 @@ internal static class TimerRenderer
             return;
         }
 
-        Rectangle timeRect = GetTimerTextBounds(context, context.Layout.TimerRect);
+        Rectangle timerRect = context.Layout.TimerRect;
+        Rectangle timeRect = GetTimerTextBounds(context, timerRect);
         TimerTextLayout timerTextLayout = DrawTimerText(
             graphics,
             context,
             resources,
-            OverlayTextStyles.GetTimerTextStyle(
-                context.Settings,
-                context.Statuses,
-                context.CurrentSplitIndex,
-                context.TimerPhase,
-                context.TimerElapsed,
-                context.Palette,
-                milliseconds: false),
-            OverlayTextStyles.GetTimerTextStyle(
-                context.Settings,
-                context.Statuses,
-                context.CurrentSplitIndex,
-                context.TimerPhase,
-                context.TimerElapsed,
-                context.Palette,
-                milliseconds: true),
+            GetTimerTextStyle(context, milliseconds: false),
+            GetTimerTextStyle(context, milliseconds: true),
             timeRect);
-        if (context.Settings.General.ShowMouseClickThroughIndicator && !context.MouseClickThrough)
+        bool showMouseIndicator = context.Settings.General.ShowMouseClickThroughIndicator && !context.MouseClickThrough;
+        bool showPyramidFilterIndicator = context.ShowPyramidFilterIndicator;
+        int visibleIndicatorCount = GetVisibleTimerIndicatorCount(showMouseIndicator, showPyramidFilterIndicator);
+        int indicatorIndex = 0;
+        if (showMouseIndicator)
         {
-            DrawMouseClickThroughIndicator(graphics, timeRect, timerTextLayout);
+            DrawMouseClickThroughIndicator(graphics, timerRect, timerTextLayout, indicatorIndex++, visibleIndicatorCount);
+        }
+
+        if (showPyramidFilterIndicator)
+        {
+            DrawPyramidFilterIndicator(graphics, timerRect, timerTextLayout, indicatorIndex, visibleIndicatorCount);
         }
     }
 
@@ -108,27 +107,14 @@ internal static class TimerRenderer
             return TimerPaintFrame.Empty;
         }
 
-        Rectangle timeRect = GetTimerTextBounds(context, context.Layout.TimerRect);
+        Rectangle timerRect = context.Layout.TimerRect;
+        Rectangle timeRect = GetTimerTextBounds(context, timerRect);
         TimerTextGeometry geometry = CreateTimerTextGeometry(
             graphics,
             context,
             resources,
-            OverlayTextStyles.GetTimerTextStyle(
-                context.Settings,
-                context.Statuses,
-                context.CurrentSplitIndex,
-                context.TimerPhase,
-                context.TimerElapsed,
-                context.Palette,
-                milliseconds: false),
-            OverlayTextStyles.GetTimerTextStyle(
-                context.Settings,
-                context.Statuses,
-                context.CurrentSplitIndex,
-                context.TimerPhase,
-                context.TimerElapsed,
-                context.Palette,
-                milliseconds: true),
+            GetTimerTextStyle(context, milliseconds: false),
+            GetTimerTextStyle(context, milliseconds: true),
             timeRect);
 
         TimerPaintElement main = TimerPaintElement.Empty;
@@ -159,13 +145,39 @@ internal static class TimerRenderer
                 geometry.MillisecondsOpacity);
         }
 
+        bool showMouseIndicator = context.Settings.General.ShowMouseClickThroughIndicator && !context.MouseClickThrough;
+        bool showPyramidFilterIndicator = context.ShowPyramidFilterIndicator;
+        int visibleIndicatorCount = GetVisibleTimerIndicatorCount(showMouseIndicator, showPyramidFilterIndicator);
+        int indicatorIndex = 0;
+
         TimerPaintElement indicator = TimerPaintElement.Empty;
-        if (context.Settings.General.ShowMouseClickThroughIndicator && !context.MouseClickThrough)
+        if (showMouseIndicator)
         {
-            indicator = CreateMouseClickThroughIndicatorPaintElement(graphics, timeRect, geometry.Layout);
+            indicator = CreateMouseClickThroughIndicatorPaintElement(graphics, timerRect, geometry.Layout, indicatorIndex++, visibleIndicatorCount);
         }
 
-        return new TimerPaintFrame(main, milliseconds, indicator);
+        TimerPaintElement pyramidFilterIndicator = TimerPaintElement.Empty;
+        if (showPyramidFilterIndicator)
+        {
+            pyramidFilterIndicator = CreatePyramidFilterIndicatorPaintElement(graphics, timerRect, geometry.Layout, indicatorIndex, visibleIndicatorCount);
+        }
+
+        return new TimerPaintFrame(main, milliseconds, indicator, pyramidFilterIndicator);
+    }
+
+    private static TextRenderStyle GetTimerTextStyle(OverlayRenderContext context, bool milliseconds)
+    {
+        TextRenderStyle style = OverlayTextStyles.GetTimerTextStyle(
+            context.Settings,
+            context.Statuses,
+            context.CurrentSplitIndex,
+            context.TimerPhase,
+            context.TimerElapsed,
+            context.Palette,
+            milliseconds);
+        return context.TimerFillOverride is Color fill
+            ? style with { Fill = fill }
+            : style;
     }
 
     private static TimerTextLayout DrawTimerText(
@@ -306,9 +318,44 @@ internal static class TimerRenderer
     private static void DrawMouseClickThroughIndicator(
         Graphics graphics,
         Rectangle timerBounds,
-        TimerTextLayout timerTextLayout)
+        TimerTextLayout timerTextLayout,
+        int positionIndex,
+        int visibleIndicatorCount)
     {
-        RectangleF dotBounds = GetMouseClickThroughIndicatorBounds(timerBounds, timerTextLayout);
+        DrawTimerIndicator(
+            graphics,
+            timerBounds,
+            timerTextLayout,
+            positionIndex,
+            visibleIndicatorCount,
+            MouseClickThroughIndicatorColor);
+    }
+
+    private static void DrawPyramidFilterIndicator(
+        Graphics graphics,
+        Rectangle timerBounds,
+        TimerTextLayout timerTextLayout,
+        int positionIndex,
+        int visibleIndicatorCount)
+    {
+        DrawTimerIndicator(
+            graphics,
+            timerBounds,
+            timerTextLayout,
+            positionIndex,
+            visibleIndicatorCount,
+            PyramidFilterIndicatorColor);
+    }
+
+    private static void DrawTimerIndicator(
+        Graphics graphics,
+        Rectangle timerBounds,
+        TimerTextLayout timerTextLayout,
+        int positionIndex,
+        int visibleIndicatorCount,
+        Color color)
+    {
+        RectangleF dotBounds = GetTimerIndicatorBounds(timerBounds, timerTextLayout, positionIndex, visibleIndicatorCount);
         if (dotBounds.Width <= 0f || dotBounds.Height <= 0f)
         {
             return;
@@ -318,7 +365,7 @@ internal static class TimerRenderer
         graphics.SmoothingMode = SmoothingMode.AntiAlias;
         try
         {
-            using var dotBrush = new SolidBrush(TextEffectRenderer.WithOpacity(Color.FromArgb(255, 179, 92, 255), timerTextLayout.Opacity));
+            using var dotBrush = new SolidBrush(TextEffectRenderer.WithOpacity(color, timerTextLayout.Opacity));
             graphics.FillEllipse(dotBrush, dotBounds);
         }
         finally
@@ -327,18 +374,28 @@ internal static class TimerRenderer
         }
     }
 
-    private static RectangleF GetMouseClickThroughIndicatorBounds(
+    private static RectangleF GetTimerIndicatorBounds(
         Rectangle timerBounds,
-        TimerTextLayout timerTextLayout)
+        TimerTextLayout timerTextLayout,
+        int positionIndex,
+        int visibleIndicatorCount)
     {
         if (timerTextLayout.Right <= 0f || timerTextLayout.Height <= 0f)
         {
             return RectangleF.Empty;
         }
 
-        float diameter = Math.Clamp(timerTextLayout.Height * 0.22f, 9f, 13f);
-        float gap = Math.Max(6f, diameter * 0.7f);
-        float x = Math.Min(timerBounds.Right - diameter, timerTextLayout.Right + gap);
+        int count = Math.Max(1, visibleIndicatorCount);
+        float diameter = Math.Clamp(timerTextLayout.Height * 0.18f, 9f, 28f);
+        float gap = Math.Max(6f, diameter * 0.45f);
+        float indicatorGap = Math.Max(4f, diameter * 0.28f);
+        if (timerBounds.Width <= 0 || timerBounds.Height <= 0)
+        {
+            return RectangleF.Empty;
+        }
+
+        int clampedIndex = Math.Clamp(positionIndex, 0, count - 1);
+        float x = timerTextLayout.Right + gap + clampedIndex * (diameter + indicatorGap);
         float y = timerTextLayout.Top;
         return new RectangleF(x, y, diameter, diameter);
     }
@@ -378,9 +435,44 @@ internal static class TimerRenderer
     private static TimerPaintElement CreateMouseClickThroughIndicatorPaintElement(
         Graphics graphics,
         Rectangle timerBounds,
-        TimerTextLayout timerTextLayout)
+        TimerTextLayout timerTextLayout,
+        int positionIndex,
+        int visibleIndicatorCount)
     {
-        RectangleF bounds = GetMouseClickThroughIndicatorBounds(timerBounds, timerTextLayout);
+        return CreateTimerIndicatorPaintElement(
+            graphics,
+            timerBounds,
+            timerTextLayout,
+            positionIndex,
+            visibleIndicatorCount,
+            MouseClickThroughIndicatorColor);
+    }
+
+    private static TimerPaintElement CreatePyramidFilterIndicatorPaintElement(
+        Graphics graphics,
+        Rectangle timerBounds,
+        TimerTextLayout timerTextLayout,
+        int positionIndex,
+        int visibleIndicatorCount)
+    {
+        return CreateTimerIndicatorPaintElement(
+            graphics,
+            timerBounds,
+            timerTextLayout,
+            positionIndex,
+            visibleIndicatorCount,
+            PyramidFilterIndicatorColor);
+    }
+
+    private static TimerPaintElement CreateTimerIndicatorPaintElement(
+        Graphics graphics,
+        Rectangle timerBounds,
+        TimerTextLayout timerTextLayout,
+        int positionIndex,
+        int visibleIndicatorCount,
+        Color color)
+    {
+        RectangleF bounds = GetTimerIndicatorBounds(timerBounds, timerTextLayout, positionIndex, visibleIndicatorCount);
         if (bounds.Width <= 0f || bounds.Height <= 0f)
         {
             return TimerPaintElement.Empty;
@@ -389,9 +481,25 @@ internal static class TimerRenderer
         return new TimerPaintElement(
             true,
             string.Empty,
-            new TextRenderStyle(Color.FromArgb(255, 179, 92, 255), Color.Empty, Color.Empty, 0, 0),
+            new TextRenderStyle(color, Color.Empty, Color.Empty, 0, 0),
             timerTextLayout.Opacity,
             ToPaintRectangle(bounds, GetDevicePixelGuard(graphics)));
+    }
+
+    private static int GetVisibleTimerIndicatorCount(bool showMouseIndicator, bool showPyramidFilterIndicator)
+    {
+        int count = 0;
+        if (showMouseIndicator)
+        {
+            count++;
+        }
+
+        if (showPyramidFilterIndicator)
+        {
+            count++;
+        }
+
+        return count;
     }
 
     private static Rectangle ToPaintRectangle(RectangleF bounds, int guard)
@@ -428,9 +536,11 @@ internal static class TimerRenderer
 internal readonly record struct TimerPaintFrame(
     TimerPaintElement Main,
     TimerPaintElement Milliseconds,
-    TimerPaintElement Indicator)
+    TimerPaintElement Indicator,
+    TimerPaintElement PyramidFilterIndicator)
 {
     public static TimerPaintFrame Empty => new(
+        TimerPaintElement.Empty,
         TimerPaintElement.Empty,
         TimerPaintElement.Empty,
         TimerPaintElement.Empty);
@@ -443,6 +553,7 @@ internal readonly record struct TimerPaintFrame(
             AddElementBounds(ref bounds, Main);
             AddElementBounds(ref bounds, Milliseconds);
             AddElementBounds(ref bounds, Indicator);
+            AddElementBounds(ref bounds, PyramidFilterIndicator);
             return bounds;
         }
     }

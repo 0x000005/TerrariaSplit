@@ -56,15 +56,22 @@ public sealed record RefreshTimerOverlaySettingsEffect()
 public sealed record RefreshRuntimeUiEffect()
     : ApplicationEffect;
 
-public sealed record ApplicationUpdate(
-    IReadOnlyList<ApplicationEffect> Effects,
-    bool InvalidateAll = false);
+public sealed record ClearRaceProgressReportsEffect()
+    : ApplicationEffect;
+
+public sealed record ResetRaceProgressReportsEffect()
+    : ApplicationEffect;
+
+public sealed record QueueRaceProgressReportsEffect(bool RunStarted, bool RunCompleted)
+    : ApplicationEffect;
 
 public sealed class ApplicationController
 {
     private readonly RunLifecycleController runLifecycle;
     private readonly Func<string, bool> confirmPersonalBestUpdate;
     private readonly ISettingsSnapshotFactory settingsSnapshots;
+    private AppSettings baseSettings;
+    private SettingsRouteOverridePackage? activeRouteOverride;
     private long minimumAcceptedRuntimeCommandSequence;
 
     public ApplicationController(
@@ -77,10 +84,14 @@ public sealed class ApplicationController
         this.confirmPersonalBestUpdate = confirmPersonalBestUpdate;
         this.settingsSnapshots = settingsSnapshots;
         runLifecycle = new RunLifecycleController(runStatisticsRecorder, personalBestSnapshotStore);
-        Settings = settings;
-        Definitions = SplitCatalog.Build(settings);
-        ViewState = ApplicationViewState.FromDefinitions(settings, Definitions);
+        baseSettings = settingsSnapshots.CreateSnapshot(settings);
+        SettingsNormalizer.Normalize(baseSettings);
+        Settings = settingsSnapshots.CreateSnapshot(baseSettings);
+        Definitions = SplitCatalog.Build(Settings);
+        ViewState = ApplicationViewState.FromDefinitions(Settings, Definitions);
     }
+
+    public AppSettings BaseSettings => baseSettings;
 
     public AppSettings Settings { get; private set; }
 
@@ -90,15 +101,44 @@ public sealed class ApplicationController
 
     public long MinimumAcceptedRuntimeCommandSequence => minimumAcceptedRuntimeCommandSequence;
 
+    public SystemState SystemState => new(
+        Settings,
+        Definitions,
+        ViewState,
+        new RaceSystemState(),
+        new JobSystemState(),
+        new DisplaySystemState());
+
     public void AcceptRuntimeCommandSequence(long sequence)
     {
         minimumAcceptedRuntimeCommandSequence = Math.Max(minimumAcceptedRuntimeCommandSequence, sequence);
     }
 
-    public ApplicationUpdate HandleCommand(AppCommand command)
+    public ApplicationUpdate HandleSystemEvent(SystemEvent systemEvent)
+    {
+        return systemEvent switch
+        {
+            ControlCommandSystemEvent control => HandleCommand(control.Command),
+            RuntimeWatcherSystemEvent runtime => HandleWatcherNotification(runtime.Notification),
+            DisplaySystemEvent display => new ApplicationUpdate([], [display.Invalidation]),
+            RacePackageSystemEvent racePackage => new ApplicationUpdate(
+                [],
+                [DisplayInvalidation.For(DisplayRefreshLevel.RoutePackage, DisplayInvalidationTarget.All)]),
+            RaceProgressSystemEvent raceProgress => new ApplicationUpdate(
+                [],
+                [DisplayInvalidation.For(DisplayRefreshLevel.SplitProgress, DisplayInvalidationTarget.RaceLeaderboard)]),
+            RaceRosterSystemEvent raceRoster => new ApplicationUpdate(
+                [],
+                [DisplayInvalidation.For(DisplayRefreshLevel.RuntimeFacts, DisplayInvalidationTarget.RaceLeaderboard)]),
+            JobProgressSystemEvent => ApplicationUpdate.Empty,
+            _ => throw new NotSupportedException($"Unsupported system event {systemEvent.GetType().Name}.")
+        };
+    }
+
+    private ApplicationUpdate HandleCommand(AppCommand command)
     {
         var effects = new List<ApplicationEffect>();
-        bool invalidateAll = false;
+        var invalidations = new List<DisplayInvalidation>();
 
         switch (command)
         {
@@ -110,15 +150,15 @@ public sealed class ApplicationController
                 break;
             case ResetRunCommand reset:
                 AddResetEffects(effects, reset.RecordStats, reset.PlayResetSound);
-                invalidateAll = true;
+                invalidations.Add(DisplayInvalidation.For(DisplayRefreshLevel.RunReset, DisplayInvalidationTarget.All));
                 break;
             case ToggleMouseClickThroughCommand:
                 effects.Add(new ToggleMouseClickThroughEffect());
-                invalidateAll = true;
+                invalidations.Add(DisplayInvalidation.For(DisplayRefreshLevel.DisplaySettings, DisplayInvalidationTarget.All));
                 break;
             case TogglePyramidFilterCommand:
                 TogglePyramidFilter(effects);
-                invalidateAll = true;
+                invalidations.Add(DisplayInvalidation.For(DisplayRefreshLevel.FullRebuild, DisplayInvalidationTarget.All));
                 break;
             case QueueMenuActionCommand queueMenuAction:
                 effects.Add(new SubmitRuntimeCommandEffect(
@@ -138,21 +178,35 @@ public sealed class ApplicationController
                 effects.Add(new SubmitRuntimeCommandEffect(RuntimeCommand.SetPracticeTotalTime(editTotalTime.Time)));
                 break;
             case ApplySettingsCommand applySettings:
-                ApplySettings(applySettings.Settings, effects);
-                invalidateAll = true;
+                ApplySettings(applySettings.Settings, effects, saveSettings: true);
+                invalidations.Add(DisplayInvalidation.For(DisplayRefreshLevel.FullRebuild, DisplayInvalidationTarget.All));
+                break;
+            case ApplyTemporarySettingsCommand applySettings:
+                ApplySettings(applySettings.Settings, effects, saveSettings: false);
+                invalidations.Add(DisplayInvalidation.For(DisplayRefreshLevel.RoutePackage, DisplayInvalidationTarget.All));
+                break;
+            case ApplyRouteOverrideCommand applyOverride:
+                ApplyRouteOverride(applyOverride.Package, effects);
+                invalidations.Add(DisplayInvalidation.For(DisplayRefreshLevel.RoutePackage, DisplayInvalidationTarget.All));
+                invalidations.Add(DisplayInvalidation.For(DisplayRefreshLevel.RunReset, DisplayInvalidationTarget.All));
+                break;
+            case ClearRouteOverrideCommand:
+                ClearRouteOverride(effects);
+                invalidations.Add(DisplayInvalidation.For(DisplayRefreshLevel.RoutePackage, DisplayInvalidationTarget.All));
+                invalidations.Add(DisplayInvalidation.For(DisplayRefreshLevel.RunReset, DisplayInvalidationTarget.All));
                 break;
             default:
                 throw new NotSupportedException($"Unsupported application command {command.GetType().Name}.");
         }
 
-        return new ApplicationUpdate(effects, invalidateAll);
+        return new ApplicationUpdate(effects, invalidations);
     }
 
-    public ApplicationUpdate HandleWatcherNotification(WatcherPollNotification notification)
+    private ApplicationUpdate HandleWatcherNotification(WatcherPollNotification notification)
     {
         if (notification.RuntimeCommandSequence < minimumAcceptedRuntimeCommandSequence)
         {
-            return new ApplicationUpdate([], InvalidateAll: false);
+            return ApplicationUpdate.Empty;
         }
 
         ViewState = ApplicationViewState.FromRuntimeSnapshot(Settings, notification.RuntimeSnapshot);
@@ -166,20 +220,63 @@ public sealed class ApplicationController
             ViewState,
             runLifecycle,
             ResolveMenuActionEffects);
-        return new ApplicationUpdate(effects, effects.Count > 0);
+        IReadOnlyList<DisplayInvalidation> invalidations = ResolveRuntimeInvalidations(notification.RunEvents);
+        return new ApplicationUpdate(effects, invalidations);
+    }
+
+    private static IReadOnlyList<DisplayInvalidation> ResolveRuntimeInvalidations(IReadOnlyList<RunEvent> events)
+    {
+        if (events.Count == 0)
+        {
+            return
+            [
+                DisplayInvalidation.For(
+                    DisplayRefreshLevel.RuntimeFacts,
+                    DisplayInvalidationTarget.SplitOverlay | DisplayInvalidationTarget.TimerOverlay)
+            ];
+        }
+
+        var invalidations = new List<DisplayInvalidation>();
+        if (events.Any(static item => item.Kind == RunEventKind.SplitCompleted ||
+                item.Kind == RunEventKind.PracticeSplitTimeEdited ||
+                item.Kind == RunEventKind.PracticeTotalTimeEdited ||
+                item.Kind == RunEventKind.RunCompleted))
+        {
+            invalidations.Add(DisplayInvalidation.For(DisplayRefreshLevel.SplitProgress, DisplayInvalidationTarget.All));
+        }
+
+        if (events.Any(static item => item.Kind == RunEventKind.RunStarted ||
+                item.Kind == RunEventKind.PauseChanged ||
+                item.Kind == RunEventKind.MenuActionRequested))
+        {
+            invalidations.Add(DisplayInvalidation.For(
+                DisplayRefreshLevel.RuntimeFacts,
+                DisplayInvalidationTarget.SplitOverlay | DisplayInvalidationTarget.TimerOverlay));
+        }
+
+        return invalidations.Count == 0
+            ? [DisplayInvalidation.For(DisplayRefreshLevel.RuntimeFacts, DisplayInvalidationTarget.SplitOverlay | DisplayInvalidationTarget.TimerOverlay)]
+            : invalidations;
     }
 
     private void AddResetEffects(List<ApplicationEffect> effects, bool recordStats, bool playResetSound)
     {
         RunFinalizationResult finalization = runLifecycle.Reset(
             Settings,
+            baseSettings,
             ViewState.DisplayStatuses,
             recordStats,
             confirmPersonalBestUpdate);
+        if (finalization.SettingsUpdated)
+        {
+            Settings = CreateEffectiveSettings(baseSettings);
+            Definitions = SplitCatalog.Build(Settings);
+        }
+
         ViewState = ApplicationViewState.FromDefinitions(Settings, Definitions);
         if (finalization.SettingsUpdated)
         {
-            effects.Add(CreateSaveSettingsEffect(Settings));
+            effects.Add(CreateSaveSettingsEffect(baseSettings));
         }
 
         AddPersistenceFailureEffects(effects, finalization.PersistenceFailures);
@@ -192,17 +289,22 @@ public sealed class ApplicationController
         }
 
         effects.Add(new SubmitRuntimeCommandEffect(RuntimeCommand.Reset()));
+        effects.Add(new ResetRaceProgressReportsEffect());
         effects.Add(new RefreshRuntimeUiEffect());
     }
 
     private void TogglePyramidFilter(List<ApplicationEffect> effects)
     {
         AppSettings previousSettings = settingsSnapshots.CreateSnapshot(Settings);
-        AppSettings nextSettings = settingsSnapshots.CreateSnapshot(Settings);
-        nextSettings.Automation.AutoCreate.EnablePyramidFilter = !nextSettings.Automation.AutoCreate.EnablePyramidFilter;
-        Settings = nextSettings;
+        AppSettings nextBaseSettings = settingsSnapshots.CreateSnapshot(baseSettings);
+        nextBaseSettings.Automation.AutoCreate.EnablePyramidFilter = !nextBaseSettings.Automation.AutoCreate.EnablePyramidFilter;
+        SettingsNormalizer.Normalize(nextBaseSettings);
+        baseSettings = nextBaseSettings;
+        Settings = CreateEffectiveSettings(baseSettings);
+        Definitions = SplitCatalog.Build(Settings);
+        ViewState = ApplicationViewState.FromDefinitions(Settings, Definitions);
 
-        effects.Add(CreateSaveSettingsEffect(Settings));
+        effects.Add(CreateSaveSettingsEffect(baseSettings));
         effects.Add(new ApplySettingsToShellEffect(previousSettings, Definitions.Count));
     }
 
@@ -237,28 +339,93 @@ public sealed class ApplicationController
         return effects;
     }
 
-    private void ApplySettings(AppSettings appliedSettings, List<ApplicationEffect> effects)
+    private void ApplySettings(
+        AppSettings appliedSettings,
+        List<ApplicationEffect> effects,
+        bool saveSettings)
     {
         AppSettings previousSettings = settingsSnapshots.CreateSnapshot(Settings);
-        AppSettings nextSettings = settingsSnapshots.CreateSnapshot(appliedSettings);
+        AppSettings nextBaseSettings = settingsSnapshots.CreateSnapshot(appliedSettings);
+        SettingsNormalizer.Normalize(nextBaseSettings);
         RunFinalizationResult finalization = runLifecycle.Reset(
             Settings,
-            nextSettings,
+            nextBaseSettings,
             ViewState.DisplayStatuses,
             recordStats: true,
             confirmPersonalBestUpdate);
-        Settings = nextSettings;
+        baseSettings = nextBaseSettings;
+        Settings = CreateEffectiveSettings(baseSettings);
         Definitions = SplitCatalog.Build(Settings);
         ViewState = ApplicationViewState.FromDefinitions(Settings, Definitions);
 
-        effects.Add(CreateSaveSettingsEffect(Settings));
+        if (saveSettings)
+        {
+            effects.Add(CreateSaveSettingsEffect(baseSettings));
+        }
+
         AddPersistenceFailureEffects(effects, finalization.PersistenceFailures);
         effects.Add(new ClearOverlayAnimationEffect());
         effects.Add(new RefreshTimerOverlaySettingsEffect());
         effects.Add(new SubmitRuntimeCommandEffect(RuntimeCommand.Reset()));
         effects.Add(new SubmitRuntimeCommandEffect(RuntimeCommand.SetDefinitions(Definitions)));
         effects.Add(new ResetUiScalePatchStateEffect());
+        effects.Add(new ResetRaceProgressReportsEffect());
         effects.Add(new ApplySettingsToShellEffect(previousSettings, Definitions.Count));
+    }
+
+    private void ApplyRouteOverride(
+        SettingsRouteOverridePackage package,
+        List<ApplicationEffect> effects)
+    {
+        activeRouteOverride = SettingsRouteOverrideService.Clone(package);
+        RebuildEffectiveSettings(effects, resetRaceProgress: true);
+    }
+
+    private void ClearRouteOverride(List<ApplicationEffect> effects)
+    {
+        if (activeRouteOverride is null)
+        {
+            return;
+        }
+
+        activeRouteOverride = null;
+        RebuildEffectiveSettings(effects, resetRaceProgress: false);
+    }
+
+    private void RebuildEffectiveSettings(List<ApplicationEffect> effects, bool resetRaceProgress)
+    {
+        AppSettings previousSettings = settingsSnapshots.CreateSnapshot(Settings);
+        RunFinalizationResult finalization = runLifecycle.Reset(
+            Settings,
+            baseSettings,
+            ViewState.DisplayStatuses,
+            recordStats: true,
+            confirmPersonalBestUpdate);
+        Settings = CreateEffectiveSettings(baseSettings);
+        Definitions = SplitCatalog.Build(Settings);
+        ViewState = ApplicationViewState.FromDefinitions(Settings, Definitions);
+
+        AddPersistenceFailureEffects(effects, finalization.PersistenceFailures);
+        effects.Add(new ClearOverlayAnimationEffect());
+        effects.Add(new RefreshTimerOverlaySettingsEffect());
+        effects.Add(new SubmitRuntimeCommandEffect(RuntimeCommand.Reset()));
+        effects.Add(new SubmitRuntimeCommandEffect(RuntimeCommand.SetDefinitions(Definitions)));
+        effects.Add(new ResetUiScalePatchStateEffect());
+        if (resetRaceProgress)
+        {
+            effects.Add(new ResetRaceProgressReportsEffect());
+        }
+
+        effects.Add(new ApplySettingsToShellEffect(previousSettings, Definitions.Count));
+    }
+
+    private AppSettings CreateEffectiveSettings(AppSettings sourceBaseSettings)
+    {
+        AppSettings normalizedBase = settingsSnapshots.CreateSnapshot(sourceBaseSettings);
+        SettingsNormalizer.Normalize(normalizedBase);
+        return activeRouteOverride is null
+            ? normalizedBase
+            : SettingsRouteOverrideService.Apply(normalizedBase, activeRouteOverride, settingsSnapshots);
     }
 
     private ApplicationEffect CreateSaveSettingsEffect(AppSettings settings)
@@ -292,6 +459,9 @@ internal static class RunEventProcessor
         }
 
         var effects = new List<ApplicationEffect>();
+        bool queueRaceProgress = false;
+        bool raceRunStarted = false;
+        bool raceRunCompleted = false;
         foreach (RunEvent runEvent in events)
         {
             switch (runEvent.Kind)
@@ -314,6 +484,9 @@ internal static class RunEventProcessor
                     break;
                 case RunEventKind.RunStarted:
                     runLifecycle.MarkRunStarted();
+                    effects.Add(new ClearRaceProgressReportsEffect());
+                    queueRaceProgress = true;
+                    raceRunStarted = true;
                     effects.Add(new PlaySoundEffect(settings.Overlay.Sounds.EnterWorld));
                     break;
                 case RunEventKind.SplitCompleted:
@@ -327,9 +500,12 @@ internal static class RunEventProcessor
 
                     effects.Add(new PlaySoundEffect(
                         SoundFeedbackService.GetSplitSoundPath(settings, viewState.DisplayStatuses, runEvent.SplitIndex)));
+                    queueRaceProgress = true;
                     break;
                 case RunEventKind.RunCompleted:
                     runLifecycle.RecordRunStatsOnce(viewState.DisplayStatuses);
+                    queueRaceProgress = true;
+                    raceRunCompleted = true;
                     break;
                 case RunEventKind.PracticeSplitTimeEdited:
                     effects.Add(new TrackSegmentBestDeltaHighlightEffect(runEvent.SplitIndex));
@@ -338,6 +514,11 @@ internal static class RunEventProcessor
                     effects.Add(new RefreshRuntimeUiEffect());
                     break;
             }
+        }
+
+        if (queueRaceProgress)
+        {
+            effects.Add(new QueueRaceProgressReportsEffect(raceRunStarted, raceRunCompleted));
         }
 
         return effects;

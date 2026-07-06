@@ -13,6 +13,7 @@ public sealed class AppSettings
     public ComparisonSettings Comparison { get; set; } = new();
     public OverlaySettings Overlay { get; set; } = new();
     public AutomationSettings Automation { get; set; } = new();
+    public RaceSettings Race { get; set; } = new();
     public PracticeWorldSettings PracticeWorlds { get; set; } = new();
     public AdvancedSettings Advanced { get; set; } = new();
 
@@ -199,6 +200,169 @@ public sealed class OverlaySettings
 public sealed class AutomationSettings
 {
     public AutoCreateWorldSettings AutoCreate { get; set; } = new();
+}
+
+public sealed class RaceSettings
+{
+    public string ServerUrl { get; set; } = "http://127.0.0.1:5000";
+
+    public string Nickname { get; set; } = string.Empty;
+
+    public string PreferredRole { get; set; } = RacePreferredRole.Host;
+
+    public string PreferredWorldSource { get; set; } = RacePreferredWorldSource.Random;
+
+    public RaceLeaderboardSettings Leaderboard { get; set; } = new();
+}
+
+public static class RacePreferredRole
+{
+    public const string Host = "Host";
+    public const string Member = "Member";
+
+    public static string Normalize(string? value)
+    {
+        return string.Equals(value, Member, StringComparison.OrdinalIgnoreCase)
+            ? Member
+            : Host;
+    }
+}
+
+public static class RacePreferredWorldSource
+{
+    public const string Random = "Random";
+    public const string CustomSeed = "CustomSeed";
+    public const string ExistingFile = "ExistingFile";
+
+    public static string Normalize(string? value)
+    {
+        if (string.Equals(value, CustomSeed, StringComparison.OrdinalIgnoreCase))
+        {
+            return CustomSeed;
+        }
+
+        return string.Equals(value, ExistingFile, StringComparison.OrdinalIgnoreCase)
+            ? ExistingFile
+            : Random;
+    }
+}
+
+public sealed class RaceLeaderboardSettings
+{
+    public bool UseRankColorForMainTimer { get; set; }
+
+    public UiColumnSettings Rank { get; set; } = new()
+    {
+        Show = true,
+        Width = 78,
+        FontSize = 13f,
+        Bold = true
+    };
+
+    public UiColumnSettings Player { get; set; } = new()
+    {
+        Show = true,
+        Width = 180,
+        FontSize = 13f,
+        Bold = true
+    };
+
+    public UiColumnSettings Icon { get; set; } = new()
+    {
+        Show = true,
+        Width = 76,
+        FontSize = 32f,
+        Bold = false
+    };
+
+    public UiColumnSettings Time { get; set; } = new()
+    {
+        Show = true,
+        Width = 138,
+        FontSize = 14f,
+        Bold = true
+    };
+
+    public RaceLeaderboardTextEffectSettings TextEffects { get; set; } = new();
+
+    public RaceLeaderboardColorSettings Colors { get; set; } = new();
+}
+
+public sealed class RaceLeaderboardTextEffectSettings
+{
+    public RaceLeaderboardColumnEffectSettings Rank { get; set; } = new();
+
+    public RaceLeaderboardColumnEffectSettings Player { get; set; } = new();
+
+    public RaceLeaderboardColumnEffectSettings Icon { get; set; } = new()
+    {
+        ShadowPercent = 20,
+        OutlineThicknessPercent = 0
+    };
+
+    public RaceLeaderboardColumnEffectSettings Time { get; set; } = new();
+}
+
+public sealed class RaceLeaderboardColumnEffectSettings
+{
+    public int OpacityPercent { get; set; } = 100;
+
+    public int ShadowPercent { get; set; } = 40;
+
+    public int OutlineThicknessPercent { get; set; } = 30;
+}
+
+public sealed class RaceLeaderboardColorSettings
+{
+    public RaceLeaderboardRankGradientColorSettings RankGradient { get; set; } = new();
+
+    public RaceLeaderboardColumnColorSettings Rank { get; set; } = new()
+    {
+        Text = "#F0A040"
+    };
+
+    public RaceLeaderboardColumnColorSettings Player { get; set; } = new()
+    {
+        Text = "#FFFFFF"
+    };
+
+    public RaceLeaderboardColumnColorSettings PlayerSelf { get; set; } = new()
+    {
+        Text = "#FFFFFF"
+    };
+
+    public RaceLeaderboardColumnColorSettings PlayerOther { get; set; } = new()
+    {
+        Text = "#FFFFFF"
+    };
+
+    public RaceLeaderboardColumnColorSettings Icon { get; set; } = new()
+    {
+        Text = "#FFFFFF"
+    };
+
+    public RaceLeaderboardColumnColorSettings Time { get; set; } = new()
+    {
+        Text = "#F0A040"
+    };
+}
+
+public sealed class RaceLeaderboardRankGradientColorSettings
+{
+    public string Start { get; set; } = "#FFD35A";
+
+    public string Middle { get; set; } = "#FFFFFF";
+
+    public string End { get; set; } = "#FF3030";
+}
+
+public sealed class RaceLeaderboardColumnColorSettings
+{
+    public string Text { get; set; } = "#FFFFFF";
+
+    public string Outline { get; set; } = "#101010";
+
+    public string Shadow { get; set; } = "#000000";
 }
 
 public sealed class AdvancedSettings

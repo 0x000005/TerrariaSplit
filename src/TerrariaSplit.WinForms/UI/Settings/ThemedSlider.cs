@@ -141,23 +141,26 @@ internal sealed class ThemedSlider : Control
         using (var thumbPen = new Pen(thumbBorderColor, 1.5f))
         using (var focusPen = new Pen(Color.FromArgb(150, UiTheme.AccentHover), 1f))
         {
-            FillRoundedRectangle(e.Graphics, frameBrush, frame, CornerRadius);
-            DrawRoundedRectangle(e.Graphics, framePen, frame, CornerRadius);
+            int trackRadius = Math.Max(1, ScaledTrackHeight / 2);
+            int cornerRadius = ScaledCornerRadius;
+            FillRoundedRectangle(e.Graphics, frameBrush, frame, cornerRadius);
+            DrawRoundedRectangle(e.Graphics, framePen, frame, cornerRadius);
 
-            FillRoundedRectangle(e.Graphics, trackBrush, track, TrackHeight / 2);
+            FillRoundedRectangle(e.Graphics, trackBrush, track, trackRadius);
             if (fill.Width > 0)
             {
-                FillRoundedRectangle(e.Graphics, fillBrush, fill, TrackHeight / 2);
+                FillRoundedRectangle(e.Graphics, fillBrush, fill, trackRadius);
             }
 
             Rectangle thumb = GetThumbBounds();
-            FillRoundedRectangle(e.Graphics, thumbBrush, thumb, CornerRadius);
-            DrawRoundedRectangle(e.Graphics, thumbPen, thumb, CornerRadius);
+            FillRoundedRectangle(e.Graphics, thumbBrush, thumb, cornerRadius);
+            DrawRoundedRectangle(e.Graphics, thumbPen, thumb, cornerRadius);
 
             if (Focused)
             {
-                Rectangle focus = Rectangle.Inflate(frame, 2, 2);
-                DrawRoundedRectangle(e.Graphics, focusPen, focus, CornerRadius + 2);
+                int focusPadding = UiDpiScale.ScaleIntFromBase200(2);
+                Rectangle focus = Rectangle.Inflate(frame, focusPadding, focusPadding);
+                DrawRoundedRectangle(e.Graphics, focusPen, focus, cornerRadius + focusPadding);
             }
         }
     }
@@ -270,7 +273,7 @@ internal sealed class ThemedSlider : Control
 
     private Rectangle GetFrameBounds()
     {
-        int height = Math.Min(FrameHeight, Math.Max(1, ClientSize.Height - 2));
+        int height = Math.Min(ScaledFrameHeight, Math.Max(1, ClientSize.Height - UiDpiScale.ScaleIntFromBase200(2)));
         return new Rectangle(
             0,
             Math.Max(0, (ClientSize.Height - height) / 2),
@@ -280,17 +283,22 @@ internal sealed class ThemedSlider : Control
 
     private static Rectangle GetTrackBounds(Rectangle frame)
     {
-        int left = frame.Left + ThumbWidth / 2 + 8;
-        int right = frame.Right - ThumbWidth / 2 - 8;
-        int top = frame.Top + Math.Max(0, (frame.Height - TrackHeight) / 2);
-        return Rectangle.FromLTRB(left, top, Math.Max(left, right), top + TrackHeight);
+        int thumbWidth = ScaledThumbWidth;
+        int horizontalPadding = UiDpiScale.ScaleIntFromBase200(8);
+        int trackHeight = ScaledTrackHeight;
+        int left = frame.Left + thumbWidth / 2 + horizontalPadding;
+        int right = frame.Right - thumbWidth / 2 - horizontalPadding;
+        int top = frame.Top + Math.Max(0, (frame.Height - trackHeight) / 2);
+        return Rectangle.FromLTRB(left, top, Math.Max(left, right), top + trackHeight);
     }
 
     private Rectangle GetThumbBounds()
     {
         int centerX = ThumbCenterX;
         int centerY = Math.Max(0, ClientSize.Height / 2);
-        return new Rectangle(centerX - ThumbWidth / 2, centerY - ThumbHeight / 2, ThumbWidth, ThumbHeight);
+        int thumbWidth = ScaledThumbWidth;
+        int thumbHeight = ScaledThumbHeight;
+        return new Rectangle(centerX - thumbWidth / 2, centerY - thumbHeight / 2, thumbWidth, thumbHeight);
     }
 
     private int ThumbCenterX
@@ -368,4 +376,14 @@ internal sealed class ThemedSlider : Control
         path.CloseFigure();
         graphics.DrawPath(pen, path);
     }
+
+    private static int ScaledFrameHeight => UiDpiScale.ScaleIntFromBase200(FrameHeight);
+
+    private static int ScaledTrackHeight => UiDpiScale.ScaleIntFromBase200(TrackHeight);
+
+    private static int ScaledThumbWidth => UiDpiScale.ScaleIntFromBase200(ThumbWidth);
+
+    private static int ScaledThumbHeight => UiDpiScale.ScaleIntFromBase200(ThumbHeight);
+
+    private static int ScaledCornerRadius => UiDpiScale.ScaleIntFromBase200(CornerRadius);
 }

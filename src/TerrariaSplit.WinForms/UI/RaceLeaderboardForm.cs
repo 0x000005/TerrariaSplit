@@ -1,0 +1,1088 @@
+using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Globalization;
+using System.Windows.Forms;
+using TerrariaSplit.Configuration;
+using TerrariaSplit.Race.Contracts;
+using TerrariaSplit.UI.Rendering;
+
+namespace TerrariaSplit.UI;
+
+internal sealed class RaceLeaderboardForm : Form
+{
+    private const int ResizeBorder = 8;
+    private const int RowPaddingX = 8;
+    private const int LayoutVerticalPadding = 6;
+    private const float MinimumFittingTextSize = 1f;
+    private static readonly Size InitialBaseClientSize = new(720, 360);
+    private static readonly Size MinimumBaseClientSize = new(220, 80);
+
+    private readonly Func<AppSettings> getSettings;
+    private readonly Func<string, string> localize;
+    private readonly Func<string?> getLocalNickname;
+    private readonly OverlayWindowController overlayWindowController;
+    private readonly BossIconCache iconCache = new();
+    private readonly Dictionary<string, byte[]> routeIconDataCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly OverlayFontCache fontCache = new();
+    private RaceRoomState? state;
+    private bool mouseClickThrough;
+    private bool dragging;
+    private Point dragStartCursor;
+    private Point dragStartLocation;
+
+    public RaceLeaderboardForm(
+        Func<AppSettings> getSettings,
+        Func<string, string> localize,
+        Func<string?> getLocalNickname)
+    {
+        this.getSettings = getSettings;
+        this.localize = localize;
+        this.getLocalNickname = getLocalNickname;
+        overlayWindowController = new OverlayWindowController(this, DrawOverlay, _ => { });
+
+        Text = localize("Race leaderboard");
+        ShowInTaskbar = false;
+        StartPosition = FormStartPosition.CenterParent;
+        FormBorderStyle = FormBorderStyle.None;
+        AutoScaleMode = AutoScaleMode.None;
+        DoubleBuffered = true;
+        BackColor = Color.Black;
+        TransparencyKey = Color.Empty;
+        Padding = Padding.Empty;
+        UiTheme.ConfigureForm(this, new Size(560, 280));
+        UiDpiScale.ApplyBase200ClientLayout(this, InitialBaseClientSize, MinimumBaseClientSize);
+        MinimumSize = GetMinimumClientSize();
+        ResizeRedraw = true;
+        ApplySettings();
+    }
+
+    protected override CreateParams CreateParams
+    {
+        get
+        {
+            CreateParams parameters = base.CreateParams;
+            parameters.Style = OverlayWindowController.ComposeBorderlessStyle(parameters.Style);
+            parameters.ExStyle = OverlayWindowController.ComposeExtendedStyle(parameters.ExStyle, mouseClickThrough);
+            return parameters;
+        }
+    }
+
+    internal bool MouseClickThrough => mouseClickThrough;
+
+    public void UpdateState(RaceRoomState? nextState)
+    {
+        if (InvokeRequired)
+        {
+            BeginInvoke(new Action(() => UpdateState(nextState)));
+            return;
+        }
+
+        state = nextState;
+        ApplyPreferredClientSize();
+        QueueRender();
+    }
+
+    public void ApplySettings()
+    {
+        if (InvokeRequired)
+        {
+            BeginInvoke(new Action(ApplySettings));
+            return;
+        }
+
+        ApplyPreferredClientSize();
+        QueueRender();
+    }
+
+    public void ApplyMouseClickThrough(bool enabled)
+    {
+        if (InvokeRequired)
+        {
+            BeginInvoke(new Action(() => ApplyMouseClickThrough(enabled)));
+            return;
+        }
+
+        mouseClickThrough = enabled;
+        if (enabled)
+        {
+            dragging = false;
+        }
+
+        overlayWindowController.ApplyWindowStyle(mouseClickThrough);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            iconCache.Dispose();
+            fontCache.Dispose();
+            overlayWindowController.Dispose();
+        }
+
+        base.Dispose(disposing);
+    }
+
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        overlayWindowController.ApplyWindowStyle(mouseClickThrough);
+    }
+
+    protected override void OnShown(EventArgs e)
+    {
+        base.OnShown(e);
+        overlayWindowController.RenderImmediately();
+    }
+
+    protected override void OnPaintBackground(PaintEventArgs e)
+    {
+    }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        QueueRender();
+    }
+
+    protected override void OnResize(EventArgs e)
+    {
+        base.OnResize(e);
+        QueueRender();
+    }
+
+    protected override void OnMove(EventArgs e)
+    {
+        base.OnMove(e);
+        QueueRender();
+    }
+
+    private bool DrawOverlay(Graphics graphics)
+    {
+        graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+        graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
+
+        IReadOnlyList<RaceLeaderboardEntry> rows = state?.Leaderboard ?? [];
+        if (rows.Count == 0)
+        {
+            return true;
+        }
+
+        AppSettings settings = getSettings();
+        RaceLeaderboardSettings leaderboard = settings.Race?.Leaderboard ?? new RaceLeaderboardSettings();
+        RaceLeaderboardLayout layout = RaceLeaderboardLayout.From(settings, leaderboard);
+        RaceLeaderboardRenderColors colors = RaceLeaderboardRenderColors.From(leaderboard.Colors ?? new RaceLeaderboardColorSettings());
+        string? localNickname = getLocalNickname();
+        int rowHeight = GetRowHeight(layout);
+        RaceLeaderboardColumnWidths columnWidths = GetColumnWidths(layout, ClientSize.Width);
+        int y = ScaleInt(LayoutVerticalPadding);
+        int rowCount = rows.Count;
+        foreach (RaceLeaderboardEntry entry in rows)
+        {
+            Rectangle rowRect = new(0, y, ClientSize.Width, rowHeight);
+            DrawRow(graphics, settings, layout, columnWidths, colors, entry, rowCount, localNickname, rowRect);
+            y += rowHeight;
+            if (y > ClientSize.Height)
+            {
+                break;
+            }
+        }
+
+        return true;
+    }
+
+    private void QueueRender()
+    {
+        if (!IsHandleCreated || IsDisposed || Disposing)
+        {
+            return;
+        }
+
+        overlayWindowController.QueueRender();
+    }
+
+    private void ApplyPreferredClientSize()
+    {
+        if (IsDisposed || Disposing)
+        {
+            return;
+        }
+
+        Size minimumClientSize = GetMinimumClientSize();
+        MinimumSize = minimumClientSize;
+        Size preferredClientSize = ConstrainClientSizeToWorkingArea(CalculatePreferredClientSize(), minimumClientSize);
+        if (ClientSize != preferredClientSize)
+        {
+            ClientSize = preferredClientSize;
+        }
+
+        KeepWindowWithinWorkingArea();
+    }
+
+    private Size CalculatePreferredClientSize()
+    {
+        AppSettings settings = getSettings();
+        RaceLeaderboardSettings leaderboard = settings.Race?.Leaderboard ?? new RaceLeaderboardSettings();
+        RaceLeaderboardLayout layout = RaceLeaderboardLayout.From(settings, leaderboard);
+        int width = GetLayoutWidth(layout);
+        int rowCount = Math.Max(1, state?.Leaderboard.Count ?? 0);
+        int height = ScaleInt(LayoutVerticalPadding * 2) + rowCount * GetRowHeight(layout);
+        Size minimumClientSize = GetMinimumClientSize();
+        return new Size(
+            Math.Max(minimumClientSize.Width, width),
+            Math.Max(minimumClientSize.Height, height));
+    }
+
+    private Size ConstrainClientSizeToWorkingArea(Size preferredClientSize, Size minimumClientSize)
+    {
+        Rectangle workingArea = GetCurrentWorkingArea();
+        int maximumWidth = Math.Max(minimumClientSize.Width, workingArea.Width);
+        int maximumHeight = Math.Max(minimumClientSize.Height, workingArea.Height);
+        return new Size(
+            Math.Clamp(preferredClientSize.Width, minimumClientSize.Width, maximumWidth),
+            Math.Clamp(preferredClientSize.Height, minimumClientSize.Height, maximumHeight));
+    }
+
+    private void KeepWindowWithinWorkingArea()
+    {
+        if (!Visible || WindowState != FormWindowState.Normal)
+        {
+            return;
+        }
+
+        Rectangle workingArea = GetCurrentWorkingArea();
+        int left = Left;
+        int top = Top;
+        if (Width >= workingArea.Width)
+        {
+            left = workingArea.Left;
+        }
+        else
+        {
+            left = Math.Clamp(left, workingArea.Left, workingArea.Right - Width);
+        }
+
+        if (Height >= workingArea.Height)
+        {
+            top = workingArea.Top;
+        }
+        else
+        {
+            top = Math.Clamp(top, workingArea.Top, workingArea.Bottom - Height);
+        }
+
+        if (left != Left || top != Top)
+        {
+            Location = new Point(left, top);
+        }
+    }
+
+    private Rectangle GetCurrentWorkingArea()
+    {
+        return IsHandleCreated
+            ? Screen.FromControl(this).WorkingArea
+            : Screen.FromPoint(Cursor.Position).WorkingArea;
+    }
+
+    private Size GetMinimumClientSize()
+    {
+        return UiDpiScale.ScaleSize(MinimumBaseClientSize, UiDpiScale.GetAppliedScale(this));
+    }
+
+    protected override void OnMouseDown(MouseEventArgs e)
+    {
+        base.OnMouseDown(e);
+        if (mouseClickThrough || e.Button != MouseButtons.Left || WindowState == FormWindowState.Maximized)
+        {
+            return;
+        }
+
+        dragging = true;
+        dragStartCursor = Cursor.Position;
+        dragStartLocation = Location;
+    }
+
+    protected override void OnMouseMove(MouseEventArgs e)
+    {
+        base.OnMouseMove(e);
+        if (!dragging)
+        {
+            return;
+        }
+
+        Point delta = new(Cursor.Position.X - dragStartCursor.X, Cursor.Position.Y - dragStartCursor.Y);
+        Location = new Point(dragStartLocation.X + delta.X, dragStartLocation.Y + delta.Y);
+    }
+
+    protected override void OnMouseUp(MouseEventArgs e)
+    {
+        if (e.Button == MouseButtons.Left)
+        {
+            dragging = false;
+        }
+
+        base.OnMouseUp(e);
+    }
+
+    protected override void WndProc(ref Message m)
+    {
+        const int wmNcHitTest = 0x84;
+        const int htTransparent = -1;
+        const int htClient = 1;
+        const int htLeft = 10;
+        const int htRight = 11;
+        const int htTop = 12;
+        const int htTopLeft = 13;
+        const int htTopRight = 14;
+        const int htBottom = 15;
+        const int htBottomLeft = 16;
+        const int htBottomRight = 17;
+
+        base.WndProc(ref m);
+
+        if (mouseClickThrough && m.Msg == wmNcHitTest)
+        {
+            m.Result = (IntPtr)htTransparent;
+            return;
+        }
+
+        if (m.Msg != wmNcHitTest ||
+            m.Result != (IntPtr)htClient ||
+            WindowState == FormWindowState.Maximized)
+        {
+            return;
+        }
+
+        long lParam = m.LParam.ToInt64();
+        int x = unchecked((short)(lParam & 0xFFFF));
+        int y = unchecked((short)((lParam >> 16) & 0xFFFF));
+        Point point = PointToClient(new Point(x, y));
+
+        bool left = point.X <= ResizeBorder;
+        bool right = point.X >= ClientSize.Width - ResizeBorder;
+        bool top = point.Y <= ResizeBorder;
+        bool bottom = point.Y >= ClientSize.Height - ResizeBorder;
+
+        if (left && top)
+        {
+            m.Result = (IntPtr)htTopLeft;
+        }
+        else if (right && top)
+        {
+            m.Result = (IntPtr)htTopRight;
+        }
+        else if (left && bottom)
+        {
+            m.Result = (IntPtr)htBottomLeft;
+        }
+        else if (right && bottom)
+        {
+            m.Result = (IntPtr)htBottomRight;
+        }
+        else if (left)
+        {
+            m.Result = (IntPtr)htLeft;
+        }
+        else if (right)
+        {
+            m.Result = (IntPtr)htRight;
+        }
+        else if (top)
+        {
+            m.Result = (IntPtr)htTop;
+        }
+        else if (bottom)
+        {
+            m.Result = (IntPtr)htBottom;
+        }
+    }
+
+    private void DrawRow(
+        Graphics graphics,
+        AppSettings settings,
+        RaceLeaderboardLayout layout,
+        RaceLeaderboardColumnWidths columnWidths,
+        RaceLeaderboardRenderColors colors,
+        RaceLeaderboardEntry entry,
+        int rowCount,
+        string? localNickname,
+        Rectangle rowRect)
+    {
+        int x = ScaleInt(RowPaddingX);
+        Color rankFill = RaceLeaderboardColorMath.GetRankFillColor(
+            entry.Rank,
+            rowCount,
+            colors.RankGradient.Start,
+            colors.RankGradient.Middle,
+            colors.RankGradient.End);
+        DrawTextColumn(
+            graphics,
+            "#" + entry.Rank.ToString(CultureInfo.InvariantCulture),
+            layout.Rank,
+            layout.RankEffect,
+            columnWidths.Rank,
+            ref x,
+            rowRect,
+            ContentAlignment.MiddleRight,
+            rankFill,
+            colors.Rank.Outline,
+            colors.Rank.Shadow);
+        RaceLeaderboardColumnRenderColors playerColors = IsLocalPlayer(entry, localNickname)
+            ? colors.PlayerSelf
+            : colors.PlayerOther;
+        DrawTextColumn(
+            graphics,
+            entry.Nickname,
+            layout.Player,
+            layout.PlayerEffect,
+            columnWidths.Player,
+            ref x,
+            rowRect,
+            ContentAlignment.MiddleRight,
+            playerColors.Text,
+            playerColors.Outline,
+            playerColors.Shadow);
+        DrawIconColumn(
+            graphics,
+            settings,
+            layout.Icon,
+            layout.IconEffect,
+            colors.Icon,
+            columnWidths.Icon,
+            ref x,
+            rowRect,
+            entry);
+        DrawTextColumn(
+            graphics,
+            FormatMilliseconds(entry.LastSplitElapsedMilliseconds),
+            layout.Time,
+            layout.TimeEffect,
+            columnWidths.Time,
+            ref x,
+            rowRect,
+            ContentAlignment.MiddleRight,
+            colors.Time.Text,
+            colors.Time.Outline,
+            colors.Time.Shadow);
+    }
+
+    private void DrawTextColumn(
+        Graphics graphics,
+        string text,
+        UiColumnSettings column,
+        RaceLeaderboardColumnEffectSettings effect,
+        int width,
+        ref int x,
+        Rectangle rowRect,
+        ContentAlignment alignment,
+        Color fill,
+        Color outline,
+        Color shadow)
+    {
+        if (!column.Show)
+        {
+            return;
+        }
+
+        Rectangle bounds = GetColumnContentBounds(x, width, rowRect);
+        Font font = CreateFittingFont(graphics, text, column, effect, bounds);
+        DrawFittedText(
+            graphics,
+            text,
+            font,
+            new TextRenderStyle(
+                fill,
+                outline,
+                shadow,
+                effect.ShadowPercent,
+                effect.OutlineThicknessPercent,
+                LinearEffects: true),
+            bounds,
+            alignment,
+            Math.Clamp(effect.OpacityPercent, 0, 100) / 100f);
+        x += width;
+    }
+
+    private static void DrawFittedText(
+        Graphics graphics,
+        string text,
+        Font font,
+        TextRenderStyle style,
+        Rectangle bounds,
+        ContentAlignment alignment,
+        float opacity)
+    {
+        if (string.IsNullOrEmpty(text) || opacity <= 0.01f || bounds.Width <= 0 || bounds.Height <= 0)
+        {
+            return;
+        }
+
+        using var format = new StringFormat(StringFormat.GenericTypographic)
+        {
+            Alignment = StringAlignment.Near,
+            LineAlignment = StringAlignment.Near,
+            FormatFlags = StringFormatFlags.NoWrap,
+            Trimming = StringTrimming.None
+        };
+        using GraphicsPath measurePath = TextEffectRenderer.CreateTextPath(graphics, text, font, 0f, 0f, format);
+        if (measurePath.PointCount == 0)
+        {
+            return;
+        }
+
+        RectangleF textBounds = TextEffectGeometry.GetTextEffectLayerBounds(graphics, measurePath, font, style);
+        float x = alignment switch
+        {
+            ContentAlignment.MiddleRight => bounds.Right - textBounds.Right,
+            ContentAlignment.MiddleCenter => bounds.Left + (bounds.Width - textBounds.Width) / 2f - textBounds.Left,
+            _ => bounds.Left - textBounds.Left
+        };
+        float y = bounds.Top + (bounds.Height - textBounds.Height) / 2f - textBounds.Top;
+        TextEffectRenderer.DrawStyledString(
+            graphics,
+            text,
+            font,
+            style,
+            x,
+            y,
+            format,
+            opacity,
+            supersampleEffects: false);
+    }
+
+    private void DrawIconColumn(
+        Graphics graphics,
+        AppSettings settings,
+        UiColumnSettings column,
+        RaceLeaderboardColumnEffectSettings effect,
+        RaceLeaderboardColumnRenderColors colors,
+        int width,
+        ref int x,
+        Rectangle rowRect,
+        RaceLeaderboardEntry entry)
+    {
+        if (!column.Show)
+        {
+            return;
+        }
+
+        Rectangle bounds = GetColumnContentBounds(x, width, rowRect);
+        Image? image = GetIconImage(entry, settings);
+        if (image is not null)
+        {
+            int size = Math.Min(
+                Math.Min(bounds.Height, bounds.Width),
+                Math.Max(12, ScaleInt((int)Math.Round(column.FontSize))));
+            Rectangle iconRect = new(
+                bounds.Right - size,
+                bounds.Y + Math.Max(0, (bounds.Height - size) / 2),
+                size,
+                size);
+            TextEffectRenderer.DrawImage(
+                graphics,
+                image,
+                iconRect,
+                Math.Clamp(effect.OpacityPercent, 0, 100) / 100f,
+                new ImageRenderStyle(colors.Outline, colors.Shadow, effect.ShadowPercent, effect.OutlineThicknessPercent));
+        }
+
+        x += width;
+    }
+
+    private Image? GetIconImage(RaceLeaderboardEntry entry, AppSettings settings)
+    {
+        string iconKey = ResolveIconKey(entry);
+        string iconFileName = ResolveIconFileName(entry, iconKey);
+        if (string.IsNullOrWhiteSpace(iconFileName))
+        {
+            return null;
+        }
+
+        var definition = new SplitDefinition(
+            entry.LastSplitId ?? iconKey,
+            entry.LastIconDisplayName ?? entry.LastSplitId ?? iconKey,
+            SplitCondition.All([]),
+            [iconFileName],
+            [iconKey],
+                [iconKey]);
+        IconPair icon = TryLoadRouteIcon(entry, iconKey, iconFileName, settings) ??
+            iconCache.Load(definition, iconFileName, settings);
+        iconCache.TrackRendered(icon);
+        return icon.GetLitImage(DateTime.UtcNow);
+    }
+
+    private string ResolveIconKey(RaceLeaderboardEntry entry)
+    {
+        if (TryGetRouteSplit(entry, out RaceSplitDefinition? routeSplit))
+        {
+            if (!string.IsNullOrWhiteSpace(entry.LastTargetId) &&
+                routeSplit.IconKeys.Any(key => string.Equals(key, entry.LastTargetId, StringComparison.OrdinalIgnoreCase)))
+            {
+                return entry.LastTargetId.Trim();
+            }
+
+            if (routeSplit.IconKeys.Count == 1)
+            {
+                return routeSplit.IconKeys[0];
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(entry.LastTargetId))
+        {
+            return entry.LastTargetId.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(entry.LastFactKey) &&
+            SplitCatalog.TryGetTargetByFactKey(entry.LastFactKey, out SplitTargetDefinition target))
+        {
+            return target.Id;
+        }
+
+        return entry.LastSplitId?.Trim() ?? string.Empty;
+    }
+
+    private string ResolveIconFileName(RaceLeaderboardEntry entry, string iconKey)
+    {
+        if (!string.IsNullOrWhiteSpace(entry.LastIconFileName))
+        {
+            return entry.LastIconFileName.Trim();
+        }
+
+        if (TryResolveRouteIconFileName(entry, iconKey, out string routeIconFileName))
+        {
+            return routeIconFileName;
+        }
+
+        if (!string.IsNullOrWhiteSpace(entry.LastTargetId) &&
+            SplitCatalog.TryGetTarget(entry.LastTargetId, out SplitTargetDefinition target))
+        {
+            return target.IconFileName;
+        }
+
+        if (!string.IsNullOrWhiteSpace(entry.LastFactKey) &&
+            SplitCatalog.TryGetTargetByFactKey(entry.LastFactKey, out SplitTargetDefinition factTarget))
+        {
+            return factTarget.IconFileName;
+        }
+
+        return !string.IsNullOrWhiteSpace(iconKey) &&
+            SplitCatalog.TryGetReferenceIconFileName(iconKey, out string referenceFileName)
+                ? referenceFileName
+                : string.Empty;
+    }
+
+    private IconPair? TryLoadRouteIcon(
+        RaceLeaderboardEntry entry,
+        string iconKey,
+        string iconFileName,
+        AppSettings settings)
+    {
+        RaceRouteIconPayload? payload = FindRouteIconPayload(entry, iconKey, iconFileName);
+        if (payload?.DataBase64 is not string dataBase64 || string.IsNullOrWhiteSpace(dataBase64))
+        {
+            return null;
+        }
+
+        string cacheKey = payload.Key + "|" + payload.FileName + "|" + dataBase64.Length.ToString(CultureInfo.InvariantCulture);
+        if (!routeIconDataCache.TryGetValue(cacheKey, out byte[]? data))
+        {
+            try
+            {
+                data = Convert.FromBase64String(dataBase64);
+            }
+            catch (FormatException)
+            {
+                return null;
+            }
+
+            routeIconDataCache[cacheKey] = data;
+        }
+
+        try
+        {
+            return iconCache.LoadEmbedded(cacheKey, data, string.IsNullOrWhiteSpace(payload.Key) ? iconKey : payload.Key, settings);
+        }
+        catch (ArgumentException)
+        {
+            return null;
+        }
+        catch (IOException)
+        {
+            return null;
+        }
+    }
+
+    private RaceRouteIconPayload? FindRouteIconPayload(
+        RaceLeaderboardEntry entry,
+        string iconKey,
+        string iconFileName)
+    {
+        IReadOnlyList<RaceRouteIconPayload> icons = state?.Route?.Icons ?? [];
+        if (icons.Count == 0)
+        {
+            return null;
+        }
+
+        RaceRouteIconPayload? exact = icons.FirstOrDefault(icon =>
+            string.Equals(icon.Key, iconKey, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(icon.FileName, iconFileName, StringComparison.OrdinalIgnoreCase));
+        if (exact is not null)
+        {
+            return exact;
+        }
+
+        if (!string.IsNullOrWhiteSpace(iconFileName))
+        {
+            RaceRouteIconPayload? fileMatch = icons.FirstOrDefault(icon =>
+                string.Equals(icon.FileName, iconFileName, StringComparison.OrdinalIgnoreCase));
+            if (fileMatch is not null)
+            {
+                return fileMatch;
+            }
+        }
+
+        return !string.IsNullOrWhiteSpace(iconKey)
+            ? icons.FirstOrDefault(icon => string.Equals(icon.Key, iconKey, StringComparison.OrdinalIgnoreCase))
+            : null;
+    }
+
+    private bool TryResolveRouteIconFileName(
+        RaceLeaderboardEntry entry,
+        string iconKey,
+        out string iconFileName)
+    {
+        iconFileName = string.Empty;
+        if (!TryGetRouteSplit(entry, out RaceSplitDefinition? routeSplit))
+        {
+            return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(iconKey))
+        {
+            for (int index = 0; index < routeSplit.IconKeys.Count && index < routeSplit.IconFileNames.Count; index++)
+            {
+                if (string.Equals(routeSplit.IconKeys[index], iconKey, StringComparison.OrdinalIgnoreCase))
+                {
+                    iconFileName = routeSplit.IconFileNames[index];
+                    return !string.IsNullOrWhiteSpace(iconFileName);
+                }
+            }
+        }
+
+        if (entry.LastConditionIndex >= 0 &&
+            entry.LastConditionIndex < routeSplit.Conditions.Count &&
+            !string.IsNullOrWhiteSpace(routeSplit.Conditions[entry.LastConditionIndex].IconFileName))
+        {
+            iconFileName = routeSplit.Conditions[entry.LastConditionIndex].IconFileName!;
+            return true;
+        }
+
+        if (routeSplit.IconFileNames.Count == 1)
+        {
+            iconFileName = routeSplit.IconFileNames[0];
+            return !string.IsNullOrWhiteSpace(iconFileName);
+        }
+
+        return false;
+    }
+
+    private bool TryGetRouteSplit(RaceLeaderboardEntry entry, out RaceSplitDefinition routeSplit)
+    {
+        routeSplit = null!;
+        IReadOnlyList<RaceSplitDefinition> routeSplits = state?.Route?.Splits ?? [];
+        routeSplit = routeSplits.FirstOrDefault(split =>
+            split.Index == entry.LastSplitIndex ||
+            string.Equals(split.Id, entry.LastSplitId, StringComparison.OrdinalIgnoreCase))!;
+        return routeSplit is not null;
+    }
+
+    private Font CreateFont(UiColumnSettings column)
+    {
+        return fontCache.GetColumnFont(column, UiDpiScale.GetAppliedScale(this));
+    }
+
+    private Rectangle GetColumnContentBounds(int x, int width, Rectangle rowRect)
+    {
+        int padding = Math.Min(ScaleInt(4), Math.Max(0, (width - 1) / 2));
+        return Rectangle.Inflate(new Rectangle(x, rowRect.Y, width, rowRect.Height), -padding, 0);
+    }
+
+    private Font CreateFittingFont(
+        Graphics graphics,
+        string text,
+        UiColumnSettings column,
+        RaceLeaderboardColumnEffectSettings effect,
+        Rectangle bounds)
+    {
+        Font baseFont = CreateFont(column);
+        float sizeScale = GetFittingTextSizeScale(graphics, text, column, effect, bounds);
+        return sizeScale >= 0.995f
+            ? baseFont
+            : fontCache.GetColumnFont(
+                column,
+                UiDpiScale.GetAppliedScale(this),
+                sizeScale: sizeScale,
+                minimumSize: MinimumFittingTextSize);
+    }
+
+    private float GetFittingTextSizeScale(
+        Graphics graphics,
+        string text,
+        UiColumnSettings column,
+        RaceLeaderboardColumnEffectSettings effect,
+        Rectangle bounds)
+    {
+        if (string.IsNullOrEmpty(text) || bounds.Width <= 0 || bounds.Height <= 0)
+        {
+            return 1f;
+        }
+
+        if (DoesTextFit(graphics, text, column, effect, bounds, 1f))
+        {
+            return 1f;
+        }
+
+        float low = 0.01f;
+        float high = 1f;
+        for (int i = 0; i < 12; i++)
+        {
+            float middle = (low + high) / 2f;
+            if (DoesTextFit(graphics, text, column, effect, bounds, middle))
+            {
+                low = middle;
+            }
+            else
+            {
+                high = middle;
+            }
+        }
+
+        return Math.Clamp((float)Math.Round(low, 3), 0.01f, 1f);
+    }
+
+    private bool DoesTextFit(
+        Graphics graphics,
+        string text,
+        UiColumnSettings column,
+        RaceLeaderboardColumnEffectSettings effect,
+        Rectangle bounds,
+        float sizeScale)
+    {
+        Font font = fontCache.GetColumnFont(
+            column,
+            UiDpiScale.GetAppliedScale(this),
+            sizeScale: sizeScale,
+            minimumSize: MinimumFittingTextSize);
+        using var format = new StringFormat(StringFormat.GenericTypographic)
+        {
+            FormatFlags = StringFormatFlags.NoWrap,
+            Trimming = StringTrimming.None
+        };
+        using GraphicsPath path = TextEffectRenderer.CreateTextPath(graphics, text, font, 0f, 0f, format);
+        if (path.PointCount == 0)
+        {
+            return true;
+        }
+
+        var style = new TextRenderStyle(
+            Color.White,
+            Color.Black,
+            Color.Black,
+            effect.ShadowPercent,
+            effect.OutlineThicknessPercent,
+            LinearEffects: true);
+        RectangleF effectBounds = TextEffectGeometry.GetTextEffectLayerBounds(graphics, path, font, style);
+        float safetyPadding = Math.Max(2f, font.SizeInPoints * 0.08f);
+        return effectBounds.Width + safetyPadding <= bounds.Width &&
+            effectBounds.Height + safetyPadding <= bounds.Height;
+    }
+
+    private int GetRowHeight(RaceLeaderboardLayout layout)
+    {
+        float fontSize = new[]
+        {
+            layout.Rank.FontSize,
+            layout.Player.FontSize,
+            layout.Icon.FontSize,
+            layout.Time.FontSize
+        }.Max();
+        return Math.Max(ScaleInt(36), ScaleInt((int)Math.Ceiling(fontSize + 14)));
+    }
+
+    private int GetLayoutWidth(RaceLeaderboardLayout layout)
+    {
+        int width = ScaleInt(RowPaddingX * 2);
+        width += GetColumnWidth(layout.Rank);
+        width += GetColumnWidth(layout.Player);
+        width += GetColumnWidth(layout.Icon);
+        width += GetColumnWidth(layout.Time);
+        return width;
+    }
+
+    private RaceLeaderboardColumnWidths GetColumnWidths(RaceLeaderboardLayout layout, int clientWidth)
+    {
+        int requestedWidth =
+            GetColumnWidth(layout.Rank) +
+            GetColumnWidth(layout.Player) +
+            GetColumnWidth(layout.Icon) +
+            GetColumnWidth(layout.Time);
+        int availableWidth = Math.Max(1, clientWidth - ScaleInt(RowPaddingX * 2));
+        float widthScale = requestedWidth > availableWidth && requestedWidth > 0
+            ? availableWidth / (float)requestedWidth
+            : 1f;
+
+        return FitColumnWidthsToAvailableWidth(
+            availableWidth,
+            GetColumnWidth(layout.Rank, widthScale),
+            GetColumnWidth(layout.Player, widthScale),
+            GetColumnWidth(layout.Icon, widthScale),
+            GetColumnWidth(layout.Time, widthScale));
+    }
+
+    private int GetColumnWidth(UiColumnSettings column)
+    {
+        return column.Show ? ScaleInt(Math.Max(1, column.Width)) : 0;
+    }
+
+    private int GetColumnWidth(UiColumnSettings column, float widthScale)
+    {
+        return column.Show
+            ? Math.Max(1, (int)Math.Round(GetColumnWidth(column) * widthScale))
+            : 0;
+    }
+
+    private static RaceLeaderboardColumnWidths FitColumnWidthsToAvailableWidth(
+        int availableWidth,
+        int rank,
+        int player,
+        int icon,
+        int time)
+    {
+        int overflow = rank + player + icon + time - availableWidth;
+        TrimColumnOverflow(ref time, ref overflow);
+        TrimColumnOverflow(ref player, ref overflow);
+        TrimColumnOverflow(ref icon, ref overflow);
+        TrimColumnOverflow(ref rank, ref overflow);
+        return new RaceLeaderboardColumnWidths(rank, player, icon, time);
+    }
+
+    private static void TrimColumnOverflow(ref int width, ref int overflow)
+    {
+        if (overflow <= 0 || width <= 0)
+        {
+            return;
+        }
+
+        int reduction = Math.Min(width - 1, overflow);
+        if (reduction <= 0)
+        {
+            return;
+        }
+
+        width -= reduction;
+        overflow -= reduction;
+    }
+
+    private static string FormatMilliseconds(long? milliseconds)
+    {
+        return milliseconds.HasValue
+            ? TimeText.FormatSplit(TimeSpan.FromMilliseconds(milliseconds.Value))
+            : "--";
+    }
+
+    private static bool IsLocalPlayer(RaceLeaderboardEntry entry, string? localNickname)
+    {
+        return !string.IsNullOrWhiteSpace(localNickname) &&
+            string.Equals(entry.Nickname, localNickname.Trim(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private int ScaleInt(int value)
+    {
+        return (int)Math.Round(value * UiDpiScale.GetAppliedScale(this));
+    }
+
+    private readonly record struct RaceLeaderboardColumnWidths(
+        int Rank,
+        int Player,
+        int Icon,
+        int Time);
+
+    private readonly record struct RaceLeaderboardColumnRenderColors(
+        Color Text,
+        Color Outline,
+        Color Shadow);
+
+    private readonly record struct RaceLeaderboardRankGradientRenderColors(
+        Color Start,
+        Color Middle,
+        Color End);
+
+    private sealed record RaceLeaderboardRenderColors(
+        RaceLeaderboardColumnRenderColors Rank,
+        RaceLeaderboardRankGradientRenderColors RankGradient,
+        RaceLeaderboardColumnRenderColors PlayerSelf,
+        RaceLeaderboardColumnRenderColors PlayerOther,
+        RaceLeaderboardColumnRenderColors Icon,
+        RaceLeaderboardColumnRenderColors Time)
+    {
+        public static RaceLeaderboardRenderColors From(RaceLeaderboardColorSettings colors)
+        {
+            RaceLeaderboardColorSettings defaults = new();
+            return new RaceLeaderboardRenderColors(
+                FromColumn(colors.Rank, defaults.Rank),
+                FromRankGradient(colors.RankGradient, defaults.RankGradient),
+                FromColumn(colors.PlayerSelf ?? colors.Player, defaults.PlayerSelf ?? defaults.Player),
+                FromColumn(colors.PlayerOther ?? colors.Player, defaults.PlayerOther ?? defaults.Player),
+                FromColumn(colors.Icon, defaults.Icon),
+                FromColumn(colors.Time, defaults.Time));
+        }
+
+        private static RaceLeaderboardRankGradientRenderColors FromRankGradient(
+            RaceLeaderboardRankGradientColorSettings? gradient,
+            RaceLeaderboardRankGradientColorSettings defaults)
+        {
+            gradient ??= defaults;
+            return new RaceLeaderboardRankGradientRenderColors(
+                ColorText.Parse(gradient.Start, ColorText.Parse(defaults.Start, Color.Gold)),
+                ColorText.Parse(gradient.Middle, ColorText.Parse(defaults.Middle, Color.White)),
+                ColorText.Parse(gradient.End, ColorText.Parse(defaults.End, Color.Red)));
+        }
+
+        private static RaceLeaderboardColumnRenderColors FromColumn(
+            RaceLeaderboardColumnColorSettings? colors,
+            RaceLeaderboardColumnColorSettings defaults)
+        {
+            colors ??= defaults;
+            return new RaceLeaderboardColumnRenderColors(
+                ColorText.Parse(colors.Text, ColorText.Parse(defaults.Text, Color.White)),
+                ColorText.Parse(colors.Outline, ColorText.Parse(defaults.Outline, Color.FromArgb(16, 16, 16))),
+                ColorText.Parse(colors.Shadow, ColorText.Parse(defaults.Shadow, Color.Black)));
+        }
+    }
+
+    private sealed record RaceLeaderboardLayout(
+        UiColumnSettings Rank,
+        RaceLeaderboardColumnEffectSettings RankEffect,
+        UiColumnSettings Player,
+        RaceLeaderboardColumnEffectSettings PlayerEffect,
+        UiColumnSettings Icon,
+        RaceLeaderboardColumnEffectSettings IconEffect,
+        UiColumnSettings Time,
+        RaceLeaderboardColumnEffectSettings TimeEffect)
+    {
+        public static RaceLeaderboardLayout From(AppSettings settings, RaceLeaderboardSettings leaderboard)
+        {
+            RaceLeaderboardTextEffectSettings raceEffects = leaderboard.TextEffects ?? new RaceLeaderboardTextEffectSettings();
+            RaceLeaderboardSettings defaults = new();
+            return new RaceLeaderboardLayout(
+                leaderboard.Rank ?? defaults.Rank,
+                raceEffects.Rank ?? new RaceLeaderboardColumnEffectSettings(),
+                leaderboard.Player ?? defaults.Player,
+                raceEffects.Player ?? new RaceLeaderboardColumnEffectSettings(),
+                leaderboard.Icon ?? defaults.Icon,
+                raceEffects.Icon ?? new RaceLeaderboardColumnEffectSettings(),
+                leaderboard.Time ?? defaults.Time,
+                raceEffects.Time ?? new RaceLeaderboardColumnEffectSettings());
+        }
+    }
+}

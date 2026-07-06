@@ -25,6 +25,8 @@ internal static class RenderingTests
         yield return ("TextEffectRenderer scales image shadow offset by strength", TextEffectRendererScalesImageShadowOffsetByStrength);
         yield return ("TextEffectRenderer uses slot size for image shadow offset", TextEffectRendererUsesSlotSizeForImageShadowOffset);
         yield return ("TimerRenderer paint bounds contain scaled text effects", TimerRendererPaintBoundsContainScaledTextEffects);
+        yield return ("TimerRenderer places pyramid filter indicator after click-through indicator", TimerRendererPlacesPyramidFilterIndicatorAfterClickThroughIndicator);
+        yield return ("SplitLayoutCalculator reserves room for timer indicators", SplitLayoutCalculatorReservesRoomForTimerIndicators);
         yield return ("TimerRenderer paint frame isolates milliseconds changes", TimerRendererPaintFrameIsolatesMillisecondsChanges);
         yield return ("OverlayFontCache keeps main timer font independent from milliseconds visibility", OverlayFontCacheKeepsMainTimerFontIndependentFromMillisecondsVisibility);
         yield return ("OverlayFontCache honors configured font families", OverlayFontCacheHonorsConfiguredFontFamilies);
@@ -397,6 +399,146 @@ internal static class RenderingTests
         if (!paintBounds.Contains(actualBounds))
         {
             throw new InvalidOperationException($"Timer paint bounds '{paintBounds}' did not contain rendered bounds '{actualBounds}'.");
+        }
+    }
+
+    private static void TimerRendererPlacesPyramidFilterIndicatorAfterClickThroughIndicator()
+    {
+        var settings = new AppSettings
+        {
+            General =
+            {
+                ShowMouseClickThroughIndicator = true
+            },
+            Automation =
+            {
+                AutoCreate =
+                {
+                    EnablePyramidFilter = true
+                }
+            },
+            Overlay =
+            {
+                Columns =
+                {
+                    ScalePercent = 150,
+                    Timer =
+                    {
+                        FontSize = 40f,
+                        Bold = true
+                    },
+                    TimerMilliseconds =
+                    {
+                        FontSize = 22f,
+                        Bold = true
+                    }
+                }
+            }
+        };
+        SplitLayout layout = new(
+            new Rectangle(20, 20, 1200, 70),
+            new Rectangle(20, 150, 800, 180),
+            RowGap: 12);
+        var context = new OverlayRenderContext(
+            settings,
+            UiPalette.From(settings.Overlay.Colors),
+            TestSnapshots.Terraria(isGameMenu: false),
+            [],
+            CurrentSplitIndex: 0,
+            SplitTimerPhase.Running,
+            TimeSpan.FromSeconds(26.55),
+            layout,
+            VisibleStatusRowCount: 1,
+            MouseClickThrough: false,
+            SplitCompletionAnimation: null,
+            SegmentBestDeltaHighlights: new Dictionary<int, SegmentBestDeltaHighlight>(),
+            NowUtc: new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+            ShowPyramidFilterIndicator: true);
+
+        using var resources = new OverlayRenderResources();
+        using var bitmap = new Bitmap(1400, 420, PixelFormat.Format32bppPArgb);
+        using Graphics graphics = Graphics.FromImage(bitmap);
+        ConfigureOverlayGraphics(graphics);
+
+        TimerPaintFrame frame = TimerRenderer.GetTimerPaintFrame(graphics, context, resources);
+
+        TestAssert.Equal(true, frame.Indicator.HasPaint);
+        TestAssert.Equal(true, frame.PyramidFilterIndicator.HasPaint);
+        if (frame.PyramidFilterIndicator.Bounds.Left <= frame.Indicator.Bounds.Left)
+        {
+            throw new InvalidOperationException(
+                $"Pyramid filter indicator '{frame.PyramidFilterIndicator.Bounds}' was not placed after click-through indicator '{frame.Indicator.Bounds}'.");
+        }
+    }
+
+    private static void SplitLayoutCalculatorReservesRoomForTimerIndicators()
+    {
+        var settings = new AppSettings
+        {
+            General =
+            {
+                ShowMouseClickThroughIndicator = true
+            },
+            Overlay =
+            {
+                Columns =
+                {
+                    ScalePercent = 200,
+                    TimerOffsetX = 130,
+                    Timer =
+                    {
+                        FontSize = 55f,
+                        Bold = true
+                    },
+                    TimerMilliseconds =
+                    {
+                        FontSize = 35f,
+                        Bold = true
+                    }
+                }
+            }
+        };
+
+        Size minimumSize = SplitLayoutCalculator.GetMinimumWindowSize(settings);
+        TestAssert.Equal(true, minimumSize.Width > 600);
+        TestAssert.Equal(true, OverlayCompositeLayoutCalculator.TryCreate(
+            new Rectangle(Point.Empty, minimumSize),
+            settings,
+            statusCount: 1,
+            visibleStatusCount: 1,
+            baseRowGap: 9,
+            out OverlayCompositeLayout overlayLayout));
+
+        var context = new OverlayRenderContext(
+            settings,
+            UiPalette.From(settings.Overlay.Colors),
+            TestSnapshots.Terraria(isGameMenu: false),
+            [],
+            CurrentSplitIndex: 0,
+            SplitTimerPhase.Running,
+            TimeSpan.FromSeconds(65.43),
+            overlayLayout.Layout,
+            VisibleStatusRowCount: 1,
+            MouseClickThrough: false,
+            SplitCompletionAnimation: null,
+            SegmentBestDeltaHighlights: new Dictionary<int, SegmentBestDeltaHighlight>(),
+            NowUtc: new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+            ShowPyramidFilterIndicator: true);
+
+        using var resources = new OverlayRenderResources();
+        using var bitmap = new Bitmap(minimumSize.Width, minimumSize.Height, PixelFormat.Format32bppPArgb);
+        using Graphics graphics = Graphics.FromImage(bitmap);
+        ConfigureOverlayGraphics(graphics);
+
+        TimerPaintFrame frame = TimerRenderer.GetTimerPaintFrame(graphics, context, resources);
+        TestAssert.Equal(true, frame.Indicator.HasPaint);
+        TestAssert.Equal(true, frame.PyramidFilterIndicator.HasPaint);
+        Rectangle visibleTimerBounds = overlayLayout.TimerLocalBounds;
+        if (!visibleTimerBounds.Contains(frame.Indicator.Bounds) ||
+            !visibleTimerBounds.Contains(frame.PyramidFilterIndicator.Bounds))
+        {
+            throw new InvalidOperationException(
+                $"Timer indicators '{frame.Indicator.Bounds}' and '{frame.PyramidFilterIndicator.Bounds}' did not fit inside timer bounds '{visibleTimerBounds}'.");
         }
     }
 

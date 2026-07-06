@@ -114,6 +114,17 @@ public static class NativeMethods
         int cy,
         uint flags);
 
+    public static bool IsWindowTopMost(IntPtr windowHandle)
+    {
+        if (windowHandle == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        long style = GetWindowLongPtr(windowHandle, GwlExStyle).ToInt64();
+        return (style & WsExTopMost) != 0;
+    }
+
     public static IntPtr SetWindowOwner(IntPtr windowHandle, IntPtr ownerHandle)
     {
         return IntPtr.Size == 8
@@ -122,12 +133,27 @@ public static class NativeMethods
     }
 
     private const int GwlHwndParent = -8;
+    private const int GwlExStyle = -20;
+    private const int WsExTopMost = 0x00000008;
 
     [DllImport("user32.dll", EntryPoint = "SetWindowLong", SetLastError = true)]
     private static extern int SetWindowLong32(IntPtr hWnd, int nIndex, int dwNewLong);
 
     [DllImport("user32.dll", EntryPoint = "SetWindowLongPtr", SetLastError = true)]
     private static extern IntPtr SetWindowLongPtr64(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
+
+    private static IntPtr GetWindowLongPtr(IntPtr hWnd, int nIndex)
+    {
+        return IntPtr.Size == 8
+            ? GetWindowLongPtr64(hWnd, nIndex)
+            : new IntPtr(GetWindowLong32(hWnd, nIndex));
+    }
+
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongW", SetLastError = true)]
+    private static extern int GetWindowLong32(IntPtr hWnd, int nIndex);
+
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW", SetLastError = true)]
+    private static extern IntPtr GetWindowLongPtr64(IntPtr hWnd, int nIndex);
 
 }
 

@@ -83,7 +83,7 @@ internal static class TimeEditDialog
         form.AcceptButton = okButton;
         form.CancelButton = cancelButton;
 
-        if (form.ShowDialog() != DialogResult.OK)
+        if (form.ShowDialog(owner) != DialogResult.OK)
         {
             return false;
         }

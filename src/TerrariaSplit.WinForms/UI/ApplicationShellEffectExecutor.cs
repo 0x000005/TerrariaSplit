@@ -7,19 +7,22 @@ internal sealed class ApplicationShellEffectExecutor
     private readonly IOverlayPort overlay;
     private readonly ISettingsPort settings;
     private readonly IAutomationPort automation;
+    private readonly IRaceProgressPort raceProgress;
 
     public ApplicationShellEffectExecutor(
         IRuntimeCommandPort runtimeCommands,
         ISoundPort sounds,
         IOverlayPort overlay,
         ISettingsPort settings,
-        IAutomationPort automation)
+        IAutomationPort automation,
+        IRaceProgressPort raceProgress)
     {
         this.runtimeCommands = runtimeCommands;
         this.sounds = sounds;
         this.overlay = overlay;
         this.settings = settings;
         this.automation = automation;
+        this.raceProgress = raceProgress;
     }
 
     public void Apply(IReadOnlyList<ApplicationEffect> effects)
@@ -94,6 +97,15 @@ internal sealed class ApplicationShellEffectExecutor
                 break;
             case RefreshRuntimeUiEffect:
                 overlay.RefreshRuntimeUi();
+                break;
+            case ClearRaceProgressReportsEffect:
+                raceProgress.ClearReportedProgress();
+                break;
+            case ResetRaceProgressReportsEffect:
+                raceProgress.ResetReportedProgress();
+                break;
+            case QueueRaceProgressReportsEffect queueRaceProgress:
+                raceProgress.QueueProgressReports(queueRaceProgress.RunStarted, queueRaceProgress.RunCompleted);
                 break;
             default:
                 throw new NotSupportedException($"Unsupported application effect {effect.GetType().Name}.");

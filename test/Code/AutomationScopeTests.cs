@@ -1,4 +1,5 @@
 using TerrariaSplit;
+using TerrariaSplit.Terraria.Automation;
 
 namespace TerrariaSplit.Tests;
 
@@ -7,6 +8,7 @@ internal static class AutomationScopeTests
     public static IEnumerable<(string Name, Action Test)> All()
     {
         yield return ("TemporaryDirectoryScope cleans existing scratch files", TemporaryDirectoryScopeCleansScratchFiles);
+        yield return ("Headless world generator parses only structured server progress", HeadlessWorldGeneratorParsesOnlyStructuredServerProgress);
     }
 
     private static void TemporaryDirectoryScopeCleansScratchFiles()
@@ -29,5 +31,17 @@ internal static class AutomationScopeTests
         TestAssert.Equal(false, File.Exists(rootFile));
 
         Directory.Delete(directory, recursive: true);
+    }
+
+    private static void HeadlessWorldGeneratorParsesOnlyStructuredServerProgress()
+    {
+        TestAssert.Equal(
+            true,
+            HeadlessWorldGenerator.TryParseServerProgressPercent("12.3% - Resetting game objects - 99.9%", out int totalProgress));
+        TestAssert.Equal(12, totalProgress);
+
+        TestAssert.Equal(
+            false,
+            HeadlessWorldGenerator.TryParseServerProgressPercent("Settling liquids 95%", out _));
     }
 }

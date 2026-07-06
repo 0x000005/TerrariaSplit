@@ -117,6 +117,7 @@ internal sealed partial class MainForm : Form
             contextMenu,
             settings,
             OpenStatistics,
+            raceShell.OpenPanel,
             settingsShell.Open,
             TogglePyramidFilter,
             settingsShell.SwitchSettingsFile,
@@ -156,7 +157,30 @@ internal sealed partial class MainForm : Form
         worldPoolFillService.Dispose();
         automationShell.Dispose();
         settingsShell.Dispose();
+        raceShell.Dispose();
         overlayShell.Dispose();
+    }
+
+    private void CloseAuxiliaryWindowsForExit()
+    {
+        settingsShell.Dispose();
+        CloseStatisticsWindow();
+        raceShell.CloseWindows();
+    }
+
+    private void CloseStatisticsWindow()
+    {
+        if (statisticsForm is null)
+        {
+            return;
+        }
+
+        StatisticsForm form = statisticsForm;
+        statisticsForm = null;
+        if (!form.IsDisposed)
+        {
+            form.Close();
+        }
     }
 
     protected override void OnHandleDestroyed(EventArgs e)
@@ -170,6 +194,7 @@ internal sealed partial class MainForm : Form
         WindowCloseAction closeAction = windowShell.RequestClose();
         if (closeAction == WindowCloseAction.AllowClose)
         {
+            CloseAuxiliaryWindowsForExit();
             base.OnFormClosing(e);
             return;
         }
@@ -181,6 +206,7 @@ internal sealed partial class MainForm : Form
         }
 
         e.Cancel = true;
+        CloseAuxiliaryWindowsForExit();
         BeginInvoke(new Action(() =>
         {
             try

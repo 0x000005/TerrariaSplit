@@ -589,6 +589,7 @@ internal sealed class TimerOverlayForm : Form
         AddChangedTimerElementBounds(ref dirty, previous.Main, currentFrame.Main);
         AddChangedTimerElementBounds(ref dirty, previous.Milliseconds, currentFrame.Milliseconds);
         AddChangedTimerElementBounds(ref dirty, previous.Indicator, currentFrame.Indicator);
+        AddChangedTimerElementBounds(ref dirty, previous.PyramidFilterIndicator, currentFrame.PyramidFilterIndicator);
         return dirty;
     }
 
@@ -692,7 +693,9 @@ internal sealed class TimerOverlayForm : Form
             state.MouseClickThrough,
             null,
             EmptySegmentBestDeltaHighlights,
-            DateTime.UtcNow);
+            DateTime.UtcNow,
+            TimerFillOverride: state.TimerFillOverride,
+            ShowPyramidFilterIndicator: state.ShowPyramidFilterIndicator);
     }
 
     private readonly record struct RunningTimerPaintUpdate(TimerPaintFrame Frame, Rectangle? DirtyRect);

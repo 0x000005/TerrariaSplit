@@ -5,6 +5,7 @@ namespace TerrariaSplit.UI;
 
 internal sealed class SettingsDialogHost : IDisposable
 {
+    private static readonly TimeSpan DisposeCloseTimeout = TimeSpan.FromSeconds(1);
     private readonly AppSettings initialSettings;
     private readonly Func<RuntimePerformanceDiagnostics> runtimeDiagnosticsProvider;
     private readonly Func<RuntimeDebugSnapshot> runtimeDebugSnapshotProvider;
@@ -13,16 +14,15 @@ internal sealed class SettingsDialogHost : IDisposable
     private readonly Action<Action> dispatchToOwner;
     private readonly Action<AppSettings> appliedCallback;
     private readonly Action<SettingsDialogResult> closedCallback;
-    private readonly Action windowHandleChangedCallback;
     private readonly Rectangle ownerBounds;
     private readonly object sync = new();
     private Thread? thread;
     private SettingsForm? form;
     private IntPtr formHandle;
-    private IntPtr activeChildDialogHandle;
     private bool started;
     private bool disposed;
     private bool applyInProgress;
+    private bool suppressClosedCallback;
 
     public SettingsDialogHost(
         AppSettings initialSettings,
@@ -33,7 +33,6 @@ internal sealed class SettingsDialogHost : IDisposable
         Action<Action> dispatchToOwner,
         Action<AppSettings> appliedCallback,
         Action<SettingsDialogResult> closedCallback,
-        Action windowHandleChangedCallback,
         Rectangle ownerBounds)
     {
         this.settingsSnapshots = settingsSnapshots;
@@ -44,7 +43,6 @@ internal sealed class SettingsDialogHost : IDisposable
         this.dispatchToOwner = dispatchToOwner;
         this.appliedCallback = appliedCallback;
         this.closedCallback = closedCallback;
-        this.windowHandleChangedCallback = windowHandleChangedCallback;
         this.ownerBounds = ownerBounds;
     }
 
@@ -55,17 +53,6 @@ internal sealed class SettingsDialogHost : IDisposable
             lock (sync)
             {
                 return formHandle;
-            }
-        }
-    }
-
-    public IntPtr ChildDialogWindowHandle
-    {
-        get
-        {
-            lock (sync)
-            {
-                return activeChildDialogHandle;
             }
         }
     }
@@ -90,10 +77,22 @@ internal sealed class SettingsDialogHost : IDisposable
         }
     }
 
+    public void Activate()
+    {
+        IntPtr handle = WindowHandle;
+        if (handle == IntPtr.Zero)
+        {
+            return;
+        }
+
+        NativeMethods.ShowWindow(handle, NativeMethods.SwRestore);
+        NativeMethods.SetForegroundWindow(handle);
+    }
+
     public void Dispose()
     {
-        Thread? currentThread;
         SettingsForm? currentForm;
+        Thread? currentThread;
         lock (sync)
         {
             if (disposed)
@@ -102,10 +101,10 @@ internal sealed class SettingsDialogHost : IDisposable
             }
 
             disposed = true;
-            currentThread = thread;
+            suppressClosedCallback = true;
             currentForm = form;
+            currentThread = thread;
             formHandle = IntPtr.Zero;
-            activeChildDialogHandle = IntPtr.Zero;
         }
 
         if (currentForm is not null && !currentForm.IsDisposed && currentForm.IsHandleCreated)
@@ -122,11 +121,9 @@ internal sealed class SettingsDialogHost : IDisposable
             }
         }
 
-        if (currentThread is not null &&
-            currentThread.IsAlive &&
-            currentThread.ManagedThreadId != Environment.CurrentManagedThreadId)
+        if (currentThread is not null && currentThread != Thread.CurrentThread)
         {
-            currentThread.Join(1000);
+            currentThread.Join(DisposeCloseTimeout);
         }
     }
 
@@ -138,7 +135,6 @@ internal sealed class SettingsDialogHost : IDisposable
             runtimeDiagnosticsProvider,
             runtimeDebugSnapshotProvider,
             worldPoolCountProvider,
-            modalHandleChanged: UpdateActiveChildDialogHandle,
             settingsSnapshots: settingsSnapshots);
         dialog.HandleCreated += (_, _) =>
         {
@@ -146,18 +142,13 @@ internal sealed class SettingsDialogHost : IDisposable
             {
                 formHandle = dialog.Handle;
             }
-
-            DispatchToOwner(windowHandleChangedCallback);
         };
         dialog.HandleDestroyed += (_, _) =>
         {
             lock (sync)
             {
                 formHandle = IntPtr.Zero;
-                activeChildDialogHandle = IntPtr.Zero;
             }
-
-            DispatchToOwner(windowHandleChangedCallback);
         };
         lock (sync)
         {
@@ -186,15 +177,19 @@ internal sealed class SettingsDialogHost : IDisposable
         System.Windows.Forms.Application.Run(dialog);
         result = new SettingsDialogResult(dialogResult, resultSettings);
 
+        bool notifyClosed;
         lock (sync)
         {
             form = null;
             formHandle = IntPtr.Zero;
-            activeChildDialogHandle = IntPtr.Zero;
             thread = null;
+            notifyClosed = !suppressClosedCallback;
         }
 
-        DispatchToOwner(() => closedCallback(result));
+        if (notifyClosed)
+        {
+            DispatchToOwner(() => closedCallback(result));
+        }
     }
 
     private Point ResolveStartLocation(Size dialogSize)
@@ -212,21 +207,6 @@ internal sealed class SettingsDialogHost : IDisposable
     private void DispatchToOwner(Action action)
     {
         _ = TryDispatchToOwner(action);
-    }
-
-    private void UpdateActiveChildDialogHandle(IntPtr handle)
-    {
-        lock (sync)
-        {
-            if (disposed)
-            {
-                return;
-            }
-
-            activeChildDialogHandle = handle;
-        }
-
-        DispatchToOwner(windowHandleChangedCallback);
     }
 
     private bool TryDispatchToOwner(Action action)

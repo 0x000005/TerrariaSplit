@@ -27,6 +27,7 @@ internal sealed partial class MainForm : Form
     private readonly ApplicationController applicationController;
     private readonly ApplicationShellEffectExecutor effectExecutor;
     private readonly SettingsShell settingsShell;
+    private readonly RaceShell raceShell;
     private readonly RuntimeShell runtimeShell = new(
         DefaultControlTickInterval,
         RefreshRateSettings.ToInterval(AppSettingsDefaults.Advanced.RunningStatusPaintHz));
@@ -36,12 +37,15 @@ internal sealed partial class MainForm : Form
     private readonly ProgramModalWindowCoordinator modalWindows;
     private readonly MainWindowModalInputRouter mainWindowModalInputRouter;
     private readonly WindowShell windowShell = new();
+    private StatisticsForm? statisticsForm;
     private int rtssOverlayDispatchPending;
     private bool runtimeResourcesDisposed;
     private RtssOverlayPublishStatus lastRtssOverlayStatus = RtssOverlayPublishStatus.Disabled;
     private string lastRtssOverlayMessage = string.Empty;
 
     private AppSettings settings => applicationController.Settings;
+
+    private AppSettings editableSettings => applicationController.BaseSettings;
 
     private ApplicationViewState viewState => applicationController.ViewState;
 
@@ -126,7 +130,7 @@ internal sealed partial class MainForm : Form
             () => AcceptRuntimeCommandSequence(monitorCoordinator.ClearPendingMenuActions()),
             appLogger);
         settingsShell = MainShellCompositionRoot.CreateSettingsShell(
-            () => settings,
+            () => editableSettings,
             GetRuntimeDiagnostics,
             GetRuntimeDebugSnapshot,
             GetWorldPoolCount,
@@ -138,8 +142,20 @@ internal sealed partial class MainForm : Form
             hotkeyShell.Unregister,
             hotkeyShell.Register,
             () => IsHandleCreated,
-            modalWindows,
             () => Bounds);
+        raceShell = new RaceShell(
+            settingsSnapshots,
+            appLogger,
+            () => settings,
+            () => editableSettings,
+            () => viewState,
+            () => GetRuntimeDebugSnapshot().WatcherDiagnostics.ProcessVersion,
+            ApplyRouteOverride,
+            ClearRouteOverride,
+            services.SaveSettings,
+            this,
+            RefreshRaceMainTimerColor,
+            () => ResetRun(recordStats: false));
         overlayShell.TimerOverlayHost.DragDeltaRequested += delta => overlayShell.BoundsController.MoveBy(delta);
         overlayShell.TimerOverlayHost.UserResizeBoundsChanged += bounds => overlayShell.BoundsController.HandleTimerResize(bounds);
         overlayShell.TimerOverlayHost.RightClickRequested += HandleTimerOverlayRightClickRequested;
@@ -159,7 +175,10 @@ internal sealed partial class MainForm : Form
             ShowSettingsSaveFailure,
             ApplyLoadedSettings,
             services.SaveSettings,
-            automationShell);
+            automationShell,
+            raceShell.ClearReportedProgress,
+            raceShell.ResetReportedProgress,
+            raceShell.QueueProgressReports);
         overlayShell.BoundsController.UpdateContext(
             settings,
             GetCurrentReservedLayoutRowCount(),

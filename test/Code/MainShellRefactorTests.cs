@@ -3,6 +3,9 @@ using System.Drawing;
 using System.Reflection;
 using System.Windows.Forms;
 using TerrariaSplit;
+using TerrariaSplit.Infrastructure;
+using TerrariaSplit.Race.Contracts;
+using TerrariaSplit.Storage;
 
 namespace TerrariaSplit.Tests;
 
@@ -27,6 +30,8 @@ internal static class MainShellRefactorTests
         yield return ("WindowLayerController applies always-on-top setting without blocking input", WindowLayerControllerAppliesAlwaysOnTopSettingWithoutBlockingInput);
         yield return ("WindowLayerController blocks main windows while modal is registered", WindowLayerControllerBlocksMainWindowsWhileModalIsRegistered);
         yield return ("WindowLayerController ignores modal activation when no modal is registered", WindowLayerControllerIgnoresModalActivationWhenNoModalIsRegistered);
+        yield return ("WindowLayerController unblocks main windows when modal handle disappears", WindowLayerControllerUnblocksMainWindowsWhenModalHandleDisappears);
+        yield return ("WindowLayerController keeps regular modals non-topmost", WindowLayerControllerKeepsRegularModalsNonTopMost);
         yield return ("WindowShell computes drag deltas", WindowShellComputesDragDeltas);
         yield return ("WindowShell drives close finalization state", WindowShellDrivesCloseFinalizationState);
         yield return ("RuntimeShell publishes watcher debug snapshot", RuntimeShellPublishesWatcherDebugSnapshot);
@@ -41,6 +46,8 @@ internal static class MainShellRefactorTests
         yield return ("HotkeyShell suppresses repeated registration warnings", HotkeyShellSuppressesRepeatedRegistrationWarnings);
         yield return ("HotkeyShell unregisters when global hotkeys are disabled", HotkeyShellUnregistersWhenGlobalHotkeysAreDisabled);
         yield return ("SettingsMessageDialog uses themed dialog chrome", SettingsMessageDialogUsesThemedDialogChrome);
+        yield return ("Dialog forms scale base layout from 200 percent DPI", DialogFormsScaleBaseLayoutFrom200PercentDpi);
+        yield return ("Settings and statistics forms are not topmost", SettingsAndStatisticsFormsAreNotTopMost);
         yield return ("Settings form title bar uses icon window buttons", SettingsFormTitleBarUsesIconWindowButtons);
         yield return ("SettingsUiFactory keeps two-column editor column fixed width", SettingsUiFactoryKeepsTwoColumnEditorColumnFixedWidth);
         yield return ("SettingsUiFactory row labels ellipsize clipped text", SettingsUiFactoryRowLabelsEllipsizeClippedText);
@@ -48,6 +55,19 @@ internal static class MainShellRefactorTests
         yield return ("ThemedScrollPanel routes list wheel to inner list until boundary", ThemedScrollPanelRoutesListWheelToInnerListUntilBoundary);
         yield return ("FontFamilySelector uses themed drop-down list", FontFamilySelectorUsesThemedDropDownList);
         yield return ("Settings form uses themed drop-down lists", SettingsFormUsesThemedDropDownLists);
+        yield return ("Race form uses settings theme and Chinese labels", RaceFormUsesSettingsThemeAndChineseLabels);
+        yield return ("Race form uses themed scroll panel", RaceFormUsesThemedScrollPanel);
+        yield return ("Race form is not topmost", RaceFormIsNotTopMost);
+        yield return ("Race leaderboard follows mouse click-through", RaceLeaderboardFollowsMouseClickThrough);
+        yield return ("Race leaderboard autosizes to rows and columns", RaceLeaderboardAutosizesToRowsAndColumns);
+        yield return ("Race form owns leaderboard appearance settings", RaceFormOwnsLeaderboardAppearanceSettings);
+        yield return ("Race form only saves leaderboard appearance through apply buttons", RaceFormOnlySavesLeaderboardAppearanceThroughApplyButtons);
+        yield return ("Race form groups host world source options", RaceFormGroupsHostWorldSourceOptions);
+        yield return ("Race form locks only connection identity after upload", RaceFormLocksOnlyConnectionIdentityAfterUpload);
+        yield return ("Race form locks connection identity for members in room", RaceFormLocksConnectionIdentityForMembersInRoom);
+        yield return ("Race form shows inline kick buttons", RaceFormShowsInlineKickButtons);
+        yield return ("Race form shows member status without kick buttons", RaceFormShowsMemberStatusWithoutKickButtons);
+        yield return ("Race form restores room draft state", RaceFormRestoresRoomDraftState);
         yield return ("SplitRouteListController consumes route drags once", SplitRouteListControllerConsumesRouteDragsOnce);
         yield return ("SplitRouteListController tracks route edit state", SplitRouteListControllerTracksRouteEditState);
         yield return ("SplitSettingsCommitService commits dirty route", SplitSettingsCommitServiceCommitsDirtyRoute);
@@ -638,6 +658,74 @@ internal static class MainShellRefactorTests
         });
     }
 
+    private static void WindowLayerControllerUnblocksMainWindowsWhenModalHandleDisappears()
+    {
+        RunSta(() =>
+        {
+            bool? timerBlocked = null;
+            bool modalVisible = true;
+            using var mainForm = new Form();
+            using var modalForm = new Form();
+            _ = mainForm.Handle;
+            _ = modalForm.Handle;
+            var controller = new WindowLayerController(
+                mainForm,
+                value => timerBlocked = value,
+                () => IntPtr.Zero);
+
+            using IDisposable registration = controller.RegisterModalWindow(
+                () => modalVisible ? modalForm.Handle : IntPtr.Zero);
+            TestAssert.Equal(true, controller.HasModalWindow);
+            TestAssert.Equal(false, NativeMethods.IsWindowEnabled(mainForm.Handle));
+            TestAssert.Equal(true, timerBlocked);
+
+            modalVisible = false;
+            controller.ApplyWindowState();
+
+            TestAssert.Equal(false, controller.HasModalWindow);
+            TestAssert.Equal(true, NativeMethods.IsWindowEnabled(mainForm.Handle));
+            TestAssert.Equal(false, timerBlocked);
+            TestAssert.Equal(false, controller.RedirectMainWindowInputToModal());
+        });
+    }
+
+    private static void WindowLayerControllerKeepsRegularModalsNonTopMost()
+    {
+        RunSta(() =>
+        {
+            using var mainForm = new Form();
+            using var regularModal = new Form();
+            using var forcedModal = new Form();
+            _ = mainForm.Handle;
+            _ = regularModal.Handle;
+            _ = forcedModal.Handle;
+            var controller = new WindowLayerController(
+                mainForm,
+                _ => { },
+                () => IntPtr.Zero);
+
+            controller.SetAlwaysOnTop(true);
+            TestAssert.Equal(true, controller.AlwaysOnTop);
+            TestAssert.Equal(false, WindowLayerController.ShouldApplyTopMostToModal(default));
+            TestAssert.Equal(true, WindowLayerController.ShouldApplyTopMostToModal(ModalWindowOptions.ForceTopMostForeground));
+
+            using (controller.RegisterModalWindow(() => regularModal.Handle))
+            {
+                TestAssert.Equal(true, controller.AlwaysOnTop);
+                TestAssert.Equal(true, controller.HasModalWindow);
+                TestAssert.Equal(false, WindowLayerController.ShouldApplyTopMostToModal(default));
+            }
+
+            using (controller.RegisterModalWindow(() => forcedModal.Handle, ModalWindowOptions.ForceTopMostForeground))
+            {
+                TestAssert.Equal(true, controller.HasModalWindow);
+                TestAssert.Equal(true, WindowLayerController.ShouldApplyTopMostToModal(ModalWindowOptions.ForceTopMostForeground));
+            }
+
+            controller.SetAlwaysOnTop(false);
+        });
+    }
+
     private static void ProgramModalWindowCoordinatorRegistersModalFormsThroughOneGateway()
     {
         RunSta(() =>
@@ -751,6 +839,7 @@ internal static class MainShellRefactorTests
                 settings,
                 () => { },
                 () => { },
+                () => { },
                 () => toggleCount++,
                 _ => { },
                 () => { });
@@ -761,6 +850,9 @@ internal static class MainShellRefactorTests
 
             TestAssert.Equal("\u7B5B\u9009\u91D1\u5B57\u5854", item.Text);
             TestAssert.Equal(true, item.Checked);
+            TestAssert.Equal(
+                true,
+                menu.Items.OfType<ToolStripMenuItem>().Any(menuItem => menuItem.Text == "\u8054\u673A..."));
 
             item.PerformClick();
 
@@ -929,6 +1021,56 @@ internal static class MainShellRefactorTests
         });
     }
 
+    private static void DialogFormsScaleBaseLayoutFrom200PercentDpi()
+    {
+        RunSta(() =>
+        {
+            float scale = UiDpiScale.SystemScale;
+            using var settingsForm = new SettingsForm(new AppSettings());
+            using var raceForm = new RaceForm(new FakeRacePanelShell(CreateRaceRoomState(), LanguageNames.Chinese));
+            string baseDirectory = Path.Combine(
+                Path.GetTempPath(),
+                "TerrariaSplit.Tests",
+                "dialog-dpi-" + Guid.NewGuid().ToString("N"));
+            var paths = new AppContextRuntimeDataPaths(baseDirectory);
+            var splitTimes = new SplitTimeSetRepository(paths);
+            using var statisticsForm = new StatisticsForm(new AppSettings(), new RunStatsRepository(splitTimes), splitTimes);
+
+            TestAssert.Equal(AutoScaleMode.None, settingsForm.AutoScaleMode);
+            TestAssert.Equal(AutoScaleMode.None, raceForm.AutoScaleMode);
+            TestAssert.Equal(AutoScaleMode.None, statisticsForm.AutoScaleMode);
+            TestAssert.Equal(UiDpiScale.ScaleSize(new Size(1500, 1000), scale), settingsForm.ClientSize);
+            TestAssert.Equal(UiDpiScale.ScaleSize(new Size(1040, 740), scale), settingsForm.MinimumSize);
+            TestAssert.Equal(UiDpiScale.ScaleSize(new Size(1800, 1000), scale), raceForm.ClientSize);
+            TestAssert.Equal(UiDpiScale.ScaleSize(new Size(760, 520), scale), raceForm.MinimumSize);
+            TestAssert.Equal(UiDpiScale.ScaleSize(new Size(1600, 800), scale), statisticsForm.Size);
+            TestAssert.Equal(UiDpiScale.ScaleSize(new Size(1600, 540), scale), statisticsForm.MinimumSize);
+        });
+    }
+
+    private static void SettingsAndStatisticsFormsAreNotTopMost()
+    {
+        RunSta(() =>
+        {
+            using var settingsForm = new SettingsForm(new AppSettings());
+            string baseDirectory = Path.Combine(
+                Path.GetTempPath(),
+                "TerrariaSplit.Tests",
+                "dialog-topmost-" + Guid.NewGuid().ToString("N"));
+            var paths = new AppContextRuntimeDataPaths(baseDirectory);
+            var splitTimes = new SplitTimeSetRepository(paths);
+            using var statisticsForm = new StatisticsForm(new AppSettings(), new RunStatsRepository(splitTimes), splitTimes);
+            settingsForm.Show();
+            statisticsForm.Show();
+            System.Windows.Forms.Application.DoEvents();
+
+            TestAssert.Equal(false, settingsForm.TopMost);
+            TestAssert.Equal(false, NativeMethods.IsWindowTopMost(settingsForm.Handle));
+            TestAssert.Equal(false, statisticsForm.TopMost);
+            TestAssert.Equal(false, NativeMethods.IsWindowTopMost(statisticsForm.Handle));
+        });
+    }
+
     private static void SettingsUiFactoryKeepsTwoColumnEditorColumnFixedWidth()
     {
         RunSta(() =>
@@ -1051,6 +1193,421 @@ internal static class MainShellRefactorTests
             Control[] controls = EnumerateControls(form).ToArray();
             TestAssert.Equal(false, controls.OfType<ComboBox>().Any());
             TestAssert.Equal(true, controls.OfType<ThemedDropDownList>().Any());
+        });
+    }
+
+    private static void RaceFormUsesSettingsThemeAndChineseLabels()
+    {
+        RunSta(() =>
+        {
+            using var form = new RaceForm(new FakeRacePanelShell(null, LanguageNames.Chinese));
+            form.Show();
+            System.Windows.Forms.Application.DoEvents();
+            Control[] controls = EnumerateControls(form).ToArray();
+
+            TestAssert.Equal(FormBorderStyle.None, form.FormBorderStyle);
+            TestAssert.Equal(UiTheme.Window, form.BackColor);
+            TestAssert.Equal(
+                true,
+                controls.OfType<Label>().Any(label => label.Text == "\u8054\u673A"));
+            TestAssert.Equal(
+                true,
+                controls.OfType<Button>().Any(button => button.Text == "\u751F\u6210\u4E16\u754C\u5E76\u4E0A\u4F20"));
+            TestAssert.Equal(
+                false,
+                controls.OfType<Button>().Any(button => button.Text == "Create room"));
+            TestAssert.Equal(false, controls.OfType<DataGridView>().Any());
+        });
+    }
+
+    private static void RaceFormIsNotTopMost()
+    {
+        RunSta(() =>
+        {
+            using var form = new RaceForm(new FakeRacePanelShell(null, LanguageNames.Chinese));
+            form.Show();
+            System.Windows.Forms.Application.DoEvents();
+
+            TestAssert.Equal(false, form.TopMost);
+            TestAssert.Equal(false, NativeMethods.IsWindowTopMost(form.Handle));
+        });
+    }
+
+    private static void RaceLeaderboardFollowsMouseClickThrough()
+    {
+        RunSta(() =>
+        {
+            using var form = new RaceLeaderboardForm(() => new AppSettings(), key => key, () => "host");
+            form.Show();
+            System.Windows.Forms.Application.DoEvents();
+
+            form.ApplyMouseClickThrough(true);
+            System.Windows.Forms.Application.DoEvents();
+            TestAssert.Equal(true, form.MouseClickThrough);
+
+            form.ApplyMouseClickThrough(false);
+            System.Windows.Forms.Application.DoEvents();
+            TestAssert.Equal(false, form.MouseClickThrough);
+        });
+    }
+
+    private static void RaceLeaderboardAutosizesToRowsAndColumns()
+    {
+        RunSta(() =>
+        {
+            var settings = new AppSettings();
+            using var form = new RaceLeaderboardForm(() => settings, key => key, () => "host");
+            form.Show();
+            System.Windows.Forms.Application.DoEvents();
+
+            RaceRoomState oneRowState = CreateRaceRoomState();
+            form.UpdateState(oneRowState);
+            System.Windows.Forms.Application.DoEvents();
+            Size oneRowSize = form.ClientSize;
+
+            RaceRoomState threeRowState = oneRowState with
+            {
+                Leaderboard =
+                [
+                    oneRowState.Leaderboard[0],
+                    new RaceLeaderboardEntry(2, "guest-a", RacePlayerStatus.WorldReady, 1, "tree", 0, 0, null, null, null, null, 431_000),
+                    new RaceLeaderboardEntry(3, "guest-b", RacePlayerStatus.WorldReady, 1, "tree", 0, 0, null, null, null, null, 436_000)
+                ]
+            };
+            form.UpdateState(threeRowState);
+            System.Windows.Forms.Application.DoEvents();
+            Size threeRowSize = form.ClientSize;
+            TestAssert.Equal(true, threeRowSize.Height > oneRowSize.Height);
+
+            int defaultWidth = form.ClientSize.Width;
+            settings.Race.Leaderboard.Player.Width += 120;
+            form.ApplySettings();
+            System.Windows.Forms.Application.DoEvents();
+            TestAssert.Equal(true, form.ClientSize.Width > defaultWidth);
+        });
+    }
+
+    private static void RaceFormUsesThemedScrollPanel()
+    {
+        RunSta(() =>
+        {
+            using var form = new RaceForm(new FakeRacePanelShell(null, LanguageNames.Chinese));
+            form.Show();
+            System.Windows.Forms.Application.DoEvents();
+            Control[] controls = EnumerateControls(form).ToArray();
+
+            TestAssert.Equal(true, controls.OfType<ThemedScrollPanel>().Any());
+        });
+    }
+
+    private static void RaceFormOwnsLeaderboardAppearanceSettings()
+    {
+        RunSta(() =>
+        {
+            using var form = new RaceForm(new FakeRacePanelShell(null, LanguageNames.Chinese));
+            form.Show();
+            System.Windows.Forms.Application.DoEvents();
+            Control[] controls = EnumerateControls(form).ToArray();
+            string[] visibleTexts = VisibleTexts(controls);
+
+            TestAssert.Equal(true, visibleTexts.Contains("\u8FDE\u63A5"));
+            TestAssert.Equal(true, visibleTexts.Contains("\u754C\u9762"));
+            TestAssert.Equal(true, visibleTexts.Contains("\u989C\u8272"));
+            TestAssert.Equal(false, visibleTexts.Contains("Race \u8BBE\u7F6E"));
+            TestAssert.Equal(false, visibleTexts.Contains("\u8054\u673A\u8BBE\u7F6E"));
+            TestAssert.Equal(false, visibleTexts.Contains("\u6392\u884C\u699C\u754C\u9762"));
+            TestAssert.Equal(false, visibleTexts.Contains("\u6392\u884C\u699C\u989C\u8272"));
+            TestAssert.Equal(true, visibleTexts.Contains("\u4E16\u754C\u6765\u6E90"));
+            TestAssert.Equal(false, visibleTexts.Contains("\u6392\u540D"));
+
+            controls.OfType<Button>()
+                .Single(button => button.Text == "\u754C\u9762")
+                .PerformClick();
+            System.Windows.Forms.Application.DoEvents();
+            controls = EnumerateControls(form).ToArray();
+            visibleTexts = VisibleTexts(controls);
+            TestAssert.Equal(true, visibleTexts.Contains("\u6392\u884C\u699C"));
+            TestAssert.Equal(true, visibleTexts.Contains("\u6392\u540D"));
+            TestAssert.Equal(true, visibleTexts.Contains("\u6635\u79F0"));
+            TestAssert.Equal(true, visibleTexts.Contains("\u56FE\u6807"));
+            TestAssert.Equal(true, visibleTexts.Contains("\u65F6\u95F4"));
+            TestAssert.Equal(false, visibleTexts.Contains("\u5DEE\u8DDD"));
+            TestAssert.Equal(true, visibleTexts.Contains("\u5E94\u7528\u754C\u9762\u8BBE\u7F6E"));
+            TestAssert.Equal(1, controls.OfType<TextBox>().Count(textBox => textBox.Visible && textBox.Text == "32"));
+            TestAssert.Equal(false, visibleTexts.Contains("\u4E16\u754C\u6765\u6E90"));
+
+            controls.OfType<Button>()
+                .Single(button => button.Text == "\u989C\u8272")
+                .PerformClick();
+            System.Windows.Forms.Application.DoEvents();
+            controls = EnumerateControls(form).ToArray();
+            visibleTexts = VisibleTexts(controls);
+            TestAssert.Equal(true, visibleTexts.Contains("\u6587\u5B57"));
+            TestAssert.Equal(true, visibleTexts.Contains("\u63CF\u8FB9"));
+            TestAssert.Equal(true, visibleTexts.Contains("\u9634\u5F71"));
+            TestAssert.Equal(false, visibleTexts.Contains("\u6392\u540D\u8272\u5E26"));
+            TestAssert.Equal(false, visibleTexts.Contains("\u8D77\u70B9"));
+            TestAssert.Equal(false, visibleTexts.Contains("\u4E2D\u4F4D\u70B9"));
+            TestAssert.Equal(false, visibleTexts.Contains("\u7EC8\u70B9"));
+            TestAssert.Equal(true, visibleTexts.Contains("\u4E3B\u8BA1\u65F6\u5668\u4F7F\u7528\u6392\u540D\u989C\u8272"));
+            TestAssert.Equal(true, visibleTexts.Contains("\u6635\u79F0\uFF1A\u81EA\u5DF1"));
+            TestAssert.Equal(true, visibleTexts.Contains("\u6635\u79F0\uFF1A\u5176\u4ED6"));
+            TestAssert.Equal(true, visibleTexts.Contains("\u5E94\u7528\u989C\u8272\u8BBE\u7F6E"));
+            TestAssert.Equal(1, controls.OfType<TextBox>().Count(textBox => textBox.Visible && textBox.Text == "#FFD35A"));
+            TestAssert.Equal(3, controls.OfType<TextBox>().Count(textBox => textBox.Visible && textBox.Text == "#FFFFFF"));
+            TestAssert.Equal(1, controls.OfType<TextBox>().Count(textBox => textBox.Visible && textBox.Text == "#FF3030"));
+            TestAssert.Equal(5, controls.OfType<TextBox>().Count(textBox => textBox.Visible && textBox.Text == "#101010"));
+            TestAssert.Equal(5, controls.OfType<TextBox>().Count(textBox => textBox.Visible && textBox.Text == "#000000"));
+        });
+    }
+
+    private static void RaceFormOnlySavesLeaderboardAppearanceThroughApplyButtons()
+    {
+        RunSta(() =>
+        {
+            var shell = new FakeRacePanelShell(null, LanguageNames.Chinese);
+            using (var form = new RaceForm(shell))
+            {
+                form.Show();
+                System.Windows.Forms.Application.DoEvents();
+
+                ClickVisibleButton(form, "\u754C\u9762");
+                SetVisibleTextBox(form, "78", "222");
+                ClickVisibleButton(form, "\u989C\u8272");
+                SetVisibleTextBox(form, "#FFD35A", "#123456");
+                form.Close();
+                System.Windows.Forms.Application.DoEvents();
+            }
+
+            TestAssert.Equal(0, shell.SaveLeaderboardSettingsCount);
+            TestAssert.Equal(78, shell.LeaderboardSettings.Rank.Width);
+            TestAssert.Equal("#FFD35A", shell.LeaderboardSettings.Colors.RankGradient.Start);
+        });
+
+        RunSta(() =>
+        {
+            var shell = new FakeRacePanelShell(null, LanguageNames.Chinese);
+            using var form = new RaceForm(shell);
+            form.Show();
+            System.Windows.Forms.Application.DoEvents();
+
+            ClickVisibleButton(form, "\u754C\u9762");
+            SetVisibleTextBox(form, "78", "222");
+            ClickVisibleButton(form, "\u5E94\u7528\u754C\u9762\u8BBE\u7F6E");
+            ClickVisibleButton(form, "\u989C\u8272");
+            SetVisibleTextBox(form, "#FFD35A", "#123456");
+            ClickVisibleButton(form, "\u5E94\u7528\u989C\u8272\u8BBE\u7F6E");
+
+            TestAssert.Equal(2, shell.SaveLeaderboardSettingsCount);
+            TestAssert.Equal(222, shell.LeaderboardSettings.Rank.Width);
+            TestAssert.Equal("#123456", shell.LeaderboardSettings.Colors.RankGradient.Start);
+        });
+    }
+
+    private static void RaceFormGroupsHostWorldSourceOptions()
+    {
+        RunSta(() =>
+        {
+            using var form = new RaceForm(new FakeRacePanelShell(null, LanguageNames.Chinese));
+            form.Show();
+            System.Windows.Forms.Application.DoEvents();
+            Control[] controls = EnumerateControls(form).ToArray();
+            string[] visibleTexts = VisibleTexts(controls);
+
+            TestAssert.Equal(true, visibleTexts.Contains("\u4E16\u754C\u6765\u6E90"));
+            TestAssert.Equal(true, IsAbove(form, "\u4E16\u754C\u6765\u6E90", "\u4E16\u754C\u5927\u5C0F"));
+            TestAssert.Equal(true, visibleTexts.Contains("\u968F\u673A\u751F\u6210\u4E16\u754C"));
+            TestAssert.Equal(true, visibleTexts.Contains("\u81EA\u5B9A\u4E49\u79CD\u5B50\u751F\u6210\u4E16\u754C"));
+            TestAssert.Equal(true, visibleTexts.Contains("\u76F4\u63A5\u4F7F\u7528\u4E16\u754C\u6587\u4EF6"));
+            TestAssert.Equal(true, visibleTexts.Contains("\u4E16\u754C\u5927\u5C0F"));
+            TestAssert.Equal(true, visibleTexts.Contains("\u4E16\u754C\u96BE\u5EA6"));
+            TestAssert.Equal(true, visibleTexts.Contains("\u90AA\u6076\u7C7B\u578B"));
+            TestAssert.Equal(true, visibleTexts.Contains("\u5F69\u86CB\u79CD\u5B50"));
+            TestAssert.Equal(true, visibleTexts.Contains("\u91D1\u5B57\u5854"));
+            TestAssert.Equal(true, visibleTexts.Contains("\u542F\u7528"));
+            TestAssert.Equal(true, visibleTexts.Contains("\u6C99\u66B4\u74F6"));
+            TestAssert.Equal(true, visibleTexts.Contains("\u98DE\u6BEF"));
+            TestAssert.Equal(true, visibleTexts.Contains("\u6CD5\u8001\u5957"));
+            TestAssert.Equal(true, visibleTexts.Contains("\u751F\u6210\u4E16\u754C\u5E76\u4E0A\u4F20"));
+            TestAssert.Equal(false, visibleTexts.Contains("\u6700\u5927\u5C1D\u8BD5\u6B21\u6570"));
+
+            controls.OfType<CheckBox>()
+                .Single(checkBox => checkBox.Text == "\u81EA\u5B9A\u4E49\u79CD\u5B50\u751F\u6210\u4E16\u754C")
+                .Checked = true;
+            System.Windows.Forms.Application.DoEvents();
+            visibleTexts = VisibleTexts(EnumerateControls(form).ToArray());
+            TestAssert.Equal(true, visibleTexts.Contains("\u56FA\u5B9A\u79CD\u5B50"));
+            TestAssert.Equal(true, visibleTexts.Contains("\u81EA\u5B9A\u4E49\u79CD\u5B50\u751F\u6210\u4E16\u754C"));
+            TestAssert.Equal(false, visibleTexts.Contains("\u4E16\u754C\u5927\u5C0F"));
+            TestAssert.Equal(false, visibleTexts.Contains("\u4E16\u754C\u96BE\u5EA6"));
+            TestAssert.Equal(false, visibleTexts.Contains("\u90AA\u6076\u7C7B\u578B"));
+            TestAssert.Equal(false, visibleTexts.Contains("\u5F69\u86CB\u79CD\u5B50"));
+            TestAssert.Equal(false, visibleTexts.Contains("\u79D8\u5BC6\u79CD\u5B50"));
+            TestAssert.Equal(false, visibleTexts.Contains("\u91D1\u5B57\u5854"));
+            TestAssert.Equal(false, visibleTexts.Contains("\u9009\u62E9\u4E16\u754C\u6587\u4EF6"));
+
+            controls = EnumerateControls(form).ToArray();
+            controls.OfType<CheckBox>()
+                .Single(checkBox => checkBox.Text == "\u76F4\u63A5\u4F7F\u7528\u4E16\u754C\u6587\u4EF6")
+                .Checked = true;
+            System.Windows.Forms.Application.DoEvents();
+            visibleTexts = VisibleTexts(EnumerateControls(form).ToArray());
+            TestAssert.Equal(true, visibleTexts.Contains("\u4E16\u754C\u6587\u4EF6"));
+            TestAssert.Equal(true, visibleTexts.Contains("\u6D4F\u89C8"));
+            TestAssert.Equal(true, visibleTexts.Contains("\u4E0A\u4F20\u4E16\u754C"));
+            TestAssert.Equal(false, visibleTexts.Contains("\u4E16\u754C\u5927\u5C0F"));
+            TestAssert.Equal(false, visibleTexts.Contains("\u4E16\u754C\u96BE\u5EA6"));
+            TestAssert.Equal(false, visibleTexts.Contains("\u90AA\u6076\u7C7B\u578B"));
+            TestAssert.Equal(false, visibleTexts.Contains("\u5F69\u86CB\u79CD\u5B50"));
+            TestAssert.Equal(false, visibleTexts.Contains("\u56FA\u5B9A\u79CD\u5B50"));
+            TestAssert.Equal(false, visibleTexts.Contains("\u91D1\u5B57\u5854"));
+        });
+    }
+
+    private static void RaceFormLocksOnlyConnectionIdentityAfterUpload()
+    {
+        RunSta(() =>
+        {
+            var draftState = RacePanelDraftState.CreateDefault() with
+            {
+                ServerUrl = "http://race.example",
+                Nickname = "runner",
+                Role = RacePanelRole.Host,
+                WorldSource = RacePanelWorldSource.Random
+            };
+            using var form = new RaceForm(new FakeRacePanelShell(CreateRaceRoomState(), LanguageNames.Chinese, draftState));
+            form.Show();
+            System.Windows.Forms.Application.DoEvents();
+            Control[] controls = EnumerateControls(form).ToArray();
+
+            TestAssert.Equal(false, controls.OfType<TextBox>().Single(textBox => textBox.Text == "http://race.example").Enabled);
+            TestAssert.Equal(false, controls.OfType<TextBox>().Single(textBox => textBox.Text == "runner").Enabled);
+            TestAssert.Equal(false, controls.OfType<CheckBox>().Single(checkBox => checkBox.Text == "\u623F\u4E3B").Enabled);
+            TestAssert.Equal(false, controls.OfType<CheckBox>().Single(checkBox => checkBox.Text == "\u6210\u5458").Enabled);
+            TestAssert.Equal(true, controls.OfType<CheckBox>().Single(checkBox => checkBox.Text == "\u968F\u673A\u751F\u6210\u4E16\u754C").Enabled);
+            TestAssert.Equal(true, controls.OfType<CheckBox>().Single(checkBox => checkBox.Text == "\u81EA\u5B9A\u4E49\u79CD\u5B50\u751F\u6210\u4E16\u754C").Enabled);
+            TestAssert.Equal(true, controls.OfType<CheckBox>().Single(checkBox => checkBox.Text == "\u76F4\u63A5\u4F7F\u7528\u4E16\u754C\u6587\u4EF6").Enabled);
+            TestAssert.Equal(true, controls.OfType<ThemedDropDownList>().Where(dropDown => dropDown.Visible).All(dropDown => dropDown.Enabled));
+            TestAssert.Equal(true, VisibleTexts(controls).Contains("\u623F\u95F4\u8BE6\u60C5"));
+        });
+    }
+
+    private static void RaceFormLocksConnectionIdentityForMembersInRoom()
+    {
+        RunSta(() =>
+        {
+            var draftState = RacePanelDraftState.CreateDefault() with
+            {
+                ServerUrl = "http://race.example",
+                Nickname = "guest",
+                Role = RacePanelRole.Member,
+                WorldSource = RacePanelWorldSource.ExistingFile
+            };
+            using var form = new RaceForm(new FakeRacePanelShell(
+                CreateRaceRoomState(includeGuest: true),
+                LanguageNames.Chinese,
+                draftState));
+            form.Show();
+            System.Windows.Forms.Application.DoEvents();
+            Control[] controls = EnumerateControls(form).ToArray();
+
+            TestAssert.Equal(false, controls.OfType<TextBox>().Single(textBox => textBox.Text == "http://race.example").Enabled);
+            TestAssert.Equal(false, controls.OfType<TextBox>().Single(textBox => textBox.Text == "guest").Enabled);
+            TestAssert.Equal(false, controls.OfType<CheckBox>().Single(checkBox => checkBox.Text == "\u623F\u4E3B").Enabled);
+            TestAssert.Equal(false, controls.OfType<CheckBox>().Single(checkBox => checkBox.Text == "\u6210\u5458").Enabled);
+            TestAssert.Equal(true, VisibleTexts(controls).Contains("\u623F\u95F4\u8BE6\u60C5"));
+            TestAssert.Equal(false, VisibleTexts(controls).Contains("\u52A0\u5165\u623F\u95F4"));
+        });
+    }
+
+    private static void RaceFormShowsInlineKickButtons()
+    {
+        RunSta(() =>
+        {
+            var draftState = RacePanelDraftState.CreateDefault() with
+            {
+                Nickname = "runner",
+                Role = RacePanelRole.Host
+            };
+            using var form = new RaceForm(new FakeRacePanelShell(
+                CreateRaceRoomState(includeGuest: true),
+                LanguageNames.Chinese,
+                draftState,
+                isHostInCurrentRoom: true));
+            form.Show();
+            System.Windows.Forms.Application.DoEvents();
+            Control[] controls = EnumerateControls(form).ToArray();
+
+            TestAssert.Equal(
+                true,
+                controls.OfType<Button>().Any(button => button.Text == "\u8E22\u51FA"));
+            TestAssert.Equal(
+                false,
+                controls.OfType<Button>().Any(button => button.Text == "\u8E22\u51FA\u623F\u95F4"));
+        });
+    }
+
+    private static void RaceFormShowsMemberStatusWithoutKickButtons()
+    {
+        RunSta(() =>
+        {
+            var draftState = RacePanelDraftState.CreateDefault() with
+            {
+                Nickname = "guest",
+                Role = RacePanelRole.Member
+            };
+            using var form = new RaceForm(new FakeRacePanelShell(CreateRaceRoomState(includeGuest: true), LanguageNames.Chinese, draftState));
+            form.Show();
+            System.Windows.Forms.Application.DoEvents();
+            Control[] controls = EnumerateControls(form).ToArray();
+            string[] visibleTexts = VisibleTexts(controls);
+
+            TestAssert.Equal(true, visibleTexts.Contains("\u623F\u95F4\u8BE6\u60C5"));
+            TestAssert.Equal(true, controls.OfType<Button>().Any(button => button.Visible && button.Text == "\u79BB\u5F00\u623F\u95F4"));
+            TestAssert.Equal(false, controls.OfType<Button>().Any(button => button.Visible && button.Text == "\u5173\u95ED\u623F\u95F4"));
+            TestAssert.Equal(false, controls.OfType<Button>().Any(button => button.Visible && button.Text == "\u8E22\u51FA"));
+        });
+    }
+
+    private static void RaceFormRestoresRoomDraftState()
+    {
+        RunSta(() =>
+        {
+            var draftState = new RacePanelDraftState(
+                "http://race.example",
+                "runner",
+                "RACE42",
+                "5162020",
+                @"C:\Terraria\Worlds\TerrariaSplitRace-RACE42.wld",
+                RacePanelRole.Member,
+                RacePanelWorldSource.ExistingFile);
+            var shell = new FakeRacePanelShell(null, LanguageNames.Chinese, draftState);
+            using var form = new RaceForm(shell);
+            form.Show();
+            System.Windows.Forms.Application.DoEvents();
+            Control[] controls = EnumerateControls(form).ToArray();
+            string[] textBoxValues = controls
+                .OfType<TextBox>()
+                .Select(textBox => textBox.Text)
+                .ToArray();
+            string[] visibleTexts = controls
+                .Where(control => control.Visible)
+                .Select(control => control.Text)
+                .Where(text => !string.IsNullOrWhiteSpace(text))
+                .ToArray();
+
+            TestAssert.Equal(true, textBoxValues.Contains("http://race.example"));
+            TestAssert.Equal(true, textBoxValues.Contains("runner"));
+            TestAssert.Equal(true, textBoxValues.Contains("RACE42"));
+            TestAssert.Equal(true, textBoxValues.Contains("5162020"));
+            TestAssert.Equal(true, textBoxValues.Contains(@"C:\Terraria\Worlds\TerrariaSplitRace-RACE42.wld"));
+            TestAssert.Equal(true, visibleTexts.Contains("\u52A0\u5165\u623F\u95F4"));
+            TestAssert.Equal(false, visibleTexts.Contains("\u9009\u62E9\u4E16\u754C"));
+
+            form.Close();
+            TestAssert.Equal("RACE42", shell.DraftState.RoomCode);
+            TestAssert.Equal(RacePanelRole.Member, shell.DraftState.Role);
+            TestAssert.Equal(RacePanelWorldSource.ExistingFile, shell.DraftState.WorldSource);
         });
     }
 
@@ -1207,6 +1764,67 @@ internal static class MainShellRefactorTests
         TestAssert.Equal(true, threw);
     }
 
+    private static RaceRoomState CreateRaceRoomState(bool includeGuest = false)
+    {
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        var route = new RaceRoutePayload(
+            "race-hash",
+            "Moon Lord",
+            "{}",
+            [new RaceSplitDefinition(0, "tree", "Tree")]);
+        var host = new RacePlayerState(
+            "host",
+            RacePlayerStatus.WorldReady,
+            true,
+            true,
+            1,
+            0,
+            0,
+            "tree",
+            null,
+            null,
+            null,
+            null,
+            427_000,
+            null,
+            now,
+            now);
+        var players = new List<RacePlayerState> { host };
+        if (includeGuest)
+        {
+            players.Add(new RacePlayerState(
+                "guest",
+                RacePlayerStatus.WorldReady,
+                false,
+                true,
+                1,
+                0,
+                0,
+                "tree",
+                null,
+                null,
+                null,
+                null,
+                431_000,
+                null,
+                now,
+                now));
+        }
+
+        return new RaceRoomState(
+            "ABCD",
+            RaceRoomStatus.WorldUploaded,
+            "host",
+            route,
+            new RaceWorldSettings("1.4.5.6", 1, 1, true, 0, 0, "race"),
+            new RaceSeedAssignment("12345", RaceSeedSource.Fixed),
+            new RaceWorldFileInfo("race.wld", 128, "abc", now, "host"),
+            players,
+            [new RaceLeaderboardEntry(1, "host", RacePlayerStatus.WorldReady, 1, "tree", 0, 0, null, null, null, null, 427_000)],
+            now,
+            now);
+    }
+
     private static void RunSta(Action action)
     {
         Exception? failure = null;
@@ -1243,6 +1861,41 @@ internal static class MainShellRefactorTests
         }
     }
 
+    private static string[] VisibleTexts(IEnumerable<Control> controls)
+    {
+        return controls
+            .Where(control => control.Visible)
+            .Select(control => control.Text)
+            .Where(text => !string.IsNullOrWhiteSpace(text))
+            .ToArray();
+    }
+
+    private static void ClickVisibleButton(Form form, string text)
+    {
+        EnumerateControls(form)
+            .OfType<Button>()
+            .Single(button => button.Visible && button.Text == text)
+            .PerformClick();
+        System.Windows.Forms.Application.DoEvents();
+    }
+
+    private static void SetVisibleTextBox(Form form, string currentText, string nextText)
+    {
+        TextBox textBox = EnumerateControls(form)
+            .OfType<TextBox>()
+            .Single(box => box.Visible && box.Text == currentText);
+        textBox.Text = nextText;
+        System.Windows.Forms.Application.DoEvents();
+    }
+
+    private static bool IsAbove(Form form, string upperText, string lowerText)
+    {
+        Control[] controls = EnumerateControls(form).ToArray();
+        Control upper = controls.First(control => control.Visible && control.Text == upperText);
+        Control lower = controls.First(control => control.Visible && control.Text == lowerText);
+        return upper.PointToScreen(Point.Empty).Y < lower.PointToScreen(Point.Empty).Y;
+    }
+
     private static ApplicationShellEffectExecutor CreateEffectExecutor(ISettingsPort settingsPort)
     {
         return new ApplicationShellEffectExecutor(
@@ -1250,10 +1903,130 @@ internal static class MainShellRefactorTests
             new NoopSoundPort(),
             new NoopOverlayPort(),
             settingsPort,
-            new NoopAutomationPort());
+            new NoopAutomationPort(),
+            new NoopRaceProgressPort());
     }
 
     private sealed record UnknownApplicationEffect : ApplicationEffect;
+
+    private sealed class FakeRacePanelShell : IRacePanelShell
+    {
+        private readonly AppSettings settings;
+
+        public FakeRacePanelShell(
+            RaceRoomState? state,
+            string language,
+            RacePanelDraftState? draftState = null,
+            string? localWorldPath = null,
+            bool? isHostInCurrentRoom = null)
+        {
+            State = state;
+            settings = new AppSettings { General = { Language = language } };
+            DraftState = draftState ?? RacePanelDraftState.CreateDefault();
+            LocalWorldPath = localWorldPath;
+            IsHostInCurrentRoom = isHostInCurrentRoom ?? IsDraftHostInRoom(state, DraftState);
+        }
+
+        public RaceRoomState? State { get; }
+
+        public bool IsHostInCurrentRoom { get; }
+
+        public string? LocalWorldPath { get; }
+
+        public RacePanelDraftState DraftState { get; private set; }
+
+        public RaceLeaderboardSettings LeaderboardSettings => settings.Race.Leaderboard;
+
+        public int SaveLeaderboardSettingsCount { get; private set; }
+
+        public string Localize(string key)
+        {
+            return Localizer.Get(key, settings);
+        }
+
+        public void SaveDraftState(RacePanelDraftState draftState)
+        {
+            DraftState = draftState.Normalize();
+        }
+
+        public void SaveLeaderboardSettings(RaceLeaderboardSettings leaderboardSettings)
+        {
+            SaveLeaderboardSettingsCount++;
+            settings.Race.Leaderboard = leaderboardSettings;
+        }
+
+        public Task CreateRoomAsync(string serverUrl, string nickname)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task<RaceOperationResult<RaceRoomState>> JoinRoomAsync(string serverUrl, string roomCode, string nickname)
+        {
+            return Task.FromResult(RaceOperationResult<RaceRoomState>.Success(CreateRaceRoomState(includeGuest: true)));
+        }
+
+        public Task CloseRoomAsync()
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task CopyRoomInfoAsync()
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task KickPlayerAsync(string nickname)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task GenerateRandomWorldAsync(RaceWorldSettings worldSettings, IProgress<int>? progress = null)
+        {
+            progress?.Report(90);
+            return Task.CompletedTask;
+        }
+
+        public Task GenerateCustomSeedWorldAsync(RaceWorldSettings worldSettings, string seedText, IProgress<int>? progress = null)
+        {
+            progress?.Report(90);
+            return Task.CompletedTask;
+        }
+
+        public Task<RaceOperationResult<RaceRoomState>> UploadWorldAsync(
+            string serverUrl,
+            string nickname,
+            string worldPath,
+            RaceWorldSettings worldSettings,
+            string seedText,
+            IProgress<int>? progress = null,
+            CancellationToken cancellationToken = default)
+        {
+            progress?.Report(100);
+            return Task.FromResult(RaceOperationResult<RaceRoomState>.Success(CreateRaceRoomState()));
+        }
+
+        public Task CancelWorldGenerationAsync()
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task DiscardLocalWorldAsync(string worldPath)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task LeaveAsync()
+        {
+            return Task.CompletedTask;
+        }
+
+        private static bool IsDraftHostInRoom(RaceRoomState? state, RacePanelDraftState draftState)
+        {
+            return state?.Players.Any(player =>
+                player.IsHost &&
+                string.Equals(player.Nickname, draftState.Nickname, StringComparison.OrdinalIgnoreCase)) == true;
+        }
+    }
 
     private sealed class NoopRuntimeCommandPort : IRuntimeCommandPort
     {
@@ -1347,6 +2120,21 @@ internal static class MainShellRefactorTests
         }
 
         public void CancelEnterWorld()
+        {
+        }
+    }
+
+    private sealed class NoopRaceProgressPort : IRaceProgressPort
+    {
+        public void ClearReportedProgress()
+        {
+        }
+
+        public void ResetReportedProgress()
+        {
+        }
+
+        public void QueueProgressReports(bool runStarted, bool runCompleted)
         {
         }
     }

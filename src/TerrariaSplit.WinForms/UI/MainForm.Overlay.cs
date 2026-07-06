@@ -10,6 +10,21 @@ internal sealed partial class MainForm : Form
         ExecuteAppCommand(AppCommand.ApplySettings(appliedSettings));
     }
 
+    private void ApplyTemporarySettings(AppSettings appliedSettings)
+    {
+        ExecuteAppCommand(AppCommand.ApplyTemporarySettings(appliedSettings));
+    }
+
+    private void ApplyRouteOverride(SettingsRouteOverridePackage package)
+    {
+        ExecuteAppCommand(AppCommand.ApplyRouteOverride(package));
+    }
+
+    private void ClearRouteOverride()
+    {
+        ExecuteAppCommand(AppCommand.ClearRouteOverride());
+    }
+
     private void ApplyLoadedSettings(AppSettings? previousSettings = null, int splitCount = -1)
     {
         MarkStatusOverlayStaticContentDirty();
@@ -24,6 +39,7 @@ internal sealed partial class MainForm : Form
         RefreshTimerOverlaySettingsSnapshot();
         UpdateOverlayLayoutContext(resolvedRowCount, visibleRowCount, force: true);
         UpdateEffectiveOverlayTopMost();
+        raceShell.RefreshWindowSettings();
         if (IsHandleCreated && !settingsShell.IsOpen)
         {
             hotkeyShell.Register();
@@ -405,6 +421,18 @@ internal sealed partial class MainForm : Form
             force);
     }
 
+    private void RefreshRaceMainTimerColor()
+    {
+        if (InvokeRequired)
+        {
+            BeginInvoke(new Action(RefreshRaceMainTimerColor));
+            return;
+        }
+
+        PublishTimerOverlaySnapshot(force: true);
+        QueueStatusOverlayRender();
+    }
+
     private void PublishRtssOverlay()
     {
         RtssOverlayPublishResult result = rtssOverlayPublisher.Publish(settings, viewState);
@@ -486,7 +514,9 @@ internal sealed partial class MainForm : Form
             splitStatuses,
             currentSplitIndex,
             runtimeSnapshot.TimerState,
-            overlayShell.MouseClickThrough);
+            overlayShell.MouseClickThrough,
+            raceShell.GetMainTimerRankColor(runtimeSnapshot.TimerState.Phase, splitStatuses),
+            ShouldShowPyramidFilterIndicator());
     }
 
     private TimerOverlayStateKey BuildTimerOverlaySnapshotKey()
@@ -496,7 +526,14 @@ internal sealed partial class MainForm : Form
             currentSplitIndex,
             overlayShell.MouseClickThrough,
             viewState.StatusHash,
-            overlayShell.TimerOverlaySettingsRevision);
+            overlayShell.TimerOverlaySettingsRevision,
+            raceShell.GetMainTimerRankColor(runtimeSnapshot.TimerState.Phase, splitStatuses)?.ToArgb(),
+            ShouldShowPyramidFilterIndicator());
+    }
+
+    private bool ShouldShowPyramidFilterIndicator()
+    {
+        return settings.Automation.AutoCreate.EnablePyramidFilter || raceShell.IsPyramidFilterActive;
     }
 
     private void UpdateTimerOverlayRefreshInterval()

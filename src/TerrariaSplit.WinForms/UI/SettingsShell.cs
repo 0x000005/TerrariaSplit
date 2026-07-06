@@ -17,11 +17,8 @@ internal sealed class SettingsShell : IDisposable
     private readonly Action disposeHotkeys;
     private readonly Action registerHotkeys;
     private readonly Func<bool> isMainHandleCreated;
-    private readonly ProgramModalWindowCoordinator modalWindows;
     private readonly Func<Rectangle> getOwnerBounds;
     private SettingsDialogHost? dialogHost;
-    private IDisposable? modalRegistration;
-    private IDisposable? childModalRegistration;
     private bool isOpen;
 
     public SettingsShell(
@@ -37,7 +34,6 @@ internal sealed class SettingsShell : IDisposable
         Action disposeHotkeys,
         Action registerHotkeys,
         Func<bool> isMainHandleCreated,
-        ProgramModalWindowCoordinator modalWindows,
         Func<Rectangle> getOwnerBounds)
     {
         this.getSettings = getSettings;
@@ -52,7 +48,6 @@ internal sealed class SettingsShell : IDisposable
         this.disposeHotkeys = disposeHotkeys;
         this.registerHotkeys = registerHotkeys;
         this.isMainHandleCreated = isMainHandleCreated;
-        this.modalWindows = modalWindows;
         this.getOwnerBounds = getOwnerBounds;
     }
 
@@ -62,14 +57,11 @@ internal sealed class SettingsShell : IDisposable
     {
         if (isOpen)
         {
-            modalWindows.ActivateCurrentModal();
+            dialogHost?.Activate();
             return;
         }
 
         isOpen = true;
-        childModalRegistration?.Dispose();
-        childModalRegistration = null;
-        modalRegistration?.Dispose();
         disposeHotkeys();
         clearPendingMenuActions();
         dialogHost = new SettingsDialogHost(
@@ -81,12 +73,7 @@ internal sealed class SettingsShell : IDisposable
             dispatch,
             applySettings,
             Complete,
-            modalWindows.ApplyWindowState,
             getOwnerBounds());
-        modalRegistration = modalWindows.RegisterModalWindow(
-            () => dialogHost?.WindowHandle ?? IntPtr.Zero);
-        childModalRegistration = modalWindows.RegisterModalWindow(
-            () => dialogHost?.ChildDialogWindowHandle ?? IntPtr.Zero);
         dialogHost.Show();
     }
 
@@ -108,10 +95,6 @@ internal sealed class SettingsShell : IDisposable
     {
         dialogHost?.Dispose();
         dialogHost = null;
-        childModalRegistration?.Dispose();
-        childModalRegistration = null;
-        modalRegistration?.Dispose();
-        modalRegistration = null;
         isOpen = false;
     }
 

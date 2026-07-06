@@ -25,6 +25,13 @@ public abstract record AppCommand
         new EditPracticeTotalTimeCommand(time);
 
     public static AppCommand ApplySettings(AppSettings settings) => new ApplySettingsCommand(settings);
+
+    public static AppCommand ApplyTemporarySettings(AppSettings settings) => new ApplyTemporarySettingsCommand(settings);
+
+    public static AppCommand ApplyRouteOverride(SettingsRouteOverridePackage package) =>
+        new ApplyRouteOverrideCommand(package);
+
+    public static AppCommand ClearRouteOverride() => new ClearRouteOverrideCommand();
 }
 
 public sealed record TogglePauseCommand : AppCommand;
@@ -46,3 +53,9 @@ public sealed record EditPracticeSplitTimeCommand(int SplitIndex, TimeSpan? Time
 public sealed record EditPracticeTotalTimeCommand(TimeSpan Time) : AppCommand;
 
 public sealed record ApplySettingsCommand(AppSettings Settings) : AppCommand;
+
+public sealed record ApplyTemporarySettingsCommand(AppSettings Settings) : AppCommand;
+
+public sealed record ApplyRouteOverrideCommand(SettingsRouteOverridePackage Package) : AppCommand;
+
+public sealed record ClearRouteOverrideCommand : AppCommand;

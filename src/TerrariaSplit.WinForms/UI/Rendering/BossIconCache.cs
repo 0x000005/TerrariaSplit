@@ -33,22 +33,42 @@ internal sealed class BossIconCache : IDisposable
         }
 
         IconFrameSet lit = File.Exists(path) ? LoadIconFrameSet(path, iconKey) : IconFrameSet.Static(CreatePlaceholderIcon());
-        IconFrameSet undefeated = lit.Map(frame => CreateBossChecklistUndefeatedIcon(
-            frame,
-            settings.Overlay.UndefeatedIconGrayscalePercent,
-            settings.Overlay.UndefeatedIconBrightnessPercent));
-        IconFrameSet current = lit.Map(frame => CreateBossChecklistUndefeatedIcon(
-            frame,
-            Math.Max(0, settings.Overlay.UndefeatedIconGrayscalePercent - settings.Overlay.CurrentBossIconGrayscaleWeakenPercent),
-            Math.Min(100, settings.Overlay.UndefeatedIconBrightnessPercent + settings.Overlay.CurrentBossIconBrightnessBoostPercent)));
-        iconPair = new IconPair(lit, undefeated, current);
+        iconPair = CreateIconPair(lit, settings);
         cache[cacheKey] = iconPair;
+        return iconPair;
+    }
+
+    public IconPair LoadEmbedded(string cacheKey, byte[] data, string iconKey, AppSettings settings)
+    {
+        string normalizedCacheKey = $"embedded:{cacheKey}";
+        if (cache.TryGetValue(normalizedCacheKey, out IconPair? iconPair))
+        {
+            return iconPair;
+        }
+
+        IconFrameSet lit = data.Length > 0
+            ? LoadIconFrameSet(data, iconKey)
+            : IconFrameSet.Static(CreatePlaceholderIcon());
+        iconPair = CreateIconPair(lit, settings);
+        cache[normalizedCacheKey] = iconPair;
         return iconPair;
     }
 
     private static IconFrameSet LoadIconFrameSet(string path, string iconKey)
     {
         using var source = new Bitmap(path);
+        return LoadIconFrameSet(source, iconKey);
+    }
+
+    private static IconFrameSet LoadIconFrameSet(byte[] data, string iconKey)
+    {
+        using var stream = new MemoryStream(data);
+        using var source = new Bitmap(stream);
+        return LoadIconFrameSet(source, iconKey);
+    }
+
+    private static IconFrameSet LoadIconFrameSet(Bitmap source, string iconKey)
+    {
         if (TryCreateImageAnimationFrames(source, out IReadOnlyList<Bitmap> frames, out IReadOnlyList<int> delays))
         {
             return new IconFrameSet(frames, delays);
@@ -57,6 +77,19 @@ internal sealed class BossIconCache : IDisposable
         return TryCreateItemAnimationFrame(source, iconKey, out Bitmap? frame)
             ? IconFrameSet.Static(frame)
             : IconFrameSet.Static(new Bitmap(source));
+    }
+
+    private static IconPair CreateIconPair(IconFrameSet lit, AppSettings settings)
+    {
+        IconFrameSet undefeated = lit.Map(frame => CreateBossChecklistUndefeatedIcon(
+            frame,
+            settings.Overlay.UndefeatedIconGrayscalePercent,
+            settings.Overlay.UndefeatedIconBrightnessPercent));
+        IconFrameSet current = lit.Map(frame => CreateBossChecklistUndefeatedIcon(
+            frame,
+            Math.Max(0, settings.Overlay.UndefeatedIconGrayscalePercent - settings.Overlay.CurrentBossIconGrayscaleWeakenPercent),
+            Math.Min(100, settings.Overlay.UndefeatedIconBrightnessPercent + settings.Overlay.CurrentBossIconBrightnessBoostPercent)));
+        return new IconPair(lit, undefeated, current);
     }
 
     private static bool TryCreateImageAnimationFrames(

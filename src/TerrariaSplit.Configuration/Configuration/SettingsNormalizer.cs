@@ -11,6 +11,7 @@ public static class SettingsNormalizer
         settings.Comparison ??= defaults.Comparison;
         settings.Overlay ??= defaults.Overlay;
         settings.Automation ??= defaults.Automation;
+        settings.Race ??= defaults.Race;
         settings.PracticeWorlds ??= defaults.PracticeWorlds;
         settings.Advanced ??= defaults.Advanced;
         settings.General.Language = LanguageNames.Normalize(settings.General.Language);
@@ -30,9 +31,11 @@ public static class SettingsNormalizer
         settings.Overlay.Columns ??= defaults.Overlay.Columns;
         settings.Overlay.TextEffects ??= defaults.Overlay.TextEffects;
         settings.Automation.AutoCreate ??= defaults.Automation.AutoCreate;
+        settings.Race.Leaderboard ??= defaults.Race.Leaderboard;
         settings.PracticeWorlds ??= new PracticeWorldSettings();
         settings.Advanced ??= defaults.Advanced;
         SettingsSectionNormalizer.NormalizeAutoCreate(settings.Automation.AutoCreate);
+        SettingsSectionNormalizer.NormalizeRace(settings.Race, defaults.Race);
         SettingsSectionNormalizer.NormalizePracticeWorlds(settings.PracticeWorlds);
         SettingsSectionNormalizer.NormalizeAdvanced(settings.Advanced);
         settings.Overlay.SplitCompletionAnimationDurationSeconds = Math.Clamp(settings.Overlay.SplitCompletionAnimationDurationSeconds, 2f, 20f);

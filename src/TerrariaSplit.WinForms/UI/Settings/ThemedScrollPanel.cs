@@ -177,6 +177,7 @@ internal sealed class ThemedScrollPanel : Panel
         }
 
         EventHandler sizeChanged = (_, _) => RequestLayoutContent();
+        EventHandler visibleChanged = (_, _) => RequestLayoutContent();
         MouseEventHandler mouseWheel = HandleOuterMouseWheel;
         TextBoxWheelRouter? textBoxWheelRouter = control is TextBox textBox && ShouldRouteTextBoxMouseWheel(textBox)
             ? new TextBoxWheelRouter(this, textBox)
@@ -205,6 +206,7 @@ internal sealed class ThemedScrollPanel : Panel
 
         attachedContentHandlers[control] = new AttachedContentHandlers(
             sizeChanged,
+            visibleChanged,
             textBoxWheelRouter is null && listBoxWheelRouter is null ? mouseWheel : null,
             controlAdded,
             controlRemoved,
@@ -212,6 +214,7 @@ internal sealed class ThemedScrollPanel : Panel
             listBoxWheelRouter);
 
         control.SizeChanged += sizeChanged;
+        control.VisibleChanged += visibleChanged;
         if (textBoxWheelRouter is null && listBoxWheelRouter is null)
         {
             control.MouseWheel += mouseWheel;
@@ -239,6 +242,7 @@ internal sealed class ThemedScrollPanel : Panel
         }
 
         control.SizeChanged -= handlers.SizeChanged;
+        control.VisibleChanged -= handlers.VisibleChanged;
         if (handlers.MouseWheel is not null)
         {
             control.MouseWheel -= handlers.MouseWheel;
@@ -257,7 +261,7 @@ internal sealed class ThemedScrollPanel : Panel
             return;
         }
 
-        ScrollToOffset(scrollOffset - Math.Sign(delta) * ScrollStep);
+        ScrollToOffset(scrollOffset - Math.Sign(delta) * ScaledScrollStep);
     }
 
     private void HandleOuterMouseWheel(object? sender, MouseEventArgs e)
@@ -288,7 +292,7 @@ internal sealed class ThemedScrollPanel : Panel
         }
 
         Control content = Controls[0];
-        int availableWidth = Math.Max(0, ClientSize.Width - Padding.Left - Padding.Right - ScrollBarGutterWidth);
+        int availableWidth = Math.Max(0, ClientSize.Width - Padding.Left - Padding.Right - ScaledScrollBarGutterWidth);
         Size preferredSize = content.GetPreferredSize(new Size(availableWidth, 0));
         int preferredHeight = Math.Max(0, preferredSize.Height);
         if (content.Width != availableWidth || content.Height != preferredHeight)
@@ -328,16 +332,16 @@ internal sealed class ThemedScrollPanel : Panel
     private Rectangle GetGutterBounds()
     {
         return new Rectangle(
-            Math.Max(0, ClientSize.Width - ScrollBarGutterWidth),
+            Math.Max(0, ClientSize.Width - ScaledScrollBarGutterWidth),
             0,
-            Math.Min(ScrollBarGutterWidth, ClientSize.Width),
+            Math.Min(ScaledScrollBarGutterWidth, ClientSize.Width),
             ClientSize.Height);
     }
 
     private Rectangle GetTrackBounds()
     {
         Rectangle gutter = GetGutterBounds();
-        int width = Math.Min(ScrollBarTrackWidth, gutter.Width);
+        int width = Math.Min(ScaledScrollBarTrackWidth, gutter.Width);
         return new Rectangle(
             gutter.Left + Math.Max(0, (gutter.Width - width) / 2),
             Padding.Top,
@@ -363,7 +367,7 @@ internal sealed class ThemedScrollPanel : Panel
         int visibleHeight = Math.Max(1, ClientSize.Height - Padding.Vertical);
         int thumbHeight = Math.Clamp(
             (int)Math.Round(track.Height * (visibleHeight / (float)Math.Max(visibleHeight, content.Height))),
-            36,
+            UiDpiScale.ScaleIntFromBase200(36),
             track.Height);
         int travel = Math.Max(1, track.Height - thumbHeight);
         int thumbY = track.Y + (int)Math.Round(travel * (scrollOffset / (float)maxOffset));
@@ -447,7 +451,7 @@ internal sealed class ThemedScrollPanel : Panel
             }
         }
 
-        int lineStep = Math.Max(1, (int)Math.Round(ScrollStep / (float)Math.Max(1, textBox.Font.Height)));
+        int lineStep = Math.Max(1, (int)Math.Round(ScaledScrollStep / (float)Math.Max(1, textBox.Font.Height)));
         int signedLineStep = delta > 0 ? -lineStep : lineStep;
         NativeMethods.SendMessage(textBox.Handle, EmLineScroll, IntPtr.Zero, new IntPtr(signedLineStep));
 
@@ -495,11 +499,18 @@ internal sealed class ThemedScrollPanel : Panel
 
     private sealed record AttachedContentHandlers(
         EventHandler SizeChanged,
+        EventHandler VisibleChanged,
         MouseEventHandler? MouseWheel,
         ControlEventHandler ControlAdded,
         ControlEventHandler ControlRemoved,
         TextBoxWheelRouter? TextBoxWheelRouter,
         ListBoxWheelRouter? ListBoxWheelRouter);
+
+    private static int ScaledScrollBarGutterWidth => UiDpiScale.ScaleIntFromBase200(ScrollBarGutterWidth);
+
+    private static int ScaledScrollBarTrackWidth => UiDpiScale.ScaleIntFromBase200(ScrollBarTrackWidth);
+
+    private static int ScaledScrollStep => UiDpiScale.ScaleIntFromBase200(ScrollStep);
 
     private sealed class TextBoxWheelRouter : NativeWindow, IDisposable
     {

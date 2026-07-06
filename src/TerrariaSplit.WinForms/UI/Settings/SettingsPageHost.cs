@@ -215,19 +215,7 @@ internal sealed class SettingsPageHost
 
     private Button CreateNavButton(string text)
     {
-        var button = new Button
-        {
-            Text = owner.Localize(text),
-            Width = 148,
-            Height = 46,
-            Margin = new Padding(0, 0, 0, 8),
-            TextAlign = ContentAlignment.MiddleLeft
-        };
-        UiTheme.StyleButton(button, accent: false, minimumWidth: 148);
-        button.Height = 46;
-        button.MinimumSize = new Size(148, 46);
-        button.Padding = new Padding(14, 0, 14, 2);
-        return button;
+        return factory.CreateNavigationButton(text);
     }
 
     internal sealed class PageEntry

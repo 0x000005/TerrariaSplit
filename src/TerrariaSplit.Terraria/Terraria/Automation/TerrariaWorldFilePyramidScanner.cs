@@ -45,7 +45,8 @@ internal sealed class TerrariaWorldFilePyramidScanner
     public bool TryReadWorldSeedMetadata(
         string worldPath,
         out TerrariaWorldSeedMetadata metadata,
-        out string detail)
+        out string detail,
+        bool logErrors = true)
     {
         metadata = default;
         detail = string.Empty;
@@ -77,7 +78,11 @@ internal sealed class TerrariaWorldFilePyramidScanner
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or EndOfStreamException or ArgumentException or InvalidDataException)
         {
             detail = ex.Message;
-            StaticAppLogger.Instance.Error(ex, $"World pool failed to read world seed metadata from Terraria world file: {worldPath}");
+            if (logErrors)
+            {
+                StaticAppLogger.Instance.Error(ex, $"World pool failed to read world seed metadata from Terraria world file: {worldPath}");
+            }
+
             return false;
         }
     }

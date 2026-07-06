@@ -149,7 +149,6 @@ internal static class MainShellCompositionRoot
         Action disposeHotkeys,
         Action registerHotkeys,
         Func<bool> isMainHandleCreated,
-        ProgramModalWindowCoordinator modalWindows,
         Func<Rectangle> getOwnerBounds)
     {
         return new SettingsShell(
@@ -165,7 +164,6 @@ internal static class MainShellCompositionRoot
             disposeHotkeys,
             registerHotkeys,
             isMainHandleCreated,
-            modalWindows,
             getOwnerBounds);
     }
 
@@ -183,7 +181,10 @@ internal static class MainShellCompositionRoot
         Action<OperationResult> showSettingsSaveFailure,
         Action<AppSettings, int> applyLoadedSettings,
         Func<AppSettings, OperationResult> saveSettings,
-        AutomationShell automationShell)
+        AutomationShell automationShell,
+        Action clearRaceProgressReports,
+        Action resetRaceProgressReports,
+        Action<bool, bool> queueRaceProgressReports)
     {
         return new ApplicationShellEffectExecutor(
             new DelegateRuntimeCommandPort(submitRuntimeCommand),
@@ -202,7 +203,8 @@ internal static class MainShellCompositionRoot
                 automationShell.StartCreateWorld,
                 automationShell.ShowPracticeWorldSelector,
                 () => automationShell.CancelCreateWorld(),
-                () => automationShell.CancelEnterWorld()));
+                () => automationShell.CancelEnterWorld()),
+            new DelegateRaceProgressPort(clearRaceProgressReports, resetRaceProgressReports, queueRaceProgressReports));
     }
 
     public static HighPrecisionScheduler CreateControlScheduler(Action queueControlTick)

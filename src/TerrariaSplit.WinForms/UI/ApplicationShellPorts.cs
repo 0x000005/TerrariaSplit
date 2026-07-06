@@ -51,6 +51,15 @@ internal interface IAutomationPort
     void CancelEnterWorld();
 }
 
+internal interface IRaceProgressPort
+{
+    void ClearReportedProgress();
+
+    void ResetReportedProgress();
+
+    void QueueProgressReports(bool runStarted, bool runCompleted);
+}
+
 internal sealed class DelegateRuntimeCommandPort : IRuntimeCommandPort
 {
     private readonly Action<RuntimeCommand> submit;
@@ -229,5 +238,37 @@ internal sealed class DelegateAutomationPort : IAutomationPort
     public void CancelEnterWorld()
     {
         cancelEnterWorld();
+    }
+}
+
+internal sealed class DelegateRaceProgressPort : IRaceProgressPort
+{
+    private readonly Action clearReportedProgress;
+    private readonly Action resetReportedProgress;
+    private readonly Action<bool, bool> queueProgressReports;
+
+    public DelegateRaceProgressPort(
+        Action clearReportedProgress,
+        Action resetReportedProgress,
+        Action<bool, bool> queueProgressReports)
+    {
+        this.clearReportedProgress = clearReportedProgress;
+        this.resetReportedProgress = resetReportedProgress;
+        this.queueProgressReports = queueProgressReports;
+    }
+
+    public void ClearReportedProgress()
+    {
+        clearReportedProgress();
+    }
+
+    public void ResetReportedProgress()
+    {
+        resetReportedProgress();
+    }
+
+    public void QueueProgressReports(bool runStarted, bool runCompleted)
+    {
+        queueProgressReports(runStarted, runCompleted);
     }
 }

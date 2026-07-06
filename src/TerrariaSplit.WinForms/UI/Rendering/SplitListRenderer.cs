@@ -5,6 +5,8 @@ namespace TerrariaSplit.UI.Rendering;
 
 internal static class SplitListRenderer
 {
+    private const float MinimumFittingTextSize = 1f;
+
     public static void Render(
         Graphics graphics,
         OverlayRenderContext context,
@@ -255,7 +257,15 @@ internal static class SplitListRenderer
             TextEffectRenderer.DrawStyledText(
                 graphics,
                 frameRow.TimeText,
-                resources.Fonts.GetColumnFont(timeSettings, context.ScaleFactor, sizeScale: wheelScale),
+                GetFittingColumnFont(
+                    graphics,
+                    resources,
+                    frameRow.TimeText,
+                    timeSettings,
+                    context.ScaleFactor,
+                    wheelScale,
+                    timeStyle,
+                    timeRect),
                 timeStyle,
                 timeRect,
                 ContentAlignment.MiddleRight,
@@ -287,13 +297,85 @@ internal static class SplitListRenderer
             TextEffectRenderer.DrawStyledText(
                 graphics,
                 SplitRenderData.FormatSplitDelta(context.Settings, comparison),
-                resources.Fonts.GetColumnFont(deltaSettings, context.ScaleFactor, sizeScale: wheelScale),
+                GetFittingColumnFont(
+                    graphics,
+                    resources,
+                    SplitRenderData.FormatSplitDelta(context.Settings, comparison),
+                    deltaSettings,
+                    context.ScaleFactor,
+                    wheelScale,
+                    deltaStyle,
+                    deltaRect),
                 deltaStyle with { Fill = deltaColor },
                 deltaRect,
                 ContentAlignment.MiddleLeft,
                 opacity * OverlayTextStyles.GetDeltaTextOpacity(context.Settings, attached),
                 supersampleEffects: false);
         }
+    }
+
+    private static Font GetFittingColumnFont(
+        Graphics graphics,
+        OverlayRenderResources resources,
+        string text,
+        UiColumnSettings columnSettings,
+        float scaleFactor,
+        float baseSizeScale,
+        TextRenderStyle style,
+        Rectangle bounds)
+    {
+        Font font = resources.Fonts.GetColumnFont(columnSettings, scaleFactor, sizeScale: baseSizeScale);
+        float textScale = GetFittingColumnTextScale(graphics, text, font, style, bounds);
+        return textScale >= 0.995f
+            ? font
+            : resources.Fonts.GetColumnFont(
+                columnSettings,
+                scaleFactor,
+                sizeScale: baseSizeScale * textScale,
+                minimumSize: MinimumFittingTextSize);
+    }
+
+    private static float GetFittingColumnTextScale(
+        Graphics graphics,
+        string text,
+        Font font,
+        TextRenderStyle style,
+        Rectangle bounds)
+    {
+        if (string.IsNullOrEmpty(text) || bounds.Width <= 1 || font.Size <= MinimumFittingTextSize)
+        {
+            return 1f;
+        }
+
+        using var format = new StringFormat
+        {
+            Trimming = StringTrimming.None,
+            FormatFlags = StringFormatFlags.NoWrap,
+            LineAlignment = StringAlignment.Center
+        };
+
+        SizeF measured = graphics.MeasureString(
+            text,
+            font,
+            new SizeF(10000f, Math.Max(1, bounds.Height)),
+            format);
+        if (measured.Width <= 1f)
+        {
+            return 1f;
+        }
+
+        float outline = TextEffectGeometry.GetTextOutlineRadius(graphics, font, style);
+        float shadow = TextEffectGeometry.GetTextShadowOpacity(style) > 0f
+            ? TextEffectGeometry.GetTextShadowOffset(graphics, font, style)
+            : 0f;
+        float availableWidth = Math.Max(1f, bounds.Width - MathF.Ceiling(outline * 2f + shadow + 2f));
+        if (measured.Width <= availableWidth)
+        {
+            return 1f;
+        }
+
+        float minimumScale = MinimumFittingTextSize / font.Size;
+        return Math.Clamp(availableWidth / measured.Width, minimumScale, 1f);
     }
 
     private static void DrawIcons(

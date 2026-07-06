@@ -30,7 +30,9 @@ internal sealed partial class MainForm : Form
             overlayShell.Animations.SplitCompletionAnimation,
             overlayShell.Animations.SegmentBestDeltaHighlights,
             DateTime.UtcNow,
-            ignoreVisibleGroupLimit);
+            ignoreVisibleGroupLimit,
+            TimerFillOverride: raceShell.GetMainTimerRankColor(timerPhase, splitStatuses),
+            ShowPyramidFilterIndicator: ShouldShowPyramidFilterIndicator());
         OverlayRenderResult result = OverlayRenderer.RenderStatus(
             graphics,
             context,
@@ -326,6 +328,7 @@ internal sealed partial class MainForm : Form
     private void TrackSegmentBestDeltaHighlight(int completedIndex)
     {
         overlayShell.Animations.TrackSegmentBestDeltaHighlight(settings, splitStatuses, completedIndex);
+        UpdateStatusPaintSchedulerState();
         QueueStatusOverlayRender();
     }
 

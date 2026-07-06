@@ -25,7 +25,7 @@ internal sealed class WindowLayerController
 
     public bool AlwaysOnTop => alwaysOnTop;
 
-    public bool HasModalWindow => modalWindows.Count > 0;
+    public bool HasModalWindow => GetModalWindowStates(GetMainWindowHandles()).Length > 0;
 
     public IDisposable RegisterModalWindow(Func<IntPtr> getWindowHandle, ModalWindowOptions options = default)
     {
@@ -66,10 +66,10 @@ internal sealed class WindowLayerController
         IntPtr previousOwnerHandle = statusWindow.IsHandleCreated ? statusWindow.Handle : IntPtr.Zero;
         if (previousOwnerHandle != IntPtr.Zero)
         {
-            foreach (IntPtr modalHandle in modalWindowHandles)
+            foreach (ModalWindowState modalWindow in modalWindowsState.Where(modalWindow => modalWindow.Options.ForceTopMost))
             {
-                NativeMethods.SetWindowOwner(modalHandle, previousOwnerHandle);
-                previousOwnerHandle = modalHandle;
+                NativeMethods.SetWindowOwner(modalWindow.Handle, previousOwnerHandle);
+                previousOwnerHandle = modalWindow.Handle;
             }
         }
 
@@ -153,22 +153,18 @@ internal sealed class WindowLayerController
         WindowTopMostSync.Apply(alwaysOnTop, mainWindowHandles.ToArray());
         foreach (ModalWindowState modalWindow in modalWindowsState)
         {
-            WindowTopMostSync.Apply(alwaysOnTop || modalWindow.Options.ForceTopMost, modalWindow.Handle);
+            WindowTopMostSync.Apply(ShouldApplyTopMostToModal(modalWindow.Options), modalWindow.Handle);
         }
+    }
 
-        if (modalWindowsState.Count > 0)
-        {
-            IntPtr currentModalHandle = modalWindowsState[^1].Handle;
-            IntPtr[] lowerWindowHandles = mainWindowHandles
-                .Concat(modalWindowsState.Take(modalWindowsState.Count - 1).Select(modalWindow => modalWindow.Handle))
-                .ToArray();
-            WindowTopMostSync.PlaceBehind(currentModalHandle, lowerWindowHandles);
-        }
+    internal static bool ShouldApplyTopMostToModal(ModalWindowOptions options)
+    {
+        return options.ForceTopMost;
     }
 
     private void ApplyInteractionState(IReadOnlyList<IntPtr> modalWindowHandles)
     {
-        bool blockMainInteraction = HasModalWindow;
+        bool blockMainInteraction = modalWindowHandles.Count > 0;
         bool changed = mainInteractionBlocked != blockMainInteraction;
         mainInteractionBlocked = blockMainInteraction;
         bool enableMainWindows = !mainInteractionBlocked;

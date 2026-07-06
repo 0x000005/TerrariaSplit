@@ -178,7 +178,7 @@ internal sealed partial class MainForm : Form
             return;
         }
 
-        if (timerPhase == SplitTimerPhase.Running)
+        if (timerPhase == SplitTimerPhase.Running || StatusOverlayHighlightsActive)
         {
             RenderRunningStatusOverlayFrame();
             return;
@@ -224,6 +224,7 @@ internal sealed partial class MainForm : Form
             !runtimeShell.IsOverlayPaintSuspended &&
             (timerPhase == SplitTimerPhase.Running ||
                 overlayShell.Animations.SplitCompletionAnimation is not null ||
+                StatusOverlayHighlightsActive ||
                 overlayShell.AnimatedStatusIconsActive);
         if (shouldRun && !runtimeShell.StatusPaintScheduler.IsRunning)
         {
@@ -258,14 +259,14 @@ internal sealed partial class MainForm : Form
 
         runtimeShell.ApplyWatcherNotification(notification);
         UpdateConfiguredRefreshIntervals();
-        ApplicationUpdate update = applicationController.HandleWatcherNotification(notification);
+        ApplicationUpdate update = applicationController.HandleSystemEvent(new RuntimeWatcherSystemEvent(notification));
         ApplyApplicationUpdate(update);
 
         UpdateOverlayLayoutContextIfChanged();
         ProcessUiTick();
         UpdateStatusPaintSchedulerState();
         PublishTimerOverlaySnapshot();
-        if (update.InvalidateAll || !notification.Snapshot.Equals(notification.PreviousSnapshot))
+        if (!notification.Snapshot.Equals(notification.PreviousSnapshot))
         {
             Invalidate();
         }
@@ -273,8 +274,8 @@ internal sealed partial class MainForm : Form
 
     private void ExecuteAppCommand(AppCommand command)
     {
-        ApplicationUpdate update = applicationController.HandleCommand(command);
-        if (command is ApplySettingsCommand)
+        ApplicationUpdate update = applicationController.HandleSystemEvent(new ControlCommandSystemEvent(command));
+        if (command is ApplySettingsCommand or ApplyTemporarySettingsCommand or ApplyRouteOverrideCommand or ClearRouteOverrideCommand)
         {
             ApplySettingsApplicationUpdate(update);
             return;
@@ -296,11 +297,71 @@ internal sealed partial class MainForm : Form
     private void ApplyApplicationUpdate(ApplicationUpdate update)
     {
         effectExecutor.Apply(update.Effects);
+        ApplyDisplayInvalidations(update.DisplayInvalidations);
+    }
 
-        if (update.InvalidateAll)
+    private void ApplyDisplayInvalidations(IReadOnlyList<DisplayInvalidation> invalidations)
+    {
+        if (invalidations.Count == 0)
+        {
+            return;
+        }
+
+        bool refreshRuntime = false;
+        bool refreshStatic = false;
+        bool invalidateStatus = false;
+        bool refreshRaceLeaderboard = false;
+
+        foreach (DisplayInvalidation invalidation in invalidations)
+        {
+            if ((invalidation.Targets & DisplayInvalidationTarget.RaceLeaderboard) != 0)
+            {
+                refreshRaceLeaderboard = true;
+            }
+
+            if ((invalidation.Targets & (DisplayInvalidationTarget.SplitOverlay | DisplayInvalidationTarget.TimerOverlay)) == 0)
+            {
+                continue;
+            }
+
+            switch (invalidation.Level)
+            {
+                case DisplayRefreshLevel.Frame:
+                    QueueStatusOverlayRender();
+                    break;
+                case DisplayRefreshLevel.RuntimeFacts:
+                    refreshRuntime = true;
+                    invalidateStatus = true;
+                    break;
+                case DisplayRefreshLevel.SplitProgress:
+                case DisplayRefreshLevel.DisplaySettings:
+                case DisplayRefreshLevel.RoutePackage:
+                case DisplayRefreshLevel.RunReset:
+                case DisplayRefreshLevel.FullRebuild:
+                    refreshStatic = true;
+                    refreshRuntime = true;
+                    invalidateStatus = true;
+                    break;
+            }
+        }
+
+        if (refreshStatic)
         {
             MarkStatusOverlayStaticContentDirty();
+        }
+
+        if (refreshRuntime)
+        {
             RefreshRuntimeUi();
+        }
+
+        if (refreshRaceLeaderboard)
+        {
+            raceShell.RefreshWindowSettings();
+        }
+
+        if (invalidateStatus)
+        {
             Invalidate();
         }
     }
@@ -362,8 +423,25 @@ internal sealed partial class MainForm : Form
 
     private void OpenStatistics()
     {
-        using var form = new StatisticsForm(settings);
-        modalWindows.ShowDialog(form);
+        if (statisticsForm is { IsDisposed: false })
+        {
+            statisticsForm.Show();
+            if (statisticsForm.IsHandleCreated)
+            {
+                WindowTopMostSync.Apply(false, statisticsForm.Handle);
+            }
+
+            statisticsForm.Activate();
+            return;
+        }
+
+        statisticsForm = new StatisticsForm(settings);
+        statisticsForm.FormClosed += (_, _) => statisticsForm = null;
+        statisticsForm.Show();
+        if (statisticsForm.IsHandleCreated)
+        {
+            WindowTopMostSync.Apply(false, statisticsForm.Handle);
+        }
     }
 
     private void FinalizeRunBeforeExit()
@@ -381,6 +459,7 @@ internal sealed partial class MainForm : Form
         overlayShell.SetMouseClickThrough(enabled);
         overlayShell.WindowController.ApplyWindowStyle(overlayShell.MouseClickThrough);
         overlayShell.TimerOverlayHost.ApplyMouseClickThrough(overlayShell.MouseClickThrough);
+        raceShell.ApplyMouseClickThrough(overlayShell.MouseClickThrough);
         modalWindows.ApplyWindowState();
         PublishTimerOverlaySnapshot();
         UpdateWindowTitle();

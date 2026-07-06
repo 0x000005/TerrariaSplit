@@ -1,9 +1,9 @@
 # Agent 工作说明
 
-## 适用范围
+## 基础说明
 - 本文件适用于整个仓库；进入子目录前先检查更近的 `AGENTS.md`，内层规则优先。
 - 本项目是 C# / .NET 10 的 Terraria 分段计时器，主程序是 WinForms 桌面应用。
-- 仓库按 `src/`、`test/`、`docs/` 分层；`publish/`、`bin/`、`obj/` 和各种 `.codex-*` 目录都是本地产物。
+- 该项目处于开发阶段，除非明确要求否则永远不要考虑兼容性，时刻牢记删除无用的代码，并保证现有的代码是结构清晰的。
 
 ## 常用命令
 - 构建解决方案：`dotnet build TerrariaSplit.slnx`
@@ -13,6 +13,12 @@
 - 跳过探针构建：给构建或发布命令追加 `-p:TerrariaSplitSkipMemoryProbe=true`
 - 金字塔预筛聚焦测试：`$env:TERRARIA_SPLIT_TEST_FILTER='Pyramid seed pre-screen'; dotnet run --project test\TerrariaSplit.Tests.csproj`
 - 金字塔预筛数据集评估：`dotnet run -c Release --project test\TerrariaSplit.Tests.csproj -- pyramid-metrics <world-folder> --csv test\Results\Metrics\metrics-current-release.csv`
+
+## 构建与测试纪律
+- 验证强度按风险和影响面决定，默认选择能证明本次改动的最小验证，并不需要总是进行验证；只有跨层行为、发布边界或高风险运行路径变化时才升级到完整测试或完整构建。
+- 构建/测试失败时先判断是代码问题还是环境问题。若是权限、文件占用、沙箱或正在运行程序导致的失败，不要在相同条件下重复执行；应改用更小范围、临时输出、提权或请用户释放占用。
+- 构建或测试被中断、超时、失败后，检查并清理确认属于本次构建/测试的残留进程；不要误杀用户正在运行的程序或其他任务。
+- 测试过程临时文件统一放在 `test/Temp/`，需要保留的测试结果统一放在 `test/Results/`，不要在其他地方创建。
 
 ## 当前项目结构
 - `src/TerrariaSplit.Domain/`：纯领域规则。计时、boss split、路线、分组、时间格式和比较逻辑应优先放在这里。
@@ -38,26 +44,12 @@
 - `WinForms` 是组合根和交互层，可以引用其他产品模块并执行 effect；事件处理器应保持薄。
 - `MemoryProbe` 是被主程序调用的工具程序，不是可复用业务层；变更它的参数、输出 JSON 或位数时，同步检查 `WinForms/Build/MemoryProbe.targets` 和消费方。
 
-## 数据流原则
+## 工作原则
 - 外部输入先归一化成项目内命令、事件或明确数据模型，再进入核心逻辑。
 - 跨线程、跨模块或给 UI 展示的数据优先使用不可变 snapshot/view state，不共享 live 领域对象。
 - 应用层产出 effect 或 snapshot；UI、Terraria 集成、Storage 等外层负责执行具体副作用。
 - 修改横跨多个目录的功能时，按“输入 -> 应用决策 -> 领域/runtime -> 显示/持久化/外部集成”的路径逐段检查。
 - 设置变更要同时考虑默认值、归一化、序列化、当前 run 收尾、UI 刷新和持久化。
-
-## 工作原则
-- 不要在仓库根目录或功能目录下创建 `.verify/`、`.codex-*/`、`test-output/`、`artifacts/verify/` 这类临时验证目录；测试过程临时文件统一放在 `test/Temp/`，需要保留的测试结果统一放在 `test/Results/`。
 - 开发时先理解现有信息流和项目引用方向，再改代码；不要为局部任务引入第二套并行架构。
 - 优先沿用已有 helper、模型、测试风格和目录级规则；只有在减少真实复杂度时才新增抽象。
-- 不要删除或回滚用户已有改动，除非用户明确要求。
-- 不要升级 SDK、目标框架或核心依赖，除非用户明确要求。
-- 不要让低层模块依赖更外层的 UI、WinForms shell 或平台实现。
-- 参考 Terraria 源码 `..\reference\Terraria1456` 时，只把必要事实沉淀成项目内模型、局部复刻或小注释。
-
-## 验证要求
-- 修改业务逻辑、架构边界、配置、存储、渲染数据结构或项目引用后，运行 `dotnet run --project test\TerrariaSplit.Tests.csproj`。
-- 修改 `.csproj`、`.props`、`.targets` 或发布行为后，至少运行 `dotnet build TerrariaSplit.slnx`；涉及发布输出时再运行 publish 命令并检查 `publish/`。
-- 修改窗口、输入、设置应用、overlay 生命周期或用户可见布局后，运行相关 shell/rendering 测试；无法自动验证时在最终回复说明人工验证风险。
-- 修改内存地址、Terraria 外部集成、菜单几何、存档处理或自动化流程后，运行完整测试，并说明需要真实 Terraria 环境验证的部分。
-- 修改金字塔预筛、世界生成模拟或筛塔自动化后，至少运行聚焦测试；涉及 FP/FN 风险时再运行 `pyramid-metrics` 数据集评估。
-- 仅修改文档时通常不需要跑测试，但最终回复要说明没有运行测试的原因。
+- 必要时参考 Terraria 源码 `..\reference\Terraria1456` 。

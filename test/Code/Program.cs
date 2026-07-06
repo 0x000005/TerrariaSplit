@@ -50,6 +50,7 @@ var legacyTests = new (string Name, Action Test)[]
     ("SettingsSerializer writes schema document", TestSettingsSerializerWritesSchemaDocument),
     ("Settings JSON migrates legacy document values", TestSettingsJsonMigratesLegacyDocumentValues),
     ("Default UI page settings match tuned overlay layout", TestDefaultUiPageSettingsMatchTunedOverlayLayout),
+    ("Default Race settings use system nickname and random world source", TestDefaultRaceSettingsUseSystemNicknameAndRandomWorldSource),
     ("Default reference times match default settings route", TestDefaultReferenceTimesMatchDefaultSettingsRoute),
     ("AppSettingsStore writes embedded defaults when settings file is invalid", TestAppSettingsStoreWritesEmbeddedDefaultsWhenSettingsFileIsInvalid),
     ("SplitTimeSetStore writes embedded WR when reference files are invalid", TestSplitTimeSetStoreWritesEmbeddedWrWhenReferenceFilesAreInvalid),
@@ -181,6 +182,7 @@ var tests = legacyTests
     .Concat(TerrariaSaveFileCleanerTests.All())
     .Concat(HighPrecisionSchedulerTests.All())
     .Concat(MainShellRefactorTests.All())
+    .Concat(RaceTests.All())
     .Concat(ArchitectureDependencyTests.All())
     .Concat(RenderingTests.All())
     .Concat(WorldGenerationMemoryTests.All())
@@ -1147,7 +1149,13 @@ static void TestTerrariaPlayerSelectionResolvesVersionedListOrder()
 static void TestLocalizer()
 {
     AssertEqual("Crimson", Localizer.Get("Crimson", new AppSettings { General = { Language = "English" } }));
+    AssertEqual("Online", Localizer.Get("Race", new AppSettings { General = { Language = "English" } }));
+    AssertEqual("Online...", Localizer.Get("Race...", new AppSettings { General = { Language = "English" } }));
+    AssertEqual("Online settings", Localizer.Get("Race settings", new AppSettings { General = { Language = "English" } }));
     AssertEqual("\u7329\u7EA2", Localizer.Get("Crimson", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u8054\u673A", Localizer.Get("Race", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u8054\u673A...", Localizer.Get("Race...", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
+    AssertEqual("\u8054\u673A\u8BBE\u7F6E", Localizer.Get("Race settings", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
     AssertEqual("\u7D2F\u79EF", Localizer.Get("Cumulative", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
     AssertEqual("\u5206\u6BB5", Localizer.Get("Segment", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
     AssertEqual("\u4E0D\u900F\u660E\u5EA6 %", Localizer.Get("Opacity %", new AppSettings { General = { Language = "\u4E2D\u6587" } }));
@@ -1379,6 +1387,18 @@ static void TestDefaultUiPageSettingsMatchTunedOverlayLayout()
     AssertEqual(30, settings.Overlay.TextEffects.TimeOutlineThicknessPercent);
     AssertEqual(25, settings.Overlay.TextEffects.TimerOutlineThicknessPercent);
     AssertEqual(33, settings.Overlay.TextEffects.TimerMillisecondsOutlineThicknessPercent);
+}
+
+static void TestDefaultRaceSettingsUseSystemNicknameAndRandomWorldSource()
+{
+    AppSettings settings = AppSettingsDefaults.Create();
+
+    AssertEqual(string.Empty, settings.Race.Nickname);
+    AssertEqual(RacePreferredWorldSource.Random, settings.Race.PreferredWorldSource);
+
+    RacePanelDraftState draft = RacePanelDraftState.FromSettings(settings);
+    AssertEqual(Environment.UserName, draft.Nickname);
+    AssertEqual(RacePanelWorldSource.Random, draft.WorldSource);
 }
 
 static void AssertColumnMatches(UiColumnSettings expected, UiColumnSettings actual)
@@ -6218,6 +6238,13 @@ static Type? GetTemplateNestedType(Type type)
         type == typeof(ComparisonSettings) ||
         type == typeof(OverlaySettings) ||
         type == typeof(AutomationSettings) ||
+        type == typeof(RaceSettings) ||
+        type == typeof(RaceLeaderboardSettings) ||
+        type == typeof(RaceLeaderboardTextEffectSettings) ||
+        type == typeof(RaceLeaderboardColumnEffectSettings) ||
+        type == typeof(RaceLeaderboardColorSettings) ||
+        type == typeof(RaceLeaderboardRankGradientColorSettings) ||
+        type == typeof(RaceLeaderboardColumnColorSettings) ||
         type == typeof(UiSoundSettings) ||
         type == typeof(UiColumnLayoutSettings) ||
         type == typeof(UiColumnSettings) ||

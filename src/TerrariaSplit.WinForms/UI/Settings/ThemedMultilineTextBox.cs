@@ -136,7 +136,9 @@ internal sealed class ThemedMultilineTextBox : TextBox
             return;
         }
 
-        int rightMargin = ShouldShowScrollBar() ? ScrollBarGutterWidth + 4 : 0;
+        int rightMargin = ShouldShowScrollBar()
+            ? ScaledScrollBarGutterWidth + UiDpiScale.ScaleIntFromBase200(4)
+            : 0;
         NativeMethods.SendMessage(
             Handle,
             EmSetMargins,
@@ -192,7 +194,7 @@ internal sealed class ThemedMultilineTextBox : TextBox
             return Rectangle.Empty;
         }
 
-        int width = Math.Min(ScrollBarGutterWidth, ClientSize.Width);
+        int width = Math.Min(ScaledScrollBarGutterWidth, ClientSize.Width);
         return new Rectangle(Math.Max(0, ClientSize.Width - width), 0, width, ClientSize.Height);
     }
 
@@ -204,7 +206,7 @@ internal sealed class ThemedMultilineTextBox : TextBox
             return Rectangle.Empty;
         }
 
-        int width = Math.Min(ScrollBarTrackWidth, gutter.Width);
+        int width = Math.Min(ScaledScrollBarTrackWidth, gutter.Width);
         return new Rectangle(
             gutter.Left + Math.Max(0, (gutter.Width - width) / 2),
             gutter.Top,
@@ -224,7 +226,7 @@ internal sealed class ThemedMultilineTextBox : TextBox
         int lineCount = GetLineCount();
         int thumbHeight = Math.Clamp(
             (int)Math.Round(track.Height * (visibleLineCount / (float)Math.Max(visibleLineCount, lineCount))),
-            Math.Min(MinThumbHeight, track.Height),
+            Math.Min(ScaledMinThumbHeight, track.Height),
             track.Height);
         int travel = Math.Max(1, track.Height - thumbHeight);
         int maxFirstVisibleLine = GetMaxFirstVisibleLine();
@@ -297,4 +299,10 @@ internal sealed class ThemedMultilineTextBox : TextBox
         NativeMethods.SendMessage(Handle, EmLineScroll, IntPtr.Zero, new IntPtr(delta));
         PaintScrollBar();
     }
+
+    private static int ScaledScrollBarGutterWidth => UiDpiScale.ScaleIntFromBase200(ScrollBarGutterWidth);
+
+    private static int ScaledScrollBarTrackWidth => UiDpiScale.ScaleIntFromBase200(ScrollBarTrackWidth);
+
+    private static int ScaledMinThumbHeight => UiDpiScale.ScaleIntFromBase200(MinThumbHeight);
 }

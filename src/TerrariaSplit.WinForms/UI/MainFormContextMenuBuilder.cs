@@ -21,6 +21,7 @@ internal sealed class MainFormContextMenuBuilder
         ContextMenuStrip menu,
         AppSettings settings,
         Action openStatistics,
+        Action openRacePanel,
         Action openSettings,
         Action togglePyramidFilter,
         Action<string> switchSettingsFile,
@@ -28,6 +29,7 @@ internal sealed class MainFormContextMenuBuilder
     {
         menu.Items.Clear();
         menu.Items.Add(Localizer.Get("Statistics...", settings), null, (_, _) => openStatistics());
+        menu.Items.Add(Localizer.Get("Race...", settings), null, (_, _) => openRacePanel());
         menu.Items.Add(Localizer.Get("Settings...", settings), null, (_, _) => openSettings());
         menu.Items.Add(CreatePyramidFilterToggle(settings, togglePyramidFilter));
         menu.Items.Add(CreateSettingsFileMenu(settings, switchSettingsFile));

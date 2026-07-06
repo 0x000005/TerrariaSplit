@@ -36,12 +36,12 @@ internal sealed class StatisticsForm : Form
 
         Text = Localizer.Get("Statistics", settings);
         StartPosition = FormStartPosition.CenterParent;
-        Size = new Size(1600, 800);
         UiTheme.ConfigureForm(this, new Size(1600, 540));
         Font = UiTheme.FormFont(9.5f);
-        ShowInTaskbar = false;
+        ShowInTaskbar = true;
 
         Controls.Add(CreateContent());
+        UiDpiScale.ApplyBase200WindowLayout(this, new Size(1600, 800), new Size(1600, 540));
     }
 
     private Control CreateContent()

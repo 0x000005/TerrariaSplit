@@ -153,15 +153,18 @@ internal class ThemedDropDownList : UserControl
             e.Graphics.FillRectangle(fillBrush, ClientRectangle);
         }
 
+        int arrowWidth = UiDpiScale.ScaleIntFromBase200(ArrowWidth);
+        int textLeftPadding = UiDpiScale.ScaleIntFromBase200(10);
+        int textRightPadding = UiDpiScale.ScaleIntFromBase200(14);
         Rectangle arrowBounds = new(
-            Math.Max(0, ClientSize.Width - ArrowWidth),
+            Math.Max(0, ClientSize.Width - arrowWidth),
             0,
-            Math.Min(ArrowWidth, ClientSize.Width),
+            Math.Min(arrowWidth, ClientSize.Width),
             ClientSize.Height);
         Rectangle textBounds = new(
-            10,
+            textLeftPadding,
             0,
-            Math.Max(0, ClientSize.Width - ArrowWidth - 14),
+            Math.Max(0, ClientSize.Width - arrowWidth - textRightPadding),
             ClientSize.Height);
         TextRenderer.DrawText(
             e.Graphics,
@@ -277,7 +280,7 @@ internal class ThemedDropDownList : UserControl
         {
             Font = UiTheme.FormFont(9f),
             SelectedIndex = selectedIndex,
-            Size = ThemedDropDownPopupList.GetPreferredListSize(Math.Max(Width, 220), items.Count)
+            Size = ThemedDropDownPopupList.GetPreferredListSize(Math.Max(Width, UiDpiScale.ScaleIntFromBase200(220)), items.Count)
         };
         if (selectedIndex >= 0)
         {
@@ -421,8 +424,9 @@ internal class ThemedDropDownList : UserControl
 
         public static Size GetPreferredListSize(int width, int itemCount)
         {
-            int visibleItems = Math.Max(1, Math.Min(itemCount, DropDownMaxHeight / ItemHeight));
-            return new Size(width, visibleItems * ItemHeight);
+            int itemHeight = ScaledItemHeight;
+            int visibleItems = Math.Max(1, Math.Min(itemCount, ScaledDropDownMaxHeight / itemHeight));
+            return new Size(width, visibleItems * itemHeight);
         }
 
         protected override bool IsInputKey(Keys keyData)
@@ -476,7 +480,7 @@ internal class ThemedDropDownList : UserControl
                 return;
             }
 
-            int index = topIndex + e.Y / ItemHeight;
+            int index = topIndex + e.Y / ScaledItemHeight;
             if (index >= 0 && index < items.Count)
             {
                 SelectedIndex = index;
@@ -548,7 +552,8 @@ internal class ThemedDropDownList : UserControl
 
         private void PaintItems(Graphics graphics)
         {
-            int itemWidth = Math.Max(0, ClientSize.Width - (ShouldShowScrollBar() ? ScrollBarWidth : 0));
+            int itemHeight = ScaledItemHeight;
+            int itemWidth = Math.Max(0, ClientSize.Width - (ShouldShowScrollBar() ? ScaledScrollBarWidth : 0));
             int visibleCount = GetVisibleItemCount();
             for (int row = 0; row < visibleCount; row++)
             {
@@ -558,7 +563,7 @@ internal class ThemedDropDownList : UserControl
                     break;
                 }
 
-                var bounds = new Rectangle(0, row * ItemHeight, itemWidth, ItemHeight);
+                var bounds = new Rectangle(0, row * itemHeight, itemWidth, itemHeight);
                 bool selected = index == selectedIndex;
                 using (var backBrush = new SolidBrush(selected ? UiTheme.Selection : UiTheme.Field))
                 {
@@ -569,7 +574,7 @@ internal class ThemedDropDownList : UserControl
                     graphics,
                     getItemText(items[index]),
                     Font,
-                    Rectangle.Inflate(bounds, -8, 0),
+                    Rectangle.Inflate(bounds, -UiDpiScale.ScaleIntFromBase200(8), 0),
                     UiTheme.Text,
                     TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.EndEllipsis);
             }
@@ -645,7 +650,7 @@ internal class ThemedDropDownList : UserControl
 
         private int GetVisibleItemCount()
         {
-            return Math.Max(1, ClientSize.Height / ItemHeight);
+            return Math.Max(1, ClientSize.Height / ScaledItemHeight);
         }
 
         private int GetMaxTopIndex()
@@ -661,9 +666,9 @@ internal class ThemedDropDownList : UserControl
             }
 
             return new Rectangle(
-                ClientSize.Width - ScrollBarWidth,
+                ClientSize.Width - ScaledScrollBarWidth,
                 0,
-                ScrollBarWidth,
+                ScaledScrollBarWidth,
                 ClientSize.Height);
         }
 
@@ -678,7 +683,7 @@ internal class ThemedDropDownList : UserControl
             int visibleCount = GetVisibleItemCount();
             int thumbHeight = Math.Clamp(
                 (int)Math.Round(track.Height * (visibleCount / (float)Math.Max(visibleCount, items.Count))),
-                32,
+                UiDpiScale.ScaleIntFromBase200(32),
                 track.Height);
             int travel = Math.Max(1, track.Height - thumbHeight);
             int maxTopIndex = GetMaxTopIndex();
@@ -694,5 +699,11 @@ internal class ThemedDropDownList : UserControl
             int relativeY = Math.Clamp(y - thumb.Height / 2, 0, travel);
             return (int)Math.Round(relativeY * (GetMaxTopIndex() / (float)travel));
         }
+
+        private static int ScaledItemHeight => UiDpiScale.ScaleIntFromBase200(ItemHeight);
+
+        private static int ScaledDropDownMaxHeight => UiDpiScale.ScaleIntFromBase200(DropDownMaxHeight);
+
+        private static int ScaledScrollBarWidth => UiDpiScale.ScaleIntFromBase200(ScrollBarWidth);
     }
 }

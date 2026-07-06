@@ -24,6 +24,9 @@
     <ProjectReference Include="..\src\TerrariaSplit.Domain\TerrariaSplit.Domain.csproj" />
     <ProjectReference Include="..\src\TerrariaSplit.Infrastructure\TerrariaSplit.Infrastructure.csproj" />
     <ProjectReference Include="..\src\TerrariaSplit.Infrastructure.Windows\TerrariaSplit.Infrastructure.Windows.csproj" />
+    <ProjectReference Include="..\src\TerrariaSplit.Race.Client\TerrariaSplit.Race.Client.csproj" />
+    <ProjectReference Include="..\src\TerrariaSplit.Race.Contracts\TerrariaSplit.Race.Contracts.csproj" />
+    <ProjectReference Include="..\src\TerrariaSplit.Race.Server\TerrariaSplit.Race.Server.csproj" />
     <ProjectReference Include="..\src\TerrariaSplit.Statistics\TerrariaSplit.Statistics.csproj" />
     <ProjectReference Include="..\src\TerrariaSplit.Storage\TerrariaSplit.Storage.csproj" />
     <ProjectReference Include="..\src\TerrariaSplit.Terraria\TerrariaSplit.Terraria.csproj" />

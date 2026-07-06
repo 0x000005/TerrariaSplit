@@ -113,9 +113,10 @@ internal sealed class OverlayFontCache : IDisposable
         UiColumnSettings columnSettings,
         float scaleFactor,
         bool forceBold = false,
-        float sizeScale = 1f)
+        float sizeScale = 1f,
+        float minimumSize = 6f)
     {
-        float size = GetColumnFontSize(columnSettings, scaleFactor, sizeScale);
+        float size = GetColumnFontSize(columnSettings, scaleFactor, sizeScale, minimumSize);
         bool bold = forceBold || columnSettings.Bold;
         string familyName = fontFactory.NormalizeFamilyName(columnSettings.FontFamily);
         var key = new FontKey(familyName, size, bold);
@@ -132,9 +133,13 @@ internal sealed class OverlayFontCache : IDisposable
     public static float GetColumnFontSize(
         UiColumnSettings columnSettings,
         float scaleFactor,
-        float sizeScale = 1f)
+        float sizeScale = 1f,
+        float minimumSize = 6f)
     {
-        return Math.Clamp(columnSettings.FontSize * scaleFactor * Math.Max(0.1f, sizeScale), 6f, 144f);
+        return Math.Clamp(
+            columnSettings.FontSize * scaleFactor * Math.Max(0.01f, sizeScale),
+            Math.Clamp(minimumSize, 1f, 144f),
+            144f);
     }
 
     public void Dispose()

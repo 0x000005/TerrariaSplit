@@ -35,7 +35,6 @@ internal sealed partial class SettingsForm : Form
         Func<RuntimeDebugSnapshot>? runtimeDebugSnapshotProvider = null,
         Func<AppSettings, int>? worldPoolCountProvider = null,
         SettingsMessageBoxPresenter? messageBoxPresenter = null,
-        Action<IntPtr>? modalHandleChanged = null,
         ISettingsSnapshotFactory? settingsSnapshots = null)
     {
         this.settingsSnapshots = settingsSnapshots ?? new StoredSettingsSnapshotFactory();
@@ -44,18 +43,18 @@ internal sealed partial class SettingsForm : Form
         this.runtimeDebugSnapshotProvider = runtimeDebugSnapshotProvider;
         this.worldPoolCountProvider = worldPoolCountProvider;
         uiFactory = new SettingsUiFactory(Localize);
-        dialogService = new SettingsDialogService(this, Localize, messageBoxPresenter, modalHandleChanged);
+        dialogService = new SettingsDialogService(this, Localize, messageBoxPresenter);
 
         Text = Localizer.Get("TerrariaSplit Settings", settings);
         StartPosition = FormStartPosition.CenterParent;
         FormBorderStyle = FormBorderStyle.None;
         MinimizeBox = true;
         MaximizeBox = true;
-        ClientSize = new Size(1500, 1000);
         Padding = new Padding(1);
         UiTheme.ConfigureForm(this, new Size(1040, 740));
 
         BuildLayout();
+        UiDpiScale.ApplyBase200ClientLayout(this, new Size(1500, 1000), new Size(1040, 740));
     }
 
     public AppSettings Result => settings;

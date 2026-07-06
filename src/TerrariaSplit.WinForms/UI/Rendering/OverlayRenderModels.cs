@@ -16,7 +16,9 @@ internal sealed record OverlayRenderContext(
     SplitCompletionAnimation? SplitCompletionAnimation,
     IReadOnlyDictionary<int, SegmentBestDeltaHighlight> SegmentBestDeltaHighlights,
     DateTime NowUtc,
-    bool IgnoreVisibleGroupLimit = false)
+    bool IgnoreVisibleGroupLimit = false,
+    Color? TimerFillOverride = null,
+    bool ShowPyramidFilterIndicator = false)
 {
     public float ScaleFactor => GetScaleFactor(Settings);
 

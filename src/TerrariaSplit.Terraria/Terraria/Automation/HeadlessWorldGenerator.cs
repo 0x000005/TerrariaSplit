@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Text;
+using System.Text.RegularExpressions;
 using Process = System.Diagnostics.Process;
 
 namespace TerrariaSplit.Terraria.Automation;
@@ -17,6 +18,9 @@ internal sealed class HeadlessWorldGenerator : IDisposable
     private static readonly TimeSpan GenerationTimeout = TimeSpan.FromMinutes(3);
     private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(150);
     private static readonly TimeSpan StableFileDuration = TimeSpan.FromMilliseconds(500);
+    private static readonly Regex ServerProgressPattern = new(
+        @"^\s*(\d{1,3}(?:\.\d+)?)\s*%\s+-\s+.+\s+-\s+\d{1,3}(?:\.\d+)?\s*%\s*$",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     private readonly TerrariaWorldFilePyramidScanner scanner = new();
     private readonly PyramidFilterWorldFileEvaluator worldFileEvaluator;
@@ -38,7 +42,27 @@ internal sealed class HeadlessWorldGenerator : IDisposable
         TerrariaServerTarget serverTarget,
         string? appLanguage,
         AutoCreateWorldSettings settings,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IProgress<int>? progress = null)
+    {
+        return await GenerateAndScanAsync(
+            serverTarget,
+            appLanguage,
+            settings,
+            seedOverride: null,
+            worldNameOverride: null,
+            cancellationToken,
+            progress);
+    }
+
+    internal async Task<HeadlessWorldGenResult> GenerateAndScanAsync(
+        TerrariaServerTarget serverTarget,
+        string? appLanguage,
+        AutoCreateWorldSettings settings,
+        string? seedOverride,
+        string? worldNameOverride,
+        CancellationToken cancellationToken,
+        IProgress<int>? progress = null)
     {
         using HeadlessGenerationLease? lease = HeadlessGenerationLease.TryAcquire(GenerationMutexName);
         if (lease is null)
@@ -50,7 +74,14 @@ internal sealed class HeadlessWorldGenerator : IDisposable
         StopRecordedServer(serverTarget.ExePath);
         using TemporaryDirectoryScope scratch = TemporaryDirectoryScope.Prepare(scratchDirectory);
 
-        if (!TryBuildGenerationRequest(serverTarget, appLanguage, settings, out HeadlessWorldGenerationRequest request, out string requestDetail))
+        if (!TryBuildGenerationRequest(
+                serverTarget,
+                appLanguage,
+                settings,
+                seedOverride,
+                worldNameOverride,
+                out HeadlessWorldGenerationRequest request,
+                out string requestDetail))
         {
             StaticAppLogger.Instance.Info($"World pool headless generation skipped: {requestDetail}");
             scratch.Clean();
@@ -67,7 +98,8 @@ internal sealed class HeadlessWorldGenerator : IDisposable
         }
 
         string? worldPath;
-        using (StartTrackedServer(serverTarget.ExePath, serverArguments, request.StandardInputLines))
+        IProgress<int>? serverProgress = CreateMonotonicProgress(progress);
+        using (StartTrackedServer(serverTarget.ExePath, serverArguments, request.StandardInputLines, serverProgress))
         {
             worldPath = await WaitForStableWorldFileAsync(cancellationToken);
         }
@@ -134,22 +166,33 @@ internal sealed class HeadlessWorldGenerator : IDisposable
         TerrariaServerTarget serverTarget,
         string? appLanguage,
         AutoCreateWorldSettings settings,
+        string? seedOverride,
+        string? worldNameOverride,
         out HeadlessWorldGenerationRequest request,
         out string detail)
     {
         return serverTarget.IsLegacy1449
-            ? TryBuildLegacy1449GenerationRequest(appLanguage, settings, out request, out detail)
-            : TryBuildModernGenerationRequest(appLanguage, settings, out request, out detail);
+            ? TryBuildLegacy1449GenerationRequest(appLanguage, settings, seedOverride, worldNameOverride, out request, out detail)
+            : TryBuildModernGenerationRequest(appLanguage, settings, seedOverride, worldNameOverride, out request, out detail);
     }
 
     private bool TryBuildModernGenerationRequest(
         string? appLanguage,
         AutoCreateWorldSettings settings,
+        string? seedOverride,
+        string? worldNameOverride,
         out HeadlessWorldGenerationRequest request,
         out string detail)
     {
-        TerrariaCopiedSeed copiedSeed = TerrariaCopiedSeedBuilder.Create(settings);
-        string worldName = TerrariaWorldNameGenerator.Create(appLanguage);
+        TerrariaCopiedSeed copiedSeed = string.IsNullOrWhiteSpace(seedOverride)
+            ? TerrariaCopiedSeedBuilder.Create(settings)
+            : TerrariaCopiedSeedBuilder.Create(
+                settings,
+                seedOverride.Trim(),
+                TerrariaWorldSeedOptions.EvilCode(settings.WorldEvil, () => TerrariaSeedRandom.NextShared(2) + 1));
+        string worldName = string.IsNullOrWhiteSpace(worldNameOverride)
+            ? TerrariaWorldNameGenerator.Create(appLanguage)
+            : worldNameOverride.Trim();
         string serverLanguage = TerrariaLanguageCodes.FromAppLanguage(appLanguage);
 
         request = new HeadlessWorldGenerationRequest(
@@ -167,6 +210,8 @@ internal sealed class HeadlessWorldGenerator : IDisposable
     private bool TryBuildLegacy1449GenerationRequest(
         string? appLanguage,
         AutoCreateWorldSettings settings,
+        string? seedOverride,
+        string? worldNameOverride,
         out HeadlessWorldGenerationRequest request,
         out string detail)
     {
@@ -174,6 +219,14 @@ internal sealed class HeadlessWorldGenerator : IDisposable
         if (!TerrariaLegacy1449SeedText.TryBuild(settings, out string seedText, out detail))
         {
             return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(seedOverride))
+        {
+            seedText = string.IsNullOrWhiteSpace(seedText)
+                ? seedOverride.Trim()
+                : seedText + "|" + seedOverride.Trim();
+            detail = $"1.4.4.9 world seed field text: {seedText}";
         }
 
         if (string.IsNullOrWhiteSpace(seedText))
@@ -185,7 +238,9 @@ internal sealed class HeadlessWorldGenerator : IDisposable
         int sizeCode = TerrariaWorldSeedOptions.SizeCode(settings.WorldSize);
         int difficultyCode = TerrariaWorldSeedOptions.CopiedDifficultyCode(settings.WorldDifficulty);
         int specialSeedMask = TerrariaWorldSeedOptions.SpecialSeedMask(settings.SpecialSeeds);
-        string worldName = TerrariaWorldNameGenerator.Create(appLanguage);
+        string worldName = string.IsNullOrWhiteSpace(worldNameOverride)
+            ? TerrariaWorldNameGenerator.Create(appLanguage)
+            : worldNameOverride.Trim();
         string serverLanguage = TerrariaLanguageCodes.FromAppLanguage(appLanguage);
 
         request = new HeadlessWorldGenerationRequest(
@@ -221,7 +276,8 @@ internal sealed class HeadlessWorldGenerator : IDisposable
     private Process StartServer(
         string serverExePath,
         IReadOnlyList<string> serverArguments,
-        IReadOnlyList<string> standardInputLines)
+        IReadOnlyList<string> standardInputLines,
+        IProgress<int>? progress)
     {
         var startInfo = new ProcessStartInfo
         {
@@ -239,8 +295,8 @@ internal sealed class HeadlessWorldGenerator : IDisposable
         }
 
         var process = new Process { StartInfo = startInfo };
-        process.OutputDataReceived += (_, _) => { };
-        process.ErrorDataReceived += (_, _) => { };
+        process.OutputDataReceived += (_, e) => ReportServerProgress(e.Data, progress);
+        process.ErrorDataReceived += (_, e) => ReportServerProgress(e.Data, progress);
         process.Start();
 
         // Drain the console pipes so a chatty server cannot block on a full buffer.
@@ -275,14 +331,68 @@ internal sealed class HeadlessWorldGenerator : IDisposable
     private ProcessLifecycleGuard StartTrackedServer(
         string serverExePath,
         IReadOnlyList<string> serverArguments,
-        IReadOnlyList<string> standardInputLines)
+        IReadOnlyList<string> standardInputLines,
+        IProgress<int>? progress)
     {
-        Process process = StartServer(serverExePath, serverArguments, standardInputLines);
+        Process process = StartServer(serverExePath, serverArguments, standardInputLines, progress);
         return new ProcessLifecycleGuard(
             process,
             trackedProcess => TrackCurrentProcess(trackedProcess, serverExePath),
             ClearCurrentProcess,
             "World pool failed to stop headless Terraria server.");
+    }
+
+    private static void ReportServerProgress(string? line, IProgress<int>? progress)
+    {
+        if (progress is null || string.IsNullOrWhiteSpace(line))
+        {
+            return;
+        }
+
+        if (TryParseServerProgressPercent(line, out int percent))
+        {
+            progress.Report(percent);
+        }
+    }
+
+    internal static bool TryParseServerProgressPercent(string line, out int percent)
+    {
+        percent = 0;
+        Match match = ServerProgressPattern.Match(line);
+        if (!match.Success ||
+            !double.TryParse(match.Groups[1].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out double rawPercent))
+        {
+            return false;
+        }
+
+        percent = Math.Clamp((int)Math.Round(rawPercent, MidpointRounding.AwayFromZero), 0, 100);
+        return true;
+    }
+
+    private static IProgress<int>? CreateMonotonicProgress(IProgress<int>? progress)
+    {
+        if (progress is null)
+        {
+            return null;
+        }
+
+        object sync = new();
+        int lastPercent = -1;
+        return new Progress<int>(percent =>
+        {
+            int clamped = Math.Clamp(percent, 0, 100);
+            lock (sync)
+            {
+                if (clamped < lastPercent)
+                {
+                    return;
+                }
+
+                lastPercent = clamped;
+            }
+
+            progress.Report(clamped);
+        });
     }
 
     private void TrackCurrentProcess(Process process, string serverExePath)
@@ -400,7 +510,8 @@ internal sealed class HeadlessWorldGenerator : IDisposable
                     {
                         stableSince = DateTime.UtcNow;
                     }
-                    else if (DateTime.UtcNow - stableSince >= StableFileDuration)
+                    else if (DateTime.UtcNow - stableSince >= StableFileDuration &&
+                        scanner.TryReadWorldSeedMetadata(candidatePath, out _, out _, logErrors: false))
                     {
                         return candidatePath;
                     }

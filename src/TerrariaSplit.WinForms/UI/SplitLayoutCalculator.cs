@@ -52,7 +52,8 @@ internal static class SplitLayoutCalculator
         columnsWidth += GetMaximumColumnWidth(settings.Overlay.Columns.Icon, settings.Overlay.Columns.AttachedIcon, scale);
         columnsWidth += GetMaximumColumnWidth(settings.Overlay.Columns.Time, settings.Overlay.Columns.AttachedTime, scale);
         columnsWidth += GetMaximumColumnWidth(settings.Overlay.Columns.Delta, settings.Overlay.Columns.AttachedDelta, scale);
-        return Math.Clamp(columnsWidth + (int)Math.Round(28 * scale), 300, 2400);
+        int splitWidth = columnsWidth + (int)Math.Round(28 * scale);
+        return Math.Clamp(Math.Max(splitWidth, GetMinimumTimerWindowWidth(settings)), 300, 2400);
     }
 
     private static int GetMaximumColumnWidth(UiColumnSettings primary, UiColumnSettings attached, float scale)
@@ -89,13 +90,106 @@ internal static class SplitLayoutCalculator
     {
         float scale = Math.Clamp(settings.Overlay.Columns.ScalePercent, 25, 300) / 100f;
         return new Size(
-            Math.Clamp((int)Math.Round(300 * scale), 220, 1800),
+            Math.Clamp(Math.Max((int)Math.Round(300 * scale), GetMinimumTimerWindowWidth(settings)), 220, 2400),
             Math.Clamp((int)Math.Round(420 * scale), 260, 1600));
+    }
+
+    private static int GetMinimumTimerWindowWidth(AppSettings settings)
+    {
+        if (!settings.Overlay.Columns.Timer.Show && !settings.Overlay.Columns.TimerMilliseconds.Show)
+        {
+            return 0;
+        }
+
+        float scale = Math.Clamp(settings.Overlay.Columns.ScalePercent, 25, 300) / 100f;
+        int margin = ScaleInt(settings, 12);
+        int timerTextPadding = ScaleInt(settings, 8);
+        int offsetX = Math.Abs(ScaleIntAllowZero(settings, settings.Overlay.Columns.TimerOffsetX));
+        int timerTextWidth = EstimateTimerTextWidth(settings, scale);
+        int indicatorWidth = EstimateTimerIndicatorWidth(settings, scale, indicatorCount: 2);
+        return margin * 2 + timerTextPadding + offsetX + timerTextWidth + indicatorWidth;
+    }
+
+    private static int EstimateTimerTextWidth(AppSettings settings, float scale)
+    {
+        const float PointToPixel = 96f / 72f;
+        int width = 0;
+        if (settings.Overlay.Columns.Timer.Show)
+        {
+            float fontSize = OverlayFontCache.GetColumnFontSize(settings.Overlay.Columns.Timer, scale);
+            width += (int)Math.Ceiling(fontSize * PointToPixel * 0.75f * 8f);
+        }
+
+        if (settings.Overlay.Columns.Timer.Show && settings.Overlay.Columns.TimerMilliseconds.Show)
+        {
+            width += ScaleInt(settings, 2);
+        }
+
+        if (settings.Overlay.Columns.TimerMilliseconds.Show)
+        {
+            float fontSize = OverlayFontCache.GetColumnFontSize(settings.Overlay.Columns.TimerMilliseconds, scale);
+            width += (int)Math.Ceiling(fontSize * PointToPixel * 0.70f * 3f);
+        }
+
+        int maxFontPixels = GetTimerMaxFontPixels(settings, scale);
+        int effectBleed = EstimateTimerTextEffectBleed(settings, maxFontPixels);
+        return width + effectBleed * 2;
+    }
+
+    private static int EstimateTimerIndicatorWidth(AppSettings settings, float scale, int indicatorCount)
+    {
+        if (indicatorCount <= 0)
+        {
+            return 0;
+        }
+
+        int maxFontPixels = GetTimerMaxFontPixels(settings, scale);
+        int diameter = Math.Clamp((int)Math.Ceiling(maxFontPixels * 0.18f), 9, 28);
+        int textGap = Math.Max(6, (int)Math.Ceiling(diameter * 0.45f));
+        int indicatorGap = Math.Max(4, (int)Math.Ceiling(diameter * 0.28f));
+        return textGap + indicatorCount * diameter + Math.Max(0, indicatorCount - 1) * indicatorGap + ScaleInt(settings, 6);
+    }
+
+    private static int GetTimerMaxFontPixels(AppSettings settings, float scale)
+    {
+        const float PointToPixel = 96f / 72f;
+        float timerSize = settings.Overlay.Columns.Timer.Show
+            ? OverlayFontCache.GetColumnFontSize(settings.Overlay.Columns.Timer, scale)
+            : 0f;
+        float millisecondsSize = settings.Overlay.Columns.TimerMilliseconds.Show
+            ? OverlayFontCache.GetColumnFontSize(settings.Overlay.Columns.TimerMilliseconds, scale)
+            : 0f;
+        return Math.Max(1, (int)Math.Ceiling(Math.Max(timerSize, millisecondsSize) * PointToPixel));
+    }
+
+    private static int EstimateTimerTextEffectBleed(AppSettings settings, int maxFontPixels)
+    {
+        int timerBleed = EstimateTextEffectBleed(
+            maxFontPixels,
+            settings.Overlay.TextEffects.TimerShadowPercent,
+            settings.Overlay.TextEffects.TimerOutlineThicknessPercent);
+        int millisecondsBleed = EstimateTextEffectBleed(
+            maxFontPixels,
+            settings.Overlay.TextEffects.TimerMillisecondsShadowPercent,
+            settings.Overlay.TextEffects.TimerMillisecondsOutlineThicknessPercent);
+        return Math.Max(timerBleed, millisecondsBleed);
+    }
+
+    private static int EstimateTextEffectBleed(int fontPixels, int shadowPercent, int outlinePercent)
+    {
+        float shadow = Math.Max(0, shadowPercent) / 100f * fontPixels * 0.18f;
+        float outline = Math.Max(0, outlinePercent) / 100f * fontPixels * 0.08f;
+        return (int)Math.Ceiling(shadow + outline + 2f);
     }
 
     private static int ScaleInt(AppSettings settings, int value)
     {
+        return Math.Max(1, ScaleIntAllowZero(settings, value));
+    }
+
+    private static int ScaleIntAllowZero(AppSettings settings, int value)
+    {
         float scale = Math.Clamp(settings.Overlay.Columns.ScalePercent, 25, 300) / 100f;
-        return Math.Max(1, (int)Math.Round(value * scale, MidpointRounding.AwayFromZero));
+        return (int)Math.Round(value * scale, MidpointRounding.AwayFromZero);
     }
 }

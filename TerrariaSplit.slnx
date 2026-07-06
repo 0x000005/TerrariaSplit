@@ -3,6 +3,10 @@
   <Project Path="src/TerrariaSplit.Configuration/TerrariaSplit.Configuration.csproj" />
   <Project Path="src/TerrariaSplit.Infrastructure/TerrariaSplit.Infrastructure.csproj" />
   <Project Path="src/TerrariaSplit.Infrastructure.Windows/TerrariaSplit.Infrastructure.Windows.csproj" />
+  <Project Path="src/TerrariaSplit.Race.Contracts/TerrariaSplit.Race.Contracts.csproj" />
+  <Project Path="src/TerrariaSplit.WorldGeneration/TerrariaSplit.WorldGeneration.csproj" />
+  <Project Path="src/TerrariaSplit.Race.Server/TerrariaSplit.Race.Server.csproj" />
+  <Project Path="src/TerrariaSplit.Race.Client/TerrariaSplit.Race.Client.csproj" />
   <Project Path="src/TerrariaSplit.Storage/TerrariaSplit.Storage.csproj" />
   <Project Path="src/TerrariaSplit.Statistics/TerrariaSplit.Statistics.csproj" />
   <Project Path="src/TerrariaSplit.Terraria/TerrariaSplit.Terraria.csproj" />

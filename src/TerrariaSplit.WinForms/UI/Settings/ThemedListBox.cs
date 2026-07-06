@@ -40,7 +40,7 @@ internal sealed class ThemedListBox : ListBox
 
     public Rectangle GetItemContentBounds(Rectangle bounds)
     {
-        int rightInset = ShouldShowScrollBar() ? ScrollBarGutterWidth : 0;
+        int rightInset = ShouldShowScrollBar() ? ScaledScrollBarGutterWidth : 0;
         return new Rectangle(
             bounds.Left,
             bounds.Top,
@@ -188,7 +188,7 @@ internal sealed class ThemedListBox : ListBox
             return Rectangle.Empty;
         }
 
-        int width = Math.Min(ScrollBarGutterWidth, ClientSize.Width);
+        int width = Math.Min(ScaledScrollBarGutterWidth, ClientSize.Width);
         return new Rectangle(Math.Max(0, ClientSize.Width - width), 0, width, ClientSize.Height);
     }
 
@@ -200,7 +200,7 @@ internal sealed class ThemedListBox : ListBox
             return Rectangle.Empty;
         }
 
-        int width = Math.Min(ScrollBarTrackWidth, gutter.Width);
+        int width = Math.Min(ScaledScrollBarTrackWidth, gutter.Width);
         return new Rectangle(
             gutter.Left + Math.Max(0, (gutter.Width - width) / 2),
             gutter.Top,
@@ -219,7 +219,7 @@ internal sealed class ThemedListBox : ListBox
         int visibleCount = GetVisibleItemCount();
         int thumbHeight = Math.Clamp(
             (int)Math.Round(track.Height * (visibleCount / (float)Math.Max(visibleCount, Items.Count))),
-            Math.Min(MinThumbHeight, track.Height),
+            Math.Min(ScaledMinThumbHeight, track.Height),
             track.Height);
         int travel = Math.Max(1, track.Height - thumbHeight);
         int maxTopIndex = GetMaxTopIndex();
@@ -262,4 +262,10 @@ internal sealed class ThemedListBox : ListBox
 
         return Math.Clamp(TopIndex, 0, GetMaxTopIndex());
     }
+
+    private static int ScaledScrollBarGutterWidth => UiDpiScale.ScaleIntFromBase200(ScrollBarGutterWidth);
+
+    private static int ScaledScrollBarTrackWidth => UiDpiScale.ScaleIntFromBase200(ScrollBarTrackWidth);
+
+    private static int ScaledMinThumbHeight => UiDpiScale.ScaleIntFromBase200(MinThumbHeight);
 }

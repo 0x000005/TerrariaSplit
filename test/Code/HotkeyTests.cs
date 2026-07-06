@@ -9,6 +9,9 @@ internal static class HotkeyTests
     {
         yield return ("Hotkey command mapper routes hotkeys into app commands", HotkeyCommandMapperRoutesHotkeysIntoAppCommands);
         yield return ("ApplicationController maps input commands to effects", ApplicationControllerMapsInputCommandsToEffects);
+        yield return ("ApplicationController maps runtime events to display invalidations and race effects", ApplicationControllerMapsRuntimeEventsToDisplayInvalidationsAndRaceEffects);
+        yield return ("ApplicationController maps Race events to scoped display invalidations", ApplicationControllerMapsRaceEventsToScopedDisplayInvalidations);
+        yield return ("ApplicationController keeps Race route override authoritative", ApplicationControllerKeepsRaceRouteOverrideAuthoritative);
         yield return ("ApplicationController apply settings preserves pending PB update", ApplicationControllerApplySettingsPreservesPendingPersonalBestUpdate);
         yield return ("ApplicationController reports personal best snapshot save failure", ApplicationControllerReportsPersonalBestSnapshotSaveFailure);
         yield return ("TimerController consumes queued menu actions only on menu", TimerControllerConsumesQueuedMenuActionsOnlyOnMenu);
@@ -102,16 +105,16 @@ internal static class HotkeyTests
         DateTime requestedAtUtc = DateTime.UtcNow;
         var controller = new ApplicationController(new AppSettings(), _ => true, new StoredSettingsSnapshotFactory());
 
-        ApplicationUpdate resetUpdate = controller.HandleCommand(
-            AppCommand.QueueMenuAction(MenuActionKind.Reset, requestedAtUtc));
+        ApplicationUpdate resetUpdate = controller.HandleSystemEvent(new ControlCommandSystemEvent(
+            AppCommand.QueueMenuAction(MenuActionKind.Reset, requestedAtUtc)));
         var resetEffect = (SubmitRuntimeCommandEffect)resetUpdate.Effects.Single();
         TestAssert.Equal(RuntimeCommandKind.QueueMenuAction, resetEffect.Command.Kind);
         TestAssert.Equal(MenuActionKind.Reset, resetEffect.Command.MenuAction);
 
-        ApplicationUpdate clickThroughUpdate = controller.HandleCommand(AppCommand.ToggleMouseClickThrough());
+        ApplicationUpdate clickThroughUpdate = controller.HandleSystemEvent(new ControlCommandSystemEvent(AppCommand.ToggleMouseClickThrough()));
         TestAssert.Equal(true, clickThroughUpdate.Effects.Single() is ToggleMouseClickThroughEffect);
 
-        ApplicationUpdate pyramidFilterUpdate = controller.HandleCommand(AppCommand.TogglePyramidFilter());
+        ApplicationUpdate pyramidFilterUpdate = controller.HandleSystemEvent(new ControlCommandSystemEvent(AppCommand.TogglePyramidFilter()));
         TestAssert.Equal(true, controller.Settings.Automation.AutoCreate.EnablePyramidFilter);
         TestAssert.Equal(2, pyramidFilterUpdate.Effects.Count);
         TestAssert.Equal(true, pyramidFilterUpdate.Effects[0] is SaveSettingsEffect);
@@ -119,11 +122,163 @@ internal static class HotkeyTests
         TestAssert.Equal(false, pyramidFilterUpdate.Effects.Any(effect =>
             effect is SubmitRuntimeCommandEffect));
 
-        ApplicationUpdate cancelCreateUpdate = controller.HandleCommand(AppCommand.CancelCreateWorld());
+        ApplicationUpdate cancelCreateUpdate = controller.HandleSystemEvent(new ControlCommandSystemEvent(AppCommand.CancelCreateWorld()));
         TestAssert.Equal(true, cancelCreateUpdate.Effects.Single() is CancelCreateWorldAutomationEffect);
 
-        ApplicationUpdate cancelEnterUpdate = controller.HandleCommand(AppCommand.CancelEnterWorld());
+        ApplicationUpdate cancelEnterUpdate = controller.HandleSystemEvent(new ControlCommandSystemEvent(AppCommand.CancelEnterWorld()));
         TestAssert.Equal(true, cancelEnterUpdate.Effects.Single() is CancelEnterWorldAutomationEffect);
+
+        ApplicationUpdate resetRunUpdate = controller.HandleSystemEvent(new ControlCommandSystemEvent(
+            AppCommand.ResetRun(recordStats: false, playResetSound: false)));
+        TestAssert.Equal(true, resetRunUpdate.Effects.Any(effect => effect is ResetRaceProgressReportsEffect));
+    }
+
+    private static void ApplicationControllerMapsRuntimeEventsToDisplayInvalidationsAndRaceEffects()
+    {
+        var controller = new ApplicationController(new AppSettings(), _ => true, new StoredSettingsSnapshotFactory());
+        SplitTracker tracker = CreateSingleSkeletronTracker();
+        tracker.Statuses[0].SetTime(TimeSpan.FromSeconds(12));
+        RuntimeRunSnapshot runtimeSnapshot = RuntimeRunSnapshot.FromState(
+            new SplitTimerState(SplitTimerPhase.Running, TimeSpan.FromSeconds(12), 0),
+            tracker,
+            Stopwatch.GetTimestamp());
+
+        ApplicationUpdate splitUpdate = controller.HandleSystemEvent(new RuntimeWatcherSystemEvent(new WatcherPollNotification(
+            TestSnapshots.Terraria(isGameMenu: false),
+            TestSnapshots.Terraria(isGameMenu: false),
+            TerrariaWatcherDiagnosticsDefaults.Empty,
+            runtimeSnapshot,
+            [new RunEvent(RunEventKind.SplitCompleted, SplitIndex: 0)],
+            0,
+            TimeSpan.Zero,
+            Stopwatch.GetTimestamp(),
+            TimeSpan.FromMilliseconds(5),
+            TimeSpan.Zero,
+            null)));
+
+        QueueRaceProgressReportsEffect raceEffect = splitUpdate.Effects
+            .OfType<QueueRaceProgressReportsEffect>()
+            .Single();
+        TestAssert.Equal(false, raceEffect.RunStarted);
+        TestAssert.Equal(false, raceEffect.RunCompleted);
+        DisplayInvalidation invalidation = splitUpdate.DisplayInvalidations.Single();
+        TestAssert.Equal(DisplayRefreshLevel.SplitProgress, invalidation.Level);
+        TestAssert.Equal(DisplayInvalidationTarget.All, invalidation.Targets);
+
+        ApplicationUpdate runStartedUpdate = controller.HandleSystemEvent(new RuntimeWatcherSystemEvent(new WatcherPollNotification(
+            TestSnapshots.Terraria(isGameMenu: false),
+            TestSnapshots.Terraria(isGameMenu: false),
+            TerrariaWatcherDiagnosticsDefaults.Empty,
+            runtimeSnapshot,
+            [new RunEvent(RunEventKind.RunStarted)],
+            1,
+            TimeSpan.Zero,
+            Stopwatch.GetTimestamp(),
+            TimeSpan.FromMilliseconds(5),
+            TimeSpan.Zero,
+            null)));
+
+        raceEffect = runStartedUpdate.Effects
+            .OfType<QueueRaceProgressReportsEffect>()
+            .Single();
+        TestAssert.Equal(true, raceEffect.RunStarted);
+        TestAssert.Equal(false, raceEffect.RunCompleted);
+
+        ApplicationUpdate runCompletedUpdate = controller.HandleSystemEvent(new RuntimeWatcherSystemEvent(new WatcherPollNotification(
+            TestSnapshots.Terraria(isGameMenu: false),
+            TestSnapshots.Terraria(isGameMenu: false),
+            TerrariaWatcherDiagnosticsDefaults.Empty,
+            runtimeSnapshot,
+            [new RunEvent(RunEventKind.RunCompleted)],
+            1,
+            TimeSpan.Zero,
+            Stopwatch.GetTimestamp(),
+            TimeSpan.FromMilliseconds(5),
+            TimeSpan.Zero,
+            null)));
+
+        raceEffect = runCompletedUpdate.Effects
+            .OfType<QueueRaceProgressReportsEffect>()
+            .Single();
+        TestAssert.Equal(false, raceEffect.RunStarted);
+        TestAssert.Equal(true, raceEffect.RunCompleted);
+        invalidation = runCompletedUpdate.DisplayInvalidations.Single();
+        TestAssert.Equal(DisplayRefreshLevel.SplitProgress, invalidation.Level);
+        TestAssert.Equal(DisplayInvalidationTarget.All, invalidation.Targets);
+    }
+
+    private static void ApplicationControllerMapsRaceEventsToScopedDisplayInvalidations()
+    {
+        var controller = new ApplicationController(new AppSettings(), _ => true, new StoredSettingsSnapshotFactory());
+
+        ApplicationUpdate packageUpdate = controller.HandleSystemEvent(new RacePackageSystemEvent("ABCD", "rev-1"));
+        TestAssert.Equal(0, packageUpdate.Effects.Count);
+        DisplayInvalidation packageInvalidation = packageUpdate.DisplayInvalidations.Single();
+        TestAssert.Equal(DisplayRefreshLevel.RoutePackage, packageInvalidation.Level);
+        TestAssert.Equal(DisplayInvalidationTarget.All, packageInvalidation.Targets);
+
+        ApplicationUpdate progressUpdate = controller.HandleSystemEvent(new RaceProgressSystemEvent("ABCD"));
+        TestAssert.Equal(0, progressUpdate.Effects.Count);
+        DisplayInvalidation progressInvalidation = progressUpdate.DisplayInvalidations.Single();
+        TestAssert.Equal(DisplayRefreshLevel.SplitProgress, progressInvalidation.Level);
+        TestAssert.Equal(DisplayInvalidationTarget.RaceLeaderboard, progressInvalidation.Targets);
+
+        ApplicationUpdate rosterUpdate = controller.HandleSystemEvent(new RaceRosterSystemEvent("ABCD"));
+        TestAssert.Equal(0, rosterUpdate.Effects.Count);
+        DisplayInvalidation rosterInvalidation = rosterUpdate.DisplayInvalidations.Single();
+        TestAssert.Equal(DisplayRefreshLevel.RuntimeFacts, rosterInvalidation.Level);
+        TestAssert.Equal(DisplayInvalidationTarget.RaceLeaderboard, rosterInvalidation.Targets);
+    }
+
+    private static void ApplicationControllerKeepsRaceRouteOverrideAuthoritative()
+    {
+        AppSettings localSettings = AppSettingsDefaults.Create();
+        localSettings.Route.SplitRoute = [CreateTestRouteEntry("split:local", "Local Route", SplitCatalog.Skeletron)];
+        localSettings.Route.ExpandSplitDetails = false;
+        localSettings.Overlay.ShowEarlyDeltaTime = false;
+        var controller = new ApplicationController(localSettings, _ => true, new StoredSettingsSnapshotFactory());
+
+        var raceOverride = new SettingsRouteOverridePackage
+        {
+            Key = "race-package-a",
+            SplitRoute = [CreateTestRouteEntry("split:race", "Race Route", "boss:eye-of-cthulhu")],
+            ReferenceSet = new ReferenceSplitSet
+            {
+                Name = "Race Reference",
+                Splits = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["split:race"] = "1:11.00"
+                }
+            }
+        };
+        ApplicationUpdate overrideUpdate = controller.HandleSystemEvent(new ControlCommandSystemEvent(
+            AppCommand.ApplyRouteOverride(raceOverride)));
+
+        TestAssert.Equal("Race Route", controller.Settings.Route.SplitRoute.Single().DisplayName);
+        TestAssert.Equal("Local Route", controller.BaseSettings.Route.SplitRoute.Single().DisplayName);
+        TestAssert.Equal("Race Reference", controller.Settings.Comparison.ActiveReferenceSplitSet);
+        TestAssert.Equal(true, overrideUpdate.Effects.Any(effect => effect is ResetRaceProgressReportsEffect));
+
+        AppSettings editedLocalSettings = AppSettingsStore.Clone(controller.BaseSettings);
+        editedLocalSettings.Route.SplitRoute = [CreateTestRouteEntry("split:edited-local", "Edited Local Route", "boss:king-slime")];
+        editedLocalSettings.Route.ExpandSplitDetails = true;
+        editedLocalSettings.Overlay.ShowEarlyDeltaTime = true;
+        ApplicationUpdate localSettingsUpdate = controller.HandleSystemEvent(new ControlCommandSystemEvent(
+            AppCommand.ApplySettings(editedLocalSettings)));
+
+        TestAssert.Equal("Edited Local Route", controller.BaseSettings.Route.SplitRoute.Single().DisplayName);
+        TestAssert.Equal("Race Route", controller.Settings.Route.SplitRoute.Single().DisplayName);
+        TestAssert.Equal(true, controller.Settings.Route.ExpandSplitDetails);
+        TestAssert.Equal(true, controller.Settings.Overlay.ShowEarlyDeltaTime);
+        TestAssert.Equal(true, localSettingsUpdate.Effects.Any(effect => effect is ResetRaceProgressReportsEffect));
+
+        ApplicationUpdate clearOverrideUpdate = controller.HandleSystemEvent(new ControlCommandSystemEvent(
+            AppCommand.ClearRouteOverride()));
+
+        TestAssert.Equal("Edited Local Route", controller.Settings.Route.SplitRoute.Single().DisplayName);
+        TestAssert.Equal(true, controller.Settings.Route.ExpandSplitDetails);
+        TestAssert.Equal(true, controller.Settings.Overlay.ShowEarlyDeltaTime);
+        TestAssert.Equal(false, clearOverrideUpdate.Effects.Any(effect => effect is ResetRaceProgressReportsEffect));
     }
 
     private static void ApplicationControllerApplySettingsPreservesPendingPersonalBestUpdate()
@@ -165,7 +320,7 @@ internal static class HotkeyTests
             tracker,
             Stopwatch.GetTimestamp());
 
-        controller.HandleWatcherNotification(new WatcherPollNotification(
+        controller.HandleSystemEvent(new RuntimeWatcherSystemEvent(new WatcherPollNotification(
             TestSnapshots.Terraria(isGameMenu: false),
             TestSnapshots.Terraria(isGameMenu: false),
             TerrariaWatcherDiagnosticsDefaults.Empty,
@@ -176,11 +331,11 @@ internal static class HotkeyTests
             Stopwatch.GetTimestamp(),
             TimeSpan.FromMilliseconds(5),
             TimeSpan.Zero,
-            null));
+            null)));
 
         AppSettings nextSettings = AppSettingsStore.Clone(settings);
         nextSettings.General.AlwaysOnTop = !nextSettings.General.AlwaysOnTop;
-        ApplicationUpdate update = controller.HandleCommand(AppCommand.ApplySettings(nextSettings));
+        ApplicationUpdate update = controller.HandleSystemEvent(new ControlCommandSystemEvent(AppCommand.ApplySettings(nextSettings)));
 
         TestAssert.Equal(1, confirmCount);
         TestAssert.Equal("0:30.00", controller.Settings.Comparison.PersonalBestSegmentTimes["split:skeletron"]);
@@ -242,7 +397,7 @@ internal static class HotkeyTests
             tracker,
             Stopwatch.GetTimestamp());
 
-        controller.HandleWatcherNotification(new WatcherPollNotification(
+        controller.HandleSystemEvent(new RuntimeWatcherSystemEvent(new WatcherPollNotification(
             TestSnapshots.Terraria(isGameMenu: false),
             TestSnapshots.Terraria(isGameMenu: false),
             TerrariaWatcherDiagnosticsDefaults.Empty,
@@ -253,9 +408,9 @@ internal static class HotkeyTests
             Stopwatch.GetTimestamp(),
             TimeSpan.FromMilliseconds(5),
             TimeSpan.Zero,
-            null));
+            null)));
 
-        ApplicationUpdate update = controller.HandleCommand(AppCommand.ResetRun(recordStats: true, playResetSound: false));
+        ApplicationUpdate update = controller.HandleSystemEvent(new ControlCommandSystemEvent(AppCommand.ResetRun(recordStats: true, playResetSound: false)));
 
         TestAssert.Equal(1, saveAttempts);
         TestAssert.Equal("0:30.00", controller.Settings.Comparison.PersonalBestSegmentTimes["split:skeletron"]);
@@ -940,6 +1095,18 @@ internal static class HotkeyTests
         }
 
         return null;
+    }
+
+    private static SplitRouteEntry CreateTestRouteEntry(string id, string displayName, string bossId)
+    {
+        return new SplitRouteEntry
+        {
+            Id = id,
+            DisplayName = displayName,
+            Enabled = true,
+            Condition = SplitCatalog.CreateBossFactCondition(bossId),
+            IconTargetIds = [bossId]
+        };
     }
 
     private static SplitTracker CreateSingleSkeletronTracker()

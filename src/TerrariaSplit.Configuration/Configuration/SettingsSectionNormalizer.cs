@@ -60,6 +60,44 @@ public static class SettingsSectionNormalizer
         advanced.TimerOverlayRefreshHz = RefreshRateSettings.NormalizeTimerOverlayRefreshHz(advanced.TimerOverlayRefreshHz);
     }
 
+    public static void NormalizeRace(RaceSettings race, RaceSettings defaults)
+    {
+        race.ServerUrl = string.IsNullOrWhiteSpace(race.ServerUrl)
+            ? defaults.ServerUrl
+            : race.ServerUrl.Trim();
+        race.Nickname = race.Nickname?.Trim() ?? string.Empty;
+        race.PreferredRole = RacePreferredRole.Normalize(race.PreferredRole);
+        race.PreferredWorldSource = RacePreferredWorldSource.Normalize(race.PreferredWorldSource);
+        race.Leaderboard ??= defaults.Leaderboard;
+        defaults.Leaderboard ??= new RaceLeaderboardSettings();
+        NormalizeColumn(race.Leaderboard.Rank ??= defaults.Leaderboard.Rank, defaults.Leaderboard.Rank);
+        NormalizeColumn(race.Leaderboard.Player ??= defaults.Leaderboard.Player, defaults.Leaderboard.Player);
+        NormalizeColumn(race.Leaderboard.Icon ??= defaults.Leaderboard.Icon, defaults.Leaderboard.Icon);
+        NormalizeColumn(race.Leaderboard.Time ??= defaults.Leaderboard.Time, defaults.Leaderboard.Time);
+        race.Leaderboard.TextEffects ??= defaults.Leaderboard.TextEffects ?? new RaceLeaderboardTextEffectSettings();
+        defaults.Leaderboard.TextEffects ??= new RaceLeaderboardTextEffectSettings();
+        NormalizeRaceLeaderboardEffect(race.Leaderboard.TextEffects.Rank ??= defaults.Leaderboard.TextEffects.Rank);
+        NormalizeRaceLeaderboardEffect(race.Leaderboard.TextEffects.Player ??= defaults.Leaderboard.TextEffects.Player);
+        NormalizeRaceLeaderboardEffect(race.Leaderboard.TextEffects.Icon ??= defaults.Leaderboard.TextEffects.Icon);
+        NormalizeRaceLeaderboardEffect(race.Leaderboard.TextEffects.Time ??= defaults.Leaderboard.TextEffects.Time);
+        race.Leaderboard.Colors ??= defaults.Leaderboard.Colors ?? new RaceLeaderboardColorSettings();
+        defaults.Leaderboard.Colors ??= new RaceLeaderboardColorSettings();
+        defaults.Leaderboard.Colors.RankGradient ??= new RaceLeaderboardRankGradientColorSettings();
+        NormalizeRaceLeaderboardRankGradient(
+            race.Leaderboard.Colors.RankGradient ??= defaults.Leaderboard.Colors.RankGradient,
+            defaults.Leaderboard.Colors.RankGradient);
+        NormalizeRaceLeaderboardColor(race.Leaderboard.Colors.Rank ??= defaults.Leaderboard.Colors.Rank, defaults.Leaderboard.Colors.Rank);
+        NormalizeRaceLeaderboardColor(race.Leaderboard.Colors.Player ??= defaults.Leaderboard.Colors.Player, defaults.Leaderboard.Colors.Player);
+        defaults.Leaderboard.Colors.PlayerSelf ??= CloneRaceLeaderboardColor(defaults.Leaderboard.Colors.Player);
+        defaults.Leaderboard.Colors.PlayerOther ??= CloneRaceLeaderboardColor(defaults.Leaderboard.Colors.Player);
+        race.Leaderboard.Colors.PlayerSelf ??= CloneRaceLeaderboardColor(race.Leaderboard.Colors.Player);
+        race.Leaderboard.Colors.PlayerOther ??= CloneRaceLeaderboardColor(race.Leaderboard.Colors.Player);
+        NormalizeRaceLeaderboardColor(race.Leaderboard.Colors.PlayerSelf, defaults.Leaderboard.Colors.PlayerSelf);
+        NormalizeRaceLeaderboardColor(race.Leaderboard.Colors.PlayerOther, defaults.Leaderboard.Colors.PlayerOther);
+        NormalizeRaceLeaderboardColor(race.Leaderboard.Colors.Icon ??= defaults.Leaderboard.Colors.Icon, defaults.Leaderboard.Colors.Icon);
+        NormalizeRaceLeaderboardColor(race.Leaderboard.Colors.Time ??= defaults.Leaderboard.Colors.Time, defaults.Leaderboard.Colors.Time);
+    }
+
     public static void NormalizeColumnSettings(UiColumnLayoutSettings columns, UiColumnLayoutSettings defaults)
     {
         columns.ScalePercent = Math.Clamp(columns.ScalePercent, 25, 300);
@@ -108,6 +146,49 @@ public static class SettingsSectionNormalizer
                 descriptor.SetOutline(effects, ClampEffectPercent(descriptor.GetOutline(effects)));
             }
         }
+    }
+
+    private static void NormalizeRaceLeaderboardEffect(RaceLeaderboardColumnEffectSettings effect)
+    {
+        effect.OpacityPercent = ClampOpacityPercent(effect.OpacityPercent);
+        effect.ShadowPercent = ClampEffectPercent(effect.ShadowPercent);
+        effect.OutlineThicknessPercent = ClampEffectPercent(effect.OutlineThicknessPercent);
+    }
+
+    private static void NormalizeRaceLeaderboardRankGradient(
+        RaceLeaderboardRankGradientColorSettings gradient,
+        RaceLeaderboardRankGradientColorSettings defaults)
+    {
+        gradient.Start = NormalizeColorText(gradient.Start, defaults.Start);
+        gradient.Middle = NormalizeColorText(gradient.Middle, defaults.Middle);
+        gradient.End = NormalizeColorText(gradient.End, defaults.End);
+    }
+
+    private static void NormalizeRaceLeaderboardColor(
+        RaceLeaderboardColumnColorSettings color,
+        RaceLeaderboardColumnColorSettings defaults)
+    {
+        color.Text = NormalizeColorText(color.Text, defaults.Text);
+        color.Outline = NormalizeColorText(color.Outline, defaults.Outline);
+        color.Shadow = NormalizeColorText(color.Shadow, defaults.Shadow);
+    }
+
+    private static RaceLeaderboardColumnColorSettings CloneRaceLeaderboardColor(RaceLeaderboardColumnColorSettings? source)
+    {
+        source ??= new RaceLeaderboardColumnColorSettings();
+        return new RaceLeaderboardColumnColorSettings
+        {
+            Text = source.Text,
+            Outline = source.Outline,
+            Shadow = source.Shadow
+        };
+    }
+
+    private static string NormalizeColorText(string? value, string fallback)
+    {
+        return string.IsNullOrWhiteSpace(value)
+            ? fallback
+            : value.Trim();
     }
 
     private static int ClampOpacityPercent(int value)

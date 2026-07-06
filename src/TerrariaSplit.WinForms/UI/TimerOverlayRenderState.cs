@@ -1,3 +1,5 @@
+using System.Drawing;
+
 namespace TerrariaSplit.UI;
 
 internal sealed record TimerOverlayRenderState(
@@ -6,11 +8,15 @@ internal sealed record TimerOverlayRenderState(
     IReadOnlyList<SplitStatusSnapshot> Statuses,
     int CurrentSplitIndex,
     SplitTimerState TimerState,
-    bool MouseClickThrough);
+    bool MouseClickThrough,
+    Color? TimerFillOverride = null,
+    bool ShowPyramidFilterIndicator = false);
 
 internal readonly record struct TimerOverlayStateKey(
     SplitTimerState TimerState,
     int CurrentSplitIndex,
     bool MouseClickThrough,
     int StatusHash,
-    long SettingsRevision);
+    long SettingsRevision,
+    int? TimerFillOverrideArgb,
+    bool ShowPyramidFilterIndicator);

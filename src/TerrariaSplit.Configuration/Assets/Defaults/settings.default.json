@@ -1,1055 +1,1151 @@
 ﻿{
-  "General": {
-    "ShowMouseClickThroughIndicator": true,
-    "Language": "English",
-    "AlwaysOnTop": true,
-    "PracticeMode": false
-  },
-  "Hotkeys": {
-    "PauseResumeKey": "F8",
-    "ResetKey": "F6",
-    "MouseClickThroughKey": "F9",
-    "CreateWorldKey": "None",
-    "PracticeWorldKey": "None"
-  },
-  "Route": {
-    "SplitRoute": [
-      {
-        "Id": "split:item-167",
-        "Enabled": true,
-        "DisplayName": "\u96F7\u7BA1",
-        "Condition": {
-          "Kind": "AtLeast",
-          "Children": [
+    "General": {
+        "ShowMouseClickThroughIndicator": true,
+        "Language": "English",
+        "AlwaysOnTop": true,
+        "PracticeMode": false
+    },
+    "Hotkeys": {
+        "PauseResumeKey": "F8",
+        "ResetKey": "F6",
+        "MouseClickThroughKey": "F9",
+        "CreateWorldKey": "None",
+        "PracticeWorldKey": "None"
+    },
+    "Route": {
+        "SplitRoute": [
             {
-              "Kind": "Fact",
-              "Children": [],
-              "FactKey": "item:167:ever-owned-count",
-              "Comparison": "AtLeast",
-              "Value": 50
-            }
-          ],
-          "FactKey": "",
-          "Comparison": "IsTrue",
-          "Value": 1
-        },
-        "IconTargetIds": [
-          "item:167"
-        ],
-        "IconOverride": {
-          "Source": "Target",
-          "TargetId": "item:167",
-          "FilePath": ""
-        },
-        "IsAttached": true,
-        "UseAdvancedConditionEditor": false
-      },
-      {
-        "Id": "split:biome-underworld",
-        "Enabled": true,
-        "DisplayName": "\u5730\u72F1",
-        "Condition": {
-          "Kind": "AtLeast",
-          "Children": [
-            {
-              "Kind": "Fact",
-              "Children": [],
-              "FactKey": "biome:underworld:active",
-              "Comparison": "IsTrue",
-              "Value": 1
-            }
-          ],
-          "FactKey": "",
-          "Comparison": "IsTrue",
-          "Value": 1
-        },
-        "IconTargetIds": [
-          "biome:underworld"
-        ],
-        "IconOverride": {
-          "Source": "All",
-          "TargetId": "",
-          "FilePath": ""
-        },
-        "IsAttached": true,
-        "UseAdvancedConditionEditor": false
-      },
-      {
-        "Id": "split:boss-skeletron",
-        "Enabled": true,
-        "DisplayName": "\u9AB7\u9AC5\u738B",
-        "Condition": {
-          "Kind": "AtLeast",
-          "Children": [
-            {
-              "Kind": "Fact",
-              "Children": [],
-              "FactKey": "boss:skeletron:defeated",
-              "Comparison": "IsTrue",
-              "Value": 1
-            }
-          ],
-          "FactKey": "",
-          "Comparison": "IsTrue",
-          "Value": 1
-        },
-        "IconTargetIds": [
-          "boss:skeletron"
-        ],
-        "IconOverride": {
-          "Source": "All",
-          "TargetId": "",
-          "FilePath": ""
-        },
-        "IsAttached": false,
-        "UseAdvancedConditionEditor": false
-      },
-      {
-        "Id": "split:boss-wall-of-flesh",
-        "Enabled": true,
-        "DisplayName": "\u8840\u8089\u5899",
-        "Condition": {
-          "Kind": "AtLeast",
-          "Children": [
-            {
-              "Kind": "Fact",
-              "Children": [],
-              "FactKey": "boss:wall-of-flesh:defeated",
-              "Comparison": "IsTrue",
-              "Value": 1
-            }
-          ],
-          "FactKey": "",
-          "Comparison": "IsTrue",
-          "Value": 1
-        },
-        "IconTargetIds": [
-          "boss:wall-of-flesh"
-        ],
-        "IconOverride": {
-          "Source": "All",
-          "TargetId": "",
-          "FilePath": ""
-        },
-        "IsAttached": false,
-        "UseAdvancedConditionEditor": false
-      },
-      {
-        "Id": "split:item-122",
-        "Enabled": true,
-        "DisplayName": "\u7194\u5CA9\u9550",
-        "Condition": {
-          "Kind": "AtLeast",
-          "Children": [
-            {
-              "Kind": "Fact",
-              "Children": [],
-              "FactKey": "item:122:ever-owned-count",
-              "Comparison": "AtLeast",
-              "Value": 1
-            }
-          ],
-          "FactKey": "",
-          "Comparison": "IsTrue",
-          "Value": 1
-        },
-        "IconTargetIds": [
-          "item:122"
-        ],
-        "IconOverride": {
-          "Source": "All",
-          "TargetId": "",
-          "FilePath": ""
-        },
-        "IsAttached": true,
-        "UseAdvancedConditionEditor": false
-      },
-      {
-        "Id": "split:item-520",
-        "Enabled": true,
-        "DisplayName": "\u53EC\u5524\u7269\u51C6\u5907",
-        "Condition": {
-          "Kind": "AtLeast",
-          "Children": [
-            {
-              "Kind": "All",
-              "Children": [
-                {
-                  "Kind": "Fact",
-                  "Children": [],
-                  "FactKey": "item:520:ever-owned-count",
-                  "Comparison": "AtLeast",
-                  "Value": 9
+                "Id": "split:item-167",
+                "Enabled": true,
+                "DisplayName": "\u96F7\u7BA1",
+                "Condition": {
+                    "Kind": "AtLeast",
+                    "Children": [
+                        {
+                            "Kind": "Fact",
+                            "Children": [],
+                            "FactKey": "item:167:ever-owned-count",
+                            "Comparison": "AtLeast",
+                            "Value": 50
+                        }
+                    ],
+                    "FactKey": "",
+                    "Comparison": "IsTrue",
+                    "Value": 1
                 },
-                {
-                  "Kind": "Fact",
-                  "Children": [],
-                  "FactKey": "item:521:ever-owned-count",
-                  "Comparison": "AtLeast",
-                  "Value": 9
+                "IconTargetIds": [
+                    "item:167"
+                ],
+                "IconOverride": {
+                    "Source": "Target",
+                    "TargetId": "item:167",
+                    "FilePath": ""
                 },
-                {
-                  "Kind": "Fact",
-                  "Children": [],
-                  "FactKey": "item:1330:ever-owned-count",
-                  "Comparison": "AtLeast",
-                  "Value": 6
+                "IsAttached": true,
+                "UseAdvancedConditionEditor": false
+            },
+            {
+                "Id": "split:biome-underworld",
+                "Enabled": true,
+                "DisplayName": "\u5730\u72F1",
+                "Condition": {
+                    "Kind": "AtLeast",
+                    "Children": [
+                        {
+                            "Kind": "Fact",
+                            "Children": [],
+                            "FactKey": "biome:underworld:active",
+                            "Comparison": "IsTrue",
+                            "Value": 1
+                        }
+                    ],
+                    "FactKey": "",
+                    "Comparison": "IsTrue",
+                    "Value": 1
+                },
+                "IconTargetIds": [
+                    "biome:underworld"
+                ],
+                "IconOverride": {
+                    "Source": "All",
+                    "TargetId": "",
+                    "FilePath": ""
+                },
+                "IsAttached": true,
+                "UseAdvancedConditionEditor": false
+            },
+            {
+                "Id": "split:boss-skeletron",
+                "Enabled": true,
+                "DisplayName": "\u9AB7\u9AC5\u738B",
+                "Condition": {
+                    "Kind": "AtLeast",
+                    "Children": [
+                        {
+                            "Kind": "Fact",
+                            "Children": [],
+                            "FactKey": "boss:skeletron:defeated",
+                            "Comparison": "IsTrue",
+                            "Value": 1
+                        }
+                    ],
+                    "FactKey": "",
+                    "Comparison": "IsTrue",
+                    "Value": 1
+                },
+                "IconTargetIds": [
+                    "boss:skeletron"
+                ],
+                "IconOverride": {
+                    "Source": "All",
+                    "TargetId": "",
+                    "FilePath": ""
+                },
+                "IsAttached": false,
+                "UseAdvancedConditionEditor": false
+            },
+            {
+                "Id": "split:boss-wall-of-flesh",
+                "Enabled": true,
+                "DisplayName": "\u8840\u8089\u5899",
+                "Condition": {
+                    "Kind": "AtLeast",
+                    "Children": [
+                        {
+                            "Kind": "Fact",
+                            "Children": [],
+                            "FactKey": "boss:wall-of-flesh:defeated",
+                            "Comparison": "IsTrue",
+                            "Value": 1
+                        }
+                    ],
+                    "FactKey": "",
+                    "Comparison": "IsTrue",
+                    "Value": 1
+                },
+                "IconTargetIds": [
+                    "boss:wall-of-flesh"
+                ],
+                "IconOverride": {
+                    "Source": "All",
+                    "TargetId": "",
+                    "FilePath": ""
+                },
+                "IsAttached": false,
+                "UseAdvancedConditionEditor": false
+            },
+            {
+                "Id": "split:item-122",
+                "Enabled": true,
+                "DisplayName": "\u7194\u5CA9\u9550",
+                "Condition": {
+                    "Kind": "AtLeast",
+                    "Children": [
+                        {
+                            "Kind": "Fact",
+                            "Children": [],
+                            "FactKey": "item:122:ever-owned-count",
+                            "Comparison": "AtLeast",
+                            "Value": 1
+                        }
+                    ],
+                    "FactKey": "",
+                    "Comparison": "IsTrue",
+                    "Value": 1
+                },
+                "IconTargetIds": [
+                    "item:122"
+                ],
+                "IconOverride": {
+                    "Source": "All",
+                    "TargetId": "",
+                    "FilePath": ""
+                },
+                "IsAttached": true,
+                "UseAdvancedConditionEditor": false
+            },
+            {
+                "Id": "split:item-520",
+                "Enabled": true,
+                "DisplayName": "\u53EC\u5524\u7269\u51C6\u5907",
+                "Condition": {
+                    "Kind": "AtLeast",
+                    "Children": [
+                        {
+                            "Kind": "All",
+                            "Children": [
+                                {
+                                    "Kind": "Fact",
+                                    "Children": [],
+                                    "FactKey": "item:520:ever-owned-count",
+                                    "Comparison": "AtLeast",
+                                    "Value": 9
+                                },
+                                {
+                                    "Kind": "Fact",
+                                    "Children": [],
+                                    "FactKey": "item:521:ever-owned-count",
+                                    "Comparison": "AtLeast",
+                                    "Value": 9
+                                },
+                                {
+                                    "Kind": "Fact",
+                                    "Children": [],
+                                    "FactKey": "item:1330:ever-owned-count",
+                                    "Comparison": "AtLeast",
+                                    "Value": 6
+                                }
+                            ],
+                            "FactKey": "",
+                            "Comparison": "IsTrue",
+                            "Value": 1
+                        },
+                        {
+                            "Kind": "All",
+                            "Children": [
+                                {
+                                    "Kind": "Fact",
+                                    "Children": [],
+                                    "FactKey": "item:544:ever-owned-count",
+                                    "Comparison": "AtLeast",
+                                    "Value": 1
+                                },
+                                {
+                                    "Kind": "Fact",
+                                    "Children": [],
+                                    "FactKey": "item:520:ever-owned-count",
+                                    "Comparison": "AtLeast",
+                                    "Value": 3
+                                },
+                                {
+                                    "Kind": "Fact",
+                                    "Children": [],
+                                    "FactKey": "item:521:ever-owned-count",
+                                    "Comparison": "AtLeast",
+                                    "Value": 9
+                                },
+                                {
+                                    "Kind": "Fact",
+                                    "Children": [],
+                                    "FactKey": "item:1330:ever-owned-count",
+                                    "Comparison": "AtLeast",
+                                    "Value": 6
+                                }
+                            ],
+                            "FactKey": "",
+                            "Comparison": "IsTrue",
+                            "Value": 1
+                        },
+                        {
+                            "Kind": "All",
+                            "Children": [
+                                {
+                                    "Kind": "Fact",
+                                    "Children": [],
+                                    "FactKey": "item:556:ever-owned-count",
+                                    "Comparison": "AtLeast",
+                                    "Value": 1
+                                },
+                                {
+                                    "Kind": "Fact",
+                                    "Children": [],
+                                    "FactKey": "item:520:ever-owned-count",
+                                    "Comparison": "AtLeast",
+                                    "Value": 9
+                                },
+                                {
+                                    "Kind": "Fact",
+                                    "Children": [],
+                                    "FactKey": "item:521:ever-owned-count",
+                                    "Comparison": "AtLeast",
+                                    "Value": 3
+                                }
+                            ],
+                            "FactKey": "",
+                            "Comparison": "IsTrue",
+                            "Value": 1
+                        },
+                        {
+                            "Kind": "All",
+                            "Children": [
+                                {
+                                    "Kind": "Fact",
+                                    "Children": [],
+                                    "FactKey": "item:557:ever-owned-count",
+                                    "Comparison": "AtLeast",
+                                    "Value": 1
+                                },
+                                {
+                                    "Kind": "Fact",
+                                    "Children": [],
+                                    "FactKey": "item:520:ever-owned-count",
+                                    "Comparison": "AtLeast",
+                                    "Value": 6
+                                },
+                                {
+                                    "Kind": "Fact",
+                                    "Children": [],
+                                    "FactKey": "item:521:ever-owned-count",
+                                    "Comparison": "AtLeast",
+                                    "Value": 6
+                                },
+                                {
+                                    "Kind": "Fact",
+                                    "Children": [],
+                                    "FactKey": "item:1330:ever-owned-count",
+                                    "Comparison": "AtLeast",
+                                    "Value": 6
+                                }
+                            ],
+                            "FactKey": "",
+                            "Comparison": "IsTrue",
+                            "Value": 1
+                        },
+                        {
+                            "Kind": "All",
+                            "Children": [
+                                {
+                                    "Kind": "Fact",
+                                    "Children": [],
+                                    "FactKey": "item:544:ever-owned-count",
+                                    "Comparison": "AtLeast",
+                                    "Value": 1
+                                },
+                                {
+                                    "Kind": "Fact",
+                                    "Children": [],
+                                    "FactKey": "item:556:ever-owned-count",
+                                    "Comparison": "AtLeast",
+                                    "Value": 1
+                                },
+                                {
+                                    "Kind": "Fact",
+                                    "Children": [],
+                                    "FactKey": "item:520:ever-owned-count",
+                                    "Comparison": "AtLeast",
+                                    "Value": 3
+                                },
+                                {
+                                    "Kind": "Fact",
+                                    "Children": [],
+                                    "FactKey": "item:521:ever-owned-count",
+                                    "Comparison": "AtLeast",
+                                    "Value": 3
+                                }
+                            ],
+                            "FactKey": "",
+                            "Comparison": "IsTrue",
+                            "Value": 1
+                        },
+                        {
+                            "Kind": "All",
+                            "Children": [
+                                {
+                                    "Kind": "Fact",
+                                    "Children": [],
+                                    "FactKey": "item:544:ever-owned-count",
+                                    "Comparison": "AtLeast",
+                                    "Value": 1
+                                },
+                                {
+                                    "Kind": "Fact",
+                                    "Children": [],
+                                    "FactKey": "item:557:ever-owned-count",
+                                    "Comparison": "AtLeast",
+                                    "Value": 1
+                                },
+                                {
+                                    "Kind": "Fact",
+                                    "Children": [],
+                                    "FactKey": "item:521:ever-owned-count",
+                                    "Comparison": "AtLeast",
+                                    "Value": 6
+                                },
+                                {
+                                    "Kind": "Fact",
+                                    "Children": [],
+                                    "FactKey": "item:1330:ever-owned-count",
+                                    "Comparison": "AtLeast",
+                                    "Value": 6
+                                }
+                            ],
+                            "FactKey": "",
+                            "Comparison": "IsTrue",
+                            "Value": 1
+                        },
+                        {
+                            "Kind": "All",
+                            "Children": [
+                                {
+                                    "Kind": "Fact",
+                                    "Children": [],
+                                    "FactKey": "item:556:ever-owned-count",
+                                    "Comparison": "AtLeast",
+                                    "Value": 1
+                                },
+                                {
+                                    "Kind": "Fact",
+                                    "Children": [],
+                                    "FactKey": "item:557:ever-owned-count",
+                                    "Comparison": "AtLeast",
+                                    "Value": 1
+                                },
+                                {
+                                    "Kind": "Fact",
+                                    "Children": [],
+                                    "FactKey": "item:520:ever-owned-count",
+                                    "Comparison": "AtLeast",
+                                    "Value": 6
+                                }
+                            ],
+                            "FactKey": "",
+                            "Comparison": "IsTrue",
+                            "Value": 1
+                        },
+                        {
+                            "Kind": "All",
+                            "Children": [
+                                {
+                                    "Kind": "Fact",
+                                    "Children": [],
+                                    "FactKey": "item:544:ever-owned-count",
+                                    "Comparison": "AtLeast",
+                                    "Value": 1
+                                },
+                                {
+                                    "Kind": "Fact",
+                                    "Children": [],
+                                    "FactKey": "item:556:ever-owned-count",
+                                    "Comparison": "AtLeast",
+                                    "Value": 1
+                                },
+                                {
+                                    "Kind": "Fact",
+                                    "Children": [],
+                                    "FactKey": "item:557:ever-owned-count",
+                                    "Comparison": "AtLeast",
+                                    "Value": 1
+                                }
+                            ],
+                            "FactKey": "",
+                            "Comparison": "IsTrue",
+                            "Value": 1
+                        }
+                    ],
+                    "FactKey": "",
+                    "Comparison": "IsTrue",
+                    "Value": 1
+                },
+                "IconTargetIds": [
+                    "item:520",
+                    "item:521",
+                    "item:1330",
+                    "item:544",
+                    "item:556",
+                    "item:557"
+                ],
+                "IconOverride": {
+                    "Source": "Target",
+                    "TargetId": "item:521",
+                    "FilePath": ""
+                },
+                "IsAttached": true,
+                "UseAdvancedConditionEditor": true
+            },
+            {
+                "Id": "split:biome-aether",
+                "Enabled": true,
+                "DisplayName": "\u4EE5\u592A",
+                "Condition": {
+                    "Kind": "AtLeast",
+                    "Children": [
+                        {
+                            "Kind": "Fact",
+                            "Children": [],
+                            "FactKey": "biome:aether:active",
+                            "Comparison": "IsTrue",
+                            "Value": 1
+                        }
+                    ],
+                    "FactKey": "",
+                    "Comparison": "IsTrue",
+                    "Value": 1
+                },
+                "IconTargetIds": [
+                    "biome:aether"
+                ],
+                "IconOverride": {
+                    "Source": "All",
+                    "TargetId": "",
+                    "FilePath": ""
+                },
+                "IsAttached": true,
+                "UseAdvancedConditionEditor": false
+            },
+            {
+                "Id": "split:boss-destroyer",
+                "Enabled": true,
+                "DisplayName": "\u4E09\u738B",
+                "Condition": {
+                    "Kind": "AtLeast",
+                    "Children": [
+                        {
+                            "Kind": "Fact",
+                            "Children": [],
+                            "FactKey": "boss:destroyer:defeated",
+                            "Comparison": "IsTrue",
+                            "Value": 1
+                        },
+                        {
+                            "Kind": "Fact",
+                            "Children": [],
+                            "FactKey": "boss:skeletron-prime:defeated",
+                            "Comparison": "IsTrue",
+                            "Value": 1
+                        },
+                        {
+                            "Kind": "Fact",
+                            "Children": [],
+                            "FactKey": "boss:twins:defeated",
+                            "Comparison": "IsTrue",
+                            "Value": 1
+                        }
+                    ],
+                    "FactKey": "",
+                    "Comparison": "IsTrue",
+                    "Value": 3
+                },
+                "IconTargetIds": [
+                    "boss:destroyer",
+                    "boss:skeletron-prime",
+                    "boss:twins"
+                ],
+                "IconOverride": {
+                    "Source": "All",
+                    "TargetId": "",
+                    "FilePath": ""
+                },
+                "IsAttached": false,
+                "UseAdvancedConditionEditor": false
+            },
+            {
+                "Id": "split:boss-plantera",
+                "Enabled": true,
+                "DisplayName": "\u4E16\u7EAA\u4E4B\u82B1",
+                "Condition": {
+                    "Kind": "AtLeast",
+                    "Children": [
+                        {
+                            "Kind": "Fact",
+                            "Children": [],
+                            "FactKey": "boss:plantera:defeated",
+                            "Comparison": "IsTrue",
+                            "Value": 1
+                        }
+                    ],
+                    "FactKey": "",
+                    "Comparison": "IsTrue",
+                    "Value": 1
+                },
+                "IconTargetIds": [
+                    "boss:plantera"
+                ],
+                "IconOverride": {
+                    "Source": "All",
+                    "TargetId": "",
+                    "FilePath": ""
+                },
+                "IsAttached": false,
+                "UseAdvancedConditionEditor": false
+            },
+            {
+                "Id": "split:boss-golem",
+                "Enabled": true,
+                "DisplayName": "\u77F3\u5DE8\u4EBA",
+                "Condition": {
+                    "Kind": "AtLeast",
+                    "Children": [
+                        {
+                            "Kind": "Fact",
+                            "Children": [],
+                            "FactKey": "boss:golem:defeated",
+                            "Comparison": "IsTrue",
+                            "Value": 1
+                        }
+                    ],
+                    "FactKey": "",
+                    "Comparison": "IsTrue",
+                    "Value": 1
+                },
+                "IconTargetIds": [
+                    "boss:golem"
+                ],
+                "IconOverride": {
+                    "Source": "All",
+                    "TargetId": "",
+                    "FilePath": ""
+                },
+                "IsAttached": false,
+                "UseAdvancedConditionEditor": false
+            },
+            {
+                "Id": "split:boss-lunatic-cultist",
+                "Enabled": true,
+                "DisplayName": "\u62DC\u6708\u6559\u90AA\u6559\u5F92",
+                "Condition": {
+                    "Kind": "AtLeast",
+                    "Children": [
+                        {
+                            "Kind": "Fact",
+                            "Children": [],
+                            "FactKey": "boss:lunatic-cultist:defeated",
+                            "Comparison": "IsTrue",
+                            "Value": 1
+                        }
+                    ],
+                    "FactKey": "",
+                    "Comparison": "IsTrue",
+                    "Value": 1
+                },
+                "IconTargetIds": [
+                    "boss:lunatic-cultist"
+                ],
+                "IconOverride": {
+                    "Source": "All",
+                    "TargetId": "",
+                    "FilePath": ""
+                },
+                "IsAttached": false,
+                "UseAdvancedConditionEditor": false
+            },
+            {
+                "Id": "split:item-3459",
+                "Enabled": true,
+                "DisplayName": "\u56DB\u67F1",
+                "Condition": {
+                    "Kind": "AtLeast",
+                    "Children": [
+                        {
+                            "Kind": "Fact",
+                            "Children": [],
+                            "FactKey": "item:3459:ever-owned-count",
+                            "Comparison": "AtLeast",
+                            "Value": 1
+                        },
+                        {
+                            "Kind": "Fact",
+                            "Children": [],
+                            "FactKey": "item:3456:ever-owned-count",
+                            "Comparison": "AtLeast",
+                            "Value": 1
+                        },
+                        {
+                            "Kind": "Fact",
+                            "Children": [],
+                            "FactKey": "item:3457:ever-owned-count",
+                            "Comparison": "AtLeast",
+                            "Value": 1
+                        },
+                        {
+                            "Kind": "Fact",
+                            "Children": [],
+                            "FactKey": "item:3458:ever-owned-count",
+                            "Comparison": "AtLeast",
+                            "Value": 1
+                        }
+                    ],
+                    "FactKey": "",
+                    "Comparison": "IsTrue",
+                    "Value": 4
+                },
+                "IconTargetIds": [
+                    "item:3459",
+                    "item:3457",
+                    "item:3458"
+                ],
+                "IconOverride": {
+                    "Source": "All",
+                    "TargetId": "",
+                    "FilePath": ""
+                },
+                "IsAttached": true,
+                "UseAdvancedConditionEditor": false
+            },
+            {
+                "Id": "split:boss-moon-lord",
+                "Enabled": true,
+                "DisplayName": "\u6708\u4EAE\u9886\u4E3B",
+                "Condition": {
+                    "Kind": "AtLeast",
+                    "Children": [
+                        {
+                            "Kind": "Fact",
+                            "Children": [],
+                            "FactKey": "boss:moon-lord:defeated",
+                            "Comparison": "IsTrue",
+                            "Value": 1
+                        }
+                    ],
+                    "FactKey": "",
+                    "Comparison": "IsTrue",
+                    "Value": 1
+                },
+                "IconTargetIds": [
+                    "boss:moon-lord"
+                ],
+                "IconOverride": {
+                    "Source": "All",
+                    "TargetId": "",
+                    "FilePath": ""
+                },
+                "IsAttached": false,
+                "UseAdvancedConditionEditor": false
+            }
+        ],
+        "ExpandSplitDetails": true,
+        "CollapseSplitDetailsOnCompletion": true,
+        "EnableVisibleGroupCountLimit": false,
+        "VisibleGroupCountLimit": 5,
+        "CurrentGroupPosition": 3,
+        "ShowFinalGroup": false,
+        "ShowAllVisibleGroupsAfterFinalGroup": true,
+        "ShowAllAttachedGroupsAfterFinalGroup": true,
+        "ShowAllMultiConditionMainGroupsAfterFinalGroup": true,
+        "AutoHideAttachedGroups": true
+    },
+    "Comparison": {
+        "ReferenceSplitSets": [],
+        "ActiveReferenceSplitSet": "WR",
+        "UsePersonalBestAsReferenceTime": false,
+        "PersonalBestTimeSets": [],
+        "ActivePersonalBestTimeSet": "Personal",
+        "PersonalBestSegmentSets": [],
+        "ActivePersonalBestSegmentSet": "Personal",
+        "PersonalBestTimes": {
+            "condition:split:item-167:complete": "",
+            "condition:split:biome-underworld:complete": "",
+            "condition:split:boss-skeletron:boss-skeletron-defeated-istrue-1": "",
+            "condition:split:boss-wall-of-flesh:boss-wall-of-flesh-defeated-istrue-1": "",
+            "condition:split:item-122:complete": "",
+            "condition:split:item-520:complete": "",
+            "condition:split:biome-aether:complete": "",
+            "condition:split:boss-destroyer:boss-destroyer-defeated-istrue-1": "",
+            "condition:split:boss-destroyer:boss-skeletron-prime-defeated-istrue-1": "",
+            "condition:split:boss-destroyer:boss-twins-defeated-istrue-1": "",
+            "condition:split:boss-plantera:boss-plantera-defeated-istrue-1": "",
+            "condition:split:boss-golem:boss-golem-defeated-istrue-1": "",
+            "condition:split:boss-lunatic-cultist:boss-lunatic-cultist-defeated-istrue-1": "",
+            "condition:split:item-3459:complete": "",
+            "condition:split:boss-moon-lord:boss-moon-lord-defeated-istrue-1": ""
+        },
+        "PersonalBestSegmentTimes": {
+            "split:boss-skeletron": "",
+            "split:boss-wall-of-flesh": "",
+            "split:boss-destroyer": "",
+            "split:boss-plantera": "",
+            "split:boss-golem": "",
+            "split:boss-lunatic-cultist": "",
+            "split:boss-moon-lord": ""
+        },
+        "AutoUpdatePersonalBestData": true,
+        "AskBeforeUpdatingPersonalBestData": true
+    },
+    "Overlay": {
+        "ShowSplitCompletionAnimation": true,
+        "SplitCompletionAnimationDurationSeconds": 6,
+        "SplitCompletionOutlineThicknessPercent": 25,
+        "SplitCompletionSplitComparisons": {
+            "split:boss-skeletron": true,
+            "split:boss-wall-of-flesh": true,
+            "split:boss-destroyer": true,
+            "split:boss-plantera": true,
+            "split:boss-golem": true,
+            "split:boss-lunatic-cultist": true,
+            "split:boss-moon-lord": true
+        },
+        "SplitCompletionSegmentComparisons": {
+            "split:boss-skeletron": false,
+            "split:boss-wall-of-flesh": false,
+            "split:boss-destroyer": false,
+            "split:boss-plantera": false,
+            "split:boss-golem": false,
+            "split:boss-lunatic-cultist": false,
+            "split:boss-moon-lord": false
+        },
+        "SplitCompletionOutlineSplitStyles": {
+            "split:boss-skeletron": "None",
+            "split:boss-wall-of-flesh": "None",
+            "split:boss-destroyer": "Aurora",
+            "split:boss-plantera": "Aurora",
+            "split:boss-golem": "Aurora",
+            "split:boss-lunatic-cultist": "Aurora",
+            "split:boss-moon-lord": "Rainbow"
+        },
+        "SplitCompletionOutlineSegmentStyles": {
+            "split:boss-skeletron": "None",
+            "split:boss-wall-of-flesh": "None",
+            "split:boss-destroyer": "Gold",
+            "split:boss-plantera": "None",
+            "split:boss-golem": "None",
+            "split:boss-lunatic-cultist": "None",
+            "split:boss-moon-lord": "Gold"
+        },
+        "ShowCurrentSplitHighlight": false,
+        "CurrentSplitHighlightScalePercent": 112,
+        "CurrentSplitDepthStrengthPercent": 45,
+        "ShowEarlyDeltaTime": true,
+        "EarlyDeltaTimeSeconds": 120,
+        "EnableDynamicDeltaTimeUnits": true,
+        "EnableDeltaGradientColor": true,
+        "EnableCurrentDeltaGradientColor": true,
+        "EnableTimerGradientColor": true,
+        "DeltaGradientThresholdSeconds": 120,
+        "DeltaGradientCurve": "SoftStep",
+        "ShowSegmentBestDeltaHighlight": true,
+        "SegmentBestDeltaHighlightStyles": {
+            "split:boss-skeletron": "Aurora",
+            "split:boss-wall-of-flesh": "Aurora",
+            "split:boss-destroyer": "Aurora",
+            "split:boss-plantera": "Aurora",
+            "split:boss-golem": "Aurora",
+            "split:boss-lunatic-cultist": "Aurora",
+            "split:boss-moon-lord": "Aurora"
+        },
+        "Colors": {
+            "ReferenceText": "#FFFFFF",
+            "ReferenceTextOutline": "#101010",
+            "ReferenceTextShadow": "#000000",
+            "ActiveReferenceText": "#0075EC",
+            "ActiveReferenceTextOutline": "#101010",
+            "ActiveReferenceTextShadow": "#000000",
+            "SplitText": "#F0A040",
+            "SplitTextOutline": "#101010",
+            "SplitTextShadow": "#000000",
+            "IconOutline": "#101010",
+            "IconShadow": "#000000",
+            "DeltaAheadText": "#30FF30",
+            "DeltaAheadTextOutline": "#101010",
+            "DeltaAheadTextShadow": "#000000",
+            "DeltaBehindText": "#FF3030",
+            "DeltaBehindTextOutline": "#101010",
+            "DeltaBehindTextShadow": "#000000",
+            "TimerText": "#FFFFFF",
+            "TimerTextOutline": "#101010",
+            "TimerTextShadow": "#000000",
+            "TimerAheadText": "#30FF30",
+            "TimerAheadTextOutline": "#101010",
+            "TimerAheadTextShadow": "#000000",
+            "TimerBehindText": "#FF3030",
+            "TimerBehindTextOutline": "#101010",
+            "TimerBehindTextShadow": "#000000",
+            "TimerRecordText": "#69A7FF",
+            "TimerRecordTextOutline": "#101010",
+            "TimerRecordTextShadow": "#000000",
+            "TimerNoRecordText": "#FF0000",
+            "TimerNoRecordTextOutline": "#101010",
+            "TimerNoRecordTextShadow": "#000000",
+            "TimerPausedText": "#5F5F5F",
+            "TimerPausedTextOutline": "#101010",
+            "TimerPausedTextShadow": "#000000",
+            "SplitCompletionSegmentLabelText": "#DEDEE2",
+            "SplitCompletionLabelText": "#DEDEE2",
+            "SplitCompletionSegmentTimeText": "#FFFFFF",
+            "SplitCompletionTimeText": "#FFFFFF"
+        },
+        "Sounds": {
+            "Pause": "",
+            "Resume": "",
+            "Reset": "",
+            "EnterWorld": "",
+            "SplitBehindReferenceBehindSegment": "",
+            "SplitBehindReferenceAheadSegment": "",
+            "SplitAheadReferenceBehindSegment": "",
+            "SplitAheadReferenceAheadSegment": "",
+            "FinalGroupBehindReferenceBehindSegment": "",
+            "FinalGroupBehindReferenceAheadSegment": "",
+            "FinalGroupAheadReferenceBehindSegment": "",
+            "FinalGroupAheadReferenceAheadSegment": ""
+        },
+        "Columns": {
+            "ScalePercent": 100,
+            "Icon": {
+                "Show": true,
+                "Width": 240,
+                "FontFamily": "Segoe UI",
+                "FontSize": 55,
+                "Bold": false
+            },
+            "Time": {
+                "Show": true,
+                "Width": 200,
+                "FontFamily": "Segoe UI",
+                "FontSize": 24,
+                "Bold": true
+            },
+            "Delta": {
+                "Show": true,
+                "Width": 200,
+                "FontFamily": "Segoe UI",
+                "FontSize": 24,
+                "Bold": true
+            },
+            "AttachedIcon": {
+                "Show": true,
+                "Width": 240,
+                "FontFamily": "Segoe UI",
+                "FontSize": 55,
+                "Bold": false
+            },
+            "AttachedTime": {
+                "Show": true,
+                "Width": 200,
+                "FontFamily": "Segoe UI",
+                "FontSize": 24,
+                "Bold": true
+            },
+            "AttachedDelta": {
+                "Show": true,
+                "Width": 200,
+                "FontFamily": "Segoe UI",
+                "FontSize": 24,
+                "Bold": true
+            },
+            "Timer": {
+                "Show": true,
+                "Width": 0,
+                "FontFamily": "Segoe UI",
+                "FontSize": 55,
+                "Bold": true
+            },
+            "TimerMilliseconds": {
+                "Show": true,
+                "Width": 0,
+                "FontFamily": "Segoe UI",
+                "FontSize": 35,
+                "Bold": true
+            },
+            "TimerOffsetX": 80,
+            "TimerOffsetY": 0
+        },
+        "TextEffects": {
+            "IconOpacityPercent": 100,
+            "IconShadowPercent": 20,
+            "IconOutlineThicknessPercent": 0,
+            "TimeOpacityPercent": 100,
+            "TimeShadowPercent": 40,
+            "TimeOutlineThicknessPercent": 30,
+            "DeltaOpacityPercent": 100,
+            "DeltaShadowPercent": 40,
+            "DeltaOutlineThicknessPercent": 30,
+            "AttachedIconOpacityPercent": 100,
+            "AttachedIconShadowPercent": 20,
+            "AttachedIconOutlineThicknessPercent": 0,
+            "AttachedTimeOpacityPercent": 100,
+            "AttachedTimeShadowPercent": 40,
+            "AttachedTimeOutlineThicknessPercent": 30,
+            "AttachedDeltaOpacityPercent": 100,
+            "AttachedDeltaShadowPercent": 40,
+            "AttachedDeltaOutlineThicknessPercent": 30,
+            "TimerOpacityPercent": 100,
+            "TimerShadowPercent": 0,
+            "TimerOutlineThicknessPercent": 25,
+            "TimerMillisecondsOpacityPercent": 100,
+            "TimerMillisecondsShadowPercent": 0,
+            "TimerMillisecondsOutlineThicknessPercent": 33
+        },
+        "EnableDefeatedBossIconLighting": true,
+        "UndefeatedIconGrayscalePercent": 80,
+        "UndefeatedIconBrightnessPercent": 50,
+        "CurrentBossIconGrayscaleWeakenPercent": 0,
+        "CurrentBossIconBrightnessBoostPercent": 0
+    },
+    "Automation": {
+        "AutoCreate": {
+            "PlayerName": "",
+            "PlayerTemplateCode": "",
+            "PlayerDifficulty": "Softcore",
+            "PreserveExistingSaves": false,
+            "WorldSize": "Small",
+            "WorldDifficulty": "Classic",
+            "WorldEvil": "Crimson",
+            "SpecialSeeds": "",
+            "SecretSeeds": "",
+            "EnableZenithStarCatch": false,
+            "ZenithStarCatchStopStage": "Pots",
+            "ZenithStarCatchSpeedSliderValue": 411,
+            "EnablePyramidFilter": false,
+            "PyramidFilterItemMask": 3,
+            "ReturnToMainMenuOnFilterFailure": false,
+            "EnableWorldPool": false,
+            "WorldPoolTargetCount": 10,
+            "ShortActionDelayMilliseconds": 10,
+            "MenuActionDelayMilliseconds": 90,
+            "PyramidFilterPostDelayMilliseconds": 50,
+            "WindowActivationDelayMilliseconds": 10,
+            "ClickFocusDelayMilliseconds": 10,
+            "InputPressDurationMilliseconds": 140
+        }
+    },
+    "Race": {
+        "ServerUrl": "http://127.0.0.1:5000",
+        "Nickname": "",
+        "PreferredRole": "Member",
+        "PreferredWorldSource": "Random",
+        "Leaderboard": {
+            "UseRankColorForMainTimer": true,
+            "Rank": {
+                "Show": true,
+                "Width": 120,
+                "FontFamily": "Segoe UI",
+                "FontSize": 24,
+                "Bold": true
+            },
+            "Player": {
+                "Show": true,
+                "Width": 220,
+                "FontFamily": "Segoe UI",
+                "FontSize": 24,
+                "Bold": true
+            },
+            "Icon": {
+                "Show": true,
+                "Width": 65,
+                "FontFamily": "Segoe UI",
+                "FontSize": 55,
+                "Bold": false
+            },
+            "Time": {
+                "Show": true,
+                "Width": 200,
+                "FontFamily": "Segoe UI",
+                "FontSize": 24,
+                "Bold": true
+            },
+            "TextEffects": {
+                "Rank": {
+                    "OpacityPercent": 100,
+                    "ShadowPercent": 40,
+                    "OutlineThicknessPercent": 30
+                },
+                "Player": {
+                    "OpacityPercent": 100,
+                    "ShadowPercent": 40,
+                    "OutlineThicknessPercent": 30
+                },
+                "Icon": {
+                    "OpacityPercent": 100,
+                    "ShadowPercent": 20,
+                    "OutlineThicknessPercent": 0
+                },
+                "Time": {
+                    "OpacityPercent": 100,
+                    "ShadowPercent": 40,
+                    "OutlineThicknessPercent": 30
                 }
-              ],
-              "FactKey": "",
-              "Comparison": "IsTrue",
-              "Value": 1
             },
-            {
-              "Kind": "All",
-              "Children": [
-                {
-                  "Kind": "Fact",
-                  "Children": [],
-                  "FactKey": "item:544:ever-owned-count",
-                  "Comparison": "AtLeast",
-                  "Value": 1
+            "Colors": {
+                "RankGradient": {
+                    "Start": "#30FF30",
+                    "Middle": "#F0A040",
+                    "End": "#FF3030"
                 },
-                {
-                  "Kind": "Fact",
-                  "Children": [],
-                  "FactKey": "item:520:ever-owned-count",
-                  "Comparison": "AtLeast",
-                  "Value": 3
+                "Rank": {
+                    "Text": "#F0A040",
+                    "Outline": "#101010",
+                    "Shadow": "#000000"
                 },
-                {
-                  "Kind": "Fact",
-                  "Children": [],
-                  "FactKey": "item:521:ever-owned-count",
-                  "Comparison": "AtLeast",
-                  "Value": 9
+                "Player": {
+                    "Text": "#FFFFFF",
+                    "Outline": "#101010",
+                    "Shadow": "#000000"
                 },
-                {
-                  "Kind": "Fact",
-                  "Children": [],
-                  "FactKey": "item:1330:ever-owned-count",
-                  "Comparison": "AtLeast",
-                  "Value": 6
+                "PlayerSelf": {
+                    "Text": "#0075EC",
+                    "Outline": "#101010",
+                    "Shadow": "#000000"
+                },
+                "PlayerOther": {
+                    "Text": "#FFFFFF",
+                    "Outline": "#101010",
+                    "Shadow": "#000000"
+                },
+                "Icon": {
+                    "Text": "#FFFFFF",
+                    "Outline": "#101010",
+                    "Shadow": "#000000"
+                },
+                "Time": {
+                    "Text": "#FFFFFF",
+                    "Outline": "#101010",
+                    "Shadow": "#000000"
                 }
-              ],
-              "FactKey": "",
-              "Comparison": "IsTrue",
-              "Value": 1
-            },
-            {
-              "Kind": "All",
-              "Children": [
-                {
-                  "Kind": "Fact",
-                  "Children": [],
-                  "FactKey": "item:556:ever-owned-count",
-                  "Comparison": "AtLeast",
-                  "Value": 1
-                },
-                {
-                  "Kind": "Fact",
-                  "Children": [],
-                  "FactKey": "item:520:ever-owned-count",
-                  "Comparison": "AtLeast",
-                  "Value": 9
-                },
-                {
-                  "Kind": "Fact",
-                  "Children": [],
-                  "FactKey": "item:521:ever-owned-count",
-                  "Comparison": "AtLeast",
-                  "Value": 3
-                }
-              ],
-              "FactKey": "",
-              "Comparison": "IsTrue",
-              "Value": 1
-            },
-            {
-              "Kind": "All",
-              "Children": [
-                {
-                  "Kind": "Fact",
-                  "Children": [],
-                  "FactKey": "item:557:ever-owned-count",
-                  "Comparison": "AtLeast",
-                  "Value": 1
-                },
-                {
-                  "Kind": "Fact",
-                  "Children": [],
-                  "FactKey": "item:520:ever-owned-count",
-                  "Comparison": "AtLeast",
-                  "Value": 6
-                },
-                {
-                  "Kind": "Fact",
-                  "Children": [],
-                  "FactKey": "item:521:ever-owned-count",
-                  "Comparison": "AtLeast",
-                  "Value": 6
-                },
-                {
-                  "Kind": "Fact",
-                  "Children": [],
-                  "FactKey": "item:1330:ever-owned-count",
-                  "Comparison": "AtLeast",
-                  "Value": 6
-                }
-              ],
-              "FactKey": "",
-              "Comparison": "IsTrue",
-              "Value": 1
-            },
-            {
-              "Kind": "All",
-              "Children": [
-                {
-                  "Kind": "Fact",
-                  "Children": [],
-                  "FactKey": "item:544:ever-owned-count",
-                  "Comparison": "AtLeast",
-                  "Value": 1
-                },
-                {
-                  "Kind": "Fact",
-                  "Children": [],
-                  "FactKey": "item:556:ever-owned-count",
-                  "Comparison": "AtLeast",
-                  "Value": 1
-                },
-                {
-                  "Kind": "Fact",
-                  "Children": [],
-                  "FactKey": "item:520:ever-owned-count",
-                  "Comparison": "AtLeast",
-                  "Value": 3
-                },
-                {
-                  "Kind": "Fact",
-                  "Children": [],
-                  "FactKey": "item:521:ever-owned-count",
-                  "Comparison": "AtLeast",
-                  "Value": 3
-                }
-              ],
-              "FactKey": "",
-              "Comparison": "IsTrue",
-              "Value": 1
-            },
-            {
-              "Kind": "All",
-              "Children": [
-                {
-                  "Kind": "Fact",
-                  "Children": [],
-                  "FactKey": "item:544:ever-owned-count",
-                  "Comparison": "AtLeast",
-                  "Value": 1
-                },
-                {
-                  "Kind": "Fact",
-                  "Children": [],
-                  "FactKey": "item:557:ever-owned-count",
-                  "Comparison": "AtLeast",
-                  "Value": 1
-                },
-                {
-                  "Kind": "Fact",
-                  "Children": [],
-                  "FactKey": "item:521:ever-owned-count",
-                  "Comparison": "AtLeast",
-                  "Value": 6
-                },
-                {
-                  "Kind": "Fact",
-                  "Children": [],
-                  "FactKey": "item:1330:ever-owned-count",
-                  "Comparison": "AtLeast",
-                  "Value": 6
-                }
-              ],
-              "FactKey": "",
-              "Comparison": "IsTrue",
-              "Value": 1
-            },
-            {
-              "Kind": "All",
-              "Children": [
-                {
-                  "Kind": "Fact",
-                  "Children": [],
-                  "FactKey": "item:556:ever-owned-count",
-                  "Comparison": "AtLeast",
-                  "Value": 1
-                },
-                {
-                  "Kind": "Fact",
-                  "Children": [],
-                  "FactKey": "item:557:ever-owned-count",
-                  "Comparison": "AtLeast",
-                  "Value": 1
-                },
-                {
-                  "Kind": "Fact",
-                  "Children": [],
-                  "FactKey": "item:520:ever-owned-count",
-                  "Comparison": "AtLeast",
-                  "Value": 6
-                }
-              ],
-              "FactKey": "",
-              "Comparison": "IsTrue",
-              "Value": 1
-            },
-            {
-              "Kind": "All",
-              "Children": [
-                {
-                  "Kind": "Fact",
-                  "Children": [],
-                  "FactKey": "item:544:ever-owned-count",
-                  "Comparison": "AtLeast",
-                  "Value": 1
-                },
-                {
-                  "Kind": "Fact",
-                  "Children": [],
-                  "FactKey": "item:556:ever-owned-count",
-                  "Comparison": "AtLeast",
-                  "Value": 1
-                },
-                {
-                  "Kind": "Fact",
-                  "Children": [],
-                  "FactKey": "item:557:ever-owned-count",
-                  "Comparison": "AtLeast",
-                  "Value": 1
-                }
-              ],
-              "FactKey": "",
-              "Comparison": "IsTrue",
-              "Value": 1
             }
-          ],
-          "FactKey": "",
-          "Comparison": "IsTrue",
-          "Value": 1
-        },
-        "IconTargetIds": [
-          "item:520",
-          "item:521",
-          "item:1330",
-          "item:544",
-          "item:556",
-          "item:557"
-        ],
-        "IconOverride": {
-          "Source": "Target",
-          "TargetId": "item:521",
-          "FilePath": ""
-        },
-        "IsAttached": true,
-        "UseAdvancedConditionEditor": true
-      },
-      {
-        "Id": "split:biome-aether",
-        "Enabled": true,
-        "DisplayName": "\u4EE5\u592A",
-        "Condition": {
-          "Kind": "AtLeast",
-          "Children": [
+        }
+    },
+    "PracticeWorlds": {
+        "Slots": [
             {
-              "Kind": "Fact",
-              "Children": [],
-              "FactKey": "biome:aether:active",
-              "Comparison": "IsTrue",
-              "Value": 1
-            }
-          ],
-          "FactKey": "",
-          "Comparison": "IsTrue",
-          "Value": 1
-        },
-        "IconTargetIds": [
-          "biome:aether"
-        ],
-        "IconOverride": {
-          "Source": "All",
-          "TargetId": "",
-          "FilePath": ""
-        },
-        "IsAttached": true,
-        "UseAdvancedConditionEditor": false
-      },
-      {
-        "Id": "split:boss-destroyer",
-        "Enabled": true,
-        "DisplayName": "\u4E09\u738B",
-        "Condition": {
-          "Kind": "AtLeast",
-          "Children": [
-            {
-              "Kind": "Fact",
-              "Children": [],
-              "FactKey": "boss:destroyer:defeated",
-              "Comparison": "IsTrue",
-              "Value": 1
+                "Name": "",
+                "PlayerFilePath": "",
+                "WorldFilePath": ""
             },
             {
-              "Kind": "Fact",
-              "Children": [],
-              "FactKey": "boss:skeletron-prime:defeated",
-              "Comparison": "IsTrue",
-              "Value": 1
+                "Name": "",
+                "PlayerFilePath": "",
+                "WorldFilePath": ""
             },
             {
-              "Kind": "Fact",
-              "Children": [],
-              "FactKey": "boss:twins:defeated",
-              "Comparison": "IsTrue",
-              "Value": 1
-            }
-          ],
-          "FactKey": "",
-          "Comparison": "IsTrue",
-          "Value": 3
-        },
-        "IconTargetIds": [
-          "boss:destroyer",
-          "boss:skeletron-prime",
-          "boss:twins"
-        ],
-        "IconOverride": {
-          "Source": "All",
-          "TargetId": "",
-          "FilePath": ""
-        },
-        "IsAttached": false,
-        "UseAdvancedConditionEditor": false
-      },
-      {
-        "Id": "split:boss-plantera",
-        "Enabled": true,
-        "DisplayName": "\u4E16\u7EAA\u4E4B\u82B1",
-        "Condition": {
-          "Kind": "AtLeast",
-          "Children": [
-            {
-              "Kind": "Fact",
-              "Children": [],
-              "FactKey": "boss:plantera:defeated",
-              "Comparison": "IsTrue",
-              "Value": 1
-            }
-          ],
-          "FactKey": "",
-          "Comparison": "IsTrue",
-          "Value": 1
-        },
-        "IconTargetIds": [
-          "boss:plantera"
-        ],
-        "IconOverride": {
-          "Source": "All",
-          "TargetId": "",
-          "FilePath": ""
-        },
-        "IsAttached": false,
-        "UseAdvancedConditionEditor": false
-      },
-      {
-        "Id": "split:boss-golem",
-        "Enabled": true,
-        "DisplayName": "\u77F3\u5DE8\u4EBA",
-        "Condition": {
-          "Kind": "AtLeast",
-          "Children": [
-            {
-              "Kind": "Fact",
-              "Children": [],
-              "FactKey": "boss:golem:defeated",
-              "Comparison": "IsTrue",
-              "Value": 1
-            }
-          ],
-          "FactKey": "",
-          "Comparison": "IsTrue",
-          "Value": 1
-        },
-        "IconTargetIds": [
-          "boss:golem"
-        ],
-        "IconOverride": {
-          "Source": "All",
-          "TargetId": "",
-          "FilePath": ""
-        },
-        "IsAttached": false,
-        "UseAdvancedConditionEditor": false
-      },
-      {
-        "Id": "split:boss-lunatic-cultist",
-        "Enabled": true,
-        "DisplayName": "\u62DC\u6708\u6559\u90AA\u6559\u5F92",
-        "Condition": {
-          "Kind": "AtLeast",
-          "Children": [
-            {
-              "Kind": "Fact",
-              "Children": [],
-              "FactKey": "boss:lunatic-cultist:defeated",
-              "Comparison": "IsTrue",
-              "Value": 1
-            }
-          ],
-          "FactKey": "",
-          "Comparison": "IsTrue",
-          "Value": 1
-        },
-        "IconTargetIds": [
-          "boss:lunatic-cultist"
-        ],
-        "IconOverride": {
-          "Source": "All",
-          "TargetId": "",
-          "FilePath": ""
-        },
-        "IsAttached": false,
-        "UseAdvancedConditionEditor": false
-      },
-      {
-        "Id": "split:item-3459",
-        "Enabled": true,
-        "DisplayName": "\u56DB\u67F1",
-        "Condition": {
-          "Kind": "AtLeast",
-          "Children": [
-            {
-              "Kind": "Fact",
-              "Children": [],
-              "FactKey": "item:3459:ever-owned-count",
-              "Comparison": "AtLeast",
-              "Value": 1
+                "Name": "",
+                "PlayerFilePath": "",
+                "WorldFilePath": ""
             },
             {
-              "Kind": "Fact",
-              "Children": [],
-              "FactKey": "item:3457:ever-owned-count",
-              "Comparison": "AtLeast",
-              "Value": 1
+                "Name": "",
+                "PlayerFilePath": "",
+                "WorldFilePath": ""
             },
             {
-              "Kind": "Fact",
-              "Children": [],
-              "FactKey": "item:3459:ever-owned-count",
-              "Comparison": "AtLeast",
-              "Value": 1
+                "Name": "",
+                "PlayerFilePath": "",
+                "WorldFilePath": ""
             },
             {
-              "Kind": "Fact",
-              "Children": [],
-              "FactKey": "item:3458:ever-owned-count",
-              "Comparison": "AtLeast",
-              "Value": 1
-            }
-          ],
-          "FactKey": "",
-          "Comparison": "IsTrue",
-          "Value": 4
-        },
-        "IconTargetIds": [
-          "item:3459",
-          "item:3457",
-          "item:3458"
-        ],
-        "IconOverride": {
-          "Source": "All",
-          "TargetId": "",
-          "FilePath": ""
-        },
-        "IsAttached": true,
-        "UseAdvancedConditionEditor": false
-      },
-      {
-        "Id": "split:boss-moon-lord",
-        "Enabled": true,
-        "DisplayName": "\u6708\u4EAE\u9886\u4E3B",
-        "Condition": {
-          "Kind": "AtLeast",
-          "Children": [
+                "Name": "",
+                "PlayerFilePath": "",
+                "WorldFilePath": ""
+            },
             {
-              "Kind": "Fact",
-              "Children": [],
-              "FactKey": "boss:moon-lord:defeated",
-              "Comparison": "IsTrue",
-              "Value": 1
+                "Name": "",
+                "PlayerFilePath": "",
+                "WorldFilePath": ""
+            },
+            {
+                "Name": "",
+                "PlayerFilePath": "",
+                "WorldFilePath": ""
+            },
+            {
+                "Name": "",
+                "PlayerFilePath": "",
+                "WorldFilePath": ""
+            },
+            {
+                "Name": "",
+                "PlayerFilePath": "",
+                "WorldFilePath": ""
             }
-          ],
-          "FactKey": "",
-          "Comparison": "IsTrue",
-          "Value": 1
-        },
-        "IconTargetIds": [
-          "boss:moon-lord"
-        ],
-        "IconOverride": {
-          "Source": "All",
-          "TargetId": "",
-          "FilePath": ""
-        },
-        "IsAttached": false,
-        "UseAdvancedConditionEditor": false
-      }
-    ],
-    "ExpandSplitDetails": true,
-    "CollapseSplitDetailsOnCompletion": true,
-    "EnableVisibleGroupCountLimit": false,
-    "VisibleGroupCountLimit": 5,
-    "CurrentGroupPosition": 3,
-    "ShowFinalGroup": false,
-    "ShowAllVisibleGroupsAfterFinalGroup": true,
-    "ShowAllAttachedGroupsAfterFinalGroup": true,
-    "ShowAllMultiConditionMainGroupsAfterFinalGroup": true,
-    "AutoHideAttachedGroups": true
-  },
-  "Comparison": {
-    "ReferenceSplitSets": [],
-    "ActiveReferenceSplitSet": "WR",
-    "UsePersonalBestAsReferenceTime": false,
-    "PersonalBestTimeSets": [],
-    "ActivePersonalBestTimeSet": "Personal",
-    "PersonalBestSegmentSets": [],
-    "ActivePersonalBestSegmentSet": "Personal",
-    "PersonalBestTimes": {
-      "condition:split:item-167:complete": "",
-      "condition:split:biome-underworld:complete": "",
-      "condition:split:boss-skeletron:boss-skeletron-defeated-istrue-1": "",
-      "condition:split:boss-wall-of-flesh:boss-wall-of-flesh-defeated-istrue-1": "",
-      "condition:split:item-122:complete": "",
-      "condition:split:item-520:complete": "",
-      "condition:split:biome-aether:complete": "",
-      "condition:split:boss-destroyer:boss-destroyer-defeated-istrue-1": "",
-      "condition:split:boss-destroyer:boss-skeletron-prime-defeated-istrue-1": "",
-      "condition:split:boss-destroyer:boss-twins-defeated-istrue-1": "",
-      "condition:split:boss-plantera:boss-plantera-defeated-istrue-1": "",
-      "condition:split:boss-golem:boss-golem-defeated-istrue-1": "",
-      "condition:split:boss-lunatic-cultist:boss-lunatic-cultist-defeated-istrue-1": "",
-      "condition:split:item-3459:complete": "",
-      "condition:split:boss-moon-lord:boss-moon-lord-defeated-istrue-1": ""
+        ]
     },
-    "PersonalBestSegmentTimes": {
-      "split:boss-skeletron": "",
-      "split:boss-wall-of-flesh": "",
-      "split:boss-destroyer": "",
-      "split:boss-plantera": "",
-      "split:boss-golem": "",
-      "split:boss-lunatic-cultist": "",
-      "split:boss-moon-lord": ""
-    },
-    "AutoUpdatePersonalBestData": true,
-    "AskBeforeUpdatingPersonalBestData": true
-  },
-  "Overlay": {
-    "ShowSplitCompletionAnimation": true,
-    "SplitCompletionAnimationDurationSeconds": 6,
-    "SplitCompletionOutlineThicknessPercent": 25,
-    "SplitCompletionSplitComparisons": {
-      "split:boss-skeletron": true,
-      "split:boss-wall-of-flesh": true,
-      "split:boss-destroyer": true,
-      "split:boss-plantera": true,
-      "split:boss-golem": true,
-      "split:boss-lunatic-cultist": true,
-      "split:boss-moon-lord": true
-    },
-    "SplitCompletionSegmentComparisons": {
-      "split:boss-skeletron": false,
-      "split:boss-wall-of-flesh": false,
-      "split:boss-destroyer": false,
-      "split:boss-plantera": false,
-      "split:boss-golem": false,
-      "split:boss-lunatic-cultist": false,
-      "split:boss-moon-lord": false
-    },
-    "SplitCompletionOutlineSplitStyles": {
-      "split:boss-skeletron": "None",
-      "split:boss-wall-of-flesh": "None",
-      "split:boss-destroyer": "Aurora",
-      "split:boss-plantera": "Aurora",
-      "split:boss-golem": "Aurora",
-      "split:boss-lunatic-cultist": "Aurora",
-      "split:boss-moon-lord": "Rainbow"
-    },
-    "SplitCompletionOutlineSegmentStyles": {
-      "split:boss-skeletron": "None",
-      "split:boss-wall-of-flesh": "None",
-      "split:boss-destroyer": "Gold",
-      "split:boss-plantera": "None",
-      "split:boss-golem": "None",
-      "split:boss-lunatic-cultist": "None",
-      "split:boss-moon-lord": "Gold"
-    },
-    "ShowCurrentSplitHighlight": false,
-    "CurrentSplitHighlightScalePercent": 112,
-    "CurrentSplitDepthStrengthPercent": 45,
-    "ShowEarlyDeltaTime": true,
-    "EarlyDeltaTimeSeconds": 120,
-    "EnableDynamicDeltaTimeUnits": true,
-    "EnableDeltaGradientColor": true,
-    "EnableCurrentDeltaGradientColor": true,
-    "EnableTimerGradientColor": true,
-    "DeltaGradientThresholdSeconds": 120,
-    "DeltaGradientCurve": "SoftStep",
-    "ShowSegmentBestDeltaHighlight": true,
-    "SegmentBestDeltaHighlightStyles": {
-      "split:boss-skeletron": "Aurora",
-      "split:boss-wall-of-flesh": "Aurora",
-      "split:boss-destroyer": "Aurora",
-      "split:boss-plantera": "Aurora",
-      "split:boss-golem": "Aurora",
-      "split:boss-lunatic-cultist": "Aurora",
-      "split:boss-moon-lord": "Aurora"
-    },
-    "Colors": {
-      "ReferenceText": "#FFFFFF",
-      "ReferenceTextOutline": "#101010",
-      "ReferenceTextShadow": "#000000",
-      "ActiveReferenceText": "#0075EC",
-      "ActiveReferenceTextOutline": "#101010",
-      "ActiveReferenceTextShadow": "#000000",
-      "SplitText": "#F0A040",
-      "SplitTextOutline": "#101010",
-      "SplitTextShadow": "#000000",
-      "IconOutline": "#101010",
-      "IconShadow": "#000000",
-      "DeltaAheadText": "#30FF30",
-      "DeltaAheadTextOutline": "#101010",
-      "DeltaAheadTextShadow": "#000000",
-      "DeltaBehindText": "#FF3030",
-      "DeltaBehindTextOutline": "#101010",
-      "DeltaBehindTextShadow": "#000000",
-      "TimerText": "#FFFFFF",
-      "TimerTextOutline": "#101010",
-      "TimerTextShadow": "#000000",
-      "TimerAheadText": "#30FF30",
-      "TimerAheadTextOutline": "#101010",
-      "TimerAheadTextShadow": "#000000",
-      "TimerBehindText": "#FF3030",
-      "TimerBehindTextOutline": "#101010",
-      "TimerBehindTextShadow": "#000000",
-      "TimerRecordText": "#69A7FF",
-      "TimerRecordTextOutline": "#101010",
-      "TimerRecordTextShadow": "#000000",
-      "TimerNoRecordText": "#FF0000",
-      "TimerNoRecordTextOutline": "#101010",
-      "TimerNoRecordTextShadow": "#000000",
-      "TimerPausedText": "#5F5F5F",
-      "TimerPausedTextOutline": "#101010",
-      "TimerPausedTextShadow": "#000000",
-      "SplitCompletionSegmentLabelText": "#DEDEE2",
-      "SplitCompletionLabelText": "#DEDEE2",
-      "SplitCompletionSegmentTimeText": "#FFFFFF",
-      "SplitCompletionTimeText": "#FFFFFF"
-    },
-    "Sounds": {
-      "Pause": "",
-      "Resume": "",
-      "Reset": "",
-      "EnterWorld": "",
-      "SplitBehindReferenceBehindSegment": "",
-      "SplitBehindReferenceAheadSegment": "",
-      "SplitAheadReferenceBehindSegment": "",
-      "SplitAheadReferenceAheadSegment": "",
-      "FinalGroupBehindReferenceBehindSegment": "",
-      "FinalGroupBehindReferenceAheadSegment": "",
-      "FinalGroupAheadReferenceBehindSegment": "",
-      "FinalGroupAheadReferenceAheadSegment": ""
-    },
-    "Columns": {
-      "ScalePercent": 100,
-      "Icon": {
-        "Show": true,
-        "Width": 240,
-        "FontFamily": "Segoe UI",
-        "FontSize": 55,
-        "Bold": false
-      },
-      "Time": {
-        "Show": true,
-        "Width": 200,
-        "FontFamily": "Segoe UI",
-        "FontSize": 24,
-        "Bold": true
-      },
-      "Delta": {
-        "Show": true,
-        "Width": 200,
-        "FontFamily": "Segoe UI",
-        "FontSize": 24,
-        "Bold": true
-      },
-      "AttachedIcon": {
-        "Show": true,
-        "Width": 240,
-        "FontFamily": "Segoe UI",
-        "FontSize": 55,
-        "Bold": false
-      },
-      "AttachedTime": {
-        "Show": true,
-        "Width": 200,
-        "FontFamily": "Segoe UI",
-        "FontSize": 24,
-        "Bold": true
-      },
-      "AttachedDelta": {
-        "Show": true,
-        "Width": 200,
-        "FontFamily": "Segoe UI",
-        "FontSize": 24,
-        "Bold": true
-      },
-      "Timer": {
-        "Show": true,
-        "Width": 0,
-        "FontFamily": "Segoe UI",
-        "FontSize": 55,
-        "Bold": true
-      },
-      "TimerMilliseconds": {
-        "Show": true,
-        "Width": 0,
-        "FontFamily": "Segoe UI",
-        "FontSize": 35,
-        "Bold": true
-      },
-      "TimerOffsetX": 130,
-      "TimerOffsetY": 0
-    },
-    "TextEffects": {
-      "IconOpacityPercent": 100,
-      "IconShadowPercent": 20,
-      "IconOutlineThicknessPercent": 0,
-      "TimeOpacityPercent": 100,
-      "TimeShadowPercent": 40,
-      "TimeOutlineThicknessPercent": 30,
-      "DeltaOpacityPercent": 100,
-      "DeltaShadowPercent": 40,
-      "DeltaOutlineThicknessPercent": 30,
-      "AttachedIconOpacityPercent": 100,
-      "AttachedIconShadowPercent": 20,
-      "AttachedIconOutlineThicknessPercent": 0,
-      "AttachedTimeOpacityPercent": 100,
-      "AttachedTimeShadowPercent": 40,
-      "AttachedTimeOutlineThicknessPercent": 30,
-      "AttachedDeltaOpacityPercent": 100,
-      "AttachedDeltaShadowPercent": 40,
-      "AttachedDeltaOutlineThicknessPercent": 30,
-      "TimerOpacityPercent": 100,
-      "TimerShadowPercent": 0,
-      "TimerOutlineThicknessPercent": 25,
-      "TimerMillisecondsOpacityPercent": 100,
-      "TimerMillisecondsShadowPercent": 0,
-      "TimerMillisecondsOutlineThicknessPercent": 33
-    },
-    "EnableDefeatedBossIconLighting": true,
-    "UndefeatedIconGrayscalePercent": 80,
-    "UndefeatedIconBrightnessPercent": 50,
-    "CurrentBossIconGrayscaleWeakenPercent": 0,
-    "CurrentBossIconBrightnessBoostPercent": 0
-  },
-  "Automation": {
-    "AutoCreate": {
-      "PlayerName": "",
-      "PlayerTemplateCode": "",
-      "PlayerDifficulty": "Softcore",
-      "PreserveExistingSaves": false,
-      "WorldSize": "Small",
-      "WorldDifficulty": "Classic",
-      "WorldEvil": "Crimson",
-      "SpecialSeeds": "",
-      "SecretSeeds": "",
-      "EnableZenithStarCatch": false,
-      "ZenithStarCatchStopStage": "Pots",
-      "ZenithStarCatchSpeedSliderValue": 411,
-      "EnablePyramidFilter": false,
-      "PyramidFilterItemMask": 3,
-      "ReturnToMainMenuOnFilterFailure": false,
-      "EnableWorldPool": false,
-      "WorldPoolTargetCount": 10,
-      "ShortActionDelayMilliseconds": 10,
-      "MenuActionDelayMilliseconds": 90,
-      "PyramidFilterPostDelayMilliseconds": 50,
-      "WindowActivationDelayMilliseconds": 10,
-      "ClickFocusDelayMilliseconds": 10,
-      "InputPressDurationMilliseconds": 140
+    "Advanced": {
+        "EnableTerrariaUiScalePatch": false,
+        "EnableRtssOverlay": false,
+        "RtssExecutablePath": "",
+        "RtssOverlayX": 10,
+        "RtssOverlayY": 10,
+        "RtssOverlayZoom": 3,
+        "ReadyWatcherPollHz": 200,
+        "ReadyUiControlHz": 100,
+        "RunningStatusPaintHz": 100,
+        "TimerOverlayRefreshHz": 100
     }
-  },
-  "PracticeWorlds": {
-    "Slots": [
-      {
-        "Name": "",
-        "PlayerFilePath": "",
-        "WorldFilePath": ""
-      },
-      {
-        "Name": "",
-        "PlayerFilePath": "",
-        "WorldFilePath": ""
-      },
-      {
-        "Name": "",
-        "PlayerFilePath": "",
-        "WorldFilePath": ""
-      },
-      {
-        "Name": "",
-        "PlayerFilePath": "",
-        "WorldFilePath": ""
-      },
-      {
-        "Name": "",
-        "PlayerFilePath": "",
-        "WorldFilePath": ""
-      },
-      {
-        "Name": "",
-        "PlayerFilePath": "",
-        "WorldFilePath": ""
-      },
-      {
-        "Name": "",
-        "PlayerFilePath": "",
-        "WorldFilePath": ""
-      },
-      {
-        "Name": "",
-        "PlayerFilePath": "",
-        "WorldFilePath": ""
-      },
-      {
-        "Name": "",
-        "PlayerFilePath": "",
-        "WorldFilePath": ""
-      },
-      {
-        "Name": "",
-        "PlayerFilePath": "",
-        "WorldFilePath": ""
-      }
-    ]
-  },
-  "Advanced": {
-    "EnableTerrariaUiScalePatch": false,
-    "EnableRtssOverlay": false,
-    "RtssExecutablePath": "",
-    "RtssOverlayX": 10,
-    "RtssOverlayY": 10,
-    "RtssOverlayZoom": 3,
-    "ReadyWatcherPollHz": 200,
-    "ReadyUiControlHz": 100,
-    "RunningStatusPaintHz": 100,
-    "TimerOverlayRefreshHz": 100
-  }
 }

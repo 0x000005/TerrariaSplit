@@ -38,6 +38,11 @@ internal sealed class SettingsUiFactory
 
     public TableLayoutPanel CreateSection(string title)
     {
+        return CreateSection(title, titleAction: null);
+    }
+
+    public TableLayoutPanel CreateSection(string title, Control? titleAction)
+    {
         var section = new TableLayoutPanel
         {
             AutoSize = true,
@@ -51,7 +56,9 @@ internal sealed class SettingsUiFactory
         UiTheme.EnableDoubleBuffering(section);
         section.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
 
-        AddSectionControl(section, CreateSectionTitle(title));
+        AddSectionControl(section, titleAction is null
+            ? CreateSectionTitle(title)
+            : CreateSectionTitleRow(title, titleAction));
         return section;
     }
 
@@ -75,6 +82,23 @@ internal sealed class SettingsUiFactory
         }
 
         return grid;
+    }
+
+    public Button CreateNavigationButton(string text)
+    {
+        var button = new Button
+        {
+            Text = localize(text),
+            Width = 148,
+            Height = 46,
+            Margin = new Padding(0, 0, 0, 8),
+            TextAlign = ContentAlignment.MiddleLeft
+        };
+        UiTheme.StyleButton(button, accent: false, minimumWidth: 148);
+        button.Height = 46;
+        button.MinimumSize = new Size(148, 46);
+        button.Padding = new Padding(14, 0, 14, 2);
+        return button;
     }
 
     public FlowLayoutPanel CreateActionBar()
@@ -432,7 +456,7 @@ internal sealed class SettingsUiFactory
     public void AddHeaderRow(TableLayoutPanel grid, ContentAlignment firstColumnAlign, params string[] labels)
     {
         int row = grid.RowCount++;
-        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 40f));
+        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, UiDpiScale.ScaleFloatForControl(grid, 40f)));
         for (int i = 0; i < labels.Length; i++)
         {
             ContentAlignment align = i == 0 ? firstColumnAlign : ContentAlignment.MiddleCenter;
@@ -443,7 +467,7 @@ internal sealed class SettingsUiFactory
     public int AddGridRow(TableLayoutPanel grid)
     {
         int row = grid.RowCount++;
-        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 56f));
+        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, UiDpiScale.ScaleFloatForControl(grid, 56f)));
         return row;
     }
 
@@ -469,7 +493,35 @@ internal sealed class SettingsUiFactory
         grid.RowCount = 0;
     }
 
+    private Control CreateSectionTitleRow(string title, Control action)
+    {
+        var row = new TableLayoutPanel
+        {
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            BackColor = Color.Transparent,
+            ColumnCount = 2,
+            Dock = DockStyle.Top,
+            Margin = new Padding(0, 0, 0, 14),
+            Padding = Padding.Empty
+        };
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+
+        Label label = CreateSectionTitle(title, bottomMargin: false);
+        action.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+        action.Margin = new Padding(12, 0, 0, 0);
+        row.Controls.Add(label, 0, 0);
+        row.Controls.Add(action, 1, 0);
+        return row;
+    }
+
     private Label CreateSectionTitle(string title)
+    {
+        return CreateSectionTitle(title, bottomMargin: true);
+    }
+
+    private Label CreateSectionTitle(string title, bool bottomMargin)
     {
         return new Label
         {
@@ -477,7 +529,7 @@ internal sealed class SettingsUiFactory
             Dock = DockStyle.Fill,
             Font = UiTheme.FormFont(13f, FontStyle.Bold),
             ForeColor = UiTheme.Text,
-            Margin = new Padding(0, 0, 0, 14),
+            Margin = bottomMargin ? new Padding(0, 0, 0, 14) : Padding.Empty,
             Text = localize(title)
         };
     }
