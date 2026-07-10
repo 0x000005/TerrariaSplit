@@ -47,7 +47,8 @@ internal sealed class TimerOverlayForm : Form
         Action<LayeredWindowUpdateDiagnostics> recordLayeredUpdate,
         Action recordPaintDispatchSkipped,
         Action recordPaintInputSkipped,
-        Func<bool> isInteractionBlocked)
+        Func<bool> isInteractionBlocked,
+        Action firstFramePresented)
     {
         this.recordPaintTick = recordPaintTick;
         this.recordPaintDispatchSkipped = recordPaintDispatchSkipped;
@@ -59,6 +60,13 @@ internal sealed class TimerOverlayForm : Form
             DrawOverlay,
             recordPaint,
             recordLayeredUpdate: recordLayeredUpdate);
+        overlayWindowController.FrameRendered += () =>
+        {
+            if (currentLayout is not null && currentState is not null)
+            {
+                firstFramePresented();
+            }
+        };
         Text = MainTimerWindowTitle;
         FormBorderStyle = FormBorderStyle.None;
         ShowInTaskbar = false;
@@ -99,6 +107,11 @@ internal sealed class TimerOverlayForm : Form
 
             return parameters;
         }
+    }
+
+    protected override void SetVisibleCore(bool value)
+    {
+        base.SetVisibleCore(value && currentLayout is not null && currentState is not null);
     }
 
     protected override void OnHandleCreated(EventArgs e)
@@ -266,6 +279,7 @@ internal sealed class TimerOverlayForm : Form
     {
         currentLayout = layout;
         ApplyWindowBounds(layout.TimerScreenBounds);
+        ShowIfInitialStateReady();
         QueueFullRender();
     }
 
@@ -278,6 +292,7 @@ internal sealed class TimerOverlayForm : Form
         Interlocked.Increment(ref renderStateRevision);
         overlayWindowController.ApplyWindowStyle(mouseClickThrough, IsInteractionBlocked());
         UpdateTimerOverlayPaintSchedulerState();
+        ShowIfInitialStateReady();
         if (forceRender || ShouldRenderImmediately(previousState, renderState, previousMouseClickThrough))
         {
             RenderStateChange(renderState);
@@ -342,6 +357,14 @@ internal sealed class TimerOverlayForm : Form
     public void RequestRender()
     {
         QueueFullRender();
+    }
+
+    private void ShowIfInitialStateReady()
+    {
+        if (!Visible && currentLayout is not null && currentState is not null)
+        {
+            Show();
+        }
     }
 
     public void ApplyWindowBounds(Rectangle bounds)

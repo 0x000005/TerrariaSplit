@@ -5,6 +5,10 @@ namespace TerrariaSplit.Storage;
 
 internal static class SettingsSerializer
 {
+    private static readonly Lazy<JsonObject> EmbeddedDefaults = new(() =>
+        JsonNode.Parse(AppSettingsDefaults.TemplateJson) as JsonObject
+            ?? throw new InvalidOperationException("Embedded default settings JSON is invalid."));
+
     public static AppSettings? ReadSettings(string path, string description)
     {
         try
@@ -22,7 +26,7 @@ internal static class SettingsSerializer
     {
         try
         {
-            return SettingsJsonSectionMigrator.Deserialize(json, JsonFileStore.JsonOptions);
+            return DeserializeSettings(json);
         }
         catch (Exception ex)
         {
@@ -33,7 +37,10 @@ internal static class SettingsSerializer
 
     public static OperationResult WriteSettings(string path, AppSettings settings)
     {
-        return JsonFileStore.TryWrite(path, new SettingsDocument(settings), "settings");
+        string json = JsonSerializer.Serialize(
+            new SettingsDocument(settings),
+            SettingsJsonContext.Default.SettingsDocument);
+        return JsonFileStore.TryWriteText(path, json, "settings");
     }
 
     public static AppSettings? ReadSettingsWithDefaults(
@@ -42,60 +49,131 @@ internal static class SettingsSerializer
         string description,
         out bool shouldWriteDefaults)
     {
+        bool exists = File.Exists(path);
+        string? json = exists ? File.ReadAllText(path) : null;
+        return ReadSettingsWithDefaults(json, exists, defaults, description, out shouldWriteDefaults);
+    }
+
+    public static AppSettings? ReadSettingsWithEmbeddedDefaults(
+        string path,
+        string description,
+        out bool shouldWriteDefaults)
+    {
+        bool exists = File.Exists(path);
+        string? json = exists ? File.ReadAllText(path) : null;
+        return ReadSettingsWithEmbeddedDefaults(json, exists, description, out shouldWriteDefaults);
+    }
+
+    public static AppSettings? ReadSettingsWithEmbeddedDefaults(
+        string? json,
+        bool sourceExists,
+        string description,
+        out bool shouldWriteDefaults)
+    {
         shouldWriteDefaults = false;
         try
         {
-            JsonObject? merged = JsonSerializer.SerializeToNode(defaults, JsonFileStore.JsonOptions) as JsonObject;
-            if (merged is null)
+            JsonObject merged = CreateEmbeddedDefaultsNode();
+            if (!sourceExists)
             {
                 shouldWriteDefaults = true;
-                return Clone(defaults);
+                return DeserializeSettings(merged);
             }
 
-            if (!File.Exists(path))
-            {
-                shouldWriteDefaults = true;
-                return SettingsJsonSectionMigrator.Deserialize(merged, JsonFileStore.JsonOptions);
-            }
-
-            JsonObject? overrides = ReadJsonObject(path);
+            JsonObject? overrides = ReadJsonObject(json);
             if (overrides is null)
             {
                 shouldWriteDefaults = true;
-                return SettingsJsonSectionMigrator.Deserialize(merged, JsonFileStore.JsonOptions);
+                return DeserializeSettings(merged);
             }
 
             SettingsJsonSectionMigrator.Migrate(overrides);
-            JsonObject overrideSettings = GetSettingsPayload(overrides);
-            MergeJsonObject(merged, overrideSettings);
-            AppSettings? settings = SettingsJsonSectionMigrator.Deserialize(merged, JsonFileStore.JsonOptions);
+            MergeJsonObject(merged, GetSettingsPayload(overrides));
+            AppSettings? settings = DeserializeSettings(merged);
             if (settings is null)
             {
                 shouldWriteDefaults = true;
-                return Clone(defaults);
+                return DeserializeSettings(CreateEmbeddedDefaultsNode());
             }
 
             return settings;
         }
         catch (Exception ex)
         {
-            StaticAppLogger.Instance.Error(ex, $"Failed to read {description} with defaults: {path}");
+            StaticAppLogger.Instance.Error(ex, $"Failed to read {description} with embedded defaults.");
             shouldWriteDefaults = true;
-            return Clone(defaults);
+            return DeserializeSettings(CreateEmbeddedDefaultsNode());
+        }
+    }
+
+    public static AppSettings? ReadSettingsWithDefaults(
+        string? json,
+        bool sourceExists,
+        AppSettings defaults,
+        string description,
+        out bool shouldWriteDefaults)
+    {
+        shouldWriteDefaults = false;
+        try
+        {
+            JsonObject? merged = JsonSerializer.SerializeToNode(
+                defaults,
+                SettingsJsonContext.Default.AppSettings) as JsonObject;
+            if (merged is null)
+            {
+                shouldWriteDefaults = true;
+                return AppSettingsCloner.Clone(defaults);
+            }
+
+            if (!sourceExists)
+            {
+                shouldWriteDefaults = true;
+                return AppSettingsCloner.Clone(defaults);
+            }
+
+            JsonObject? overrides = ReadJsonObject(json);
+            if (overrides is null)
+            {
+                shouldWriteDefaults = true;
+                return AppSettingsCloner.Clone(defaults);
+            }
+
+            SettingsJsonSectionMigrator.Migrate(overrides);
+            JsonObject overrideSettings = GetSettingsPayload(overrides);
+            MergeJsonObject(merged, overrideSettings);
+            AppSettings? settings = DeserializeSettings(merged);
+            if (settings is null)
+            {
+                shouldWriteDefaults = true;
+                return AppSettingsCloner.Clone(defaults);
+            }
+
+            return settings;
+        }
+        catch (Exception ex)
+        {
+            StaticAppLogger.Instance.Error(ex, $"Failed to read {description} with defaults.");
+            shouldWriteDefaults = true;
+            return AppSettingsCloner.Clone(defaults);
         }
     }
 
     public static AppSettings Clone(AppSettings settings)
     {
-        string json = JsonSerializer.Serialize(settings, JsonFileStore.JsonOptions);
-        return SettingsJsonSectionMigrator.Deserialize(json, JsonFileStore.JsonOptions) ?? new AppSettings();
+        return AppSettingsCloner.Clone(settings);
     }
 
     public static bool IsValidSettingsFile(string path)
     {
+        return TryReadValidSettingsFile(path, out _);
+    }
+
+    public static bool TryReadValidSettingsFile(string path, out string json)
+    {
         try
         {
-            using JsonDocument document = JsonDocument.Parse(File.ReadAllText(path));
+            json = File.ReadAllText(path);
+            using JsonDocument document = JsonDocument.Parse(json);
             if (document.RootElement.ValueKind != JsonValueKind.Object)
             {
                 return false;
@@ -117,27 +195,46 @@ internal static class SettingsSerializer
         }
         catch (Exception ex)
         {
+            json = string.Empty;
             StaticAppLogger.Instance.Error(ex, $"Ignored invalid settings file: {path}");
             return false;
         }
     }
 
-    private static JsonObject? ReadJsonObject(string path)
+    private static JsonObject? ReadJsonObject(string? json)
     {
         try
         {
-            if (!File.Exists(path))
+            if (string.IsNullOrWhiteSpace(json))
             {
                 return null;
             }
 
-            return JsonNode.Parse(File.ReadAllText(path)) as JsonObject;
+            return JsonNode.Parse(json) as JsonObject;
         }
         catch (Exception ex)
         {
-            StaticAppLogger.Instance.Error(ex, $"Failed to read settings JSON object: {path}");
+            StaticAppLogger.Instance.Error(ex, "Failed to read settings JSON object.");
             return null;
         }
+    }
+
+    private static AppSettings? DeserializeSettings(string json)
+    {
+        return JsonNode.Parse(json) is JsonObject root
+            ? DeserializeSettings(root)
+            : null;
+    }
+
+    private static AppSettings? DeserializeSettings(JsonObject root)
+    {
+        SettingsJsonSectionMigrator.Migrate(root);
+        return root.Deserialize(SettingsJsonContext.Default.SettingsDocument)?.Settings;
+    }
+
+    private static JsonObject CreateEmbeddedDefaultsNode()
+    {
+        return (JsonObject)EmbeddedDefaults.Value.DeepClone();
     }
 
     private static JsonObject GetSettingsPayload(JsonObject root)

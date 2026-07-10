@@ -90,12 +90,22 @@ public sealed record RaceSplitReport(
     string? TargetId = null,
     string? IconFileName = null,
     string? IconDisplayName = null,
-    bool IsSplitComplete = true);
+    bool IsSplitComplete = true)
+{
+    public long PackageRevision { get; init; }
+
+    public string RunId { get; init; } = string.Empty;
+}
 
 public sealed record RaceRunStartReport(
     string RoomCode,
     string Nickname,
-    DateTimeOffset? ReportedAtUtc = null);
+    DateTimeOffset? ReportedAtUtc = null)
+{
+    public long PackageRevision { get; init; }
+
+    public string RunId { get; init; } = string.Empty;
+}
 
 public sealed record RacePlayerState(
     string Nickname,
@@ -140,7 +150,10 @@ public sealed record RaceRoomState(
     IReadOnlyList<RacePlayerState> Players,
     IReadOnlyList<RaceLeaderboardEntry> Leaderboard,
     DateTimeOffset CreatedAtUtc,
-    DateTimeOffset LastUpdatedAtUtc);
+    DateTimeOffset LastUpdatedAtUtc)
+{
+    public long PackageRevision { get; init; }
+}
 
 public enum RaceRoomStateUpdateKind
 {
@@ -169,31 +182,24 @@ public sealed record RaceRoomProgressState(
     RaceRoomStatus Status,
     IReadOnlyList<RacePlayerState> Players,
     IReadOnlyList<RaceLeaderboardEntry> Leaderboard,
-    DateTimeOffset LastUpdatedAtUtc);
+    DateTimeOffset LastUpdatedAtUtc)
+{
+    public long PackageRevision { get; init; }
+}
 
 public sealed record RaceProgressChanged(RaceRoomProgressState Progress);
 
 public sealed record RaceProgressResetRequest(
     string RoomCode,
-    string Nickname);
+    string Nickname,
+    long PackageRevision = 0,
+    string RunId = "");
 
 public static class RacePackageRevisionCalculator
 {
     public static string Create(RaceRoomState state)
     {
-        string routeHash = state.Route?.RouteHash ?? string.Empty;
-        string worldName = state.WorldFile?.FileName ?? string.Empty;
-        string worldHash = state.WorldFile?.Sha256 ?? string.Empty;
-        string uploadedTicks = state.WorldFile?.UploadedAtUtc.UtcDateTime.Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
-        string seed = state.Seed?.SeedText ?? string.Empty;
-        return string.Join(
-            "|",
-            state.RoomCode.Trim(),
-            routeHash.Trim(),
-            worldName.Trim(),
-            worldHash.Trim(),
-            uploadedTicks,
-            seed.Trim()).ToUpperInvariant();
+        return state.PackageRevision.ToString(System.Globalization.CultureInfo.InvariantCulture);
     }
 }
 

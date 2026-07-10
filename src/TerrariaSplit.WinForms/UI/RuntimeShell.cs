@@ -47,6 +47,12 @@ internal sealed class RuntimeShell : IDisposable
     public RuntimePerformanceTracker Performance =>
         performance ?? throw new InvalidOperationException("Runtime performance tracker has not been attached.");
 
+    public bool IsRuntimeAttached =>
+        monitorCoordinator is not null &&
+        controlScheduler is not null &&
+        statusPaintScheduler is not null &&
+        performance is not null;
+
     public Action DispatchedControlTick => dispatchedControlTick;
 
     public Action DispatchedStatusPaintTick => dispatchedStatusPaintTick;
@@ -61,6 +67,11 @@ internal sealed class RuntimeShell : IDisposable
     {
         this.dispatchedControlTick = dispatchedControlTick;
         this.dispatchedStatusPaintTick = dispatchedStatusPaintTick;
+    }
+
+    public void AttachPerformance(RuntimePerformanceTracker performance)
+    {
+        this.performance = performance;
     }
 
     public void AttachRuntimeComponents(

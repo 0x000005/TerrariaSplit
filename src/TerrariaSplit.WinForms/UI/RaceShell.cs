@@ -1,7 +1,7 @@
-using System.Collections.Concurrent;
 using System.Drawing;
 using System.Globalization;
 using System.Runtime.InteropServices;
+using System.Threading.Channels;
 using TerrariaSplit.Race.Client;
 using TerrariaSplit.Race.Contracts;
 using TerrariaSplit.Terraria.Automation;
@@ -31,9 +31,13 @@ internal sealed class RaceShell : IRacePanelShell, IDisposable
     private readonly Func<AppSettings, OperationResult> saveSettings;
     private readonly Action raceTimerColorChanged;
     private readonly Action resetRaceTimer;
+    private readonly Action<SystemEvent> publishSystemEvent;
     private readonly Form owner;
     private const string RaceStartProgressKey = "start";
-    private readonly ConcurrentQueue<RaceProgressUpload> queuedProgressUploads = new();
+    private readonly Channel<RaceProgressUpload> progressUploads = Channel.CreateUnbounded<RaceProgressUpload>(
+        new UnboundedChannelOptions { SingleReader = true, SingleWriter = true });
+    private readonly CancellationTokenSource progressUploadCancellation = new();
+    private readonly Task progressUploadPump;
     private readonly object progressViewUpdateLock = new();
     private RaceForm? form;
     private RaceLeaderboardForm? leaderboardForm;
@@ -48,8 +52,10 @@ internal sealed class RaceShell : IRacePanelShell, IDisposable
     private RacePanelPersistentPreferences lastPersistedPreferences;
     private readonly HashSet<string> reportedProgressKeys = new(StringComparer.OrdinalIgnoreCase);
     private RaceProgressChanged? pendingProgressViewUpdate;
-    private int progressReportDrainActive;
     private int progressViewUpdatePending;
+    private int localRoomExitActive;
+    private long activePackageRevision;
+    private string activeRunId = string.Empty;
     private bool mouseClickThrough;
     private bool closingWindows;
     private bool disposed;
@@ -64,6 +70,7 @@ internal sealed class RaceShell : IRacePanelShell, IDisposable
         Action<SettingsRouteOverridePackage> applyRouteOverride,
         Action clearRouteOverride,
         Func<AppSettings, OperationResult> saveSettings,
+        Action<SystemEvent> publishSystemEvent,
         Form owner,
         Action raceTimerColorChanged,
         Action resetRaceTimer)
@@ -78,6 +85,7 @@ internal sealed class RaceShell : IRacePanelShell, IDisposable
         this.applyRouteOverride = applyRouteOverride;
         this.clearRouteOverride = clearRouteOverride;
         this.saveSettings = saveSettings;
+        this.publishSystemEvent = publishSystemEvent;
         this.owner = owner;
         this.raceTimerColorChanged = raceTimerColorChanged;
         this.resetRaceTimer = resetRaceTimer;
@@ -86,6 +94,7 @@ internal sealed class RaceShell : IRacePanelShell, IDisposable
         session.PackageChanged += HandlePackageChanged;
         session.ProgressChanged += HandleProgressChanged;
         session.RosterChanged += HandleRosterChanged;
+        progressUploadPump = Task.Run(() => DrainProgressReportsAsync(progressUploadCancellation.Token));
     }
 
     public RaceRoomState? State => session.State;
@@ -147,11 +156,25 @@ internal sealed class RaceShell : IRacePanelShell, IDisposable
 
     public void RefreshWindowSettings()
     {
+        RefreshDisplay(DisplayRefreshLevel.DisplaySettings);
+    }
+
+    public void RefreshDisplay(DisplayRefreshLevel level)
+    {
+        form?.UpdateRaceState(session.State);
         SyncLeaderboardVisibility();
         ApplyLeaderboardTopMost();
         leaderboardForm?.ApplyMouseClickThrough(mouseClickThrough);
-        leaderboardForm?.ApplySettings();
+        if (level is DisplayRefreshLevel.DisplaySettings or
+            DisplayRefreshLevel.RoutePackage or
+            DisplayRefreshLevel.RunReset or
+            DisplayRefreshLevel.FullRebuild)
+        {
+            leaderboardForm?.ApplySettings();
+        }
+
         leaderboardForm?.UpdateState(session.State);
+        raceTimerColorChanged();
     }
 
     public void ApplyMouseClickThrough(bool enabled)
@@ -234,8 +257,6 @@ internal sealed class RaceShell : IRacePanelShell, IDisposable
             RaceOperationResult<RaceRoomState> result = await session.JoinRoomAsync(
                 serverUrl,
                 new RaceRoomJoinRequest(roomCode, nickname));
-            ClearReportedProgress();
-
             LogRaceOperationFailure(result, "join room");
             return result;
         }
@@ -251,24 +272,30 @@ internal sealed class RaceShell : IRacePanelShell, IDisposable
 
     public async Task CloseRoomAsync()
     {
+        if (Interlocked.Exchange(ref localRoomExitActive, 1) != 0)
+        {
+            return;
+        }
+
         try
         {
-            using var cancellation = new CancellationTokenSource(RemoteRoomExitTimeout);
-            RaceOperationResult<RaceRoomState> result = await session.CloseRoomAsync(cancellation.Token);
-            if (result.Succeeded)
+            try
             {
-                await LeaveLocalRoomStateAsync();
-                return;
+                using var cancellation = new CancellationTokenSource(RemoteRoomExitTimeout);
+                RaceOperationResult<RaceRoomState> result = await session.CloseRoomAsync(cancellation.Token);
+                LogRaceOperationFailure(result, "close room");
+            }
+            catch (Exception ex) when (IsRaceConnectionExitException(ex))
+            {
+                logger.Info("Race close room failed; leaving local room state. " + ex.Message);
             }
 
-            LogRaceOperationFailure(result, "close room");
+            await LeaveLocalRoomStateAsync();
         }
-        catch (Exception ex) when (IsRaceConnectionExitException(ex))
+        finally
         {
-            logger.Info("Race close room failed; leaving local room state. " + ex.Message);
+            Interlocked.Exchange(ref localRoomExitActive, 0);
         }
-
-        await LeaveLocalRoomStateAsync();
     }
 
     public Task CopyRoomInfoAsync()
@@ -296,6 +323,7 @@ internal sealed class RaceShell : IRacePanelShell, IDisposable
 
     public async Task GenerateRandomWorldAsync(RaceWorldSettings worldSettings, IProgress<int>? progress = null)
     {
+        progress = CreateJobProgress("race-world-generation", progress);
         SaveDraftState(draftState with { Role = RacePanelRole.Host });
         localWorldPath = null;
 
@@ -318,6 +346,7 @@ internal sealed class RaceShell : IRacePanelShell, IDisposable
         string seedText,
         IProgress<int>? progress = null)
     {
+        progress = CreateJobProgress("race-world-generation", progress);
         localWorldPath = null;
         if (string.IsNullOrWhiteSpace(seedText))
         {
@@ -343,6 +372,7 @@ internal sealed class RaceShell : IRacePanelShell, IDisposable
         IProgress<int>? progress = null,
         CancellationToken cancellationToken = default)
     {
+        progress = CreateJobProgress("race-world-upload", progress);
         string normalizedWorldPath = worldPath.Trim();
         if (!RaceWorldFileValidator.IsValidWorldFilePath(normalizedWorldPath))
         {
@@ -438,7 +468,6 @@ internal sealed class RaceShell : IRacePanelShell, IDisposable
 
         if (result.Succeeded)
         {
-            ClearReportedProgress();
             localWorldPath = uploadWorldPath;
             SaveDraftState(draftState with
             {
@@ -538,8 +567,18 @@ internal sealed class RaceShell : IRacePanelShell, IDisposable
 
         if (!download.Succeeded)
         {
-            _ = await session.MarkWorldReadyAsync(ready: false, download.Message);
+            if (session.State?.PackageRevision == state.PackageRevision)
+            {
+                _ = await session.MarkWorldReadyAsync(ready: false, download.Message, cancellationToken);
+            }
+
             logger.Info("Race world download failed: " + download.Message);
+            return;
+        }
+
+        if (session.State?.PackageRevision != state.PackageRevision || cancellationToken.IsCancellationRequested)
+        {
+            DeleteRaceWorldFile(download.WorldPath);
             return;
         }
 
@@ -756,20 +795,32 @@ internal sealed class RaceShell : IRacePanelShell, IDisposable
 
     public async Task LeaveAsync()
     {
-        worldGenerationCancellation?.Cancel();
-        CancelMemberWorldDownload();
-        try
+        if (Interlocked.Exchange(ref localRoomExitActive, 1) != 0)
         {
-            using var cancellation = new CancellationTokenSource(RemoteRoomExitTimeout);
-            await session.LeaveAsync(cancellation.Token);
-        }
-        catch (Exception ex) when (IsRaceConnectionExitException(ex))
-        {
-            logger.Info("Race leave room failed; leaving local room state. " + ex.Message);
-            await session.LeaveLocalAsync(DisposeRaceSessionTimeout);
+            return;
         }
 
-        ClearLocalRoomStateAfterLeave();
+        try
+        {
+            worldGenerationCancellation?.Cancel();
+            CancelMemberWorldDownload();
+            try
+            {
+                using var cancellation = new CancellationTokenSource(RemoteRoomExitTimeout);
+                await session.LeaveAsync(cancellation.Token);
+            }
+            catch (Exception ex) when (IsRaceConnectionExitException(ex))
+            {
+                logger.Info("Race leave room failed; leaving local room state. " + ex.Message);
+                await session.LeaveLocalAsync(DisposeRaceSessionTimeout);
+            }
+
+            ClearLocalRoomStateAfterLeave();
+        }
+        finally
+        {
+            Interlocked.Exchange(ref localRoomExitActive, 0);
+        }
     }
 
     private async Task LeaveLocalRoomStateAsync()
@@ -782,21 +833,20 @@ internal sealed class RaceShell : IRacePanelShell, IDisposable
 
     private void ClearLocalRoomStateAfterLeave()
     {
+        string roomCode = session.RoomCode ?? draftState.RoomCode;
         RestoreRouteOverride();
         localWorldPath = null;
         activeWorldFileName = null;
         activeWorldRoomCode = null;
         activeWorldRevisionKey = null;
-        ClearReportedProgress();
+        ClearProgressTransportState();
         SaveDraftState(draftState with
         {
             RoomCode = string.Empty,
             SeedText = string.Empty,
             LocalWorldPath = string.Empty
         });
-        form?.UpdateRaceState(null);
-        CloseLeaderboardForm();
-        raceTimerColorChanged();
+        publishSystemEvent(new RaceRosterSystemEvent(roomCode, IsInRoom: false));
     }
 
     private static bool IsRaceConnectionExitException(Exception exception)
@@ -804,62 +854,64 @@ internal sealed class RaceShell : IRacePanelShell, IDisposable
         return exception is InvalidOperationException or HttpRequestException or OperationCanceledException or TimeoutException or ObjectDisposedException;
     }
 
-    public void ClearReportedProgress()
-    {
-        reportedProgressKeys.Clear();
-        while (queuedProgressUploads.TryDequeue(out _))
-        {
-        }
-    }
-
     public void ResetReportedProgress()
     {
-        ClearReportedProgress();
-        if (!session.IsInRoom)
+        RaceRoomState? state = session.State;
+        if (!session.IsInRoom || state is null || state.Status == RaceRoomStatus.Closed)
         {
+            ClearProgressTransportState();
             return;
         }
 
-        _ = Task.Run(ResetReportedProgressAsync);
+        Volatile.Write(ref activePackageRevision, state.PackageRevision);
+        Volatile.Write(ref activeRunId, Guid.NewGuid().ToString("N"));
+        reportedProgressKeys.Clear();
+        long packageRevision = Volatile.Read(ref activePackageRevision);
+        string runId = Volatile.Read(ref activeRunId);
+        progressUploads.Writer.TryWrite(RaceProgressUpload.ForReset(
+            new RaceProgressResetRequest(
+                state.RoomCode,
+                session.Nickname ?? string.Empty,
+                packageRevision,
+                runId)));
     }
 
-    private async Task ResetReportedProgressAsync()
+    private void ClearProgressTransportState()
     {
-        try
-        {
-            RaceOperationResult<RaceRoomProgressState> result = await session.ResetProgressAsync().ConfigureAwait(false);
-            if (result.Succeeded)
-            {
-                logger.Info("Race progress reset accepted.");
-                return;
-            }
-
-            logger.Info($"Race progress reset rejected. Error={result.ErrorCode} Message={result.Message}.");
-        }
-        catch (Exception ex) when (IsRaceConnectionExitException(ex))
-        {
-            logger.Info("Race progress reset failed: " + ex.Message);
-        }
-        catch (Exception ex)
-        {
-            logger.Error(ex, "Race progress reset failed.");
-        }
+        Volatile.Write(ref activePackageRevision, 0);
+        Volatile.Write(ref activeRunId, string.Empty);
+        reportedProgressKeys.Clear();
     }
 
     public void QueueProgressReports(bool runStarted, bool runCompleted)
     {
         _ = runCompleted;
-        if (!session.IsInRoom || session.RoomCode is null || session.Nickname is null)
+        RaceRoomState? state = session.State;
+        if (!session.IsInRoom || state is null || session.RoomCode is null || session.Nickname is null)
         {
             return;
         }
 
+        long currentPackageRevision = Volatile.Read(ref activePackageRevision);
+        string currentRunId = Volatile.Read(ref activeRunId);
+        if (currentPackageRevision != state.PackageRevision || string.IsNullOrWhiteSpace(currentRunId))
+        {
+            ResetReportedProgress();
+        }
+
+        long packageRevision = Volatile.Read(ref activePackageRevision);
+        string runId = Volatile.Read(ref activeRunId);
+
         if (runStarted && reportedProgressKeys.Add(RaceStartProgressKey))
         {
-            queuedProgressUploads.Enqueue(RaceProgressUpload.ForStart(new RaceRunStartReport(
+            progressUploads.Writer.TryWrite(RaceProgressUpload.ForStart(new RaceRunStartReport(
                 session.RoomCode,
                 session.Nickname,
-                DateTimeOffset.UtcNow)));
+                DateTimeOffset.UtcNow)
+            {
+                PackageRevision = packageRevision,
+                RunId = runId
+            }));
         }
 
         ApplicationViewState viewState = getViewState();
@@ -874,100 +926,109 @@ internal sealed class RaceShell : IRacePanelShell, IDisposable
                 continue;
             }
 
-            queuedProgressUploads.Enqueue(RaceProgressUpload.ForSplit(report));
+            progressUploads.Writer.TryWrite(RaceProgressUpload.ForSplit(report with
+            {
+                PackageRevision = packageRevision,
+                RunId = runId
+            }));
         }
-
-        StartProgressReportDrain();
     }
 
-    private void StartProgressReportDrain()
-    {
-        if (Interlocked.Exchange(ref progressReportDrainActive, 1) != 0)
-        {
-            return;
-        }
-
-        _ = Task.Run(DrainProgressReportsAsync);
-    }
-
-    private async Task DrainProgressReportsAsync()
+    private async Task DrainProgressReportsAsync(CancellationToken cancellationToken)
     {
         try
         {
-            while (queuedProgressUploads.TryDequeue(out RaceProgressUpload? upload))
+            await foreach (RaceProgressUpload upload in progressUploads.Reader.ReadAllAsync(cancellationToken))
             {
-                if (upload is null)
+                await SendProgressUploadWithRetryAsync(upload, cancellationToken).ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+    }
+
+    private async Task SendProgressUploadWithRetryAsync(
+        RaceProgressUpload upload,
+        CancellationToken cancellationToken)
+    {
+        int retryCount = 0;
+        while (!cancellationToken.IsCancellationRequested && IsCurrentProgressUpload(upload))
+        {
+            try
+            {
+                RaceProgressSendResult result = await SendProgressUploadAsync(upload, cancellationToken).ConfigureAwait(false);
+                if (result == RaceProgressSendResult.Accepted || result == RaceProgressSendResult.Obsolete)
                 {
-                    continue;
-                }
-
-                switch (upload)
-                {
-                    case RaceProgressUpload.Start start:
-                        await SendStartReportAsync(start.Report).ConfigureAwait(false);
-                        break;
-                    case RaceProgressUpload.Split split:
-                        await SendProgressReportAsync(split.Report).ConfigureAwait(false);
-                        break;
+                    return;
                 }
             }
-        }
-        finally
-        {
-            Interlocked.Exchange(ref progressReportDrainActive, 0);
-            if (!queuedProgressUploads.IsEmpty)
+            catch (Exception ex) when (IsRaceConnectionExitException(ex))
             {
-                StartProgressReportDrain();
+                logger.Info("Race progress upload will retry: " + ex.Message);
             }
+            catch (Exception ex)
+            {
+                logger.Error(ex, "Race progress upload failed and will retry.");
+            }
+
+            int delaySeconds = Math.Min(1 << Math.Min(retryCount, 5), 30);
+            retryCount++;
+            await Task.Delay(TimeSpan.FromSeconds(delaySeconds), cancellationToken).ConfigureAwait(false);
         }
     }
 
-    private async Task SendProgressReportAsync(RaceSplitReport report)
+    private async Task<RaceProgressSendResult> SendProgressUploadAsync(
+        RaceProgressUpload upload,
+        CancellationToken cancellationToken)
     {
-        try
+        switch (upload)
         {
-            RaceOperationResult<RaceRoomProgressState> result = await session.ReportSplitAsync(report).ConfigureAwait(false);
-            if (result.Succeeded)
+            case RaceProgressUpload.Reset reset:
             {
-                logger.Info(
-                    $"Race split report accepted. Room={report.RoomCode} SplitIndex={report.SplitIndex} ConditionIndex={report.ConditionIndex} SplitId={report.SplitId} ElapsedMs={report.ElapsedMilliseconds}.");
-                return;
+                RaceOperationResult<RaceRoomProgressState> result = await session.ResetProgressAsync(
+                    reset.Request.PackageRevision,
+                    reset.Request.RunId,
+                    cancellationToken).ConfigureAwait(false);
+                return ClassifyProgressResult(result, "reset progress");
             }
-
-            logger.Info(
-                $"Race split report rejected. Room={report.RoomCode} SplitIndex={report.SplitIndex} ConditionIndex={report.ConditionIndex} SplitId={report.SplitId} Error={result.ErrorCode} Message={result.Message}.");
-        }
-        catch (Exception ex) when (IsRaceConnectionExitException(ex))
-        {
-            logger.Info("Race split report failed: " + ex.Message);
-        }
-        catch (Exception ex)
-        {
-            logger.Error(ex, "Race split report failed.");
+            case RaceProgressUpload.Start start:
+            {
+                RaceOperationResult<RaceRoomProgressState> result = await session.ReportStartAsync(
+                    start.Report,
+                    cancellationToken).ConfigureAwait(false);
+                return ClassifyProgressResult(result, "start report");
+            }
+            case RaceProgressUpload.Split split:
+            {
+                RaceOperationResult<RaceRoomProgressState> result = await session.ReportSplitAsync(
+                    split.Report,
+                    cancellationToken).ConfigureAwait(false);
+                return ClassifyProgressResult(result, "split report");
+            }
+            default:
+                throw new NotSupportedException($"Unsupported Race progress upload {upload.GetType().Name}.");
         }
     }
 
-    private async Task SendStartReportAsync(RaceRunStartReport report)
+    private RaceProgressSendResult ClassifyProgressResult(
+        RaceOperationResult<RaceRoomProgressState> result,
+        string operation)
     {
-        try
+        if (result.Succeeded)
         {
-            RaceOperationResult<RaceRoomProgressState> result = await session.ReportStartAsync(report).ConfigureAwait(false);
-            if (result.Succeeded)
-            {
-                logger.Info($"Race start report accepted. Room={report.RoomCode}.");
-                return;
-            }
+            return RaceProgressSendResult.Accepted;
+        }
 
-            logger.Info($"Race start report rejected. Room={report.RoomCode} Error={result.ErrorCode} Message={result.Message}.");
-        }
-        catch (Exception ex) when (IsRaceConnectionExitException(ex))
-        {
-            logger.Info("Race start report failed: " + ex.Message);
-        }
-        catch (Exception ex)
-        {
-            logger.Error(ex, "Race start report failed.");
-        }
+        logger.Info($"Race {operation} rejected. Error={result.ErrorCode} Message={result.Message}.");
+        return RaceProgressSendResult.Obsolete;
+    }
+
+    private bool IsCurrentProgressUpload(RaceProgressUpload upload)
+    {
+        return session.IsInRoom &&
+            upload.PackageRevision == Volatile.Read(ref activePackageRevision) &&
+            string.Equals(upload.RunId, Volatile.Read(ref activeRunId), StringComparison.Ordinal);
     }
 
     public void Dispose()
@@ -982,6 +1043,17 @@ internal sealed class RaceShell : IRacePanelShell, IDisposable
         worldGenerationCancellation?.Cancel();
         worldGenerationCancellation?.Dispose();
         CancelMemberWorldDownload();
+        progressUploads.Writer.TryComplete();
+        progressUploadCancellation.Cancel();
+        try
+        {
+            progressUploadPump.Wait(DisposeRaceSessionTimeout);
+        }
+        catch (AggregateException ex) when (ex.InnerExceptions.All(static item => item is OperationCanceledException))
+        {
+        }
+
+        progressUploadCancellation.Dispose();
         worldGeneration.Dispose();
         session.PackageChanged -= HandlePackageChanged;
         session.ProgressChanged -= HandleProgressChanged;
@@ -1014,21 +1086,36 @@ internal sealed class RaceShell : IRacePanelShell, IDisposable
         }
     }
 
-    private void ApplyRouteOverride(RaceRoutePayload route)
+    private bool ApplyRouteOverride(RaceRoutePayload route)
     {
         if (!routeOverride.TryCreatePackage(route, out SettingsRouteOverridePackage package, out string detail))
         {
             logger.Info("Race route override ignored: " + detail);
-            return;
+            return false;
+        }
+
+        if (string.Equals(routeOverride.ActiveKey, package.Key, StringComparison.Ordinal))
+        {
+            return true;
         }
 
         if (!routeOverride.MarkApplied(package))
         {
             logger.Info("Race route override ignored: " + RaceRouteOverrideController.AlreadyAppliedDetail);
-            return;
+            return false;
         }
 
-        applyRouteOverride(package);
+        try
+        {
+            applyRouteOverride(package);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            routeOverride.Clear();
+            logger.Error(ex, "Race route override application failed.");
+            return false;
+        }
     }
 
     private void RestoreRouteOverride()
@@ -1174,15 +1261,20 @@ internal sealed class RaceShell : IRacePanelShell, IDisposable
         if (session.IsInRoom &&
             ShouldApplyRoomPayloadForUpdate(state))
         {
-            ApplyRouteOverride(state.Route!);
-            ClearReportedProgress();
-            StartMemberWorldDownloadIfNeeded(state);
+            if (ApplyRouteOverride(state.Route!))
+            {
+                StartMemberWorldDownloadIfNeeded(state);
+            }
+            else
+            {
+                MarkPackageUnavailable(state, "The host route could not be applied.");
+            }
         }
 
-        form?.UpdateRaceState(state);
-        SyncLeaderboardVisibility();
-        leaderboardForm?.UpdateState(state);
-        raceTimerColorChanged();
+        publishSystemEvent(new RacePackageSystemEvent(
+            state.RoomCode,
+            update.PackageRevision,
+            session.IsInRoom));
     }
 
     private void ApplyRosterToViews(RaceRosterChanged update)
@@ -1195,10 +1287,7 @@ internal sealed class RaceShell : IRacePanelShell, IDisposable
         }
 
         SyncDraftFromRoomState(state);
-        form?.UpdateRaceState(state);
-        SyncLeaderboardVisibility();
-        leaderboardForm?.UpdateState(state);
-        raceTimerColorChanged();
+        publishSystemEvent(new RaceRosterSystemEvent(state.RoomCode, session.IsInRoom));
     }
 
     private void ApplyProgressToViews(RaceProgressChanged update)
@@ -1211,10 +1300,7 @@ internal sealed class RaceShell : IRacePanelShell, IDisposable
             return;
         }
 
-        form?.UpdateRaceState(state);
-        SyncLeaderboardVisibility();
-        leaderboardForm?.UpdateState(state);
-        raceTimerColorChanged();
+        publishSystemEvent(new RaceProgressSystemEvent(progress.RoomCode));
     }
 
     private void StartMemberWorldDownloadIfNeeded(RaceRoomState state)
@@ -1273,6 +1359,11 @@ internal sealed class RaceShell : IRacePanelShell, IDisposable
         {
             try
             {
+                if (session.State?.PackageRevision != state.PackageRevision)
+                {
+                    return;
+                }
+
                 RaceOperationResult<RaceRoomState> ready = await session.MarkWorldReadyAsync(ready: true);
                 LogRaceOperationFailure(ready, "mark world ready for existing world");
             }
@@ -1296,23 +1387,15 @@ internal sealed class RaceShell : IRacePanelShell, IDisposable
             string.Equals(update.ActorNickname, localNickname, StringComparison.OrdinalIgnoreCase);
     }
 
-    internal static bool ShouldAcquireWorldForPackage(
-        RacePackageChanged update,
-        bool isCurrentUserHost)
-    {
-        if (isCurrentUserHost)
-        {
-            return false;
-        }
-
-        return update.State.WorldFile is not null;
-    }
-
     private void BeginLeaveLocalRoomStateAfterRemoteExit()
     {
+        if (Interlocked.Exchange(ref localRoomExitActive, 1) != 0)
+        {
+            return;
+        }
+
         worldGenerationCancellation?.Cancel();
         CancelMemberWorldDownload();
-        ClearLocalRoomStateAfterLeave();
         _ = Task.Run(async () =>
         {
             try
@@ -1322,6 +1405,21 @@ internal sealed class RaceShell : IRacePanelShell, IDisposable
             catch (Exception ex) when (IsRaceConnectionExitException(ex))
             {
                 logger.Info("Race local room cleanup after remote exit failed: " + ex.Message);
+            }
+
+            if (!PostOwnerThread(() =>
+                {
+                    try
+                    {
+                        ClearLocalRoomStateAfterLeave();
+                    }
+                    finally
+                    {
+                        Interlocked.Exchange(ref localRoomExitActive, 0);
+                    }
+                }))
+            {
+                Interlocked.Exchange(ref localRoomExitActive, 0);
             }
         });
     }
@@ -1337,7 +1435,10 @@ internal sealed class RaceShell : IRacePanelShell, IDisposable
         catch (Exception ex) when (ex is InvalidOperationException or IOException or HttpRequestException or TimeoutException)
         {
             logger.Error(ex, "Race automatic world download failed.");
-            _ = await session.MarkWorldReadyAsync(ready: false, ex.Message);
+            if (session.State?.PackageRevision == state.PackageRevision)
+            {
+                _ = await session.MarkWorldReadyAsync(ready: false, ex.Message);
+            }
         }
         finally
         {
@@ -1714,6 +1815,16 @@ internal sealed class RaceShell : IRacePanelShell, IDisposable
         return false;
     }
 
+    private IProgress<int> CreateJobProgress(string jobKey, IProgress<int>? inner)
+    {
+        return new Progress<int>(value =>
+        {
+            int progress = Math.Clamp(value, 0, 100);
+            publishSystemEvent(new JobProgressSystemEvent(jobKey, progress));
+            inner?.Report(progress);
+        });
+    }
+
     private bool IsCurrentUserHost(RaceRoomState state)
     {
         return state.Players.Any(player =>
@@ -1819,11 +1930,6 @@ internal sealed class RaceShell : IRacePanelShell, IDisposable
             .ToUpperInvariant();
     }
 
-    private static string CreateWorldFileKey(string roomCode, string serverFileName)
-    {
-        return (roomCode.Trim() + "|" + serverFileName.Trim()).ToUpperInvariant();
-    }
-
     private static string NormalizeWorldFileName(string? fileName)
     {
         string name = Path.GetFileName(fileName ?? string.Empty).Trim();
@@ -1865,9 +1971,35 @@ internal sealed class RaceShell : IRacePanelShell, IDisposable
 
     private abstract record RaceProgressUpload
     {
-        public sealed record Start(RaceRunStartReport Report) : RaceProgressUpload;
+        public abstract long PackageRevision { get; }
 
-        public sealed record Split(RaceSplitReport Report) : RaceProgressUpload;
+        public abstract string RunId { get; }
+
+        public sealed record Reset(RaceProgressResetRequest Request) : RaceProgressUpload
+        {
+            public override long PackageRevision => Request.PackageRevision;
+
+            public override string RunId => Request.RunId;
+        }
+
+        public sealed record Start(RaceRunStartReport Report) : RaceProgressUpload
+        {
+            public override long PackageRevision => Report.PackageRevision;
+
+            public override string RunId => Report.RunId;
+        }
+
+        public sealed record Split(RaceSplitReport Report) : RaceProgressUpload
+        {
+            public override long PackageRevision => Report.PackageRevision;
+
+            public override string RunId => Report.RunId;
+        }
+
+        public static RaceProgressUpload ForReset(RaceProgressResetRequest request)
+        {
+            return new Reset(request);
+        }
 
         public static RaceProgressUpload ForStart(RaceRunStartReport report)
         {
@@ -1878,6 +2010,35 @@ internal sealed class RaceShell : IRacePanelShell, IDisposable
         {
             return new Split(report);
         }
+    }
+
+    private void MarkPackageUnavailable(RaceRoomState state, string error)
+    {
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                if (session.State?.PackageRevision != state.PackageRevision)
+                {
+                    return;
+                }
+
+                RaceOperationResult<RaceRoomState> result = await session.MarkWorldReadyAsync(
+                    ready: false,
+                    error).ConfigureAwait(false);
+                LogRaceOperationFailure(result, "mark package unavailable");
+            }
+            catch (Exception ex) when (IsRaceConnectionExitException(ex))
+            {
+                logger.Info("Race package-unavailable update failed: " + ex.Message);
+            }
+        });
+    }
+
+    private enum RaceProgressSendResult
+    {
+        Accepted,
+        Obsolete
     }
 
     private readonly record struct RaceLocalWorldGenerationAttempt(

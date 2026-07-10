@@ -27,7 +27,7 @@ public static class RaceRoutePayloadFactory
                 definition.DisplayName,
                 definition.IsAttached)
             {
-                IconFileNames = definition.IconFileNames.ToArray(),
+                IconFileNames = definition.IconFileNames.Select(NormalizePayloadFileName).ToArray(),
                 IconKeys = definition.IconKeys.ToArray(),
                 Conditions = CreateConditionDefinitions(definition)
             })
@@ -94,7 +94,7 @@ public static class RaceRoutePayloadFactory
         ReferenceSplitSet activeReference = ReferenceSplitSetService.GetActiveReferenceSet(settings);
         return new RaceRouteSyncDocument
         {
-            SplitRoute = settings.Route.SplitRoute,
+            SplitRoute = settings.Route.SplitRoute.Select(CreateSyncedRouteEntry).ToList(),
             ReferenceSet = CloneReferenceSet(activeReference, "Race Reference")
         };
     }
@@ -121,7 +121,7 @@ public static class RaceRoutePayloadFactory
                     fact.FactKey,
                     target?.Id,
                     target?.DisplayName ?? fact.FactKey,
-                    ResolveConditionIconFileName(definition, target));
+                    NormalizePayloadFileName(ResolveConditionIconFileName(definition, target)));
             })
             .ToArray();
     }
@@ -181,7 +181,12 @@ public static class RaceRoutePayloadFactory
         }
 
         string normalizedKey = key.Trim();
-        string normalizedFileName = fileName.Trim();
+        string normalizedFileName = NormalizePayloadFileName(fileName);
+        if (string.IsNullOrWhiteSpace(normalizedFileName))
+        {
+            return;
+        }
+
         string payloadKey = normalizedKey + "|" + normalizedFileName;
         if (icons.ContainsKey(payloadKey))
         {
@@ -191,7 +196,7 @@ public static class RaceRoutePayloadFactory
         icons[payloadKey] = new RaceRouteIconPayload(
             normalizedKey,
             normalizedFileName,
-            TryReadIconDataBase64(normalizedFileName, normalizedKey));
+            TryReadIconDataBase64(fileName.Trim(), normalizedKey));
     }
 
     private static string? TryReadIconDataBase64(string fileName, string key)
@@ -329,6 +334,34 @@ public static class RaceRoutePayloadFactory
             Name = string.IsNullOrWhiteSpace(name) ? source.Name : name,
             Splits = new Dictionary<string, string>(source.Splits, StringComparer.OrdinalIgnoreCase)
         };
+    }
+
+    private static SplitRouteEntry CreateSyncedRouteEntry(SplitRouteEntry source)
+    {
+        SplitRouteEntry clone = SettingsRouteOverrideService.CloneEntry(source);
+        if (SplitIconOverrideSource.Normalize(clone.IconOverride.Source) == SplitIconOverrideSource.CustomFile)
+        {
+            clone.IconOverride.FilePath = NormalizePayloadFileName(clone.IconOverride.FilePath);
+        }
+
+        return clone;
+    }
+
+    private static string NormalizePayloadFileName(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        try
+        {
+            return Path.GetFileName(value.Trim());
+        }
+        catch (ArgumentException)
+        {
+            return string.Empty;
+        }
     }
 
     internal sealed class RaceRouteSyncSettings

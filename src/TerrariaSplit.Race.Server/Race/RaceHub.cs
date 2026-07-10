@@ -9,11 +9,13 @@ public sealed class RaceHub : Hub
 {
     private static readonly ConcurrentDictionary<string, RaceConnectionIdentity> Connections = new();
     private readonly RaceRoomManager rooms;
+    private readonly RaceWorldFileStore worldFiles;
     private readonly ILogger<RaceHub> logger;
 
-    public RaceHub(RaceRoomManager rooms, ILogger<RaceHub> logger)
+    public RaceHub(RaceRoomManager rooms, RaceWorldFileStore worldFiles, ILogger<RaceHub> logger)
     {
         this.rooms = rooms;
+        this.worldFiles = worldFiles;
         this.logger = logger;
     }
 
@@ -105,6 +107,12 @@ public sealed class RaceHub : Hub
     {
         RaceOperationResult<RaceRoomState> result = rooms.CloseRoom(roomCode, nickname);
         await BroadcastRosterIfSucceededAsync(result, RaceRoomStateUpdateKind.RoomClosed, nickname);
+        if (result.Succeeded && result.Value is RaceRoomState state)
+        {
+            await DetachRoomConnectionsAsync(state.RoomCode);
+            worldFiles.DeleteRoom(state.RoomCode);
+        }
+
         LogResult("close-room", result, roomCode, nickname);
         return result;
     }
@@ -114,7 +122,16 @@ public sealed class RaceHub : Hub
         Connections.TryRemove(Context.ConnectionId, out _);
         await Groups.RemoveFromGroupAsync(Context.ConnectionId, roomCode);
         RaceOperationResult<RaceRoomState> result = rooms.LeaveRoom(roomCode, nickname);
-        await BroadcastRosterIfSucceededAsync(result, RaceRoomStateUpdateKind.PlayerLeft, nickname);
+        RaceRoomStateUpdateKind kind = result.Value?.Status == RaceRoomStatus.Closed
+            ? RaceRoomStateUpdateKind.RoomClosed
+            : RaceRoomStateUpdateKind.PlayerLeft;
+        await BroadcastRosterIfSucceededAsync(result, kind, nickname);
+        if (result.Succeeded && result.Value is RaceRoomState { Status: RaceRoomStatus.Closed } state)
+        {
+            await DetachRoomConnectionsAsync(state.RoomCode);
+            worldFiles.DeleteRoom(state.RoomCode);
+        }
+
         LogResult("leave-room", result, roomCode, nickname);
         return result;
     }
@@ -129,6 +146,7 @@ public sealed class RaceHub : Hub
                 if (string.Equals(identity.RoomCode, request.RoomCode, StringComparison.OrdinalIgnoreCase) &&
                     string.Equals(identity.Nickname, request.TargetNickname, StringComparison.OrdinalIgnoreCase))
                 {
+                    await Groups.RemoveFromGroupAsync(connectionId, state.RoomCode);
                     Connections.TryRemove(connectionId, out _);
                 }
             }
@@ -178,18 +196,6 @@ public sealed class RaceHub : Hub
         }
     }
 
-    private Task BroadcastPackageAsync(RaceRoomState state, string actorNickname)
-    {
-        return Clients
-            .Group(state.RoomCode)
-            .SendAsync(
-                "RacePackageChanged",
-                new RacePackageChanged(
-                    state,
-                    NormalizeLogText(actorNickname),
-                    RacePackageRevisionCalculator.Create(state)));
-    }
-
     private Task BroadcastRosterAsync(
         RaceRoomState state,
         RaceRoomStateUpdateKind kind,
@@ -203,6 +209,20 @@ public sealed class RaceHub : Hub
     private Task BroadcastProgressAsync(RaceRoomProgressState progress)
     {
         return Clients.Group(progress.RoomCode).SendAsync("RaceProgressChanged", new RaceProgressChanged(progress));
+    }
+
+    private async Task DetachRoomConnectionsAsync(string roomCode)
+    {
+        foreach ((string connectionId, RaceConnectionIdentity identity) in Connections.ToArray())
+        {
+            if (!string.Equals(identity.RoomCode, roomCode, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            await Groups.RemoveFromGroupAsync(connectionId, roomCode);
+            Connections.TryRemove(connectionId, out _);
+        }
     }
 
     private static RaceOperationResult<RaceRoomProgressState> CreateProgressResult(
@@ -223,7 +243,10 @@ public sealed class RaceHub : Hub
             state.Status,
             state.Players,
             state.Leaderboard,
-            state.LastUpdatedAtUtc);
+            state.LastUpdatedAtUtc)
+        {
+            PackageRevision = state.PackageRevision
+        };
     }
 
     private void LogResult(

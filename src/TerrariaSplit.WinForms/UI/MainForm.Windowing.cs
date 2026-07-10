@@ -27,10 +27,7 @@ internal sealed partial class MainForm : Form
         overlayShell.WindowController.ApplyWindowStyle(overlayShell.MouseClickThrough);
         InitializeOverlayWindows();
         modalWindows.ApplyWindowState();
-        if (!settingsShell.IsOpen)
-        {
-            hotkeyShell.Register();
-        }
+        hotkeyShell.Register();
 
         Invalidate();
         QueueStatusOverlayRender();
@@ -44,7 +41,7 @@ internal sealed partial class MainForm : Form
             ApplyOverlayLayout(overlayShell.BoundsController.CurrentLayout);
         }
 
-        worldPoolFillService.UpdateSettings(settings);
+        runtimeServices?.WorldPoolFillService.UpdateSettings(settings);
         QueueStatusOverlayRender();
     }
 
@@ -113,6 +110,11 @@ internal sealed partial class MainForm : Form
 
     private void UpdateContextMenu()
     {
+        if (runtimeServices is null || contextMenu is null)
+        {
+            return;
+        }
+
         contextMenuBuilder.Rebuild(
             contextMenu,
             settings,
@@ -150,22 +152,36 @@ internal sealed partial class MainForm : Form
         }
 
         runtimeResourcesDisposed = true;
+        runtimeBootstrapper.Cancel();
+        startupCommandGate.Cancel();
         hotkeyShell.Dispose();
         rtssOverlayScheduler.Dispose();
         runtimeShell.Dispose();
         rtssOverlayPublisher.Dispose();
-        worldPoolFillService.Dispose();
-        automationShell.Dispose();
-        settingsShell.Dispose();
-        raceShell.Dispose();
+        runtimeServices?.Preparation.Dispose();
+        runtimeServices?.AutomationShell.Dispose();
+        runtimeServices?.SettingsShell.Dispose();
+        runtimeServices?.RaceShell.Dispose();
+        contextMenu?.Dispose();
+        contextMenu = null;
+        try
+        {
+            startupCore.StatusIconPreloadTask.GetAwaiter().GetResult();
+        }
+        catch (Exception ex)
+        {
+            appLogger.Error(ex, "Status icon preload failed during shutdown.");
+        }
+
         overlayShell.Dispose();
+        runtimeBootstrapper.Dispose();
     }
 
     private void CloseAuxiliaryWindowsForExit()
     {
-        settingsShell.Dispose();
+        runtimeServices?.SettingsShell.Dispose();
         CloseStatisticsWindow();
-        raceShell.CloseWindows();
+        runtimeServices?.RaceShell.CloseWindows();
     }
 
     private void CloseStatisticsWindow()
@@ -191,6 +207,15 @@ internal sealed partial class MainForm : Form
 
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
+        if (!IsRuntimeReady)
+        {
+            runtimeBootstrapper.Cancel();
+            startupCommandGate.Cancel();
+            CloseAuxiliaryWindowsForExit();
+            base.OnFormClosing(e);
+            return;
+        }
+
         WindowCloseAction closeAction = windowShell.RequestClose();
         if (closeAction == WindowCloseAction.AllowClose)
         {
@@ -324,8 +349,8 @@ internal sealed partial class MainForm : Form
             if (HotkeyCommandMapper.TryMap(
                     action,
                     DateTime.UtcNow,
-                    automationShell.IsCreateWorldRunning,
-                    automationShell.IsEnterWorldRunning,
+                    runtimeServices?.AutomationShell.IsCreateWorldRunning == true,
+                    runtimeServices?.AutomationShell.IsEnterWorldRunning == true,
                     out AppCommand command))
             {
                 ExecuteAppCommand(command);

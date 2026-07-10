@@ -4,6 +4,9 @@ internal sealed class EnglishStrings : ILocalizedStringProvider
 {
     private static readonly IReadOnlyDictionary<string, string> Values = new Dictionary<string, string>(StringComparer.Ordinal)
     {
+        { "Initializing...", "Initializing..." },
+        { "Startup failed", "Startup failed" },
+        { "TerrariaSplit could not finish initialization and must close.", "TerrariaSplit could not finish initialization and must close." },
         { "Race...", "Online..." },
         { "Race", "Online" },
         { "Race leaderboard", "Online leaderboard" },

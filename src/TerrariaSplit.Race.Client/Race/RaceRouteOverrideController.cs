@@ -9,6 +9,7 @@ namespace TerrariaSplit.Race.Client;
 public sealed class RaceRouteOverrideController
 {
     public const string AlreadyAppliedDetail = "Race route is already active.";
+    private const int MaximumEmbeddedIconBytes = 2 * 1024 * 1024;
 
     private readonly ISettingsSnapshotFactory settingsSnapshots;
     private readonly string iconCacheDirectory;
@@ -67,13 +68,20 @@ public sealed class RaceRouteOverrideController
             return false;
         }
 
+        if (!TryMaterializeCustomIconOverrides(
+                syncedSettings.SplitRoute,
+                payload,
+                routeKey,
+                out List<SplitRouteEntry> materializedRoute,
+                out detail))
+        {
+            return false;
+        }
+
         package = new SettingsRouteOverridePackage
         {
             Key = routeKey,
-            SplitRoute = MaterializeCustomIconOverrides(
-                syncedSettings.SplitRoute,
-                payload,
-                routeKey),
+            SplitRoute = materializedRoute,
             ReferenceSet = SettingsRouteOverrideService.CloneReferenceSet(syncedSettings.ReferenceSet)
         };
         return true;
@@ -126,25 +134,34 @@ public sealed class RaceRouteOverrideController
         return "payload:" + Convert.ToHexString(bytes).ToLowerInvariant();
     }
 
-    private List<SplitRouteEntry> MaterializeCustomIconOverrides(
+    private bool TryMaterializeCustomIconOverrides(
         IReadOnlyList<SplitRouteEntry> splitRoute,
         RaceRoutePayload payload,
-        string routeKey)
+        string routeKey,
+        out List<SplitRouteEntry> route,
+        out string detail)
     {
-        var route = new List<SplitRouteEntry>(splitRoute.Count);
+        route = new List<SplitRouteEntry>(splitRoute.Count);
+        detail = string.Empty;
         foreach (SplitRouteEntry entry in splitRoute)
         {
             SplitRouteEntry nextEntry = SettingsRouteOverrideService.CloneEntry(entry);
-            if (SplitIconOverrideSource.Normalize(nextEntry.IconOverride.Source) == SplitIconOverrideSource.CustomFile &&
-                TryMaterializeCustomIcon(nextEntry, payload, routeKey, out string localPath))
+            if (SplitIconOverrideSource.Normalize(nextEntry.IconOverride.Source) == SplitIconOverrideSource.CustomFile)
             {
+                if (!TryMaterializeCustomIcon(nextEntry, payload, routeKey, out string localPath))
+                {
+                    detail = $"Race route custom icon is unavailable for split '{nextEntry.Id}'.";
+                    route.Clear();
+                    return false;
+                }
+
                 nextEntry.IconOverride.FilePath = localPath;
             }
 
             route.Add(nextEntry);
         }
 
-        return route;
+        return true;
     }
 
     private bool TryMaterializeCustomIcon(
@@ -170,7 +187,7 @@ public sealed class RaceRouteOverrideController
             return false;
         }
 
-        if (data.Length == 0)
+        if (data.Length == 0 || data.Length > MaximumEmbeddedIconBytes)
         {
             return false;
         }
@@ -179,8 +196,8 @@ public sealed class RaceRouteOverrideController
         {
             string routeDirectory = Path.Combine(iconCacheDirectory, CreateSafeFileName(routeKey));
             Directory.CreateDirectory(routeDirectory);
-            string extension = Path.GetExtension(icon.FileName);
-            if (string.IsNullOrWhiteSpace(extension))
+            string extension = Path.GetExtension(icon.FileName).ToLowerInvariant();
+            if (extension is not (".png" or ".gif" or ".jpg" or ".jpeg" or ".bmp"))
             {
                 extension = ".png";
             }
@@ -201,6 +218,11 @@ public sealed class RaceRouteOverrideController
             return false;
         }
         catch (UnauthorizedAccessException)
+        {
+            localPath = string.Empty;
+            return false;
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException)
         {
             localPath = string.Empty;
             return false;

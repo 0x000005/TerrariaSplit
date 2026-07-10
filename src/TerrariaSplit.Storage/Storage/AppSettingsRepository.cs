@@ -28,18 +28,40 @@ public sealed class AppSettingsRepository : ISettingsRepository
 
     public AppSettings Load()
     {
-        return Load(SettingsProfileStore.GetRememberedSettingsPath(
+        var validatedJson = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        bool ValidateAndCache(string path)
+        {
+            if (!SettingsSerializer.TryReadValidSettingsFile(path, out string json))
+            {
+                return false;
+            }
+
+            validatedJson[path] = json;
+            return true;
+        }
+
+        string path = SettingsProfileStore.GetRememberedSettingsPath(
             SettingsDirectory,
             ActiveSettingsPath,
-            GetFallbackSettingsPath,
+            () => GetFallbackSettingsPath(ValidateAndCache),
             NormalizeSettingsPath,
-            SettingsSerializer.IsValidSettingsFile));
+            ValidateAndCache);
+        return validatedJson.TryGetValue(path, out string? json)
+            ? Load(path, json)
+            : Load(path);
     }
 
     public AppSettings Load(string path)
     {
+        return Load(path, validatedJson: null);
+    }
+
+    private AppSettings Load(string path, string? validatedJson)
+    {
         activeSettingsPath = NormalizeSettingsPath(path);
-        LoadedSettingsDocument document = ReadSettingsDocument(SettingsPath);
+        LoadedSettingsDocument document = validatedJson is null
+            ? ReadSettingsDocument(SettingsPath)
+            : ReadSettingsDocument(SettingsPath, validatedJson);
         AppSettings settings = document.Settings;
         string activeReferenceSplitSet = settings.Comparison.ActiveReferenceSplitSet;
         string activePersonalBestTimeSet = settings.Comparison.ActivePersonalBestTimeSet;
@@ -65,14 +87,8 @@ public sealed class AppSettingsRepository : ISettingsRepository
 
     public IReadOnlyList<string> GetSettingsFiles()
     {
-        Directory.CreateDirectory(SettingsDirectory);
-        return Directory.EnumerateFiles(SettingsDirectory, "*.json", SearchOption.TopDirectoryOnly)
+        return EnumerateOrderedSettingsFiles()
             .Where(SettingsSerializer.IsValidSettingsFile)
-            .OrderBy(path => string.Equals(
-                Path.GetFileName(path),
-                DefaultSettingsFileName,
-                StringComparison.OrdinalIgnoreCase) ? 0 : 1)
-            .ThenBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
 
@@ -120,24 +136,38 @@ public sealed class AppSettingsRepository : ISettingsRepository
 
     private LoadedSettingsDocument ReadSettingsDocument(string path)
     {
-        AppSettings defaults = LoadDefaultSettingsTemplate();
-        AppSettings settings = SettingsSerializer.ReadSettingsWithDefaults(
+        AppSettings settings = SettingsSerializer.ReadSettingsWithEmbeddedDefaults(
             path,
-            defaults,
             "settings",
-            out bool shouldSaveDefaults) ?? defaults;
+            out bool shouldSaveDefaults) ?? AppSettingsDefaults.Create();
         return new LoadedSettingsDocument(settings, path, shouldSaveDefaults);
     }
 
-    private static AppSettings LoadDefaultSettingsTemplate()
+    private LoadedSettingsDocument ReadSettingsDocument(string path, string validatedJson)
     {
-        return AppSettingsDefaults.Create();
+        AppSettings settings = SettingsSerializer.ReadSettingsWithEmbeddedDefaults(
+            validatedJson,
+            sourceExists: true,
+            "settings",
+            out bool shouldSaveDefaults) ?? AppSettingsDefaults.Create();
+        return new LoadedSettingsDocument(settings, path, shouldSaveDefaults);
     }
 
-    private string GetFallbackSettingsPath()
+    private string GetFallbackSettingsPath(Func<string, bool> isValidSettingsFile)
     {
-        return GetSettingsFiles().FirstOrDefault()
+        return EnumerateOrderedSettingsFiles().FirstOrDefault(isValidSettingsFile)
             ?? Path.Combine(SettingsDirectory, DefaultSettingsFileName);
+    }
+
+    private IEnumerable<string> EnumerateOrderedSettingsFiles()
+    {
+        Directory.CreateDirectory(SettingsDirectory);
+        return Directory.EnumerateFiles(SettingsDirectory, "*.json", SearchOption.TopDirectoryOnly)
+            .OrderBy(path => string.Equals(
+                Path.GetFileName(path),
+                DefaultSettingsFileName,
+                StringComparison.OrdinalIgnoreCase) ? 0 : 1)
+            .ThenBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase);
     }
 
     private void RememberActiveSettingsFile()

@@ -9,16 +9,16 @@ internal sealed class MainWindowModalInputRouter
     internal const int MaNoActivateAndEat = 4;
 
     private readonly ProgramModalWindowCoordinator modalWindows;
-    private readonly ContextMenuStrip contextMenu;
+    private readonly Func<ContextMenuStrip?> getContextMenu;
     private readonly Action stopMainWindowInteraction;
 
     public MainWindowModalInputRouter(
         ProgramModalWindowCoordinator modalWindows,
-        ContextMenuStrip contextMenu,
+        Func<ContextMenuStrip?> getContextMenu,
         Action stopMainWindowInteraction)
     {
         this.modalWindows = modalWindows;
-        this.contextMenu = contextMenu;
+        this.getContextMenu = getContextMenu;
         this.stopMainWindowInteraction = stopMainWindowInteraction;
     }
 
@@ -32,7 +32,7 @@ internal sealed class MainWindowModalInputRouter
         }
 
         stopMainWindowInteraction();
-        modalWindows.TryRedirectMainWindowInput(contextMenu);
+        modalWindows.TryRedirectMainWindowInput(getContextMenu());
         return true;
     }
 

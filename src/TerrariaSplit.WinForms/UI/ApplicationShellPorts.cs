@@ -53,8 +53,6 @@ internal interface IAutomationPort
 
 internal interface IRaceProgressPort
 {
-    void ClearReportedProgress();
-
     void ResetReportedProgress();
 
     void QueueProgressReports(bool runStarted, bool runCompleted);
@@ -243,23 +241,15 @@ internal sealed class DelegateAutomationPort : IAutomationPort
 
 internal sealed class DelegateRaceProgressPort : IRaceProgressPort
 {
-    private readonly Action clearReportedProgress;
     private readonly Action resetReportedProgress;
     private readonly Action<bool, bool> queueProgressReports;
 
     public DelegateRaceProgressPort(
-        Action clearReportedProgress,
         Action resetReportedProgress,
         Action<bool, bool> queueProgressReports)
     {
-        this.clearReportedProgress = clearReportedProgress;
         this.resetReportedProgress = resetReportedProgress;
         this.queueProgressReports = queueProgressReports;
-    }
-
-    public void ClearReportedProgress()
-    {
-        clearReportedProgress();
     }
 
     public void ResetReportedProgress()

@@ -1,5 +1,7 @@
 using System.Drawing;
 using System.Drawing.Imaging;
+using System.Runtime.InteropServices;
+using System.Collections.Concurrent;
 
 namespace TerrariaSplit.UI.Rendering;
 
@@ -7,7 +9,7 @@ internal sealed class BossIconCache : IDisposable
 {
     private const int FrameDelayPropertyId = 0x5100;
 
-    private readonly Dictionary<string, IconPair> cache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, Lazy<IconPair>> cache = new(StringComparer.OrdinalIgnoreCase);
 
     public bool AnimatedIconUsedInCurrentFrame { get; private set; }
 
@@ -27,31 +29,79 @@ internal sealed class BossIconCache : IDisposable
         string path = ResolveIconPath(fileName, iconKey);
         string cacheKey = $"icon:{path}";
 
-        if (cache.TryGetValue(cacheKey, out IconPair? iconPair))
-        {
-            return iconPair;
-        }
-
-        IconFrameSet lit = File.Exists(path) ? LoadIconFrameSet(path, iconKey) : IconFrameSet.Static(CreatePlaceholderIcon());
-        iconPair = CreateIconPair(lit, settings);
-        cache[cacheKey] = iconPair;
-        return iconPair;
+        Lazy<IconPair> lazyIcon = cache.GetOrAdd(
+            cacheKey,
+            _ => new Lazy<IconPair>(() =>
+            {
+                IconFrameSet lit = File.Exists(path)
+                    ? LoadIconFrameSet(path, iconKey)
+                    : IconFrameSet.Static(CreatePlaceholderIcon());
+                return CreateIconPair(lit, settings);
+            }, LazyThreadSafetyMode.ExecutionAndPublication));
+        return GetIconValue(cacheKey, lazyIcon);
     }
 
     public IconPair LoadEmbedded(string cacheKey, byte[] data, string iconKey, AppSettings settings)
     {
         string normalizedCacheKey = $"embedded:{cacheKey}";
-        if (cache.TryGetValue(normalizedCacheKey, out IconPair? iconPair))
+        Lazy<IconPair> lazyIcon = cache.GetOrAdd(
+            normalizedCacheKey,
+            _ => new Lazy<IconPair>(() =>
+            {
+                IconFrameSet lit = data.Length > 0
+                    ? LoadIconFrameSet(data, iconKey)
+                    : IconFrameSet.Static(CreatePlaceholderIcon());
+                return CreateIconPair(lit, settings);
+            }, LazyThreadSafetyMode.ExecutionAndPublication));
+        return GetIconValue(normalizedCacheKey, lazyIcon);
+    }
+
+    public void PreloadInitialFrame(
+        IReadOnlyList<SplitStatusSnapshot> statuses,
+        int currentSplitIndex,
+        AppSettings settings)
+    {
+        StartupDiagnostics.RecordTrace("IconPreloadStarted");
+        DateTime nowUtc = DateTime.UtcNow;
+        int minimumRowCount = Math.Max(
+            SplitDisplayRows.GetRequiredRowCount(settings, statuses, currentSplitIndex),
+            SplitCompletionAnimationRenderer.ReservedRowCount);
+        IEnumerable<int> statusIndexes = SplitDisplayRows.Build(
+                settings,
+                statuses,
+                currentSplitIndex,
+                minimumRowCount)
+            .Select(row => row.StatusIndex)
+            .Distinct();
+        var requests = new List<(int StatusIndex, SplitDefinition Definition, string FileName)>();
+        foreach (int statusIndex in statusIndexes)
         {
-            return iconPair;
+            SplitDefinition definition = statuses[statusIndex].Definition;
+            foreach (string fileName in definition.IconFileNames)
+            {
+                requests.Add((statusIndex, definition, fileName));
+            }
         }
 
-        IconFrameSet lit = data.Length > 0
-            ? LoadIconFrameSet(data, iconKey)
-            : IconFrameSet.Static(CreatePlaceholderIcon());
-        iconPair = CreateIconPair(lit, settings);
-        cache[normalizedCacheKey] = iconPair;
-        return iconPair;
+        foreach ((int StatusIndex, SplitDefinition Definition, string FileName) request in
+                 requests.DistinctBy(request => (request.Definition.Id, request.FileName)))
+        {
+            try
+            {
+                IconPair icon = Load(request.Definition, request.FileName, settings);
+                StartupDiagnostics.RecordTrace($"IconLoaded:{request.FileName}");
+                _ = request.StatusIndex == currentSplitIndex
+                    ? icon.GetCurrentImage(nowUtc)
+                    : icon.GetUndefeatedImage(nowUtc);
+                StartupDiagnostics.RecordTrace($"IconPrepared:{request.FileName}");
+            }
+            catch (Exception ex)
+            {
+                StaticAppLogger.Instance.Error(ex, $"Failed to preload overlay icon: {request.FileName}");
+            }
+        }
+
+        StartupDiagnostics.RecordTrace("IconPreloadCompleted");
     }
 
     private static IconFrameSet LoadIconFrameSet(string path, string iconKey)
@@ -81,15 +131,24 @@ internal sealed class BossIconCache : IDisposable
 
     private static IconPair CreateIconPair(IconFrameSet lit, AppSettings settings)
     {
-        IconFrameSet undefeated = lit.Map(frame => CreateBossChecklistUndefeatedIcon(
-            frame,
-            settings.Overlay.UndefeatedIconGrayscalePercent,
-            settings.Overlay.UndefeatedIconBrightnessPercent));
-        IconFrameSet current = lit.Map(frame => CreateBossChecklistUndefeatedIcon(
-            frame,
-            Math.Max(0, settings.Overlay.UndefeatedIconGrayscalePercent - settings.Overlay.CurrentBossIconGrayscaleWeakenPercent),
-            Math.Min(100, settings.Overlay.UndefeatedIconBrightnessPercent + settings.Overlay.CurrentBossIconBrightnessBoostPercent)));
-        return new IconPair(lit, undefeated, current);
+        int undefeatedGrayscale = settings.Overlay.UndefeatedIconGrayscalePercent;
+        int undefeatedBrightness = settings.Overlay.UndefeatedIconBrightnessPercent;
+        int currentGrayscale = Math.Max(
+            0,
+            undefeatedGrayscale - settings.Overlay.CurrentBossIconGrayscaleWeakenPercent);
+        int currentBrightness = Math.Min(
+            100,
+            undefeatedBrightness + settings.Overlay.CurrentBossIconBrightnessBoostPercent);
+        return new IconPair(
+            lit,
+            () => lit.Map(frame => CreateBossChecklistUndefeatedIcon(
+                frame,
+                undefeatedGrayscale,
+                undefeatedBrightness)),
+            () => lit.Map(frame => CreateBossChecklistUndefeatedIcon(
+                frame,
+                currentGrayscale,
+                currentBrightness)));
     }
 
     private static bool TryCreateImageAnimationFrames(
@@ -199,9 +258,12 @@ internal sealed class BossIconCache : IDisposable
 
     public void Clear()
     {
-        foreach (IconPair iconPair in cache.Values)
+        foreach (Lazy<IconPair> lazyIcon in cache.Values)
         {
-            iconPair.Dispose();
+            if (lazyIcon.IsValueCreated)
+            {
+                lazyIcon.Value.Dispose();
+            }
         }
 
         cache.Clear();
@@ -211,6 +273,19 @@ internal sealed class BossIconCache : IDisposable
     public void Dispose()
     {
         Clear();
+    }
+
+    private IconPair GetIconValue(string cacheKey, Lazy<IconPair> lazyIcon)
+    {
+        try
+        {
+            return lazyIcon.Value;
+        }
+        catch
+        {
+            cache.TryRemove(cacheKey, out _);
+            throw;
+        }
     }
 
     private static string GetIconKey(SplitDefinition definition, string fileName)
@@ -326,23 +401,71 @@ internal sealed class BossIconCache : IDisposable
         var bitmap = new Bitmap(source.Width, source.Height, PixelFormat.Format32bppArgb);
         float grayscale = Math.Clamp(grayscalePercent, 0, 100) / 100f;
         float brightness = Math.Clamp(brightnessPercent, 0, 100) / 100f;
-
-        for (int y = 0; y < source.Height; y++)
+        Rectangle bounds = new(0, 0, source.Width, source.Height);
+        Bitmap? convertedSource = null;
+        Bitmap readableSource = source;
+        if (source.PixelFormat is not PixelFormat.Format32bppArgb and not PixelFormat.Format32bppPArgb)
         {
-            for (int x = 0; x < source.Width; x++)
-            {
-                Color pixel = source.GetPixel(x, y);
-                if (pixel.A == 0)
-                {
-                    continue;
-                }
+            convertedSource = source.Clone(bounds, PixelFormat.Format32bppArgb);
+            readableSource = convertedSource;
+        }
 
-                int gray = (int)Math.Round(pixel.R * 0.299 + pixel.G * 0.587 + pixel.B * 0.114);
-                int red = Darken(Lerp(pixel.R, gray, grayscale), brightness);
-                int green = Darken(Lerp(pixel.G, gray, grayscale), brightness);
-                int blue = Darken(Lerp(pixel.B, gray, grayscale), brightness);
-                bitmap.SetPixel(x, y, Color.FromArgb(pixel.A, red, green, blue));
+        BitmapData? sourceData = null;
+        BitmapData? destinationData = null;
+        try
+        {
+            sourceData = readableSource.LockBits(bounds, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+            destinationData = bitmap.LockBits(bounds, ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
+            int sourceStride = Math.Abs(sourceData.Stride);
+            int destinationStride = Math.Abs(destinationData.Stride);
+            byte[] sourcePixels = new byte[sourceStride * source.Height];
+            byte[] destinationPixels = new byte[destinationStride * source.Height];
+            Marshal.Copy(sourceData.Scan0, sourcePixels, 0, sourcePixels.Length);
+
+            for (int y = 0; y < source.Height; y++)
+            {
+                int sourceRow = sourceData.Stride >= 0
+                    ? y * sourceStride
+                    : (source.Height - 1 - y) * sourceStride;
+                int destinationRow = destinationData.Stride >= 0
+                    ? y * destinationStride
+                    : (source.Height - 1 - y) * destinationStride;
+                for (int x = 0; x < source.Width; x++)
+                {
+                    int sourceOffset = sourceRow + x * 4;
+                    byte alpha = sourcePixels[sourceOffset + 3];
+                    if (alpha == 0)
+                    {
+                        continue;
+                    }
+
+                    int blue = sourcePixels[sourceOffset];
+                    int green = sourcePixels[sourceOffset + 1];
+                    int red = sourcePixels[sourceOffset + 2];
+                    int gray = (int)Math.Round(red * 0.299 + green * 0.587 + blue * 0.114);
+                    int destinationOffset = destinationRow + x * 4;
+                    destinationPixels[destinationOffset] = (byte)Darken(Lerp(blue, gray, grayscale), brightness);
+                    destinationPixels[destinationOffset + 1] = (byte)Darken(Lerp(green, gray, grayscale), brightness);
+                    destinationPixels[destinationOffset + 2] = (byte)Darken(Lerp(red, gray, grayscale), brightness);
+                    destinationPixels[destinationOffset + 3] = alpha;
+                }
             }
+
+            Marshal.Copy(destinationPixels, 0, destinationData.Scan0, destinationPixels.Length);
+        }
+        finally
+        {
+            if (sourceData is not null)
+            {
+                readableSource.UnlockBits(sourceData);
+            }
+
+            if (destinationData is not null)
+            {
+                bitmap.UnlockBits(destinationData);
+            }
+
+            convertedSource?.Dispose();
         }
 
         return bitmap;
@@ -372,21 +495,28 @@ internal sealed class BossIconCache : IDisposable
 internal sealed class IconPair : IDisposable
 {
     private readonly IconFrameSet lit;
-    private readonly IconFrameSet undefeated;
-    private readonly IconFrameSet current;
+    private readonly Lazy<IconFrameSet> undefeated;
+    private readonly Lazy<IconFrameSet> current;
 
-    public IconPair(IconFrameSet lit, IconFrameSet undefeated, IconFrameSet current)
+    public IconPair(
+        IconFrameSet lit,
+        Func<IconFrameSet> createUndefeated,
+        Func<IconFrameSet> createCurrent)
     {
         this.lit = lit;
-        this.undefeated = undefeated;
-        this.current = current;
+        undefeated = new Lazy<IconFrameSet>(
+            createUndefeated,
+            LazyThreadSafetyMode.ExecutionAndPublication);
+        current = new Lazy<IconFrameSet>(
+            createCurrent,
+            LazyThreadSafetyMode.ExecutionAndPublication);
     }
 
     public Image Lit => lit.First;
 
-    public Image Undefeated => undefeated.First;
+    public Image Undefeated => UndefeatedFrames.First;
 
-    public Image Current => current.First;
+    public Image Current => CurrentFrames.First;
 
     public bool IsAnimated => lit.IsAnimated;
 
@@ -397,20 +527,31 @@ internal sealed class IconPair : IDisposable
 
     public Image GetUndefeatedImage(DateTime nowUtc)
     {
-        return undefeated.GetFrame(nowUtc);
+        return UndefeatedFrames.GetFrame(nowUtc);
     }
 
     public Image GetCurrentImage(DateTime nowUtc)
     {
-        return current.GetFrame(nowUtc);
+        return CurrentFrames.GetFrame(nowUtc);
     }
 
     public void Dispose()
     {
         lit.Dispose();
-        undefeated.Dispose();
-        current.Dispose();
+        if (undefeated.IsValueCreated)
+        {
+            undefeated.Value.Dispose();
+        }
+
+        if (current.IsValueCreated)
+        {
+            current.Value.Dispose();
+        }
     }
+
+    private IconFrameSet UndefeatedFrames => undefeated.Value;
+
+    private IconFrameSet CurrentFrames => current.Value;
 }
 
 internal sealed class IconFrameSet : IDisposable

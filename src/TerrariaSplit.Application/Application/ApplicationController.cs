@@ -56,9 +56,6 @@ public sealed record RefreshTimerOverlaySettingsEffect()
 public sealed record RefreshRuntimeUiEffect()
     : ApplicationEffect;
 
-public sealed record ClearRaceProgressReportsEffect()
-    : ApplicationEffect;
-
 public sealed record ResetRaceProgressReportsEffect()
     : ApplicationEffect;
 
@@ -73,6 +70,9 @@ public sealed class ApplicationController
     private AppSettings baseSettings;
     private SettingsRouteOverridePackage? activeRouteOverride;
     private long minimumAcceptedRuntimeCommandSequence;
+    private RaceSystemState raceState = new();
+    private JobSystemState jobState = new();
+    private DisplaySystemState displayState = new();
 
     public ApplicationController(
         AppSettings settings,
@@ -105,9 +105,9 @@ public sealed class ApplicationController
         Settings,
         Definitions,
         ViewState,
-        new RaceSystemState(),
-        new JobSystemState(),
-        new DisplaySystemState());
+        raceState,
+        jobState,
+        displayState);
 
     public void AcceptRuntimeCommandSequence(long sequence)
     {
@@ -120,19 +120,59 @@ public sealed class ApplicationController
         {
             ControlCommandSystemEvent control => HandleCommand(control.Command),
             RuntimeWatcherSystemEvent runtime => HandleWatcherNotification(runtime.Notification),
-            DisplaySystemEvent display => new ApplicationUpdate([], [display.Invalidation]),
-            RacePackageSystemEvent racePackage => new ApplicationUpdate(
-                [],
-                [DisplayInvalidation.For(DisplayRefreshLevel.RoutePackage, DisplayInvalidationTarget.All)]),
-            RaceProgressSystemEvent raceProgress => new ApplicationUpdate(
-                [],
-                [DisplayInvalidation.For(DisplayRefreshLevel.SplitProgress, DisplayInvalidationTarget.RaceLeaderboard)]),
-            RaceRosterSystemEvent raceRoster => new ApplicationUpdate(
-                [],
-                [DisplayInvalidation.For(DisplayRefreshLevel.RuntimeFacts, DisplayInvalidationTarget.RaceLeaderboard)]),
-            JobProgressSystemEvent => ApplicationUpdate.Empty,
+            DisplaySystemEvent display => HandleDisplayEvent(display),
+            RacePackageSystemEvent racePackage => HandleRacePackageEvent(racePackage),
+            RaceProgressSystemEvent raceProgress => HandleRaceProgressEvent(raceProgress),
+            RaceRosterSystemEvent raceRoster => HandleRaceRosterEvent(raceRoster),
+            JobProgressSystemEvent jobProgress => HandleJobProgressEvent(jobProgress),
             _ => throw new NotSupportedException($"Unsupported system event {systemEvent.GetType().Name}.")
         };
+    }
+
+    private ApplicationUpdate HandleDisplayEvent(DisplaySystemEvent display)
+    {
+        displayState = displayState with { ActiveTargets = display.Invalidation.Targets };
+        return new ApplicationUpdate([], [display.Invalidation]);
+    }
+
+    private ApplicationUpdate HandleRacePackageEvent(RacePackageSystemEvent racePackage)
+    {
+        raceState = new RaceSystemState(
+            racePackage.IsInRoom,
+            racePackage.IsInRoom ? racePackage.RoomCode : string.Empty,
+            racePackage.IsInRoom ? racePackage.PackageRevision : string.Empty);
+        return new ApplicationUpdate(
+            [],
+            [DisplayInvalidation.For(DisplayRefreshLevel.RoutePackage, DisplayInvalidationTarget.All)]);
+    }
+
+    private ApplicationUpdate HandleRaceProgressEvent(RaceProgressSystemEvent raceProgress)
+    {
+        if (!raceState.IsInRoom ||
+            !string.Equals(raceState.RoomCode, raceProgress.RoomCode, StringComparison.OrdinalIgnoreCase))
+        {
+            return ApplicationUpdate.Empty;
+        }
+
+        return new ApplicationUpdate(
+            [],
+            [DisplayInvalidation.For(DisplayRefreshLevel.SplitProgress, DisplayInvalidationTarget.RaceLeaderboard)]);
+    }
+
+    private ApplicationUpdate HandleRaceRosterEvent(RaceRosterSystemEvent raceRoster)
+    {
+        raceState = raceRoster.IsInRoom
+            ? raceState with { IsInRoom = true, RoomCode = raceRoster.RoomCode }
+            : new RaceSystemState();
+        return new ApplicationUpdate(
+            [],
+            [DisplayInvalidation.For(DisplayRefreshLevel.RuntimeFacts, DisplayInvalidationTarget.RaceLeaderboard)]);
+    }
+
+    private ApplicationUpdate HandleJobProgressEvent(JobProgressSystemEvent jobProgress)
+    {
+        jobState = new JobSystemState(jobProgress.JobKey, Math.Clamp(jobProgress.ProgressPercent, 0, 100));
+        return ApplicationUpdate.Empty;
     }
 
     private ApplicationUpdate HandleCommand(AppCommand command)
@@ -484,7 +524,6 @@ internal static class RunEventProcessor
                     break;
                 case RunEventKind.RunStarted:
                     runLifecycle.MarkRunStarted();
-                    effects.Add(new ClearRaceProgressReportsEffect());
                     queueRaceProgress = true;
                     raceRunStarted = true;
                     effects.Add(new PlaySoundEffect(settings.Overlay.Sounds.EnterWorld));

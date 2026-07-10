@@ -12,7 +12,8 @@ internal sealed class TimerOverlayWindowHost : IDisposable
     private readonly Action recordPaintDispatchSkipped;
     private readonly Action recordPaintInputSkipped;
     private readonly object sync = new();
-    private readonly ManualResetEventSlim ready = new(false);
+    private readonly TaskCompletionSource<IntPtr> handleReady = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource<bool> firstFramePresented = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private Thread? thread;
     private TimerOverlayForm? form;
     private IntPtr formHandle;
@@ -51,6 +52,8 @@ internal sealed class TimerOverlayWindowHost : IDisposable
 
     public event Action? ModalActivationRequested;
 
+    public event Action? FirstFrameRendered;
+
     public IntPtr WindowHandle
     {
         get
@@ -62,21 +65,32 @@ internal sealed class TimerOverlayWindowHost : IDisposable
         }
     }
 
-    public void Start()
+    public Task<IntPtr> HandleReady => handleReady.Task;
+
+    public Task FirstFramePresented => firstFramePresented.Task;
+
+    public Task<IntPtr> StartAsync(CancellationToken cancellationToken = default)
     {
-        if (thread is not null)
+        Thread? threadToStart = null;
+        lock (sync)
         {
-            return;
+            ObjectDisposedException.ThrowIf(disposed, this);
+            if (thread is null)
+            {
+                thread = new Thread(ThreadMain)
+                {
+                    IsBackground = true,
+                    Name = "TimerOverlayThread"
+                };
+                thread.SetApartmentState(ApartmentState.STA);
+                threadToStart = thread;
+            }
         }
 
-        thread = new Thread(ThreadMain)
-        {
-            IsBackground = true,
-            Name = "TimerOverlayThread"
-        };
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        ready.Wait(TimeSpan.FromSeconds(2));
+        threadToStart?.Start();
+        return cancellationToken.CanBeCanceled
+            ? handleReady.Task.WaitAsync(cancellationToken)
+            : handleReady.Task;
     }
 
     public void ApplyOverlayLayout(OverlayCompositeLayout layout)
@@ -158,6 +172,8 @@ internal sealed class TimerOverlayWindowHost : IDisposable
         }
 
         disposed = true;
+        handleReady.TrySetCanceled();
+        firstFramePresented.TrySetCanceled();
         TimerOverlayForm? formValue;
         Thread? threadValue;
         lock (sync)
@@ -185,63 +201,91 @@ internal sealed class TimerOverlayWindowHost : IDisposable
             threadValue.Join(TimeSpan.FromSeconds(2));
         }
 
-        ready.Dispose();
     }
 
     private void ThreadMain()
     {
-        using var overlayForm = new TimerOverlayForm(
-            recordPaint,
-            recordPaintTick,
-            recordLayeredUpdate,
-            recordPaintDispatchSkipped,
-            recordPaintInputSkipped,
-            IsInteractionBlocked);
-        overlayForm.DragDeltaRequested += delta => DispatchToMain(() => DragDeltaRequested?.Invoke(delta));
-        overlayForm.UserResizeBoundsChanged += bounds => DispatchToMain(() => UserResizeBoundsChanged?.Invoke(bounds));
-        overlayForm.RightClickRequested += request => DispatchToMain(() => RightClickRequested?.Invoke(request));
-        overlayForm.ModalActivationRequested += () => DispatchToMain(() => ModalActivationRequested?.Invoke());
-        overlayForm.Activated += (_, _) =>
+        try
         {
-            IntPtr activatedHandle;
+            using var overlayForm = new TimerOverlayForm(
+                recordPaint,
+                recordPaintTick,
+                recordLayeredUpdate,
+                recordPaintDispatchSkipped,
+                recordPaintInputSkipped,
+                IsInteractionBlocked,
+                () =>
+                {
+                    if (firstFramePresented.TrySetResult(true))
+                    {
+                        StartupDiagnostics.RecordTrace("TimerFrame");
+                        FirstFrameRendered?.Invoke();
+                    }
+                });
+            overlayForm.DragDeltaRequested += delta => DispatchToMain(() => DragDeltaRequested?.Invoke(delta));
+            overlayForm.UserResizeBoundsChanged += bounds => DispatchToMain(() => UserResizeBoundsChanged?.Invoke(bounds));
+            overlayForm.RightClickRequested += request => DispatchToMain(() => RightClickRequested?.Invoke(request));
+            overlayForm.ModalActivationRequested += () => DispatchToMain(() => ModalActivationRequested?.Invoke());
+            overlayForm.Activated += (_, _) =>
+            {
+                IntPtr activatedHandle;
+                lock (sync)
+                {
+                    activatedHandle = formHandle;
+                }
+
+                if (activatedHandle != IntPtr.Zero)
+                {
+                    DispatchToMain(() => Activated?.Invoke(activatedHandle));
+                }
+            };
+            overlayForm.HandleCreated += (_, _) =>
+            {
+                IntPtr handle = overlayForm.Handle;
+                lock (sync)
+                {
+                    formHandle = handle;
+                }
+
+                handleReady.TrySetResult(handle);
+                ApplyLatestState(overlayForm);
+            };
+            overlayForm.HandleDestroyed += (_, _) =>
+            {
+                lock (sync)
+                {
+                    formHandle = IntPtr.Zero;
+                }
+            };
+
             lock (sync)
             {
-                activatedHandle = formHandle;
+                form = overlayForm;
             }
 
-            if (activatedHandle != IntPtr.Zero)
-            {
-                DispatchToMain(() => Activated?.Invoke(activatedHandle));
-            }
-        };
-        overlayForm.HandleCreated += (_, _) =>
+            _ = overlayForm.Handle;
+            ApplyLatestState(overlayForm);
+            System.Windows.Forms.Application.Run(overlayForm);
+        }
+        catch (Exception ex)
+        {
+            handleReady.TrySetException(ex);
+            firstFramePresented.TrySetException(ex);
+            StaticAppLogger.Instance.Error(ex, "Timer overlay thread failed during startup.");
+        }
+        finally
         {
             lock (sync)
             {
-                formHandle = overlayForm.Handle;
-            }
-        };
-        overlayForm.HandleDestroyed += (_, _) =>
-        {
-            lock (sync)
-            {
+                form = null;
                 formHandle = IntPtr.Zero;
             }
-        };
 
-        lock (sync)
-        {
-            form = overlayForm;
-        }
-
-        ApplyLatestState(overlayForm);
-        ready.Set();
-        System.Windows.Forms.Application.Run(overlayForm);
-
-        lock (sync)
-        {
-            form = null;
-            formHandle = IntPtr.Zero;
+            if (!disposed)
+            {
+                handleReady.TrySetCanceled();
+                firstFramePresented.TrySetCanceled();
+            }
         }
     }
 

@@ -13,6 +13,11 @@ using TerrariaSplit.Terraria.WorldGeneration.Simulation;
 using ScannerPyramidChestItem = TerrariaSplit.Terraria.Automation.PyramidChestItem;
 using ScannerPyramidChestItemNames = TerrariaSplit.Terraria.Automation.PyramidChestItemNames;
 
+if (StartupMetrics.TryRun(args))
+{
+    return;
+}
+
 if (PyramidPreScreenMetrics.TryRun(args))
 {
     return;
@@ -46,6 +51,8 @@ var legacyTests = new (string Name, Action Test)[]
     ("Localizer returns English fallback and Chinese Crimson", TestLocalizer),
     ("JsonFileStore writes settings atomically", TestJsonFileStoreWritesAtomically),
     ("Default settings template covers serializable settings", TestDefaultSettingsTemplateCoversSerializableSettings),
+    ("AppSettingsCloner preserves every setting in an independent object graph", TestAppSettingsClonerPreservesIndependentGraph),
+    ("Settings profile marker is not rewritten when unchanged", TestSettingsProfileMarkerIsNotRewrittenWhenUnchanged),
     ("Legacy flat settings JSON migrates to sections", TestLegacyFlatSettingsJsonMigratesToSections),
     ("SettingsSerializer writes schema document", TestSettingsSerializerWritesSchemaDocument),
     ("Settings JSON migrates legacy document values", TestSettingsJsonMigratesLegacyDocumentValues),
@@ -1248,6 +1255,121 @@ static void TestDefaultSettingsTemplateCoversSerializableSettings()
     AssertJsonCoversType(typeof(AppSettings), document.RootElement, "settings");
 }
 
+static void TestAppSettingsClonerPreservesIndependentGraph()
+{
+    AppSettings source = AppSettingsDefaults.Create();
+    MutateSettingsScalarProperties(source, new HashSet<object>(ReferenceEqualityComparer.Instance));
+    source.Comparison.PersonalBestTimes["clone-test"] = "1:23";
+    source.Overlay.SplitCompletionSplitComparisons["clone-test"] = true;
+
+    AppSettings clone = AppSettingsCloner.Clone(source);
+    string sourceJson = JsonSerializer.Serialize(source, JsonFileStore.JsonOptions);
+    string cloneJson = JsonSerializer.Serialize(clone, JsonFileStore.JsonOptions);
+    AssertEqual(sourceJson, cloneJson);
+
+    source.General.Language = "changed-after-clone";
+    source.Route.SplitRoute[0].DisplayName = "changed-after-clone";
+    source.Comparison.PersonalBestTimes["clone-test"] = "9:99";
+    source.PracticeWorlds.Slots[0].Name = "changed-after-clone";
+
+    AssertEqual(false, clone.General.Language == source.General.Language);
+    AssertEqual(false, clone.Route.SplitRoute[0].DisplayName == source.Route.SplitRoute[0].DisplayName);
+    AssertEqual("1:23", clone.Comparison.PersonalBestTimes["clone-test"]);
+    AssertEqual(false, clone.PracticeWorlds.Slots[0].Name == source.PracticeWorlds.Slots[0].Name);
+}
+
+static void MutateSettingsScalarProperties(object value, HashSet<object> visited)
+{
+    if (!visited.Add(value))
+    {
+        return;
+    }
+
+    if (value is System.Collections.IDictionary dictionary)
+    {
+        foreach (object? item in dictionary.Values)
+        {
+            if (item is not null && !IsSettingsScalar(item.GetType()))
+            {
+                MutateSettingsScalarProperties(item, visited);
+            }
+        }
+
+        return;
+    }
+
+    if (value is System.Collections.IEnumerable sequence && value is not string)
+    {
+        foreach (object? item in sequence)
+        {
+            if (item is not null && !IsSettingsScalar(item.GetType()))
+            {
+                MutateSettingsScalarProperties(item, visited);
+            }
+        }
+
+        return;
+    }
+
+    foreach (PropertyInfo property in value.GetType().GetProperties(BindingFlags.Instance | BindingFlags.Public))
+    {
+        if (!property.CanRead || !property.CanWrite || property.GetIndexParameters().Length != 0)
+        {
+            continue;
+        }
+
+        object? current = property.GetValue(value);
+        if (property.PropertyType == typeof(string))
+        {
+            property.SetValue(value, $"{value.GetType().Name}.{property.Name}");
+        }
+        else if (property.PropertyType == typeof(bool))
+        {
+            property.SetValue(value, !(bool)(current ?? false));
+        }
+        else if (property.PropertyType == typeof(int))
+        {
+            property.SetValue(value, (int)(current ?? 0) + 17);
+        }
+        else if (property.PropertyType == typeof(float))
+        {
+            property.SetValue(value, (float)(current ?? 0f) + 0.75f);
+        }
+        else if (current is not null && !IsSettingsScalar(current.GetType()))
+        {
+            MutateSettingsScalarProperties(current, visited);
+        }
+    }
+}
+
+static bool IsSettingsScalar(Type type)
+{
+    return type.IsPrimitive || type.IsEnum || type == typeof(string) || type == typeof(decimal);
+}
+
+static void TestSettingsProfileMarkerIsNotRewrittenWhenUnchanged()
+{
+    string directory = Path.GetFullPath(Path.Combine(
+        "test",
+        "Temp",
+        "settings-profile-" + Guid.NewGuid().ToString("N")));
+    string markerPath = Path.Combine(directory, "active-profile.txt");
+    try
+    {
+        SettingsProfileStore.RememberActiveSettingsFile(directory, markerPath, "settings.json");
+        DateTime expectedTimestamp = new(2020, 1, 2, 3, 4, 6, DateTimeKind.Utc);
+        File.SetLastWriteTimeUtc(markerPath, expectedTimestamp);
+
+        SettingsProfileStore.RememberActiveSettingsFile(directory, markerPath, "settings.json");
+
+        AssertEqual(expectedTimestamp, File.GetLastWriteTimeUtc(markerPath));
+    }
+    finally
+    {
+        DeleteDirectoryIfExists(directory);
+    }
+}
+
 static void TestLegacyFlatSettingsJsonMigratesToSections()
 {
     const string json = """
@@ -1785,9 +1907,30 @@ static void TestMainPublishIsSingleFile()
     AssertEqual("true", GetRequiredElementValue(releaseProperties, "PublishSelfContained"));
     AssertEqual("true", GetRequiredElementValue(releaseProperties, "PublishSingleFile"));
     AssertEqual("true", GetRequiredElementValue(releaseProperties, "IncludeNativeLibrariesForSelfExtract"));
+    AssertEqual("true", GetRequiredElementValue(releaseProperties, "PublishReadyToRun"));
+    AssertEqual("false", GetRequiredElementValue(releaseProperties, "EnableCompressionInSingleFile"));
     AssertEqual("false", GetRequiredElementValue(releaseProperties, "PublishTrimmed"));
+    AssertEqual("false", GetRequiredElementValue(releaseProperties, "PublishAot"));
     AssertEqual("none", GetRequiredElementValue(releaseProperties, "DebugType"));
     AssertEqual("false", GetRequiredElementValue(releaseProperties, "DebugSymbols"));
+
+    XElement packageImport = project.Descendants()
+        .Single(element =>
+            element.Name.LocalName == "Import" &&
+            string.Equals(element.Attribute("Project")?.Value, "Build\\PortablePackage.targets", StringComparison.Ordinal));
+    AssertEqual(true, packageImport is not null);
+    XDocument packageTargets = XDocument.Load(Path.Combine(
+        sourceRoot,
+        "src",
+        "TerrariaSplit.WinForms",
+        "Build",
+        "PortablePackage.targets"));
+    XElement zipTask = packageTargets.Descendants()
+        .Single(element => element.Name.LocalName == "ZipDirectory");
+    AssertEqual("$(PublishDir)", zipTask.Attribute("SourceDirectory")?.Value);
+    AssertEqual(true, packageTargets.ToString().Contains(
+        "TerrariaSplit-Portable-v$(FileVersion)-win-x64.zip",
+        StringComparison.Ordinal));
 }
 
 static void TestMemoryProbePublishIsSelfContained()
@@ -2777,6 +2920,7 @@ static void TestMainFormCompletedRunVisibleGroupLimitOption()
 
         using var form = new MainForm(registerGlobalHotkeys: false);
         _ = form.Handle;
+        WaitForMainFormFullyReady(form);
         SetMainFormSettings(form, settings);
 
         ApplicationController controller = GetPrivateField<ApplicationController>(form, "applicationController");
@@ -5130,6 +5274,7 @@ static void TestMainFormPreservesSizeWhenApplyingNonLayoutSettings()
     {
         using var form = new MainForm(registerGlobalHotkeys: false);
         _ = form.Handle;
+        WaitForMainFormFullyReady(form);
         OverlayBoundsController boundsController = GetMainFormOverlayBoundsController(form);
         AppSettings previousSettings = GetMainFormSettings(form);
         SplitStatusSnapshot[] statuses = SplitCatalog.Build(previousSettings)
@@ -5163,6 +5308,7 @@ static void TestMainFormSettingsApplyRedrawsStaticStatusOverlayContent()
     {
         using var form = new MainForm(registerGlobalHotkeys: false);
         _ = form.Handle;
+        WaitForMainFormFullyReady(form);
 
         OverlayShell overlayShell = GetPrivateField<OverlayShell>(form, "overlayShell");
         overlayShell.RecordStatusOverlayRender(new StatusOverlayDynamicKey(0, string.Empty, 0));
@@ -5187,6 +5333,7 @@ static void TestMainFormSettingsApplyReloadsDefinitionsAndRecordsCurrentRun()
     {
         using var form = new MainForm(registerGlobalHotkeys: false);
         _ = form.Handle;
+        WaitForMainFormFullyReady(form);
 
         AppSettings previousSettings = GetMainFormSettings(form);
         var nextSettings = AppSettingsStore.Clone(previousSettings);
@@ -5275,6 +5422,7 @@ static void TestMainFormInitializesOverlayLayoutWithCurrentSplitCount()
     {
         using var form = new MainForm(registerGlobalHotkeys: false);
         _ = form.Handle;
+        WaitForMainFormFullyReady(form);
 
         OverlayBoundsController boundsController = GetMainFormOverlayBoundsController(form);
         ApplicationController applicationController = GetPrivateField<ApplicationController>(form, "applicationController");
@@ -5301,6 +5449,7 @@ static void TestMainFormOverlayClientSizeMatchesStatusLayout()
     {
         using var form = new MainForm(registerGlobalHotkeys: false);
         _ = form.Handle;
+        WaitForMainFormFullyReady(form);
         form.Show();
         Application.DoEvents();
 
@@ -5316,6 +5465,7 @@ static void TestMainFormScalesSizeWhenGlobalScaleChanges()
     {
         using var form = new MainForm(registerGlobalHotkeys: false);
         _ = form.Handle;
+        WaitForMainFormFullyReady(form);
         OverlayBoundsController boundsController = GetMainFormOverlayBoundsController(form);
         var previousSettings = new AppSettings();
         previousSettings.Overlay.Columns.ScalePercent = 100;
@@ -5343,6 +5493,7 @@ static void TestMainFormAdjustsWidthWhenSplitColumnsChange()
     {
         using var form = new MainForm(registerGlobalHotkeys: false);
         _ = form.Handle;
+        WaitForMainFormFullyReady(form);
         OverlayBoundsController boundsController = GetMainFormOverlayBoundsController(form);
         var previousSettings = new AppSettings();
         previousSettings.Overlay.Columns.ScalePercent = 100;
@@ -5369,6 +5520,7 @@ static void TestMainFormGrowsHeightWhenSplitRouteGrows()
     {
         using var form = new MainForm(registerGlobalHotkeys: false);
         _ = form.Handle;
+        WaitForMainFormFullyReady(form);
         OverlayBoundsController boundsController = GetMainFormOverlayBoundsController(form);
         var previousSettings = new AppSettings { Route = { SplitRoute = SplitCatalog.CreateDefaultRoute() } };
         previousSettings.Overlay.Columns.ScalePercent = 100;
@@ -6036,6 +6188,26 @@ static void RunSta(Action action)
     if (failure is not null)
     {
         throw failure;
+    }
+}
+
+static void WaitForMainFormFullyReady(MainForm form)
+{
+    Stopwatch timeout = Stopwatch.StartNew();
+    while (form.CurrentStartupPhase != StartupPhase.FullyReady)
+    {
+        if (form.CurrentStartupPhase is StartupPhase.Failed or StartupPhase.Stopping)
+        {
+            throw new InvalidOperationException($"MainForm startup ended in phase {form.CurrentStartupPhase}.");
+        }
+
+        if (timeout.Elapsed >= TimeSpan.FromSeconds(10))
+        {
+            throw new TimeoutException($"MainForm did not become fully ready; phase={form.CurrentStartupPhase}.");
+        }
+
+        Application.DoEvents();
+        Thread.Sleep(1);
     }
 }
 

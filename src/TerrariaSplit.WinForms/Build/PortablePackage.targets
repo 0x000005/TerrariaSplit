@@ -1,0 +1,15 @@
+<Project>
+  <Target
+    Name="CreateTerrariaSplitPortableArchive"
+    AfterTargets="Publish"
+    Condition="'$(Configuration)' == 'Release' and '$(TerrariaSplitCreatePortableArchive)' == 'true'">
+    <PropertyGroup>
+      <TerrariaSplitPortableArchivePath Condition="'$(TerrariaSplitPortableArchivePath)' == ''">$([System.IO.Path]::GetFullPath('$(PublishDir)..\TerrariaSplit-v$(FileVersion)-win-x64.zip'))</TerrariaSplitPortableArchivePath>
+    </PropertyGroup>
+    <ZipDirectory
+      SourceDirectory="$(PublishDir)"
+      DestinationFile="$(TerrariaSplitPortableArchivePath)"
+      Overwrite="true" />
+    <Message Importance="high" Text="Created portable archive: $(TerrariaSplitPortableArchivePath)" />
+  </Target>
+</Project>

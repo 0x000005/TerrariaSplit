@@ -7,12 +7,20 @@ internal sealed partial class MainForm : Form
 {
     private void DrawStatusOverlay(Graphics graphics)
     {
+        bool traceFirstRender = Interlocked.Increment(ref statusRenderCount) == 1;
+        if (traceFirstRender)
+        {
+            StartupDiagnostics.RecordTrace("StatusRenderStarted");
+        }
+
         if (!overlayShell.WindowsInitialized ||
             overlayShell.WindowInitializationInProgress ||
             !TryGetLayout(out SplitLayout layout))
         {
             return;
         }
+
+        startupCore.StatusIconPreloadTask.GetAwaiter().GetResult();
 
         TimeSpan elapsed = timerElapsed;
         bool ignoreVisibleGroupLimit = ShouldIgnoreVisibleGroupLimitForCompletedRun();
@@ -31,17 +39,50 @@ internal sealed partial class MainForm : Form
             overlayShell.Animations.SegmentBestDeltaHighlights,
             DateTime.UtcNow,
             ignoreVisibleGroupLimit,
-            TimerFillOverride: raceShell.GetMainTimerRankColor(timerPhase, splitStatuses),
+            TimerFillOverride: runtimeServices?.RaceShell.GetMainTimerRankColor(timerPhase, splitStatuses),
             ShowPyramidFilterIndicator: ShouldShowPyramidFilterIndicator());
         OverlayRenderResult result = OverlayRenderer.RenderStatus(
             graphics,
             context,
             overlayShell.RenderResources,
             overlayShell.StatusOverlayPartialClipBounds);
+        if (traceFirstRender)
+        {
+            StartupDiagnostics.RecordTrace("StatusContentRendered");
+        }
         overlayShell.Animations.UpdateAfterRender(result);
+        DrawStartupIndicator(graphics);
 
         overlayShell.RecordStatusOverlayRender(ComputeStatusOverlayDynamicKey(elapsed), result.AnimatedIconsActive);
         UpdateStatusPaintSchedulerState();
+    }
+
+    private void DrawStartupIndicator(Graphics graphics)
+    {
+        if (IsRuntimeReady)
+        {
+            return;
+        }
+
+        string text = Localizer.Get("Initializing...", settings);
+        Font font = SystemFonts.MessageBoxFont ?? Control.DefaultFont;
+        SizeF measured = graphics.MeasureString(text, font);
+        int horizontalPadding = Math.Max(6, ScaleInt(6));
+        int verticalPadding = Math.Max(3, ScaleInt(3));
+        var bounds = new RectangleF(
+            Math.Max(4, ScaleInt(4)),
+            Math.Max(4, ScaleInt(4)),
+            measured.Width + horizontalPadding * 2,
+            measured.Height + verticalPadding * 2);
+        using var background = new SolidBrush(Color.FromArgb(210, 28, 28, 32));
+        using var foreground = new SolidBrush(Color.White);
+        graphics.FillRectangle(background, bounds);
+        graphics.DrawString(
+            text,
+            font,
+            foreground,
+            bounds.Left + horizontalPadding,
+            bounds.Top + verticalPadding);
     }
 
     private StatusOverlayDynamicKey ComputeStatusOverlayDynamicKey(TimeSpan elapsed)

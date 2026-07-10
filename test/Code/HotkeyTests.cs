@@ -216,6 +216,9 @@ internal static class HotkeyTests
         DisplayInvalidation packageInvalidation = packageUpdate.DisplayInvalidations.Single();
         TestAssert.Equal(DisplayRefreshLevel.RoutePackage, packageInvalidation.Level);
         TestAssert.Equal(DisplayInvalidationTarget.All, packageInvalidation.Targets);
+        TestAssert.Equal(true, controller.SystemState.Race.IsInRoom);
+        TestAssert.Equal("ABCD", controller.SystemState.Race.RoomCode);
+        TestAssert.Equal("rev-1", controller.SystemState.Race.PackageRevision);
 
         ApplicationUpdate progressUpdate = controller.HandleSystemEvent(new RaceProgressSystemEvent("ABCD"));
         TestAssert.Equal(0, progressUpdate.Effects.Count);
@@ -228,6 +231,10 @@ internal static class HotkeyTests
         DisplayInvalidation rosterInvalidation = rosterUpdate.DisplayInvalidations.Single();
         TestAssert.Equal(DisplayRefreshLevel.RuntimeFacts, rosterInvalidation.Level);
         TestAssert.Equal(DisplayInvalidationTarget.RaceLeaderboard, rosterInvalidation.Targets);
+
+        _ = controller.HandleSystemEvent(new RaceRosterSystemEvent("ABCD", IsInRoom: false));
+        TestAssert.Equal(false, controller.SystemState.Race.IsInRoom);
+        TestAssert.Equal(string.Empty, controller.SystemState.Race.RoomCode);
     }
 
     private static void ApplicationControllerKeepsRaceRouteOverrideAuthoritative()

@@ -1,5 +1,4 @@
 using System.Drawing;
-using System.Diagnostics;
 using System.Windows.Forms;
 
 namespace TerrariaSplit.UI;
@@ -15,19 +14,11 @@ internal sealed partial class MainForm : Form
     private const int WsExLayered = 0x80000;
     private const string SegmentTimerWindowTitle = "TerrariaSplit - Segment Timer";
 
-    private readonly WorldPoolStore worldPoolStore;
+    private readonly StartupCore startupCore;
     private readonly ISettingsSnapshotFactory settingsSnapshots;
     private readonly IAppLogger appLogger;
-    private readonly AutomationShell automationShell;
-    private readonly WorldPoolFillService worldPoolFillService;
-    private readonly MainFormContextMenuBuilder contextMenuBuilder;
-    private readonly SoundPlayerService soundPlayer;
     private readonly HotkeyShell hotkeyShell;
-    private readonly ContextMenuStrip contextMenu;
     private readonly ApplicationController applicationController;
-    private readonly ApplicationShellEffectExecutor effectExecutor;
-    private readonly SettingsShell settingsShell;
-    private readonly RaceShell raceShell;
     private readonly RuntimeShell runtimeShell = new(
         DefaultControlTickInterval,
         RefreshRateSettings.ToInterval(AppSettingsDefaults.Advanced.RunningStatusPaintHz));
@@ -37,11 +28,44 @@ internal sealed partial class MainForm : Form
     private readonly ProgramModalWindowCoordinator modalWindows;
     private readonly MainWindowModalInputRouter mainWindowModalInputRouter;
     private readonly WindowShell windowShell = new();
+    private readonly StartupCommandGate startupCommandGate = new();
+    private readonly RuntimeBootstrapper runtimeBootstrapper = new();
+    private readonly TaskCompletionSource<bool> statusFirstFramePresented =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private RuntimeServices? runtimeServices;
+    private ContextMenuStrip? contextMenu;
+    private Task? runtimeInitializationTask;
+    private int firstFrameComponentCount;
+    private int statusRenderCount;
     private StatisticsForm? statisticsForm;
     private int rtssOverlayDispatchPending;
     private bool runtimeResourcesDisposed;
     private RtssOverlayPublishStatus lastRtssOverlayStatus = RtssOverlayPublishStatus.Disabled;
     private string lastRtssOverlayMessage = string.Empty;
+
+    private RuntimeServices RuntimeServices =>
+        runtimeServices ?? throw new InvalidOperationException("Runtime services are not fully initialized.");
+
+    private WorldPoolStore worldPoolStore => RuntimeServices.WorldPoolStore;
+
+    private WorldPoolFillService worldPoolFillService => RuntimeServices.WorldPoolFillService;
+
+    private MainFormContextMenuBuilder contextMenuBuilder => RuntimeServices.ContextMenuBuilder;
+
+    private SoundPlayerService soundPlayer => RuntimeServices.SoundPlayer;
+
+    private AutomationShell automationShell => RuntimeServices.AutomationShell;
+
+    private SettingsShell settingsShell => RuntimeServices.SettingsShell;
+
+    private RaceShell raceShell => RuntimeServices.RaceShell;
+
+    private ApplicationShellEffectExecutor effectExecutor => RuntimeServices.EffectExecutor;
+
+    private bool IsRuntimeReady =>
+        runtimeServices is not null && runtimeBootstrapper.Phase == StartupPhase.FullyReady;
+
+    internal StartupPhase CurrentStartupPhase => runtimeBootstrapper.Phase;
 
     private AppSettings settings => applicationController.Settings;
 
@@ -61,31 +85,24 @@ internal sealed partial class MainForm : Form
 
     public MainForm(bool registerGlobalHotkeys = true)
     {
+        StartupDiagnostics.RecordTrace("MainFormConstructing");
         runtimeShell.AttachDispatchActions(DispatchedControlTick, DispatchedStatusPaintTick);
         rtssOverlayScheduler = new HighPrecisionScheduler("TerrariaSplit RTSS overlay", QueueRtssOverlayTick);
-        MainShellServices services = MainShellCompositionRoot.CreateCore(SilentPersonalBestUpdateConfirmation);
-        worldPoolStore = services.WorldPoolStore;
-        settingsSnapshots = services.SettingsSnapshots;
-        appLogger = services.AppLogger;
-        worldPoolFillService = services.WorldPoolFillService;
-        contextMenuBuilder = services.ContextMenuBuilder;
-        soundPlayer = services.SoundPlayer;
+        startupCore = MainShellCompositionRoot.CreateStartupCore(SilentPersonalBestUpdateConfirmation);
+        StartupDiagnostics.RecordTrace("StartupCoreReady");
+        settingsSnapshots = startupCore.SettingsSnapshots;
+        appLogger = startupCore.AppLogger;
+        applicationController = startupCore.ApplicationController;
+        runtimeShell.AttachPerformance(startupCore.Performance);
         hotkeyShell = new HotkeyShell(
-            services.HotkeyManager,
+            startupCore.HotkeyManager,
             () => settings,
             () => Handle,
             () => IsHandleCreated,
             registerGlobalHotkeys);
-        contextMenu = services.ContextMenu;
-        applicationController = services.ApplicationController;
         RefreshTimerOverlaySettingsSnapshot();
         overlayShell.RefreshPalette(settings);
-        RuntimePerformanceTracker performance = services.Performance;
-        TerrariaMonitorCoordinator monitorCoordinator = MainShellCompositionRoot.CreateMonitorCoordinator(
-            callback => BeginInvoke(callback),
-            appLogger,
-            performance);
-        monitorCoordinator.WatcherPollCompleted += HandleWatcherPollCompleted;
+
         OverlayWindowController overlayWindowController = MainShellCompositionRoot.CreateOverlayWindowController(
             this,
             graphics =>
@@ -93,10 +110,16 @@ internal sealed partial class MainForm : Form
                 DrawStatusOverlay(graphics);
                 return true;
             },
-            elapsed => performance.RecordStatusPaint(elapsed));
+            elapsed => startupCore.Performance.RecordStatusPaint(elapsed));
+        overlayWindowController.FirstFrameRendered += () =>
+        {
+            StartupDiagnostics.RecordTrace("StatusFrame");
+            statusFirstFramePresented.TrySetResult(true);
+            MarkFirstFrameComponentRendered();
+        };
         int initialReservedRowCount = GetCurrentReservedLayoutRowCount();
         int initialVisibleRowCount = GetCurrentLayoutRowCount();
-        OverlayBoundsController overlayBoundsController = new OverlayBoundsController(
+        OverlayBoundsController overlayBoundsController = new(
             RowGap,
             settings,
             initialReservedRowCount,
@@ -105,85 +128,35 @@ internal sealed partial class MainForm : Form
         overlayBoundsController.LayoutChanged += ApplyOverlayLayout;
         TimerOverlayWindowHost timerOverlayHost = MainShellCompositionRoot.CreateTimerOverlayWindowHost(
             callback => BeginInvoke(callback),
-            elapsed => performance.RecordTimerOverlayPaint(elapsed),
-            tick => performance.RecordTimerOverlayPaintTick(tick),
-            performance.RecordTimerOverlayLayeredUpdate,
-            performance.RecordTimerOverlayPaintDispatchSkipped,
-            performance.RecordTimerOverlayPaintInputSkipped);
+            elapsed => startupCore.Performance.RecordTimerOverlayPaint(elapsed),
+            tick => startupCore.Performance.RecordTimerOverlayPaintTick(tick),
+            startupCore.Performance.RecordTimerOverlayLayeredUpdate,
+            startupCore.Performance.RecordTimerOverlayPaintDispatchSkipped,
+            startupCore.Performance.RecordTimerOverlayPaintInputSkipped);
         overlayShell.AttachRuntimeComponents(
             overlayWindowController,
             overlayBoundsController,
             timerOverlayHost,
-            services.RenderResources,
-            services.OverlayAnimations);
+            startupCore.RenderResources,
+            startupCore.OverlayAnimations);
+        _ = timerOverlayHost.StartAsync(runtimeBootstrapper.CancellationToken);
         modalWindows = MainShellCompositionRoot.CreateModalWindowCoordinator(this, overlayShell.TimerOverlayHost);
         mainWindowModalInputRouter = MainShellCompositionRoot.CreateModalInputRouter(
             modalWindows,
-            contextMenu,
+            () => contextMenu,
             windowShell.CancelDrag);
-        automationShell = MainShellCompositionRoot.CreateAutomationShell(
-            worldPoolStore,
-            () => settings,
-            settingsSnapshots,
-            modalWindows,
-            this,
-            () => AcceptRuntimeCommandSequence(monitorCoordinator.ClearPendingMenuActions()),
-            appLogger);
-        settingsShell = MainShellCompositionRoot.CreateSettingsShell(
-            () => editableSettings,
-            GetRuntimeDiagnostics,
-            GetRuntimeDebugSnapshot,
-            GetWorldPoolCount,
-            services.SettingsRepository,
-            settingsSnapshots,
-            callback => BeginInvoke(callback),
-            ApplySettings,
-            () => AcceptRuntimeCommandSequence(monitorCoordinator.ClearPendingMenuActions()),
-            hotkeyShell.Unregister,
-            hotkeyShell.Register,
-            () => IsHandleCreated,
-            () => Bounds);
-        raceShell = new RaceShell(
-            settingsSnapshots,
-            appLogger,
-            () => settings,
-            () => editableSettings,
-            () => viewState,
-            () => GetRuntimeDebugSnapshot().WatcherDiagnostics.ProcessVersion,
-            ApplyRouteOverride,
-            ClearRouteOverride,
-            services.SaveSettings,
-            this,
-            RefreshRaceMainTimerColor,
-            () => ResetRun(recordStats: false));
+
         overlayShell.TimerOverlayHost.DragDeltaRequested += delta => overlayShell.BoundsController.MoveBy(delta);
         overlayShell.TimerOverlayHost.UserResizeBoundsChanged += bounds => overlayShell.BoundsController.HandleTimerResize(bounds);
         overlayShell.TimerOverlayHost.RightClickRequested += HandleTimerOverlayRightClickRequested;
         overlayShell.TimerOverlayHost.Activated += QueueMainWindowForegroundGroupSync;
         overlayShell.TimerOverlayHost.ModalActivationRequested += () => modalWindows.ActivateCurrentModal();
-        effectExecutor = MainShellCompositionRoot.CreateEffectExecutor(
-            SubmitRuntimeCommand,
-            soundPlayer,
-            overlayShell.Animations,
-            ToggleMouseClickThrough,
-            ClearSplitCompletionAnimation,
-            TrackSegmentBestDeltaHighlight,
-            StartSplitCompletionAnimation,
-            monitorCoordinator.ResetUiScalePatchState,
-            RefreshTimerOverlaySettingsSnapshot,
-            RefreshRuntimeUi,
-            ShowSettingsSaveFailure,
-            ApplyLoadedSettings,
-            services.SaveSettings,
-            automationShell,
-            raceShell.ClearReportedProgress,
-            raceShell.ResetReportedProgress,
-            raceShell.QueueProgressReports);
+        overlayShell.TimerOverlayHost.FirstFrameRendered += MarkFirstFrameComponentRendered;
         overlayShell.BoundsController.UpdateContext(
             settings,
             GetCurrentReservedLayoutRowCount(),
             GetCurrentLayoutRowCount());
-        AcceptRuntimeCommandSequence(monitorCoordinator.SetRuntimeDefinitions(applicationController.Definitions));
+
         Text = SegmentTimerWindowTitle;
         modalWindows.SetAlwaysOnTop(settings.General.AlwaysOnTop);
         FormBorderStyle = FormBorderStyle.None;
@@ -196,42 +169,7 @@ internal sealed partial class MainForm : Form
         ApplyLayeredOverlayWindowStyle();
         Padding = Padding.Empty;
 
-        UpdateContextMenu();
-        contextMenu.Opening += (_, e) =>
-        {
-            if (mainWindowModalInputRouter.TryRedirectFromMainInput())
-            {
-                e.Cancel = true;
-                return;
-            }
-
-            if (settings.General.PracticeMode && IsEditablePracticePoint(PointToClient(Cursor.Position)))
-            {
-                e.Cancel = true;
-                return;
-            }
-        };
-        ContextMenuStrip = contextMenu;
-
-        HighPrecisionScheduler controlScheduler = MainShellCompositionRoot.CreateControlScheduler(QueueControlTick);
-        HighPrecisionScheduler statusPaintScheduler = MainShellCompositionRoot.CreateStatusPaintScheduler(QueueStatusPaintTick);
-        runtimeShell.AttachRuntimeComponents(
-            monitorCoordinator,
-            controlScheduler,
-            statusPaintScheduler,
-            performance);
-
-        runtimeShell.UpdateControlTickInterval(ResolveControlTickInterval());
-        runtimeShell.ControlScheduler.Start(runtimeShell.ControlTickInterval);
-
-        runtimeShell.UpdateStatusPaintInterval(ResolveRunningStatusPaintInterval());
-
-        runtimeShell.Performance.ControlTickInterval = runtimeShell.ControlTickInterval;
-        runtimeShell.Performance.StatusPaintInterval = runtimeShell.StatusPaintInterval;
-        runtimeShell.Performance.WatcherPollInterval = runtimeShell.MonitorCoordinator.WatcherPollInterval;
-        runtimeShell.Performance.ProcessLookupInterval = runtimeShell.MonitorCoordinator.ProcessLookupInterval;
-        runtimeShell.MonitorCoordinator.UpdateReadyWatcherPollInterval(ResolveReadyWatcherPollInterval());
-        UpdateRtssOverlaySchedulerState();
+        StartupDiagnostics.RecordTrace("MainFormConstructed");
     }
 
     private static bool SilentPersonalBestUpdateConfirmation(string promptText)
@@ -241,6 +179,14 @@ internal sealed partial class MainForm : Form
         return true;
     }
 
+    private void MarkFirstFrameComponentRendered()
+    {
+        if (Interlocked.Increment(ref firstFrameComponentCount) != 2)
+        {
+            return;
+        }
+
+        StartupDiagnostics.RecordTrace("FirstFrameRendered");
+        StartupDiagnostics.SignalFirstFrame();
+    }
 }
-
-

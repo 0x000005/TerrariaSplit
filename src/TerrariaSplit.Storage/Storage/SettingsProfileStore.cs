@@ -54,6 +54,15 @@ internal static class SettingsProfileStore
         try
         {
             Directory.CreateDirectory(settingsDirectory);
+            if (File.Exists(activeSettingsPath) &&
+                string.Equals(
+                    File.ReadAllText(activeSettingsPath).Trim(),
+                    settingsFileName,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
             JsonFileStore.WriteText(activeSettingsPath, settingsFileName, "active settings profile");
         }
         catch (Exception ex)

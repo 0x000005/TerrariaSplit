@@ -24,30 +24,98 @@ public sealed class RaceWorldFileStore
         string roomDirectory = GetRoomDirectory(roomCode);
         Directory.CreateDirectory(roomDirectory);
         string fileName = SanitizeFileName(originalFileName);
-        string path = Path.Combine(roomDirectory, "world.wld");
-        string tempPath = path + ".tmp";
-
-        await using (FileStream destination = File.Create(tempPath))
+        string tempPath = Path.Combine(roomDirectory, $".upload-{Guid.NewGuid():N}.tmp");
+        try
         {
-            await source.CopyToAsync(destination, cancellationToken);
-        }
+            using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+            long length = 0;
+            await using (var destination = new FileStream(
+                             tempPath,
+                             FileMode.CreateNew,
+                             FileAccess.Write,
+                             FileShare.None,
+                             81920,
+                             FileOptions.Asynchronous | FileOptions.SequentialScan))
+            {
+                byte[] buffer = new byte[81920];
+                while (true)
+                {
+                    int read = await source.ReadAsync(buffer.AsMemory(), cancellationToken);
+                    if (read <= 0)
+                    {
+                        break;
+                    }
 
-        File.Move(tempPath, path, overwrite: true);
-        var info = new FileInfo(path);
-        string hash = await ComputeSha256Async(path, cancellationToken);
-        var worldFile = new RaceWorldFileInfo(
-            fileName,
-            info.Length,
-            hash,
-            DateTimeOffset.UtcNow,
-            nickname.Trim());
-        return new RaceStoredWorldFile(worldFile, path);
+                    await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+                    hash.AppendData(buffer, 0, read);
+                    length += read;
+                }
+
+                await destination.FlushAsync(cancellationToken);
+            }
+
+            await using (FileStream validationStream = File.OpenRead(tempPath))
+            {
+                if (!RaceWorldFileValidator.TryValidateWorldStream(validationStream, out string detail))
+                {
+                    throw new InvalidDataException("Invalid Terraria world file: " + detail);
+                }
+            }
+
+            string hashText = Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
+            string path = Path.Combine(roomDirectory, $"world-{hashText}.wld");
+            if (File.Exists(path))
+            {
+                File.Delete(tempPath);
+            }
+            else
+            {
+                File.Move(tempPath, path);
+            }
+
+            var worldFile = new RaceWorldFileInfo(
+                fileName,
+                length,
+                hashText,
+                DateTimeOffset.UtcNow,
+                nickname.Trim());
+            return new RaceStoredWorldFile(worldFile, path);
+        }
+        finally
+        {
+            TryDeleteFile(tempPath);
+        }
     }
 
-    public bool TryGetPath(string roomCode, out string path)
+    public bool TryGetPath(string roomCode, RaceWorldFileInfo worldFile, out string path)
     {
-        path = Path.Combine(GetRoomDirectory(roomCode), "world.wld");
-        return File.Exists(path);
+        string hash = NormalizeSha256(worldFile.Sha256);
+        path = string.IsNullOrWhiteSpace(hash)
+            ? string.Empty
+            : Path.Combine(GetRoomDirectory(roomCode), $"world-{hash}.wld");
+        return !string.IsNullOrWhiteSpace(path) &&
+            File.Exists(path) &&
+            new FileInfo(path).Length == worldFile.Length;
+    }
+
+    public void DeleteStoredFile(RaceStoredWorldFile stored)
+    {
+        TryDeleteFile(stored.Path);
+    }
+
+    public void DeleteRoom(string roomCode)
+    {
+        string roomDirectory = GetRoomDirectory(roomCode);
+        try
+        {
+            if (Directory.Exists(roomDirectory))
+            {
+                Directory.Delete(roomDirectory, recursive: true);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+        }
     }
 
     private string GetRoomDirectory(string roomCode)
@@ -55,11 +123,12 @@ public sealed class RaceWorldFileStore
         return Path.Combine(rootDirectory, SanitizeRoomCode(roomCode));
     }
 
-    private static async Task<string> ComputeSha256Async(string path, CancellationToken cancellationToken)
+    private static string NormalizeSha256(string? value)
     {
-        await using FileStream stream = File.OpenRead(path);
-        byte[] hash = await SHA256.HashDataAsync(stream, cancellationToken);
-        return Convert.ToHexString(hash).ToLowerInvariant();
+        string hash = value?.Trim().ToLowerInvariant() ?? string.Empty;
+        return hash.Length == 64 && hash.All(Uri.IsHexDigit)
+            ? hash
+            : string.Empty;
     }
 
     private static string SanitizeRoomCode(string value)
@@ -84,5 +153,19 @@ public sealed class RaceWorldFileStore
             .Select(ch => invalid.Contains(ch) ? '_' : ch)
             .ToArray());
         return string.IsNullOrWhiteSpace(sanitized) ? "TerrariaSplitRace.wld" : sanitized;
+    }
+
+    private static void TryDeleteFile(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+        }
     }
 }

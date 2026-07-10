@@ -34,7 +34,12 @@ internal sealed class OverlayWindowController : IDisposable
     private readonly Action renderQueuedCallback;
     private bool renderPending;
     private bool renderInProgress;
+    private bool firstFrameRendered;
     private bool disposed;
+
+    public event Action? FrameRendered;
+
+    public event Action? FirstFrameRendered;
 
     public OverlayWindowController(
         Form owner,
@@ -194,7 +199,9 @@ internal sealed class OverlayWindowController : IDisposable
 
         if (drawOverride is null && renderTarget is not null)
         {
-            return renderTarget.Render(owner, draw, ConfigureGraphics);
+            bool rendered = renderTarget.Render(owner, draw, ConfigureGraphics);
+            NotifyFirstFrameRendered(rendered);
+            return rendered;
         }
 
         using var bitmap = new Bitmap(owner.ClientSize.Width, owner.ClientSize.Height, PixelFormat.Format32bppPArgb);
@@ -208,7 +215,9 @@ internal sealed class OverlayWindowController : IDisposable
             }
         }
 
-        return updateLayeredBitmap(bitmap);
+        bool updated = updateLayeredBitmap(bitmap);
+        NotifyFirstFrameRendered(updated);
+        return updated;
     }
 
     public void ApplyWindowStyle(bool mouseClickThrough, bool noActivate = false)
@@ -288,6 +297,23 @@ internal sealed class OverlayWindowController : IDisposable
     private void RenderQueued()
     {
         RenderImmediately();
+    }
+
+    private void NotifyFirstFrameRendered(bool rendered)
+    {
+        if (!rendered || firstFrameRendered)
+        {
+            if (rendered)
+            {
+                FrameRendered?.Invoke();
+            }
+
+            return;
+        }
+
+        FrameRendered?.Invoke();
+        firstFrameRendered = true;
+        FirstFrameRendered?.Invoke();
     }
 
     private static void ConfigureGraphics(Graphics graphics)

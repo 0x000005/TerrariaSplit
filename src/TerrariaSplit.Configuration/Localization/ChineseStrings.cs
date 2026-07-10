@@ -5,6 +5,9 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
     private static readonly Dictionary<string, string> Values = new(StringComparer.OrdinalIgnoreCase)
     {
 
+        { "Initializing...", "正在初始化…" },
+        { "Startup failed", "启动失败" },
+        { "TerrariaSplit could not finish initialization and must close.", "TerrariaSplit 无法完成初始化，程序必须关闭。" },
         { "TerrariaSplit Settings", "TerrariaSplit 设置" },
         { "OK", "确定" },
         { "Apply", "应用" },

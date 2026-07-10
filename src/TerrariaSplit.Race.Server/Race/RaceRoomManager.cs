@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Microsoft.Extensions.Logging;
 using TerrariaSplit.Race.Contracts;
 
 namespace TerrariaSplit.Race.Server;
@@ -6,32 +7,50 @@ namespace TerrariaSplit.Race.Server;
 public sealed class RaceRoomManager
 {
     private const string RoomCodeChars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    private const int MaximumActiveRooms = 10_000;
+    private const int MaximumNicknameLength = 64;
+    private const int MaximumRouteSplits = 512;
+    private const int MaximumRouteIcons = 2_048;
+    private const int MaximumSerializedRouteLength = 8 * 1024 * 1024;
+    private const int MaximumEmbeddedIconBase64Length = 3 * 1024 * 1024;
+    private const long MaximumTotalIconBase64Length = 48L * 1024 * 1024;
+    private const long MaximumWorldFileLength = 128L * 1024 * 1024;
     private readonly ConcurrentDictionary<string, RaceRoom> rooms = new(StringComparer.OrdinalIgnoreCase);
     private readonly IRaceRecordStore recordStore;
+    private readonly ILogger<RaceRoomManager>? logger;
 
-    public RaceRoomManager(IRaceRecordStore recordStore)
+    public RaceRoomManager(IRaceRecordStore recordStore, ILogger<RaceRoomManager>? logger = null)
     {
         this.recordStore = recordStore;
+        this.logger = logger;
     }
 
     public RaceOperationResult<RaceRoomState> CreateRoom(RaceRoomCreateRequest request)
     {
-        if (string.IsNullOrWhiteSpace(request.Nickname))
+        if (!IsValidNickname(request.Nickname))
         {
-            return Failure(RaceErrors.InvalidRequest, "Nickname is required.");
+            return Failure(RaceErrors.InvalidRequest, $"Nickname must contain 1-{MaximumNicknameLength} characters.");
         }
 
-        string code = CreateUniqueRoomCode();
-        string nickname = NormalizeNickname(request.Nickname);
-        DateTimeOffset now = DateTimeOffset.UtcNow;
-        var room = new RaceRoom(
-            code,
-            nickname,
-            now);
-        room.Players[nickname] = RacePlayer.Create(nickname, isHost: true, now);
+        if (rooms.Count >= MaximumActiveRooms)
+        {
+            return Failure(RaceErrors.ServerCapacity, "The Race server has reached its active-room limit.");
+        }
 
-        rooms[code] = room;
-        return RaceOperationResult<RaceRoomState>.Success(room.ToState());
+        string nickname = NormalizeNickname(request.Nickname);
+        for (int attempt = 0; attempt < 256; attempt++)
+        {
+            string code = CreateRoomCode();
+            DateTimeOffset now = DateTimeOffset.UtcNow;
+            var room = new RaceRoom(code, nickname, now);
+            room.Players[nickname] = RacePlayer.Create(nickname, isHost: true, now);
+            if (rooms.TryAdd(code, room))
+            {
+                return RaceOperationResult<RaceRoomState>.Success(room.ToState());
+            }
+        }
+
+        throw new InvalidOperationException("Could not create a unique race room code.");
     }
 
     public RaceOperationResult<RaceRoomState> JoinRoom(RaceRoomJoinRequest request)
@@ -43,9 +62,9 @@ public sealed class RaceRoomManager
 
         RaceRoom activeRoom = room!;
         string nickname = NormalizeNickname(request.Nickname);
-        if (string.IsNullOrWhiteSpace(nickname))
+        if (!IsValidNickname(nickname))
         {
-            return Failure(RaceErrors.InvalidRequest, "Nickname is required.");
+            return Failure(RaceErrors.InvalidRequest, $"Nickname must contain 1-{MaximumNicknameLength} characters.");
         }
 
         lock (activeRoom.Sync)
@@ -73,12 +92,12 @@ public sealed class RaceRoomManager
             return failure;
         }
 
-        if (request.Route.Splits.Count == 0)
+        if (!IsValidRoutePackage(request.Route))
         {
-            return Failure(RaceErrors.RouteRequired, "Route must contain at least one split.");
+            return Failure(RaceErrors.RouteRequired, "Route package exceeds the Race server limits.");
         }
 
-        if (request.WorldFile.Length <= 0 ||
+        if (request.WorldFile.Length <= 0 || request.WorldFile.Length > MaximumWorldFileLength ||
             string.IsNullOrWhiteSpace(request.WorldFile.FileName) ||
             string.IsNullOrWhiteSpace(request.WorldFile.Sha256))
         {
@@ -88,10 +107,16 @@ public sealed class RaceRoomManager
         RaceRoom activeRoom = room!;
         lock (activeRoom.Sync)
         {
+            if (activeRoom.Status == RaceRoomStatus.Closed)
+            {
+                return Failure(RaceErrors.RoomClosed, "Room is closed.");
+            }
+
             activeRoom.Route = request.Route;
             activeRoom.WorldSettings = request.WorldSettings;
             activeRoom.Seed = request.Seed;
             activeRoom.WorldFile = request.WorldFile;
+            activeRoom.PackageRevision++;
             foreach (RacePlayer player in activeRoom.Players.Values)
             {
                 player.ClearProgress();
@@ -119,6 +144,11 @@ public sealed class RaceRoomManager
         RaceRoom activeRoom = room!;
         lock (activeRoom.Sync)
         {
+            if (activeRoom.Status == RaceRoomStatus.Closed)
+            {
+                return Failure(RaceErrors.RoomClosed, "Room is closed.");
+            }
+
             return RaceOperationResult<RaceRoomState>.Success(activeRoom.ToState());
         }
     }
@@ -133,6 +163,11 @@ public sealed class RaceRoomManager
         RaceRoom activeRoom = room!;
         lock (activeRoom.Sync)
         {
+            if (activeRoom.Status == RaceRoomStatus.Closed)
+            {
+                return RaceOperationResult<RaceWorldFileInfo>.Failure(RaceErrors.RoomClosed, "Room is closed.");
+            }
+
             return activeRoom.WorldFile is RaceWorldFileInfo worldFile
                 ? RaceOperationResult<RaceWorldFileInfo>.Success(worldFile)
                 : RaceOperationResult<RaceWorldFileInfo>.Failure(RaceErrors.WorldRequired, "The room host has not uploaded a world file.");
@@ -150,13 +185,20 @@ public sealed class RaceRoomManager
         RacePlayer activePlayer = player!;
         lock (activeRoom.Sync)
         {
+            if (activeRoom.Status == RaceRoomStatus.Closed)
+            {
+                return Failure(RaceErrors.RoomClosed, "Room is closed.");
+            }
+
             if (activeRoom.WorldFile is null && request.Ready)
             {
                 return Failure(RaceErrors.WorldRequired, "The room host has not uploaded a world file.");
             }
 
             activePlayer.WorldReady = request.Ready;
-            activePlayer.LastError = request.Error;
+            activePlayer.LastError = string.IsNullOrWhiteSpace(request.Error)
+                ? null
+                : request.Error.Trim()[..Math.Min(request.Error.Trim().Length, 512)];
             activePlayer.Status = request.Ready
                 ? RacePlayerStatus.WorldReady
                 : RacePlayerStatus.Joined;
@@ -178,9 +220,25 @@ public sealed class RaceRoomManager
         RacePlayer activePlayer = player!;
         lock (activeRoom.Sync)
         {
+            if (activeRoom.Status == RaceRoomStatus.Closed)
+            {
+                return Failure(RaceErrors.RoomClosed, "Room is closed.");
+            }
+
             if (activeRoom.WorldFile is null)
             {
                 return Failure(RaceErrors.WorldRequired, "The room host has not uploaded a world file.");
+            }
+
+            if (!TryValidateProgressIdentity(
+                    activeRoom,
+                    activePlayer,
+                    report.PackageRevision,
+                    report.RunId,
+                    allowRunInitialization: true,
+                    out RaceOperationResult<RaceRoomState> identityFailure))
+            {
+                return identityFailure;
             }
 
             activePlayer.Status = RacePlayerStatus.Running;
@@ -209,6 +267,11 @@ public sealed class RaceRoomManager
         RacePlayer activePlayer = player!;
         lock (activeRoom.Sync)
         {
+            if (activeRoom.Status == RaceRoomStatus.Closed)
+            {
+                return Failure(RaceErrors.RoomClosed, "Room is closed.");
+            }
+
             if (activeRoom.Route is null || report.SplitIndex >= activeRoom.Route.Splits.Count)
             {
                 return Failure(RaceErrors.InvalidSplit, "Split index is outside of the room route.");
@@ -224,6 +287,17 @@ public sealed class RaceRoomManager
                 report.ConditionIndex >= routeSplit.Conditions.Count)
             {
                 return Failure(RaceErrors.InvalidSplit, "Split condition index is outside of the route split.");
+            }
+
+            if (!TryValidateProgressIdentity(
+                    activeRoom,
+                    activePlayer,
+                    report.PackageRevision,
+                    report.RunId,
+                    allowRunInitialization: true,
+                    out RaceOperationResult<RaceRoomState> identityFailure))
+            {
+                return identityFailure;
             }
 
             RaceSplitReport normalizedReport = NormalizeReport(activeRoom, activePlayer, routeSplit, report);
@@ -254,7 +328,24 @@ public sealed class RaceRoomManager
         RacePlayer activePlayer = player!;
         lock (activeRoom.Sync)
         {
+            if (activeRoom.Status == RaceRoomStatus.Closed)
+            {
+                return Failure(RaceErrors.RoomClosed, "Room is closed.");
+            }
+
+            if (request.PackageRevision != activeRoom.PackageRevision)
+            {
+                return Failure(RaceErrors.StalePackage, "Race package revision is no longer current.");
+            }
+
+            string runId = NormalizeRunId(request.RunId);
+            if (string.IsNullOrWhiteSpace(runId))
+            {
+                return Failure(RaceErrors.InvalidRequest, "Run id is required.");
+            }
+
             activePlayer.ClearProgress();
+            activePlayer.RunId = runId;
             activePlayer.LastError = null;
             activePlayer.Status = activePlayer.WorldReady
                 ? RacePlayerStatus.WorldReady
@@ -275,6 +366,8 @@ public sealed class RaceRoomManager
 
         RaceRoom activeRoom = room!;
         RacePlayer activePlayer = player!;
+        bool removeRoom;
+        RaceRoomState state;
         lock (activeRoom.Sync)
         {
             bool wasHost = activePlayer.IsHost;
@@ -290,14 +383,16 @@ public sealed class RaceRoomManager
             }
 
             activeRoom.Touch();
-            RaceRoomState state = activeRoom.ToState();
-            if (activeRoom.Players.Count == 0)
-            {
-                rooms.TryRemove(activeRoom.RoomCode, out _);
-            }
-
-            return RaceOperationResult<RaceRoomState>.Success(state);
+            state = activeRoom.ToState();
+            removeRoom = wasHost || activeRoom.Players.Count == 0;
         }
+
+        if (removeRoom)
+        {
+            rooms.TryRemove(activeRoom.RoomCode, out _);
+        }
+
+        return RaceOperationResult<RaceRoomState>.Success(state);
     }
 
     public RaceOperationResult<RaceRoomState> KickPlayer(RacePlayerKickRequest request)
@@ -316,6 +411,11 @@ public sealed class RaceRoomManager
         RaceRoom activeRoom = room!;
         lock (activeRoom.Sync)
         {
+            if (activeRoom.Status == RaceRoomStatus.Closed)
+            {
+                return Failure(RaceErrors.RoomClosed, "Room is closed.");
+            }
+
             if (!activeRoom.Players.TryGetValue(targetNickname, out RacePlayer? targetPlayer))
             {
                 return Failure(RaceErrors.PlayerNotFound, "Player is not in this room.");
@@ -344,6 +444,11 @@ public sealed class RaceRoomManager
         RacePlayer activePlayer = player!;
         lock (activeRoom.Sync)
         {
+            if (activeRoom.Status == RaceRoomStatus.Closed)
+            {
+                return Failure(RaceErrors.RoomClosed, "Room is closed.");
+            }
+
             activePlayer.Touch();
             activeRoom.Touch();
             return RaceOperationResult<RaceRoomState>.Success(activeRoom.ToState());
@@ -358,13 +463,17 @@ public sealed class RaceRoomManager
         }
 
         RaceRoom activeRoom = room!;
+        RaceRoomState state;
         lock (activeRoom.Sync)
         {
             activeRoom.Status = RaceRoomStatus.Closed;
             activeRoom.Touch();
             SaveRecord(activeRoom);
-            return RaceOperationResult<RaceRoomState>.Success(activeRoom.ToState());
+            state = activeRoom.ToState();
         }
+
+        rooms.TryRemove(activeRoom.RoomCode, out _);
+        return RaceOperationResult<RaceRoomState>.Success(state);
     }
 
     public RaceOperationResult<RaceRoomState> GetRoomState(string roomCode)
@@ -412,6 +521,75 @@ public sealed class RaceRoomManager
             IconDisplayName = iconDisplayName,
             ReportedAtUtc = report.ReportedAtUtc ?? DateTimeOffset.UtcNow
         };
+    }
+
+    public IReadOnlyList<RaceRoomState> CloseInactiveRooms(DateTimeOffset inactiveBeforeUtc)
+    {
+        var closed = new List<RaceRoomState>();
+        foreach (RaceRoom room in rooms.Values)
+        {
+            RaceRoomState? state = null;
+            lock (room.Sync)
+            {
+                if (room.Status == RaceRoomStatus.Closed || room.LastUpdatedAtUtc >= inactiveBeforeUtc)
+                {
+                    continue;
+                }
+
+                room.Status = RaceRoomStatus.Closed;
+                room.Touch();
+                SaveRecord(room);
+                state = room.ToState();
+            }
+
+            if (state is not null && rooms.TryRemove(room.RoomCode, out _))
+            {
+                closed.Add(state);
+            }
+        }
+
+        return closed;
+    }
+
+    private static bool TryValidateProgressIdentity(
+        RaceRoom room,
+        RacePlayer player,
+        long packageRevision,
+        string runId,
+        bool allowRunInitialization,
+        out RaceOperationResult<RaceRoomState> failure)
+    {
+        if (packageRevision != room.PackageRevision)
+        {
+            failure = Failure(RaceErrors.StalePackage, "Race package revision is no longer current.");
+            return false;
+        }
+
+        string normalizedRunId = NormalizeRunId(runId);
+        if (string.IsNullOrWhiteSpace(normalizedRunId))
+        {
+            failure = Failure(RaceErrors.InvalidRequest, "Run id is required.");
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(player.RunId) && allowRunInitialization)
+        {
+            player.RunId = normalizedRunId;
+        }
+
+        if (!string.Equals(player.RunId, normalizedRunId, StringComparison.Ordinal))
+        {
+            failure = Failure(RaceErrors.StaleRun, "Race run is no longer current.");
+            return false;
+        }
+
+        failure = null!;
+        return true;
+    }
+
+    private static string NormalizeRunId(string? value)
+    {
+        return value?.Trim() ?? string.Empty;
     }
 
     private static string? ResolveRouteIconFileName(
@@ -531,20 +709,6 @@ public sealed class RaceRoomManager
         return true;
     }
 
-    private string CreateUniqueRoomCode()
-    {
-        for (int attempt = 0; attempt < 256; attempt++)
-        {
-            string code = CreateRoomCode();
-            if (!rooms.ContainsKey(code))
-            {
-                return code;
-            }
-        }
-
-        throw new InvalidOperationException("Could not create a unique race room code.");
-    }
-
     private static string CreateRoomCode()
     {
         Span<char> chars = stackalloc char[6];
@@ -556,14 +720,64 @@ public sealed class RaceRoomManager
         return new string(chars);
     }
 
-    private static string NormalizeRoomCode(string value)
+    private static string NormalizeRoomCode(string? value)
     {
-        return value.Trim().ToUpperInvariant();
+        return value?.Trim().ToUpperInvariant() ?? string.Empty;
     }
 
-    private static string NormalizeNickname(string value)
+    private static string NormalizeNickname(string? value)
     {
-        return value.Trim();
+        return value?.Trim() ?? string.Empty;
+    }
+
+    private static bool IsValidNickname(string? value)
+    {
+        int length = value?.Trim().Length ?? 0;
+        return length is >= 1 and <= MaximumNicknameLength;
+    }
+
+    private static bool IsValidRoutePackage(RaceRoutePayload? route)
+    {
+        if (route is null ||
+            route.Splits?.Count is null or < 1 or > MaximumRouteSplits ||
+            (route.Icons?.Count ?? 0) > MaximumRouteIcons ||
+            string.IsNullOrWhiteSpace(route.SerializedRouteJson) ||
+            route.SerializedRouteJson.Length > MaximumSerializedRouteLength)
+        {
+            return false;
+        }
+
+        foreach (RaceSplitDefinition? split in route.Splits)
+        {
+            if (split is null || string.IsNullOrWhiteSpace(split.Id) || split.Id.Length > 512 ||
+                split.IconFileNames is null || split.IconKeys is null || split.Conditions is null)
+            {
+                return false;
+            }
+        }
+
+        long totalIconBase64Length = 0;
+        foreach (RaceRouteIconPayload? icon in route.Icons ?? [])
+        {
+            if (icon is null || string.IsNullOrWhiteSpace(icon.Key) || string.IsNullOrWhiteSpace(icon.FileName))
+            {
+                return false;
+            }
+
+            int encodedLength = icon.DataBase64?.Length ?? 0;
+            if (encodedLength > MaximumEmbeddedIconBase64Length)
+            {
+                return false;
+            }
+
+            totalIconBase64Length += encodedLength;
+            if (totalIconBase64Length > MaximumTotalIconBase64Length)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static bool AllPlayersReady(RaceRoom room)
@@ -607,8 +821,15 @@ public sealed class RaceRoomManager
                 .Select(static item => item.Value)
                 .ToArray(),
             StringComparer.OrdinalIgnoreCase);
-        recordStore.Save(new RaceSavedRoomRecord(room.ToState(), splits, DateTimeOffset.UtcNow));
-        room.RecordSaved = true;
+        try
+        {
+            recordStore.Save(new RaceSavedRoomRecord(room.ToState(), splits, DateTimeOffset.UtcNow));
+            room.RecordSaved = true;
+        }
+        catch (Exception ex)
+        {
+            logger?.LogError(ex, "Race room record save failed. Room={RoomCode}", room.RoomCode);
+        }
     }
 
     private sealed class RaceRoom
@@ -639,6 +860,8 @@ public sealed class RaceRoomManager
         public RaceSeedAssignment? Seed { get; set; }
 
         public RaceWorldFileInfo? WorldFile { get; set; }
+
+        public long PackageRevision { get; set; }
 
         public Dictionary<string, RacePlayer> Players { get; } = new(StringComparer.OrdinalIgnoreCase);
 
@@ -672,7 +895,10 @@ public sealed class RaceRoomManager
                 players,
                 leaderboard,
                 CreatedAtUtc,
-                LastUpdatedAtUtc);
+                LastUpdatedAtUtc)
+            {
+                PackageRevision = PackageRevision
+            };
         }
 
         private static IEnumerable<RaceLeaderboardEntry> BuildLeaderboard(
@@ -747,6 +973,8 @@ public sealed class RaceRoomManager
 
         public string? LastError { get; set; }
 
+        public string RunId { get; set; } = string.Empty;
+
         public Dictionary<RaceProgressKey, RaceSplitReport> ProgressReports { get; } = new();
 
         public Dictionary<int, RaceSplitReport> CompletedReports { get; } = new();
@@ -787,6 +1015,7 @@ public sealed class RaceRoomManager
             ProgressReports.Clear();
             CompletedReports.Clear();
             CompletedSplitIndexes.Clear();
+            RunId = string.Empty;
         }
 
         public RaceSplitReport? GetDisplayProgress(RaceRoutePayload? route)

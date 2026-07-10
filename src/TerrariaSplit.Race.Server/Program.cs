@@ -7,11 +7,11 @@ using TerrariaSplit.Race.Server;
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 builder.WebHost.ConfigureKestrel(options =>
 {
-    options.Limits.MaxRequestBodySize = 512L * 1024 * 1024;
+    options.Limits.MaxRequestBodySize = 128L * 1024 * 1024;
 });
 builder.Services.Configure<FormOptions>(options =>
 {
-    options.MultipartBodyLengthLimit = 512L * 1024 * 1024;
+    options.MultipartBodyLengthLimit = 128L * 1024 * 1024;
 });
 builder.Services.AddSignalR(options =>
 {
@@ -22,6 +22,7 @@ builder.Services.AddSingleton<IRaceRecordStore>(_ =>
 builder.Services.AddSingleton(_ =>
     new RaceWorldFileStore(Path.Combine(AppContext.BaseDirectory, "Data", "RaceWorlds")));
 builder.Services.AddSingleton<RaceRoomManager>();
+builder.Services.AddHostedService<RaceRoomCleanupService>();
 
 WebApplication app = builder.Build();
 app.MapGet("/", () => "TerrariaSplit Race Server");
@@ -94,6 +95,11 @@ app.MapPost(
                     worldSettings,
                     seed,
                     stored.Info));
+            if (!result.Succeeded)
+            {
+                worldFiles.DeleteStoredFile(stored);
+            }
+
             if (result.Succeeded && result.Value is RaceRoomState state)
             {
                 await hubContext.Clients.Group(state.RoomCode).SendAsync(
@@ -132,7 +138,7 @@ app.MapGet(
             return Results.Json(authorization, statusCode: StatusCodes.Status404NotFound);
         }
 
-        if (!worldFiles.TryGetPath(roomCode, out string path))
+        if (!worldFiles.TryGetPath(roomCode, authorization.Value, out string path))
         {
             return Results.Json(
                 RaceOperationResult<RaceWorldFileInfo>.Failure(RaceErrors.WorldRequired, "The uploaded world file is missing from the server."),

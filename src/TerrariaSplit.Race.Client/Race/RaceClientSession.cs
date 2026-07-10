@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.SignalR.Client;
@@ -27,6 +28,7 @@ public sealed class RaceClientSession : IAsyncDisposable
     private HubConnection? connection;
     private RaceRoomState? state;
     private string serverUrl = string.Empty;
+    private string lastPackageRevision = string.Empty;
 
     public event EventHandler<RacePackageChanged>? PackageChanged;
 
@@ -107,26 +109,6 @@ public sealed class RaceClientSession : IAsyncDisposable
         {
             Nickname = request.Nickname.Trim();
             ApplyStateAfterJoin(next, request.Nickname);
-        }
-
-        return result;
-    }
-
-    public async Task<RaceOperationResult<RaceRoomState>> RefreshRoomStateAsync(
-        CancellationToken cancellationToken = default)
-    {
-        if (!TryGetIdentity(out string roomCode, out _, out RaceOperationResult<RaceRoomState> failure))
-        {
-            return failure;
-        }
-
-        RaceOperationResult<RaceRoomState> result = await RequiredConnection.InvokeAsync<RaceOperationResult<RaceRoomState>>(
-            "GetRoomState",
-            roomCode,
-            cancellationToken);
-        if (result.Succeeded && result.Value is RaceRoomState next)
-        {
-            ApplyRoster(next, RaceRoomStateUpdateKind.Snapshot);
         }
 
         return result;
@@ -320,10 +302,68 @@ public sealed class RaceClientSession : IAsyncDisposable
             Directory.CreateDirectory(directory);
         }
 
-        await using Stream source = await response.Content.ReadAsStreamAsync(cancellationToken);
-        await using FileStream destination = File.Create(destinationPath);
-        await source.CopyToAsync(destination, cancellationToken);
-        return RaceWorldFileTransferResult.Success(destinationPath, worldFile);
+        string tempPath = destinationPath + $".download-{Guid.NewGuid():N}.tmp";
+        try
+        {
+            long transferred = 0;
+            using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+            await using Stream source = await response.Content.ReadAsStreamAsync(cancellationToken);
+            await using (var destination = new FileStream(
+                             tempPath,
+                             FileMode.CreateNew,
+                             FileAccess.Write,
+                             FileShare.None,
+                             81920,
+                             FileOptions.Asynchronous | FileOptions.SequentialScan))
+            {
+                byte[] buffer = new byte[81920];
+                while (true)
+                {
+                    int read = await source.ReadAsync(buffer.AsMemory(), cancellationToken);
+                    if (read <= 0)
+                    {
+                        break;
+                    }
+
+                    await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+                    hash.AppendData(buffer, 0, read);
+                    transferred += read;
+                }
+
+                await destination.FlushAsync(cancellationToken);
+            }
+
+            string actualHash = Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
+            if (transferred != worldFile.Length ||
+                !string.Equals(actualHash, worldFile.Sha256?.Trim(), StringComparison.OrdinalIgnoreCase))
+            {
+                return RaceWorldFileTransferResult.Failure("Downloaded world file failed length or SHA-256 verification.");
+            }
+
+            await using (FileStream validationStream = File.OpenRead(tempPath))
+            {
+                if (!RaceWorldFileValidator.TryValidateWorldStream(validationStream, out string detail))
+                {
+                    return RaceWorldFileTransferResult.Failure("Downloaded file is not a valid Terraria world: " + detail);
+                }
+            }
+
+            File.Move(tempPath, destinationPath, overwrite: true);
+            return RaceWorldFileTransferResult.Success(destinationPath, worldFile);
+        }
+        finally
+        {
+            try
+            {
+                if (File.Exists(tempPath))
+                {
+                    File.Delete(tempPath);
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+            }
+        }
     }
 
     public async Task<RaceOperationResult<RaceRoomState>> MarkWorldReadyAsync(
@@ -355,7 +395,7 @@ public sealed class RaceClientSession : IAsyncDisposable
         }
 
         RaceOperationResult<RaceRoomProgressState> result =
-            await RequiredConnection.InvokeAsync<RaceOperationResult<RaceRoomProgressState>>(
+            await InvokeProgressHubAsync<RaceSplitReport, RaceRoomProgressState>(
                 "ReportSplit",
                 report,
                 cancellationToken);
@@ -377,7 +417,7 @@ public sealed class RaceClientSession : IAsyncDisposable
         }
 
         RaceOperationResult<RaceRoomProgressState> result =
-            await RequiredConnection.InvokeAsync<RaceOperationResult<RaceRoomProgressState>>(
+            await InvokeProgressHubAsync<RaceRunStartReport, RaceRoomProgressState>(
                 "ReportStart",
                 report,
                 cancellationToken);
@@ -390,6 +430,8 @@ public sealed class RaceClientSession : IAsyncDisposable
     }
 
     public async Task<RaceOperationResult<RaceRoomProgressState>> ResetProgressAsync(
+        long packageRevision,
+        string runId,
         CancellationToken cancellationToken = default)
     {
         if (!TryGetIdentity(out string roomCode, out string nickname, out RaceOperationResult<RaceRoomState> failure))
@@ -397,9 +439,9 @@ public sealed class RaceClientSession : IAsyncDisposable
             return ConvertFailure<RaceRoomProgressState>(failure);
         }
 
-        var request = new RaceProgressResetRequest(roomCode, nickname);
+        var request = new RaceProgressResetRequest(roomCode, nickname, packageRevision, runId);
         RaceOperationResult<RaceRoomProgressState> result =
-            await RequiredConnection.InvokeAsync<RaceOperationResult<RaceRoomProgressState>>(
+            await InvokeProgressHubAsync<RaceProgressResetRequest, RaceRoomProgressState>(
                 "ResetProgress",
                 request,
                 cancellationToken);
@@ -488,6 +530,7 @@ public sealed class RaceClientSession : IAsyncDisposable
     {
         state = null;
         Nickname = null;
+        lastPackageRevision = string.Empty;
         if (connection is not null)
         {
             await DisposeConnectionAsync(connection, connectionDisposeTimeout).ConfigureAwait(false);
@@ -591,6 +634,26 @@ public sealed class RaceClientSession : IAsyncDisposable
         }
     }
 
+    private async Task<RaceOperationResult<TResult>> InvokeProgressHubAsync<TRequest, TResult>(
+        string methodName,
+        TRequest request,
+        CancellationToken cancellationToken)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(HubInvokeTimeout);
+        try
+        {
+            return await RequiredConnection.InvokeAsync<RaceOperationResult<TResult>>(
+                methodName,
+                request,
+                timeout.Token);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new TimeoutException("Race server request timed out.");
+        }
+    }
+
     private bool TryGetIdentity(
         out string roomCode,
         out string nickname,
@@ -661,6 +724,7 @@ public sealed class RaceClientSession : IAsyncDisposable
             {
                 state = null;
                 Nickname = null;
+                lastPackageRevision = string.Empty;
                 PackageChanged?.Invoke(this, update);
             }
 
@@ -668,6 +732,15 @@ public sealed class RaceClientSession : IAsyncDisposable
         }
 
         state = next;
+        if (string.Equals(lastPackageRevision, update.PackageRevision, StringComparison.Ordinal))
+        {
+            RosterChanged?.Invoke(
+                this,
+                new RaceRosterChanged(RaceRoomStateUpdateKind.Snapshot, next, update.ActorNickname));
+            return;
+        }
+
+        lastPackageRevision = update.PackageRevision;
         PackageChanged?.Invoke(this, update);
     }
 
@@ -692,6 +765,7 @@ public sealed class RaceClientSession : IAsyncDisposable
             {
                 state = null;
                 Nickname = null;
+                lastPackageRevision = string.Empty;
                 RosterChanged?.Invoke(this, update);
             }
 
@@ -708,7 +782,8 @@ public sealed class RaceClientSession : IAsyncDisposable
         RaceRoomProgressState progress = update.Progress;
         if (current is null ||
             string.IsNullOrWhiteSpace(Nickname) ||
-            !string.Equals(current.RoomCode, progress.RoomCode, StringComparison.OrdinalIgnoreCase))
+            !string.Equals(current.RoomCode, progress.RoomCode, StringComparison.OrdinalIgnoreCase) ||
+            current.PackageRevision != progress.PackageRevision)
         {
             return;
         }
@@ -742,17 +817,19 @@ public sealed class RaceClientSession : IAsyncDisposable
 
         try
         {
+            using var timeout = new CancellationTokenSource(HubInvokeTimeout);
             RaceOperationResult<RaceRoomState> result =
                 await connection.InvokeAsync<RaceOperationResult<RaceRoomState>>(
                     "ResumeRoom",
                     roomCode,
-                    nickname);
+                    nickname,
+                    timeout.Token);
             if (result.Succeeded && result.Value is RaceRoomState next)
             {
                 ApplyStateAfterJoin(next, nickname, RaceRoomStateUpdateKind.RoomResumed);
             }
         }
-        catch (Exception ex) when (ex is InvalidOperationException or HttpRequestException or OperationCanceledException)
+        catch (Exception ex) when (ex is InvalidOperationException or HttpRequestException or OperationCanceledException or TimeoutException)
         {
         }
     }

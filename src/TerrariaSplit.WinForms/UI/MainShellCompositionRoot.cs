@@ -5,13 +5,13 @@ namespace TerrariaSplit.UI;
 
 internal static class MainShellCompositionRoot
 {
-    public static MainShellServices CreateCore(Func<string, bool> confirmPersonalBestUpdate)
+    public static StartupCore CreateStartupCore(Func<string, bool> confirmPersonalBestUpdate)
     {
         IRuntimeDataPaths runtimeDataPaths = AppContextRuntimeDataPaths.Default;
         var splitTimeSets = new SplitTimeSetRepository(runtimeDataPaths);
         var runStatsRepository = new RunStatsRepository(splitTimeSets);
         var settingsRepository = new AppSettingsRepository(runtimeDataPaths, splitTimeSets);
-        var worldPoolStore = new WorldPoolStore(runtimeDataPaths);
+        StartupDiagnostics.RecordTrace("StartupRepositoriesCreated");
         ISettingsSnapshotFactory settingsSnapshots = new StoredSettingsSnapshotFactory(settingsRepository);
         IAppLogger logger = StaticAppLogger.Instance;
         var runStatisticsRecorder = new DelegateRunStatisticsRecorder(runStatsRepository.RecordRun);
@@ -36,28 +36,64 @@ internal static class MainShellCompositionRoot
                     out ReferenceSplitSet? snapshot);
                 return PersonalBestSnapshotSaveResult.FromResult(result, snapshot);
             });
+        AppSettings settings = settingsRepository.Load();
+        StartupDiagnostics.RecordTrace("StartupSettingsLoaded");
         var applicationController = new ApplicationController(
-            settingsRepository.Load(),
+            settings,
             confirmPersonalBestUpdate,
             settingsSnapshots,
             runStatisticsRecorder,
             personalBestSnapshotStore);
+        StartupDiagnostics.RecordTrace("StartupApplicationCreated");
+        var renderResources = new OverlayRenderResources();
+        StartupDiagnostics.RecordTrace("StartupRenderResourcesCreated");
+        Task statusIconPreloadTask = Task.Run(() =>
+            renderResources.BossIcons.PreloadInitialFrame(
+                applicationController.ViewState.DisplayStatuses,
+                applicationController.ViewState.CurrentSplitIndex,
+                applicationController.Settings));
+        StartupDiagnostics.RecordTrace("StartupIconPreloadQueued");
 
-        return new MainShellServices(
-            worldPoolStore,
+        return new StartupCore(
+            runtimeDataPaths,
             settingsRepository,
             settingsRepository.Save,
             settingsSnapshots,
             logger,
-            new WorldPoolFillService(worldPoolStore, settingsSnapshots, logger, runtimeDataPaths),
-            new MainFormContextMenuBuilder(settingsRepository),
-            new SoundPlayerService(),
             new GlobalHotkeyManager(logger),
-            new OverlayRenderResources(),
+            renderResources,
+            statusIconPreloadTask,
             new OverlayAnimationController(),
-            new ContextMenuStrip(),
             new RuntimePerformanceTracker(),
             applicationController);
+    }
+
+    public static Task<RuntimeServicePreparation> CreateRuntimeServicesAsync(
+        StartupCore startupCore,
+        CancellationToken cancellationToken)
+    {
+        return Task.Run(() =>
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var worldPoolStore = new WorldPoolStore(startupCore.RuntimeDataPaths);
+            cancellationToken.ThrowIfCancellationRequested();
+            var preparation = new RuntimeServicePreparation(
+                worldPoolStore,
+                new WorldPoolFillService(
+                    worldPoolStore,
+                    startupCore.SettingsSnapshots,
+                    startupCore.AppLogger,
+                    startupCore.RuntimeDataPaths),
+                new MainFormContextMenuBuilder(startupCore.SettingsRepository),
+                new SoundPlayerService());
+            if (cancellationToken.IsCancellationRequested)
+            {
+                preparation.Dispose();
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+
+            return preparation;
+        }, cancellationToken);
     }
 
     public static TerrariaMonitorCoordinator CreateMonitorCoordinator(
@@ -111,10 +147,10 @@ internal static class MainShellCompositionRoot
 
     public static MainWindowModalInputRouter CreateModalInputRouter(
         ProgramModalWindowCoordinator modalWindows,
-        ContextMenuStrip contextMenu,
+        Func<ContextMenuStrip?> getContextMenu,
         Action cancelDragging)
     {
-        return new MainWindowModalInputRouter(modalWindows, contextMenu, cancelDragging);
+        return new MainWindowModalInputRouter(modalWindows, getContextMenu, cancelDragging);
     }
 
     public static AutomationShell CreateAutomationShell(
@@ -182,7 +218,6 @@ internal static class MainShellCompositionRoot
         Action<AppSettings, int> applyLoadedSettings,
         Func<AppSettings, OperationResult> saveSettings,
         AutomationShell automationShell,
-        Action clearRaceProgressReports,
         Action resetRaceProgressReports,
         Action<bool, bool> queueRaceProgressReports)
     {
@@ -204,7 +239,7 @@ internal static class MainShellCompositionRoot
                 automationShell.ShowPracticeWorldSelector,
                 () => automationShell.CancelCreateWorld(),
                 () => automationShell.CancelEnterWorld()),
-            new DelegateRaceProgressPort(clearRaceProgressReports, resetRaceProgressReports, queueRaceProgressReports));
+            new DelegateRaceProgressPort(resetRaceProgressReports, queueRaceProgressReports));
     }
 
     public static HighPrecisionScheduler CreateControlScheduler(Action queueControlTick)

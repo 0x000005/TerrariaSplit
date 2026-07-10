@@ -22,6 +22,11 @@ internal static class MainShellRefactorTests
         yield return ("TerrariaMonitorCoordinator deduplicates repeated patch logs", TerrariaMonitorCoordinatorDeduplicatesRepeatedPatchLogs);
         yield return ("TerrariaMonitorCoordinator reset clears applied patch state", TerrariaMonitorCoordinatorResetClearsAppliedPatchState);
         yield return ("OverlayWindowController queues render once while pending", OverlayWindowControllerQueuesRenderOnceWhilePending);
+        yield return ("OverlayWindowController signals the first successful frame once", OverlayWindowControllerSignalsFirstSuccessfulFrameOnce);
+        yield return ("TimerOverlayWindowHost starts without blocking and replays buffered state", TimerOverlayWindowHostStartsWithoutBlockingAndReplaysBufferedState);
+        yield return ("StartupCommandGate drains commands in FIFO order once", StartupCommandGateDrainsCommandsInFifoOrderOnce);
+        yield return ("StartupCommandGate discards commands after cancellation", StartupCommandGateDiscardsCommandsAfterCancellation);
+        yield return ("RuntimeBootstrapper enforces startup phase order", RuntimeBootstrapperEnforcesStartupPhaseOrder);
         yield return ("OverlayWindowController click-through style preserves unrelated bits", OverlayWindowControllerPreservesUnrelatedStyleBits);
         yield return ("OverlayWindowController strips non-client border style", OverlayWindowControllerStripsNonClientBorderStyle);
         yield return ("OverlayShell tracks initialization and row counts", OverlayShellTracksInitializationAndRowCounts);
@@ -360,6 +365,143 @@ internal static class MainShellRefactorTests
             queue[0]();
             TestAssert.Equal(1, draws);
         });
+    }
+
+    private static void OverlayWindowControllerSignalsFirstSuccessfulFrameOnce()
+    {
+        RunSta(() =>
+        {
+            using var form = new Form { Size = new Size(200, 100) };
+            _ = form.Handle;
+            using var controller = new OverlayWindowController(
+                form,
+                _ => true,
+                _ => { },
+                updateLayeredBitmap: _ => true);
+            int firstFrames = 0;
+            int frames = 0;
+            controller.FirstFrameRendered += () => firstFrames++;
+            controller.FrameRendered += () => frames++;
+
+            TestAssert.Equal(true, controller.RenderNow());
+            TestAssert.Equal(true, controller.RenderNow());
+
+            TestAssert.Equal(1, firstFrames);
+            TestAssert.Equal(2, frames);
+        });
+    }
+
+    private static void TimerOverlayWindowHostStartsWithoutBlockingAndReplaysBufferedState()
+    {
+        RunSta(() =>
+        {
+            AppSettings settings = AppSettingsDefaults.Create();
+            SplitStatusSnapshot[] statuses = SplitCatalog.Build(settings)
+                .Select(SplitStatusSnapshot.FromDefinition)
+                .ToArray();
+            int reservedRows = SplitDisplayRows.GetReservedRowCount(settings, statuses);
+            int visibleRows = SplitDisplayRows.GetRequiredRowCount(settings, statuses);
+            Size minimumSize = SplitLayoutCalculator.GetMinimumWindowSize(settings);
+            int fittingHeight = OverlayCompositeLayoutCalculator.GetFittingHeight(
+                minimumSize.Width,
+                minimumSize.Height,
+                settings,
+                reservedRows,
+                visibleRows,
+                9);
+            TestAssert.Equal(true, OverlayCompositeLayoutCalculator.TryCreate(
+                new Rectangle(new Point(30, 40), new Size(minimumSize.Width, fittingHeight)),
+                settings,
+                reservedRows,
+                visibleRows,
+                9,
+                out OverlayCompositeLayout layout));
+            var timerState = new SplitTimerState(SplitTimerPhase.NotStarted, TimeSpan.Zero, 0);
+            var renderState = new TimerOverlayRenderState(
+                settings,
+                UiPalette.From(settings.Overlay.Colors),
+                statuses,
+                0,
+                timerState,
+                MouseClickThrough: false);
+            var stateKey = new TimerOverlayStateKey(timerState, 0, false, 0, 1, null, false);
+            using var host = new TimerOverlayWindowHost(
+                action => action(),
+                _ => { },
+                _ => { },
+                _ => { },
+                () => { },
+                () => { });
+            host.ApplyOverlayLayout(layout);
+            host.ApplyRenderState(renderState, stateKey, forceRender: true);
+
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            Task<IntPtr> handleReady = host.StartAsync();
+            stopwatch.Stop();
+
+            TestAssert.Equal(true, stopwatch.Elapsed < TimeSpan.FromMilliseconds(500));
+            TestAssert.Equal(true, handleReady.Wait(TimeSpan.FromSeconds(5)));
+            TestAssert.Equal(true, handleReady.Result != IntPtr.Zero);
+            TestAssert.Equal(true, host.FirstFramePresented.Wait(TimeSpan.FromSeconds(5)));
+        });
+    }
+
+    private static void StartupCommandGateDrainsCommandsInFifoOrderOnce()
+    {
+        var gate = new StartupCommandGate();
+        AppCommand first = AppCommand.ToggleMouseClickThrough();
+        AppCommand second = AppCommand.TogglePyramidFilter();
+        AppCommand duringDrain = AppCommand.ResetRun(recordStats: false, playResetSound: false);
+        AppCommand afterOpen = AppCommand.TogglePause();
+        var dispatched = new List<AppCommand>();
+
+        void Dispatch(AppCommand command)
+        {
+            dispatched.Add(command);
+            if (ReferenceEquals(command, first))
+            {
+                gate.Submit(duringDrain, Dispatch);
+            }
+        }
+
+        gate.Submit(first, Dispatch);
+        gate.Submit(second, Dispatch);
+        gate.Open(Dispatch);
+        gate.Open(Dispatch);
+        gate.Submit(afterOpen, Dispatch);
+
+        TestAssert.Equal(0, gate.PendingCount);
+        TestAssert.Equal(true, gate.IsOpen);
+        TestAssert.Equal(
+            string.Join('|', new[] { first, second, duringDrain, afterOpen }.Select(command => command.GetType().Name)),
+            string.Join('|', dispatched.Select(command => command.GetType().Name)));
+    }
+
+    private static void StartupCommandGateDiscardsCommandsAfterCancellation()
+    {
+        var gate = new StartupCommandGate();
+        var dispatched = new List<AppCommand>();
+        gate.Submit(AppCommand.TogglePause(), dispatched.Add);
+        gate.Cancel();
+
+        TestAssert.Equal(false, gate.Submit(AppCommand.TogglePyramidFilter(), dispatched.Add));
+        gate.Open(dispatched.Add);
+        TestAssert.Equal(0, gate.PendingCount);
+        TestAssert.Equal(0, dispatched.Count);
+        TestAssert.Equal(false, gate.IsOpen);
+    }
+
+    private static void RuntimeBootstrapperEnforcesStartupPhaseOrder()
+    {
+        using var bootstrapper = new RuntimeBootstrapper();
+        TestAssert.Equal(StartupPhase.Constructing, bootstrapper.Phase);
+        TestAssert.Equal(true, bootstrapper.TryMarkFirstFramePresented());
+        TestAssert.Equal(false, bootstrapper.TryMarkFirstFramePresented());
+        int result = bootstrapper.InitializeAsync(_ => Task.FromResult(42)).GetAwaiter().GetResult();
+        TestAssert.Equal(42, result);
+        TestAssert.Equal(StartupPhase.InitializingRuntime, bootstrapper.Phase);
+        bootstrapper.MarkFullyReady();
+        TestAssert.Equal(StartupPhase.FullyReady, bootstrapper.Phase);
     }
 
     private static void OverlayWindowControllerPreservesUnrelatedStyleBits()
@@ -795,7 +937,7 @@ internal static class MainShellRefactorTests
                 () => IntPtr.Zero);
             var router = new MainWindowModalInputRouter(
                 coordinator,
-                contextMenu,
+                () => contextMenu,
                 () => stoppedMainInteraction = true);
 
             using (coordinator.RegisterModalForm(modalForm))
@@ -1423,7 +1565,7 @@ internal static class MainShellRefactorTests
             TestAssert.Equal(true, visibleTexts.Contains("\u4E16\u754C\u96BE\u5EA6"));
             TestAssert.Equal(true, visibleTexts.Contains("\u90AA\u6076\u7C7B\u578B"));
             TestAssert.Equal(true, visibleTexts.Contains("\u5F69\u86CB\u79CD\u5B50"));
-            TestAssert.Equal(true, visibleTexts.Contains("\u91D1\u5B57\u5854"));
+            TestAssert.Equal(true, visibleTexts.Contains("\u7B5B\u5854"));
             TestAssert.Equal(true, visibleTexts.Contains("\u542F\u7528"));
             TestAssert.Equal(true, visibleTexts.Contains("\u6C99\u66B4\u74F6"));
             TestAssert.Equal(true, visibleTexts.Contains("\u98DE\u6BEF"));
@@ -2126,10 +2268,6 @@ internal static class MainShellRefactorTests
 
     private sealed class NoopRaceProgressPort : IRaceProgressPort
     {
-        public void ClearReportedProgress()
-        {
-        }
-
         public void ResetReportedProgress()
         {
         }

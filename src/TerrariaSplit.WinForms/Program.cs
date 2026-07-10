@@ -12,7 +12,9 @@ internal static class Program
             return 1;
         }
 
+        StartupDiagnostics.RecordTrace("ManagedEntry");
         ApplicationConfiguration.Initialize();
+        StartupDiagnostics.RecordTrace("ApplicationConfigured");
         System.Windows.Forms.Application.Run(new MainForm());
         return 0;
     }

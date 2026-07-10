@@ -220,6 +220,11 @@ internal sealed partial class MainForm : Form
 
     private void UpdateStatusPaintSchedulerState()
     {
+        if (!runtimeShell.IsRuntimeAttached)
+        {
+            return;
+        }
+
         bool shouldRun = !windowShell.IsClosing &&
             !runtimeShell.IsOverlayPaintSuspended &&
             (timerPhase == SplitTimerPhase.Running ||
@@ -238,6 +243,12 @@ internal sealed partial class MainForm : Form
 
     private void UpdateRtssOverlaySchedulerState()
     {
+        if (!runtimeShell.IsRuntimeAttached)
+        {
+            rtssOverlayScheduler.Stop();
+            return;
+        }
+
         bool shouldRun = !windowShell.IsClosing &&
             settings.Advanced?.EnableRtssOverlay == true &&
             timerPhase == SplitTimerPhase.Running;
@@ -274,6 +285,11 @@ internal sealed partial class MainForm : Form
 
     private void ExecuteAppCommand(AppCommand command)
     {
+        startupCommandGate.Submit(command, ExecuteAppCommandNow);
+    }
+
+    private void ExecuteAppCommandNow(AppCommand command)
+    {
         ApplicationUpdate update = applicationController.HandleSystemEvent(new ControlCommandSystemEvent(command));
         if (command is ApplySettingsCommand or ApplyTemporarySettingsCommand or ApplyRouteOverrideCommand or ClearRouteOverrideCommand)
         {
@@ -300,6 +316,17 @@ internal sealed partial class MainForm : Form
         ApplyDisplayInvalidations(update.DisplayInvalidations);
     }
 
+    private void PublishExternalSystemEvent(SystemEvent systemEvent)
+    {
+        if (InvokeRequired)
+        {
+            BeginInvoke(new Action(() => PublishExternalSystemEvent(systemEvent)));
+            return;
+        }
+
+        ApplyApplicationUpdate(applicationController.HandleSystemEvent(systemEvent));
+    }
+
     private void ApplyDisplayInvalidations(IReadOnlyList<DisplayInvalidation> invalidations)
     {
         if (invalidations.Count == 0)
@@ -310,13 +337,16 @@ internal sealed partial class MainForm : Form
         bool refreshRuntime = false;
         bool refreshStatic = false;
         bool invalidateStatus = false;
-        bool refreshRaceLeaderboard = false;
+        DisplayRefreshLevel? raceRefreshLevel = null;
 
         foreach (DisplayInvalidation invalidation in invalidations)
         {
             if ((invalidation.Targets & DisplayInvalidationTarget.RaceLeaderboard) != 0)
             {
-                refreshRaceLeaderboard = true;
+                if (raceRefreshLevel is null || invalidation.Level > raceRefreshLevel.Value)
+                {
+                    raceRefreshLevel = invalidation.Level;
+                }
             }
 
             if ((invalidation.Targets & (DisplayInvalidationTarget.SplitOverlay | DisplayInvalidationTarget.TimerOverlay)) == 0)
@@ -355,9 +385,9 @@ internal sealed partial class MainForm : Form
             RefreshRuntimeUi();
         }
 
-        if (refreshRaceLeaderboard)
+        if (raceRefreshLevel is DisplayRefreshLevel level)
         {
-            raceShell.RefreshWindowSettings();
+            raceShell.RefreshDisplay(level);
         }
 
         if (invalidateStatus)
@@ -497,6 +527,11 @@ internal sealed partial class MainForm : Form
 
     private T RunWithSuspendedRuntimeOverlayPaint<T>(Func<T> action)
     {
+        if (!runtimeShell.IsRuntimeAttached)
+        {
+            return action();
+        }
+
         RuntimeOverlayPaintSuspension suspension =
             runtimeShell.BeginOverlayPaintSuspension(runtimeShell.ControlScheduler.IsRunning);
         if (suspension.Started)

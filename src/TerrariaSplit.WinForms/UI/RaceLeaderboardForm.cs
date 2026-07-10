@@ -1,6 +1,7 @@
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Globalization;
+using System.Security.Cryptography;
 using System.Windows.Forms;
 using TerrariaSplit.Configuration;
 using TerrariaSplit.Race.Contracts;
@@ -22,7 +23,7 @@ internal sealed class RaceLeaderboardForm : Form
     private readonly Func<string?> getLocalNickname;
     private readonly OverlayWindowController overlayWindowController;
     private readonly BossIconCache iconCache = new();
-    private readonly Dictionary<string, byte[]> routeIconDataCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, RouteIconCacheEntry> routeIconDataCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly OverlayFontCache fontCache = new();
     private RaceRoomState? state;
     private bool mouseClickThrough;
@@ -75,6 +76,12 @@ internal sealed class RaceLeaderboardForm : Form
         {
             BeginInvoke(new Action(() => UpdateState(nextState)));
             return;
+        }
+
+        if (state?.PackageRevision != nextState?.PackageRevision)
+        {
+            routeIconDataCache.Clear();
+            iconCache.Clear();
         }
 
         state = nextState;
@@ -683,9 +690,11 @@ internal sealed class RaceLeaderboardForm : Form
             return null;
         }
 
-        string cacheKey = payload.Key + "|" + payload.FileName + "|" + dataBase64.Length.ToString(CultureInfo.InvariantCulture);
-        if (!routeIconDataCache.TryGetValue(cacheKey, out byte[]? data))
+        string payloadKey = payload.Key + "|" + payload.FileName;
+        if (!routeIconDataCache.TryGetValue(payloadKey, out RouteIconCacheEntry? cached) ||
+            !string.Equals(cached.DataBase64, dataBase64, StringComparison.Ordinal))
         {
+            byte[] data;
             try
             {
                 data = Convert.FromBase64String(dataBase64);
@@ -695,12 +704,21 @@ internal sealed class RaceLeaderboardForm : Form
                 return null;
             }
 
-            routeIconDataCache[cacheKey] = data;
+            string contentHash = Convert.ToHexString(SHA256.HashData(data)).ToLowerInvariant();
+            cached = new RouteIconCacheEntry(
+                dataBase64,
+                data,
+                payloadKey + "|" + contentHash);
+            routeIconDataCache[payloadKey] = cached;
         }
 
         try
         {
-            return iconCache.LoadEmbedded(cacheKey, data, string.IsNullOrWhiteSpace(payload.Key) ? iconKey : payload.Key, settings);
+            return iconCache.LoadEmbedded(
+                cached.CacheKey,
+                cached.Data,
+                string.IsNullOrWhiteSpace(payload.Key) ? iconKey : payload.Key,
+                settings);
         }
         catch (ArgumentException)
         {
@@ -711,6 +729,11 @@ internal sealed class RaceLeaderboardForm : Form
             return null;
         }
     }
+
+    private sealed record RouteIconCacheEntry(
+        string DataBase64,
+        byte[] Data,
+        string CacheKey);
 
     private RaceRouteIconPayload? FindRouteIconPayload(
         RaceLeaderboardEntry entry,

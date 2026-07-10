@@ -98,9 +98,6 @@ internal sealed class ApplicationShellEffectExecutor
             case RefreshRuntimeUiEffect:
                 overlay.RefreshRuntimeUi();
                 break;
-            case ClearRaceProgressReportsEffect:
-                raceProgress.ClearReportedProgress();
-                break;
             case ResetRaceProgressReportsEffect:
                 raceProgress.ResetReportedProgress();
                 break;

@@ -22,19 +22,21 @@ internal static class RaceTests
         yield return ("Race server enforces room rules and ranking", RaceServerEnforcesRoomRulesAndRanking);
         yield return ("Race server clears progress on world reupload", RaceServerClearsProgressOnWorldReupload);
         yield return ("Race server clears one player progress on reset", RaceServerClearsOnePlayerProgressOnReset);
+        yield return ("Race server rejects stale package and run reports", RaceServerRejectsStalePackageAndRunReports);
         yield return ("Race server marks player running on start signal", RaceServerMarksPlayerRunningOnStartSignal);
         yield return ("Race server gives tied ranks for equal progress", RaceServerGivesTiedRanksForEqualProgress);
         yield return ("Race server ranks by completed splits and displays latest lit icon", RaceServerRanksByCompletedSplitsAndDisplaysLatestLitIcon);
         yield return ("Race server ignores single-icon partial progress", RaceServerIgnoresSingleIconPartialProgress);
         yield return ("Race server removes players on leave", RaceServerRemovesPlayersOnLeave);
+        yield return ("Race server treats closed rooms as terminal", RaceServerTreatsClosedRoomsAsTerminal);
         yield return ("Race server lets host kick members", RaceServerLetsHostKickMembers);
         yield return ("Race client reconnect uses exponential backoff", RaceClientReconnectUsesExponentialBackoff);
         yield return ("Race world file validator requires an existing wld file", RaceWorldFileValidatorRequiresExistingWldFile);
+        yield return ("Race world file store commits validated content by hash", RaceWorldFileStoreCommitsValidatedContentByHash);
         yield return ("Race client applies route override package", RaceClientAppliesRouteOverridePackage);
         yield return ("Race client materializes host custom route icons", RaceClientMaterializesHostCustomRouteIcons);
         yield return ("Race client ignores duplicate route override package", RaceClientIgnoresDuplicateRouteOverridePackage);
         yield return ("Race room applies payload on world publish", RaceRoomAppliesPayloadOnWorldPublish);
-        yield return ("Race member downloads only on package events", RaceMemberDownloadsOnlyOnPackageEvents);
     }
 
     private static void RaceContractsRoundTripRoomStateJson()
@@ -87,8 +89,8 @@ internal static class RaceTests
     private static void RaceRoutePayloadEmbedsHostIconData()
     {
         string directory = Path.Combine(
-            Path.GetTempPath(),
-            "TerrariaSplit.Tests",
+            "test",
+            "Temp",
             "race-route-icons-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
         try
@@ -121,15 +123,16 @@ internal static class RaceTests
 
             TestAssert.Equal(true, payload.Icons.Count >= 1);
             RaceRouteIconPayload? splitIcon = payload.Icons.FirstOrDefault(icon =>
-                string.Equals(icon.FileName, iconPath, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(icon.FileName, "host-icon.png", StringComparison.OrdinalIgnoreCase) &&
                 string.Equals(icon.DataBase64, expected, StringComparison.Ordinal));
             RaceRouteIconPayload? targetIcon = payload.Icons.FirstOrDefault(icon =>
                 string.Equals(icon.Key, targetId, StringComparison.OrdinalIgnoreCase) &&
-                string.Equals(icon.FileName, iconPath, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(icon.FileName, "host-icon.png", StringComparison.OrdinalIgnoreCase) &&
                 string.Equals(icon.DataBase64, expected, StringComparison.Ordinal));
 
             TestAssert.Equal(true, splitIcon is not null);
             TestAssert.Equal(true, targetIcon is not null);
+            TestAssert.Equal(false, payload.SerializedRouteJson.Contains(directory, StringComparison.OrdinalIgnoreCase));
         }
         finally
         {
@@ -260,7 +263,8 @@ internal static class RaceTests
         RequireSuccess(manager.ReportSplit(CreateReport(roomCode, "host", 0, 4_000)));
         RequireSuccess(manager.ReportSplit(CreateReport(roomCode, "guest", 0, 5_000)));
 
-        RaceOperationResult<RaceRoomState> reset = manager.ResetPlayerProgress(new RaceProgressResetRequest(roomCode, "guest"));
+        RaceOperationResult<RaceRoomState> reset = manager.ResetPlayerProgress(
+            new RaceProgressResetRequest(roomCode, "guest", PackageRevision: 1, RunId: "run-2"));
         RequireSuccess(reset);
 
         RaceRoomState state = reset.Value!;
@@ -275,6 +279,56 @@ internal static class RaceTests
         RacePlayerState guestState = state.Players.Single(player => player.Nickname == "guest");
         TestAssert.Equal(RacePlayerStatus.WorldReady, guestState.Status);
         TestAssert.Equal(true, guestState.WorldReady);
+    }
+
+    private static void RaceServerRejectsStalePackageAndRunReports()
+    {
+        var manager = new RaceRoomManager(new InMemoryRaceRecordStore());
+        RaceRoutePayload route = CreateRoutePayload("race-route", "Race Route", splitCount: 2);
+        RaceWorldSettings world = new("1.4.5.6", 1, 1, true, 0, 0);
+        RaceRoomState created = manager.CreateRoom(new RaceRoomCreateRequest("host")).Value!;
+        string roomCode = created.RoomCode;
+        RequireSuccess(manager.PublishWorldFile(
+            new RaceWorldFilePublishRequest(
+                roomCode,
+                "host",
+                route,
+                world,
+                new RaceSeedAssignment("1234", RaceSeedSource.Fixed),
+                new RaceWorldFileInfo("race.wld", 128, "abc", DateTimeOffset.UnixEpoch, "host"))));
+
+        RequireSuccess(manager.ReportSplit(CreateReport(roomCode, "host", 0, 4_000)));
+        RequireSuccess(manager.PublishWorldFile(
+            new RaceWorldFilePublishRequest(
+                roomCode,
+                "host",
+                route,
+                world,
+                new RaceSeedAssignment("5678", RaceSeedSource.Fixed),
+                new RaceWorldFileInfo("race-2.wld", 128, "def", DateTimeOffset.UnixEpoch.AddSeconds(1), "host"))));
+
+        RaceOperationResult<RaceRoomState> stalePackage = manager.ReportSplit(
+            CreateReport(roomCode, "host", 0, 5_000));
+        TestAssert.Equal(false, stalePackage.Succeeded);
+        TestAssert.Equal(RaceErrors.StalePackage, stalePackage.ErrorCode);
+
+        RequireSuccess(manager.ResetPlayerProgress(
+            new RaceProgressResetRequest(roomCode, "host", PackageRevision: 2, RunId: "run-2")));
+        RaceOperationResult<RaceRoomState> staleRun = manager.ReportSplit(
+            CreateReport(roomCode, "host", 0, 5_000) with
+            {
+                PackageRevision = 2,
+                RunId = "run-1"
+            });
+        TestAssert.Equal(false, staleRun.Succeeded);
+        TestAssert.Equal(RaceErrors.StaleRun, staleRun.ErrorCode);
+
+        RequireSuccess(manager.ReportSplit(
+            CreateReport(roomCode, "host", 0, 5_000) with
+            {
+                PackageRevision = 2,
+                RunId = "run-2"
+            }));
     }
 
     private static void RaceServerMarksPlayerRunningOnStartSignal()
@@ -299,7 +353,11 @@ internal static class RaceTests
         RaceOperationResult<RaceRoomState> started = manager.ReportStart(new RaceRunStartReport(
             roomCode,
             "guest",
-            DateTimeOffset.UnixEpoch));
+            DateTimeOffset.UnixEpoch)
+        {
+            PackageRevision = 1,
+            RunId = "run-1"
+        });
         RequireSuccess(started);
 
         RaceRoomState state = started.Value!;
@@ -630,21 +688,24 @@ internal static class RaceTests
     private static void RaceWorldFileValidatorRequiresExistingWldFile()
     {
         string directory = Path.Combine(
-            Path.GetTempPath(),
-            "TerrariaSplit.Tests",
+            "test",
+            "Temp",
             "race-world-file-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
         try
         {
             string textPath = Path.Combine(directory, "not-world.txt");
+            string invalidWorldPath = Path.Combine(directory, "invalid.wld");
             string worldPath = Path.Combine(directory, "world.wld");
             string missingWorldPath = Path.Combine(directory, "missing.wld");
             File.WriteAllText(textPath, "not a world file");
-            File.WriteAllBytes(worldPath, [1, 2, 3]);
+            File.WriteAllText(invalidWorldPath, "not a world file");
+            CreateMinimalWorldFile(worldPath);
 
             TestAssert.Equal(false, RaceWorldFileValidator.IsValidWorldFilePath(null));
             TestAssert.Equal(false, RaceWorldFileValidator.IsValidWorldFilePath(string.Empty));
             TestAssert.Equal(false, RaceWorldFileValidator.IsValidWorldFilePath(textPath));
+            TestAssert.Equal(false, RaceWorldFileValidator.IsValidWorldFilePath(invalidWorldPath));
             TestAssert.Equal(false, RaceWorldFileValidator.IsValidWorldFilePath(missingWorldPath));
             TestAssert.Equal(true, RaceWorldFileValidator.IsValidWorldFilePath(worldPath));
         }
@@ -819,24 +880,6 @@ internal static class RaceTests
             state with { Route = null }));
     }
 
-    private static void RaceMemberDownloadsOnlyOnPackageEvents()
-    {
-        RaceRoomState state = CreateRoomStateWithWorld();
-
-        TestAssert.Equal(true, RaceShell.ShouldAcquireWorldForPackage(
-            new RacePackageChanged(state, "host", RacePackageRevisionCalculator.Create(state)),
-            isCurrentUserHost: false));
-
-        TestAssert.Equal(false, RaceShell.ShouldAcquireWorldForPackage(
-            new RacePackageChanged(state, "host", RacePackageRevisionCalculator.Create(state)),
-            isCurrentUserHost: true));
-
-        RaceRoomState withoutWorld = state with { WorldFile = null };
-        TestAssert.Equal(false, RaceShell.ShouldAcquireWorldForPackage(
-            new RacePackageChanged(withoutWorld, "host", RacePackageRevisionCalculator.Create(withoutWorld)),
-            isCurrentUserHost: false));
-    }
-
     private static RaceRoomState CreateRoomStateWithWorld()
     {
         DateTimeOffset now = DateTimeOffset.UnixEpoch;
@@ -948,7 +991,86 @@ internal static class RaceTests
             DateTimeOffset.UnixEpoch,
             ConditionIndex: conditionIndex,
             FactKey: factKey,
-            IsSplitComplete: isSplitComplete);
+            IsSplitComplete: isSplitComplete)
+        {
+            PackageRevision = 1,
+            RunId = "run-1"
+        };
+    }
+
+    private static void RaceWorldFileStoreCommitsValidatedContentByHash()
+    {
+        string directory = Path.Combine(
+            "test",
+            "Temp",
+            "race-world-store-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            string sourcePath = Path.Combine(directory, "source.wld");
+            CreateMinimalWorldFile(sourcePath);
+            byte[] bytes = File.ReadAllBytes(sourcePath);
+            var store = new RaceWorldFileStore(Path.Combine(directory, "store"));
+            using var source = new MemoryStream(bytes, writable: false);
+            RaceStoredWorldFile stored = store.SaveAsync(
+                    "ROOM",
+                    "host",
+                    "race.wld",
+                    source,
+                    CancellationToken.None)
+                .GetAwaiter()
+                .GetResult();
+
+            string expectedHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)).ToLowerInvariant();
+            TestAssert.Equal(expectedHash, stored.Info.Sha256);
+            TestAssert.Equal((long)bytes.Length, stored.Info.Length);
+            TestAssert.Equal(true, store.TryGetPath("ROOM", stored.Info, out string storedPath));
+            TestAssert.Equal(stored.Path, storedPath);
+
+            store.DeleteRoom("ROOM");
+            TestAssert.Equal(false, File.Exists(stored.Path));
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
+
+    private static void RaceServerTreatsClosedRoomsAsTerminal()
+    {
+        var manager = new RaceRoomManager(new InMemoryRaceRecordStore());
+        RaceRoomState created = manager.CreateRoom(new RaceRoomCreateRequest("host")).Value!;
+        RaceOperationResult<RaceRoomState> closed = manager.CloseRoom(created.RoomCode, "host");
+        RequireSuccess(closed);
+        TestAssert.Equal(RaceRoomStatus.Closed, closed.Value!.Status);
+
+        RaceOperationResult<RaceRoomState> missing = manager.GetRoomState(created.RoomCode);
+        TestAssert.Equal(false, missing.Succeeded);
+        TestAssert.Equal(RaceErrors.RoomNotFound, missing.ErrorCode);
+    }
+
+    private static void CreateMinimalWorldFile(string path)
+    {
+        const ulong reLogicMagic = 27981915666277746UL;
+        using var stream = new FileStream(path, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
+        using var writer = new BinaryWriter(stream, System.Text.Encoding.UTF8, leaveOpen: true);
+        writer.Write(279);
+        writer.Write(reLogicMagic | (2UL << 56));
+        writer.Write(0U);
+        writer.Write(0UL);
+        writer.Write((short)1);
+        long pointerPosition = stream.Position;
+        writer.Write(0);
+        writer.Write((short)0);
+        int headerPosition = checked((int)stream.Position);
+        writer.Write("Race Test World");
+        long endPosition = stream.Position;
+        stream.Position = pointerPosition;
+        writer.Write(headerPosition);
+        stream.Position = endPosition;
     }
 
     private static SplitTargetDefinition RequireTarget(string targetId)

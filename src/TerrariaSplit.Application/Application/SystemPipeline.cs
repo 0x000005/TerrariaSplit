@@ -39,11 +39,14 @@ public sealed record RuntimeWatcherSystemEvent(WatcherPollNotification Notificat
 
 public sealed record ControlCommandSystemEvent(AppCommand Command) : SystemEvent;
 
-public sealed record RacePackageSystemEvent(string RoomCode, string PackageRevision) : SystemEvent;
+public sealed record RacePackageSystemEvent(
+    string RoomCode,
+    string PackageRevision,
+    bool IsInRoom = true) : SystemEvent;
 
 public sealed record RaceProgressSystemEvent(string RoomCode) : SystemEvent;
 
-public sealed record RaceRosterSystemEvent(string RoomCode) : SystemEvent;
+public sealed record RaceRosterSystemEvent(string RoomCode, bool IsInRoom = true) : SystemEvent;
 
 public sealed record JobProgressSystemEvent(string JobKey, int ProgressPercent) : SystemEvent;
 

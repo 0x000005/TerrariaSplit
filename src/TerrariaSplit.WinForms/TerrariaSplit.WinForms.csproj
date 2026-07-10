@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-	<FileVersion>1.8.0.3</FileVersion>
+	<FileVersion>1.8.1.0</FileVersion>
     <AssemblyName>TerrariaSplit</AssemblyName>
     <RootNamespace>TerrariaSplit</RootNamespace>
     <OutputType>WinExe</OutputType>
@@ -14,12 +14,16 @@
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
-    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">win-x64</RuntimeIdentifier>
-    <SelfContained Condition="'$(SelfContained)' == ''">true</SelfContained>
-    <PublishSelfContained Condition="'$(PublishSelfContained)' == ''">true</PublishSelfContained>
-    <PublishSingleFile Condition="'$(PublishSingleFile)' == ''">true</PublishSingleFile>
-    <IncludeNativeLibrariesForSelfExtract Condition="'$(IncludeNativeLibrariesForSelfExtract)' == ''">true</IncludeNativeLibrariesForSelfExtract>
-    <PublishTrimmed Condition="'$(PublishTrimmed)' == ''">false</PublishTrimmed>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <PublishSelfContained>true</PublishSelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <PublishReadyToRun>true</PublishReadyToRun>
+    <EnableCompressionInSingleFile>false</EnableCompressionInSingleFile>
+    <PublishTrimmed>false</PublishTrimmed>
+    <PublishAot>false</PublishAot>
+    <TerrariaSplitCreatePortableArchive Condition="'$(TerrariaSplitCreatePortableArchive)' == ''">true</TerrariaSplitCreatePortableArchive>
     <DebugType>none</DebugType>
     <DebugSymbols>false</DebugSymbols>
   </PropertyGroup>
@@ -42,5 +46,6 @@
   </ItemGroup>
 
   <Import Project="Build\MemoryProbe.targets" />
+  <Import Project="Build\PortablePackage.targets" />
 
 </Project>

@@ -306,11 +306,14 @@ internal sealed partial class MainForm : Form
             return;
         }
 
+        StartupDiagnostics.RecordTrace("OverlayInitializationStarted");
+
         try
         {
             Rectangle initialCompositeBounds = overlayShell.CompleteWindowInitialization(Bounds);
             overlayShell.BoundsController.Initialize(initialCompositeBounds);
-            overlayShell.TimerOverlayHost.Start();
+            StartupDiagnostics.RecordTrace("OverlayLayoutInitialized");
+            _ = overlayShell.TimerOverlayHost.StartAsync(runtimeBootstrapper.CancellationToken);
             UpdateEffectiveOverlayTopMost();
             overlayShell.TimerOverlayHost.ApplyMouseClickThrough(overlayShell.MouseClickThrough);
             UpdateTimerOverlayRefreshInterval();
@@ -323,6 +326,7 @@ internal sealed partial class MainForm : Form
 
         RenderInitialStatusOverlay();
         BeginInvoke(new Action(overlayShell.EnableStatusBoundsFeedback));
+        EnsureRuntimeInitializationStarted();
     }
 
     private void ApplyOverlayLayout(OverlayCompositeLayout layout)
@@ -515,7 +519,7 @@ internal sealed partial class MainForm : Form
             currentSplitIndex,
             runtimeSnapshot.TimerState,
             overlayShell.MouseClickThrough,
-            raceShell.GetMainTimerRankColor(runtimeSnapshot.TimerState.Phase, splitStatuses),
+            runtimeServices?.RaceShell.GetMainTimerRankColor(runtimeSnapshot.TimerState.Phase, splitStatuses),
             ShouldShowPyramidFilterIndicator());
     }
 
@@ -527,13 +531,14 @@ internal sealed partial class MainForm : Form
             overlayShell.MouseClickThrough,
             viewState.StatusHash,
             overlayShell.TimerOverlaySettingsRevision,
-            raceShell.GetMainTimerRankColor(runtimeSnapshot.TimerState.Phase, splitStatuses)?.ToArgb(),
+            runtimeServices?.RaceShell.GetMainTimerRankColor(runtimeSnapshot.TimerState.Phase, splitStatuses)?.ToArgb(),
             ShouldShowPyramidFilterIndicator());
     }
 
     private bool ShouldShowPyramidFilterIndicator()
     {
-        return settings.Automation.AutoCreate.EnablePyramidFilter || raceShell.IsPyramidFilterActive;
+        return settings.Automation.AutoCreate.EnablePyramidFilter ||
+            runtimeServices?.RaceShell.IsPyramidFilterActive == true;
     }
 
     private void UpdateTimerOverlayRefreshInterval()
@@ -575,7 +580,7 @@ internal sealed partial class MainForm : Form
 
     private void ShowContextMenuAtScreen(Point screenPoint)
     {
-        contextMenu.Show(screenPoint);
+        contextMenu?.Show(screenPoint);
     }
 
     private void ClearIconCache()
