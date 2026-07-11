@@ -19,18 +19,26 @@ internal static class StartupMetrics
         if (args.Length < 2)
         {
             throw new ArgumentException(
-                "Usage: startup-metrics <published-exe-or-directory> [--runs N] [--cold] [--csv path]");
+                "Usage: startup-metrics <published-exe-or-directory> [--runs N] [--cold] [--compare baseline-exe-or-directory] [--csv path]");
         }
 
         string sourceExecutable = ResolveSourceExecutable(args[1]);
+        string? comparisonExecutable = ReadStringOption(args, "--compare") is string comparisonPath
+            ? ResolveSourceExecutable(comparisonPath)
+            : null;
         int runCount = ReadIntOption(args, "--runs", 20);
         bool cold = args.Any(argument => string.Equals(argument, "--cold", StringComparison.OrdinalIgnoreCase));
+        if (cold && comparisonExecutable is not null)
+        {
+            throw new ArgumentException("--cold and --compare cannot be used together.");
+        }
+
         bool trace = args.Any(argument => string.Equals(argument, "--trace", StringComparison.OrdinalIgnoreCase));
         string csvPath = ReadStringOption(args, "--csv") ?? Path.GetFullPath(Path.Combine(
             "test",
             "Results",
             "Startup",
-            $"startup-{(cold ? "cold" : "normal")}-{DateTime.UtcNow:yyyyMMdd-HHmmss}.csv"));
+            $"startup-{(comparisonExecutable is not null ? "compare" : cold ? "cold" : "normal")}-{DateTime.UtcNow:yyyyMMdd-HHmmss}.csv"));
         string sessionRoot = Path.GetFullPath(Path.Combine(
             "test",
             "Temp",
@@ -41,7 +49,28 @@ internal static class StartupMetrics
         var results = new List<StartupMeasurement>();
         try
         {
-            if (cold)
+            if (comparisonExecutable is not null)
+            {
+                string candidate = StagePublishedApplication(sourceExecutable, sessionRoot, "candidate");
+                string baseline = StagePublishedApplication(comparisonExecutable, sessionRoot, "baseline");
+                _ = MeasureOnce(baseline, 0, "baseline-warmup", trace: false);
+                _ = MeasureOnce(candidate, 0, "candidate-warmup", trace: false);
+                for (int index = 0; index < runCount; index++)
+                {
+                    int run = index + 1;
+                    if ((index & 1) == 0)
+                    {
+                        results.Add(MeasureOnce(baseline, run, "baseline", trace));
+                        results.Add(MeasureOnce(candidate, run, "candidate", trace));
+                    }
+                    else
+                    {
+                        results.Add(MeasureOnce(candidate, run, "candidate", trace));
+                        results.Add(MeasureOnce(baseline, run, "baseline", trace));
+                    }
+                }
+            }
+            else if (cold)
             {
                 for (int index = 0; index < runCount; index++)
                 {
@@ -244,6 +273,25 @@ internal static class StartupMetrics
 
     private static void PrintSummary(string csvPath, IReadOnlyList<StartupMeasurement> results)
     {
+        StartupMeasurement[][] groups = results
+            .GroupBy(result => result.Mode, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.ToArray())
+            .ToArray();
+        if (groups.Length > 1)
+        {
+            foreach (StartupMeasurement[] group in groups.OrderBy(group => group[0].Mode, StringComparer.OrdinalIgnoreCase))
+            {
+                Console.WriteLine(
+                    $"{group[0].Mode}: first-frame median {Median(group.Select(result => result.FirstFrameMilliseconds)):F3} ms, " +
+                    $"P95 {Percentile95(group.Select(result => result.FirstFrameMilliseconds)):F3} ms; " +
+                    $"fully-ready median {Median(group.Select(result => result.FullyReadyMilliseconds)):F3} ms, " +
+                    $"P95 {Percentile95(group.Select(result => result.FullyReadyMilliseconds)):F3} ms");
+            }
+
+            Console.WriteLine($"CSV: {Path.GetFullPath(csvPath)}");
+            return;
+        }
+
         double firstFrameP95 = Percentile95(results.Select(result => result.FirstFrameMilliseconds));
         double fullyReadyP95 = Percentile95(results.Select(result => result.FullyReadyMilliseconds));
         Console.WriteLine($"First frame P95: {firstFrameP95:F3} ms");
@@ -261,6 +309,20 @@ internal static class StartupMetrics
 
         int index = Math.Clamp((int)Math.Ceiling(sorted.Length * 0.95) - 1, 0, sorted.Length - 1);
         return sorted[index];
+    }
+
+    private static double Median(IEnumerable<double> values)
+    {
+        double[] sorted = values.Order().ToArray();
+        if (sorted.Length == 0)
+        {
+            return 0;
+        }
+
+        int middle = sorted.Length / 2;
+        return (sorted.Length & 1) == 0
+            ? (sorted[middle - 1] + sorted[middle]) / 2d
+            : sorted[middle];
     }
 
     private static int ReadIntOption(string[] args, string name, int fallback)

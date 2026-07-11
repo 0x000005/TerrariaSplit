@@ -4,18 +4,14 @@ namespace TerrariaSplit.Terraria.Automation;
 
 internal interface IPyramidSeedPreScreenEvaluator
 {
-    PyramidSeedPreScreenPrediction Evaluate(AutoCreateWorldSettings settings, string seedText);
+    PyramidSeedPreScreenPrediction Evaluate(
+        AutoCreateWorldSettings settings,
+        string seedText,
+        TerrariaWorldGenerationVersion worldGenerationVersion);
 }
 
 internal sealed class PyramidSeedPreScreenEvaluator : IPyramidSeedPreScreenEvaluator
 {
-    private readonly Func<string?> terrariaVersionProvider;
-
-    public PyramidSeedPreScreenEvaluator(Func<string?>? terrariaVersionProvider = null)
-    {
-        this.terrariaVersionProvider = terrariaVersionProvider ?? TerrariaMenuProfile.TryGetRunningTerrariaFileVersion;
-    }
-
     public static bool IsEnabledFor(AutoCreateWorldSettings settings)
     {
         return settings.EnablePyramidFilter &&
@@ -33,18 +29,24 @@ internal sealed class PyramidSeedPreScreenEvaluator : IPyramidSeedPreScreenEvalu
 
     public static TerrariaWorldGenerationVersion WorldGenerationVersionFromTerrariaVersion(string? fileVersion)
     {
-        return TerrariaMenuProfile.IsLegacy1449Version(fileVersion)
+        return WorldGenerationVersionFromMenuProfile(TerrariaMenuProfile.FromVersion(fileVersion));
+    }
+
+    public static TerrariaWorldGenerationVersion WorldGenerationVersionFromMenuProfile(TerrariaMenuProfile profile)
+    {
+        return profile.Kind == TerrariaMenuProfileKind.Legacy1449
             ? TerrariaWorldGenerationVersion.Legacy1449
             : TerrariaWorldGenerationVersion.Modern1456;
     }
 
-    public PyramidSeedPreScreenPrediction Evaluate(AutoCreateWorldSettings settings, string seedText)
+    public PyramidSeedPreScreenPrediction Evaluate(
+        AutoCreateWorldSettings settings,
+        string seedText,
+        TerrariaWorldGenerationVersion worldGenerationVersion)
     {
         int difficultyCode = TerrariaWorldSeedOptions.CopiedDifficultyCode(settings.WorldDifficulty);
         int requiredItemMask = AutoCreatePyramidFilterItem.NormalizeMaskOrAll(settings.PyramidFilterItemMask);
         string requiredItems = PyramidFilterItemMatcher.FormatRequiredItems(requiredItemMask);
-        TerrariaWorldGenerationVersion worldGenerationVersion =
-            WorldGenerationVersionFromTerrariaVersion(terrariaVersionProvider());
 
         PyramidSeedPreScreenResult result = PyramidSeedPreScreen.EvaluateSmallCrimson(
             seedText,

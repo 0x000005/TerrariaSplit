@@ -8,11 +8,10 @@ public static class SettingsSplitSetNormalizer
         {
             settings.Comparison.ReferenceSplitSets.Add(ReferenceSplitSetService.CreateReferenceSet(
                 "WR",
-                keys: SplitConditionDataRows.Build(settings).Select(row => row.Key)));
+                keys: SplitConditionDataRows.BuildKeys(settings)));
         }
 
-        HashSet<string> conditionRowKeys = SplitConditionDataRows.Build(settings)
-            .Select(row => row.Key)
+        HashSet<string> conditionRowKeys = SplitConditionDataRows.BuildKeys(settings)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach (ReferenceSplitSet set in settings.Comparison.ReferenceSplitSets)
         {
@@ -41,7 +40,7 @@ public static class SettingsSplitSetNormalizer
         NormalizePersonalSets(
             settings.Comparison.PersonalBestTimeSets,
             "Personal",
-            validKeys: SplitConditionDataRows.Build(settings).Select(row => row.Key),
+            validKeys: SplitConditionDataRows.BuildKeys(settings),
             activeName: settings.Comparison.ActivePersonalBestTimeSet,
             setActiveName: value => settings.Comparison.ActivePersonalBestTimeSet = value);
     }

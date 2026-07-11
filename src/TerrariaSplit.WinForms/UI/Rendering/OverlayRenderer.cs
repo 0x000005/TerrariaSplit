@@ -21,8 +21,16 @@ internal static class OverlayRenderer
             context.SplitCompletionAnimation is not null;
         float listOpacity = animationVisible ? 1f - animationOpacity : 1f;
 
+        if (!animationActive)
+        {
+            resources.SplitCompletionAnimationText.Clear();
+        }
+
         resources.BossIcons.BeginRenderFrame();
-        SplitListRenderer.Render(graphics, context, resources, listOpacity, clipBounds);
+        if (ShouldRenderSplitList(listOpacity))
+        {
+            SplitListRenderer.Render(graphics, context, resources, listOpacity, clipBounds);
+        }
 
         if (animationVisible && context.SplitCompletionAnimation is not null)
         {
@@ -36,6 +44,11 @@ internal static class OverlayRenderer
         }
 
         return new OverlayRenderResult(animationActive, resources.BossIcons.AnimatedIconUsedInCurrentFrame);
+    }
+
+    internal static bool ShouldRenderSplitList(float opacity)
+    {
+        return opacity > 0f;
     }
 
     public static void RenderTimer(

@@ -10,6 +10,19 @@ internal sealed class BossIconCache : IDisposable
     private const int FrameDelayPropertyId = 0x5100;
 
     private readonly ConcurrentDictionary<string, Lazy<IconPair>> cache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<IconRequestKey, ResolvedIconRequest> resolvedRequests =
+        new(IconRequestKeyComparer.Instance);
+    private readonly Func<string, bool> fileExists;
+
+    public BossIconCache()
+        : this(File.Exists)
+    {
+    }
+
+    internal BossIconCache(Func<string, bool> fileExists)
+    {
+        this.fileExists = fileExists;
+    }
 
     public bool AnimatedIconUsedInCurrentFrame { get; private set; }
 
@@ -23,22 +36,39 @@ internal sealed class BossIconCache : IDisposable
         AnimatedIconUsedInCurrentFrame |= iconPair.IsAnimated;
     }
 
-    public IconPair Load(SplitDefinition definition, string fileName, AppSettings settings)
+    public IconPair Load(SplitDefinition definition, int iconIndex, AppSettings settings)
     {
-        string iconKey = GetIconKey(definition, fileName);
-        string path = ResolveIconPath(fileName, iconKey);
-        string cacheKey = $"icon:{path}";
+        if ((uint)iconIndex >= (uint)definition.IconFileNames.Count)
+        {
+            throw new ArgumentOutOfRangeException(nameof(iconIndex));
+        }
+
+        string fileName = definition.IconFileNames[iconIndex];
+        string iconKey = GetIconKey(definition, iconIndex);
+        var requestKey = new IconRequestKey(definition.Id, fileName, iconKey);
+        if (!resolvedRequests.TryGetValue(requestKey, out ResolvedIconRequest resolved))
+        {
+            string path = ResolveIconPath(fileName, iconKey);
+            resolved = resolvedRequests.GetOrAdd(
+                requestKey,
+                new ResolvedIconRequest($"icon:{path}\u001f{iconKey}", path, iconKey));
+        }
+
+        if (cache.TryGetValue(resolved.CacheKey, out Lazy<IconPair>? cachedIcon))
+        {
+            return GetIconValue(resolved.CacheKey, cachedIcon);
+        }
 
         Lazy<IconPair> lazyIcon = cache.GetOrAdd(
-            cacheKey,
+            resolved.CacheKey,
             _ => new Lazy<IconPair>(() =>
             {
-                IconFrameSet lit = File.Exists(path)
-                    ? LoadIconFrameSet(path, iconKey)
+                IconFrameSet lit = fileExists(resolved.Path)
+                    ? LoadIconFrameSet(resolved.Path, resolved.IconKey)
                     : IconFrameSet.Static(CreatePlaceholderIcon());
                 return CreateIconPair(lit, settings);
             }, LazyThreadSafetyMode.ExecutionAndPublication));
-        return GetIconValue(cacheKey, lazyIcon);
+        return GetIconValue(resolved.CacheKey, lazyIcon);
     }
 
     public IconPair LoadEmbedded(string cacheKey, byte[] data, string iconKey, AppSettings settings)
@@ -73,22 +103,29 @@ internal sealed class BossIconCache : IDisposable
                 minimumRowCount)
             .Select(row => row.StatusIndex)
             .Distinct();
-        var requests = new List<(int StatusIndex, SplitDefinition Definition, string FileName)>();
+        var requests = new List<(int StatusIndex, SplitDefinition Definition, int IconIndex, string FileName, string IconKey)>();
         foreach (int statusIndex in statusIndexes)
         {
             SplitDefinition definition = statuses[statusIndex].Definition;
-            foreach (string fileName in definition.IconFileNames)
+            for (int iconIndex = 0; iconIndex < definition.IconFileNames.Count; iconIndex++)
             {
-                requests.Add((statusIndex, definition, fileName));
+                requests.Add((
+                    statusIndex,
+                    definition,
+                    iconIndex,
+                    definition.IconFileNames[iconIndex],
+                    GetIconKey(definition, iconIndex)));
             }
         }
 
-        foreach ((int StatusIndex, SplitDefinition Definition, string FileName) request in
-                 requests.DistinctBy(request => (request.Definition.Id, request.FileName)))
+        foreach ((int StatusIndex, SplitDefinition Definition, int IconIndex, string FileName, string IconKey) request in
+                 requests.DistinctBy(
+                     request => new IconRequestKey(request.Definition.Id, request.FileName, request.IconKey),
+                     IconRequestKeyComparer.Instance))
         {
             try
             {
-                IconPair icon = Load(request.Definition, request.FileName, settings);
+                IconPair icon = Load(request.Definition, request.IconIndex, settings);
                 StartupDiagnostics.RecordTrace($"IconLoaded:{request.FileName}");
                 _ = request.StatusIndex == currentSplitIndex
                     ? icon.GetCurrentImage(nowUtc)
@@ -258,6 +295,7 @@ internal sealed class BossIconCache : IDisposable
 
     public void Clear()
     {
+        resolvedRequests.Clear();
         foreach (Lazy<IconPair> lazyIcon in cache.Values)
         {
             if (lazyIcon.IsValueCreated)
@@ -288,20 +326,16 @@ internal sealed class BossIconCache : IDisposable
         }
     }
 
-    private static string GetIconKey(SplitDefinition definition, string fileName)
+    private static string GetIconKey(SplitDefinition definition, int iconIndex)
     {
-        int index = definition.IconFileNames
-            .Select((value, itemIndex) => new { value, itemIndex })
-            .FirstOrDefault(item => string.Equals(item.value, fileName, StringComparison.OrdinalIgnoreCase))
-            ?.itemIndex ?? -1;
-        return index >= 0 && index < definition.IconKeys.Count
-            ? definition.IconKeys[index]
+        return iconIndex < definition.IconKeys.Count
+            ? definition.IconKeys[iconIndex]
             : definition.Id;
     }
 
-    private static string ResolveIconPath(string fileName, string iconKey)
+    private string ResolveIconPath(string fileName, string iconKey)
     {
-        if (!string.IsNullOrWhiteSpace(fileName) && File.Exists(fileName))
+        if (!string.IsNullOrWhiteSpace(fileName) && fileExists(fileName))
         {
             return fileName;
         }
@@ -320,7 +354,7 @@ internal sealed class BossIconCache : IDisposable
         return Path.Combine(GetPreferredIconDirectory(iconKey), fileName);
     }
 
-    private static bool TryResolvePackagedIconPath(string fileName, string iconKey, out string path)
+    private bool TryResolvePackagedIconPath(string fileName, string iconKey, out string path)
     {
         path = string.Empty;
         if (string.IsNullOrWhiteSpace(fileName))
@@ -331,7 +365,7 @@ internal sealed class BossIconCache : IDisposable
         foreach (string directory in GetCandidateIconDirectories(iconKey))
         {
             string candidate = Path.Combine(directory, fileName);
-            if (File.Exists(candidate))
+            if (fileExists(candidate))
             {
                 path = candidate;
                 return true;
@@ -391,6 +425,30 @@ internal sealed class BossIconCache : IDisposable
     private static string GetIconDirectory(string category)
     {
         return Path.Combine(AppContext.BaseDirectory, "Assets", "Icons", category);
+    }
+
+    private readonly record struct IconRequestKey(string DefinitionId, string FileName, string IconKey);
+
+    private readonly record struct ResolvedIconRequest(string CacheKey, string Path, string IconKey);
+
+    private sealed class IconRequestKeyComparer : IEqualityComparer<IconRequestKey>
+    {
+        public static IconRequestKeyComparer Instance { get; } = new();
+
+        public bool Equals(IconRequestKey x, IconRequestKey y)
+        {
+            return string.Equals(x.DefinitionId, y.DefinitionId, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(x.FileName, y.FileName, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(x.IconKey, y.IconKey, StringComparison.OrdinalIgnoreCase);
+        }
+
+        public int GetHashCode(IconRequestKey obj)
+        {
+            return HashCode.Combine(
+                StringComparer.OrdinalIgnoreCase.GetHashCode(obj.DefinitionId ?? string.Empty),
+                StringComparer.OrdinalIgnoreCase.GetHashCode(obj.FileName ?? string.Empty),
+                StringComparer.OrdinalIgnoreCase.GetHashCode(obj.IconKey ?? string.Empty));
+        }
     }
 
     private static Bitmap CreateBossChecklistUndefeatedIcon(

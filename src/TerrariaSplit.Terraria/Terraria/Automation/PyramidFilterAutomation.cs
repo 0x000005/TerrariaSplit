@@ -2,6 +2,8 @@ namespace TerrariaSplit.Terraria.Automation;
 
 internal sealed class PyramidFilterAutomation
 {
+    private static readonly IReadOnlySet<string> NoObservedFactKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
     private static readonly PyramidFilterWaitTimings DefaultWaitTimings = new(
         WorldFileTimeout: TimeSpan.FromMinutes(5),
         LegacyPollInterval: TimeSpan.FromMilliseconds(100),
@@ -202,7 +204,9 @@ internal sealed class PyramidFilterAutomation
     {
         try
         {
-            return watcherFactory();
+            ITerrariaWorldWatcher watcher = watcherFactory();
+            watcher.SetObservedFactKeys(NoObservedFactKeys);
+            return watcher;
         }
         catch (Exception ex)
         {

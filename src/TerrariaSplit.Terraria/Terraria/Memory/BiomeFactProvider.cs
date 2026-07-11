@@ -26,7 +26,7 @@ internal sealed class BiomeFactProvider
         }
 
         Dictionary<string, byte?> zoneValues = ReadZoneValues(memory, context.BiomeLayout, localPlayerAddress, readPlan);
-        string[] selectedBiomeIds = GetSelectedBiomeIds(readPlan);
+        string[] selectedBiomeIds = readPlan.SelectedBiomeIds;
         if (lastZoneValues is not null &&
             lastFacts is not null &&
             SelectionEquals(readPlan, selectedBiomeIds) &&
@@ -199,10 +199,4 @@ internal sealed class BiomeFactProvider
             (lastBiomeIds is not null && lastBiomeIds.SequenceEqual(selectedBiomeIds, StringComparer.OrdinalIgnoreCase));
     }
 
-    private static string[] GetSelectedBiomeIds(TerrariaFactReadPlan readPlan)
-    {
-        return readPlan.ReadsAll
-            ? []
-            : readPlan.BiomeIds.OrderBy(biomeId => biomeId, StringComparer.OrdinalIgnoreCase).ToArray();
-    }
 }

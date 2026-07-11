@@ -17,6 +17,10 @@ internal static class RaceTests
         yield return ("Race contracts round-trip room state JSON", RaceContractsRoundTripRoomStateJson);
         yield return ("Race contracts round-trip package and roster JSON", RaceContractsRoundTripPackageAndRosterJson);
         yield return ("Race route payload embeds host icon data", RaceRoutePayloadEmbedsHostIconData);
+        yield return ("Race route payload preserves real item display names", RaceRoutePayloadPreservesRealItemDisplayNames);
+        yield return ("Race split reports preserve real item display names", RaceSplitReportsPreserveRealItemDisplayNames);
+        yield return ("Split condition key projection matches full rows", SplitConditionKeyProjectionMatchesFullRows);
+        yield return ("Split time lookup follows the current enabled route", SplitTimeLookupFollowsCurrentEnabledRoute);
         yield return ("Race split report factory emits condition progress", RaceSplitReportFactoryEmitsConditionProgress);
         yield return ("Race split report factory skips single-icon partial progress", RaceSplitReportFactorySkipsSingleIconPartialProgress);
         yield return ("Race server enforces room rules and ranking", RaceServerEnforcesRoomRulesAndRanking);
@@ -1037,6 +1041,152 @@ internal static class RaceTests
                 Directory.Delete(directory, recursive: true);
             }
         }
+    }
+
+    private static void RaceRoutePayloadPreservesRealItemDisplayNames()
+    {
+        AppSettings settings = AppSettingsDefaults.Create();
+        settings.Route.SplitRoute =
+        [
+            new SplitRouteEntry
+            {
+                Id = "split:magic-mirror",
+                DisplayName = "Magic Mirror",
+                Enabled = true,
+                Condition = SplitCondition.All([SplitCatalog.CreateItemEverOwnedCondition(50, 1)]),
+                IconTargetIds = [SplitCatalog.CreateItemTargetId(50)]
+            }
+        ];
+
+        RaceRoutePayload payload = RaceRoutePayloadFactory.Create(settings);
+        RaceSplitConditionDefinition condition = payload.Splits.Single().Conditions.Single();
+
+        TestAssert.Equal(SplitCatalog.CreateItemTargetId(50), condition.TargetId);
+        TestAssert.Equal("Magic Mirror", condition.DisplayName);
+    }
+
+    private static void RaceSplitReportsPreserveRealItemDisplayNames()
+    {
+        string targetId = SplitCatalog.CreateItemTargetId(50);
+        string factKey = SplitCatalog.CreateItemEverOwnedFactKey(50);
+        var definition = new SplitDefinition(
+            "split:magic-mirror-report",
+            "Magic Mirror",
+            SplitCondition.Fact(factKey),
+            ["item-50.png"],
+            [targetId],
+            [targetId]);
+        var status = new SplitStatusSnapshot(
+            definition,
+            TimeSpan.FromSeconds(5),
+            IsSkipped: false,
+            [factKey]);
+
+        bool created = RaceSplitReportFactory.TryCreate(
+            "ABC123",
+            "runner",
+            0,
+            [status],
+            out RaceSplitReport report);
+
+        TestAssert.Equal(true, created);
+        TestAssert.Equal(targetId, report.TargetId);
+        TestAssert.Equal("Magic Mirror", report.IconDisplayName);
+    }
+
+    private static void SplitConditionKeyProjectionMatchesFullRows()
+    {
+        AppSettings settings = AppSettingsDefaults.Create();
+        string itemFactKey = SplitCatalog.CreateItemEverOwnedFactKey(50);
+        settings.Route.SplitRoute =
+        [
+            new SplitRouteEntry
+            {
+                Id = "split:duplicate",
+                DisplayName = "Duplicate A",
+                Enabled = true,
+                Condition = SplitCondition.All(
+                [
+                    SplitCondition.Fact(itemFactKey),
+                    SplitCondition.Fact(itemFactKey),
+                    SplitCondition.Fact(itemFactKey.ToUpperInvariant())
+                ])
+            },
+            new SplitRouteEntry
+            {
+                Id = "split:disabled",
+                DisplayName = "Disabled",
+                Enabled = false,
+                Condition = SplitCondition.Fact(itemFactKey)
+            },
+            new SplitRouteEntry
+            {
+                Id = "SPLIT:DUPLICATE",
+                DisplayName = "Duplicate B",
+                Enabled = true,
+                Condition = SplitCondition.Fact(itemFactKey)
+            },
+            new SplitRouteEntry
+            {
+                Id = "split:attached",
+                DisplayName = "Attached",
+                Enabled = true,
+                IsAttached = true,
+                Condition = SplitCondition.Fact(itemFactKey)
+            },
+            new SplitRouteEntry
+            {
+                Id = "  ",
+                DisplayName = "Blank",
+                Enabled = true,
+                Condition = SplitCondition.Fact(itemFactKey)
+            }
+        ];
+
+        string[] expected = SplitConditionDataRows.Build(settings)
+            .Select(row => row.Key)
+            .ToArray();
+        IReadOnlyList<string> settingsKeys = SplitConditionDataRows.BuildKeys(settings);
+        IReadOnlyList<string> routeKeys = SplitConditionDataRows.BuildKeys(settings.Route.SplitRoute);
+
+        TestAssert.Equal(expected.Length, settingsKeys.Count);
+        TestAssert.Equal(expected.Length, routeKeys.Count);
+        for (int index = 0; index < expected.Length; index++)
+        {
+            TestAssert.Equal(expected[index], settingsKeys[index]);
+            TestAssert.Equal(expected[index], routeKeys[index]);
+        }
+    }
+
+    private static void SplitTimeLookupFollowsCurrentEnabledRoute()
+    {
+        AppSettings settings = AppSettingsDefaults.Create();
+        settings.Route.SplitRoute =
+        [
+            new SplitRouteEntry
+            {
+                Id = "split:item",
+                DisplayName = "Item",
+                Enabled = true,
+                Condition = SplitCatalog.CreateItemEverOwnedCondition(50, 1)
+            }
+        ];
+        SplitDefinition definition = SplitCatalog.Build(settings).Single();
+        string originalKey = SplitConditionDataRows.BuildKeys(settings).Single();
+        var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            [originalKey] = "0:12.34"
+        };
+
+        TestAssert.Equal(true, SplitConditionDataRows.TryGetSplitTime(settings, values, definition, out TimeSpan original));
+        TestAssert.Equal(TimeSpan.FromMilliseconds(12_340), original);
+
+        settings.Route.SplitRoute[0].Condition = SplitCatalog.CreateItemEverOwnedCondition(51, 1);
+        TestAssert.Equal(false, SplitConditionDataRows.TryGetSplitTime(settings, values, definition, out _));
+
+        settings.Route.SplitRoute[0].Condition = SplitCatalog.CreateItemEverOwnedCondition(50, 1);
+        settings.Route.SplitRoute[0].Enabled = false;
+        TestAssert.Equal(false, SplitConditionDataRows.TryGetSplitTime(settings, values, definition, out _));
     }
 
     private static void RaceServerTreatsClosedRoomsAsTerminal()

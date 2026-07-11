@@ -23,9 +23,7 @@ internal static class SplitRenderData
         }
 
         HashSet<string> visibleTargetIds = visibleFactKeys
-            .Select(factKey => SplitCatalog.TryGetTargetByFactKey(factKey, out SplitTargetDefinition target)
-                ? target.Id
-                : string.Empty)
+            .Select(GetTargetIdForFactKey)
             .Where(id => !string.IsNullOrWhiteSpace(id))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         if (visibleTargetIds.Count == 0)
@@ -59,6 +57,18 @@ internal static class SplitRenderData
             IconKeys = iconKeys,
             TargetIds = iconKeys
         };
+    }
+
+    private static string GetTargetIdForFactKey(string factKey)
+    {
+        if (SplitCatalog.TryParseItemFactKey(factKey, out int itemId))
+        {
+            return SplitCatalog.CreateItemTargetId(itemId);
+        }
+
+        return SplitCatalog.TryGetTargetByFactKey(factKey, out SplitTargetDefinition target)
+            ? target.Id
+            : string.Empty;
     }
 
     private static IReadOnlyList<string> GetVisibleIconFactKeys(SplitStatusSnapshot status, TerrariaGameFacts? facts)

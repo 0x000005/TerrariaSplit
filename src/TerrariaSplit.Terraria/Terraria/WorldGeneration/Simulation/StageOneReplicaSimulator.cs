@@ -8,7 +8,6 @@ internal sealed class StageOneReplicaSimulator
     {
         WorldOptions options = WorldOptions.FromMetadata(metadata);
         var state = new WorldGenState(options);
-        state.ClearWorld();
 
         ResetSimulationResult reset = StageOneReset.Apply(state);
         if (!reset.IsSupported)

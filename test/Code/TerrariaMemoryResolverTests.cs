@@ -8,6 +8,7 @@ internal static class TerrariaMemoryResolverTests
     {
         yield return ("TerrariaMemoryResolver reads gameMenu from managed runtime layout", ReadsGameMenuFromManagedRuntimeLayout);
         yield return ("TerrariaMemoryResolver emits boss facts from managed static fields", EmitsBossFactsFromManagedStaticFields);
+        yield return ("TerrariaMemoryResolver empty fact plan skips facts but keeps generation reads", EmptyFactPlanSkipsFactsButKeepsGenerationReads);
         yield return ("ItemFactProvider returns unknown without item layout", ItemFactProviderReturnsUnknownWithoutItemLayout);
         yield return ("ItemFactProvider aggregates inventory and bank stacks", ItemFactProviderAggregatesInventoryAndBankStacks);
         yield return ("ItemFactProvider counts mouse item once", ItemFactProviderCountsMouseItemOnce);
@@ -67,6 +68,29 @@ internal static class TerrariaMemoryResolverTests
         TestAssert.Equal(true, GetBossFact(facts, SplitCatalog.Skeletron));
         TestAssert.Equal(true, GetBossFact(facts, SplitCatalog.MoonLord));
         TestAssert.Equal(true, GetBossFact(facts, SplitCatalog.WallOfFlesh));
+    }
+
+    private static void EmptyFactPlanSkipsFactsButKeepsGenerationReads()
+    {
+        var resolver = new TerrariaMemoryResolver();
+        var memory = new FakeProcessMemoryReader(is64Bit: false);
+        resolver.SetRuntimeLayoutForTests(CreateTestRuntimeLayout(
+            gameMenuAddress: new IntPtr(0x4000),
+            bossFactAddresses: new Dictionary<string, IntPtr>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["boss:skeletron:defeated"] = new IntPtr(0x5000)
+            },
+            includeFactLayouts: true,
+            worldGenerationStatusAddress: new IntPtr(0x7000)));
+
+        TerrariaGameFacts facts = resolver.ReadGameFacts(memory, Array.Empty<string>());
+
+        TestAssert.Equal(0, facts.Values.Count);
+        TestAssert.Equal(0, memory.ReadBytesCallCount);
+
+        _ = resolver.ReadWorldGenerationState(memory);
+
+        TestAssert.Equal(true, memory.ReadBytesCallCount > 0);
     }
 
     private static void ItemFactProviderReturnsUnknownWithoutItemLayout()
@@ -588,7 +612,9 @@ internal static class TerrariaMemoryResolverTests
 
     private static TerrariaRuntimeMemoryLayout CreateTestRuntimeLayout(
         IntPtr gameMenuAddress,
-        IReadOnlyDictionary<string, IntPtr> bossFactAddresses)
+        IReadOnlyDictionary<string, IntPtr> bossFactAddresses,
+        bool includeFactLayouts = false,
+        IntPtr worldGenerationStatusAddress = default)
     {
         return new TerrariaRuntimeMemoryLayout(
             TerrariaVersion: "test",
@@ -597,12 +623,12 @@ internal static class TerrariaMemoryResolverTests
                 StatusTextStaticFieldAddress: IntPtr.Zero,
                 MenuUiStaticFieldAddress: IntPtr.Zero),
             new TerrariaBossMemoryLayout(bossFactAddresses),
-            Item: null,
-            Npc: null,
-            Biome: null,
+            Item: includeFactLayouts ? CreateTestItemLayout() : null,
+            Npc: includeFactLayouts ? CreateTestNpcLayout() : null,
+            Biome: includeFactLayouts ? CreateTestBiomeLayout() : null,
             SeedUi: null,
             WorldGeneration: new TerrariaWorldGenerationMemoryLayout(
-                StatusTextStaticFieldAddress: IntPtr.Zero,
+                StatusTextStaticFieldAddress: worldGenerationStatusAddress,
                 CurrentGenerationProgressStaticFieldAddress: IntPtr.Zero,
                 CurrentControllerStaticFieldAddress: IntPtr.Zero,
                 GenerationProgressMessageFieldOffset: -1,

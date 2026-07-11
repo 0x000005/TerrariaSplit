@@ -5,14 +5,12 @@
 - 本项目是 C# / .NET 10 的 Terraria 分段计时器，主程序是 WinForms 桌面应用。
 - 该项目处于开发阶段，除非明确要求否则永远不要考虑兼容性，时刻牢记删除无用的代码，并保证现有的代码是结构清晰的。
 
-## 常用命令
-- 构建解决方案：`dotnet build TerrariaSplit.slnx`
-- 运行主程序：`dotnet run --project src\TerrariaSplit.WinForms\TerrariaSplit.WinForms.csproj`
-- 运行测试：`dotnet run --project test\TerrariaSplit.Tests.csproj`
-- 发布主程序：`dotnet publish src\TerrariaSplit.WinForms\TerrariaSplit.WinForms.csproj -c Release -o publish`
-- 跳过探针构建：给构建或发布命令追加 `-p:TerrariaSplitSkipMemoryProbe=true`
-- 金字塔预筛聚焦测试：`$env:TERRARIA_SPLIT_TEST_FILTER='Pyramid seed pre-screen'; dotnet run --project test\TerrariaSplit.Tests.csproj`
-- 金字塔预筛数据集评估：`dotnet run -c Release --project test\TerrariaSplit.Tests.csproj -- pyramid-metrics <world-folder> --csv test\Results\Metrics\metrics-current-release.csv`
+## Powershell 规则
+- 统一 Shell 环境：所有命令必须使用 PowerShell (推荐 pwsh 即 PowerShell 7 以上)。禁止使用 Windows 旧版 cmd.exe 或默认 powershell.exe。
+- 转义字符约束：Bash 与 PowerShell 的转义规则不同，在编写跨平台脚本时，禁止混用 Shell 语法。
+- 严格的错误处理：所有脚本首部必须包含 $ErrorActionPreference = 'Stop'，确保遇到错误时立即中断并报错，避免静默失败。
+- 编码规范：脚本文件生成与读写必须强制指定 -Encoding UTF8，防止中文字符或特殊符号乱码。
+- 管道与对象优先：在处理数据解析时，优先使用 PowerShell 的对象管道特性（如 Select-Object, Where-Object），避免过度依赖传统的文本截取。
 
 ## 构建与测试纪律
 - 验证强度按风险和影响面决定，默认选择能证明本次改动的最小验证，并不需要总是进行验证；只有跨层行为、发布边界或高风险运行路径变化时才升级到完整测试或完整构建。
@@ -53,3 +51,12 @@
 - 开发时先理解现有信息流和项目引用方向，再改代码；不要为局部任务引入第二套并行架构。
 - 优先沿用已有 helper、模型、测试风格和目录级规则；只有在减少真实复杂度时才新增抽象。
 - 必要时参考 Terraria 源码 `..\reference\Terraria1456` 。
+
+## 常用命令
+- 构建解决方案：`dotnet build TerrariaSplit.slnx`
+- 运行主程序：`dotnet run --project src\TerrariaSplit.WinForms\TerrariaSplit.WinForms.csproj`
+- 运行测试：`dotnet run --project test\TerrariaSplit.Tests.csproj`
+- 发布主程序：`dotnet publish src\TerrariaSplit.WinForms\TerrariaSplit.WinForms.csproj -c Release -o publish`
+- 跳过探针构建：给构建或发布命令追加 `-p:TerrariaSplitSkipMemoryProbe=true`
+- 金字塔预筛聚焦测试：`$env:TERRARIA_SPLIT_TEST_FILTER='Pyramid seed pre-screen'; dotnet run --project test\TerrariaSplit.Tests.csproj`
+- 金字塔预筛数据集评估：`dotnet run -c Release --project test\TerrariaSplit.Tests.csproj -- pyramid-metrics <world-folder> --csv test\Results\Metrics\metrics-current-release.csv`

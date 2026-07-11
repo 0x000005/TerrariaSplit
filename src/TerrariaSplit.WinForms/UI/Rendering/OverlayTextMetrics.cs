@@ -28,9 +28,14 @@ internal static class OverlayTextMetrics
         return path.PointCount > 0 ? path.GetBounds() : RectangleF.Empty;
     }
 
-    public static Font CreatePixelFont(float size, FontStyle style, string? familyName = null)
+    public static Font CreatePixelFont(
+        float size,
+        FontStyle style,
+        string? familyName = null,
+        IUiFontFactory? fontFactory = null)
     {
-        return UiFontFactory.Default.CreateFont(familyName, Math.Max(1f, size), style, GraphicsUnit.Pixel);
+        return (fontFactory ?? UiFontFactory.Default)
+            .CreateFont(familyName, Math.Max(1f, size), style, GraphicsUnit.Pixel);
     }
 
     private static float GetFontPixelsPerEm(Graphics graphics, Font font)

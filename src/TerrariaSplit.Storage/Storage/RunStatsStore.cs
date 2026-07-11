@@ -24,8 +24,7 @@ public sealed class RunStatsRepository
             return;
         }
 
-        RunStats stats = Load();
-        stats.LastRunSplits.Clear();
+        var lastRunSplits = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         SplitStatusSnapshot? lastCompleted = null;
 
         foreach (SplitStatusSnapshot status in statuses)
@@ -36,10 +35,10 @@ public sealed class RunStatsRepository
             }
 
             lastCompleted = status;
-            stats.LastRunSplits[status.Definition.Id] = TimeText.FormatRecord(splitTime);
+            lastRunSplits[status.Definition.Id] = TimeText.FormatRecord(splitTime);
         }
 
-        splitTimeSets.SaveLastRun(stats.LastRunSplits, lastCompleted?.Definition.DisplayName, lastCompleted?.Time);
+        splitTimeSets.SaveLastRun(lastRunSplits, lastCompleted?.Definition.DisplayName, lastCompleted?.Time);
     }
 }
 

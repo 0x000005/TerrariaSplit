@@ -405,7 +405,7 @@ internal static class SplitListRenderer
         if (count == 1)
         {
             int iconIndex = iconOrder[0];
-            IconPair icon = resources.BossIcons.Load(definition, definition.IconFileNames[iconIndex], context.Settings);
+            IconPair icon = resources.BossIcons.Load(definition, iconIndex, context.Settings);
             resources.BossIcons.TrackRendered(icon);
             bool lit = IsIconLit(context, status, definition, iconIndex);
             int singleIconSize = Math.Min(
@@ -435,7 +435,7 @@ internal static class SplitListRenderer
         for (int i = 0; i < count; i++)
         {
             int iconIndex = iconOrder[i];
-            IconPair icon = resources.BossIcons.Load(definition, definition.IconFileNames[iconIndex], context.Settings);
+            IconPair icon = resources.BossIcons.Load(definition, iconIndex, context.Settings);
             resources.BossIcons.TrackRendered(icon);
             bool lit = IsIconLit(context, status, definition, iconIndex);
             Image image = lit
@@ -665,12 +665,22 @@ internal static class SplitListRenderer
             return false;
         }
 
-        if (!SplitCatalog.TryGetTarget(displayDefinition.IconKeys[iconIndex], out SplitTargetDefinition target))
+        string targetId = displayDefinition.IconKeys[iconIndex];
+        string factKey;
+        if (SplitCatalog.TryParseItemTargetId(targetId, out int itemId))
+        {
+            factKey = SplitCatalog.CreateItemFactKey(itemId);
+        }
+        else if (SplitCatalog.TryGetTarget(targetId, out SplitTargetDefinition target))
+        {
+            factKey = target.FactKey;
+        }
+        else
         {
             return false;
         }
 
-        factKeys = GetEquivalentItemFactKeys(target.FactKey)
+        factKeys = GetEquivalentItemFactKeys(factKey)
             .Where(key => !string.IsNullOrWhiteSpace(key))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
@@ -723,6 +733,11 @@ internal static class SplitListRenderer
         string targetId,
         SplitCondition splitCondition)
     {
+        if (SplitCatalog.TryParseItemTargetId(targetId, out int itemId))
+        {
+            return IsItemFactSatisfied(facts, factKey, itemId, splitCondition);
+        }
+
         if (!SplitCatalog.TryGetTarget(targetId, out SplitTargetDefinition target))
         {
             return false;
@@ -732,7 +747,6 @@ internal static class SplitListRenderer
         return target.Kind switch
         {
             SplitTargetKind.Boss => value.AsBoolean() == true,
-            SplitTargetKind.Item => IsItemFactSatisfied(facts, factKey, target, splitCondition),
             SplitTargetKind.Npc => value.AsBoolean() == true,
             _ => false
         };
@@ -741,24 +755,12 @@ internal static class SplitListRenderer
     private static bool IsItemFactSatisfied(
         TerrariaGameFacts facts,
         string factKey,
-        SplitTargetDefinition target,
+        int itemId,
         SplitCondition splitCondition)
     {
-        if (!TryGetTargetItemId(target, factKey, out int itemId))
-        {
-            return false;
-        }
-
         int requiredQuantity = GetMinimumRequiredItemQuantity(splitCondition, itemId);
         return facts.Get(factKey).AsInteger() is int currentQuantity &&
             currentQuantity >= requiredQuantity;
-    }
-
-    private static bool TryGetTargetItemId(SplitTargetDefinition target, string factKey, out int itemId)
-    {
-        return SplitCatalog.TryParseItemTargetId(target.Id, out itemId) ||
-            SplitCatalog.TryParseItemFactKey(target.FactKey, out itemId) ||
-            SplitCatalog.TryParseItemFactKey(factKey, out itemId);
     }
 
     private static int GetMinimumRequiredItemQuantity(SplitCondition splitCondition, int itemId)

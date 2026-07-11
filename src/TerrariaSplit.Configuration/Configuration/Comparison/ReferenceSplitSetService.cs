@@ -42,7 +42,7 @@ public static class ReferenceSplitSetService
         {
             settings.Comparison.ReferenceSplitSets.Add(CreateReferenceSet(
                 "WR",
-                keys: SplitConditionDataRows.Build(settings).Select(row => row.Key)));
+                keys: SplitConditionDataRows.BuildKeys(settings)));
         }
 
         settings.Comparison.ActiveReferenceSplitSet = settings.Comparison.ReferenceSplitSets[0].Name;
@@ -54,7 +54,7 @@ public static class ReferenceSplitSetService
         return CreateReferenceSet(
             PersonalBestReferenceSetName,
             settings.Comparison.PersonalBestTimes,
-            SplitConditionDataRows.Build(settings).Select(row => row.Key));
+            SplitConditionDataRows.BuildKeys(settings));
     }
 
     public static ReferenceSplitSet CreateReferenceSet(
@@ -67,7 +67,7 @@ public static class ReferenceSplitSetService
             Name = string.IsNullOrWhiteSpace(name) ? "Reference" : name.Trim()
         };
 
-        IEnumerable<string> splitKeys = keys ?? SplitConditionDataRows.Build(SplitCatalog.CreateDefaultRoute()).Select(row => row.Key);
+        IEnumerable<string> splitKeys = keys ?? SplitConditionDataRows.BuildKeys(SplitCatalog.CreateDefaultRoute());
         foreach (string key in splitKeys.Where(key => !string.IsNullOrWhiteSpace(key)).Distinct(StringComparer.OrdinalIgnoreCase))
         {
             string value = values is not null && values.TryGetValue(key, out string? existingValue)

@@ -104,7 +104,13 @@ internal sealed class TerrariaMemoryResolver
         IProcessMemoryReader memory,
         IReadOnlyCollection<string>? observedFactKeys = null)
     {
-        TerrariaFactReadPlan readPlan = TerrariaFactReadPlan.FromObservedFactKeys(observedFactKeys);
+        return ReadGameFacts(memory, TerrariaFactReadPlan.FromObservedFactKeys(observedFactKeys));
+    }
+
+    internal TerrariaGameFacts ReadGameFacts(
+        IProcessMemoryReader memory,
+        TerrariaFactReadPlan readPlan)
+    {
         TerrariaMemoryContext context = CreateContext(memory, readPlan);
         return factReader.Read(memory, context, readPlan);
     }

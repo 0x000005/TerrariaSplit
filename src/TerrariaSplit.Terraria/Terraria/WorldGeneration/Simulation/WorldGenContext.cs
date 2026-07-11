@@ -16,12 +16,12 @@ internal sealed class WorldGenContext
 
     public int Seed { get; }
 
-    public UnifiedRandom Random { get; private set; }
+    public UnifiedRandom Random { get; }
 
     public WorldGenState? State { get; }
 
     public void ResetPassRandom()
     {
-        Random = new UnifiedRandom(Seed);
+        Random.SetSeed(Seed);
     }
 }

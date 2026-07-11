@@ -613,7 +613,7 @@ internal sealed class RaceLeaderboardForm : Form
             [iconKey],
                 [iconKey]);
         IconPair icon = TryLoadRouteIcon(entry, iconKey, iconFileName, settings) ??
-            iconCache.Load(definition, iconFileName, settings);
+            iconCache.Load(definition, 0, settings);
         iconCache.TrackRendered(icon);
         return icon.GetLitImage(DateTime.UtcNow);
     }

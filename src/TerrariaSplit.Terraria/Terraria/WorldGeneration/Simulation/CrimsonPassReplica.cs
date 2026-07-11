@@ -100,14 +100,7 @@ internal static class CrimsonPassReplica
                     jungleLeft = Math.Min(jungleLeft, x);
                     jungleRight = Math.Max(jungleRight, x);
                 }
-            }
-        }
 
-        for (int x = 0; x < width; x++)
-        {
-            for (int y = 0; y < scanBottom; y++)
-            {
-                TileData tile = state.Tiles[x, y];
                 if (tile.Active && tile.Type is TileIds.SnowBlock or TileIds.IceBlock)
                 {
                     snowLeft = Math.Min(snowLeft, x);

@@ -167,7 +167,11 @@ var legacyTests = new (string Name, Action Test)[]
     ("Pyramid filter falls back to stable file wait without generation state", TestPyramidFilterFallsBackWithoutGenerationState),
     ("Pyramid filter treats empty item mask as all candidate items", TestPyramidFilterTreatsEmptyItemMaskAsAllCandidateItems),
     ("Pyramid seed pre-screen only enables supported scope", TestPyramidSeedPreScreenScope),
+    ("Pyramid seed pre-screen generation watcher disables fact reads", TestPyramidSeedPreScreenGenerationWatcherDisablesFactReads),
+    ("Pyramid seed pre-screen reuses pass RNG without changing sequence", TestPyramidSeedPreScreenReusesPassRandom),
+    ("Pyramid seed pre-screen preserves modern and legacy RNG goldens", TestPyramidSeedPreScreenPreservesVersionedGoldens),
     ("Pyramid seed pre-screen supports versioned pass plans", TestPyramidSeedPreScreenSupportsVersionedPassPlans),
+    ("Pyramid seed pre-screen loop refreshes generation version from profile", TestPyramidSeedPreScreenLoopRefreshesGenerationVersionFromProfile),
     ("Pyramid seed pre-screen loop accepts after rejected seed", TestPyramidSeedPreScreenLoopAcceptsAfterRejectedSeed),
     ("Pyramid seed pre-screen loop stops first rejection without local retry", TestPyramidSeedPreScreenLoopStopsFirstRejectionWithoutLocalRetry),
     ("Pyramid seed pre-screen loop retries transient seed read failure", TestPyramidSeedPreScreenLoopRetriesTransientSeedReadFailure),
@@ -176,6 +180,7 @@ var legacyTests = new (string Name, Action Test)[]
     ("Pyramid seed pre-screen marks only dungeon-side target boundary uncertainty", TestPyramidSeedPreScreenDungeonBoundaryRisk),
     ("Pyramid seed pre-screen rejects known official no-tower false positives", TestPyramidSeedPreScreenRejectsKnownOfficialNoTowerFalsePositives),
     ("Pyramid seed pre-screen predicts known pyramid seed", TestPyramidSeedPreScreenPredictsKnownPyramidSeed),
+    ("Pyramid seed pre-screen evaluator does not retain generation version", TestPyramidSeedPreScreenEvaluatorDoesNotRetainGenerationVersion),
     ("Pyramid seed pre-screen evaluator requires selected item", TestPyramidSeedPreScreenEvaluatorRequiresSelectedItem),
     ("Pyramid seed pre-screen keeps first pyramid chest", TestPyramidSeedPreScreenKeepsFirstPyramidChest),
     ("World seed metadata matches world options", TestWorldSeedMetadataMatchesWorldOptions),
@@ -194,6 +199,7 @@ var tests = legacyTests
     .Concat(RenderingTests.All())
     .Concat(WorldGenerationMemoryTests.All())
     .Concat(TerrariaMemoryResolverTests.All())
+    .Concat(PerformanceRegressionTests.All())
     .ToArray();
 string? testFilter = Environment.GetEnvironmentVariable("TERRARIA_SPLIT_TEST_FILTER");
 if (!string.IsNullOrWhiteSpace(testFilter))
@@ -4539,6 +4545,107 @@ static void TestPyramidSeedPreScreenScope()
     AssertEqual(false, PyramidSeedPreScreenAutomation.IsEnabledFor(settings));
 }
 
+static void TestPyramidSeedPreScreenGenerationWatcherDisablesFactReads()
+{
+    var watcher = new SequenceGenerationWatcher(GenerationSnapshot(hasGeneration: true));
+    var filter = new PyramidFilterAutomation(
+        new TerrariaAutomationContext("test pyramid generation watcher"),
+        watcherFactory: () => watcher);
+    MethodInfo method = typeof(PyramidFilterAutomation).GetMethod(
+            "TryCreateGenerationWatcher",
+            BindingFlags.Instance | BindingFlags.NonPublic)
+        ?? throw new InvalidOperationException("Missing generation watcher factory method.");
+
+    var created = (ITerrariaWorldWatcher?)method.Invoke(filter, []);
+
+    AssertEqual(true, ReferenceEquals(watcher, created));
+    AssertEqual(1, watcher.SetObservedFactKeysCalls);
+    AssertEqual(0, watcher.ObservedFactKeys.Count);
+}
+
+static void TestPyramidSeedPreScreenReusesPassRandom()
+{
+    const int seed = 12345;
+    var context = new WorldGenContext(seed);
+    UnifiedRandom random = context.Random;
+    _ = random.Next();
+    _ = random.Next();
+
+    context.ResetPassRandom();
+
+    AssertEqual(true, ReferenceEquals(random, context.Random));
+    var expected = new UnifiedRandom(seed);
+    for (int i = 0; i < 8; i++)
+    {
+        AssertEqual(expected.Next(), context.Random.Next());
+    }
+
+    context.ResetPassRandom();
+    expected.SetSeed(seed);
+    for (int i = 0; i < 8; i++)
+    {
+        AssertEqual(expected.Next(), context.Random.Next());
+    }
+}
+
+static void TestPyramidSeedPreScreenPreservesVersionedGoldens()
+{
+    AssertPyramidStageOneGolden(
+        seedText: "540278984",
+        version: TerrariaWorldGenerationVersion.Modern1456,
+        expectedTargetClass: "sandstorm",
+        expectedLoot: "Sandstorm in a Bottle|#282x47|#3093|#40x36|#28x4|#2350x5|#2325x2|#31x18|#9x51",
+        expectedPassRandom:
+        [
+            ("Terrain", 2100940976),
+            ("Dunes", 1887533077),
+            ("Ocean Sand", 24056510),
+            ("Sand Patches", 1432269640),
+            ("Jungle", 408806386),
+            ("Full Desert", 730913838),
+            ("Corruption", 2134337897),
+            ("Pyramids", 512590976)
+        ]);
+    AssertPyramidStageOneGolden(
+        seedText: "1092653535",
+        version: TerrariaWorldGenerationVersion.Legacy1449,
+        expectedTargetClass: "other",
+        expectedLoot: "Pharaoh's Mask|Pharaoh's Robe|#703x4|#965x51|#2350x3|#72x29|#9x79",
+        expectedPassRandom:
+        [
+            ("Terrain", 1956276746),
+            ("Dunes", 431553396),
+            ("Ocean Sand", 9091362),
+            ("Sand Patches", 2093100333),
+            ("Jungle", 440268632),
+            ("Full Desert", 1125980028),
+            ("Corruption", 973026221),
+            ("Pyramids", 2108957702)
+        ]);
+}
+
+static void AssertPyramidStageOneGolden(
+    string seedText,
+    TerrariaWorldGenerationVersion version,
+    string expectedTargetClass,
+    string expectedLoot,
+    IReadOnlyList<(string Name, int RandNext)> expectedPassRandom)
+{
+    var metadata = new WorldSeedMetadata(seedText, SizeCode: 1, DifficultyCode: 1, HasCrimson: true, SpecialSeedMask: 0);
+    StageOneReplicaResult result = new StageOneReplicaSimulator().Generate(metadata, version);
+
+    AssertEqual(true, result.IsComplete);
+    foreach ((string passName, int expectedRandNext) in expectedPassRandom)
+    {
+        GenPassResult pass = result.Run.Results.First(item => string.Equals(item.Name, passName, StringComparison.Ordinal));
+        AssertEqual(expectedRandNext, pass.RandNext);
+    }
+
+    PyramidChestSet chests = result.State.ScanTargetPyramidChests();
+    AssertEqual(expectedTargetClass, chests.FormatTargetClass());
+    AssertEqual(expectedLoot, chests.FormatLootSummary());
+}
+
 static void TestPyramidSeedPreScreenSupportsVersionedPassPlans()
 {
     AssertEqual(true, PyramidSeedPreScreenEvaluator.IsSupportedTerrariaVersion("1.4.4.9"));
@@ -4552,6 +4659,12 @@ static void TestPyramidSeedPreScreenSupportsVersionedPassPlans()
     AssertEqual(
         TerrariaWorldGenerationVersion.Modern1456,
         PyramidSeedPreScreenEvaluator.WorldGenerationVersionFromTerrariaVersion("1.4.5.6"));
+    AssertEqual(
+        TerrariaWorldGenerationVersion.Legacy1449,
+        PyramidSeedPreScreenEvaluator.WorldGenerationVersionFromMenuProfile(TerrariaMenuProfile.Legacy1449));
+    AssertEqual(
+        TerrariaWorldGenerationVersion.Modern1456,
+        PyramidSeedPreScreenEvaluator.WorldGenerationVersionFromMenuProfile(TerrariaMenuProfile.Modern1456));
 
     IReadOnlyList<string> modern = OfficialPassPlan.PassNamesForDiagnostics(TerrariaWorldGenerationVersion.Modern1456);
     IReadOnlyList<string> legacy = OfficialPassPlan.PassNamesForDiagnostics(TerrariaWorldGenerationVersion.Legacy1449);
@@ -4581,6 +4694,37 @@ static int IndexOfPass(IReadOnlyList<string> passNames, string name)
     return -1;
 }
 
+static void TestPyramidSeedPreScreenLoopRefreshesGenerationVersionFromProfile()
+{
+    var evaluator = new FakePyramidSeedPreScreenEvaluator(_ => new PyramidSeedPreScreenPrediction(
+        default,
+        "all",
+        CanUsePrediction: true,
+        AcceptSeed: true,
+        RejectReason: string.Empty));
+    var loop = new PyramidSeedPreScreenLoop(evaluator, _ => { });
+    var settings = new AutoCreateWorldSettings();
+
+    PyramidSeedPreScreenLoopResult modern = loop.RunAsync(
+        settings,
+        TerrariaMenuProfile.Modern1456,
+        new FakePyramidSeedRandomizer(),
+        new FakePyramidVisibleSeedReader("100", [PyramidVisibleSeedReadResult.FromSeed("101", 1)]),
+        CancellationToken.None).GetAwaiter().GetResult();
+    PyramidSeedPreScreenLoopResult legacy = loop.RunAsync(
+        settings,
+        TerrariaMenuProfile.Legacy1449,
+        new FakePyramidSeedRandomizer(),
+        new FakePyramidVisibleSeedReader("200", [PyramidVisibleSeedReadResult.FromSeed("201", 1)]),
+        CancellationToken.None).GetAwaiter().GetResult();
+
+    AssertEqual(PyramidSeedPreScreenLoopStatus.Accepted, modern.Status);
+    AssertEqual(PyramidSeedPreScreenLoopStatus.Accepted, legacy.Status);
+    AssertEqual(
+        "Modern1456|Legacy1449",
+        string.Join("|", evaluator.VersionsSeen));
+}
+
 static void TestPyramidSeedPreScreenLoopAcceptsAfterRejectedSeed()
 {
     var randomizer = new FakePyramidSeedRandomizer();
@@ -4598,6 +4742,7 @@ static void TestPyramidSeedPreScreenLoopAcceptsAfterRejectedSeed()
 
     PyramidSeedPreScreenLoopResult result = loop.RunAsync(
         new AutoCreateWorldSettings(),
+        TerrariaMenuProfile.Modern1456,
         randomizer,
         reader,
         CancellationToken.None).GetAwaiter().GetResult();
@@ -4629,6 +4774,7 @@ static void TestPyramidSeedPreScreenLoopStopsFirstRejectionWithoutLocalRetry()
         {
             ReturnToMainMenuOnFilterFailure = true
         },
+        TerrariaMenuProfile.Modern1456,
         randomizer,
         reader,
         CancellationToken.None).GetAwaiter().GetResult();
@@ -4657,6 +4803,7 @@ static void TestPyramidSeedPreScreenLoopRetriesTransientSeedReadFailure()
 
     PyramidSeedPreScreenLoopResult result = loop.RunAsync(
         new AutoCreateWorldSettings(),
+        TerrariaMenuProfile.Modern1456,
         randomizer,
         reader,
         CancellationToken.None).GetAwaiter().GetResult();
@@ -4688,6 +4835,7 @@ static void TestPyramidSeedPreScreenLoopDoesNotRetrySeedReadFailureWithoutLocalR
         {
             ReturnToMainMenuOnFilterFailure = true
         },
+        TerrariaMenuProfile.Modern1456,
         randomizer,
         reader,
         CancellationToken.None).GetAwaiter().GetResult();
@@ -4717,6 +4865,7 @@ static void TestPyramidSeedPreScreenLoopStopsAfterRepeatedSeedReadFailures()
 
     PyramidSeedPreScreenLoopResult result = loop.RunAsync(
         new AutoCreateWorldSettings(),
+        TerrariaMenuProfile.Modern1456,
         randomizer,
         reader,
         CancellationToken.None).GetAwaiter().GetResult();
@@ -4777,6 +4926,47 @@ static void TestPyramidSeedPreScreenPredictsKnownPyramidSeed()
     AssertEqual(true, result.LootSummary.Contains("Sandstorm in a Bottle", StringComparison.Ordinal));
 }
 
+static void TestPyramidSeedPreScreenEvaluatorDoesNotRetainGenerationVersion()
+{
+    var evaluator = new PyramidSeedPreScreenEvaluator();
+    var settings = new AutoCreateWorldSettings
+    {
+        EnablePyramidFilter = true,
+        WorldSize = AutoCreateWorldSize.Small,
+        WorldDifficulty = AutoCreateWorldDifficulty.Classic,
+        WorldEvil = AutoCreateWorldEvil.Crimson,
+        SpecialSeeds = string.Empty,
+        SecretSeeds = string.Empty,
+        PyramidFilterItemMask = AutoCreatePyramidFilterItem.AllMask
+    };
+
+    PyramidSeedPreScreenPrediction modern = evaluator.Evaluate(
+        settings,
+        "540278984",
+        TerrariaWorldGenerationVersion.Modern1456);
+    PyramidSeedPreScreenPrediction legacy = evaluator.Evaluate(
+        settings,
+        "1092653535",
+        TerrariaWorldGenerationVersion.Legacy1449);
+    PyramidSeedPreScreenPrediction modernAgain = evaluator.Evaluate(
+        settings,
+        "540278984",
+        TerrariaWorldGenerationVersion.Modern1456);
+
+    AssertEqual(PyramidSeedPreScreenStatus.Complete, modern.Result.Status);
+    AssertEqual("sandstorm", modern.Result.TargetClass);
+    AssertEqual(
+        "Sandstorm in a Bottle|#282x47|#3093|#40x36|#28x4|#2350x5|#2325x2|#31x18|#9x51",
+        modern.Result.LootSummary);
+    AssertEqual(PyramidSeedPreScreenStatus.Complete, legacy.Result.Status);
+    AssertEqual("other", legacy.Result.TargetClass);
+    AssertEqual(
+        "Pharaoh's Mask|Pharaoh's Robe|#703x4|#965x51|#2350x3|#72x29|#9x79",
+        legacy.Result.LootSummary);
+    AssertEqual(modern.Result.TargetClass, modernAgain.Result.TargetClass);
+    AssertEqual(modern.Result.LootSummary, modernAgain.Result.LootSummary);
+}
+
 static void TestPyramidSeedPreScreenEvaluatorRequiresSelectedItem()
 {
     var evaluator = new PyramidSeedPreScreenEvaluator();
@@ -4791,7 +4981,10 @@ static void TestPyramidSeedPreScreenEvaluatorRequiresSelectedItem()
         PyramidFilterItemMask = AutoCreatePyramidFilterItem.FlyingCarpetMask
     };
 
-    PyramidSeedPreScreenPrediction prediction = evaluator.Evaluate(settings, "540278984");
+    PyramidSeedPreScreenPrediction prediction = evaluator.Evaluate(
+        settings,
+        "540278984",
+        TerrariaWorldGenerationVersion.Modern1456);
 
     AssertEqual(true, prediction.CanUsePrediction);
     AssertEqual(true, prediction.Result.HasTargetPyramid);
@@ -4800,7 +4993,10 @@ static void TestPyramidSeedPreScreenEvaluatorRequiresSelectedItem()
     AssertEqual("item mismatch", prediction.RejectReason);
 
     settings.PyramidFilterItemMask = AutoCreatePyramidFilterItem.SandstormInABottleMask;
-    PyramidSeedPreScreenPrediction matchingPrediction = evaluator.Evaluate(settings, "540278984");
+    PyramidSeedPreScreenPrediction matchingPrediction = evaluator.Evaluate(
+        settings,
+        "540278984",
+        TerrariaWorldGenerationVersion.Modern1456);
 
     AssertEqual(true, matchingPrediction.Result.MatchesRequiredItems);
     AssertEqual(true, matchingPrediction.AcceptSeed);
@@ -6608,8 +6804,14 @@ sealed class FakePyramidSeedPreScreenEvaluator : IPyramidSeedPreScreenEvaluator
         this.evaluate = evaluate;
     }
 
-    public PyramidSeedPreScreenPrediction Evaluate(AutoCreateWorldSettings settings, string seedText)
+    public List<TerrariaWorldGenerationVersion> VersionsSeen { get; } = [];
+
+    public PyramidSeedPreScreenPrediction Evaluate(
+        AutoCreateWorldSettings settings,
+        string seedText,
+        TerrariaWorldGenerationVersion worldGenerationVersion)
     {
+        VersionsSeen.Add(worldGenerationVersion);
         return evaluate(seedText);
     }
 }
@@ -6632,6 +6834,16 @@ sealed class SequenceGenerationWatcher : ITerrariaWorldWatcher
                 false,
                 "test watcher")]
             : snapshots;
+    }
+
+    public int SetObservedFactKeysCalls { get; private set; }
+
+    public IReadOnlySet<string> ObservedFactKeys { get; private set; } = new HashSet<string>();
+
+    public void SetObservedFactKeys(IReadOnlySet<string> factKeys)
+    {
+        SetObservedFactKeysCalls++;
+        ObservedFactKeys = new HashSet<string>(factKeys, StringComparer.OrdinalIgnoreCase);
     }
 
     public TerrariaWatchSnapshot Poll()

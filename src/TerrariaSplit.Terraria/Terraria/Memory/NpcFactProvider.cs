@@ -25,7 +25,7 @@ internal sealed class NpcFactProvider
             return TerrariaGameFacts.Unknown;
         }
 
-        int[] selectedNpcIds = GetSelectedNpcIds(readPlan);
+        int[] selectedNpcIds = readPlan.SelectedNpcIds;
         if (lastPresentNpcIds is not null &&
             lastFacts is not null &&
             SelectionEquals(readPlan, selectedNpcIds) &&
@@ -83,17 +83,35 @@ internal sealed class NpcFactProvider
                 continue;
             }
 
-            if (!memory.TryReadBool(IntPtr.Add(npcAddress, layout.NpcActiveFieldOffset), out bool active) ||
-                !memory.TryReadBool(IntPtr.Add(npcAddress, layout.NpcTownNpcFieldOffset), out bool townNpc) ||
-                !memory.TryReadInt32(IntPtr.Add(npcAddress, layout.NpcTypeFieldOffset), out int type))
+            if (!memory.TryReadBool(IntPtr.Add(npcAddress, layout.NpcActiveFieldOffset), out bool active))
+            {
+                continue;
+            }
+
+            if (!active)
+            {
+                readAnyNpc = true;
+                continue;
+            }
+
+            if (!memory.TryReadBool(IntPtr.Add(npcAddress, layout.NpcTownNpcFieldOffset), out bool townNpc))
+            {
+                continue;
+            }
+
+            if (!townNpc)
+            {
+                readAnyNpc = true;
+                continue;
+            }
+
+            if (!memory.TryReadInt32(IntPtr.Add(npcAddress, layout.NpcTypeFieldOffset), out int type))
             {
                 continue;
             }
 
             readAnyNpc = true;
-            if (active &&
-                townNpc &&
-                (readPlan.ReadsAll
+            if ((readPlan.ReadsAll
                     ? TerrariaNpcCatalog.ById.ContainsKey(type)
                     : readPlan.IncludesNpcId(type)))
             {
@@ -119,10 +137,4 @@ internal sealed class NpcFactProvider
             (lastNpcIds is not null && lastNpcIds.SequenceEqual(selectedNpcIds));
     }
 
-    private static int[] GetSelectedNpcIds(TerrariaFactReadPlan readPlan)
-    {
-        return readPlan.ReadsAll
-            ? []
-            : readPlan.NpcIds.OrderBy(npcId => npcId).ToArray();
-    }
 }

@@ -16,7 +16,11 @@ internal static class RuntimeObservedFactKeys
 
             foreach (string targetId in definition.TargetIds)
             {
-                if (SplitCatalog.TryGetTarget(targetId, out SplitTargetDefinition target))
+                if (SplitCatalog.TryParseItemTargetId(targetId, out int itemId))
+                {
+                    AddFactKey(factKeys, SplitCatalog.CreateItemFactKey(itemId));
+                }
+                else if (SplitCatalog.TryGetTarget(targetId, out SplitTargetDefinition target))
                 {
                     AddFactKey(factKeys, target.FactKey);
                 }

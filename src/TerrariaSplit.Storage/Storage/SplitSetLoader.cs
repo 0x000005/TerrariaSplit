@@ -31,7 +31,7 @@ internal sealed class SplitSetLoader
 
         settings.Comparison.PersonalBestTimeSets = new List<ReferenceSplitSet>
         {
-            CreateSet("Personal", SplitConditionDataRows.Build(settings).Select(row => row.Key))
+            CreateSet("Personal", SplitConditionDataRows.BuildKeys(settings))
         };
         splitTimeSets.SavePersonalBestTimeSets(settings.Comparison.PersonalBestTimeSets);
     }

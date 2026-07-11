@@ -61,6 +61,7 @@ internal sealed class PyramidSeedPreScreenAutomation
             var loop = new PyramidSeedPreScreenLoop(evaluator, StaticAppLogger.Instance.Info);
             PyramidSeedPreScreenLoopResult result = await loop.RunAsync(
                 settings,
+                geometry.Profile,
                 new TerrariaVisibleSeedRandomizer(automation, geometry, clickDelay),
                 seedReader,
                 cancellationToken);
@@ -108,6 +109,7 @@ internal sealed class PyramidSeedPreScreenAutomation
             var loop = new PyramidSeedPreScreenLoop(evaluator, StaticAppLogger.Instance.Info);
             PyramidSeedPreScreenLoopResult result = await loop.RunAsync(
                 settings,
+                geometry.Profile,
                 new TerrariaLegacy1449SeedRandomizer(automation, geometry, clickDelay),
                 seedReader,
                 cancellationToken);

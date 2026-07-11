@@ -39,7 +39,7 @@ public sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
     private (string Stage, string Detail, int ProcessId, bool StartPending)? operationalTextKey;
     private string? cachedOperationalStage;
     private string? cachedOperationalStatus;
-    private string[]? observedFactKeys;
+    private TerrariaFactReadPlan? observedFactReadPlan;
 
     public TerrariaWorldWatcher()
     {
@@ -123,7 +123,7 @@ public sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
 
         TerrariaGameFacts facts = resolver.ReadGameFacts(
             memory,
-            System.Threading.Volatile.Read(ref observedFactKeys));
+            System.Threading.Volatile.Read(ref observedFactReadPlan) ?? TerrariaFactReadPlan.ReadAll);
         TerrariaWorldGenerationState worldGeneration = isGameMenu
             ? resolver.ReadWorldGenerationState(memory)
             : TerrariaWorldGenerationState.Unknown;
@@ -164,7 +164,8 @@ public sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(key => key, StringComparer.OrdinalIgnoreCase)
             .ToArray();
-        System.Threading.Volatile.Write(ref observedFactKeys, keys);
+        TerrariaFactReadPlan readPlan = TerrariaFactReadPlan.FromObservedFactKeys(keys);
+        System.Threading.Volatile.Write(ref observedFactReadPlan, readPlan);
     }
 
     public TerrariaWatcherDiagnostics GetDiagnostics()

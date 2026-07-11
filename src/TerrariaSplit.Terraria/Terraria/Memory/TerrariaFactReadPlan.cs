@@ -17,6 +17,15 @@ internal sealed class TerrariaFactReadPlan
         ItemIds = itemIds;
         NpcIds = npcIds;
         BiomeIds = biomeIds;
+        SelectedItemIds = readsAll || itemIds.Count == 0
+            ? []
+            : itemIds.OrderBy(static itemId => itemId).ToArray();
+        SelectedNpcIds = readsAll || npcIds.Count == 0
+            ? []
+            : npcIds.OrderBy(static npcId => npcId).ToArray();
+        SelectedBiomeIds = readsAll || biomeIds.Count == 0
+            ? []
+            : biomeIds.OrderBy(static biomeId => biomeId, StringComparer.OrdinalIgnoreCase).ToArray();
     }
 
     public static TerrariaFactReadPlan ReadAll { get; } = new(
@@ -35,6 +44,12 @@ internal sealed class TerrariaFactReadPlan
     public IReadOnlySet<int> NpcIds { get; }
 
     public IReadOnlySet<string> BiomeIds { get; }
+
+    public int[] SelectedItemIds { get; }
+
+    public int[] SelectedNpcIds { get; }
+
+    public string[] SelectedBiomeIds { get; }
 
     public bool ReadsBossFacts => ReadsAll || BossFactKeys.Count > 0;
 

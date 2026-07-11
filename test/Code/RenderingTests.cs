@@ -33,6 +33,7 @@ internal static class RenderingTests
         yield return ("BossIconCache crops animated item textures", BossIconCacheCropsAnimatedItemTextures);
         yield return ("BossIconCache animates GIF icon frames", BossIconCacheAnimatesGifIconFrames);
         yield return ("BossIconCache loads boss icons from Icons Bosses", BossIconCacheLoadsBossIconsFromIconsBosses);
+        yield return ("BossIconCache reuses stable requests until clear", BossIconCacheReusesStableRequestsUntilClear);
         yield return ("SplitSoundSelector routes final group completions to final group sounds", SplitSoundSelectorRoutesFinalGroupCompletionsToFinalGroupSounds);
         yield return ("SplitSoundSelector treats missing comparison data as faster", SplitSoundSelectorTreatsMissingComparisonDataAsFaster);
         yield return ("SoundFeedbackService uses final group sounds for route final group", SoundFeedbackServiceUsesFinalGroupSoundsForRouteFinalGroup);
@@ -51,11 +52,13 @@ internal static class RenderingTests
         yield return ("SplitListRenderer preserves current split depth curve", SplitListRendererPreservesCurrentSplitDepthCurve);
         yield return ("SplitRowPaintOrder paints far rows first", SplitRowPaintOrderPaintsFarRowsFirst);
         yield return ("SplitListRenderer partial region redraw matches full render", SplitListRendererPartialRegionMatchesFullRender);
+        yield return ("OverlayRenderer skips fully occluded split list construction", OverlayRendererSkipsFullyOccludedSplitListConstruction);
         yield return ("SplitCompletionAnimationFactory filters OR completion icons to matched target", SplitCompletionAnimationFactoryFiltersOrCompletionIconsToMatchedTarget);
         yield return ("SplitCompletionAnimationFactory creates animation with split delta", SplitCompletionAnimationFactoryCreatesAnimationWithSplitDelta);
         yield return ("SplitCompletionAnimationRenderer preserves fade curve", SplitCompletionAnimationRendererPreservesFadeCurve);
         yield return ("SplitCompletionAnimationRenderer preserves delta slide curve", SplitCompletionAnimationRendererPreservesDeltaSlideCurve);
         yield return ("SplitCompletionAnimationRenderer centers on rendered rows", SplitCompletionAnimationRendererCentersOnRenderedRows);
+        yield return ("SplitCompletionAnimationRenderer reuses fixed layout fonts across frames", SplitCompletionAnimationRendererReusesFixedLayoutFontsAcrossFrames);
         yield return ("OverlayTextStyles includes attached groups in timer comparison", OverlayTextStylesIncludesAttachedGroupsInTimerComparison);
         yield return ("OverlayTextStyles follows displayed multi condition reference", OverlayTextStylesFollowsDisplayedMultiConditionReference);
         yield return ("OverlayTextStyles maps text effect percentages", OverlayTextStylesMapsTextEffectPercentages);
@@ -711,7 +714,7 @@ internal static class RenderingTests
                 [SplitCatalog.CreateItemTargetId(75)]);
 
             using var cache = new BossIconCache();
-            IconPair icons = cache.Load(definition, path, settings);
+            IconPair icons = cache.Load(definition, 0, settings);
 
             using var lit = new Bitmap(icons.Lit);
             TestAssert.Equal(4, lit.Width);
@@ -751,7 +754,7 @@ internal static class RenderingTests
                 ["custom-icon:split:animated"]);
 
             using var cache = new BossIconCache();
-            IconPair icons = cache.Load(definition, path, new AppSettings());
+            IconPair icons = cache.Load(definition, 0, new AppSettings());
             TestAssert.Equal(true, icons.IsAnimated);
 
             using var first = new Bitmap(icons.GetLitImage(DateTime.UnixEpoch));
@@ -792,12 +795,52 @@ internal static class RenderingTests
             ["boss:king-slime"]);
 
         using var cache = new BossIconCache();
-        IconPair icons = cache.Load(definition, "king-slime.png", new AppSettings());
+        IconPair icons = cache.Load(definition, 0, new AppSettings());
         using var lit = new Bitmap(icons.Lit);
 
         TestAssert.Equal(expected.Width, lit.Width);
         TestAssert.Equal(expected.Height, lit.Height);
         TestAssert.Equal(false, lit.Width == itemIcon.Width && lit.Height == itemIcon.Height);
+    }
+
+    private static void BossIconCacheReusesStableRequestsUntilClear()
+    {
+        string path = Path.Combine(AppContext.BaseDirectory, "Assets", "Icons", "Bosses", "king-slime.png");
+        TestAssert.Equal(true, File.Exists(path));
+
+        var definition = new SplitDefinition(
+            "split:boss-king-slime",
+            "King Slime",
+            SplitCatalog.CreateBossFactCondition("boss:king-slime"),
+            [path],
+            ["boss:king-slime"],
+            ["boss:king-slime"]);
+        int fileExistsCount = 0;
+        using var cache = new BossIconCache(candidate =>
+        {
+            fileExistsCount++;
+            return File.Exists(candidate);
+        });
+
+        IconPair first = cache.Load(definition, 0, new AppSettings());
+        int probesAfterFirstLoad = fileExistsCount;
+        TestAssert.Equal(true, probesAfterFirstLoad > 0);
+
+        var equivalentDefinition = new SplitDefinition(
+            definition.Id,
+            "Equivalent King Slime",
+            SplitCatalog.CreateBossFactCondition("boss:king-slime"),
+            [path],
+            ["boss:king-slime"],
+            ["boss:king-slime"]);
+        IconPair second = cache.Load(equivalentDefinition, 0, new AppSettings());
+        TestAssert.Equal(true, ReferenceEquals(first, second));
+        TestAssert.Equal(probesAfterFirstLoad, fileExistsCount);
+
+        cache.Clear();
+        IconPair afterClear = cache.Load(equivalentDefinition, 0, new AppSettings());
+        TestAssert.Equal(false, ReferenceEquals(second, afterClear));
+        TestAssert.Equal(probesAfterFirstLoad * 2, fileExistsCount);
     }
 
     private static void SplitSoundSelectorRoutesFinalGroupCompletionsToFinalGroupSounds()
@@ -2151,6 +2194,38 @@ internal static class RenderingTests
         TestAssert.Equal(true, BitmapsMatch(expected, patched));
     }
 
+    private static void OverlayRendererSkipsFullyOccludedSplitListConstruction()
+    {
+        TestAssert.Equal(false, OverlayRenderer.ShouldRenderSplitList(0f));
+        TestAssert.Equal(true, OverlayRenderer.ShouldRenderSplitList(float.Epsilon));
+        TestAssert.Equal(true, OverlayRenderer.ShouldRenderSplitList(0.01f));
+
+        SplitCompletionAnimationRenderFixture fixture = CreateSplitCompletionAnimationRenderFixture();
+        var animationStatuses = new CountingReadOnlyList<SplitStatusSnapshot>([fixture.Status]);
+        var overlayStatuses = new CountingReadOnlyList<SplitStatusSnapshot>([fixture.Status]);
+        OverlayRenderContext animationContext = fixture.Context with { Statuses = animationStatuses };
+        OverlayRenderContext overlayContext = fixture.Context with { Statuses = overlayStatuses };
+        var size = new Size(680, 600);
+
+        using var animationResources = new OverlayRenderResources();
+        using Bitmap animationOnly = RenderSplitCompletionAnimationFrame(
+            animationContext,
+            animationResources,
+            fixture.Animation,
+            TimeSpan.FromSeconds(1),
+            size);
+        using var overlayResources = new OverlayRenderResources();
+        using Bitmap composed = RenderStatusFrame(
+            overlayContext,
+            overlayResources,
+            size,
+            clipBounds: null,
+            baseFrame: null);
+
+        TestAssert.Equal(true, BitmapsMatch(animationOnly, composed));
+        TestAssert.Equal(animationStatuses.CountReadCount, overlayStatuses.CountReadCount);
+    }
+
     private static void SplitCompletionAnimationFactoryFiltersOrCompletionIconsToMatchedTarget()
     {
         SplitDefinition definition = CreateAnyBossDefinition();
@@ -2435,6 +2510,67 @@ internal static class RenderingTests
         TestAssert.Equal(true, bounds.Top > layout.GetRowRect(0).Top);
     }
 
+    private static void SplitCompletionAnimationRendererReusesFixedLayoutFontsAcrossFrames()
+    {
+        SplitCompletionAnimationRenderFixture fixture = CreateSplitCompletionAnimationRenderFixture();
+        var fontFactory = new CountingUiFontFactory();
+        using var resources = new OverlayRenderResources(fontFactory);
+        var size = new Size(680, 600);
+
+        using Bitmap first = RenderSplitCompletionAnimationFrame(
+            fixture.Context,
+            resources,
+            fixture.Animation,
+            TimeSpan.FromSeconds(1),
+            size);
+        int fontsAfterFirstFrame = fontFactory.CreateFontCount;
+        TestAssert.Equal(true, fontsAfterFirstFrame > 0);
+
+        using Bitmap second = RenderSplitCompletionAnimationFrame(
+            fixture.Context with { NowUtc = fixture.Context.NowUtc.AddMilliseconds(100) },
+            resources,
+            fixture.Animation,
+            TimeSpan.FromSeconds(1.1),
+            size);
+        TestAssert.Equal(fontsAfterFirstFrame, fontFactory.CreateFontCount);
+        TestAssert.Equal(true, BitmapsMatch(first, second));
+
+        SplitLayout changedLayout = fixture.Context.Layout with
+        {
+            FirstRowRect = fixture.Context.Layout.FirstRowRect with
+            {
+                Width = fixture.Context.Layout.FirstRowRect.Width - 24
+            }
+        };
+        using Bitmap changedLayoutFrame = RenderSplitCompletionAnimationFrame(
+            fixture.Context with { Layout = changedLayout },
+            resources,
+            fixture.Animation,
+            TimeSpan.FromSeconds(1.1),
+            size);
+        TestAssert.Equal(true, fontFactory.CreateFontCount > fontsAfterFirstFrame);
+        int fontsAfterLayoutChange = fontFactory.CreateFontCount;
+
+        SplitCompletionAnimation replacementAnimation = fixture.Animation with { };
+        using Bitmap replacementFrame = RenderSplitCompletionAnimationFrame(
+            fixture.Context with { SplitCompletionAnimation = replacementAnimation },
+            resources,
+            replacementAnimation,
+            TimeSpan.FromSeconds(1.1),
+            size);
+        TestAssert.Equal(true, fontFactory.CreateFontCount > fontsAfterLayoutChange);
+        int fontsAfterAnimationChange = fontFactory.CreateFontCount;
+
+        fixture.Context.Settings.Overlay.Columns.Timer.FontFamily = "Definitely Missing TerrariaSplit Font";
+        using Bitmap changedFontFrame = RenderSplitCompletionAnimationFrame(
+            fixture.Context,
+            resources,
+            fixture.Animation,
+            TimeSpan.FromSeconds(1.1),
+            size);
+        TestAssert.Equal(true, fontFactory.CreateFontCount > fontsAfterAnimationChange);
+    }
+
     private static void OverlayTextStylesMapsTextEffectPercentages()
     {
         var settings = new AppSettings
@@ -2649,6 +2785,138 @@ internal static class RenderingTests
             palette,
             milliseconds: false);
         TestAssert.Equal(Color.FromArgb(0x11, 0x22, 0x33).ToArgb(), collapsedStyle.Fill.ToArgb());
+    }
+
+    private static SplitCompletionAnimationRenderFixture CreateSplitCompletionAnimationRenderFixture()
+    {
+        var settings = new AppSettings();
+        settings.Overlay.Columns.Timer.Show = false;
+        settings.Overlay.Columns.TimerMilliseconds.Show = false;
+        settings.Overlay.SplitCompletionAnimationDurationSeconds = 6f;
+
+        var definition = new SplitDefinition(
+            "split:animation-cache",
+            "Animation cache",
+            SplitCondition.Fact("fact:animation-cache"),
+            [],
+            [],
+            []);
+        var status = new SplitStatusSnapshot(
+            definition,
+            TimeSpan.FromSeconds(83.45),
+            IsSkipped: false,
+            CompletedFactKeys: []);
+        var startedAtUtc = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var animation = new SplitCompletionAnimation(
+            definition,
+            SegmentTime: TimeSpan.FromSeconds(13.45),
+            SplitTime: TimeSpan.FromSeconds(83.45),
+            ReferenceSplitComparison: new SplitComparison(TimeSpan.FromSeconds(-1.23), ShowDelta: true),
+            PersonalBestSegmentComparison: new SplitComparison(TimeSpan.FromSeconds(0.45), ShowDelta: true),
+            ShowSplitComparison: true,
+            SplitTimeOutlineStyle: SplitCompletionOutlineStyles.None,
+            ShowSegmentComparison: true,
+            SegmentTimeOutlineStyle: SplitCompletionOutlineStyles.None,
+            SegmentBestDeltaHighlightStyle: SegmentBestDeltaHighlightStyles.None,
+            StartedAtUtc: startedAtUtc);
+        var layout = new SplitLayout(
+            new Rectangle(20, 20, 620, 56),
+            new Rectangle(20, 500, 620, 70),
+            RowGap: 8);
+        var context = new OverlayRenderContext(
+            settings,
+            UiPalette.From(settings.Overlay.Colors),
+            TestSnapshots.Terraria(isGameMenu: false),
+            [status],
+            CurrentSplitIndex: 0,
+            SplitTimerPhase.Running,
+            TimeSpan.FromSeconds(83.45),
+            layout,
+            VisibleStatusRowCount: SplitCompletionAnimationRenderer.ReservedRowCount,
+            MouseClickThrough: false,
+            SplitCompletionAnimation: animation,
+            SegmentBestDeltaHighlights: new Dictionary<int, SegmentBestDeltaHighlight>(),
+            NowUtc: startedAtUtc.AddSeconds(1));
+        return new SplitCompletionAnimationRenderFixture(context, animation, status);
+    }
+
+    private static Bitmap RenderSplitCompletionAnimationFrame(
+        OverlayRenderContext context,
+        OverlayRenderResources resources,
+        SplitCompletionAnimation animation,
+        TimeSpan elapsed,
+        Size size)
+    {
+        var bitmap = new Bitmap(size.Width, size.Height, PixelFormat.Format32bppPArgb);
+        using Graphics graphics = Graphics.FromImage(bitmap);
+        ConfigureOverlayGraphics(graphics);
+        graphics.Clear(Color.Transparent);
+        SplitCompletionAnimationRenderer.Render(
+            graphics,
+            context,
+            resources,
+            animation,
+            elapsed,
+            opacity: 1f);
+        return bitmap;
+    }
+
+    private readonly record struct SplitCompletionAnimationRenderFixture(
+        OverlayRenderContext Context,
+        SplitCompletionAnimation Animation,
+        SplitStatusSnapshot Status);
+
+    private sealed class CountingReadOnlyList<T>(IReadOnlyList<T> items) : IReadOnlyList<T>
+    {
+        public int CountReadCount { get; private set; }
+
+        public int Count
+        {
+            get
+            {
+                CountReadCount++;
+                return items.Count;
+            }
+        }
+
+        public T this[int index] => items[index];
+
+        public IEnumerator<T> GetEnumerator()
+        {
+            return items.GetEnumerator();
+        }
+
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
+        {
+            return GetEnumerator();
+        }
+    }
+
+    private sealed class CountingUiFontFactory : IUiFontFactory
+    {
+        private readonly IUiFontFactory inner = UiFontFactory.Default;
+
+        public int CreateFontCount { get; private set; }
+
+        public IReadOnlyList<string> GetInstalledFamilyNames()
+        {
+            return inner.GetInstalledFamilyNames();
+        }
+
+        public string NormalizeFamilyName(string? familyName)
+        {
+            return inner.NormalizeFamilyName(familyName);
+        }
+
+        public Font CreateFont(
+            string? familyName,
+            float size,
+            FontStyle style,
+            GraphicsUnit unit = GraphicsUnit.Point)
+        {
+            CreateFontCount++;
+            return inner.CreateFont(familyName, size, style, unit);
+        }
     }
 
     private static SplitDefinition CreateAnyBossDefinition()

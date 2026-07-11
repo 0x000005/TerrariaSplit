@@ -51,9 +51,7 @@ public static class SettingsNormalizer
         SettingsSectionNormalizer.NormalizeColumnSettings(settings.Overlay.Columns, defaults.Overlay.Columns);
         SettingsSectionNormalizer.NormalizeTextEffects(settings.Overlay.TextEffects);
 
-        IReadOnlyList<SplitConditionDataRow> conditionRows = SplitConditionDataRows.Build(settings);
-        HashSet<string> conditionRowKeys = conditionRows
-            .Select(row => row.Key)
+        HashSet<string> conditionRowKeys = SplitConditionDataRows.BuildKeys(settings)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         RemoveUnknownCumulativeKeys(settings, conditionRowKeys);
@@ -119,7 +117,7 @@ public static class SettingsNormalizer
                 ? CreateRouteEntryDisplayName(entry, normalized.Count + 1)
                 : entry.DisplayName.Trim();
             List<string> inferredTargetIds = SplitCatalog.InferTargetIds(entry.Condition)
-                .Where(targetId => SplitCatalog.TryGetTarget(targetId, out _))
+                .Where(SplitCatalog.IsKnownTargetId)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
             entry.IconTargetIds = inferredTargetIds;

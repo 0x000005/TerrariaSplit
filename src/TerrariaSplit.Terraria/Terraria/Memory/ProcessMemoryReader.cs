@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
+using Microsoft.Win32.SafeHandles;
 using Process = System.Diagnostics.Process;
 
 namespace TerrariaSplit.Terraria.Memory;
@@ -11,12 +12,17 @@ internal sealed class ProcessMemoryReader : IProcessMemoryReader
     private static readonly UIntPtr MemoryBasicInformationSize =
         (UIntPtr)Marshal.SizeOf<MemoryBasicInformation>();
 
-    private readonly Process process;
+    private readonly SafeProcessHandle processHandle;
 
     public ProcessMemoryReader(Process process)
+        : this(process, DetermineIs64Bit(process))
     {
-        this.process = process;
-        Is64Bit = DetermineIs64Bit(process);
+    }
+
+    internal ProcessMemoryReader(Process process, bool is64Bit)
+    {
+        processHandle = process.SafeHandle;
+        Is64Bit = is64Bit;
     }
 
     public bool Is64Bit { get; }
@@ -24,75 +30,74 @@ internal sealed class ProcessMemoryReader : IProcessMemoryReader
     public bool TryReadBool(IntPtr address, out bool value)
     {
         value = false;
-        if (!TryReadBytes(address, 1, out byte[]? bytes))
+        if (!TryGetLiveProcessHandle(out SafeProcessHandle processHandle) ||
+            !NativeMethods.ReadProcessMemory(
+                processHandle,
+                address,
+                out byte rawValue,
+                (UIntPtr)sizeof(byte),
+                out UIntPtr bytesRead) ||
+            bytesRead != (UIntPtr)sizeof(byte))
         {
             return false;
         }
 
-        value = bytes[0] != 0;
+        value = rawValue != 0;
         return true;
     }
 
     public bool TryReadInt32(IntPtr address, out int value)
     {
         value = 0;
-        if (!TryReadBytes(address, 4, out byte[]? bytes))
+        if (!TryGetLiveProcessHandle(out SafeProcessHandle processHandle) ||
+            !NativeMethods.ReadProcessMemory(
+                processHandle,
+                address,
+                out int rawValue,
+                (UIntPtr)sizeof(int),
+                out UIntPtr bytesRead) ||
+            bytesRead != (UIntPtr)sizeof(int))
         {
             return false;
         }
 
-        value = BitConverter.ToInt32(bytes, 0);
+        value = rawValue;
         return true;
     }
 
     public bool TryReadDouble(IntPtr address, out double value)
     {
         value = 0d;
-        if (!TryReadBytes(address, 8, out byte[]? bytes))
+        if (!TryGetLiveProcessHandle(out SafeProcessHandle processHandle) ||
+            !NativeMethods.ReadProcessMemory(
+                processHandle,
+                address,
+                out double rawValue,
+                (UIntPtr)sizeof(double),
+                out UIntPtr bytesRead) ||
+            bytesRead != (UIntPtr)sizeof(double))
         {
             return false;
         }
 
-        value = BitConverter.ToDouble(bytes, 0);
+        value = rawValue;
         return true;
     }
 
     public bool TryReadPointer(IntPtr address, out IntPtr value)
     {
-        value = IntPtr.Zero;
-
-        int size = Is64Bit ? 8 : 4;
-        if (!TryReadBytes(address, size, out byte[]? bytes))
-        {
-            return false;
-        }
-
-        value = Is64Bit
-            ? new IntPtr(BitConverter.ToInt64(bytes, 0))
-            : new IntPtr(BitConverter.ToUInt32(bytes, 0));
-        return value != IntPtr.Zero;
+        return TryReadPointerCore(address, out value) && value != IntPtr.Zero;
     }
 
     public bool TryReadPointerValue(IntPtr address, out IntPtr value)
     {
-        value = IntPtr.Zero;
-
-        int size = Is64Bit ? 8 : 4;
-        if (!TryReadBytes(address, size, out byte[]? bytes))
-        {
-            return false;
-        }
-
-        value = Is64Bit
-            ? new IntPtr(BitConverter.ToInt64(bytes, 0))
-            : new IntPtr(BitConverter.ToUInt32(bytes, 0));
-        return true;
+        return TryReadPointerCore(address, out value);
     }
 
     public bool TryReadBytes(IntPtr address, int count, [NotNullWhen(true)] out byte[]? bytes)
     {
         bytes = null;
-        if (count <= 0 || process.HasExited)
+        if (count <= 0 || !TryGetLiveProcessHandle(out SafeProcessHandle processHandle))
         {
             return false;
         }
@@ -101,7 +106,7 @@ internal sealed class ProcessMemoryReader : IProcessMemoryReader
         try
         {
             if (!NativeMethods.ReadProcessMemory(
-                    process.Handle,
+                    processHandle,
                     address,
                     buffer,
                     (UIntPtr)buffer.Length,
@@ -124,19 +129,65 @@ internal sealed class ProcessMemoryReader : IProcessMemoryReader
         return true;
     }
 
+    private bool TryReadPointerCore(IntPtr address, out IntPtr value)
+    {
+        value = IntPtr.Zero;
+        if (!TryGetLiveProcessHandle(out SafeProcessHandle processHandle))
+        {
+            return false;
+        }
+
+        if (Is64Bit)
+        {
+            if (!NativeMethods.ReadProcessMemory(
+                    processHandle,
+                    address,
+                    out long rawValue,
+                    (UIntPtr)sizeof(long),
+                    out UIntPtr bytesRead) ||
+                bytesRead != (UIntPtr)sizeof(long))
+            {
+                return false;
+            }
+
+            value = new IntPtr(rawValue);
+            return true;
+        }
+
+        if (!NativeMethods.ReadProcessMemory(
+                processHandle,
+                address,
+                out uint rawValue32,
+                (UIntPtr)sizeof(uint),
+                out UIntPtr bytesRead32) ||
+            bytesRead32 != (UIntPtr)sizeof(uint))
+        {
+            return false;
+        }
+
+        value = new IntPtr(rawValue32);
+        return true;
+    }
+
+    private bool TryGetLiveProcessHandle(out SafeProcessHandle handle)
+    {
+        handle = processHandle;
+        return !handle.IsClosed && !handle.IsInvalid;
+    }
+
     public IEnumerable<MemoryPage> ExecutablePages()
     {
         long address = 0x10000L;
         long maxAddress = Is64Bit ? 0x00007FFFFFFEFFFFL : 0x7FFEFFFFL;
 
-        while (address < maxAddress && !process.HasExited)
+        while (address < maxAddress && !processHandle.IsClosed && !processHandle.IsInvalid)
         {
             UIntPtr result;
             MemoryBasicInformation info;
             try
             {
                 result = NativeMethods.VirtualQueryEx(
-                    process.Handle,
+                    processHandle,
                     new IntPtr(address),
                     out info,
                     MemoryBasicInformationSize);
@@ -188,7 +239,7 @@ internal sealed class ProcessMemoryReader : IProcessMemoryReader
             return false;
         }
 
-        if (!NativeMethods.IsWow64Process(process.Handle, out bool isWow64))
+        if (!NativeMethods.IsWow64Process(process.SafeHandle, out bool isWow64))
         {
             throw new Win32Exception(Marshal.GetLastWin32Error());
         }

@@ -47,7 +47,7 @@ internal sealed class ItemFactProvider
             return TerrariaGameFacts.Unknown;
         }
 
-        int[] selectedItemIds = GetSelectedItemIds(readPlan);
+        int[] selectedItemIds = readPlan.SelectedItemIds;
         bool sameSelection = SelectionEquals(readPlan, selectedItemIds);
         Dictionary<int, int> publishedCounts = StabilizeCounts(counts, sameSelection);
         if (lastCounts is not null &&
@@ -214,21 +214,31 @@ internal sealed class ItemFactProvider
             return false;
         }
 
-        if (!memory.TryReadInt32(IntPtr.Add(itemAddress, layout.ItemTypeFieldOffset), out int itemType) ||
-            !memory.TryReadInt32(IntPtr.Add(itemAddress, layout.ItemStackFieldOffset), out int stack))
-        {
-            return false;
-        }
-
-        if (!seenItemAddresses.Add(itemAddress))
+        if (seenItemAddresses.Contains(itemAddress))
         {
             return true;
         }
 
+        if (!memory.TryReadInt32(IntPtr.Add(itemAddress, layout.ItemTypeFieldOffset), out int itemType))
+        {
+            return false;
+        }
+
         if (itemType <= 0 ||
             itemType > SplitCatalog.MaxItemId ||
-            stack <= 0 ||
             !readPlan.IncludesItemId(itemType))
+        {
+            seenItemAddresses.Add(itemAddress);
+            return true;
+        }
+
+        if (!memory.TryReadInt32(IntPtr.Add(itemAddress, layout.ItemStackFieldOffset), out int stack))
+        {
+            return false;
+        }
+
+        seenItemAddresses.Add(itemAddress);
+        if (stack <= 0)
         {
             return true;
         }
@@ -279,13 +289,6 @@ internal sealed class ItemFactProvider
 
         return readPlan.ReadsAll ||
             (lastItemIds is not null && lastItemIds.SequenceEqual(selectedItemIds));
-    }
-
-    private static int[] GetSelectedItemIds(TerrariaFactReadPlan readPlan)
-    {
-        return readPlan.ReadsAll
-            ? []
-            : readPlan.ItemIds.OrderBy(itemId => itemId).ToArray();
     }
 
     private static bool CountsEqual(

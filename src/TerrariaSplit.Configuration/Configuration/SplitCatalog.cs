@@ -195,6 +195,15 @@ public static class SplitCatalog
         return false;
     }
 
+    public static bool IsKnownTargetId(string id)
+    {
+        return !string.IsNullOrWhiteSpace(id) &&
+            (BossTargetsById.ContainsKey(id) ||
+                TryParseItemTargetId(id, out _) ||
+                TryParseNpcTargetId(id, out _) ||
+                TryParseBiomeTargetId(id, out _));
+    }
+
     public static bool TryGetTargetByFactKey(string factKey, out SplitTargetDefinition target)
     {
         target = null!;
@@ -384,11 +393,14 @@ public static class SplitCatalog
 
         if (source == SplitIconOverrideSource.Target &&
             targetIds.Contains(iconOverride.TargetId, StringComparer.OrdinalIgnoreCase) &&
-            TryGetTarget(iconOverride.TargetId, out SplitTargetDefinition overrideTarget))
+            TryGetTargetIconData(
+                iconOverride.TargetId,
+                out string overrideTargetId,
+                out string overrideIconFileName))
         {
             return new SplitIconData(
-                [overrideTarget.IconFileName],
-                [overrideTarget.Id],
+                [overrideIconFileName],
+                [overrideTargetId],
                 lightingConditions);
         }
 
@@ -402,9 +414,33 @@ public static class SplitCatalog
         }
 
         string[] iconFileNames = targetIds
-            .Select(id => TryGetTarget(id, out SplitTargetDefinition target) ? target.IconFileName : "target.png")
+            .Select(id => TryGetTargetIconData(id, out _, out string iconFileName) ? iconFileName : "target.png")
             .ToArray();
         return new SplitIconData(iconFileNames, targetIds.ToArray(), []);
+    }
+
+    private static bool TryGetTargetIconData(
+        string targetId,
+        out string normalizedTargetId,
+        out string iconFileName)
+    {
+        if (TryParseItemTargetId(targetId, out int itemId))
+        {
+            normalizedTargetId = CreateItemTargetId(itemId);
+            iconFileName = $"item-{itemId}.png";
+            return true;
+        }
+
+        if (TryGetTarget(targetId, out SplitTargetDefinition target))
+        {
+            normalizedTargetId = target.Id;
+            iconFileName = target.IconFileName;
+            return true;
+        }
+
+        normalizedTargetId = string.Empty;
+        iconFileName = string.Empty;
+        return false;
     }
 
     private static SplitRouteEntry CreateBossRouteEntry(string bossTargetId, string? displayName = null)
@@ -443,7 +479,9 @@ public static class SplitCatalog
         return new SplitTargetDefinition(
             id,
             SplitTargetKind.Item,
-            TerrariaItemCatalog.ById.ContainsKey(itemId) ? TerrariaItemCatalog.ById[itemId].DisplayName : $"Item {itemId}",
+            TerrariaItemCatalog.ById.TryGetValue(itemId, out TerrariaItemDefinition item)
+                ? item.DisplayName
+                : $"Item {itemId}",
             CreateItemFactKey(itemId),
             $"item-{itemId}.png");
     }

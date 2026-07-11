@@ -13,19 +13,21 @@ public sealed class SplitStatus
 
     public bool IsSkipped { get; private set; }
 
-    public IReadOnlyList<string> CompletedFactKeys { get; private set; } = [];
+    public IReadOnlyList<string> CompletedFactKeys => completedFactKeys;
 
     public IReadOnlyDictionary<string, TimeSpan> FactCompletionTimes => factCompletionTimes;
 
     public bool IsCompleted => Time.HasValue;
 
     private readonly Dictionary<string, TimeSpan> factCompletionTimes = new(StringComparer.OrdinalIgnoreCase);
+    private readonly List<string> completedFactKeys = [];
+    private readonly HashSet<string> completedFactKeySet = new(StringComparer.OrdinalIgnoreCase);
 
     public void Reset()
     {
         Time = null;
         IsSkipped = false;
-        CompletedFactKeys = [];
+        ClearCompletedFactKeys();
         factCompletionTimes.Clear();
     }
 
@@ -42,7 +44,7 @@ public sealed class SplitStatus
     private void Skip(IReadOnlyList<string> completedFactKeys)
     {
         IsSkipped = true;
-        CompletedFactKeys = completedFactKeys.ToArray();
+        ReplaceCompletedFactKeys(completedFactKeys);
         factCompletionTimes.Clear();
     }
 
@@ -50,7 +52,7 @@ public sealed class SplitStatus
     {
         Time = time;
         IsSkipped = false;
-        CompletedFactKeys = [];
+        ClearCompletedFactKeys();
         factCompletionTimes.Clear();
     }
 
@@ -74,7 +76,7 @@ public sealed class SplitStatus
     {
         Time = state.Time;
         IsSkipped = state.Time.HasValue ? false : state.IsSkipped;
-        CompletedFactKeys = state.CompletedFactKeys?.ToArray() ?? [];
+        ReplaceCompletedFactKeys(state.CompletedFactKeys);
         factCompletionTimes.Clear();
         foreach ((string factKey, TimeSpan time) in state.FactCompletionTimes ?? new Dictionary<string, TimeSpan>())
         {
@@ -140,16 +142,45 @@ public sealed class SplitStatus
 
     private void MergeCompletedFactKeys(IEnumerable<string> factKeys)
     {
-        string[] merged = CompletedFactKeys
-            .Concat(factKeys)
-            .Where(key => !string.IsNullOrWhiteSpace(key))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-        if (merged.Length != CompletedFactKeys.Count ||
-            !merged.SequenceEqual(CompletedFactKeys, StringComparer.OrdinalIgnoreCase))
+        foreach (string key in factKeys)
         {
-            CompletedFactKeys = merged;
+            if (string.IsNullOrWhiteSpace(key) || !completedFactKeySet.Add(key))
+            {
+                continue;
+            }
+
+            completedFactKeys.Add(key);
         }
+    }
+
+    private void ReplaceCompletedFactKeys(IEnumerable<string>? factKeys)
+    {
+        if (factKeys is null)
+        {
+            ClearCompletedFactKeys();
+            return;
+        }
+
+        var normalizedKeys = new List<string>();
+        var normalizedKeySet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (string key in factKeys)
+        {
+            if (!string.IsNullOrWhiteSpace(key) && normalizedKeySet.Add(key))
+            {
+                normalizedKeys.Add(key);
+            }
+        }
+
+        completedFactKeys.Clear();
+        completedFactKeys.AddRange(normalizedKeys);
+        completedFactKeySet.Clear();
+        completedFactKeySet.UnionWith(normalizedKeySet);
+    }
+
+    private void ClearCompletedFactKeys()
+    {
+        completedFactKeys.Clear();
+        completedFactKeySet.Clear();
     }
 }
 

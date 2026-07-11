@@ -1,3 +1,5 @@
+using TerrariaSplit.Terraria.WorldGeneration;
+
 namespace TerrariaSplit.Terraria.Automation;
 
 internal interface IPyramidSeedRandomizer
@@ -31,10 +33,13 @@ internal sealed class PyramidSeedPreScreenLoop
 
     public async Task<PyramidSeedPreScreenLoopResult> RunAsync(
         AutoCreateWorldSettings settings,
+        TerrariaMenuProfile menuProfile,
         IPyramidSeedRandomizer randomizer,
         IPyramidVisibleSeedReader seedReader,
         CancellationToken cancellationToken)
     {
+        TerrariaWorldGenerationVersion worldGenerationVersion =
+            PyramidSeedPreScreenEvaluator.WorldGenerationVersionFromMenuProfile(menuProfile);
         int attempt = 0;
         int consecutiveSeedReadFailures = 0;
         string? lastVisibleSeed = seedReader.ReadCurrentSeed();
@@ -80,7 +85,10 @@ internal sealed class PyramidSeedPreScreenLoop
 
             consecutiveSeedReadFailures = 0;
             lastVisibleSeed = readResult.SeedText;
-            PyramidSeedPreScreenPrediction prediction = evaluator.Evaluate(settings, readResult.SeedText);
+            PyramidSeedPreScreenPrediction prediction = evaluator.Evaluate(
+                settings,
+                readResult.SeedText,
+                worldGenerationVersion);
             if (!prediction.CanUsePrediction)
             {
                 string detail =

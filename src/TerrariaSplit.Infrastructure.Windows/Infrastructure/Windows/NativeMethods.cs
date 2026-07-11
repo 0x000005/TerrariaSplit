@@ -1,3 +1,4 @@
+using Microsoft.Win32.SafeHandles;
 using System.Runtime.InteropServices;
 
 namespace TerrariaSplit.Infrastructure.Windows;
@@ -22,6 +23,60 @@ public static class NativeMethods
         IntPtr process,
         IntPtr baseAddress,
         [Out] byte[] buffer,
+        UIntPtr size,
+        out UIntPtr bytesRead);
+
+    [DllImport("kernel32.dll", EntryPoint = "ReadProcessMemory", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool ReadProcessMemory(
+        SafeProcessHandle process,
+        IntPtr baseAddress,
+        [Out] byte[] buffer,
+        UIntPtr size,
+        out UIntPtr bytesRead);
+
+    [DllImport("kernel32.dll", EntryPoint = "ReadProcessMemory", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool ReadProcessMemory(
+        SafeProcessHandle process,
+        IntPtr baseAddress,
+        out byte buffer,
+        UIntPtr size,
+        out UIntPtr bytesRead);
+
+    [DllImport("kernel32.dll", EntryPoint = "ReadProcessMemory", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool ReadProcessMemory(
+        SafeProcessHandle process,
+        IntPtr baseAddress,
+        out int buffer,
+        UIntPtr size,
+        out UIntPtr bytesRead);
+
+    [DllImport("kernel32.dll", EntryPoint = "ReadProcessMemory", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool ReadProcessMemory(
+        SafeProcessHandle process,
+        IntPtr baseAddress,
+        out uint buffer,
+        UIntPtr size,
+        out UIntPtr bytesRead);
+
+    [DllImport("kernel32.dll", EntryPoint = "ReadProcessMemory", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool ReadProcessMemory(
+        SafeProcessHandle process,
+        IntPtr baseAddress,
+        out long buffer,
+        UIntPtr size,
+        out UIntPtr bytesRead);
+
+    [DllImport("kernel32.dll", EntryPoint = "ReadProcessMemory", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool ReadProcessMemory(
+        SafeProcessHandle process,
+        IntPtr baseAddress,
+        out double buffer,
         UIntPtr size,
         out UIntPtr bytesRead);
 
@@ -56,9 +111,22 @@ public static class NativeMethods
         IntPtr process,
         [MarshalAs(UnmanagedType.Bool)] out bool wow64Process);
 
+    [DllImport("kernel32.dll", EntryPoint = "IsWow64Process", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool IsWow64Process(
+        SafeProcessHandle process,
+        [MarshalAs(UnmanagedType.Bool)] out bool wow64Process);
+
     [DllImport("kernel32.dll", SetLastError = true)]
     public static extern UIntPtr VirtualQueryEx(
         IntPtr process,
+        IntPtr address,
+        out MemoryBasicInformation buffer,
+        UIntPtr length);
+
+    [DllImport("kernel32.dll", EntryPoint = "VirtualQueryEx", SetLastError = true)]
+    public static extern UIntPtr VirtualQueryEx(
+        SafeProcessHandle process,
         IntPtr address,
         out MemoryBasicInformation buffer,
         UIntPtr length);
