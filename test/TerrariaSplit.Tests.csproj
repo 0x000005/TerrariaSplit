@@ -1,8 +1,8 @@
 <Project>
 
   <PropertyGroup>
-    <BaseIntermediateOutputPath>Temp\obj\</BaseIntermediateOutputPath>
-    <BaseOutputPath>Temp\bin\</BaseOutputPath>
+    <BaseIntermediateOutputPath>Temp\tests\obj\</BaseIntermediateOutputPath>
+    <BaseOutputPath>Temp\tests\bin\</BaseOutputPath>
   </PropertyGroup>
 
   <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
@@ -19,8 +19,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="Code\*.cs" />
-    <Compile Include="Code\Diagnostics\*.cs" />
+    <Compile Include="Next\*.cs" />
     <ProjectReference Include="..\src\TerrariaSplit.Application\TerrariaSplit.Application.csproj" />
     <ProjectReference Include="..\src\TerrariaSplit.Configuration\TerrariaSplit.Configuration.csproj" />
     <ProjectReference Include="..\src\TerrariaSplit.Domain\TerrariaSplit.Domain.csproj" />

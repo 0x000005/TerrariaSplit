@@ -18,6 +18,7 @@ internal sealed class SettingsShell : IDisposable
     private readonly Action registerHotkeys;
     private readonly Func<bool> isMainHandleCreated;
     private readonly Func<Rectangle> getOwnerBounds;
+    private readonly Action<PreparedApplicationUpdate> restartForUpdate;
     private SettingsDialogHost? dialogHost;
     private bool isOpen;
 
@@ -34,7 +35,8 @@ internal sealed class SettingsShell : IDisposable
         Action disposeHotkeys,
         Action registerHotkeys,
         Func<bool> isMainHandleCreated,
-        Func<Rectangle> getOwnerBounds)
+        Func<Rectangle> getOwnerBounds,
+        Action<PreparedApplicationUpdate> restartForUpdate)
     {
         this.getSettings = getSettings;
         this.getRuntimeDiagnostics = getRuntimeDiagnostics;
@@ -49,6 +51,7 @@ internal sealed class SettingsShell : IDisposable
         this.registerHotkeys = registerHotkeys;
         this.isMainHandleCreated = isMainHandleCreated;
         this.getOwnerBounds = getOwnerBounds;
+        this.restartForUpdate = restartForUpdate;
     }
 
     public bool IsOpen => isOpen;
@@ -73,6 +76,11 @@ internal sealed class SettingsShell : IDisposable
             dispatch,
             applySettings,
             Complete,
+            (applied, update) =>
+            {
+                applySettings(applied);
+                restartForUpdate(update);
+            },
             getOwnerBounds());
         dialogHost.Show();
     }

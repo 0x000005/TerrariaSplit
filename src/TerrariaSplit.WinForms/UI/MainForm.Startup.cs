@@ -60,7 +60,8 @@ internal sealed partial class MainForm : Form
                 hotkeyShell.Unregister,
                 hotkeyShell.Register,
                 () => IsHandleCreated,
-                () => Bounds);
+                () => Bounds,
+                RestartForApplicationUpdate);
 
             await Task.Yield();
             cancellationToken.ThrowIfCancellationRequested();

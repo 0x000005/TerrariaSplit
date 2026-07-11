@@ -2,10 +2,16 @@
   <Target
     Name="CreateTerrariaSplitPortableArchive"
     AfterTargets="Publish"
+    DependsOnTargets="TerrariaSplitCopyMemoryProbeToPublishDirectory"
     Condition="'$(Configuration)' == 'Release' and '$(TerrariaSplitCreatePortableArchive)' == 'true'">
     <PropertyGroup>
       <TerrariaSplitPortableArchivePath Condition="'$(TerrariaSplitPortableArchivePath)' == ''">$([System.IO.Path]::GetFullPath('$(PublishDir)..\TerrariaSplit-v$(FileVersion)-win-x64.zip'))</TerrariaSplitPortableArchivePath>
     </PropertyGroup>
+    <WriteLinesToFile
+      File="$(PublishDir)terrariasplit-update-manifest.json"
+      Lines="{&quot;schemaVersion&quot;:1,&quot;managedRoots&quot;:[&quot;TerrariaSplit.exe&quot;,&quot;TerrariaSplit.MemoryProbe.exe&quot;,&quot;Assets&quot;,&quot;terrariasplit-update-manifest.json&quot;]}"
+      Overwrite="true"
+      Encoding="UTF-8" />
     <ZipDirectory
       SourceDirectory="$(PublishDir)"
       DestinationFile="$(TerrariaSplitPortableArchivePath)"

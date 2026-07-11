@@ -114,6 +114,16 @@ internal sealed class SettingsDialogService
             MessageBoxIcon.Warning);
     }
 
+    public bool Confirm(string message, string title)
+    {
+        return messageBoxPresenter(
+            owner,
+            message,
+            title,
+            MessageBoxButtons.YesNo,
+            MessageBoxIcon.Question) == DialogResult.Yes;
+    }
+
     private DialogResult ShowThemedMessage(
         IWin32Window dialogOwner,
         string text,

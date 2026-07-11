@@ -185,7 +185,8 @@ internal static class MainShellCompositionRoot
         Action disposeHotkeys,
         Action registerHotkeys,
         Func<bool> isMainHandleCreated,
-        Func<Rectangle> getOwnerBounds)
+        Func<Rectangle> getOwnerBounds,
+        Action<PreparedApplicationUpdate> restartForUpdate)
     {
         return new SettingsShell(
             getSettings,
@@ -200,7 +201,8 @@ internal static class MainShellCompositionRoot
             disposeHotkeys,
             registerHotkeys,
             isMainHandleCreated,
-            getOwnerBounds);
+            getOwnerBounds,
+            restartForUpdate);
     }
 
     public static ApplicationShellEffectExecutor CreateEffectExecutor(

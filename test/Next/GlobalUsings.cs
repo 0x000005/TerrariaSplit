@@ -1,0 +1,12 @@
+global using TerrariaSplit.Application;
+global using TerrariaSplit.Configuration;
+global using TerrariaSplit.Domain;
+global using TerrariaSplit.Domain.Formatting;
+global using TerrariaSplit.Infrastructure;
+global using TerrariaSplit.Models;
+global using TerrariaSplit.Race.Contracts;
+global using TerrariaSplit.Race.Server;
+global using TerrariaSplit.Storage;
+global using TerrariaSplit.UI;
+global using TerrariaSplit.UI.Settings;
+global using TerrariaSplit.UI.Updating;

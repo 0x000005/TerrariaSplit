@@ -23,6 +23,7 @@ internal sealed partial class SettingsForm : Form
     private readonly SettingsUiFactory uiFactory;
     private readonly SettingsDialogService dialogService;
     private readonly ToolTip titleBarToolTip = new();
+    private readonly IApplicationUpdateService applicationUpdateService;
     private SettingsPageHost? pageHost;
     private Button maximizeButton = null!;
     private bool dragging;
@@ -35,13 +36,15 @@ internal sealed partial class SettingsForm : Form
         Func<RuntimeDebugSnapshot>? runtimeDebugSnapshotProvider = null,
         Func<AppSettings, int>? worldPoolCountProvider = null,
         SettingsMessageBoxPresenter? messageBoxPresenter = null,
-        ISettingsSnapshotFactory? settingsSnapshots = null)
+        ISettingsSnapshotFactory? settingsSnapshots = null,
+        IApplicationUpdateService? applicationUpdateService = null)
     {
         this.settingsSnapshots = settingsSnapshots ?? new StoredSettingsSnapshotFactory();
         settings = this.settingsSnapshots.CreateSnapshot(currentSettings);
         this.runtimeDiagnosticsProvider = runtimeDiagnosticsProvider;
         this.runtimeDebugSnapshotProvider = runtimeDebugSnapshotProvider;
         this.worldPoolCountProvider = worldPoolCountProvider;
+        this.applicationUpdateService = applicationUpdateService ?? new GitHubApplicationUpdateService();
         uiFactory = new SettingsUiFactory(Localize);
         dialogService = new SettingsDialogService(this, Localize, messageBoxPresenter);
 
@@ -63,6 +66,27 @@ internal sealed partial class SettingsForm : Form
         ?? throw new InvalidOperationException("Settings page host has not been created.");
 
     public event EventHandler? Applied;
+
+    internal event Action<PreparedApplicationUpdate>? UpdateRestartRequested;
+
+    internal bool RequestApplicationUpdate(PreparedApplicationUpdate update)
+    {
+        if (!TryApplyToSettings(showError: true, out _))
+        {
+            return false;
+        }
+
+        if (UpdateRestartRequested is null)
+        {
+            dialogService.ShowWarning(
+                Localize("Update could not be started."),
+                Localize("TerrariaSplit Update"));
+            return false;
+        }
+
+        UpdateRestartRequested(update);
+        return true;
+    }
 
     internal RuntimePerformanceDiagnostics GetRuntimeDiagnostics()
     {
@@ -107,6 +131,11 @@ internal sealed partial class SettingsForm : Form
         }
 
         base.Dispose(disposing);
+
+        if (disposing)
+        {
+            applicationUpdateService.Dispose();
+        }
     }
 
     protected override void WndProc(ref Message m)
@@ -405,6 +434,7 @@ internal sealed partial class SettingsForm : Form
         pageHost.Register("Colors", new ColorSettingsPage());
         pageHost.Register("Advanced", new AdvancedSettingsPage());
         pageHost.Register("Debug", new DebugSettingsPage());
+        pageHost.Register("About", new AboutSettingsPage(applicationUpdateService));
         pageHost.AttachNavigation(nav);
         pageHost.Select(SettingsPageId.General);
 

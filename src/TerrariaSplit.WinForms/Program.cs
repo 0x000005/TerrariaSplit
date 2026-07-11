@@ -5,8 +5,13 @@ namespace TerrariaSplit.UI;
 internal static class Program
 {
     [STAThread]
-    private static int Main()
+    private static int Main(string[] args)
     {
+        if (ApplicationUpdateCommandLine.TryRun(args, out int updateExitCode))
+        {
+            return updateExitCode;
+        }
+
         if (!OperatingSystem.IsWindows())
         {
             return 1;

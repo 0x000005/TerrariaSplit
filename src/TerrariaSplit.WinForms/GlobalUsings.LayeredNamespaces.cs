@@ -20,3 +20,4 @@ global using TerrariaSplit.UI;
 global using TerrariaSplit.UI.Input;
 global using TerrariaSplit.UI.Rendering;
 global using TerrariaSplit.UI.Settings;
+global using TerrariaSplit.UI.Updating;

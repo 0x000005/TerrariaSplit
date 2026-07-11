@@ -14,6 +14,7 @@ internal sealed class SettingsDialogHost : IDisposable
     private readonly Action<Action> dispatchToOwner;
     private readonly Action<AppSettings> appliedCallback;
     private readonly Action<SettingsDialogResult> closedCallback;
+    private readonly Action<AppSettings, PreparedApplicationUpdate> updateRestartCallback;
     private readonly Rectangle ownerBounds;
     private readonly object sync = new();
     private Thread? thread;
@@ -33,6 +34,7 @@ internal sealed class SettingsDialogHost : IDisposable
         Action<Action> dispatchToOwner,
         Action<AppSettings> appliedCallback,
         Action<SettingsDialogResult> closedCallback,
+        Action<AppSettings, PreparedApplicationUpdate> updateRestartCallback,
         Rectangle ownerBounds)
     {
         this.settingsSnapshots = settingsSnapshots;
@@ -43,6 +45,7 @@ internal sealed class SettingsDialogHost : IDisposable
         this.dispatchToOwner = dispatchToOwner;
         this.appliedCallback = appliedCallback;
         this.closedCallback = closedCallback;
+        this.updateRestartCallback = updateRestartCallback;
         this.ownerBounds = ownerBounds;
     }
 
@@ -163,6 +166,11 @@ internal sealed class SettingsDialogHost : IDisposable
         dialog.StartPosition = FormStartPosition.Manual;
         dialog.Location = ResolveStartLocation(dialog.Size);
         dialog.Applied += (_, _) => ApplySettingsFromDialog(dialog);
+        dialog.UpdateRestartRequested += update =>
+        {
+            AppSettings applied = settingsSnapshots.CreateSnapshot(dialog.Result);
+            DispatchToOwner(() => updateRestartCallback(applied, update));
+        };
 
         DialogResult dialogResult = DialogResult.Cancel;
         AppSettings resultSettings = settingsSnapshots.CreateSnapshot(dialog.Result);

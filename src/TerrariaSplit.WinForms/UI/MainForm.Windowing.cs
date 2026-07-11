@@ -5,6 +5,27 @@ namespace TerrariaSplit.UI;
 
 internal sealed partial class MainForm : Form
 {
+    private void RestartForApplicationUpdate(PreparedApplicationUpdate update)
+    {
+        try
+        {
+            ApplicationUpdateLauncher.Launch(update, Environment.ProcessId, AppContext.BaseDirectory);
+            Close();
+        }
+        catch (Exception ex)
+        {
+            update.Discard();
+            appLogger.Error(ex, "Failed to start application update helper.");
+            using var dialog = new SettingsMessageDialog(
+                Localizer.Get("TerrariaSplit Update", settings),
+                string.Format(Localizer.Get("Update failed: {0}", settings), ex.Message),
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error,
+                key => Localizer.Get(key, settings));
+            dialog.ShowDialog(this);
+        }
+    }
+
     protected override CreateParams CreateParams
     {
         get
