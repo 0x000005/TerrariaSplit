@@ -199,6 +199,7 @@ internal static class JunglePassReplica
             int right = Math.Clamp((int)(x + strength * 0.5), 10, worldWidth - 10);
             int top = Math.Clamp((int)(y - strength * 0.5), 10, worldHeight - 10);
             int bottom = Math.Clamp((int)(y + strength * 0.5), 10, worldHeight - 10);
+            state.AddJungleTunnelStep(x, y, strength, left, top, right, bottom);
             for (int tileX = left; tileX < right; tileX++)
             {
                 for (int tileY = top; tileY < bottom; tileY++)

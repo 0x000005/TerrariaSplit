@@ -6,9 +6,6 @@ namespace TerrariaSplit.UI;
 internal sealed class SettingsShell : IDisposable
 {
     private readonly Func<AppSettings> getSettings;
-    private readonly Func<RuntimePerformanceDiagnostics> getRuntimeDiagnostics;
-    private readonly Func<RuntimeDebugSnapshot> getRuntimeDebugSnapshot;
-    private readonly Func<AppSettings, int> getWorldPoolCount;
     private readonly ISettingsRepository settingsRepository;
     private readonly ISettingsSnapshotFactory settingsSnapshots;
     private readonly Action<Action> dispatch;
@@ -24,9 +21,6 @@ internal sealed class SettingsShell : IDisposable
 
     public SettingsShell(
         Func<AppSettings> getSettings,
-        Func<RuntimePerformanceDiagnostics> getRuntimeDiagnostics,
-        Func<RuntimeDebugSnapshot> getRuntimeDebugSnapshot,
-        Func<AppSettings, int> getWorldPoolCount,
         ISettingsRepository settingsRepository,
         ISettingsSnapshotFactory settingsSnapshots,
         Action<Action> dispatch,
@@ -39,9 +33,6 @@ internal sealed class SettingsShell : IDisposable
         Action<PreparedApplicationUpdate> restartForUpdate)
     {
         this.getSettings = getSettings;
-        this.getRuntimeDiagnostics = getRuntimeDiagnostics;
-        this.getRuntimeDebugSnapshot = getRuntimeDebugSnapshot;
-        this.getWorldPoolCount = getWorldPoolCount;
         this.settingsRepository = settingsRepository;
         this.settingsSnapshots = settingsSnapshots;
         this.dispatch = dispatch;
@@ -69,9 +60,6 @@ internal sealed class SettingsShell : IDisposable
         clearPendingMenuActions();
         dialogHost = new SettingsDialogHost(
             getSettings(),
-            getRuntimeDiagnostics,
-            getRuntimeDebugSnapshot,
-            getWorldPoolCount,
             settingsSnapshots,
             dispatch,
             applySettings,

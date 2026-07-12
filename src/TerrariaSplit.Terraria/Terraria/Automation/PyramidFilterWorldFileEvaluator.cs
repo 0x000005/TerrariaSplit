@@ -74,7 +74,6 @@ internal sealed class PyramidFilterWorldFileEvaluator
     public static bool IsCrimsonCorridorFilterEnabled(AutoCreateWorldSettings settings)
     {
         return settings.RequireCrimsonBetweenDungeonAndSpawn &&
-            string.Equals(AutoCreateWorldSize.Normalize(settings.WorldSize), AutoCreateWorldSize.Small, StringComparison.Ordinal) &&
             string.Equals(AutoCreateWorldEvil.Normalize(settings.WorldEvil), AutoCreateWorldEvil.Crimson, StringComparison.Ordinal);
     }
 }

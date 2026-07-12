@@ -29,6 +29,15 @@ public static class UiTextEffectDescriptors
         effects => effects.TimeOutlineThicknessPercent,
         (effects, value) => effects.TimeOutlineThicknessPercent = value);
 
+    public static UiTextEffectDescriptor Name { get; } = new(
+        nameof(UiTextEffectSettings.NameOpacityPercent),
+        effects => effects.NameOpacityPercent,
+        (effects, value) => effects.NameOpacityPercent = value,
+        effects => effects.NameShadowPercent,
+        (effects, value) => effects.NameShadowPercent = value,
+        effects => effects.NameOutlineThicknessPercent,
+        (effects, value) => effects.NameOutlineThicknessPercent = value);
+
     public static UiTextEffectDescriptor Delta { get; } = new(
         nameof(UiTextEffectSettings.DeltaOpacityPercent),
         effects => effects.DeltaOpacityPercent,
@@ -55,6 +64,15 @@ public static class UiTextEffectDescriptors
         (effects, value) => effects.AttachedTimeShadowPercent = value,
         effects => effects.AttachedTimeOutlineThicknessPercent,
         (effects, value) => effects.AttachedTimeOutlineThicknessPercent = value);
+
+    public static UiTextEffectDescriptor AttachedName { get; } = new(
+        nameof(UiTextEffectSettings.AttachedNameOpacityPercent),
+        effects => effects.AttachedNameOpacityPercent,
+        (effects, value) => effects.AttachedNameOpacityPercent = value,
+        effects => effects.AttachedNameShadowPercent,
+        (effects, value) => effects.AttachedNameShadowPercent = value,
+        effects => effects.AttachedNameOutlineThicknessPercent,
+        (effects, value) => effects.AttachedNameOutlineThicknessPercent = value);
 
     public static UiTextEffectDescriptor AttachedDelta { get; } = new(
         nameof(UiTextEffectSettings.AttachedDeltaOpacityPercent),
@@ -86,9 +104,11 @@ public static class UiTextEffectDescriptors
     public static IReadOnlyList<UiTextEffectDescriptor> All { get; } =
     [
         Icon,
+        Name,
         Time,
         Delta,
         AttachedIcon,
+        AttachedName,
         AttachedTime,
         AttachedDelta,
         Timer,
@@ -104,7 +124,8 @@ public sealed record UiColumnDescriptor(
     UiTextEffectDescriptor TextEffect,
     bool ShowWidth = true,
     bool ShowFontFamily = true,
-    bool ShowBold = true);
+    bool ShowBold = true,
+    bool ShowItalic = true);
 
 public static class UiColumnDescriptors
 {
@@ -115,7 +136,8 @@ public static class UiColumnDescriptors
         (columns, value) => columns.Icon = value,
         UiTextEffectDescriptors.Icon,
         ShowFontFamily: false,
-        ShowBold: false);
+        ShowBold: false,
+        ShowItalic: false);
 
     public static UiColumnDescriptor Time { get; } = new(
         nameof(UiColumnLayoutSettings.Time),
@@ -123,6 +145,13 @@ public static class UiColumnDescriptors
         columns => columns.Time,
         (columns, value) => columns.Time = value,
         UiTextEffectDescriptors.Time);
+
+    public static UiColumnDescriptor Name { get; } = new(
+        nameof(UiColumnLayoutSettings.Name),
+        "Name",
+        columns => columns.Name,
+        (columns, value) => columns.Name = value,
+        UiTextEffectDescriptors.Name);
 
     public static UiColumnDescriptor Delta { get; } = new(
         nameof(UiColumnLayoutSettings.Delta),
@@ -138,7 +167,8 @@ public static class UiColumnDescriptors
         (columns, value) => columns.AttachedIcon = value,
         UiTextEffectDescriptors.AttachedIcon,
         ShowFontFamily: false,
-        ShowBold: false);
+        ShowBold: false,
+        ShowItalic: false);
 
     public static UiColumnDescriptor AttachedTime { get; } = new(
         nameof(UiColumnLayoutSettings.AttachedTime),
@@ -146,6 +176,13 @@ public static class UiColumnDescriptors
         columns => columns.AttachedTime,
         (columns, value) => columns.AttachedTime = value,
         UiTextEffectDescriptors.AttachedTime);
+
+    public static UiColumnDescriptor AttachedName { get; } = new(
+        nameof(UiColumnLayoutSettings.AttachedName),
+        "Name (attached)",
+        columns => columns.AttachedName,
+        (columns, value) => columns.AttachedName = value,
+        UiTextEffectDescriptors.AttachedName);
 
     public static UiColumnDescriptor AttachedDelta { get; } = new(
         nameof(UiColumnLayoutSettings.AttachedDelta),
@@ -170,13 +207,100 @@ public static class UiColumnDescriptors
         UiTextEffectDescriptors.TimerMilliseconds,
         ShowWidth: false);
 
+    public static IReadOnlyList<(UiColumnDescriptor Primary, UiColumnDescriptor Attached)> SharedWidthPairs { get; } =
+    [
+        (Icon, AttachedIcon),
+        (Name, AttachedName),
+        (Time, AttachedTime),
+        (Delta, AttachedDelta)
+    ];
+
+    public static UiColumnDescriptor GetWidthOwner(UiColumnDescriptor descriptor)
+    {
+        foreach ((UiColumnDescriptor primary, UiColumnDescriptor attached) in SharedWidthPairs)
+        {
+            if (string.Equals(descriptor.Key, attached.Key, StringComparison.Ordinal))
+            {
+                return primary;
+            }
+        }
+
+        return descriptor;
+    }
+
+    public static int GetSharedWidth(UiColumnLayoutSettings columns, UiColumnDescriptor descriptor)
+    {
+        UiColumnDescriptor owner = GetWidthOwner(descriptor);
+        return owner.GetValue(columns)?.Width ?? descriptor.GetValue(columns)?.Width ?? 0;
+    }
+
+    public static string GetSharedAlignment(UiColumnLayoutSettings columns, UiColumnDescriptor descriptor)
+    {
+        UiColumnDescriptor owner = GetWidthOwner(descriptor);
+        if (string.Equals(owner.Key, Icon.Key, StringComparison.Ordinal))
+        {
+            return columns.IconAlignment;
+        }
+
+        if (string.Equals(owner.Key, Name.Key, StringComparison.Ordinal))
+        {
+            return columns.NameAlignment;
+        }
+
+        if (string.Equals(owner.Key, Time.Key, StringComparison.Ordinal))
+        {
+            return columns.TimeAlignment;
+        }
+
+        return columns.DeltaAlignment;
+    }
+
+    public static void SetSharedAlignment(
+        UiColumnLayoutSettings columns,
+        UiColumnDescriptor descriptor,
+        string alignment)
+    {
+        UiColumnDescriptor owner = GetWidthOwner(descriptor);
+        if (string.Equals(owner.Key, Icon.Key, StringComparison.Ordinal))
+        {
+            columns.IconAlignment = UiColumnAlignment.Normalize(alignment, UiColumnAlignment.Right);
+        }
+        else if (string.Equals(owner.Key, Name.Key, StringComparison.Ordinal))
+        {
+            columns.NameAlignment = UiColumnAlignment.Normalize(alignment, UiColumnAlignment.Center);
+        }
+        else if (string.Equals(owner.Key, Time.Key, StringComparison.Ordinal))
+        {
+            columns.TimeAlignment = UiColumnAlignment.Normalize(alignment, UiColumnAlignment.Right);
+        }
+        else
+        {
+            columns.DeltaAlignment = UiColumnAlignment.Normalize(alignment, UiColumnAlignment.Left);
+        }
+    }
+
+    public static void SynchronizeSharedWidths(UiColumnLayoutSettings columns)
+    {
+        foreach ((UiColumnDescriptor primaryDescriptor, UiColumnDescriptor attachedDescriptor) in SharedWidthPairs)
+        {
+            UiColumnSettings? primary = primaryDescriptor.GetValue(columns);
+            UiColumnSettings? attached = attachedDescriptor.GetValue(columns);
+            if (primary is not null && attached is not null)
+            {
+                attached.Width = primary.Width;
+            }
+        }
+    }
+
     public static IReadOnlyList<UiColumnDescriptor> SplitDisplay { get; } =
     [
         Icon,
-        Time,
-        Delta,
         AttachedIcon,
+        Name,
+        AttachedName,
+        Time,
         AttachedTime,
+        Delta,
         AttachedDelta
     ];
 
@@ -189,10 +313,12 @@ public static class UiColumnDescriptors
     public static IReadOnlyList<UiColumnDescriptor> All { get; } =
     [
         Icon,
-        Time,
-        Delta,
         AttachedIcon,
+        Name,
+        AttachedName,
+        Time,
         AttachedTime,
+        Delta,
         AttachedDelta,
         Timer,
         TimerMilliseconds

@@ -16,9 +16,6 @@ internal sealed partial class SettingsForm : Form
     }
 
     private readonly AppSettings settings;
-    private readonly Func<RuntimePerformanceDiagnostics>? runtimeDiagnosticsProvider;
-    private readonly Func<RuntimeDebugSnapshot>? runtimeDebugSnapshotProvider;
-    private readonly Func<AppSettings, int>? worldPoolCountProvider;
     private readonly ISettingsSnapshotFactory settingsSnapshots;
     private readonly SettingsUiFactory uiFactory;
     private readonly SettingsDialogService dialogService;
@@ -32,18 +29,12 @@ internal sealed partial class SettingsForm : Form
 
     public SettingsForm(
         AppSettings currentSettings,
-        Func<RuntimePerformanceDiagnostics>? runtimeDiagnosticsProvider = null,
-        Func<RuntimeDebugSnapshot>? runtimeDebugSnapshotProvider = null,
-        Func<AppSettings, int>? worldPoolCountProvider = null,
         SettingsMessageBoxPresenter? messageBoxPresenter = null,
         ISettingsSnapshotFactory? settingsSnapshots = null,
         IApplicationUpdateService? applicationUpdateService = null)
     {
         this.settingsSnapshots = settingsSnapshots ?? new StoredSettingsSnapshotFactory();
         settings = this.settingsSnapshots.CreateSnapshot(currentSettings);
-        this.runtimeDiagnosticsProvider = runtimeDiagnosticsProvider;
-        this.runtimeDebugSnapshotProvider = runtimeDebugSnapshotProvider;
-        this.worldPoolCountProvider = worldPoolCountProvider;
         this.applicationUpdateService = applicationUpdateService ?? new GitHubApplicationUpdateService();
         uiFactory = new SettingsUiFactory(Localize);
         dialogService = new SettingsDialogService(this, Localize, messageBoxPresenter);
@@ -57,7 +48,7 @@ internal sealed partial class SettingsForm : Form
         UiTheme.ConfigureForm(this, new Size(1040, 740));
 
         BuildLayout();
-        UiDpiScale.ApplyBase200ClientLayout(this, new Size(1500, 1000), new Size(1040, 740));
+        UiDpiScale.ApplyBase200ClientLayout(this, new Size(1700, 1000), new Size(1040, 740));
     }
 
     public AppSettings Result => settings;
@@ -86,29 +77,6 @@ internal sealed partial class SettingsForm : Form
 
         UpdateRestartRequested(update);
         return true;
-    }
-
-    internal RuntimePerformanceDiagnostics GetRuntimeDiagnostics()
-    {
-        return runtimeDiagnosticsProvider?.Invoke() ?? RuntimePerformanceDiagnostics.Empty;
-    }
-
-    internal RuntimeDebugSnapshot GetRuntimeDebugSnapshot()
-    {
-        return runtimeDebugSnapshotProvider?.Invoke() ?? RuntimeDebugSnapshot.Empty;
-    }
-
-    internal int GetWorldPoolCount()
-    {
-        try
-        {
-            return worldPoolCountProvider?.Invoke(PageHost.CreateAppliedSnapshot()) ?? 0;
-        }
-        catch (Exception ex)
-        {
-            StaticAppLogger.Instance.Error(ex, "Settings debug page failed to read world pool count.");
-            return 0;
-        }
     }
 
     internal string Localize(string key)
@@ -421,8 +389,6 @@ internal sealed partial class SettingsForm : Form
             uiFactory,
             dialogService,
             settingsSnapshots,
-            GetRuntimeDiagnostics,
-            GetRuntimeDebugSnapshot,
             pagePanel);
         pageHost.Register("General", new GeneralSettingsPage());
         pageHost.Register("Route", new SplitSettingsPage());
@@ -433,7 +399,6 @@ internal sealed partial class SettingsForm : Form
         pageHost.Register("Sounds", new SoundSettingsPage());
         pageHost.Register("Colors", new ColorSettingsPage());
         pageHost.Register("Advanced", new AdvancedSettingsPage());
-        pageHost.Register("Debug", new DebugSettingsPage());
         pageHost.Register("About", new AboutSettingsPage(applicationUpdateService));
         pageHost.AttachNavigation(nav);
         pageHost.Select(SettingsPageId.General);

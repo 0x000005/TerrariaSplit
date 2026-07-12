@@ -1723,7 +1723,8 @@ internal sealed class RaceShell : IRacePanelShell, IDisposable
             Width = source.Width,
             FontFamily = source.FontFamily,
             FontSize = source.FontSize,
-            Bold = source.Bold
+            Bold = source.Bold,
+            Italic = source.Italic
         };
     }
 

@@ -8,6 +8,7 @@ internal sealed class WorldGenState
     private readonly List<CrimsonBiomeRange> crimsonBiomeRanges = [];
     private readonly List<CrimsonRangeAttemptDiagnostic> crimsonRangeAttemptDiagnostics = [];
     private readonly List<FullDesertCandidateDiagnostic> fullDesertCandidateDiagnostics = [];
+    private readonly List<JungleTunnelStep> jungleTunnelSteps = [];
 
     public WorldGenState(WorldOptions options)
     {
@@ -265,6 +266,21 @@ internal sealed class WorldGenState
 
     public IReadOnlyList<FullDesertCandidateDiagnostic> FullDesertCandidateDiagnostics => fullDesertCandidateDiagnostics;
 
+    public IReadOnlyList<JungleTunnelStep> JungleTunnelSteps => jungleTunnelSteps;
+
+    public void AddJungleTunnelStep(double centerX, double centerY, double strength, int left, int top, int rightExclusive, int bottomExclusive)
+    {
+        jungleTunnelSteps.Add(new JungleTunnelStep(
+            jungleTunnelSteps.Count,
+            centerX,
+            centerY,
+            strength,
+            left,
+            top,
+            rightExclusive,
+            bottomExclusive));
+    }
+
     public void ClearWorld()
     {
         Tiles.Clear();
@@ -274,6 +290,7 @@ internal sealed class WorldGenState
         crimsonBiomeRanges.Clear();
         crimsonRangeAttemptDiagnostics.Clear();
         fullDesertCandidateDiagnostics.Clear();
+        jungleTunnelSteps.Clear();
         EnableCrimsonDiagnostics = false;
         EnableFullDesertDiagnostics = false;
         ResetApplied = false;

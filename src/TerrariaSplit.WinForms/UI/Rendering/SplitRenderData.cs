@@ -163,6 +163,32 @@ internal static class OverlayTextStyles
             : settings.Overlay.TextEffects.TimeOpacityPercent);
     }
 
+    public static float GetNameTextOpacity(AppSettings settings, bool attached = false)
+    {
+        return GetOpacity(attached
+            ? settings.Overlay.TextEffects.AttachedNameOpacityPercent
+            : settings.Overlay.TextEffects.NameOpacityPercent);
+    }
+
+    public static TextRenderStyle GetNameTextStyle(
+        AppSettings settings,
+        UiPalette palette,
+        bool completed,
+        bool attached = false)
+    {
+        return new TextRenderStyle(
+            completed ? palette.CompletedNameText : palette.NameText,
+            completed ? palette.CompletedNameTextOutline : palette.NameTextOutline,
+            completed ? palette.CompletedNameTextShadow : palette.NameTextShadow,
+            attached
+                ? settings.Overlay.TextEffects.AttachedNameShadowPercent
+                : settings.Overlay.TextEffects.NameShadowPercent,
+            attached
+                ? settings.Overlay.TextEffects.AttachedNameOutlineThicknessPercent
+                : settings.Overlay.TextEffects.NameOutlineThicknessPercent,
+            LinearEffects: true);
+    }
+
     public static float GetDeltaTextOpacity(AppSettings settings, bool attached = false)
     {
         return GetOpacity(attached

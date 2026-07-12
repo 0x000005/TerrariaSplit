@@ -41,7 +41,21 @@ internal sealed class SettingsUiFactory
         return CreateSection(title, titleAction: null);
     }
 
+    public TableLayoutPanel CreateSection()
+    {
+        return CreateSectionContainer();
+    }
+
     public TableLayoutPanel CreateSection(string title, Control? titleAction)
+    {
+        TableLayoutPanel section = CreateSectionContainer();
+        AddSectionControl(section, titleAction is null
+            ? CreateSectionTitle(title)
+            : CreateSectionTitleRow(title, titleAction));
+        return section;
+    }
+
+    private static TableLayoutPanel CreateSectionContainer()
     {
         var section = new TableLayoutPanel
         {
@@ -55,10 +69,6 @@ internal sealed class SettingsUiFactory
         };
         UiTheme.EnableDoubleBuffering(section);
         section.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-
-        AddSectionControl(section, titleAction is null
-            ? CreateSectionTitle(title)
-            : CreateSectionTitleRow(title, titleAction));
         return section;
     }
 

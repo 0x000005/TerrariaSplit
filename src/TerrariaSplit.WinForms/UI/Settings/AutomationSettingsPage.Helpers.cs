@@ -301,10 +301,6 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
     {
         bool supportsCrimsonCorridor =
             string.Equals(
-                GetSelectedOption(autoCreateWorldSizeBox, AutoCreateWorldSize.Small),
-                AutoCreateWorldSize.Small,
-                StringComparison.Ordinal) &&
-            string.Equals(
                 GetSelectedOption(autoCreateWorldEvilBox, AutoCreateWorldEvil.Crimson),
                 AutoCreateWorldEvil.Crimson,
                 StringComparison.Ordinal);

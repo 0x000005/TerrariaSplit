@@ -964,10 +964,16 @@
     "ActiveReferenceText": "#0075EC",
     "ActiveReferenceTextOutline": "#101010",
     "ActiveReferenceTextShadow": "#000000",
-    "SplitText": "#F0A040",
-    "SplitTextOutline": "#101010",
-    "SplitTextShadow": "#000000",
-    "IconOutline": "#101010",
+      "SplitText": "#F0A040",
+      "SplitTextOutline": "#101010",
+      "SplitTextShadow": "#000000",
+      "NameText": "#E2E2E2",
+      "NameTextOutline": "#101010",
+      "NameTextShadow": "#000000",
+      "CompletedNameText": "#F0A040",
+      "CompletedNameTextOutline": "#101010",
+      "CompletedNameTextShadow": "#000000",
+      "IconOutline": "#101010",
     "IconShadow": "#000000",
     "DeltaAheadText": "#30FF30",
     "DeltaAheadTextOutline": "#101010",
@@ -1014,79 +1020,116 @@
   },
   "Columns": {
     "ScalePercent": 100,
-    "Icon": {
-      "Show": true,
-      "Width": 240,
-      "FontFamily": "Segoe UI",
-      "FontSize": 55,
-      "Bold": false
-    },
-    "Time": {
+      "Icon": {
+        "Show": true,
+        "Width": 240,
+        "FontFamily": "Segoe UI",
+        "FontSize": 55,
+        "Bold": false,
+        "Italic": false
+      },
+      "Name": {
+        "Show": false,
+        "Width": 260,
+        "FontFamily": "Segoe UI",
+        "FontSize": 16,
+        "Bold": true,
+        "Italic": false
+      },
+      "Time": {
       "Show": true,
       "Width": 200,
       "FontFamily": "Segoe UI",
       "FontSize": 24,
-      "Bold": true
+      "Bold": true,
+      "Italic": false
     },
     "Delta": {
       "Show": true,
       "Width": 200,
       "FontFamily": "Segoe UI",
       "FontSize": 6,
-      "Bold": true
+      "Bold": true,
+      "Italic": false
     },
-    "AttachedIcon": {
-      "Show": true,
-      "Width": 240,
-      "FontFamily": "Segoe UI",
-      "FontSize": 55,
-      "Bold": false
-    },
-    "AttachedTime": {
+      "AttachedIcon": {
+        "Show": true,
+        "Width": 240,
+        "FontFamily": "Segoe UI",
+        "FontSize": 55,
+        "Bold": false,
+        "Italic": false
+      },
+      "AttachedName": {
+        "Show": false,
+        "Width": 260,
+        "FontFamily": "Segoe UI",
+        "FontSize": 16,
+        "Bold": true,
+        "Italic": false
+      },
+      "AttachedTime": {
       "Show": true,
       "Width": 200,
       "FontFamily": "Segoe UI",
       "FontSize": 24,
-      "Bold": true
+      "Bold": true,
+      "Italic": false
     },
     "AttachedDelta": {
       "Show": true,
       "Width": 200,
       "FontFamily": "Segoe UI",
       "FontSize": 24,
-      "Bold": true
+      "Bold": true,
+      "Italic": false
     },
     "Timer": {
       "Show": true,
       "Width": 0,
       "FontFamily": "Segoe UI",
       "FontSize": 55,
-      "Bold": true
+      "Bold": true,
+      "Italic": false
     },
-    "TimerMilliseconds": {
+      "TimerMilliseconds": {
       "Show": true,
       "Width": 0,
       "FontFamily": "Segoe UI",
       "FontSize": 35,
-      "Bold": true
-    },
+      "Bold": true,
+        "Italic": false
+      },
+    "IconNameGap": 5,
+    "NameTimeGap": 5,
+    "TimeDeltaGap": 5,
+    "IconAlignment": "Right",
+    "NameAlignment": "Center",
+    "TimeAlignment": "Right",
+    "DeltaAlignment": "Left",
     "TimerOffsetX": 130,
     "TimerOffsetY": 0
   },
   "TextEffects": {
-    "IconOpacityPercent": 100,
-    "IconShadowPercent": 20,
-    "IconOutlineThicknessPercent": 0,
-    "TimeOpacityPercent": 100,
+      "IconOpacityPercent": 100,
+      "IconShadowPercent": 20,
+      "IconOutlineThicknessPercent": 0,
+      "NameOpacityPercent": 100,
+      "NameShadowPercent": 40,
+      "NameOutlineThicknessPercent": 30,
+      "TimeOpacityPercent": 100,
     "TimeShadowPercent": 40,
     "TimeOutlineThicknessPercent": 30,
     "DeltaOpacityPercent": 100,
     "DeltaShadowPercent": 40,
     "DeltaOutlineThicknessPercent": 30,
-    "AttachedIconOpacityPercent": 100,
-    "AttachedIconShadowPercent": 20,
-    "AttachedIconOutlineThicknessPercent": 0,
-    "AttachedTimeOpacityPercent": 100,
+      "AttachedIconOpacityPercent": 100,
+      "AttachedIconShadowPercent": 20,
+      "AttachedIconOutlineThicknessPercent": 0,
+      "AttachedNameOpacityPercent": 100,
+      "AttachedNameShadowPercent": 40,
+      "AttachedNameOutlineThicknessPercent": 30,
+      "AttachedTimeOpacityPercent": 100,
     "AttachedTimeShadowPercent": 40,
     "AttachedTimeOutlineThicknessPercent": 30,
     "AttachedDeltaOpacityPercent": 100,

@@ -10,7 +10,7 @@ internal static class TerrariaIntegrationTests
     {
         yield return TestCase.Sync("pyramid pre-screen evaluates known positive, item mismatch and no-pyramid seeds", TestSuite.Flow, PyramidPredictionJourney, timeoutSeconds: 30);
         yield return TestCase.Async("race world upload validates, hashes, deduplicates, locates and deletes a Terraria world", TestSuite.Flow, WorldFileTransferJourney);
-        yield return TestCase.Sync("post-generation filter accepts Crimson between dungeon and spawn and rejects other placement", TestSuite.Flow, CrimsonCorridorPostFilter);
+        yield return TestCase.Sync("post-generation filter handles small, medium and large Crimson worlds and rejects other placement", TestSuite.Flow, CrimsonCorridorPostFilter);
         yield return TestCase.Sync("world automation settings normalize incompatible options and secret seed lists", TestSuite.Core, WorldSettingsNormalization);
     }
 
@@ -88,41 +88,57 @@ internal static class TerrariaIntegrationTests
     private static void CrimsonCorridorPostFilter()
     {
         using var directory = new TestDirectory();
-        string betweenPath = directory.Combine("between.wld");
-        string outsidePath = directory.Combine("outside.wld");
-        File.WriteAllBytes(betweenPath, CreatePostFilterWorld(crimsonTileX: 1000));
-        File.WriteAllBytes(outsidePath, CreatePostFilterWorld(crimsonTileX: 3000));
-
         var scanner = new TerrariaWorldFilePyramidScanner();
-        Check.True(scanner.TryScanCrimsonBetweenDungeonAndSpawn(betweenPath, out CrimsonCorridorScanResult between, out string betweenDetail));
-        Check.Equal(string.Empty, betweenDetail);
-        Check.True(between.HasCrimson);
-        Check.True(between.CrimsonTileCount >= 300);
-        Check.Equal(201, between.Bounds.Left);
-        Check.Equal(2100, between.Bounds.Right);
-
-        Check.True(scanner.TryScanCrimsonBetweenDungeonAndSpawn(outsidePath, out CrimsonCorridorScanResult outside, out string outsideDetail));
-        Check.Equal(string.Empty, outsideDetail);
-        Check.False(outside.HasCrimson);
-        Check.Equal(0, outside.CrimsonTileCount);
-
-        var settings = new AutoCreateWorldSettings
-        {
-            WorldSize = AutoCreateWorldSize.Small,
-            WorldEvil = AutoCreateWorldEvil.Crimson,
-            EnablePyramidFilter = false,
-            RequireCrimsonBetweenDungeonAndSpawn = true
-        };
         var evaluator = new PyramidFilterWorldFileEvaluator(scanner);
-        PyramidFilterWorldFileResult kept = evaluator.Evaluate(betweenPath, settings);
-        PyramidFilterWorldFileResult rejected = evaluator.Evaluate(outsidePath, settings);
-        Check.True(kept.Keep);
-        Check.True(kept.CrimsonCorridorFilterEnabled);
-        Check.False(rejected.Keep);
+        (string Size, int Width, int Height)[] sizes =
+        {
+            (AutoCreateWorldSize.Small, 4200, 1200),
+            (AutoCreateWorldSize.Medium, 6400, 1800),
+            (AutoCreateWorldSize.Large, 8400, 2400)
+        };
 
-        string enabledSignature = WorldPoolSignature.From(settings);
-        settings.RequireCrimsonBetweenDungeonAndSpawn = false;
-        Check.False(string.Equals(enabledSignature, WorldPoolSignature.From(settings), StringComparison.Ordinal));
+        foreach ((string size, int width, int height) in sizes)
+        {
+            int dungeonX = 200;
+            int spawnX = width / 2;
+            string betweenPath = directory.Combine($"{size}-between.wld");
+            string outsidePath = directory.Combine($"{size}-outside.wld");
+            File.WriteAllBytes(
+                betweenPath,
+                CreatePostFilterWorld(width, height, spawnX, dungeonX, crimsonTileX: (spawnX + dungeonX) / 2));
+            File.WriteAllBytes(
+                outsidePath,
+                CreatePostFilterWorld(width, height, spawnX, dungeonX, crimsonTileX: width - 200));
+
+            Check.True(scanner.TryScanCrimsonBetweenDungeonAndSpawn(betweenPath, out CrimsonCorridorScanResult between, out string betweenDetail));
+            Check.Equal(string.Empty, betweenDetail);
+            Check.True(between.HasCrimson);
+            Check.True(between.CrimsonTileCount >= 300);
+            Check.Equal(dungeonX + 1, between.Bounds.Left);
+            Check.Equal(spawnX, between.Bounds.Right);
+
+            Check.True(scanner.TryScanCrimsonBetweenDungeonAndSpawn(outsidePath, out CrimsonCorridorScanResult outside, out string outsideDetail));
+            Check.Equal(string.Empty, outsideDetail);
+            Check.False(outside.HasCrimson);
+            Check.Equal(0, outside.CrimsonTileCount);
+
+            var settings = new AutoCreateWorldSettings
+            {
+                WorldSize = size,
+                WorldEvil = AutoCreateWorldEvil.Crimson,
+                EnablePyramidFilter = false,
+                RequireCrimsonBetweenDungeonAndSpawn = true
+            };
+            PyramidFilterWorldFileResult kept = evaluator.Evaluate(betweenPath, settings);
+            PyramidFilterWorldFileResult rejected = evaluator.Evaluate(outsidePath, settings);
+            Check.True(kept.Keep);
+            Check.True(kept.CrimsonCorridorFilterEnabled);
+            Check.False(rejected.Keep);
+
+            string enabledSignature = WorldPoolSignature.From(settings);
+            settings.RequireCrimsonBetweenDungeonAndSpawn = false;
+            Check.False(string.Equals(enabledSignature, WorldPoolSignature.From(settings), StringComparison.Ordinal));
+        }
     }
 
     private static byte[] CreateMinimalWorld()
@@ -147,11 +163,14 @@ internal static class TerrariaIntegrationTests
         return stream.ToArray();
     }
 
-    private static byte[] CreatePostFilterWorld(int crimsonTileX)
+    private static byte[] CreatePostFilterWorld(
+        int width,
+        int height,
+        int spawnTileX,
+        int dungeonTileX,
+        int crimsonTileX)
     {
         const int version = 279;
-        const int width = 4200;
-        const int height = 1200;
         const int importanceCount = 753;
         using var stream = new MemoryStream();
         using var writer = new BinaryWriter(stream, Encoding.UTF8, leaveOpen: true);
@@ -184,7 +203,7 @@ internal static class TerrariaIntegrationTests
         writer.Write(DateTime.UnixEpoch.ToBinary());
         writer.Write((byte)0);
         for (int index = 0; index < 17; index++) writer.Write(0);
-        writer.Write(2100); // spawn x
+        writer.Write(spawnTileX);
         writer.Write(250);  // spawn y
         writer.Write(300d);
         writer.Write(500d);
@@ -193,7 +212,7 @@ internal static class TerrariaIntegrationTests
         writer.Write(0);
         writer.Write(false);
         writer.Write(false);
-        writer.Write(200); // dungeon x
+        writer.Write(dungeonTileX);
         writer.Write(250); // dungeon y
         writer.Write(true);
 

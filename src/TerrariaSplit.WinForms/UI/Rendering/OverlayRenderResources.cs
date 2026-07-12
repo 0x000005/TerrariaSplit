@@ -9,6 +9,7 @@ internal sealed class OverlayRenderResources : IDisposable
 
     private readonly Dictionary<Font, FontMetrics> fontMetricsCache = new();
     private readonly Dictionary<Font, (float TopOffset, float Height)> digitVisualBoundsCache = new();
+    private readonly Dictionary<TimerDigitMeasureKey, float> widestTimerDigitWidthCache = new();
     private readonly Dictionary<TextMeasureKey, SizeF> measureCache = new();
     private StringFormat? typographicFormat;
 
@@ -94,6 +95,52 @@ internal sealed class OverlayRenderResources : IDisposable
         return size;
     }
 
+    /// <summary>
+    /// Measures a stable slot width for a timer string. Every digit uses the
+    /// widest digit advance in the selected font, while separators keep their
+    /// natural width. Text with the same shape therefore has the same reserved
+    /// width even when the font uses proportional numerals.
+    /// </summary>
+    public float MeasureStableTimerTextWidth(Graphics graphics, string text, Font font, SizeF layoutSize)
+    {
+        var digitKey = new TimerDigitMeasureKey(font, layoutSize.Width, layoutSize.Height);
+        if (!widestTimerDigitWidthCache.TryGetValue(digitKey, out float widestDigitWidth))
+        {
+            widestDigitWidth = 0f;
+            for (int digit = 0; digit <= 9; digit++)
+            {
+                float width = MeasureTimerText(
+                    graphics,
+                    digit.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    font,
+                    layoutSize).Width;
+                widestDigitWidth = Math.Max(widestDigitWidth, width);
+            }
+
+            widestTimerDigitWidthCache[digitKey] = widestDigitWidth;
+        }
+
+        float totalWidth = 0f;
+        foreach (char character in text)
+        {
+            if (char.IsAsciiDigit(character))
+            {
+                totalWidth += widestDigitWidth;
+                continue;
+            }
+
+            string literal = character switch
+            {
+                ':' => ":",
+                '.' => ".",
+                _ => character.ToString()
+            };
+            totalWidth += MeasureTimerText(graphics, literal, font, layoutSize).Width;
+        }
+
+        return totalWidth;
+    }
+
     public void Dispose()
     {
         SplitCompletionAnimationText.Dispose();
@@ -103,10 +150,13 @@ internal sealed class OverlayRenderResources : IDisposable
         typographicFormat = null;
         fontMetricsCache.Clear();
         digitVisualBoundsCache.Clear();
+        widestTimerDigitWidthCache.Clear();
         measureCache.Clear();
     }
 
     private readonly record struct TextMeasureKey(Font Font, string Text, float Width, float Height);
+
+    private readonly record struct TimerDigitMeasureKey(Font Font, float Width, float Height);
 }
 
 internal readonly struct SplitCompletionAnimationTextCacheKey : IEquatable<SplitCompletionAnimationTextCacheKey>
@@ -352,14 +402,25 @@ internal sealed class OverlayFontCache : IDisposable
     {
         float size = GetColumnFontSize(columnSettings, scaleFactor, sizeScale, minimumSize);
         bool bold = forceBold || columnSettings.Bold;
+        FontStyle style = FontStyle.Regular;
+        if (bold)
+        {
+            style |= FontStyle.Bold;
+        }
+
+        if (columnSettings.Italic)
+        {
+            style |= FontStyle.Italic;
+        }
+
         string familyName = fontFactory.NormalizeFamilyName(columnSettings.FontFamily);
-        var key = new FontKey(familyName, size, bold);
+        var key = new FontKey(familyName, size, style);
         if (cache.TryGetValue(key, out Font? font))
         {
             return font;
         }
 
-        font = fontFactory.CreateFont(familyName, size, bold ? FontStyle.Bold : FontStyle.Regular);
+        font = fontFactory.CreateFont(familyName, size, style);
         cache[key] = font;
         return font;
     }
@@ -386,5 +447,5 @@ internal sealed class OverlayFontCache : IDisposable
         cache.Clear();
     }
 
-    private readonly record struct FontKey(string FamilyName, float Size, bool Bold);
+    private readonly record struct FontKey(string FamilyName, float Size, FontStyle Style);
 }

@@ -10,7 +10,6 @@ internal sealed class WatcherLoop : IDisposable
     private readonly Func<long, IReadOnlyList<RunEvent>, WatcherPollCompletion> pollWatcher;
     private readonly Action<WatcherPollCompletion> queueCompletion;
     private readonly Func<WatcherPollCompletion, WatcherPublishState, TimeSpan, bool> shouldPublish;
-    private readonly Action<TimeSpan, long>? recordPoll;
     private readonly TimeSpan suspendedPollInterval;
     private readonly TimeSpan heartbeatInterval;
     private readonly object lifecycleLock = new();
@@ -25,7 +24,6 @@ internal sealed class WatcherLoop : IDisposable
         Func<long, IReadOnlyList<RunEvent>, WatcherPollCompletion> pollWatcher,
         Action<WatcherPollCompletion> queueCompletion,
         Func<WatcherPollCompletion, WatcherPublishState, TimeSpan, bool> shouldPublish,
-        Action<TimeSpan, long>? recordPoll,
         TimeSpan suspendedPollInterval,
         TimeSpan heartbeatInterval)
     {
@@ -34,7 +32,6 @@ internal sealed class WatcherLoop : IDisposable
         this.pollWatcher = pollWatcher;
         this.queueCompletion = queueCompletion;
         this.shouldPublish = shouldPublish;
-        this.recordPoll = recordPoll;
         this.suspendedPollInterval = suspendedPollInterval;
         this.heartbeatInterval = heartbeatInterval;
     }
@@ -149,8 +146,6 @@ internal sealed class WatcherLoop : IDisposable
             WatcherPollCompletion completion = pollWatcher(
                 commandResult.LatestAppliedSequence,
                 commandResult.Events);
-            recordPoll?.Invoke(completion.Elapsed, completion.CompletedTimestamp);
-
             if (shouldPublish(completion, publishState, heartbeatInterval))
             {
                 publishState = WatcherPublishState.FromCompletion(completion);

@@ -6,11 +6,6 @@ namespace TerrariaSplit.UI;
 internal sealed class TimerOverlayWindowHost : IDisposable
 {
     private readonly Action<Action> mainThreadDispatch;
-    private readonly Action<TimeSpan> recordPaint;
-    private readonly Action<HighPrecisionSchedulerTick> recordPaintTick;
-    private readonly Action<LayeredWindowUpdateDiagnostics> recordLayeredUpdate;
-    private readonly Action recordPaintDispatchSkipped;
-    private readonly Action recordPaintInputSkipped;
     private readonly object sync = new();
     private readonly TaskCompletionSource<IntPtr> handleReady = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly TaskCompletionSource<bool> firstFramePresented = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -26,20 +21,9 @@ internal sealed class TimerOverlayWindowHost : IDisposable
     private bool latestPaintSuspended;
     private bool disposed;
 
-    public TimerOverlayWindowHost(
-        Action<Action> mainThreadDispatch,
-        Action<TimeSpan> recordPaint,
-        Action<HighPrecisionSchedulerTick> recordPaintTick,
-        Action<LayeredWindowUpdateDiagnostics> recordLayeredUpdate,
-        Action recordPaintDispatchSkipped,
-        Action recordPaintInputSkipped)
+    public TimerOverlayWindowHost(Action<Action> mainThreadDispatch)
     {
         this.mainThreadDispatch = mainThreadDispatch;
-        this.recordPaint = recordPaint;
-        this.recordPaintTick = recordPaintTick;
-        this.recordLayeredUpdate = recordLayeredUpdate;
-        this.recordPaintDispatchSkipped = recordPaintDispatchSkipped;
-        this.recordPaintInputSkipped = recordPaintInputSkipped;
     }
 
     public event Action<Point>? DragDeltaRequested;
@@ -210,11 +194,6 @@ internal sealed class TimerOverlayWindowHost : IDisposable
         try
         {
             using var overlayForm = new TimerOverlayForm(
-                recordPaint,
-                recordPaintTick,
-                recordLayeredUpdate,
-                recordPaintDispatchSkipped,
-                recordPaintInputSkipped,
                 IsInteractionBlocked,
                 () =>
                 {

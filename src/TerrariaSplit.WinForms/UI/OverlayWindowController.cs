@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
@@ -27,7 +26,6 @@ internal sealed class OverlayWindowController : IDisposable
 
     private readonly Form owner;
     private readonly Func<Graphics, bool> draw;
-    private readonly Action<TimeSpan> recordPaint;
     private readonly Action<Action> dispatch;
     private readonly Func<Bitmap, bool> updateLayeredBitmap;
     private readonly LayeredWindowRenderTarget? renderTarget;
@@ -44,19 +42,16 @@ internal sealed class OverlayWindowController : IDisposable
     public OverlayWindowController(
         Form owner,
         Func<Graphics, bool> draw,
-        Action<TimeSpan> recordPaint,
         Action<Action>? dispatch = null,
-        Func<Bitmap, bool>? updateLayeredBitmap = null,
-        Action<LayeredWindowUpdateDiagnostics>? recordLayeredUpdate = null)
+        Func<Bitmap, bool>? updateLayeredBitmap = null)
     {
         this.owner = owner;
         this.draw = draw;
-        this.recordPaint = recordPaint;
         this.dispatch = dispatch ?? (callback => owner.BeginInvoke(callback));
         renderQueuedCallback = RenderQueued;
         if (updateLayeredBitmap is null)
         {
-            renderTarget = new LayeredWindowRenderTarget(recordLayeredUpdate);
+            renderTarget = new LayeredWindowRenderTarget();
             this.updateLayeredBitmap = bitmap => LayeredWindowUpdater.Update(owner, bitmap);
         }
         else
@@ -102,7 +97,6 @@ internal sealed class OverlayWindowController : IDisposable
 
         renderPending = false;
         renderInProgress = true;
-        long startTimestamp = Stopwatch.GetTimestamp();
         try
         {
             if (!RenderNow())
@@ -117,7 +111,6 @@ internal sealed class OverlayWindowController : IDisposable
         finally
         {
             renderInProgress = false;
-            recordPaint(Stopwatch.GetElapsedTime(startTimestamp));
         }
     }
 
@@ -163,7 +156,6 @@ internal sealed class OverlayWindowController : IDisposable
 
         renderPending = false;
         renderInProgress = true;
-        long startTimestamp = Stopwatch.GetTimestamp();
         try
         {
             if (owner.ClientSize.Width <= 0 || owner.ClientSize.Height <= 0)
@@ -186,7 +178,6 @@ internal sealed class OverlayWindowController : IDisposable
         finally
         {
             renderInProgress = false;
-            recordPaint(Stopwatch.GetElapsedTime(startTimestamp));
         }
     }
 

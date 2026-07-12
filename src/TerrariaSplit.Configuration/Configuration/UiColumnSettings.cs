@@ -1,5 +1,37 @@
 namespace TerrariaSplit.Configuration;
 
+public static class UiColumnAlignment
+{
+    public const string Left = "Left";
+    public const string Center = "Center";
+    public const string Right = "Right";
+
+    public static IReadOnlyList<string> All { get; } = [Left, Center, Right];
+
+    public static string Normalize(string? value, string fallback)
+    {
+        foreach (string alignment in All)
+        {
+            if (string.Equals(value, alignment, StringComparison.OrdinalIgnoreCase))
+            {
+                return alignment;
+            }
+        }
+
+        return fallback;
+    }
+
+    public static string GetDisplayName(string alignment)
+    {
+        return Normalize(alignment, Left) switch
+        {
+            Center => "Centered",
+            Right => "Right aligned",
+            _ => "Left aligned"
+        };
+    }
+}
+
 public sealed class UiColumnSettings
 {
     public bool Show { get; set; } = true;
@@ -7,6 +39,7 @@ public sealed class UiColumnSettings
     public string FontFamily { get; set; } = UiFontDefaults.DefaultFamilyName;
     public float FontSize { get; set; }
     public bool Bold { get; set; }
+    public bool Italic { get; set; }
 }
 
 public sealed class UiTextEffectSettings
@@ -17,6 +50,9 @@ public sealed class UiTextEffectSettings
     public int TimeOpacityPercent { get; set; } = 100;
     public int TimeShadowPercent { get; set; } = 40;
     public int TimeOutlineThicknessPercent { get; set; } = 30;
+    public int NameOpacityPercent { get; set; } = 100;
+    public int NameShadowPercent { get; set; } = 40;
+    public int NameOutlineThicknessPercent { get; set; } = 30;
     public int DeltaOpacityPercent { get; set; } = 100;
     public int DeltaShadowPercent { get; set; } = 40;
     public int DeltaOutlineThicknessPercent { get; set; } = 30;
@@ -26,6 +62,9 @@ public sealed class UiTextEffectSettings
     public int AttachedTimeOpacityPercent { get; set; } = 100;
     public int AttachedTimeShadowPercent { get; set; } = 40;
     public int AttachedTimeOutlineThicknessPercent { get; set; } = 30;
+    public int AttachedNameOpacityPercent { get; set; } = 100;
+    public int AttachedNameShadowPercent { get; set; } = 40;
+    public int AttachedNameOutlineThicknessPercent { get; set; } = 30;
     public int AttachedDeltaOpacityPercent { get; set; } = 100;
     public int AttachedDeltaShadowPercent { get; set; } = 40;
     public int AttachedDeltaOutlineThicknessPercent { get; set; } = 30;
@@ -57,6 +96,14 @@ public sealed class UiColumnLayoutSettings
         Bold = true
     };
 
+    public UiColumnSettings Name { get; set; } = new()
+    {
+        Show = false,
+        Width = 260,
+        FontSize = 16f,
+        Bold = true
+    };
+
     public UiColumnSettings Delta { get; set; } = new()
     {
         Show = true,
@@ -78,6 +125,14 @@ public sealed class UiColumnLayoutSettings
         Show = true,
         Width = 200,
         FontSize = 24f,
+        Bold = true
+    };
+
+    public UiColumnSettings AttachedName { get; set; } = new()
+    {
+        Show = false,
+        Width = 260,
+        FontSize = 16f,
         Bold = true
     };
 
@@ -105,6 +160,13 @@ public sealed class UiColumnLayoutSettings
         Bold = true
     };
 
+    public int IconNameGap { get; set; } = 5;
+    public int NameTimeGap { get; set; } = 5;
+    public int TimeDeltaGap { get; set; } = 5;
+    public string IconAlignment { get; set; } = UiColumnAlignment.Right;
+    public string NameAlignment { get; set; } = UiColumnAlignment.Center;
+    public string TimeAlignment { get; set; } = UiColumnAlignment.Right;
+    public string DeltaAlignment { get; set; } = UiColumnAlignment.Left;
     public int TimerOffsetX { get; set; } = 130;
     public int TimerOffsetY { get; set; } = 0;
 }

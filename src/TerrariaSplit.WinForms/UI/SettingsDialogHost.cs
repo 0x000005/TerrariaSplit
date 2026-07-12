@@ -7,9 +7,6 @@ internal sealed class SettingsDialogHost : IDisposable
 {
     private static readonly TimeSpan DisposeCloseTimeout = TimeSpan.FromSeconds(1);
     private readonly AppSettings initialSettings;
-    private readonly Func<RuntimePerformanceDiagnostics> runtimeDiagnosticsProvider;
-    private readonly Func<RuntimeDebugSnapshot> runtimeDebugSnapshotProvider;
-    private readonly Func<AppSettings, int> worldPoolCountProvider;
     private readonly ISettingsSnapshotFactory settingsSnapshots;
     private readonly Action<Action> dispatchToOwner;
     private readonly Action<AppSettings> appliedCallback;
@@ -27,9 +24,6 @@ internal sealed class SettingsDialogHost : IDisposable
 
     public SettingsDialogHost(
         AppSettings initialSettings,
-        Func<RuntimePerformanceDiagnostics> runtimeDiagnosticsProvider,
-        Func<RuntimeDebugSnapshot> runtimeDebugSnapshotProvider,
-        Func<AppSettings, int> worldPoolCountProvider,
         ISettingsSnapshotFactory settingsSnapshots,
         Action<Action> dispatchToOwner,
         Action<AppSettings> appliedCallback,
@@ -39,9 +33,6 @@ internal sealed class SettingsDialogHost : IDisposable
     {
         this.settingsSnapshots = settingsSnapshots;
         this.initialSettings = settingsSnapshots.CreateSnapshot(initialSettings);
-        this.runtimeDiagnosticsProvider = runtimeDiagnosticsProvider;
-        this.runtimeDebugSnapshotProvider = runtimeDebugSnapshotProvider;
-        this.worldPoolCountProvider = worldPoolCountProvider;
         this.dispatchToOwner = dispatchToOwner;
         this.appliedCallback = appliedCallback;
         this.closedCallback = closedCallback;
@@ -135,9 +126,6 @@ internal sealed class SettingsDialogHost : IDisposable
         SettingsDialogResult result;
         using var dialog = new SettingsForm(
             initialSettings,
-            runtimeDiagnosticsProvider,
-            runtimeDebugSnapshotProvider,
-            worldPoolCountProvider,
             settingsSnapshots: settingsSnapshots);
         dialog.HandleCreated += (_, _) =>
         {

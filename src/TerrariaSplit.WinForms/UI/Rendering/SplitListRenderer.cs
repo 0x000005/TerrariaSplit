@@ -132,19 +132,48 @@ internal static class SplitListRenderer
 
     public static ColumnRects GetColumnRects(AppSettings settings, Rectangle rect, bool attached = false)
     {
-        Span<ColumnWidth> visibleColumns = stackalloc ColumnWidth[3];
+        Span<ColumnWidth> visibleColumns = stackalloc ColumnWidth[4];
         int columnCount = 0;
         UiColumnSettings iconSettings = GetIconColumnSettings(settings, attached);
+        UiColumnSettings nameSettings = GetNameColumnSettings(settings, attached);
         UiColumnSettings timeSettings = GetTimeColumnSettings(settings, attached);
         UiColumnSettings deltaSettings = GetDeltaColumnSettings(settings, attached);
-        AddColumn(visibleColumns, ref columnCount, SplitColumn.Icon, iconSettings);
-        AddColumn(visibleColumns, ref columnCount, SplitColumn.Time, timeSettings);
-        AddColumn(visibleColumns, ref columnCount, SplitColumn.Delta, deltaSettings);
+        AddColumn(
+            visibleColumns,
+            ref columnCount,
+            SplitColumn.Icon,
+            iconSettings,
+            UiColumnDescriptors.GetSharedWidth(settings.Overlay.Columns, attached ? UiColumnDescriptors.AttachedIcon : UiColumnDescriptors.Icon),
+            gapBefore: 0);
+        AddColumn(
+            visibleColumns,
+            ref columnCount,
+            SplitColumn.Name,
+            nameSettings,
+            UiColumnDescriptors.GetSharedWidth(settings.Overlay.Columns, attached ? UiColumnDescriptors.AttachedName : UiColumnDescriptors.Name),
+            iconSettings.Show && nameSettings.Show ? settings.Overlay.Columns.IconNameGap : 0);
+        AddColumn(
+            visibleColumns,
+            ref columnCount,
+            SplitColumn.Time,
+            timeSettings,
+            UiColumnDescriptors.GetSharedWidth(settings.Overlay.Columns, attached ? UiColumnDescriptors.AttachedTime : UiColumnDescriptors.Time),
+            timeSettings.Show && (iconSettings.Show || nameSettings.Show) ? settings.Overlay.Columns.NameTimeGap : 0);
+        AddColumn(
+            visibleColumns,
+            ref columnCount,
+            SplitColumn.Delta,
+            deltaSettings,
+            UiColumnDescriptors.GetSharedWidth(settings.Overlay.Columns, attached ? UiColumnDescriptors.AttachedDelta : UiColumnDescriptors.Delta),
+            deltaSettings.Show && (iconSettings.Show || nameSettings.Show || timeSettings.Show)
+                ? settings.Overlay.Columns.TimeDeltaGap
+                : 0);
 
         int requestedWidth = 0;
         for (int i = 0; i < columnCount; i++)
         {
             requestedWidth += OverlayRenderContext.ScaleInt(settings, visibleColumns[i].Width);
+            requestedWidth += OverlayRenderContext.ScaleInt(settings, visibleColumns[i].GapBefore);
         }
 
         float scale = requestedWidth > rect.Width && requestedWidth > 0
@@ -152,6 +181,7 @@ internal static class SplitListRenderer
             : 1f;
 
         Rectangle? icon = null;
+        Rectangle? name = null;
         Rectangle? time = null;
         Rectangle? delta = null;
 
@@ -159,6 +189,7 @@ internal static class SplitListRenderer
         for (int i = 0; i < columnCount; i++)
         {
             ColumnWidth column = visibleColumns[i];
+            x += Math.Max(0, (int)Math.Round(OverlayRenderContext.ScaleInt(settings, column.GapBefore) * scale));
             int width = i == columnCount - 1
                 ? rect.Right - x
                 : Math.Max(1, (int)Math.Round(OverlayRenderContext.ScaleInt(settings, column.Width) * scale));
@@ -170,6 +201,9 @@ internal static class SplitListRenderer
                 case SplitColumn.Icon:
                     icon = columnRect;
                     break;
+                case SplitColumn.Name:
+                    name = Rectangle.Inflate(columnRect, -4, 0);
+                    break;
                 case SplitColumn.Time:
                     time = Rectangle.Inflate(columnRect, -4, 0);
                     break;
@@ -179,7 +213,7 @@ internal static class SplitListRenderer
             }
         }
 
-        return new ColumnRects(icon, time, delta);
+        return new ColumnRects(icon, name, time, delta);
     }
 
     public static UiColumnSettings GetIconColumnSettings(AppSettings settings, bool attached)
@@ -190,6 +224,11 @@ internal static class SplitListRenderer
     public static UiColumnSettings GetTimeColumnSettings(AppSettings settings, bool attached)
     {
         return GetColumnSettings(settings, attached ? UiColumnDescriptors.AttachedTime : UiColumnDescriptors.Time);
+    }
+
+    public static UiColumnSettings GetNameColumnSettings(AppSettings settings, bool attached)
+    {
+        return GetColumnSettings(settings, attached ? UiColumnDescriptors.AttachedName : UiColumnDescriptors.Name);
     }
 
     public static UiColumnSettings GetDeltaColumnSettings(AppSettings settings, bool attached)
@@ -222,6 +261,7 @@ internal static class SplitListRenderer
 
         bool attached = status.Definition.IsAttached;
         UiColumnSettings iconSettings = GetIconColumnSettings(context.Settings, attached);
+        UiColumnSettings nameSettings = GetNameColumnSettings(context.Settings, attached);
         UiColumnSettings timeSettings = GetTimeColumnSettings(context.Settings, attached);
         UiColumnSettings deltaSettings = GetDeltaColumnSettings(context.Settings, attached);
         ColumnRects columns = GetColumnRects(context.Settings, rect, attached);
@@ -239,6 +279,9 @@ internal static class SplitListRenderer
                     iconRect,
                     status,
                     iconSettings,
+                    GetColumnContentAlignment(
+                        context.Settings,
+                        attached ? UiColumnDescriptors.AttachedIcon : UiColumnDescriptors.Icon),
                     opacity * OverlayTextStyles.GetIconOpacity(context.Settings, attached),
                     wheelScale,
                     context.Settings.Overlay.EnableDefeatedBossIconLighting &&
@@ -247,6 +290,37 @@ internal static class SplitListRenderer
         }
 
         SplitComparison comparison = frameRow.Comparison;
+
+        if (columns.Name is Rectangle nameRect &&
+            (expandedRow is null || frameRow.DrawExpandedIcons))
+        {
+            string nameText = status.Definition.DisplayName;
+            bool completed = status.IsCompleted || SplitRenderData.ShouldShowSkippedTime(status);
+            TextRenderStyle nameStyle = OverlayTextStyles.GetNameTextStyle(
+                context.Settings,
+                context.Palette,
+                completed,
+                attached);
+            TextEffectRenderer.DrawStyledText(
+                graphics,
+                nameText,
+                GetFittingColumnFont(
+                    graphics,
+                    resources,
+                    nameText,
+                    nameSettings,
+                    context.ScaleFactor,
+                    wheelScale,
+                    nameStyle,
+                    nameRect),
+                nameStyle,
+                nameRect,
+                GetColumnContentAlignment(
+                    context.Settings,
+                    attached ? UiColumnDescriptors.AttachedName : UiColumnDescriptors.Name),
+                opacity * OverlayTextStyles.GetNameTextOpacity(context.Settings, attached),
+                supersampleEffects: false);
+        }
 
         if (columns.Time is Rectangle timeRect)
         {
@@ -268,7 +342,9 @@ internal static class SplitListRenderer
                     timeRect),
                 timeStyle,
                 timeRect,
-                ContentAlignment.MiddleRight,
+                GetColumnContentAlignment(
+                    context.Settings,
+                    attached ? UiColumnDescriptors.AttachedTime : UiColumnDescriptors.Time),
                 opacity * OverlayTextStyles.GetTimeTextOpacity(context.Settings, attached),
                 supersampleEffects: false);
         }
@@ -308,7 +384,9 @@ internal static class SplitListRenderer
                     deltaRect),
                 deltaStyle with { Fill = deltaColor },
                 deltaRect,
-                ContentAlignment.MiddleLeft,
+                GetColumnContentAlignment(
+                    context.Settings,
+                    attached ? UiColumnDescriptors.AttachedDelta : UiColumnDescriptors.Delta),
                 opacity * OverlayTextStyles.GetDeltaTextOpacity(context.Settings, attached),
                 supersampleEffects: false);
         }
@@ -385,6 +463,7 @@ internal static class SplitListRenderer
         Rectangle rect,
         SplitStatusSnapshot status,
         UiColumnSettings iconSettings,
+        ContentAlignment alignment,
         float opacity = 1f,
         float sizeScale = 1f,
         bool brighten = false)
@@ -412,7 +491,7 @@ internal static class SplitListRenderer
                 Math.Min(Math.Max(12, context.ScaleInt((int)Math.Round(iconSettings.FontSize * sizeScale))), rect.Height),
                 rect.Width);
             var iconRect = new Rectangle(
-                rect.Right - singleIconSize,
+                GetAlignedX(rect, singleIconSize, alignment),
                 rect.Y + Math.Max(0, (rect.Height - singleIconSize) / 2),
                 singleIconSize,
                 singleIconSize);
@@ -430,7 +509,7 @@ internal static class SplitListRenderer
             Math.Min(Math.Max(12, context.ScaleInt((int)Math.Round(iconSettings.FontSize * sizeScale))), rect.Height),
             Math.Max(12, (rect.Width - Math.Max(0, count - 1) * iconGap) / count));
         int totalWidth = count * size + (count - 1) * iconGap;
-        int startX = rect.Right - totalWidth;
+        int startX = GetAlignedX(rect, totalWidth, alignment);
         int y = rect.Y + Math.Max(0, (rect.Height - size) / 2);
         for (int i = 0; i < count; i++)
         {
@@ -450,6 +529,46 @@ internal static class SplitListRenderer
                 opacity,
                 iconStyle);
         }
+    }
+
+    private static ContentAlignment GetColumnContentAlignment(
+        AppSettings settings,
+        UiColumnDescriptor descriptor)
+    {
+        UiColumnDescriptor owner = UiColumnDescriptors.GetWidthOwner(descriptor);
+        string fallback;
+        if (string.Equals(owner.Key, UiColumnDescriptors.Icon.Key, StringComparison.Ordinal) ||
+            string.Equals(owner.Key, UiColumnDescriptors.Time.Key, StringComparison.Ordinal))
+        {
+            fallback = UiColumnAlignment.Right;
+        }
+        else if (string.Equals(owner.Key, UiColumnDescriptors.Name.Key, StringComparison.Ordinal))
+        {
+            fallback = UiColumnAlignment.Center;
+        }
+        else
+        {
+            fallback = UiColumnAlignment.Left;
+        }
+
+        return UiColumnAlignment.Normalize(
+            UiColumnDescriptors.GetSharedAlignment(settings.Overlay.Columns, descriptor),
+            fallback) switch
+        {
+            UiColumnAlignment.Center => ContentAlignment.MiddleCenter,
+            UiColumnAlignment.Right => ContentAlignment.MiddleRight,
+            _ => ContentAlignment.MiddleLeft
+        };
+    }
+
+    private static int GetAlignedX(Rectangle bounds, int contentWidth, ContentAlignment alignment)
+    {
+        return alignment switch
+        {
+            ContentAlignment.MiddleCenter => bounds.X + Math.Max(0, (bounds.Width - contentWidth) / 2),
+            ContentAlignment.MiddleRight => bounds.Right - contentWidth,
+            _ => bounds.X
+        };
     }
 
     private static IReadOnlyList<int> GetIconDrawOrder(
@@ -840,11 +959,17 @@ internal static class SplitListRenderer
         return false;
     }
 
-    private static void AddColumn(Span<ColumnWidth> columns, ref int columnCount, SplitColumn column, UiColumnSettings settings)
+    private static void AddColumn(
+        Span<ColumnWidth> columns,
+        ref int columnCount,
+        SplitColumn column,
+        UiColumnSettings settings,
+        int sharedWidth,
+        int gapBefore)
     {
         if (settings.Show)
         {
-            columns[columnCount++] = new ColumnWidth(column, Math.Max(1, settings.Width));
+            columns[columnCount++] = new ColumnWidth(column, Math.Max(1, sharedWidth), Math.Max(0, gapBefore));
         }
     }
 }

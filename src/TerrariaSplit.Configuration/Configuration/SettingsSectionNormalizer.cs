@@ -101,6 +101,13 @@ public static class SettingsSectionNormalizer
     public static void NormalizeColumnSettings(UiColumnLayoutSettings columns, UiColumnLayoutSettings defaults)
     {
         columns.ScalePercent = Math.Clamp(columns.ScalePercent, 25, 300);
+        columns.IconNameGap = Math.Clamp(columns.IconNameGap, 0, 1000);
+        columns.NameTimeGap = Math.Clamp(columns.NameTimeGap, 0, 1000);
+        columns.TimeDeltaGap = Math.Clamp(columns.TimeDeltaGap, 0, 1000);
+        columns.IconAlignment = UiColumnAlignment.Normalize(columns.IconAlignment, UiColumnAlignment.Right);
+        columns.NameAlignment = UiColumnAlignment.Normalize(columns.NameAlignment, UiColumnAlignment.Center);
+        columns.TimeAlignment = UiColumnAlignment.Normalize(columns.TimeAlignment, UiColumnAlignment.Right);
+        columns.DeltaAlignment = UiColumnAlignment.Normalize(columns.DeltaAlignment, UiColumnAlignment.Left);
 
         foreach (UiColumnDescriptor descriptor in UiColumnDescriptors.All)
         {
@@ -109,6 +116,8 @@ public static class SettingsSectionNormalizer
             descriptor.SetValue(columns, column);
             NormalizeColumn(column, defaultColumn);
         }
+
+        UiColumnDescriptors.SynchronizeSharedWidths(columns);
     }
 
     private static void NormalizeColumn(UiColumnSettings column, UiColumnSettings defaults)

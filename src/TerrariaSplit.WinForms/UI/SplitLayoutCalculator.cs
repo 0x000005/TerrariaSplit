@@ -48,19 +48,41 @@ internal static class SplitLayoutCalculator
     public static int GetDefaultWindowWidth(AppSettings settings)
     {
         float scale = Math.Clamp(settings.Overlay.Columns.ScalePercent, 25, 300) / 100f;
-        int columnsWidth = 0;
-        columnsWidth += GetMaximumColumnWidth(settings.Overlay.Columns.Icon, settings.Overlay.Columns.AttachedIcon, scale);
-        columnsWidth += GetMaximumColumnWidth(settings.Overlay.Columns.Time, settings.Overlay.Columns.AttachedTime, scale);
-        columnsWidth += GetMaximumColumnWidth(settings.Overlay.Columns.Delta, settings.Overlay.Columns.AttachedDelta, scale);
+        int columnsWidth = Math.Max(
+            GetSplitColumnsWidth(settings, attached: false, scale),
+            GetSplitColumnsWidth(settings, attached: true, scale));
         int splitWidth = columnsWidth + (int)Math.Round(28 * scale);
         return Math.Clamp(Math.Max(splitWidth, GetMinimumTimerWindowWidth(settings)), 300, 2400);
     }
 
-    private static int GetMaximumColumnWidth(UiColumnSettings primary, UiColumnSettings attached, float scale)
+    private static int GetSplitColumnsWidth(AppSettings settings, bool attached, float scale)
     {
-        int primaryWidth = primary.Show ? (int)Math.Round(primary.Width * scale) : 0;
-        int attachedWidth = attached.Show ? (int)Math.Round(attached.Width * scale) : 0;
-        return Math.Max(primaryWidth, attachedWidth);
+        UiColumnLayoutSettings columns = settings.Overlay.Columns;
+        UiColumnSettings icon = attached ? columns.AttachedIcon : columns.Icon;
+        UiColumnSettings name = attached ? columns.AttachedName : columns.Name;
+        UiColumnSettings time = attached ? columns.AttachedTime : columns.Time;
+        UiColumnSettings delta = attached ? columns.AttachedDelta : columns.Delta;
+
+        int width = 0;
+        width += GetVisibleColumnWidth(columns, attached ? UiColumnDescriptors.AttachedIcon : UiColumnDescriptors.Icon, icon, scale);
+        width += GetVisibleColumnWidth(columns, attached ? UiColumnDescriptors.AttachedName : UiColumnDescriptors.Name, name, scale);
+        width += GetVisibleColumnWidth(columns, attached ? UiColumnDescriptors.AttachedTime : UiColumnDescriptors.Time, time, scale);
+        width += GetVisibleColumnWidth(columns, attached ? UiColumnDescriptors.AttachedDelta : UiColumnDescriptors.Delta, delta, scale);
+        width += icon.Show && name.Show ? (int)Math.Round(columns.IconNameGap * scale) : 0;
+        width += time.Show && (icon.Show || name.Show) ? (int)Math.Round(columns.NameTimeGap * scale) : 0;
+        width += delta.Show && (icon.Show || name.Show || time.Show) ? (int)Math.Round(columns.TimeDeltaGap * scale) : 0;
+        return width;
+    }
+
+    private static int GetVisibleColumnWidth(
+        UiColumnLayoutSettings columns,
+        UiColumnDescriptor descriptor,
+        UiColumnSettings column,
+        float scale)
+    {
+        return column.Show
+            ? (int)Math.Round(Math.Max(1, UiColumnDescriptors.GetSharedWidth(columns, descriptor)) * scale)
+            : 0;
     }
 
     public static int GetDefaultWindowHeight(AppSettings settings)

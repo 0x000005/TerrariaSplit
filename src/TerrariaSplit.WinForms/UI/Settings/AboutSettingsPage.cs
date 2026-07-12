@@ -30,10 +30,56 @@ internal sealed class AboutSettingsPage : SettingsPageBase
 
     private void BuildSections(TableLayoutPanel parent)
     {
+        var productName = new Label
+        {
+            AutoSize = true,
+            Anchor = AnchorStyles.Left | AnchorStyles.Bottom,
+            ForeColor = UiTheme.Text,
+            Font = UiTheme.FormFont(23f, FontStyle.Bold),
+            Margin = Padding.Empty,
+            Text = "Terraria Split"
+        };
+
         versionValue.AutoSize = true;
+        versionValue.Anchor = AnchorStyles.Left | AnchorStyles.Bottom;
         versionValue.ForeColor = UiTheme.Text;
-        versionValue.Font = UiTheme.FormFont(11f, FontStyle.Bold);
-        versionValue.Text = updateService.CurrentVersion.ToString(4);
+        versionValue.Font = UiTheme.FormFont(13.5f, FontStyle.Bold);
+        versionValue.Margin = new Padding(10, 0, 0, 0);
+        versionValue.Text = $"v{updateService.CurrentVersion.ToString(4)}";
+
+        var titleLine = new TableLayoutPanel
+        {
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Anchor = AnchorStyles.None,
+            BackColor = Color.Transparent,
+            ColumnCount = 2,
+            Margin = Padding.Empty,
+            Padding = Padding.Empty,
+            RowCount = 1
+        };
+        titleLine.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        titleLine.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        titleLine.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        titleLine.Controls.Add(productName, 0, 0);
+        titleLine.Controls.Add(versionValue, 1, 0);
+
+        var titleHost = new TableLayoutPanel
+        {
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            BackColor = Color.Transparent,
+            ColumnCount = 3,
+            Dock = DockStyle.Top,
+            Margin = Padding.Empty,
+            Padding = new Padding(0, 4, 0, 4),
+            RowCount = 1
+        };
+        titleHost.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50f));
+        titleHost.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        titleHost.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50f));
+        titleHost.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        titleHost.Controls.Add(titleLine, 1, 0);
 
         statusLabel.AutoSize = true;
         statusLabel.Dock = DockStyle.Top;
@@ -51,11 +97,8 @@ internal sealed class AboutSettingsPage : SettingsPageBase
         updateButton.AutoSize = true;
         updateButton.Click += async (_, _) => await CheckAndUpdateAsync();
 
-        TableLayoutPanel product = Factory.CreateSection("About TerrariaSplit");
-        TableLayoutPanel grid = Factory.CreateTwoColumnGrid(280f);
-        Factory.AddSettingRow(grid, "Application", Factory.CreateRawRowLabel("TerrariaSplit"));
-        Factory.AddSettingRow(grid, "Version", versionValue);
-        SettingsUiFactory.AddSectionControl(product, grid);
+        TableLayoutPanel product = Factory.CreateSection();
+        SettingsUiFactory.AddSectionControl(product, titleHost);
         SettingsUiFactory.AddSection(parent, product);
 
         TableLayoutPanel update = Factory.CreateSection("Updates");

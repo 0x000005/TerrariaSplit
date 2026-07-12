@@ -6,8 +6,16 @@ namespace TerrariaSplit.UI.Settings;
 
 internal sealed class UiSettingsPage : SettingsPageBase
 {
+    private const float NumericColumnWidth = 118f;
+    private const int NumericInputWidth = 86;
+    private const float AlignmentColumnWidth = 148f;
+    private const int AlignmentInputWidth = 132;
+
     private readonly Dictionary<string, ColumnControls> columnControls = new();
     private readonly Dictionary<string, FontControls> fontControls = new();
+    private readonly TextBox iconNameGapBox = new();
+    private readonly TextBox nameTimeGapBox = new();
+    private readonly TextBox timeDeltaGapBox = new();
     private readonly TextBox timerOffsetXBox = new();
     private readonly TextBox timerOffsetYBox = new();
     private readonly CheckBox visibleGroupCountLimitEnabledBox = new();
@@ -26,6 +34,9 @@ internal sealed class UiSettingsPage : SettingsPageBase
     private readonly TextBox iconOpacityBox = new();
     private readonly TextBox iconShadowBox = new();
     private readonly TextBox iconOutlineThicknessBox = new();
+    private readonly TextBox nameOpacityBox = new();
+    private readonly TextBox nameShadowBox = new();
+    private readonly TextBox nameOutlineThicknessBox = new();
     private readonly TextBox timeOpacityBox = new();
     private readonly TextBox timeShadowBox = new();
     private readonly TextBox timeOutlineThicknessBox = new();
@@ -35,6 +46,9 @@ internal sealed class UiSettingsPage : SettingsPageBase
     private readonly TextBox attachedIconOpacityBox = new();
     private readonly TextBox attachedIconShadowBox = new();
     private readonly TextBox attachedIconOutlineThicknessBox = new();
+    private readonly TextBox attachedNameOpacityBox = new();
+    private readonly TextBox attachedNameShadowBox = new();
+    private readonly TextBox attachedNameOutlineThicknessBox = new();
     private readonly TextBox attachedTimeOpacityBox = new();
     private readonly TextBox attachedTimeShadowBox = new();
     private readonly TextBox attachedTimeOutlineThicknessBox = new();
@@ -55,6 +69,12 @@ internal sealed class UiSettingsPage : SettingsPageBase
     internal TextBox VisibleGroupCountLimitBoxForTests => visibleGroupCountLimitBox;
 
     internal TextBox CurrentGroupPositionBoxForTests => currentGroupPositionBox;
+
+    internal TextBox IconNameGapBoxForTests => iconNameGapBox;
+
+    internal TextBox NameTimeGapBoxForTests => nameTimeGapBox;
+
+    internal TextBox TimeDeltaGapBoxForTests => timeDeltaGapBox;
 
     internal CheckBox ShowFinalGroupBoxForTests => showFinalGroupBox;
 
@@ -145,6 +165,16 @@ internal sealed class UiSettingsPage : SettingsPageBase
         return GetColumnControlsForTests(key).Width;
     }
 
+    internal ThemedDropDownList GetColumnAlignmentBoxForTests(string key)
+    {
+        return GetColumnControlsForTests(key).Alignment;
+    }
+
+    internal CheckBox GetColumnShowBoxForTests(string key)
+    {
+        return GetColumnControlsForTests(key).Show;
+    }
+
     internal TextBox GetColumnFontSizeBoxForTests(string key)
     {
         return GetColumnControlsForTests(key).FontSize;
@@ -153,6 +183,18 @@ internal sealed class UiSettingsPage : SettingsPageBase
     internal CheckBox? GetColumnBoldBoxForTests(string key)
     {
         return GetColumnControlsForTests(key).Bold;
+    }
+
+    internal CheckBox? GetItalicBoxForTests(string key)
+    {
+        if (columnControls.TryGetValue(key, out ColumnControls? columnControlsValue))
+        {
+            return columnControlsValue.Italic;
+        }
+
+        return fontControls.TryGetValue(key, out FontControls? fontControlsValue)
+            ? fontControlsValue.Italic
+            : null;
     }
 
     private ColumnControls GetColumnControlsForTests(string key)
@@ -179,6 +221,18 @@ internal sealed class UiSettingsPage : SettingsPageBase
         {
             ApplyColumnSettings(descriptor, EnsureColumn(settings.Overlay.Columns, descriptor));
         }
+        UiColumnDescriptors.SynchronizeSharedWidths(settings.Overlay.Columns);
+        foreach ((UiColumnDescriptor primary, _) in UiColumnDescriptors.SharedWidthPairs)
+        {
+            UiColumnDescriptors.SetSharedAlignment(
+                settings.Overlay.Columns,
+                primary,
+                GetSelectedColumnAlignment(columnControls[primary.Key].Alignment));
+        }
+
+        settings.Overlay.Columns.IconNameGap = SettingsValueParser.ParseIntBox(iconNameGapBox, 5, 0, 1000);
+        settings.Overlay.Columns.NameTimeGap = SettingsValueParser.ParseIntBox(nameTimeGapBox, 5, 0, 1000);
+        settings.Overlay.Columns.TimeDeltaGap = SettingsValueParser.ParseIntBox(timeDeltaGapBox, 5, 0, 1000);
 
         foreach (UiColumnDescriptor descriptor in UiColumnDescriptors.TimerDisplay)
         {
@@ -203,41 +257,61 @@ internal sealed class UiSettingsPage : SettingsPageBase
         TableLayoutPanel grid = Factory.CreateGrid(
             SettingsUiFactory.ColumnStylePercent(100f),
             SettingsUiFactory.ColumnStyleAbsolute(92f),
-            SettingsUiFactory.ColumnStyleAbsolute(118f),
+            SettingsUiFactory.ColumnStyleAbsolute(NumericColumnWidth),
+            SettingsUiFactory.ColumnStyleAbsolute(AlignmentColumnWidth),
             SettingsUiFactory.ColumnStyleAbsolute(220f),
-            SettingsUiFactory.ColumnStyleAbsolute(132f),
+            SettingsUiFactory.ColumnStyleAbsolute(NumericColumnWidth),
             SettingsUiFactory.ColumnStyleAbsolute(92f),
-            SettingsUiFactory.ColumnStyleAbsolute(152f),
-            SettingsUiFactory.ColumnStyleAbsolute(152f),
-            SettingsUiFactory.ColumnStyleAbsolute(172f));
+            SettingsUiFactory.ColumnStyleAbsolute(92f),
+            SettingsUiFactory.ColumnStyleAbsolute(NumericColumnWidth),
+            SettingsUiFactory.ColumnStyleAbsolute(NumericColumnWidth),
+            SettingsUiFactory.ColumnStyleAbsolute(NumericColumnWidth));
 
-        Factory.AddHeaderRow(grid, ContentAlignment.MiddleLeft, "Column", "Show", "Width", "Font family", "Size", "Bold", "Opacity %", "Shadow %", "Outline %");
+        Factory.AddHeaderRow(grid, ContentAlignment.MiddleLeft, "Column", "Show", "Width", "Alignment", "Font family", "Size", "Bold", "Italic", "Opacity %", "Shadow %", "Outline %");
         AddColumnSettingsRow(
             grid,
             UiColumnDescriptors.Icon,
             EnsureColumn(Draft.Overlay.Columns, UiColumnDescriptors.Icon));
         AddColumnSettingsRow(
             grid,
+            UiColumnDescriptors.AttachedIcon,
+            EnsureColumn(Draft.Overlay.Columns, UiColumnDescriptors.AttachedIcon));
+        AddColumnSpacingRow(grid, iconNameGapBox, Draft.Overlay.Columns.IconNameGap);
+        AddColumnSettingsRow(
+            grid,
+            UiColumnDescriptors.Name,
+            EnsureColumn(Draft.Overlay.Columns, UiColumnDescriptors.Name));
+        AddColumnSettingsRow(
+            grid,
+            UiColumnDescriptors.AttachedName,
+            EnsureColumn(Draft.Overlay.Columns, UiColumnDescriptors.AttachedName));
+        AddColumnSpacingRow(grid, nameTimeGapBox, Draft.Overlay.Columns.NameTimeGap);
+        AddColumnSettingsRow(
+            grid,
             UiColumnDescriptors.Time,
             EnsureColumn(Draft.Overlay.Columns, UiColumnDescriptors.Time));
+        AddColumnSettingsRow(
+            grid,
+            UiColumnDescriptors.AttachedTime,
+            EnsureColumn(Draft.Overlay.Columns, UiColumnDescriptors.AttachedTime));
+        AddColumnSpacingRow(grid, timeDeltaGapBox, Draft.Overlay.Columns.TimeDeltaGap);
         AddColumnSettingsRow(
             grid,
             UiColumnDescriptors.Delta,
             EnsureColumn(Draft.Overlay.Columns, UiColumnDescriptors.Delta));
         AddColumnSettingsRow(
             grid,
-            UiColumnDescriptors.AttachedIcon,
-            EnsureColumn(Draft.Overlay.Columns, UiColumnDescriptors.AttachedIcon));
-        AddColumnSettingsRow(
-            grid,
-            UiColumnDescriptors.AttachedTime,
-            EnsureColumn(Draft.Overlay.Columns, UiColumnDescriptors.AttachedTime));
-        AddColumnSettingsRow(
-            grid,
             UiColumnDescriptors.AttachedDelta,
             EnsureColumn(Draft.Overlay.Columns, UiColumnDescriptors.AttachedDelta));
 
         SettingsUiFactory.AddSectionControl(section, grid);
+
+        foreach (UiColumnDescriptor descriptor in UiColumnDescriptors.SplitDisplay)
+        {
+            columnControls[descriptor.Key].Show.CheckedChanged += (_, _) => UpdateColumnSettingsAvailability();
+        }
+
+        UpdateColumnSettingsAvailability();
         SettingsUiFactory.AddSection(parent, section);
     }
 
@@ -294,7 +368,30 @@ internal sealed class UiSettingsPage : SettingsPageBase
         UiColumnSettings value)
     {
         var showBox = CreateCenteredCheckBox(value.Show);
-        TextBox widthBox = Factory.CreateNumberBox(value.Width, 1, 1000);
+        UiColumnDescriptor widthOwner = UiColumnDescriptors.GetWidthOwner(descriptor);
+        bool ownsWidth = string.Equals(widthOwner.Key, descriptor.Key, StringComparison.Ordinal);
+        TextBox widthBox;
+        Control? widthControl = null;
+        ThemedDropDownList alignmentBox;
+        Control? alignmentControl = null;
+        if (ownsWidth)
+        {
+            widthBox = Factory.CreateNumberBox(value.Width, 1, 1000);
+            widthControl = Factory.CreateCenteredCell(widthBox, NumericInputWidth);
+            alignmentBox = CreateColumnAlignmentBox(
+                UiColumnDescriptors.GetSharedAlignment(Draft.Overlay.Columns, descriptor));
+            alignmentControl = Factory.CreateCenteredCell(alignmentBox, AlignmentInputWidth);
+        }
+        else if (columnControls.TryGetValue(widthOwner.Key, out ColumnControls? ownerControls))
+        {
+            widthBox = ownerControls.Width;
+            alignmentBox = ownerControls.Alignment;
+        }
+        else
+        {
+            throw new InvalidOperationException($"Shared width owner controls not found for {descriptor.Key}.");
+        }
+
         FontFamilySelector? fontFamilyBox = descriptor.ShowFontFamily ? CreateFontFamilyBox(value.FontFamily) : null;
         TextBox fontBox = Factory.CreateDecimalBox(value.FontSize, 6, 96);
         TextEffectBoxes effectBoxes = GetTextEffectBoxes(descriptor.TextEffect);
@@ -314,18 +411,80 @@ internal sealed class UiSettingsPage : SettingsPageBase
             boldControl = Factory.CreateCenteredCell(boldBox, 28);
         }
 
-        columnControls[descriptor.Key] = new ColumnControls(showBox, widthBox, fontFamilyBox, fontBox, boldBox);
+        CheckBox? italicBox = null;
+        Control italicControl = CreateEmptySettingsCell();
+        if (descriptor.ShowItalic)
+        {
+            italicBox = CreateCenteredCheckBox(value.Italic);
+            italicControl = Factory.CreateCenteredCell(italicBox, 28);
+        }
+
+        columnControls[descriptor.Key] = new ColumnControls(showBox, widthBox, alignmentBox, fontFamilyBox, fontBox, boldBox, italicBox);
 
         int row = Factory.AddGridRow(grid);
         grid.Controls.Add(Factory.CreateRowLabel(descriptor.Label), 0, row);
         grid.Controls.Add(Factory.CreateCenteredCell(showBox, 28), 1, row);
-        grid.Controls.Add(Factory.CreateCenteredCell(widthBox, 86), 2, row);
-        grid.Controls.Add(fontFamilyControl, 3, row);
-        grid.Controls.Add(Factory.CreateCenteredCell(fontBox, 92), 4, row);
-        grid.Controls.Add(boldControl, 5, row);
-        grid.Controls.Add(opacityControl, 6, row);
-        grid.Controls.Add(shadowControl, 7, row);
-        grid.Controls.Add(outlineThicknessControl, 8, row);
+        if (widthControl is not null)
+        {
+            grid.Controls.Add(widthControl, 2, row);
+            grid.SetRowSpan(widthControl, 2);
+        }
+        if (alignmentControl is not null)
+        {
+            grid.Controls.Add(alignmentControl, 3, row);
+            grid.SetRowSpan(alignmentControl, 2);
+        }
+        grid.Controls.Add(fontFamilyControl, 4, row);
+        grid.Controls.Add(Factory.CreateCenteredCell(fontBox, NumericInputWidth), 5, row);
+        grid.Controls.Add(boldControl, 6, row);
+        grid.Controls.Add(italicControl, 7, row);
+        grid.Controls.Add(opacityControl, 8, row);
+        grid.Controls.Add(shadowControl, 9, row);
+        grid.Controls.Add(outlineThicknessControl, 10, row);
+    }
+
+    private void AddColumnSpacingRow(TableLayoutPanel grid, TextBox spacingBox, int value)
+    {
+        ConfigureNumberBox(spacingBox, value, 0, 1000);
+        int row = Factory.AddGridRow(grid);
+        grid.Controls.Add(Factory.CreateRowLabel("Spacing"), 0, row);
+        grid.Controls.Add(Factory.CreateCenteredCell(spacingBox, NumericInputWidth), 2, row);
+    }
+
+    private ThemedDropDownList CreateColumnAlignmentBox(string selectedAlignment)
+    {
+        ThemedDropDownList box = Factory.CreateDropDownList();
+        string normalized = UiColumnAlignment.Normalize(selectedAlignment, UiColumnAlignment.Left);
+        foreach (string alignment in UiColumnAlignment.All)
+        {
+            box.Items.Add(new ColumnAlignmentOption(
+                alignment,
+                Context.Localize(UiColumnAlignment.GetDisplayName(alignment))));
+        }
+
+        for (int i = 0; i < box.Items.Count; i++)
+        {
+            if (box.Items[i] is ColumnAlignmentOption option &&
+                string.Equals(option.Value, normalized, StringComparison.Ordinal))
+            {
+                box.SelectedIndex = i;
+                break;
+            }
+        }
+
+        if (box.SelectedIndex < 0 && box.Items.Count > 0)
+        {
+            box.SelectedIndex = 0;
+        }
+
+        return box;
+    }
+
+    private static string GetSelectedColumnAlignment(ThemedDropDownList box)
+    {
+        return box.SelectedItem is ColumnAlignmentOption option
+            ? option.Value
+            : UiColumnAlignment.Left;
     }
 
     private void AddTimerSettingsSection(TableLayoutPanel parent)
@@ -335,13 +494,14 @@ internal sealed class UiSettingsPage : SettingsPageBase
             SettingsUiFactory.ColumnStylePercent(100f),
             SettingsUiFactory.ColumnStyleAbsolute(92f),
             SettingsUiFactory.ColumnStyleAbsolute(220f),
-            SettingsUiFactory.ColumnStyleAbsolute(132f),
+            SettingsUiFactory.ColumnStyleAbsolute(NumericColumnWidth),
             SettingsUiFactory.ColumnStyleAbsolute(92f),
-            SettingsUiFactory.ColumnStyleAbsolute(152f),
-            SettingsUiFactory.ColumnStyleAbsolute(152f),
-            SettingsUiFactory.ColumnStyleAbsolute(172f));
+            SettingsUiFactory.ColumnStyleAbsolute(92f),
+            SettingsUiFactory.ColumnStyleAbsolute(NumericColumnWidth),
+            SettingsUiFactory.ColumnStyleAbsolute(NumericColumnWidth),
+            SettingsUiFactory.ColumnStyleAbsolute(NumericColumnWidth));
 
-        Factory.AddHeaderRow(grid, ContentAlignment.MiddleLeft, "Section", "Show", "Font family", "Size", "Bold", "Opacity %", "Shadow %", "Outline %");
+        Factory.AddHeaderRow(grid, ContentAlignment.MiddleLeft, "Section", "Show", "Font family", "Size", "Bold", "Italic", "Opacity %", "Shadow %", "Outline %");
         AddFontSettingsRow(
             grid,
             UiColumnDescriptors.Timer,
@@ -399,17 +559,19 @@ internal sealed class UiSettingsPage : SettingsPageBase
         Control shadowControl = CreateEffectCell(effectBoxes.Shadow, descriptor.TextEffect.GetShadow?.Invoke(textEffects) ?? 0, 100);
         Control outlineThicknessControl = CreateEffectCell(effectBoxes.Outline, descriptor.TextEffect.GetOutline?.Invoke(textEffects) ?? 0, 100);
         var boldBox = CreateCenteredCheckBox(value.Bold);
+        var italicBox = CreateCenteredCheckBox(value.Italic);
 
-        fontControls[descriptor.Key] = new FontControls(showBox, fontFamilyBox, fontBox, boldBox);
+        fontControls[descriptor.Key] = new FontControls(showBox, fontFamilyBox, fontBox, boldBox, italicBox);
         int row = Factory.AddGridRow(grid);
         grid.Controls.Add(Factory.CreateRowLabel(descriptor.Label), 0, row);
         grid.Controls.Add(Factory.CreateCenteredCell(showBox, 28), 1, row);
         grid.Controls.Add(Factory.CreateCenteredCell(fontFamilyBox, 210), 2, row);
-        grid.Controls.Add(Factory.CreateCenteredCell(fontBox, 92), 3, row);
+        grid.Controls.Add(Factory.CreateCenteredCell(fontBox, NumericInputWidth), 3, row);
         grid.Controls.Add(Factory.CreateCenteredCell(boldBox, 28), 4, row);
-        grid.Controls.Add(opacityControl, 5, row);
-        grid.Controls.Add(shadowControl, 6, row);
-        grid.Controls.Add(outlineThicknessControl, 7, row);
+        grid.Controls.Add(Factory.CreateCenteredCell(italicBox, 28), 5, row);
+        grid.Controls.Add(opacityControl, 6, row);
+        grid.Controls.Add(shadowControl, 7, row);
+        grid.Controls.Add(outlineThicknessControl, 8, row);
     }
 
     private FontFamilySelector CreateFontFamilyBox(string familyName)
@@ -427,7 +589,7 @@ internal sealed class UiSettingsPage : SettingsPageBase
         }
 
         ConfigureNumberBox(textBox, value, 0, maximum);
-        return Factory.CreateCenteredCell(textBox, 112);
+        return Factory.CreateCenteredCell(textBox, NumericInputWidth);
     }
 
     private static Control CreateEmptySettingsCell()
@@ -561,6 +723,60 @@ internal sealed class UiSettingsPage : SettingsPageBase
             expandSplitDetailsBox.Checked && collapseSplitDetailsOnCompletionBox.Checked;
     }
 
+    private void UpdateColumnSettingsAvailability()
+    {
+        foreach (UiColumnDescriptor descriptor in UiColumnDescriptors.SplitDisplay)
+        {
+            ColumnControls controls = columnControls[descriptor.Key];
+            bool visible = controls.Show.Checked;
+            if (controls.FontFamily is not null)
+            {
+                controls.FontFamily.Enabled = visible;
+            }
+
+            controls.FontSize.Enabled = visible;
+            if (controls.Bold is not null)
+            {
+                controls.Bold.Enabled = visible;
+            }
+
+            if (controls.Italic is not null)
+            {
+                controls.Italic.Enabled = visible;
+            }
+
+            TextEffectBoxes effects = GetTextEffectBoxes(descriptor.TextEffect);
+            effects.Opacity.Enabled = visible;
+            if (effects.Shadow is not null)
+            {
+                effects.Shadow.Enabled = visible;
+            }
+
+            if (effects.Outline is not null)
+            {
+                effects.Outline.Enabled = visible;
+            }
+        }
+
+        foreach ((UiColumnDescriptor primary, UiColumnDescriptor attached) in UiColumnDescriptors.SharedWidthPairs)
+        {
+            ColumnControls primaryControls = columnControls[primary.Key];
+            ColumnControls attachedControls = columnControls[attached.Key];
+            bool groupVisible = primaryControls.Show.Checked || attachedControls.Show.Checked;
+            primaryControls.Width.Enabled = groupVisible;
+            primaryControls.Alignment.Enabled = groupVisible;
+        }
+
+        iconNameGapBox.Enabled = IsColumnGroupVisible(UiColumnDescriptors.Name, UiColumnDescriptors.AttachedName);
+        nameTimeGapBox.Enabled = IsColumnGroupVisible(UiColumnDescriptors.Time, UiColumnDescriptors.AttachedTime);
+        timeDeltaGapBox.Enabled = IsColumnGroupVisible(UiColumnDescriptors.Delta, UiColumnDescriptors.AttachedDelta);
+    }
+
+    private bool IsColumnGroupVisible(UiColumnDescriptor primary, UiColumnDescriptor attached)
+    {
+        return columnControls[primary.Key].Show.Checked || columnControls[attached.Key].Show.Checked;
+    }
+
     private void UpdateAttachedGroupVisibilityOptionAvailability()
     {
         showAllAttachedGroupsAfterFinalGroupBox.Enabled = autoHideAttachedGroupsBox.Checked;
@@ -599,6 +815,11 @@ internal sealed class UiSettingsPage : SettingsPageBase
         {
             target.Bold = controls.Bold.Checked;
         }
+
+        if (controls.Italic is not null)
+        {
+            target.Italic = controls.Italic.Checked;
+        }
     }
 
     private void ApplyFontSettings(UiColumnDescriptor descriptor, UiColumnSettings target)
@@ -612,6 +833,7 @@ internal sealed class UiSettingsPage : SettingsPageBase
         target.FontFamily = GetSelectedFontFamily(controls.FontFamily, target.FontFamily);
         target.FontSize = SettingsValueParser.ParseFloatBox(controls.FontSize, target.FontSize, 6f, 96f);
         target.Bold = controls.Bold.Checked;
+        target.Italic = controls.Italic.Checked;
     }
 
     private static string GetSelectedFontFamily(FontFamilySelector selector, string fallback)
@@ -638,9 +860,11 @@ internal sealed class UiSettingsPage : SettingsPageBase
         return descriptor.Key switch
         {
             nameof(UiTextEffectSettings.IconOpacityPercent) => new TextEffectBoxes(iconOpacityBox, iconShadowBox, iconOutlineThicknessBox),
+            nameof(UiTextEffectSettings.NameOpacityPercent) => new TextEffectBoxes(nameOpacityBox, nameShadowBox, nameOutlineThicknessBox),
             nameof(UiTextEffectSettings.TimeOpacityPercent) => new TextEffectBoxes(timeOpacityBox, timeShadowBox, timeOutlineThicknessBox),
             nameof(UiTextEffectSettings.DeltaOpacityPercent) => new TextEffectBoxes(deltaOpacityBox, deltaShadowBox, deltaOutlineThicknessBox),
             nameof(UiTextEffectSettings.AttachedIconOpacityPercent) => new TextEffectBoxes(attachedIconOpacityBox, attachedIconShadowBox, attachedIconOutlineThicknessBox),
+            nameof(UiTextEffectSettings.AttachedNameOpacityPercent) => new TextEffectBoxes(attachedNameOpacityBox, attachedNameShadowBox, attachedNameOutlineThicknessBox),
             nameof(UiTextEffectSettings.AttachedTimeOpacityPercent) => new TextEffectBoxes(attachedTimeOpacityBox, attachedTimeShadowBox, attachedTimeOutlineThicknessBox),
             nameof(UiTextEffectSettings.AttachedDeltaOpacityPercent) => new TextEffectBoxes(attachedDeltaOpacityBox, attachedDeltaShadowBox, attachedDeltaOutlineThicknessBox),
             nameof(UiTextEffectSettings.TimerOpacityPercent) => new TextEffectBoxes(timerOpacityBox, timerShadowBox, timerOutlineThicknessBox),
@@ -649,9 +873,21 @@ internal sealed class UiSettingsPage : SettingsPageBase
         };
     }
 
-    private sealed record ColumnControls(CheckBox Show, TextBox Width, FontFamilySelector? FontFamily, TextBox FontSize, CheckBox? Bold);
+    private sealed record ColumnControls(
+        CheckBox Show,
+        TextBox Width,
+        ThemedDropDownList Alignment,
+        FontFamilySelector? FontFamily,
+        TextBox FontSize,
+        CheckBox? Bold,
+        CheckBox? Italic);
 
-    private sealed record FontControls(CheckBox Show, FontFamilySelector FontFamily, TextBox FontSize, CheckBox Bold);
+    private sealed record FontControls(CheckBox Show, FontFamilySelector FontFamily, TextBox FontSize, CheckBox Bold, CheckBox Italic);
+
+    private sealed record ColumnAlignmentOption(string Value, string DisplayName)
+    {
+        public override string ToString() => DisplayName;
+    }
 
     private readonly record struct TextEffectBoxes(TextBox Opacity, TextBox? Shadow, TextBox? Outline);
 }

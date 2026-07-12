@@ -650,6 +650,7 @@ internal sealed class RaceForm : Form
             SettingsUiFactory.ColumnStyleAbsolute(ScaleLeaderboardVisualColumnWidth(180f)),
             SettingsUiFactory.ColumnStyleAbsolute(ScaleLeaderboardVisualColumnWidth(82f)),
             SettingsUiFactory.ColumnStyleAbsolute(ScaleLeaderboardVisualColumnWidth(72f)),
+            SettingsUiFactory.ColumnStyleAbsolute(ScaleLeaderboardVisualColumnWidth(72f)),
             SettingsUiFactory.ColumnStyleAbsolute(ScaleLeaderboardVisualColumnWidth(96f)),
             SettingsUiFactory.ColumnStyleAbsolute(ScaleLeaderboardVisualColumnWidth(96f)),
             SettingsUiFactory.ColumnStyleAbsolute(ScaleLeaderboardVisualColumnWidth(104f)));
@@ -662,6 +663,7 @@ internal sealed class RaceForm : Form
             "Font family",
             "Size",
             "Bold",
+            "Italic",
             "Opacity %",
             "Shadow %",
             "Outline %");
@@ -684,7 +686,8 @@ internal sealed class RaceForm : Form
             leaderboardSettings.Icon,
             leaderboardSettings.TextEffects.Icon,
             includeFontFamily: false,
-            includeBold: false);
+            includeBold: false,
+            includeItalic: false);
         AddLeaderboardSettingsRow(
             grid,
             RaceLeaderboardColumnKeys.Time,
@@ -768,13 +771,15 @@ internal sealed class RaceForm : Form
         RaceLeaderboardColumnEffectSettings effect,
         bool includeFontFamily = true,
         bool includeFontSize = true,
-        bool includeBold = true)
+        bool includeBold = true,
+        bool includeItalic = true)
     {
         var showBox = uiFactory.CreateCheckBox(column.Show);
         TextBox widthBox = uiFactory.CreateNumberBox(column.Width, 1, 1000);
         FontFamilySelector? fontFamilyBox = includeFontFamily ? CreateFontFamilyBox(column.FontFamily) : null;
         TextBox? fontSizeBox = includeFontSize ? uiFactory.CreateDecimalBox(column.FontSize, 6, 96) : null;
         CheckBox? boldBox = includeBold ? uiFactory.CreateCheckBox(column.Bold) : null;
+        CheckBox? italicBox = includeItalic ? uiFactory.CreateCheckBox(column.Italic) : null;
         TextBox opacityBox = uiFactory.CreateNumberBox(effect.OpacityPercent, 0, 100);
         TextBox shadowBox = uiFactory.CreateNumberBox(effect.ShadowPercent, 0, 100);
         TextBox outlineBox = uiFactory.CreateNumberBox(effect.OutlineThicknessPercent, 0, 100);
@@ -785,6 +790,7 @@ internal sealed class RaceForm : Form
             fontFamilyBox,
             fontSizeBox,
             boldBox,
+            italicBox,
             opacityBox,
             shadowBox,
             outlineBox);
@@ -796,9 +802,10 @@ internal sealed class RaceForm : Form
         grid.Controls.Add(fontFamilyBox is null ? CreateEmptyCell() : uiFactory.CreateCenteredCell(fontFamilyBox, ScaleLeaderboardVisualCellWidth(164)), 3, row);
         grid.Controls.Add(fontSizeBox is null ? CreateEmptyCell() : uiFactory.CreateCenteredCell(fontSizeBox, ScaleLeaderboardVisualCellWidth(68)), 4, row);
         grid.Controls.Add(boldBox is null ? CreateEmptyCell() : uiFactory.CreateCenteredCell(boldBox, ScaleLeaderboardVisualCellWidth(28)), 5, row);
-        grid.Controls.Add(uiFactory.CreateCenteredCell(opacityBox, ScaleLeaderboardVisualCellWidth(78)), 6, row);
-        grid.Controls.Add(uiFactory.CreateCenteredCell(shadowBox, ScaleLeaderboardVisualCellWidth(78)), 7, row);
-        grid.Controls.Add(uiFactory.CreateCenteredCell(outlineBox, ScaleLeaderboardVisualCellWidth(78)), 8, row);
+        grid.Controls.Add(italicBox is null ? CreateEmptyCell() : uiFactory.CreateCenteredCell(italicBox, ScaleLeaderboardVisualCellWidth(28)), 6, row);
+        grid.Controls.Add(uiFactory.CreateCenteredCell(opacityBox, ScaleLeaderboardVisualCellWidth(78)), 7, row);
+        grid.Controls.Add(uiFactory.CreateCenteredCell(shadowBox, ScaleLeaderboardVisualCellWidth(78)), 8, row);
+        grid.Controls.Add(uiFactory.CreateCenteredCell(outlineBox, ScaleLeaderboardVisualCellWidth(78)), 9, row);
     }
 
     private static float ScaleLeaderboardVisualColumnWidth(float width)
@@ -2126,6 +2133,10 @@ internal sealed class RaceForm : Form
         {
             column.Bold = columnControls.Bold.Checked;
         }
+        if (columnControls.Italic is not null)
+        {
+            column.Italic = columnControls.Italic.Checked;
+        }
         effect.OpacityPercent = SettingsValueParser.ParseIntBox(columnControls.Opacity, effect.OpacityPercent, 0, 100);
         effect.ShadowPercent = SettingsValueParser.ParseIntBox(columnControls.Shadow, effect.ShadowPercent, 0, 100);
         effect.OutlineThicknessPercent = SettingsValueParser.ParseIntBox(columnControls.Outline, effect.OutlineThicknessPercent, 0, 100);
@@ -2185,7 +2196,8 @@ internal sealed class RaceForm : Form
             Width = source.Width,
             FontFamily = source.FontFamily,
             FontSize = source.FontSize,
-            Bold = source.Bold
+            Bold = source.Bold,
+            Italic = source.Italic
         };
     }
 
@@ -2850,6 +2862,7 @@ internal sealed class RaceForm : Form
         FontFamilySelector? FontFamily,
         TextBox? FontSize,
         CheckBox? Bold,
+        CheckBox? Italic,
         TextBox Opacity,
         TextBox Shadow,
         TextBox Outline);

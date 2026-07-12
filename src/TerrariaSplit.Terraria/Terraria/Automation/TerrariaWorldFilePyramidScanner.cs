@@ -262,6 +262,85 @@ internal sealed class TerrariaWorldFilePyramidScanner
         }
     }
 
+    public bool TryMeasureJungleTunnelAlignment(
+        string worldPath,
+        IReadOnlyCollection<Point> centerline,
+        out JungleTunnelAlignmentResult result,
+        out string detail)
+    {
+        result = default;
+        detail = string.Empty;
+        try
+        {
+            using FileStream stream = new(
+                worldPath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete);
+            using BinaryReader reader = new(stream);
+
+            if (!TryReadWorldFileSections(reader, out WorldFileSections sections, out detail))
+            {
+                return false;
+            }
+
+            stream.Position = sections.HeaderDataOffset;
+            WorldHeaderData header = ReadWorldHeaderData(reader, sections.Version);
+            Dictionary<int, int[]> targetsByX = centerline
+                .Where(point => point.X >= 0 && point.X < header.Width && point.Y >= 0 && point.Y < header.Height)
+                .Distinct()
+                .GroupBy(point => point.X)
+                .ToDictionary(group => group.Key, group => group.Select(point => point.Y).Order().ToArray());
+            int sampleCount = targetsByX.Values.Sum(static values => values.Length);
+            int openCount = 0;
+
+            stream.Position = sections.TileDataOffset;
+            for (int x = 0; x < header.Width; x++)
+            {
+                targetsByX.TryGetValue(x, out int[]? targetYs);
+                int targetIndex = 0;
+                int y = 0;
+                while (y < header.Height)
+                {
+                    WorldTileRecord tile = ReadWorldTileRecord(reader, sections.FrameImportance);
+                    int tileCount = checked(tile.RunLength + 1);
+                    if (tileCount <= 0 || y + tileCount > header.Height)
+                    {
+                        throw new InvalidDataException($"invalid tile run length {tile.RunLength} at {x},{y}");
+                    }
+
+                    if (targetYs is not null)
+                    {
+                        while (targetIndex < targetYs.Length && targetYs[targetIndex] < y)
+                        {
+                            targetIndex++;
+                        }
+
+                        while (targetIndex < targetYs.Length && targetYs[targetIndex] < y + tileCount)
+                        {
+                            if (!tile.Active)
+                            {
+                                openCount++;
+                            }
+
+                            targetIndex++;
+                        }
+                    }
+
+                    y += tileCount;
+                }
+            }
+
+            result = new JungleTunnelAlignmentResult(sampleCount, openCount);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or EndOfStreamException or ArgumentException or InvalidDataException or OverflowException)
+        {
+            detail = ex.Message;
+            return false;
+        }
+    }
+
     private static bool TryReadSectionPointers(BinaryReader reader, out int version, out int[] sectionPointers, out string detail)
     {
         sectionPointers = Array.Empty<int>();
@@ -646,6 +725,11 @@ internal readonly record struct CrimsonCorridorScanResult(
     Rectangle Bounds,
     int CrimsonTileCount,
     bool HasCrimson);
+
+internal readonly record struct JungleTunnelAlignmentResult(int SampleCount, int OpenCenterCount)
+{
+    public double OpenRatio => SampleCount == 0 ? 0d : OpenCenterCount / (double)SampleCount;
+}
 
 internal readonly record struct TerrariaWorldDimensions(int Width, int Height)
 {

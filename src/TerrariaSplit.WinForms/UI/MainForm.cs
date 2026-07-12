@@ -93,7 +93,6 @@ internal sealed partial class MainForm : Form
         settingsSnapshots = startupCore.SettingsSnapshots;
         appLogger = startupCore.AppLogger;
         applicationController = startupCore.ApplicationController;
-        runtimeShell.AttachPerformance(startupCore.Performance);
         hotkeyShell = new HotkeyShell(
             startupCore.HotkeyManager,
             () => settings,
@@ -109,8 +108,7 @@ internal sealed partial class MainForm : Form
             {
                 DrawStatusOverlay(graphics);
                 return true;
-            },
-            elapsed => startupCore.Performance.RecordStatusPaint(elapsed));
+            });
         overlayWindowController.FirstFrameRendered += () =>
         {
             StartupDiagnostics.RecordTrace("StatusFrame");
@@ -127,12 +125,7 @@ internal sealed partial class MainForm : Form
         overlayShell.ApplyLayoutRowCounts(initialReservedRowCount, initialVisibleRowCount, force: true);
         overlayBoundsController.LayoutChanged += ApplyOverlayLayout;
         TimerOverlayWindowHost timerOverlayHost = MainShellCompositionRoot.CreateTimerOverlayWindowHost(
-            callback => BeginInvoke(callback),
-            elapsed => startupCore.Performance.RecordTimerOverlayPaint(elapsed),
-            tick => startupCore.Performance.RecordTimerOverlayPaintTick(tick),
-            startupCore.Performance.RecordTimerOverlayLayeredUpdate,
-            startupCore.Performance.RecordTimerOverlayPaintDispatchSkipped,
-            startupCore.Performance.RecordTimerOverlayPaintInputSkipped);
+            callback => BeginInvoke(callback));
         overlayShell.AttachRuntimeComponents(
             overlayWindowController,
             overlayBoundsController,

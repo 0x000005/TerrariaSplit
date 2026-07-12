@@ -43,7 +43,6 @@ public static class WorldPoolSignature
             : AutoCreatePyramidFilterItem.NormalizeMask(autoCreate.PyramidFilterItemMask);
         string pyramidItems = "pyramidItems=" + pyramidItemMask.ToString(CultureInfo.InvariantCulture);
         bool crimsonCorridorEnabled = autoCreate.RequireCrimsonBetweenDungeonAndSpawn &&
-            string.Equals(size, AutoCreateWorldSize.Small, StringComparison.Ordinal) &&
             string.Equals(evil, AutoCreateWorldEvil.Crimson, StringComparison.Ordinal);
         string crimsonCorridor = crimsonCorridorEnabled ? "crimsonCorridor=1" : "crimsonCorridor=0";
         string nameLanguage = "name=" + TerrariaLanguageCodes.FromAppLanguage(appLanguage);

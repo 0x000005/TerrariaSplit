@@ -162,13 +162,15 @@ internal static class OverlayCompositeLayoutCalculator
     {
         float scaleFactor = OverlayRenderContext.GetScaleFactor(settings);
         float dpiMultiplier = SystemDpiScale.Value * DefaultDpi / 72f;
+        float nameSize = OverlayFontCache.GetColumnFontSize(settings.Overlay.Columns.Name, scaleFactor);
         float timeSize = OverlayFontCache.GetColumnFontSize(settings.Overlay.Columns.Time, scaleFactor);
         float deltaSize = OverlayFontCache.GetColumnFontSize(settings.Overlay.Columns.Delta, scaleFactor);
+        float attachedNameSize = OverlayFontCache.GetColumnFontSize(settings.Overlay.Columns.AttachedName, scaleFactor);
         float attachedTimeSize = OverlayFontCache.GetColumnFontSize(settings.Overlay.Columns.AttachedTime, scaleFactor);
         float attachedDeltaSize = OverlayFontCache.GetColumnFontSize(settings.Overlay.Columns.AttachedDelta, scaleFactor);
         float maxSize = Math.Max(
-            Math.Max(timeSize, deltaSize),
-            Math.Max(attachedTimeSize, attachedDeltaSize));
+            Math.Max(Math.Max(nameSize, timeSize), deltaSize),
+            Math.Max(Math.Max(attachedNameSize, attachedTimeSize), attachedDeltaSize));
         return Math.Max(1, (int)Math.Ceiling(maxSize * dpiMultiplier));
     }
 
@@ -188,6 +190,10 @@ internal static class OverlayCompositeLayoutCalculator
     private static int GetStatusTextEffectBleed(AppSettings settings)
     {
         int fontPixels = GetStatusMaxFontPixelHeight(settings);
+        int nameBleed = EstimateTextEffectBleed(
+            fontPixels,
+            settings.Overlay.TextEffects.NameShadowPercent,
+            settings.Overlay.TextEffects.NameOutlineThicknessPercent);
         int timeBleed = EstimateTextEffectBleed(
             fontPixels,
             settings.Overlay.TextEffects.TimeShadowPercent,
@@ -200,13 +206,17 @@ internal static class OverlayCompositeLayoutCalculator
             fontPixels,
             settings.Overlay.TextEffects.AttachedTimeShadowPercent,
             settings.Overlay.TextEffects.AttachedTimeOutlineThicknessPercent);
+        int attachedNameBleed = EstimateTextEffectBleed(
+            fontPixels,
+            settings.Overlay.TextEffects.AttachedNameShadowPercent,
+            settings.Overlay.TextEffects.AttachedNameOutlineThicknessPercent);
         int attachedDeltaBleed = EstimateTextEffectBleed(
             fontPixels,
             settings.Overlay.TextEffects.AttachedDeltaShadowPercent,
             settings.Overlay.TextEffects.AttachedDeltaOutlineThicknessPercent);
         return Math.Max(
-            Math.Max(timeBleed, deltaBleed),
-            Math.Max(attachedTimeBleed, attachedDeltaBleed));
+            Math.Max(Math.Max(nameBleed, timeBleed), deltaBleed),
+            Math.Max(Math.Max(attachedNameBleed, attachedTimeBleed), attachedDeltaBleed));
     }
 
     private static int EstimateTextEffectBleed(int fontPixels, int shadowPercent, int outlineThicknessPercent)

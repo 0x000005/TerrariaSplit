@@ -97,14 +97,21 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
         { "Split display", "分段计时器" },
         { "Global scale %", "全局缩放 %" },
         { "Column", "列名" },
+        { "Spacing", "间距" },
         { "Show", "显示" },
         { "Width", "宽度" },
+        { "Alignment", "对齐方式" },
+        { "Left aligned", "左对齐" },
+        { "Centered", "居中" },
+        { "Right aligned", "右对齐" },
         { "Font", "字体大小" },
         { "Font family", "字体" },
         { "Size", "字号" },
         { "Bold", "粗体" },
+        { "Italic", "斜体" },
         { "Icon", "图标" },
         { "Icon (attached)", "图标（附属）" },
+        { "Name (attached)", "名称（附属）" },
         { "Flags", "标记" },
         { "Expand", "展开" },
         { "Main groups", "主要组" },
@@ -123,6 +130,8 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
         { "Auto hide attached groups", "自动隐藏附属组" },
         { "Time", "时间" },
         { "Time (attached)", "时间（附属）" },
+        { "Name (not completed)", "名称（未完成）" },
+        { "Name (completed)", "名称（已完成）" },
         { "Delta", "差值" },
         { "Delta time", "差值时间" },
         { "Delta (attached)", "差值（附属）" },
@@ -568,7 +577,7 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Quick pyramid filter", "\u7B5B\u5854" }
       , { "Required pyramid items", "\u6307\u5B9A\u7269\u54C1" }
       , { "World post-generation filters", "\u4E16\u754C\u751F\u6210\u540E\u4E8C\u9A8C" }
-      , { "Available for small Crimson worlds. The generated world file is checked before the world is kept.", "\u4EC5\u9002\u7528\u4E8E\u7329\u7EA2\u5C0F\u4E16\u754C\uFF1B\u4FDD\u7559\u4E16\u754C\u524D\u4F1A\u68C0\u67E5\u5DF2\u751F\u6210\u7684\u4E16\u754C\u6587\u4EF6\u3002" }
+      , { "Available for Crimson worlds of any size. The generated world file is checked before the world is kept.", "\u9002\u7528\u4E8E\u4EFB\u610F\u5C3A\u5BF8\u7684\u7329\u7EA2\u4E16\u754C\uFF1B\u4FDD\u7559\u4E16\u754C\u524D\u4F1A\u68C0\u67E5\u5DF2\u751F\u6210\u7684\u4E16\u754C\u6587\u4EF6\u3002" }
       , { "Require Crimson between dungeon and spawn", "\u8981\u6C42\u5730\u7262\u4E0E\u51FA\u751F\u70B9\u4E4B\u95F4\u5B58\u5728\u7329\u7EA2" }
       , { "Filter Crimson between dungeon and spawn", "\u4E8C\u9A8C\u5730\u7262\u4E0E\u51FA\u751F\u70B9\u4E4B\u95F4\u7684\u7329\u7EA2" }
       , { "Return to main menu on filter failure", "\u7B5B\u9009\u5931\u8D25\u8FD4\u56DE\u4E3B\u9875\u91CD\u65B0\u521B\u5EFA" }
@@ -626,105 +635,25 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Gem Caves", "\u5B9D\u77F3\u6D1E" }
       , { "Pots", "\u7F50\u5B50" }
       , { "Traps", "\u9677\u9631" }
-      , { "Debug", "\u8C03\u8BD5" }
-      , { "Copy all information", "\u590D\u5236\u6240\u6709\u4FE1\u606F" }
-      , { "Quick Status", "\u5FEB\u901F\u72B6\u6001" }
-      , { "Window & Coordinates", "\u7A97\u53E3\u4E0E\u5750\u6807" }
-      , { "Auto Create Route", "\u81EA\u52A8\u521B\u56FE\u8DEF\u7EBF" }
-      , { "Boss Progress", "BOSS \u8FDB\u5EA6" }
-      , { "World Generation", "\u521B\u4E16\u754C\u72B6\u6001" }
-      , { "Memory & Layout", "\u5185\u5B58\u4E0E\u5E03\u5C40" }
-      , { "Catch stars", "\u63A5\u661F\u661F" }
-      , { "Catch stars through", "\u63A5\u661F\u661F\u76F4\u5230" }
       , { "Performance", "\u6027\u80FD" }
-      , { "Window Detection", "\u7A97\u53E3\u68C0\u6D4B" }
-      , { "Watcher State", "\u76D1\u6D4B\u72B6\u6001" }
-      , { "Last updated", "\u6700\u8FD1\u66F4\u65B0" }
       , { "Terraria process", "\u6CF0\u62C9\u8FDB\u7A0B" }
       , { "PID", "\u8FDB\u7A0B ID" }
-      , { "Start time", "\u542F\u52A8\u65F6\u95F4" }
       , { "Window", "\u7A97\u53E3" }
-      , { "Window handle", "\u7A97\u53E3\u53E5\u67C4" }
-      , { "Window title", "\u7A97\u53E3\u6807\u9898" }
       , { "Responding", "\u54CD\u5E94\u4E2D" }
       , { "Visible", "\u53EF\u89C1" }
       , { "Minimized", "\u5DF2\u6700\u5C0F\u5316" }
       , { "Maximized", "\u5DF2\u6700\u5927\u5316" }
       , { "Foreground", "\u524D\u53F0\u7A97\u53E3" }
-      , { "Window bounds", "\u7A97\u53E3\u8303\u56F4" }
-      , { "Client size", "\u5BA2\u6237\u533A\u5927\u5C0F" }
-      , { "Watcher attached", "\u5DF2\u9644\u52A0\u76D1\u6D4B" }
-      , { "Memory ready", "\u5185\u5B58\u5C31\u7EEA" }
-      , { "Boss flags ready", "BOSS \u6807\u8BB0\u5C31\u7EEA" }
-      , { "Game state", "\u6E38\u620F\u72B6\u6001" }
-      , { "UI paint", "UI \u7ED8\u5236\u9891\u7387" }
-      , { "configured {0}, actual {1}", "\u914D\u7F6E {0}\uFF0C\u5B9E\u9645 {1}" }
-      , { "configured {0}, actual {1}, avg {2}, max {3}", "\u914D\u7F6E {0}\uFF0C\u5B9E\u9645 {1}\uFF0C\u5E73\u5747 {2}\uFF0C\u6700\u5927 {3}" }
-      , { "configured {0}, waiting {1}", "\u914D\u7F6E {0}\uFF0C{1}" }
-      , { "configured {0}, actual {1}, avg {2}, max {3}, jitter {4}", "\u914D\u7F6E {0}\uFF0C\u5B9E\u9645 {1}\uFF0C\u5E73\u5747 {2}\uFF0C\u6700\u5927 {3}\uFF0C\u6296\u52A8 {4}" }
-      , { "Waiting for samples", "\u7B49\u5F85\u91C7\u6837" }
-      , { "Waiting for attached memory", "\u7B49\u5F85\u9644\u52A0\u5185\u5B58" }
-      , { "Waiting for timer start", "\u7B49\u5F85\u8BA1\u65F6\u5F00\u59CB" }
-      , { "Process architecture", "\u8FDB\u7A0B\u67B6\u6784" }
-      , { "Process path", "\u8FDB\u7A0B\u8DEF\u5F84" }
-      , { "Process version", "\u8FDB\u7A0B\u7248\u672C" }
-      , { "Main module base", "\u4E3B\u6A21\u5757\u57FA\u5740" }
-      , { "Main module size", "\u4E3B\u6A21\u5757\u5927\u5C0F" }
-      , { "Probe attempts", "\u63A2\u9488\u5C1D\u8BD5\u6B21\u6570" }
-      , { "Last probe", "\u6700\u8FD1\u63A2\u9488" }
-      , { "Layout status", "\u5E03\u5C40\u72B6\u6001" }
-      , { "Probe error", "\u63A2\u9488\u9519\u8BEF" }
-      , { "GameMenu address", "GameMenu \u5730\u5740" }
-      , { "Boss fact addresses", "Boss \u4E8B\u5B9E\u5730\u5740" }
-      , { "Hardmode address", "Hardmode \u5730\u5740" }
-      , { "Current pass", "\u5F53\u524D\u9636\u6BB5" }
-      , { "Progress message", "\u8FDB\u5EA6\u6587\u6848" }
-      , { "Current progress", "\u5F53\u524D\u8FDB\u5EA6" }
-      , { "Total progress", "\u603B\u8FDB\u5EA6" }
-      , { "Generation progress address", "\u521B\u4E16\u754C\u8FDB\u5EA6\u5730\u5740" }
-      , { "Generation controller address", "\u521B\u4E16\u754C\u63A7\u5236\u5668\u5730\u5740" }
-      , { "Failure stage", "\u5931\u8D25\u9636\u6BB5" }
-      , { "Current seed", "\u5F53\u524D\u79CD\u5B50" }
-      , { "world generation pointers pending", "\u521B\u4E16\u754C\u6307\u9488\u7B49\u5F85\u4E2D" }
-      , { "world generation pointers pending via fallback", "\u901A\u8FC7\u56DE\u9000\u65B9\u5F0F\u7B49\u5F85\u521B\u4E16\u754C\u6307\u9488" }
-      , { "timer and boss pointers ready; world generation scan pending", "\u8BA1\u65F6\u5668\u4E0E BOSS \u6307\u9488\u5C31\u7EEA\uFF1B\u521B\u4E16\u754C\u626B\u63CF\u7B49\u5F85\u4E2D" }
-      , { "timer and boss pointers ready via fallback; world generation scan pending", "\u901A\u8FC7\u56DE\u9000\u65B9\u5F0F\u5C31\u7EEA\u8BA1\u65F6\u5668\u4E0E BOSS \u6307\u9488\uFF1B\u521B\u4E16\u754C\u626B\u63CF\u7B49\u5F85\u4E2D" }
       , { "Status", "\u72B6\u6001" }
-      , { "Window status", "\u7A97\u53E3\u72B6\u6001" }
       , { "Menu scale", "\u83DC\u5355\u7F29\u653E" }
-      , { "Logical menu size", "\u903B\u8F91\u83DC\u5355\u5C3A\u5BF8" }
-      , { "Player files", "\u4EBA\u7269\u6587\u4EF6\u6570" }
-      , { "World files", "\u4E16\u754C\u6587\u4EF6\u6570" }
-      , { "Favorite players", "\u6536\u85CF\u4EBA\u7269\u6570" }
-      , { "Favorite worlds", "\u6536\u85CF\u4E16\u754C\u6570" }
-      , { "Click sequence", "\u70B9\u51FB\u987A\u5E8F" }
       , { "Single Player", "\u5355\u4EBA\u6E38\u620F" }
-      , { "New Player", "\u65B0\u5EFA\u4EBA\u7269" }
-      , { "Character Clothing Tab", "\u4EBA\u7269\u5916\u89C2\u9875" }
-      , { "Character Gender Tab", "\u4EBA\u7269\u6027\u522B\u9875" }
-      , { "Paste Player Template", "\u7C98\u8D34\u4EBA\u7269\u6A21\u677F" }
-      , { "Character Info Tab", "\u4EBA\u7269\u4FE1\u606F\u9875" }
-      , { "Create Player", "\u521B\u5EFA\u4EBA\u7269" }
-      , { "Select Created Player", "\u9009\u62E9\u65B0\u5EFA\u4EBA\u7269" }
-      , { "New World", "\u65B0\u5EFA\u4E16\u754C" }
-      , { "Advanced Seed", "\u9AD8\u7EA7\u79CD\u5B50" }
-      , { "Randomize Visible Seed", "\u968F\u673A\u53EF\u89C1\u79CD\u5B50" }
-      , { "Unavailable because client size is unknown.", "\u7531\u4E8E\u5BA2\u6237\u533A\u5927\u5C0F\u672A\u77E5\uFF0C\u65E0\u6CD5\u8BA1\u7B97\u3002" }
       , { "Yes", "\u662F" }
       , { "No", "\u5426" }
       , { "Unknown", "\u672A\u77E5" }
       , { "Empty", "\u7A7A" }
-      , { "Not on world creation page", "\u4E0D\u5728\u521B\u4E16\u754C\u9875\u9762" }
-      , { "World generation idle", "\u5F53\u524D\u672A\u5728\u521B\u4E16\u754C" }
       , { "Ready", "\u5C31\u7EEA" }
       , { "Pending", "\u7B49\u5F85\u4E2D" }
       , { "Missing", "\u672A\u5339\u914D" }
-      , { "In menu", "\u83DC\u5355\u4E2D" }
-      , { "In world", "\u4E16\u754C\u5185" }
-      , { "count {0}, last {1}, avg {2}, max {3}", "\u6B21\u6570 {0}\uFF0C\u6700\u8FD1 {1}\uFF0C\u5E73\u5747 {2}\uFF0C\u6700\u9AD8 {3}" }
-      , { "private {0}/{1} scanned, {2} read; image {3}/{4} scanned, {5} read; total {6}; {7}", "\u79C1\u6709\u9875\u5DF2\u626B {0}/{1}\uFF0C\u8BFB\u53D6 {2}\uFF1B\u6620\u50CF\u9875\u5DF2\u626B {3}/{4}\uFF0C\u8BFB\u53D6 {5}\uFF1B\u603B\u8BA1 {6}\uFF1B{7}" }
-      , { "read failures {0}, oversized skipped {1}", "\u8BFB\u53D6\u5931\u8D25 {0}\uFF0C\u8DF3\u8FC7\u8FC7\u5927\u9875 {1}" }
-      , { "Matched at {0}", "\u5339\u914D\u4E8E {0}" }
       , { "waiting for Terraria.exe", "\u7B49\u5F85 Terraria.exe" }
       , { "Terraria process changed while reading window state: {0}", "\u8BFB\u53D6\u7A97\u53E3\u72B6\u6001\u65F6 Terraria \u8FDB\u7A0B\u5DF2\u53D8\u5316\uFF1A{0}" }
       , { "cannot read Terraria process: {0}", "\u65E0\u6CD5\u8BFB\u53D6 Terraria \u8FDB\u7A0B\uFF1A{0}" }

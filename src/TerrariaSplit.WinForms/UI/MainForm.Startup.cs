@@ -33,11 +33,9 @@ internal sealed partial class MainForm : Form
             StartupDiagnostics.RecordTrace("RuntimePreparationReady");
             cancellationToken.ThrowIfCancellationRequested();
 
-            RuntimePerformanceTracker performance = startupCore.Performance;
             TerrariaMonitorCoordinator monitorCoordinator = MainShellCompositionRoot.CreateMonitorCoordinator(
                 callback => BeginInvoke(callback),
-                appLogger,
-                performance);
+                appLogger);
             monitorCoordinator.WatcherPollCompleted += HandleWatcherPollCompleted;
             AutomationShell nextAutomationShell = MainShellCompositionRoot.CreateAutomationShell(
                 preparation.WorldPoolStore,
@@ -49,9 +47,6 @@ internal sealed partial class MainForm : Form
                 appLogger);
             SettingsShell nextSettingsShell = MainShellCompositionRoot.CreateSettingsShell(
                 () => editableSettings,
-                GetRuntimeDiagnostics,
-                GetRuntimeDebugSnapshot,
-                GetWorldPoolCount,
                 startupCore.SettingsRepository,
                 settingsSnapshots,
                 callback => BeginInvoke(callback),
@@ -90,7 +85,7 @@ internal sealed partial class MainForm : Form
                 () => settings,
                 () => editableSettings,
                 () => viewState,
-                () => GetRuntimeDebugSnapshot().WatcherDiagnostics.ProcessVersion,
+                () => runtimeShell.CurrentWatcherDiagnostics.ProcessVersion,
                 ApplyRouteOverride,
                 ClearRouteOverride,
                 startupCore.SaveSettings,
@@ -135,17 +130,11 @@ internal sealed partial class MainForm : Form
             runtimeShell.AttachRuntimeComponents(
                 monitorCoordinator,
                 controlScheduler,
-                statusPaintScheduler,
-                performance);
+                statusPaintScheduler);
 
             AcceptRuntimeCommandSequence(monitorCoordinator.SetRuntimeDefinitions(applicationController.Definitions));
             runtimeShell.UpdateControlTickInterval(ResolveControlTickInterval());
             runtimeShell.UpdateStatusPaintInterval(ResolveRunningStatusPaintInterval());
-            performance.ControlTickInterval = runtimeShell.ControlTickInterval;
-            performance.StatusPaintInterval = runtimeShell.StatusPaintInterval;
-            performance.WatcherPollInterval = monitorCoordinator.WatcherPollInterval;
-            performance.ProcessLookupInterval = monitorCoordinator.ProcessLookupInterval;
-            performance.TimerOverlayPaintInterval = ResolveTimerOverlayRefreshInterval();
             monitorCoordinator.UpdateReadyWatcherPollInterval(ResolveReadyWatcherPollInterval());
             controlScheduler.Start(runtimeShell.ControlTickInterval);
             worldPoolFillService.UpdateSettings(settings);

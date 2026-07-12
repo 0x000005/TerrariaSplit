@@ -12,10 +12,17 @@ internal sealed class RuntimeShell : IDisposable
     private TerrariaMonitorCoordinator? monitorCoordinator;
     private HighPrecisionScheduler? controlScheduler;
     private HighPrecisionScheduler? statusPaintScheduler;
-    private RuntimePerformanceTracker? performance;
     private Action dispatchedControlTick = static () => { };
     private Action dispatchedStatusPaintTick = static () => { };
-    private TerrariaWatchSnapshot snapshot = RuntimeDebugSnapshot.Empty.WatchSnapshot;
+    private TerrariaWatchSnapshot snapshot = new(
+        false,
+        null,
+        false,
+        null,
+        TerrariaGameFacts.Unknown,
+        TerrariaWorldGenerationState.Unknown,
+        false,
+        "waiting for Terraria.exe");
     private TerrariaWatcherDiagnostics watcherDiagnostics = TerrariaWatcherDiagnosticsDefaults.Empty;
 
     public RuntimeShell(TimeSpan controlTickInterval, TimeSpan statusPaintInterval)
@@ -44,14 +51,10 @@ internal sealed class RuntimeShell : IDisposable
     public HighPrecisionScheduler StatusPaintScheduler =>
         statusPaintScheduler ?? throw new InvalidOperationException("Status paint scheduler has not been attached.");
 
-    public RuntimePerformanceTracker Performance =>
-        performance ?? throw new InvalidOperationException("Runtime performance tracker has not been attached.");
-
     public bool IsRuntimeAttached =>
         monitorCoordinator is not null &&
         controlScheduler is not null &&
-        statusPaintScheduler is not null &&
-        performance is not null;
+        statusPaintScheduler is not null;
 
     public Action DispatchedControlTick => dispatchedControlTick;
 
@@ -69,21 +72,14 @@ internal sealed class RuntimeShell : IDisposable
         this.dispatchedStatusPaintTick = dispatchedStatusPaintTick;
     }
 
-    public void AttachPerformance(RuntimePerformanceTracker performance)
-    {
-        this.performance = performance;
-    }
-
     public void AttachRuntimeComponents(
         TerrariaMonitorCoordinator monitorCoordinator,
         HighPrecisionScheduler controlScheduler,
-        HighPrecisionScheduler statusPaintScheduler,
-        RuntimePerformanceTracker performance)
+        HighPrecisionScheduler statusPaintScheduler)
     {
         this.monitorCoordinator = monitorCoordinator;
         this.controlScheduler = controlScheduler;
         this.statusPaintScheduler = statusPaintScheduler;
-        this.performance = performance;
     }
 
     public bool TryMarkControlTickDispatchPending()
@@ -170,13 +166,14 @@ internal sealed class RuntimeShell : IDisposable
         }
     }
 
-    public RuntimeDebugSnapshot CreateDebugSnapshot(
-        RuntimePerformanceDiagnostics performance,
-        SplitTimerPhase timerPhase)
+    public TerrariaWatcherDiagnostics CurrentWatcherDiagnostics
     {
-        lock (watcherStateLock)
+        get
         {
-            return new RuntimeDebugSnapshot(snapshot, watcherDiagnostics, performance, timerPhase);
+            lock (watcherStateLock)
+            {
+                return watcherDiagnostics;
+            }
         }
     }
 

@@ -75,18 +75,17 @@ internal static class TimerRenderer
         Font mainFont = resources.Fonts.GetColumnFont(context.Settings.Overlay.Columns.Timer, context.ScaleFactor);
         Font millisecondsFont = resources.Fonts.GetColumnFont(context.Settings.Overlay.Columns.TimerMilliseconds, context.ScaleFactor);
 
-        SizeF millisecondsSize = context.Settings.Overlay.Columns.TimerMilliseconds.Show
-            ? resources.MeasureTimerText(graphics, millisecondsText, millisecondsFont, bounds.Size)
-            : SizeF.Empty;
-        SizeF mainSize = context.Settings.Overlay.Columns.Timer.Show
-            ? resources.MeasureTimerText(graphics, mainText, mainFont, bounds.Size)
-            : SizeF.Empty;
+        float millisecondsWidth = context.Settings.Overlay.Columns.TimerMilliseconds.Show
+            ? resources.MeasureStableTimerTextWidth(graphics, millisecondsText, millisecondsFont, bounds.Size)
+            : 0f;
+        float mainWidth = context.Settings.Overlay.Columns.Timer.Show
+            ? resources.MeasureStableTimerTextWidth(graphics, mainText, mainFont, bounds.Size)
+            : 0f;
 
         float gap = context.Settings.Overlay.Columns.Timer.Show && context.Settings.Overlay.Columns.TimerMilliseconds.Show
             ? context.ScaleInt(2)
             : 0f;
-        return (context.Settings.Overlay.Columns.Timer.Show ? mainSize.Width : 0f) + gap +
-            (context.Settings.Overlay.Columns.TimerMilliseconds.Show ? millisecondsSize.Width : 0f);
+        return mainWidth + gap + millisecondsWidth;
     }
 
     public static Rectangle GetTimerPaintBounds(
@@ -247,12 +246,12 @@ internal static class TimerRenderer
         float mainOpacity = OverlayTextStyles.GetTimerTextOpacity(context.Settings, milliseconds: false);
         float millisecondsOpacity = OverlayTextStyles.GetTimerTextOpacity(context.Settings, milliseconds: true);
 
-        SizeF millisecondsSize = context.Settings.Overlay.Columns.TimerMilliseconds.Show
-            ? resources.MeasureTimerText(graphics, millisecondsText, millisecondsFont, bounds.Size)
-            : SizeF.Empty;
-        SizeF mainSize = context.Settings.Overlay.Columns.Timer.Show
-            ? resources.MeasureTimerText(graphics, mainText, mainFont, bounds.Size)
-            : SizeF.Empty;
+        float millisecondsWidth = context.Settings.Overlay.Columns.TimerMilliseconds.Show
+            ? resources.MeasureStableTimerTextWidth(graphics, millisecondsText, millisecondsFont, bounds.Size)
+            : 0f;
+        float mainWidth = context.Settings.Overlay.Columns.Timer.Show
+            ? resources.MeasureStableTimerTextWidth(graphics, mainText, mainFont, bounds.Size)
+            : 0f;
 
         float gap = context.Settings.Overlay.Columns.Timer.Show && context.Settings.Overlay.Columns.TimerMilliseconds.Show
             ? context.ScaleInt(2)
@@ -267,7 +266,7 @@ internal static class TimerRenderer
 
         float mainX = bounds.Left;
         float mainY = baselineY - mainMetrics.Ascent;
-        float millisecondsX = mainX + (context.Settings.Overlay.Columns.Timer.Show ? mainSize.Width : 0f) + gap;
+        float millisecondsX = mainX + mainWidth + gap;
         float millisecondsY = baselineY - millisecondsMetrics.Ascent;
 
         // Timer strings only contain digit-class glyphs, so the cached per-font
@@ -280,8 +279,7 @@ internal static class TimerRenderer
             ? resources.GetTimerDigitsVisualBounds(graphics, millisecondsFont)
             : (0f, 0f);
 
-        float groupWidth = (context.Settings.Overlay.Columns.Timer.Show ? mainSize.Width : 0f) + gap +
-            (context.Settings.Overlay.Columns.TimerMilliseconds.Show ? millisecondsSize.Width : 0f);
+        float groupWidth = mainWidth + gap + millisecondsWidth;
         float mainHeight = mainMetrics.Ascent + mainMetrics.Descent;
         float anchorTop = context.Settings.Overlay.Columns.Timer.Show && mainVisualHeight > 0f
             ? mainY + mainTopOffset

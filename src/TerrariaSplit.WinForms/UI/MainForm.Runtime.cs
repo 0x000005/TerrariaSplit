@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Windows.Forms;
 
 namespace TerrariaSplit.UI;
@@ -7,7 +6,6 @@ internal sealed partial class MainForm : Form
 {
     private void ControlTick()
     {
-        long startTimestamp = Stopwatch.GetTimestamp();
         try
         {
             runtimeShell.MonitorCoordinator.Tick(
@@ -18,7 +16,6 @@ internal sealed partial class MainForm : Form
         finally
         {
             UpdateStatusPaintSchedulerState();
-            runtimeShell.Performance.RecordControlTick(Stopwatch.GetElapsedTime(startTimestamp));
         }
     }
 
@@ -63,10 +60,8 @@ internal sealed partial class MainForm : Form
         }
     }
 
-    private void QueueStatusPaintTick(HighPrecisionSchedulerTick tick)
+    private void QueueStatusPaintTick(HighPrecisionSchedulerTick _)
     {
-        runtimeShell.Performance.RecordStatusPaintTick(tick);
-
         if (!CanDispatchToUiThread())
         {
             return;
@@ -74,7 +69,6 @@ internal sealed partial class MainForm : Form
 
         if (!runtimeShell.TryMarkStatusPaintDispatchPending())
         {
-            runtimeShell.Performance.RecordStatusPaintDispatchSkipped();
             return;
         }
 
@@ -263,11 +257,6 @@ internal sealed partial class MainForm : Form
 
     private void HandleWatcherPollCompleted(WatcherPollNotification notification)
     {
-        // Poll durations are recorded on the watcher thread via recordPoll; this
-        // handler only sees published (changed or heartbeat) completions.
-        runtimeShell.Performance.WatcherPollInterval = notification.NextPollInterval;
-        runtimeShell.Performance.ProcessLookupInterval = notification.ProcessLookupInterval;
-
         runtimeShell.ApplyWatcherNotification(notification);
         UpdateConfiguredRefreshIntervals();
         ApplicationUpdate update = applicationController.HandleSystemEvent(new RuntimeWatcherSystemEvent(notification));
@@ -434,21 +423,6 @@ internal sealed partial class MainForm : Form
     private void UpdateWindowTitle()
     {
         windowShell.SyncTitle(this, SegmentTimerWindowTitle);
-    }
-
-    internal RuntimePerformanceDiagnostics GetRuntimeDiagnostics()
-    {
-        return runtimeShell.Performance.Snapshot();
-    }
-
-    internal RuntimeDebugSnapshot GetRuntimeDebugSnapshot()
-    {
-        return runtimeShell.CreateDebugSnapshot(runtimeShell.Performance.Snapshot(), timerPhase);
-    }
-
-    internal int GetWorldPoolCount(AppSettings settings)
-    {
-        return worldPoolFillService.GetPoolCount(settings);
     }
 
     private void OpenStatistics()

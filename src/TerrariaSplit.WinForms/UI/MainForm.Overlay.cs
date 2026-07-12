@@ -502,15 +502,12 @@ internal sealed partial class MainForm : Form
             runtimeShell.ControlScheduler.UpdateInterval(runtimeShell.ControlTickInterval);
         }
 
-        runtimeShell.Performance.ControlTickInterval = runtimeShell.ControlTickInterval;
-
         TimeSpan nextStatusPaintInterval = ResolveRunningStatusPaintInterval();
         if (runtimeShell.UpdateStatusPaintInterval(nextStatusPaintInterval))
         {
             runtimeShell.StatusPaintScheduler.UpdateInterval(runtimeShell.StatusPaintInterval);
         }
 
-        runtimeShell.Performance.StatusPaintInterval = runtimeShell.StatusPaintInterval;
         runtimeShell.MonitorCoordinator.UpdateReadyWatcherPollInterval(ResolveReadyWatcherPollInterval());
     }
 
@@ -579,7 +576,6 @@ internal sealed partial class MainForm : Form
         }
 
         TimeSpan interval = ResolveTimerOverlayRefreshInterval();
-        runtimeShell.Performance.TimerOverlayPaintInterval = interval;
         overlayShell.TimerOverlayHost.ApplyRefreshInterval(interval);
         rtssOverlayScheduler.UpdateInterval(interval);
     }

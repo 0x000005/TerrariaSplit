@@ -179,6 +179,12 @@ public static class AppSettingsCloner
             SplitText = source.SplitText,
             SplitTextOutline = source.SplitTextOutline,
             SplitTextShadow = source.SplitTextShadow,
+            NameText = source.NameText,
+            NameTextOutline = source.NameTextOutline,
+            NameTextShadow = source.NameTextShadow,
+            CompletedNameText = source.CompletedNameText,
+            CompletedNameTextOutline = source.CompletedNameTextOutline,
+            CompletedNameTextShadow = source.CompletedNameTextShadow,
             IconOutline = source.IconOutline,
             IconShadow = source.IconShadow,
             DeltaAheadText = source.DeltaAheadText,
@@ -235,20 +241,31 @@ public static class AppSettingsCloner
     private static UiColumnLayoutSettings Clone(UiColumnLayoutSettings? source)
     {
         source ??= new UiColumnLayoutSettings();
-        return new UiColumnLayoutSettings
+        var clone = new UiColumnLayoutSettings
         {
             ScalePercent = source.ScalePercent,
             Icon = Clone(source.Icon),
+            Name = Clone(source.Name),
             Time = Clone(source.Time),
             Delta = Clone(source.Delta),
             AttachedIcon = Clone(source.AttachedIcon),
+            AttachedName = Clone(source.AttachedName),
             AttachedTime = Clone(source.AttachedTime),
             AttachedDelta = Clone(source.AttachedDelta),
             Timer = Clone(source.Timer),
             TimerMilliseconds = Clone(source.TimerMilliseconds),
+            IconNameGap = source.IconNameGap,
+            NameTimeGap = source.NameTimeGap,
+            TimeDeltaGap = source.TimeDeltaGap,
+            IconAlignment = source.IconAlignment,
+            NameAlignment = source.NameAlignment,
+            TimeAlignment = source.TimeAlignment,
+            DeltaAlignment = source.DeltaAlignment,
             TimerOffsetX = source.TimerOffsetX,
             TimerOffsetY = source.TimerOffsetY
         };
+        UiColumnDescriptors.SynchronizeSharedWidths(clone);
+        return clone;
     }
 
     private static UiColumnSettings Clone(UiColumnSettings? source)
@@ -260,7 +277,8 @@ public static class AppSettingsCloner
             Width = source.Width,
             FontFamily = source.FontFamily,
             FontSize = source.FontSize,
-            Bold = source.Bold
+            Bold = source.Bold,
+            Italic = source.Italic
         };
     }
 
@@ -275,6 +293,9 @@ public static class AppSettingsCloner
             TimeOpacityPercent = source.TimeOpacityPercent,
             TimeShadowPercent = source.TimeShadowPercent,
             TimeOutlineThicknessPercent = source.TimeOutlineThicknessPercent,
+            NameOpacityPercent = source.NameOpacityPercent,
+            NameShadowPercent = source.NameShadowPercent,
+            NameOutlineThicknessPercent = source.NameOutlineThicknessPercent,
             DeltaOpacityPercent = source.DeltaOpacityPercent,
             DeltaShadowPercent = source.DeltaShadowPercent,
             DeltaOutlineThicknessPercent = source.DeltaOutlineThicknessPercent,
@@ -284,6 +305,9 @@ public static class AppSettingsCloner
             AttachedTimeOpacityPercent = source.AttachedTimeOpacityPercent,
             AttachedTimeShadowPercent = source.AttachedTimeShadowPercent,
             AttachedTimeOutlineThicknessPercent = source.AttachedTimeOutlineThicknessPercent,
+            AttachedNameOpacityPercent = source.AttachedNameOpacityPercent,
+            AttachedNameShadowPercent = source.AttachedNameShadowPercent,
+            AttachedNameOutlineThicknessPercent = source.AttachedNameOutlineThicknessPercent,
             AttachedDeltaOpacityPercent = source.AttachedDeltaOpacityPercent,
             AttachedDeltaShadowPercent = source.AttachedDeltaShadowPercent,
             AttachedDeltaOutlineThicknessPercent = source.AttachedDeltaOutlineThicknessPercent,

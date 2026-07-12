@@ -12,7 +12,6 @@ internal sealed record StartupCore(
     OverlayRenderResources RenderResources,
     Task StatusIconPreloadTask,
     OverlayAnimationController OverlayAnimations,
-    RuntimePerformanceTracker Performance,
     ApplicationController ApplicationController);
 
 internal sealed record RuntimeServicePreparation(

@@ -11,6 +11,5 @@ internal enum SettingsPageId
     Sounds,
     Colors,
     Advanced,
-    Debug,
     About
 }

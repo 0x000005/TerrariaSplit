@@ -39,7 +39,7 @@ internal sealed class RaceLeaderboardForm : Form
         this.getSettings = getSettings;
         this.localize = localize;
         this.getLocalNickname = getLocalNickname;
-        overlayWindowController = new OverlayWindowController(this, DrawOverlay, _ => { });
+        overlayWindowController = new OverlayWindowController(this, DrawOverlay);
 
         Text = localize("Race leaderboard");
         ShowInTaskbar = false;

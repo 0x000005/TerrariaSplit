@@ -9,8 +9,6 @@ internal sealed class SettingsPageHost
     private readonly SettingsUiFactory factory;
     private readonly SettingsDialogService dialogs;
     private readonly ISettingsSnapshotFactory settingsSnapshots;
-    private readonly Func<RuntimePerformanceDiagnostics> runtimeDiagnosticsProvider;
-    private readonly Func<RuntimeDebugSnapshot> runtimeDebugSnapshotProvider;
     private readonly Panel pageHost;
     private readonly List<PageEntry> pages = new();
     private SettingsPageId? selectedPageId;
@@ -21,8 +19,6 @@ internal sealed class SettingsPageHost
         SettingsUiFactory factory,
         SettingsDialogService dialogs,
         ISettingsSnapshotFactory settingsSnapshots,
-        Func<RuntimePerformanceDiagnostics> runtimeDiagnosticsProvider,
-        Func<RuntimeDebugSnapshot> runtimeDebugSnapshotProvider,
         Panel pageHost)
     {
         this.owner = owner;
@@ -30,8 +26,6 @@ internal sealed class SettingsPageHost
         this.factory = factory;
         this.dialogs = dialogs;
         this.settingsSnapshots = settingsSnapshots;
-        this.runtimeDiagnosticsProvider = runtimeDiagnosticsProvider;
-        this.runtimeDebugSnapshotProvider = runtimeDebugSnapshotProvider;
         this.pageHost = pageHost;
     }
 
@@ -142,7 +136,6 @@ internal sealed class SettingsPageHost
         ApplyIfCreated(SettingsPageId.Advanced, target);
         ApplyIfCreated(SettingsPageId.Colors, target);
         ApplyIfCreated(SettingsPageId.Sounds, target);
-        ApplyIfCreated(SettingsPageId.Debug, target);
     }
 
     public void NotifyModelChanged(SettingsModelChange change)
@@ -197,8 +190,6 @@ internal sealed class SettingsPageHost
                 draft,
                 factory,
                 dialogs,
-                runtimeDiagnosticsProvider,
-                runtimeDebugSnapshotProvider,
                 NotifyModelChanged);
             Control page = entry.PageDefinition.Build(context);
             page.Dock = DockStyle.Fill;

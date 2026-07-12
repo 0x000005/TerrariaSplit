@@ -64,7 +64,6 @@ internal static class MainShellCompositionRoot
             renderResources,
             statusIconPreloadTask,
             new OverlayAnimationController(),
-            new RuntimePerformanceTracker(),
             applicationController);
     }
 
@@ -98,41 +97,27 @@ internal static class MainShellCompositionRoot
 
     public static TerrariaMonitorCoordinator CreateMonitorCoordinator(
         Action<Action> dispatch,
-        IAppLogger logger,
-        RuntimePerformanceTracker performance)
+        IAppLogger logger)
     {
         return new TerrariaMonitorCoordinator(
             new TerrariaWorldWatcher(),
             new TerrariaUiScalePatchApplierAdapter(),
             dispatch,
             logger,
-            shouldYieldDispatch: UiInputMessageProbe.HasPendingInputMessage,
-            recordPoll: performance.RecordWatcherPoll);
+            shouldYieldDispatch: UiInputMessageProbe.HasPendingInputMessage);
     }
 
     public static OverlayWindowController CreateOverlayWindowController(
         Form owner,
-        Func<Graphics, bool> render,
-        Action<TimeSpan> recordPaint)
+        Func<Graphics, bool> render)
     {
-        return new OverlayWindowController(owner, render, recordPaint);
+        return new OverlayWindowController(owner, render);
     }
 
     public static TimerOverlayWindowHost CreateTimerOverlayWindowHost(
-        Action<Action> dispatch,
-        Action<TimeSpan> recordPaint,
-        Action<HighPrecisionSchedulerTick> recordPaintTick,
-        Action<LayeredWindowUpdateDiagnostics> recordLayeredUpdate,
-        Action recordDispatchSkipped,
-        Action recordInputSkipped)
+        Action<Action> dispatch)
     {
-        return new TimerOverlayWindowHost(
-            dispatch,
-            recordPaint,
-            recordPaintTick,
-            recordLayeredUpdate,
-            recordDispatchSkipped,
-            recordInputSkipped);
+        return new TimerOverlayWindowHost(dispatch);
     }
 
     public static ProgramModalWindowCoordinator CreateModalWindowCoordinator(
@@ -174,9 +159,6 @@ internal static class MainShellCompositionRoot
 
     public static SettingsShell CreateSettingsShell(
         Func<AppSettings> getSettings,
-        Func<RuntimePerformanceDiagnostics> getRuntimeDiagnostics,
-        Func<RuntimeDebugSnapshot> getRuntimeDebugSnapshot,
-        Func<AppSettings, int> getWorldPoolCount,
         ISettingsRepository settingsRepository,
         ISettingsSnapshotFactory settingsSnapshots,
         Action<Action> dispatch,
@@ -190,9 +172,6 @@ internal static class MainShellCompositionRoot
     {
         return new SettingsShell(
             getSettings,
-            getRuntimeDiagnostics,
-            getRuntimeDebugSnapshot,
-            getWorldPoolCount,
             settingsRepository,
             settingsSnapshots,
             dispatch,

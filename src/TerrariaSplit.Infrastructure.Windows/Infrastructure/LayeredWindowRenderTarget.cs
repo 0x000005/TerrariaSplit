@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
@@ -28,13 +27,6 @@ public sealed class LayeredWindowRenderTarget : IDisposable
     private Size size;
     private IntPtr scratch;
     private SolidBrush? clearBrush;
-    private readonly Action<LayeredWindowUpdateDiagnostics>? recordUpdate;
-
-    public LayeredWindowRenderTarget(Action<LayeredWindowUpdateDiagnostics>? recordUpdate = null)
-    {
-        this.recordUpdate = recordUpdate;
-    }
-
     public bool Render(Form form, Func<Graphics, bool> draw, Action<Graphics> configureGraphics)
     {
         Size clientSize = form.ClientSize;
@@ -285,8 +277,7 @@ public sealed class LayeredWindowRenderTarget : IDisposable
                 AlphaFormat = AcSrcAlpha
             };
 
-            long startTimestamp = Stopwatch.GetTimestamp();
-            bool result = UpdateLayeredWindow(
+            return UpdateLayeredWindow(
                 form.Handle,
                 screenDc,
                 ref destination,
@@ -296,12 +287,6 @@ public sealed class LayeredWindowRenderTarget : IDisposable
                 0,
                 ref blend,
                 UlwAlpha);
-            recordUpdate?.Invoke(new LayeredWindowUpdateDiagnostics(
-                Stopwatch.GetElapsedTime(startTimestamp),
-                GetPixelCount(size.Width, size.Height),
-                GetPixelCount(size.Width, size.Height),
-                IsRegion: false));
-            return result;
         }
         finally
         {
@@ -365,25 +350,11 @@ public sealed class LayeredWindowRenderTarget : IDisposable
                 DirtyRect = scratch + ScratchDirtyRectOffset
             };
 
-            long startTimestamp = Stopwatch.GetTimestamp();
-            bool result = UpdateLayeredWindowIndirect(form.Handle, ref info);
-            recordUpdate?.Invoke(new LayeredWindowUpdateDiagnostics(
-                Stopwatch.GetElapsedTime(startTimestamp),
-                GetPixelCount(size.Width, size.Height),
-                GetPixelCount(dirtyRect.Width, dirtyRect.Height),
-                IsRegion: true));
-            return result;
+            return UpdateLayeredWindowIndirect(form.Handle, ref info);
         }
         finally
         {
             ReleaseDC(IntPtr.Zero, screenDc);
         }
     }
-
-    private static int GetPixelCount(int width, int height)
-    {
-        long pixels = Math.Max(0L, (long)width * height);
-        return pixels > int.MaxValue ? int.MaxValue : (int)pixels;
-    }
-
 }

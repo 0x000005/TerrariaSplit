@@ -19,9 +19,6 @@ internal sealed class TimerOverlayForm : Form
     private readonly OverlayWindowController overlayWindowController;
     private readonly OverlayRenderResources renderResources = new();
     private readonly HighPrecisionScheduler paintScheduler;
-    private readonly Action<HighPrecisionSchedulerTick> recordPaintTick;
-    private readonly Action recordPaintDispatchSkipped;
-    private readonly Action recordPaintInputSkipped;
     private readonly Func<bool> isInteractionBlocked;
     private readonly Action dispatchedPaintTick;
     private TimeSpan paintInterval = DefaultRefreshInterval;
@@ -43,24 +40,14 @@ internal sealed class TimerOverlayForm : Form
     private bool renderingRunningTimerRegion;
 
     public TimerOverlayForm(
-        Action<TimeSpan> recordPaint,
-        Action<HighPrecisionSchedulerTick> recordPaintTick,
-        Action<LayeredWindowUpdateDiagnostics> recordLayeredUpdate,
-        Action recordPaintDispatchSkipped,
-        Action recordPaintInputSkipped,
         Func<bool> isInteractionBlocked,
         Action firstFramePresented)
     {
-        this.recordPaintTick = recordPaintTick;
-        this.recordPaintDispatchSkipped = recordPaintDispatchSkipped;
-        this.recordPaintInputSkipped = recordPaintInputSkipped;
         this.isInteractionBlocked = isInteractionBlocked;
         dispatchedPaintTick = DispatchedPaintTick;
         overlayWindowController = new OverlayWindowController(
             this,
-            DrawOverlay,
-            recordPaint,
-            recordLayeredUpdate: recordLayeredUpdate);
+            DrawOverlay);
         overlayWindowController.FrameRendered += () =>
         {
             if (currentLayout is not null && currentState is not null)
@@ -420,10 +407,8 @@ internal sealed class TimerOverlayForm : Form
         }
     }
 
-    private void QueueTimerOverlayPaintTick(HighPrecisionSchedulerTick tick)
+    private void QueueTimerOverlayPaintTick(HighPrecisionSchedulerTick _)
     {
-        recordPaintTick(tick);
-
         if (!CanDispatchToUiThread())
         {
             return;
@@ -432,7 +417,6 @@ internal sealed class TimerOverlayForm : Form
         int queuedStateRevision = Volatile.Read(ref renderStateRevision);
         if (Interlocked.Exchange(ref paintDispatchPending, 1) == 1)
         {
-            recordPaintDispatchSkipped();
             return;
         }
 
@@ -468,10 +452,6 @@ internal sealed class TimerOverlayForm : Form
             if (!UiInputMessageProbe.HasPendingInputMessage())
             {
                 RenderTimerOverlayPaintTick();
-            }
-            else
-            {
-                recordPaintInputSkipped();
             }
         }
         finally

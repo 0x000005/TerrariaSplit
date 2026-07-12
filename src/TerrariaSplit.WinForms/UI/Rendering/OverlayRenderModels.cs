@@ -81,12 +81,14 @@ internal readonly record struct OverlayFrameRow(
 
 internal readonly record struct ColumnRects(
     Rectangle? Icon,
+    Rectangle? Name,
     Rectangle? Time,
     Rectangle? Delta);
 
 internal enum SplitColumn
 {
     Icon,
+    Name,
     Time,
     Delta
 }
@@ -115,4 +117,4 @@ internal readonly record struct TimerTextLayout(float Right, float Top, float He
     public static TimerTextLayout Empty => new(0f, 0f, 0f, 0f);
 }
 
-internal readonly record struct ColumnWidth(SplitColumn Column, int Width);
+internal readonly record struct ColumnWidth(SplitColumn Column, int Width, int GapBefore);

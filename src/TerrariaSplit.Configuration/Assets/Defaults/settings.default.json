@@ -823,6 +823,12 @@
             "SplitText": "#F0A040",
             "SplitTextOutline": "#101010",
             "SplitTextShadow": "#000000",
+            "NameText": "#E2E2E2",
+            "NameTextOutline": "#101010",
+            "NameTextShadow": "#000000",
+            "CompletedNameText": "#F0A040",
+            "CompletedNameTextOutline": "#101010",
+            "CompletedNameTextShadow": "#000000",
             "IconOutline": "#101010",
             "IconShadow": "#000000",
             "DeltaAheadText": "#30FF30",
@@ -877,6 +883,13 @@
                 "FontSize": 55,
                 "Bold": false
             },
+            "Name": {
+                "Show": false,
+                "Width": 260,
+                "FontFamily": "Segoe UI",
+                "FontSize": 16,
+                "Bold": true
+            },
             "Time": {
                 "Show": true,
                 "Width": 200,
@@ -897,6 +910,13 @@
                 "FontFamily": "Segoe UI",
                 "FontSize": 55,
                 "Bold": false
+            },
+            "AttachedName": {
+                "Show": false,
+                "Width": 260,
+                "FontFamily": "Segoe UI",
+                "FontSize": 16,
+                "Bold": true
             },
             "AttachedTime": {
                 "Show": true,
@@ -926,6 +946,13 @@
                 "FontSize": 35,
                 "Bold": true
             },
+            "IconNameGap": 5,
+            "NameTimeGap": 5,
+            "TimeDeltaGap": 5,
+            "IconAlignment": "Right",
+            "NameAlignment": "Center",
+            "TimeAlignment": "Right",
+            "DeltaAlignment": "Left",
             "TimerOffsetX": 80,
             "TimerOffsetY": 0
         },
@@ -933,6 +960,9 @@
             "IconOpacityPercent": 100,
             "IconShadowPercent": 20,
             "IconOutlineThicknessPercent": 0,
+            "NameOpacityPercent": 100,
+            "NameShadowPercent": 40,
+            "NameOutlineThicknessPercent": 30,
             "TimeOpacityPercent": 100,
             "TimeShadowPercent": 40,
             "TimeOutlineThicknessPercent": 30,
@@ -942,6 +972,9 @@
             "AttachedIconOpacityPercent": 100,
             "AttachedIconShadowPercent": 20,
             "AttachedIconOutlineThicknessPercent": 0,
+            "AttachedNameOpacityPercent": 100,
+            "AttachedNameShadowPercent": 40,
+            "AttachedNameOutlineThicknessPercent": 30,
             "AttachedTimeOpacityPercent": 100,
             "AttachedTimeShadowPercent": 40,
             "AttachedTimeOutlineThicknessPercent": 30,

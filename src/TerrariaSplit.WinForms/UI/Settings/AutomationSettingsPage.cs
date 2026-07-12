@@ -314,7 +314,7 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
         SettingsUiFactory.AddSectionControl(
             createSection,
             Factory.CreateWrappedFieldLabel(
-                "Available for small Crimson worlds. The generated world file is checked before the world is kept.",
+                "Available for Crimson worlds of any size. The generated world file is checked before the world is kept.",
                 UiTheme.Text));
         TableLayoutPanel postGenerationFilterGrid = Factory.CreateGrid(
             SettingsUiFactory.ColumnStylePercent(100f),

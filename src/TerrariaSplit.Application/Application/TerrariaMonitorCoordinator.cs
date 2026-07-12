@@ -33,8 +33,7 @@ public sealed class TerrariaMonitorCoordinator : IDisposable
         Action<Exception, string>? logError = null,
         Func<DateTime>? utcNowProvider = null,
         Func<int, bool>? isProcessStillRunning = null,
-        Func<bool>? shouldYieldDispatch = null,
-        Action<TimeSpan, long>? recordPoll = null)
+        Func<bool>? shouldYieldDispatch = null)
     {
         this.watcher = watcher;
         logger ??= NullAppLogger.Instance;
@@ -63,7 +62,6 @@ public sealed class TerrariaMonitorCoordinator : IDisposable
             watcherCompletions.Queue,
             (completion, lastPublished, heartbeatInterval) =>
                 ShouldPublishWatcherCompletion(completion, lastPublished, heartbeatInterval),
-            recordPoll,
             WatcherScanPollInterval,
             WatcherHeartbeatInterval);
         CurrentSnapshot = new TerrariaWatchSnapshot(
@@ -75,18 +73,12 @@ public sealed class TerrariaMonitorCoordinator : IDisposable
             TerrariaWorldGenerationState.Unknown,
             false,
             "waiting for Terraria.exe");
-        WatcherPollInterval = WatcherProcessLookupInterval;
-        ProcessLookupInterval = WatcherProcessLookupInterval;
     }
 
     public TerrariaWatchSnapshot CurrentSnapshot { get; private set; }
 
     public TerrariaWatcherDiagnostics CurrentDiagnostics { get; private set; } =
         TerrariaWatcherDiagnosticsDefaults.Empty;
-
-    public TimeSpan WatcherPollInterval { get; private set; }
-
-    public TimeSpan ProcessLookupInterval { get; private set; }
 
     public event Action<WatcherPollNotification>? WatcherPollCompleted;
 
@@ -230,7 +222,6 @@ public sealed class TerrariaMonitorCoordinator : IDisposable
         long runtimeCommandSequence,
         IReadOnlyList<RunEvent> commandEvents)
     {
-        long startTimestamp = Stopwatch.GetTimestamp();
         try
         {
             TerrariaWatchSnapshot snapshot = watcher.Poll();
@@ -247,10 +238,8 @@ public sealed class TerrariaMonitorCoordinator : IDisposable
                 runtimeTickResult.Snapshot,
                 runtimeTickResult.Events,
                 runtimeCommandSequence,
-                Stopwatch.GetElapsedTime(startTimestamp, completedTimestamp),
                 completedTimestamp,
                 nextPollInterval,
-                snapshot.IsAttached ? TimeSpan.Zero : nextPollInterval,
                 null);
         }
         catch (Exception ex)
@@ -276,9 +265,7 @@ public sealed class TerrariaMonitorCoordinator : IDisposable
                 runtimeTickResult.Snapshot,
                 runtimeTickResult.Events,
                 runtimeCommandSequence,
-                Stopwatch.GetElapsedTime(startTimestamp, completedTimestamp),
                 completedTimestamp,
-                nextPollInterval,
                 nextPollInterval,
                 ex);
         }
@@ -315,8 +302,6 @@ public sealed class TerrariaMonitorCoordinator : IDisposable
         TerrariaWatchSnapshot previousSnapshot = CurrentSnapshot;
         CurrentSnapshot = completion.Snapshot;
         CurrentDiagnostics = completion.Diagnostics;
-        WatcherPollInterval = completion.NextPollInterval;
-        ProcessLookupInterval = completion.ProcessLookupInterval;
         WatcherPollCompleted?.Invoke(new WatcherPollNotification(
             completion.Snapshot,
             previousSnapshot,
@@ -324,10 +309,7 @@ public sealed class TerrariaMonitorCoordinator : IDisposable
             completion.RuntimeSnapshot,
             completion.RunEvents,
             completion.RuntimeCommandSequence,
-            completion.Elapsed,
             completion.CompletedTimestamp,
-            completion.NextPollInterval,
-            completion.ProcessLookupInterval,
             completion.Error));
     }
 
@@ -357,10 +339,7 @@ public readonly record struct WatcherPollNotification(
     RuntimeRunSnapshot RuntimeSnapshot,
     IReadOnlyList<RunEvent> RunEvents,
     long RuntimeCommandSequence,
-    TimeSpan Elapsed,
     long CompletedTimestamp,
-    TimeSpan NextPollInterval,
-    TimeSpan ProcessLookupInterval,
     Exception? Error);
 
 internal readonly record struct WatcherPollCompletion(
@@ -369,10 +348,8 @@ internal readonly record struct WatcherPollCompletion(
     RuntimeRunSnapshot RuntimeSnapshot,
     IReadOnlyList<RunEvent> RunEvents,
     long RuntimeCommandSequence,
-    TimeSpan Elapsed,
     long CompletedTimestamp,
     TimeSpan NextPollInterval,
-    TimeSpan ProcessLookupInterval,
     Exception? Error);
 
 internal readonly record struct WatcherPublishState(

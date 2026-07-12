@@ -11,6 +11,12 @@ public sealed class UiColorSettings
     public string SplitText { get; set; } = "#F0A040";
     public string SplitTextOutline { get; set; } = "#101010";
     public string SplitTextShadow { get; set; } = "#000000";
+    public string NameText { get; set; } = "#E2E2E2";
+    public string NameTextOutline { get; set; } = "#101010";
+    public string NameTextShadow { get; set; } = "#000000";
+    public string CompletedNameText { get; set; } = "#F0A040";
+    public string CompletedNameTextOutline { get; set; } = "#101010";
+    public string CompletedNameTextShadow { get; set; } = "#000000";
     public string IconOutline { get; set; } = "#101010";
     public string IconShadow { get; set; } = "#000000";
     public string DeltaAheadText { get; set; } = "#72D572";
