@@ -181,11 +181,11 @@ internal sealed class CreateWorldWorkflow : IDisposable
             await zenithStarCatchAutomation.RunAsync(settings, cancellationToken);
 
             PyramidFilterOutcome outcome = await pyramidFilterAutomation.RunAsync(settings, worldsBefore, cancellationToken);
-            StaticAppLogger.Instance.Info($"Create world automation pyramid filter outcome: {outcome}.");
+            StaticAppLogger.Instance.Info($"Create world automation post-generation filter outcome: {outcome}.");
             if (outcome != PyramidFilterOutcome.Rejected)
             {
                 return CreateWorldLoopResult.Finished(
-                    $"Create world automation stopped with pyramid filter outcome {outcome}.");
+                    $"Create world automation stopped with post-generation filter outcome {outcome}.");
             }
 
             if (settings.ReturnToMainMenuOnFilterFailure)
@@ -194,7 +194,7 @@ internal sealed class CreateWorldWorkflow : IDisposable
                     ? CreateWorldLoopResult.Continue()
                     : CreateWorldLoopResult.Failure(
                         "Could not return Terraria to the main menu after rejecting the world.",
-                        "Create world automation failed to return to the main menu after pyramid filter rejection.");
+                        "Create world automation failed to return to the main menu after post-generation filter rejection.");
             }
 
             if (!await menuDriver.PrepareRejectedWorldSelectRetryAsync(settings, cancellationToken))

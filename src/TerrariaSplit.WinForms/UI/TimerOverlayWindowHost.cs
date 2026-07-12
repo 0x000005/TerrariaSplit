@@ -44,6 +44,8 @@ internal sealed class TimerOverlayWindowHost : IDisposable
 
     public event Action<Point>? DragDeltaRequested;
 
+    public event Action? DragCompleted;
+
     public event Action<Rectangle>? UserResizeBoundsChanged;
 
     public event Action<TimerOverlayRightClickRequest>? RightClickRequested;
@@ -223,6 +225,7 @@ internal sealed class TimerOverlayWindowHost : IDisposable
                     }
                 });
             overlayForm.DragDeltaRequested += delta => DispatchToMain(() => DragDeltaRequested?.Invoke(delta));
+            overlayForm.DragCompleted += () => DispatchToMain(() => DragCompleted?.Invoke());
             overlayForm.UserResizeBoundsChanged += bounds => DispatchToMain(() => UserResizeBoundsChanged?.Invoke(bounds));
             overlayForm.RightClickRequested += request => DispatchToMain(() => RightClickRequested?.Invoke(request));
             overlayForm.ModalActivationRequested += () => DispatchToMain(() => ModalActivationRequested?.Invoke());

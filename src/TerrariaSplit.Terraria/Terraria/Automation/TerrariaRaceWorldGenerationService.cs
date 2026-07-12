@@ -88,6 +88,7 @@ public sealed class TerrariaRaceWorldGenerationService : IDisposable
             SecretSeeds = settings.SecretSeeds,
             EnablePyramidFilter = settings.EnablePyramidFilter,
             PyramidFilterItemMask = settings.PyramidFilterItemMask,
+            RequireCrimsonBetweenDungeonAndSpawn = settings.RequireCrimsonBetweenDungeonAndSpawn,
             PreserveExistingSaves = true
         };
     }

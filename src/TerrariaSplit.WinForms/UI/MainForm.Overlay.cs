@@ -171,9 +171,13 @@ internal sealed partial class MainForm : Form
         out OverlayCompositeLayout layout)
     {
         Rectangle workingArea = Screen.FromPoint(Cursor.Position).WorkingArea;
-        int left = workingArea.Left + Math.Max(0, (workingArea.Width - compositeSize.Width) / 2);
-        int top = workingArea.Top + Math.Max(0, (workingArea.Height - compositeSize.Height) / 2);
-        compositeBounds = new Rectangle(left, top, compositeSize.Width, compositeSize.Height);
+        Point location = OverlayWindowPlacement.Resolve(
+            compositeSize,
+            settings.Overlay.WindowPositionX,
+            settings.Overlay.WindowPositionY,
+            workingArea,
+            Screen.AllScreens.Select(screen => screen.WorkingArea));
+        compositeBounds = new Rectangle(location, compositeSize);
         return OverlayCompositeLayoutCalculator.TryCreate(
             compositeBounds,
             settings,
@@ -181,6 +185,32 @@ internal sealed partial class MainForm : Form
             GetCurrentLayoutRowCount(),
             RowGap,
             out layout);
+    }
+
+    private void PersistOverlayWindowPosition()
+    {
+        if (!overlayShell.WindowsInitialized)
+        {
+            return;
+        }
+
+        Point location = overlayShell.BoundsController.CompositeBounds.Location;
+        OverlaySettings overlay = editableSettings.Overlay;
+        if (overlay.WindowPositionX == location.X && overlay.WindowPositionY == location.Y)
+        {
+            return;
+        }
+
+        int? previousX = overlay.WindowPositionX;
+        int? previousY = overlay.WindowPositionY;
+        overlay.WindowPositionX = location.X;
+        overlay.WindowPositionY = location.Y;
+        OperationResult result = startupCore.SaveSettings(editableSettings);
+        if (!result.Succeeded)
+        {
+            overlay.WindowPositionX = previousX;
+            overlay.WindowPositionY = previousY;
+        }
     }
 
     private Size GetRuntimeLayoutSize(

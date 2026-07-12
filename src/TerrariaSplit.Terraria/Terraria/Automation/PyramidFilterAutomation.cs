@@ -36,7 +36,8 @@ internal sealed class PyramidFilterAutomation
         IReadOnlyDictionary<string, DateTime> worldsBefore,
         CancellationToken cancellationToken)
     {
-        if (!settings.EnablePyramidFilter)
+        bool crimsonCorridorEnabled = PyramidFilterWorldFileEvaluator.IsCrimsonCorridorFilterEnabled(settings);
+        if (!settings.EnablePyramidFilter && !crimsonCorridorEnabled)
         {
             return PyramidFilterOutcome.Disabled;
         }
@@ -44,27 +45,33 @@ internal sealed class PyramidFilterAutomation
         string? worldPath = await WaitForStableCreatedWorldFileAsync(worldsBefore, cancellationToken);
         if (string.IsNullOrWhiteSpace(worldPath))
         {
-            StaticAppLogger.Instance.Info("Pyramid filter kept the world because no completed world file was observed before timeout.");
+            StaticAppLogger.Instance.Info("World post-generation filter kept the world because no completed world file was observed before timeout.");
             return PyramidFilterOutcome.KeptWithoutVerification;
         }
 
-        StaticAppLogger.Instance.Info($"Pyramid filter will scan world file '{Path.GetFileName(worldPath)}'.");
+        StaticAppLogger.Instance.Info($"World post-generation filter will scan world file '{Path.GetFileName(worldPath)}'.");
 
         PyramidFilterWorldFileResult result = worldFileEvaluator.Evaluate(worldPath, settings);
         if (!result.ScanSucceeded)
         {
             StaticAppLogger.Instance.Info(
-                $"Pyramid filter rejected '{Path.GetFileName(worldPath)}' because candidate chest contents could not be scanned. " +
+                $"World post-generation filter rejected '{Path.GetFileName(worldPath)}' because the world file could not be scanned. " +
                 $"requiredItems={PyramidFilterItemMatcher.FormatRequiredItems(result.RequiredItemMask)}, detail={result.Detail}, " +
                 $"scanMs={result.ScanDuration.TotalMilliseconds:0}");
             return PyramidFilterOutcome.Rejected;
         }
 
         StaticAppLogger.Instance.Info(
-            $"Pyramid filter candidate item scan '{Path.GetFileName(worldPath)}': keep={result.Keep}, " +
+            $"World post-generation filter scan '{Path.GetFileName(worldPath)}': keep={result.Keep}, " +
+            $"pyramidEnabled={result.PyramidFilterEnabled}, pyramidKeep={result.PyramidKeep}, " +
             $"requiredItems={PyramidFilterItemMatcher.FormatRequiredItems(result.RequiredItemMask)}, " +
             $"corridor={result.ScanBounds.Left},{result.ScanBounds.Top},{result.ScanBounds.Right},{result.ScanBounds.Bottom}, " +
             $"candidateChests={result.CandidateChests.FormatSummary()}, " +
+            $"crimsonCorridorEnabled={result.CrimsonCorridorFilterEnabled}, " +
+            $"crimsonCorridorKeep={result.CrimsonCorridorKeep}, " +
+            $"crimsonTiles={result.CrimsonCorridor.CrimsonTileCount}, " +
+            $"crimsonBounds={result.CrimsonCorridor.Bounds.Left},{result.CrimsonCorridor.Bounds.Top}," +
+            $"{result.CrimsonCorridor.Bounds.Right},{result.CrimsonCorridor.Bounds.Bottom}, " +
             $"scanMs={result.ScanDuration.TotalMilliseconds:0}");
 
         return result.Keep

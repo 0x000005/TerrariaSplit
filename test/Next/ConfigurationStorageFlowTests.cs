@@ -19,6 +19,9 @@ internal static class ConfigurationStorageFlowTests
         settings.General.AlwaysOnTop = true;
         settings.Route.VisibleGroupCountLimit = -20;
         settings.Race.ServerUrl = "  https://example.test/race  ";
+        settings.Overlay.WindowPositionX = -1200;
+        settings.Overlay.WindowPositionY = 120;
+        settings.Automation.AutoCreate.RequireCrimsonBetweenDungeonAndSpawn = true;
 
         Check.True(repository.Save(settings).Succeeded);
         AppSettings loaded = new AppSettingsRepository(paths).Load();
@@ -26,6 +29,9 @@ internal static class ConfigurationStorageFlowTests
         Check.True(loaded.General.AlwaysOnTop);
         Check.True(loaded.Route.VisibleGroupCountLimit > 0);
         Check.Equal("https://example.test/race", loaded.Race.ServerUrl);
+        Check.Equal(-1200, loaded.Overlay.WindowPositionX);
+        Check.Equal(120, loaded.Overlay.WindowPositionY);
+        Check.True(loaded.Automation.AutoCreate.RequireCrimsonBetweenDungeonAndSpawn);
         Check.True(File.Exists(Path.Combine(paths.SettingsDirectory, "settings.json")));
         Check.True(File.Exists(Path.Combine(paths.SettingsDirectory, "active-profile.txt")));
     }

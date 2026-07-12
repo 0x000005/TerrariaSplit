@@ -283,7 +283,9 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
 
     private void UpdatePyramidItemAvailability()
     {
-        autoCreateReturnToMainMenuOnFilterFailureBox.Enabled = autoCreatePyramidFilterBox.Checked;
+        autoCreateReturnToMainMenuOnFilterFailureBox.Enabled =
+            autoCreatePyramidFilterBox.Checked ||
+            (autoCreateCrimsonBetweenDungeonAndSpawnBox.Checked && autoCreateCrimsonBetweenDungeonAndSpawnBox.Enabled);
         autoCreateReturnToMainMenuOnFilterFailureBox.ForeColor = autoCreateReturnToMainMenuOnFilterFailureBox.Enabled
             ? UiTheme.Text
             : UiTheme.MutedText;
@@ -293,6 +295,24 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
             button.Enabled = autoCreatePyramidFilterBox.Checked;
             UpdateSpecialSeedButtonState(button);
         }
+    }
+
+    private void UpdatePostGenerationFilterAvailability()
+    {
+        bool supportsCrimsonCorridor =
+            string.Equals(
+                GetSelectedOption(autoCreateWorldSizeBox, AutoCreateWorldSize.Small),
+                AutoCreateWorldSize.Small,
+                StringComparison.Ordinal) &&
+            string.Equals(
+                GetSelectedOption(autoCreateWorldEvilBox, AutoCreateWorldEvil.Crimson),
+                AutoCreateWorldEvil.Crimson,
+                StringComparison.Ordinal);
+        autoCreateCrimsonBetweenDungeonAndSpawnBox.Enabled = supportsCrimsonCorridor;
+        autoCreateCrimsonBetweenDungeonAndSpawnBox.ForeColor = supportsCrimsonCorridor
+            ? UiTheme.Text
+            : UiTheme.MutedText;
+        UpdatePyramidItemAvailability();
     }
 
     private void SelectZenithStarCatchStage(string selectedStopStage)

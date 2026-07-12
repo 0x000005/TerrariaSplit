@@ -240,6 +240,7 @@ internal sealed partial class MainForm : Form
         WindowCloseAction closeAction = windowShell.RequestClose();
         if (closeAction == WindowCloseAction.AllowClose)
         {
+            PersistOverlayWindowPosition();
             CloseAuxiliaryWindowsForExit();
             base.OnFormClosing(e);
             return;
@@ -252,6 +253,7 @@ internal sealed partial class MainForm : Form
         }
 
         e.Cancel = true;
+        PersistOverlayWindowPosition();
         CloseAuxiliaryWindowsForExit();
         BeginInvoke(new Action(() =>
         {
@@ -319,7 +321,10 @@ internal sealed partial class MainForm : Form
         base.OnMouseUp(e);
         if (e.Button == MouseButtons.Left)
         {
-            windowShell.CancelDrag();
+            if (windowShell.EndDrag())
+            {
+                PersistOverlayWindowPosition();
+            }
         }
 
         if (e.Button == MouseButtons.Right && settings.General.PracticeMode)

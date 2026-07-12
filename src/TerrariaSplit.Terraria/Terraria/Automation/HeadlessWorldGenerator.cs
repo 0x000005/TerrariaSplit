@@ -112,18 +112,20 @@ internal sealed class HeadlessWorldGenerator : IDisposable
         }
 
         bool candidateItemFound = false;
-        bool pyramidFilterMatches = true;
+        bool postGenerationFilterMatches = true;
         PyramidFilterWorldFileResult pyramidFilterResult = default;
-        if (settings.EnablePyramidFilter)
+        bool postGenerationFilterEnabled = settings.EnablePyramidFilter ||
+            PyramidFilterWorldFileEvaluator.IsCrimsonCorridorFilterEnabled(settings);
+        if (postGenerationFilterEnabled)
         {
             pyramidFilterResult = worldFileEvaluator.Evaluate(worldPath, settings);
             if (!pyramidFilterResult.ScanSucceeded)
             {
-                StaticAppLogger.Instance.Info($"World pool could not scan candidate chest contents: {pyramidFilterResult.Detail}");
+                StaticAppLogger.Instance.Info($"World pool could not run post-generation filters: {pyramidFilterResult.Detail}");
             }
 
-            candidateItemFound = pyramidFilterResult.Keep;
-            pyramidFilterMatches = candidateItemFound;
+            candidateItemFound = pyramidFilterResult.PyramidFilterEnabled && pyramidFilterResult.PyramidKeep;
+            postGenerationFilterMatches = pyramidFilterResult.Keep;
         }
 
         bool keep = false;
@@ -133,7 +135,7 @@ internal sealed class HeadlessWorldGenerator : IDisposable
         {
             metadataDetail = metadata.FormatWorldOptions();
             keep = MetadataMatchesRequest(request, metadata, settings) &&
-                (!settings.EnablePyramidFilter || pyramidFilterMatches);
+                (!postGenerationFilterEnabled || postGenerationFilterMatches);
         }
         else
         {
@@ -151,6 +153,9 @@ internal sealed class HeadlessWorldGenerator : IDisposable
             $"requiredPyramidItems={requiredPyramidItems}, " +
             $"candidateItems={candidateItemFound}, " +
             $"candidateChests={candidateChestsSummary}, " +
+            $"crimsonCorridorEnabled={pyramidFilterResult.CrimsonCorridorFilterEnabled}, " +
+            $"crimsonCorridorKeep={pyramidFilterResult.CrimsonCorridorKeep}, " +
+            $"crimsonTiles={pyramidFilterResult.CrimsonCorridor.CrimsonTileCount}, " +
             $"metadata={metadataDetail}, expected={request.ExpectedDetail}, " +
             $"mode={request.ModeDetail}, keep={keep}.");
         if (!keep)

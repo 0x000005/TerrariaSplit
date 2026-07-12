@@ -567,6 +567,10 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Filter pyramid", "\u7B5B\u5854" }
       , { "Quick pyramid filter", "\u7B5B\u5854" }
       , { "Required pyramid items", "\u6307\u5B9A\u7269\u54C1" }
+      , { "World post-generation filters", "\u4E16\u754C\u751F\u6210\u540E\u4E8C\u9A8C" }
+      , { "Available for small Crimson worlds. The generated world file is checked before the world is kept.", "\u4EC5\u9002\u7528\u4E8E\u7329\u7EA2\u5C0F\u4E16\u754C\uFF1B\u4FDD\u7559\u4E16\u754C\u524D\u4F1A\u68C0\u67E5\u5DF2\u751F\u6210\u7684\u4E16\u754C\u6587\u4EF6\u3002" }
+      , { "Require Crimson between dungeon and spawn", "\u8981\u6C42\u5730\u7262\u4E0E\u51FA\u751F\u70B9\u4E4B\u95F4\u5B58\u5728\u7329\u7EA2" }
+      , { "Filter Crimson between dungeon and spawn", "\u4E8C\u9A8C\u5730\u7262\u4E0E\u51FA\u751F\u70B9\u4E4B\u95F4\u7684\u7329\u7EA2" }
       , { "Return to main menu on filter failure", "\u7B5B\u9009\u5931\u8D25\u8FD4\u56DE\u4E3B\u9875\u91CD\u65B0\u521B\u5EFA" }
       , { "Sandstorm in a Bottle", "\u6C99\u66B4\u74F6" }
       , { "Flying Carpet", "\u98DE\u6BEF" }

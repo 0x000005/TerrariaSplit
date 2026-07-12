@@ -226,10 +226,19 @@ internal static partial class DebugSettingsSnapshotBuilder
                 ? $" ({localize("Required pyramid items")}: {itemDetail})"
                 : string.Empty;
             lines.Add($"{step++}. {localize("Filter pyramid")}{itemSuffix}");
-            if (autoCreate.ReturnToMainMenuOnFilterFailure)
-            {
-                lines.Add($"{step++}. {localize("Return to main menu on filter failure")}");
-            }
+        }
+
+        bool crimsonCorridorEnabled = autoCreate.RequireCrimsonBetweenDungeonAndSpawn &&
+            string.Equals(AutoCreateWorldSize.Normalize(autoCreate.WorldSize), AutoCreateWorldSize.Small, StringComparison.Ordinal) &&
+            string.Equals(AutoCreateWorldEvil.Normalize(autoCreate.WorldEvil), AutoCreateWorldEvil.Crimson, StringComparison.Ordinal);
+        if (crimsonCorridorEnabled)
+        {
+            lines.Add($"{step++}. {localize("Filter Crimson between dungeon and spawn")}");
+        }
+
+        if ((autoCreate.EnablePyramidFilter || crimsonCorridorEnabled) && autoCreate.ReturnToMainMenuOnFilterFailure)
+        {
+            lines.Add($"{step++}. {localize("Return to main menu on filter failure")}");
         }
     }
 

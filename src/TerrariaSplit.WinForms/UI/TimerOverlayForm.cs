@@ -28,6 +28,7 @@ internal sealed class TimerOverlayForm : Form
     private bool mouseClickThrough;
     private bool interactionBlocked;
     private bool dragging;
+    private bool dragMoved;
     private Point dragStartCursor;
     private bool suppressBoundsNotification;
     private bool paintSuspended;
@@ -81,6 +82,8 @@ internal sealed class TimerOverlayForm : Form
     }
 
     public event Action<Point>? DragDeltaRequested;
+
+    public event Action? DragCompleted;
 
     public event Action<Rectangle>? UserResizeBoundsChanged;
 
@@ -152,6 +155,7 @@ internal sealed class TimerOverlayForm : Form
         }
 
         dragging = true;
+        dragMoved = false;
         dragStartCursor = Cursor.Position;
     }
 
@@ -176,6 +180,7 @@ internal sealed class TimerOverlayForm : Form
         }
 
         dragStartCursor = currentCursor;
+        dragMoved = true;
         DragDeltaRequested?.Invoke(delta);
     }
 
@@ -185,13 +190,20 @@ internal sealed class TimerOverlayForm : Form
         if (IsInteractionBlocked())
         {
             dragging = false;
+            dragMoved = false;
             RequestModalActivation();
             return;
         }
 
         if (e.Button == MouseButtons.Left)
         {
+            bool moved = dragging && dragMoved;
             dragging = false;
+            dragMoved = false;
+            if (moved)
+            {
+                DragCompleted?.Invoke();
+            }
         }
 
         if (e.Button == MouseButtons.Right)
@@ -286,14 +298,13 @@ internal sealed class TimerOverlayForm : Form
     public void ApplyRenderState(TimerOverlayRenderState renderState, bool forceRender)
     {
         TimerOverlayRenderState? previousState = currentState;
-        bool previousMouseClickThrough = mouseClickThrough;
         currentState = renderState;
         mouseClickThrough = renderState.MouseClickThrough;
         Interlocked.Increment(ref renderStateRevision);
         overlayWindowController.ApplyWindowStyle(mouseClickThrough, IsInteractionBlocked());
         UpdateTimerOverlayPaintSchedulerState();
         ShowIfInitialStateReady();
-        if (forceRender || ShouldRenderImmediately(previousState, renderState, previousMouseClickThrough))
+        if (forceRender || ShouldRenderImmediately(previousState, renderState))
         {
             RenderStateChange(renderState);
         }
@@ -647,15 +658,19 @@ internal sealed class TimerOverlayForm : Form
 
     private static bool ShouldRenderImmediately(
         TimerOverlayRenderState? previousState,
-        TimerOverlayRenderState currentState,
-        bool previousMouseClickThrough)
+        TimerOverlayRenderState currentState)
     {
         if (previousState is null)
         {
             return true;
         }
 
-        if (previousMouseClickThrough != currentState.MouseClickThrough)
+        if (previousState.MouseClickThrough != currentState.MouseClickThrough)
+        {
+            return true;
+        }
+
+        if (previousState.ShowPyramidFilterIndicator != currentState.ShowPyramidFilterIndicator)
         {
             return true;
         }

@@ -147,6 +147,7 @@ internal sealed partial class MainForm : Form
             windowShell.CancelDrag);
 
         overlayShell.TimerOverlayHost.DragDeltaRequested += delta => overlayShell.BoundsController.MoveBy(delta);
+        overlayShell.TimerOverlayHost.DragCompleted += PersistOverlayWindowPosition;
         overlayShell.TimerOverlayHost.UserResizeBoundsChanged += bounds => overlayShell.BoundsController.HandleTimerResize(bounds);
         overlayShell.TimerOverlayHost.RightClickRequested += HandleTimerOverlayRightClickRequested;
         overlayShell.TimerOverlayHost.Activated += QueueMainWindowForegroundGroupSync;

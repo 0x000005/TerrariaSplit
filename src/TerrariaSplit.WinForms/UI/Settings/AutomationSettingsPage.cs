@@ -23,6 +23,7 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
     private readonly ThemedSlider autoCreateZenithStarCatchSpeedBar = new();
     private readonly Label autoCreateZenithStarCatchSpeedValueLabel = new();
     private readonly CheckBox autoCreatePyramidFilterBox = new();
+    private readonly CheckBox autoCreateCrimsonBetweenDungeonAndSpawnBox = new();
     private readonly CheckBox autoCreateReturnToMainMenuOnFilterFailureBox = new();
     private readonly Dictionary<string, CheckBox> autoCreatePyramidItemBoxes = new(StringComparer.OrdinalIgnoreCase);
     private readonly CheckBox autoCreateWorldPoolBox = new();
@@ -47,6 +48,7 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
     internal IReadOnlyDictionary<string, CheckBox> AutoCreateZenithStarCatchStageBoxes => autoCreateZenithStarCatchStageBoxes;
     internal ThemedSlider AutoCreateZenithStarCatchSpeedBar => autoCreateZenithStarCatchSpeedBar;
     internal CheckBox AutoCreatePyramidFilterBox => autoCreatePyramidFilterBox;
+    internal CheckBox AutoCreateCrimsonBetweenDungeonAndSpawnBox => autoCreateCrimsonBetweenDungeonAndSpawnBox;
     internal CheckBox AutoCreateReturnToMainMenuOnFilterFailureBox => autoCreateReturnToMainMenuOnFilterFailureBox;
     internal IReadOnlyDictionary<string, CheckBox> AutoCreatePyramidItemBoxes => autoCreatePyramidItemBoxes;
     internal CheckBox AutoCreateWorldPoolBox => autoCreateWorldPoolBox;
@@ -81,6 +83,7 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
         settings.Automation.AutoCreate.ZenithStarCatchStopStage = GetSelectedZenithStarCatchStopStage();
         settings.Automation.AutoCreate.ZenithStarCatchSpeedSliderValue = AutoCreateZenithStarCatchSpeed.NormalizeSliderValue(autoCreateZenithStarCatchSpeedBar.Value);
         settings.Automation.AutoCreate.EnablePyramidFilter = autoCreatePyramidFilterBox.Checked;
+        settings.Automation.AutoCreate.RequireCrimsonBetweenDungeonAndSpawn = autoCreateCrimsonBetweenDungeonAndSpawnBox.Checked;
         settings.Automation.AutoCreate.ReturnToMainMenuOnFilterFailure = autoCreateReturnToMainMenuOnFilterFailureBox.Checked;
         settings.Automation.AutoCreate.PyramidFilterItemMask = AutoCreatePyramidFilterItem.ToMask(
             AutoCreatePyramidFilterItem.All.Where(item =>
@@ -153,8 +156,10 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
         ConfigureOptionBox(autoCreatePlayerDifficultyBox, AutoCreatePlayerDifficulty.All, Draft.Automation.AutoCreate.PlayerDifficulty);
         ConfigureCheckBox(autoCreatePreserveExistingSavesBox, Draft.Automation.AutoCreate.PreserveExistingSaves);
         ConfigureOptionBox(autoCreateWorldSizeBox, AutoCreateWorldSize.All, Draft.Automation.AutoCreate.WorldSize);
+        autoCreateWorldSizeBox.SelectedIndexChanged += (_, _) => UpdatePostGenerationFilterAvailability();
         ConfigureOptionBox(autoCreateWorldDifficultyBox, AutoCreateWorldDifficulty.All, Draft.Automation.AutoCreate.WorldDifficulty);
         ConfigureOptionBox(autoCreateWorldEvilBox, AutoCreateWorldEvil.All, Draft.Automation.AutoCreate.WorldEvil);
+        autoCreateWorldEvilBox.SelectedIndexChanged += (_, _) => UpdatePostGenerationFilterAvailability();
         ConfigureSeedListBox(autoCreateSecretSeedsBox, Draft.Automation.AutoCreate.SecretSeeds);
         ConfigureCheckBox(autoCreateZenithStarCatchBox, Draft.Automation.AutoCreate.EnableZenithStarCatch);
         autoCreateZenithStarCatchBox.CheckedChanged += (_, _) => UpdateZenithStarCatchAvailability();
@@ -162,6 +167,10 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
         autoCreateZenithStarCatchSpeedBar.ValueChanged += (_, _) => UpdateZenithStarCatchSpeedLabel();
         ConfigureCheckBox(autoCreatePyramidFilterBox, Draft.Automation.AutoCreate.EnablePyramidFilter);
         autoCreatePyramidFilterBox.CheckedChanged += (_, _) => UpdatePyramidItemAvailability();
+        ConfigureCheckBox(
+            autoCreateCrimsonBetweenDungeonAndSpawnBox,
+            Draft.Automation.AutoCreate.RequireCrimsonBetweenDungeonAndSpawn);
+        autoCreateCrimsonBetweenDungeonAndSpawnBox.CheckedChanged += (_, _) => UpdatePostGenerationFilterAvailability();
         ConfigureCheckBox(
             autoCreateReturnToMainMenuOnFilterFailureBox,
             Draft.Automation.AutoCreate.ReturnToMainMenuOnFilterFailure);
@@ -176,6 +185,7 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
         ConfigureNumberBox(autoCreateInputPressDurationBox, Draft.Automation.AutoCreate.InputPressDurationMilliseconds, 1, 5000);
         UpdateWorldPoolAvailability();
         UpdatePyramidItemAvailability();
+        UpdatePostGenerationFilterAvailability();
 
         AddCreateWorldSection(parent);
         AddEnterWorldSection(parent);
@@ -296,10 +306,28 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
             SettingsUiFactory.ColumnStylePercent(100f),
             SettingsUiFactory.ColumnStyleAbsolute(360f));
         Factory.AddSettingRow(pyramidFilterGrid, "Enabled", autoCreatePyramidFilterBox);
-        Factory.AddSettingRow(pyramidFilterGrid, "Return to main menu on filter failure", autoCreateReturnToMainMenuOnFilterFailureBox);
         SettingsUiFactory.AddSectionControl(createSection, pyramidFilterGrid);
         SettingsUiFactory.AddSectionControl(createSection, Factory.CreateFieldLabel("Required pyramid items"));
         SettingsUiFactory.AddSectionControl(createSection, CreatePyramidItemSelector());
+
+        SettingsUiFactory.AddSectionControl(createSection, Factory.CreateSubsectionLabel("World post-generation filters"));
+        SettingsUiFactory.AddSectionControl(
+            createSection,
+            Factory.CreateWrappedFieldLabel(
+                "Available for small Crimson worlds. The generated world file is checked before the world is kept.",
+                UiTheme.Text));
+        TableLayoutPanel postGenerationFilterGrid = Factory.CreateGrid(
+            SettingsUiFactory.ColumnStylePercent(100f),
+            SettingsUiFactory.ColumnStyleAbsolute(360f));
+        Factory.AddSettingRow(
+            postGenerationFilterGrid,
+            "Require Crimson between dungeon and spawn",
+            autoCreateCrimsonBetweenDungeonAndSpawnBox);
+        Factory.AddSettingRow(
+            postGenerationFilterGrid,
+            "Return to main menu on filter failure",
+            autoCreateReturnToMainMenuOnFilterFailureBox);
+        SettingsUiFactory.AddSectionControl(createSection, postGenerationFilterGrid);
 
         SettingsUiFactory.AddSectionControl(createSection, Factory.CreateSubsectionLabel("Background world generation"));
         TableLayoutPanel worldPoolGrid = Factory.CreateGrid(

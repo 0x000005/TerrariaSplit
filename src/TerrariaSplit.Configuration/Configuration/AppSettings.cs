@@ -166,6 +166,8 @@ public sealed class ComparisonSettings
 
 public sealed class OverlaySettings
 {
+    public int? WindowPositionX { get; set; }
+    public int? WindowPositionY { get; set; }
     public bool ShowSplitCompletionAnimation { get; set; } = true;
     public float SplitCompletionAnimationDurationSeconds { get; set; } = 4.2f;
     public int SplitCompletionOutlineThicknessPercent { get; set; } = 30;
@@ -395,6 +397,7 @@ public sealed class AutoCreateWorldSettings
     public int ZenithStarCatchSpeedSliderValue { get; set; } = AutoCreateZenithStarCatchSpeed.DefaultSliderValue;
     public bool EnablePyramidFilter { get; set; }
     public int PyramidFilterItemMask { get; set; } = AutoCreatePyramidFilterItem.SandstormInABottleMask | AutoCreatePyramidFilterItem.FlyingCarpetMask;
+    public bool RequireCrimsonBetweenDungeonAndSpawn { get; set; }
     public bool ReturnToMainMenuOnFilterFailure { get; set; }
     public bool EnableWorldPool { get; set; }
     public int WorldPoolTargetCount { get; set; } = 10;

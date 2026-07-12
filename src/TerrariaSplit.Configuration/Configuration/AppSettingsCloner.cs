@@ -121,6 +121,8 @@ public static class AppSettingsCloner
         source ??= new OverlaySettings();
         return new OverlaySettings
         {
+            WindowPositionX = source.WindowPositionX,
+            WindowPositionY = source.WindowPositionY,
             ShowSplitCompletionAnimation = source.ShowSplitCompletionAnimation,
             SplitCompletionAnimationDurationSeconds = source.SplitCompletionAnimationDurationSeconds,
             SplitCompletionOutlineThicknessPercent = source.SplitCompletionOutlineThicknessPercent,
@@ -322,6 +324,7 @@ public static class AppSettingsCloner
             ZenithStarCatchSpeedSliderValue = source.ZenithStarCatchSpeedSliderValue,
             EnablePyramidFilter = source.EnablePyramidFilter,
             PyramidFilterItemMask = source.PyramidFilterItemMask,
+            RequireCrimsonBetweenDungeonAndSpawn = source.RequireCrimsonBetweenDungeonAndSpawn,
             ReturnToMainMenuOnFilterFailure = source.ReturnToMainMenuOnFilterFailure,
             EnableWorldPool = source.EnableWorldPool,
             WorldPoolTargetCount = source.WorldPoolTargetCount,

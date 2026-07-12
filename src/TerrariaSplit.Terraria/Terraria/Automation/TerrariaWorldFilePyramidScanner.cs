@@ -10,6 +10,20 @@ internal sealed class TerrariaWorldFilePyramidScanner
     private const double CorridorRightRatio = 0.68d;
     private const double CorridorTopRatio = 0.15d;
     private const double CorridorBottomRatio = 0.35d;
+    private const int CrimsonBiomeTileThreshold = 300;
+    private static readonly HashSet<int> CrimsonTileTypes =
+    [
+        199, // Crimson grass
+        662, // Crimson jungle grass
+        203, // Crimstone
+        234, // Crimsand
+        200, // Red ice
+        399, // Hardened crimsand
+        401, // Crimsandstone
+        205, // Crimson thorn
+        201, // Crimson plants
+        352  // Crimson vines
+    ];
 
     // Reads the world evil from the header section (true = crimson, false = corruption).
     public bool TryReadWorldEvil(string worldPath, out bool hasCrimson, out string detail)
@@ -72,7 +86,7 @@ internal sealed class TerrariaWorldFilePyramidScanner
             }
 
             stream.Position = sectionPointers[0];
-            metadata = ReadWorldSeedMetadata(reader, version);
+            metadata = ReadWorldHeaderData(reader, version).SeedMetadata;
             return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or EndOfStreamException or ArgumentException or InvalidDataException)
@@ -167,6 +181,87 @@ internal sealed class TerrariaWorldFilePyramidScanner
         }
     }
 
+    public bool TryScanCrimsonBetweenDungeonAndSpawn(
+        string worldPath,
+        out CrimsonCorridorScanResult result,
+        out string detail)
+    {
+        result = default;
+        detail = string.Empty;
+        string phase = "open world file";
+        try
+        {
+            using FileStream stream = new(
+                worldPath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete);
+            using BinaryReader reader = new(stream);
+
+            phase = "read world file sections";
+            if (!TryReadWorldFileSections(reader, out WorldFileSections sections, out detail))
+            {
+                return false;
+            }
+
+            if (sections.HeaderDataOffset <= 0 || sections.TileDataOffset <= sections.HeaderDataOffset)
+            {
+                detail = "invalid world header or tile section offset";
+                return false;
+            }
+
+            phase = "read world header";
+            stream.Position = sections.HeaderDataOffset;
+            WorldHeaderData header = ReadWorldHeaderData(reader, sections.Version);
+            int left = Math.Min(header.SpawnTileX, header.DungeonTileX) + 1;
+            int rightExclusive = Math.Max(header.SpawnTileX, header.DungeonTileX);
+            if (header.Width <= 0 || header.Height <= 0 || left < 0 || rightExclusive > header.Width || rightExclusive <= left)
+            {
+                detail = "invalid spawn, dungeon or world dimensions";
+                return false;
+            }
+
+            var bounds = Rectangle.FromLTRB(left, 0, rightExclusive, header.Height);
+            phase = "scan world tiles";
+            stream.Position = sections.TileDataOffset;
+            int crimsonTileCount = 0;
+            for (int x = 0; x < header.Width; x++)
+            {
+                int y = 0;
+                while (y < header.Height)
+                {
+                    WorldTileRecord tile = ReadWorldTileRecord(reader, sections.FrameImportance);
+                    int tileCount = checked(tile.RunLength + 1);
+                    if (tileCount <= 0 || y + tileCount > header.Height)
+                    {
+                        throw new InvalidDataException($"invalid tile run length {tile.RunLength} at {x},{y}");
+                    }
+
+                    if (x >= left && x < rightExclusive && tile.Active && CrimsonTileTypes.Contains(tile.Type))
+                    {
+                        crimsonTileCount += tileCount;
+                        if (crimsonTileCount >= CrimsonBiomeTileThreshold)
+                        {
+                            result = new CrimsonCorridorScanResult(bounds, crimsonTileCount, HasCrimson: true);
+                            return true;
+                        }
+                    }
+
+                    y += tileCount;
+                }
+            }
+
+            result = new CrimsonCorridorScanResult(bounds, crimsonTileCount, HasCrimson: false);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or EndOfStreamException or ArgumentException or InvalidDataException or OverflowException)
+        {
+            detail = $"{phase}: {ex.Message}";
+            StaticAppLogger.Instance.Error(ex, $"World post-generation filter failed to scan Crimson corridor: {worldPath}");
+            return false;
+        }
+    }
+
     private static bool TryReadSectionPointers(BinaryReader reader, out int version, out int[] sectionPointers, out string detail)
     {
         sectionPointers = Array.Empty<int>();
@@ -210,7 +305,7 @@ internal sealed class TerrariaWorldFilePyramidScanner
 
     // Mirrors WorldFile.LoadHeader field order up to WorldGen.crimson, gated by the file
     // version so it self-adapts to whichever world version the file was written with.
-    private static TerrariaWorldSeedMetadata ReadWorldSeedMetadata(BinaryReader reader, int version)
+    private static WorldHeaderData ReadWorldHeaderData(BinaryReader reader, int version)
     {
         _ = reader.ReadString(); // world name
         string seedText = string.Empty;
@@ -272,11 +367,14 @@ internal sealed class TerrariaWorldFilePyramidScanner
         if (version >= 284) _ = reader.ReadInt64(); // last played
 
         _ = reader.ReadByte(); // moon type
-        for (int i = 0; i < 19; i++)
+        for (int i = 0; i < 17; i++)
         {
-            // treeX[3], treeStyle[4], caveBackX[3], caveBackStyle[4], ice/jungle/hell back styles, spawnTileX/Y
+            // treeX[3], treeStyle[4], caveBackX[3], caveBackStyle[4], ice/jungle/hell back styles.
             _ = reader.ReadInt32();
         }
+
+        int spawnTileX = reader.ReadInt32();
+        int spawnTileY = reader.ReadInt32();
 
         _ = reader.ReadDouble(); // world surface
         _ = reader.ReadDouble(); // rock layer
@@ -285,25 +383,32 @@ internal sealed class TerrariaWorldFilePyramidScanner
         _ = reader.ReadInt32(); // temp moon phase
         _ = reader.ReadBoolean(); // temp blood moon
         _ = reader.ReadBoolean(); // temp eclipse
-        _ = reader.ReadInt32(); // dungeon x
-        _ = reader.ReadInt32(); // dungeon y
+        int dungeonX = reader.ReadInt32();
+        int dungeonY = reader.ReadInt32();
         bool hasCrimson = reader.ReadBoolean();
 
-        return new TerrariaWorldSeedMetadata(
-            seedText,
-            WorldSizeCode(maxTilesX, maxTilesY),
-            gameMode + 1,
-            hasCrimson,
-            SpecialSeedMask(
-                drunkWorld,
-                notTheBees,
-                forTheWorthy,
-                celebration,
-                dontStarve,
-                remix,
-                noTraps,
-                zenith,
-                skyblock));
+        return new WorldHeaderData(
+            new TerrariaWorldSeedMetadata(
+                seedText,
+                WorldSizeCode(maxTilesX, maxTilesY),
+                gameMode + 1,
+                hasCrimson,
+                SpecialSeedMask(
+                    drunkWorld,
+                    notTheBees,
+                    forTheWorthy,
+                    celebration,
+                    dontStarve,
+                    remix,
+                    noTraps,
+                    zenith,
+                    skyblock)),
+            maxTilesX,
+            maxTilesY,
+            spawnTileX,
+            spawnTileY,
+            dungeonX,
+            dungeonY);
     }
 
     private static int SpecialSeedMask(
@@ -369,24 +474,113 @@ internal sealed class TerrariaWorldFilePyramidScanner
             return false;
         }
 
-        short importanceCount = reader.ReadInt16();
-        if (importanceCount < 0)
+        ushort importanceCount = reader.ReadUInt16();
+        var frameImportance = new bool[importanceCount];
+        byte importanceBits = 0;
+        byte importanceMask = 128;
+        for (int index = 0; index < importanceCount; index++)
         {
-            detail = $"unexpected tile importance count {importanceCount}";
-            return false;
+            if (importanceMask == 128)
+            {
+                importanceBits = reader.ReadByte();
+                importanceMask = 1;
+            }
+            else
+            {
+                importanceMask <<= 1;
+            }
+
+            frameImportance[index] = (importanceBits & importanceMask) == importanceMask;
         }
 
-        int importanceByteCount = (importanceCount + 7) / 8;
-        _ = reader.ReadBytes(importanceByteCount);
-
+        int headerDataOffset = sectionPointers.Length > 0 ? sectionPointers[0] : 0;
+        int tileDataOffset = sectionPointers.Length > 1 ? sectionPointers[1] : 0;
         int chestDataOffset = 0;
         if (sectionPointers.Length > 2 && sectionPointers[2] > 0 && sectionPointers[2] < reader.BaseStream.Length)
         {
             chestDataOffset = sectionPointers[2];
         }
 
-        sections = new WorldFileSections(version, chestDataOffset);
+        sections = new WorldFileSections(
+            version,
+            headerDataOffset,
+            tileDataOffset,
+            chestDataOffset,
+            frameImportance);
         return true;
+    }
+
+    private static WorldTileRecord ReadWorldTileRecord(BinaryReader reader, bool[] frameImportance)
+    {
+        byte header1 = reader.ReadByte();
+        byte header2 = 0;
+        byte header3 = 0;
+        if ((header1 & 1) != 0)
+        {
+            header2 = reader.ReadByte();
+            if ((header2 & 1) != 0)
+            {
+                header3 = reader.ReadByte();
+                if ((header3 & 1) != 0)
+                {
+                    _ = reader.ReadByte();
+                }
+            }
+        }
+
+        bool active = (header1 & 2) != 0;
+        int type = -1;
+        if (active)
+        {
+            type = reader.ReadByte();
+            if ((header1 & 0x20) != 0)
+            {
+                type |= reader.ReadByte() << 8;
+            }
+
+            if (type < 0 || type >= frameImportance.Length)
+            {
+                throw new InvalidDataException($"tile type {type} exceeds frame-importance table");
+            }
+
+            if (frameImportance[type])
+            {
+                _ = reader.ReadInt16();
+                _ = reader.ReadInt16();
+            }
+
+            if ((header3 & 8) != 0)
+            {
+                _ = reader.ReadByte();
+            }
+        }
+
+        if ((header1 & 4) != 0)
+        {
+            _ = reader.ReadByte();
+            if ((header3 & 0x10) != 0)
+            {
+                _ = reader.ReadByte();
+            }
+        }
+
+        if ((header1 & 0x18) != 0)
+        {
+            _ = reader.ReadByte();
+        }
+
+        if ((header3 & 0x40) != 0)
+        {
+            _ = reader.ReadByte();
+        }
+
+        int runLength = (header1 & 0xC0) switch
+        {
+            0x40 => reader.ReadByte(),
+            0x80 or 0xC0 => reader.ReadInt16(),
+            _ => 0
+        };
+        return new WorldTileRecord(active, type, runLength);
     }
 
     private static List<WorldChestData> ReadChestData(BinaryReader reader, int version)
@@ -425,12 +619,33 @@ internal sealed class TerrariaWorldFilePyramidScanner
         return chests;
     }
 
-    private readonly record struct WorldFileSections(int Version, int ChestDataOffset);
+    private readonly record struct WorldFileSections(
+        int Version,
+        int HeaderDataOffset,
+        int TileDataOffset,
+        int ChestDataOffset,
+        bool[] FrameImportance);
+
+    private readonly record struct WorldHeaderData(
+        TerrariaWorldSeedMetadata SeedMetadata,
+        int Width,
+        int Height,
+        int SpawnTileX,
+        int SpawnTileY,
+        int DungeonTileX,
+        int DungeonTileY);
+
+    private readonly record struct WorldTileRecord(bool Active, int Type, int RunLength);
 
     private readonly record struct WorldChestData(int X, int Y, IReadOnlyList<WorldChestItemData> Items);
 
     private readonly record struct WorldChestItemData(int Slot, int Type, int Stack, byte Prefix);
 }
+
+internal readonly record struct CrimsonCorridorScanResult(
+    Rectangle Bounds,
+    int CrimsonTileCount,
+    bool HasCrimson);
 
 internal readonly record struct TerrariaWorldDimensions(int Width, int Height)
 {

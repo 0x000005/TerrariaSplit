@@ -13,6 +13,7 @@ internal enum WindowCloseAction
 internal sealed class WindowShell
 {
     private bool dragging;
+    private bool dragMoved;
     private Point dragStartCursor;
     private bool closeFinalizationPending;
     private bool closeFinalizationComplete;
@@ -52,6 +53,7 @@ internal sealed class WindowShell
     public void BeginDrag(Point cursorPosition)
     {
         dragging = true;
+        dragMoved = false;
         dragStartCursor = cursorPosition;
     }
 
@@ -70,12 +72,22 @@ internal sealed class WindowShell
         }
 
         dragStartCursor = cursorPosition;
+        dragMoved = true;
         return true;
+    }
+
+    public bool EndDrag()
+    {
+        bool moved = dragging && dragMoved;
+        dragging = false;
+        dragMoved = false;
+        return moved;
     }
 
     public void CancelDrag()
     {
         dragging = false;
+        dragMoved = false;
     }
 
     public void SyncTitle(Form form, string title)

@@ -751,6 +751,8 @@
         "AskBeforeUpdatingPersonalBestData": true
     },
     "Overlay": {
+        "WindowPositionX": null,
+        "WindowPositionY": null,
         "ShowSplitCompletionAnimation": true,
         "SplitCompletionAnimationDurationSeconds": 6,
         "SplitCompletionOutlineThicknessPercent": 25,
@@ -975,6 +977,7 @@
             "ZenithStarCatchSpeedSliderValue": 411,
             "EnablePyramidFilter": false,
             "PyramidFilterItemMask": 3,
+            "RequireCrimsonBetweenDungeonAndSpawn": false,
             "ReturnToMainMenuOnFilterFailure": false,
             "EnableWorldPool": false,
             "WorldPoolTargetCount": 10,
