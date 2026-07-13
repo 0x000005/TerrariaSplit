@@ -92,7 +92,7 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
         { "Create World hotkey {0} is now active. Please read the Create World notes in the Automation settings tab first. Enabling this blindly may move save files to the backup folder unless existing saves are kept.", "\u521B\u5EFA\u4E16\u754C\u5FEB\u6377\u952E {0} \u5DF2\u542F\u7528\u3002\u8BF7\u52A1\u5FC5\u5148\u9605\u8BFB\u8BBE\u7F6E\u81EA\u52A8\u5316\u9009\u9879\u5361\u4E2D\u5173\u4E8E\u521B\u5EFA\u4E16\u754C\u7684\u6709\u5173\u63D0\u793A\uFF0C\u76F2\u76EE\u542F\u7528\u53EF\u80FD\u4F1A\u628A\u5B58\u6863\u6587\u4EF6\u79FB\u5230\u5907\u4EFD\u6587\u4EF6\u5939\uFF0C\u9664\u975E\u5DF2\u542F\u7528\u4FDD\u7559\u5B58\u6863\u3002" },
         { "Always on top", "置顶显示" },
         { "Practice mode", "练习模式" },
-        { "Allow manual time editing", "允许手动修改时间" },
+        { "Allow right-click time editing", "允许右键修改时间" },
         { "Columns", "列" },
         { "Split display", "分段计时器" },
         { "Global scale %", "全局缩放 %" },
@@ -579,6 +579,9 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "World post-generation filters", "\u4E16\u754C\u751F\u6210\u540E\u4E8C\u9A8C" }
       , { "Available for Crimson worlds of any size. The generated world file is checked before the world is kept.", "\u9002\u7528\u4E8E\u4EFB\u610F\u5C3A\u5BF8\u7684\u7329\u7EA2\u4E16\u754C\uFF1B\u4FDD\u7559\u4E16\u754C\u524D\u4F1A\u68C0\u67E5\u5DF2\u751F\u6210\u7684\u4E16\u754C\u6587\u4EF6\u3002" }
       , { "Require Crimson between dungeon and spawn", "\u8981\u6C42\u5730\u7262\u4E0E\u51FA\u751F\u70B9\u4E4B\u95F4\u5B58\u5728\u7329\u7EA2" }
+      , { "Maximum distance from spawn", "\u8DDD\u51FA\u751F\u70B9\u6700\u5927\u8DDD\u79BB" }
+      , { "Near", "\u8FD1" }
+      , { "Far", "\u8FDC" }
       , { "Filter Crimson between dungeon and spawn", "\u4E8C\u9A8C\u5730\u7262\u4E0E\u51FA\u751F\u70B9\u4E4B\u95F4\u7684\u7329\u7EA2" }
       , { "Return to main menu on filter failure", "\u7B5B\u9009\u5931\u8D25\u8FD4\u56DE\u4E3B\u9875\u91CD\u65B0\u521B\u5EFA" }
       , { "Sandstorm in a Bottle", "\u6C99\u66B4\u74F6" }

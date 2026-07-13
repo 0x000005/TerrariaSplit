@@ -767,9 +767,9 @@ internal sealed class UiSettingsPage : SettingsPageBase
             primaryControls.Alignment.Enabled = groupVisible;
         }
 
-        iconNameGapBox.Enabled = IsColumnGroupVisible(UiColumnDescriptors.Name, UiColumnDescriptors.AttachedName);
-        nameTimeGapBox.Enabled = IsColumnGroupVisible(UiColumnDescriptors.Time, UiColumnDescriptors.AttachedTime);
-        timeDeltaGapBox.Enabled = IsColumnGroupVisible(UiColumnDescriptors.Delta, UiColumnDescriptors.AttachedDelta);
+        iconNameGapBox.Enabled = IsColumnGroupVisible(UiColumnDescriptors.Icon, UiColumnDescriptors.AttachedIcon);
+        nameTimeGapBox.Enabled = IsColumnGroupVisible(UiColumnDescriptors.Name, UiColumnDescriptors.AttachedName);
+        timeDeltaGapBox.Enabled = IsColumnGroupVisible(UiColumnDescriptors.Time, UiColumnDescriptors.AttachedTime);
     }
 
     private bool IsColumnGroupVisible(UiColumnDescriptor primary, UiColumnDescriptor attached)

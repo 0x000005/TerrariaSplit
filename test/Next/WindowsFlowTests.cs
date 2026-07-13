@@ -20,6 +20,8 @@ internal static class WindowsFlowTests
         Check.Equal(SettingsPageId.About, form.PageHost.Pages.Last().Id);
         AboutSettingsPage page = form.PageHost.GetOrCreatePage<AboutSettingsPage>(SettingsPageId.About);
         Check.Equal("v9.8.7.6", page.DisplayedVersion);
+        Check.True(page.ProductSectionNaturalHeight > 0);
+        Check.Equal(page.ProductSectionNaturalHeight * 2, page.ProductSectionMinimumHeight);
         form.Dispose();
         Check.True(service.Disposed);
     }, cancellationToken);
@@ -68,8 +70,8 @@ internal static class WindowsFlowTests
         Check.False(ui.GetColumnFontSizeBoxForTests(UiColumnDescriptors.AttachedName.Key).Enabled);
         Check.False(ui.GetColumnWidthBoxForTests(UiColumnDescriptors.Name.Key).Enabled);
         Check.False(ui.GetColumnAlignmentBoxForTests(UiColumnDescriptors.Name.Key).Enabled);
-        Check.False(ui.IconNameGapBoxForTests.Enabled);
-        Check.True(ui.NameTimeGapBoxForTests.Enabled);
+        Check.True(ui.IconNameGapBoxForTests.Enabled);
+        Check.False(ui.NameTimeGapBoxForTests.Enabled);
 
         nameShow.Checked = true;
         attachedNameShow.Checked = true;
@@ -78,6 +80,24 @@ internal static class WindowsFlowTests
         Check.True(ui.GetColumnAlignmentBoxForTests(UiColumnDescriptors.Name.Key).Enabled);
         Check.True(ui.IconNameGapBoxForTests.Enabled);
         Check.True(ui.NameTimeGapBoxForTests.Enabled);
+
+        System.Windows.Forms.CheckBox iconShow = ui.GetColumnShowBoxForTests(UiColumnDescriptors.Icon.Key);
+        System.Windows.Forms.CheckBox attachedIconShow = ui.GetColumnShowBoxForTests(UiColumnDescriptors.AttachedIcon.Key);
+        iconShow.Checked = false;
+        attachedIconShow.Checked = false;
+        Check.False(ui.IconNameGapBoxForTests.Enabled);
+        iconShow.Checked = true;
+        attachedIconShow.Checked = true;
+        Check.True(ui.IconNameGapBoxForTests.Enabled);
+
+        System.Windows.Forms.CheckBox timeShow = ui.GetColumnShowBoxForTests(UiColumnDescriptors.Time.Key);
+        System.Windows.Forms.CheckBox attachedTimeShow = ui.GetColumnShowBoxForTests(UiColumnDescriptors.AttachedTime.Key);
+        timeShow.Checked = false;
+        attachedTimeShow.Checked = false;
+        Check.False(ui.TimeDeltaGapBoxForTests.Enabled);
+        timeShow.Checked = true;
+        attachedTimeShow.Checked = true;
+        Check.True(ui.TimeDeltaGapBoxForTests.Enabled);
 
         foreach (UiColumnDescriptor descriptor in UiColumnDescriptors.All.Where(static descriptor => descriptor.ShowItalic))
         {
@@ -115,8 +135,11 @@ internal static class WindowsFlowTests
         AutomationSettingsPage automation = form.PageHost.GetOrCreatePage<AutomationSettingsPage>(SettingsPageId.Automation);
         Check.True(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Enabled);
         automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Checked = true;
+        Check.True(automation.AutoCreateCrimsonDistanceBoxes.Values.All(static button => button.Enabled));
+        automation.AutoCreateCrimsonDistanceBoxes[AutoCreateCrimsonDistance.Near].Checked = false;
         AppSettings filteredDraft = form.PageHost.CreateAppliedSnapshot();
         Check.True(filteredDraft.Automation.AutoCreate.RequireCrimsonBetweenDungeonAndSpawn);
+        Check.Equal(AutoCreateCrimsonDistance.Near, filteredDraft.Automation.AutoCreate.CrimsonDistance);
         Check.False(source.Automation.AutoCreate.RequireCrimsonBetweenDungeonAndSpawn);
     }, cancellationToken);
 
@@ -154,6 +177,17 @@ internal static class WindowsFlowTests
         Check.Equal(settings.Overlay.Columns.TimeDeltaGap, primaryDelta.Left - 4 - (primaryTime.Right + 4));
 
         settings.Overlay.Columns.Name.Show = false;
+        ColumnRects reservedName = SplitListRenderer.GetColumnRects(settings, new System.Drawing.Rectangle(0, 0, 1000, 60));
+        if (reservedName.Name is not System.Drawing.Rectangle reservedNameRect ||
+            reservedName.Time is not System.Drawing.Rectangle reservedTimeRect)
+        {
+            throw new InvalidOperationException("A column enabled for attached rows should remain reserved in primary rows.");
+        }
+
+        Check.Equal(primaryName, reservedNameRect);
+        Check.Equal(primaryTime, reservedTimeRect);
+
+        settings.Overlay.Columns.AttachedName.Show = false;
         ColumnRects withoutName = SplitListRenderer.GetColumnRects(settings, new System.Drawing.Rectangle(0, 0, 1000, 60));
         if (withoutName.Icon is not System.Drawing.Rectangle iconWithoutName ||
             withoutName.Time is not System.Drawing.Rectangle timeWithoutName)
@@ -164,6 +198,7 @@ internal static class WindowsFlowTests
         Check.False(withoutName.Name.HasValue);
         Check.Equal(settings.Overlay.Columns.NameTimeGap, timeWithoutName.Left - 4 - iconWithoutName.Right);
         settings.Overlay.Columns.Name.Show = true;
+        settings.Overlay.Columns.AttachedName.Show = true;
 
         ColumnRects attachedColumns = SplitListRenderer.GetColumnRects(settings, new System.Drawing.Rectangle(0, 0, 1000, 60), attached: true);
         if (attachedColumns.Icon is not System.Drawing.Rectangle attachedIcon ||
@@ -175,6 +210,7 @@ internal static class WindowsFlowTests
 
         Check.True(attachedIcon.Right <= attachedName.Left);
         Check.True(attachedName.Right <= attachedTime.Left);
+        Check.Equal(primaryColumns, attachedColumns);
 
         int fittingHeight = OverlayCompositeLayoutCalculator.GetFittingHeight(900, 300, settings, 15, 15, 9);
         Check.True(fittingHeight >= 300);

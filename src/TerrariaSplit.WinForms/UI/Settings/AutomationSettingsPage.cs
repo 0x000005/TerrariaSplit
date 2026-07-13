@@ -25,6 +25,7 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
     private readonly CheckBox autoCreatePyramidFilterBox = new();
     private readonly CheckBox autoCreateCrimsonBetweenDungeonAndSpawnBox = new();
     private readonly CheckBox autoCreateReturnToMainMenuOnFilterFailureBox = new();
+    private readonly Dictionary<string, CheckBox> autoCreateCrimsonDistanceBoxes = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, CheckBox> autoCreatePyramidItemBoxes = new(StringComparer.OrdinalIgnoreCase);
     private readonly CheckBox autoCreateWorldPoolBox = new();
     private readonly TextBox autoCreateWorldPoolTargetBox = new();
@@ -38,6 +39,7 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
     private readonly Dictionary<string, CheckBox> autoCreateZenithStarCatchStageBoxes = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<PracticeSlotControls> practiceSlotControls = new();
     private bool updatingZenithStarCatchStageSelection;
+    private bool updatingCrimsonDistanceSelection;
 
     public override SettingsPageId Id => SettingsPageId.Automation;
 
@@ -49,6 +51,7 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
     internal ThemedSlider AutoCreateZenithStarCatchSpeedBar => autoCreateZenithStarCatchSpeedBar;
     internal CheckBox AutoCreatePyramidFilterBox => autoCreatePyramidFilterBox;
     internal CheckBox AutoCreateCrimsonBetweenDungeonAndSpawnBox => autoCreateCrimsonBetweenDungeonAndSpawnBox;
+    internal IReadOnlyDictionary<string, CheckBox> AutoCreateCrimsonDistanceBoxes => autoCreateCrimsonDistanceBoxes;
     internal CheckBox AutoCreateReturnToMainMenuOnFilterFailureBox => autoCreateReturnToMainMenuOnFilterFailureBox;
     internal IReadOnlyDictionary<string, CheckBox> AutoCreatePyramidItemBoxes => autoCreatePyramidItemBoxes;
     internal CheckBox AutoCreateWorldPoolBox => autoCreateWorldPoolBox;
@@ -84,6 +87,7 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
         settings.Automation.AutoCreate.ZenithStarCatchSpeedSliderValue = AutoCreateZenithStarCatchSpeed.NormalizeSliderValue(autoCreateZenithStarCatchSpeedBar.Value);
         settings.Automation.AutoCreate.EnablePyramidFilter = autoCreatePyramidFilterBox.Checked;
         settings.Automation.AutoCreate.RequireCrimsonBetweenDungeonAndSpawn = autoCreateCrimsonBetweenDungeonAndSpawnBox.Checked;
+        settings.Automation.AutoCreate.CrimsonDistance = GetSelectedCrimsonDistance();
         settings.Automation.AutoCreate.ReturnToMainMenuOnFilterFailure = autoCreateReturnToMainMenuOnFilterFailureBox.Checked;
         settings.Automation.AutoCreate.PyramidFilterItemMask = AutoCreatePyramidFilterItem.ToMask(
             AutoCreatePyramidFilterItem.All.Where(item =>
@@ -323,11 +327,17 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
             postGenerationFilterGrid,
             "Require Crimson between dungeon and spawn",
             autoCreateCrimsonBetweenDungeonAndSpawnBox);
+        SettingsUiFactory.AddSectionControl(createSection, postGenerationFilterGrid);
+        SettingsUiFactory.AddSectionControl(createSection, Factory.CreateFieldLabel("Maximum distance from spawn"));
+        SettingsUiFactory.AddSectionControl(createSection, CreateCrimsonDistanceSelector());
+        TableLayoutPanel filterFailureGrid = Factory.CreateGrid(
+            SettingsUiFactory.ColumnStylePercent(100f),
+            SettingsUiFactory.ColumnStyleAbsolute(360f));
         Factory.AddSettingRow(
-            postGenerationFilterGrid,
+            filterFailureGrid,
             "Return to main menu on filter failure",
             autoCreateReturnToMainMenuOnFilterFailureBox);
-        SettingsUiFactory.AddSectionControl(createSection, postGenerationFilterGrid);
+        SettingsUiFactory.AddSectionControl(createSection, filterFailureGrid);
 
         SettingsUiFactory.AddSectionControl(createSection, Factory.CreateSubsectionLabel("Background world generation"));
         TableLayoutPanel worldPoolGrid = Factory.CreateGrid(

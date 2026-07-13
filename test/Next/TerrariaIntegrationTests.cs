@@ -75,12 +75,14 @@ internal static class TerrariaIntegrationTests
             WorldEvil = "invalid",
             SpecialSeeds = "for the worthy, FOR THE WORTHY, not the bees",
             SecretSeeds = "  first ; second\nfirst  ",
-            PyramidFilterItemMask = int.MaxValue
+            PyramidFilterItemMask = int.MaxValue,
+            CrimsonDistance = "invalid"
         };
         SettingsNormalizer.Normalize(new AppSettings { Automation = { AutoCreate = settings } });
         Check.Equal(AutoCreateWorldSize.Small, settings.WorldSize);
         Check.Equal(AutoCreateWorldDifficulty.Classic, settings.WorldDifficulty);
         Check.Equal(AutoCreateWorldEvil.Crimson, settings.WorldEvil);
+        Check.Equal(AutoCreateCrimsonDistance.Far, settings.CrimsonDistance);
         Check.True((settings.PyramidFilterItemMask & ~AutoCreatePyramidFilterItem.AllMask) == 0);
         Check.Equal(2, AutoCreateSeedList.Parse(settings.SecretSeeds).Count);
     }
@@ -101,21 +103,65 @@ internal static class TerrariaIntegrationTests
         {
             int dungeonX = 200;
             int spawnX = width / 2;
-            string betweenPath = directory.Combine($"{size}-between.wld");
+            int nearDistance = AutoCreateCrimsonDistance.MaximumDistanceTiles(width, AutoCreateCrimsonDistance.Near);
+            int mediumDistance = AutoCreateCrimsonDistance.MaximumDistanceTiles(width, AutoCreateCrimsonDistance.Medium);
+            Check.Equal((width / 2) / 4, nearDistance);
+            Check.Equal((width / 2) * 9 / 20, mediumDistance);
+            string nearPath = directory.Combine($"{size}-near.wld");
+            string mediumPath = directory.Combine($"{size}-medium.wld");
+            string farPath = directory.Combine($"{size}-far.wld");
             string outsidePath = directory.Combine($"{size}-outside.wld");
             File.WriteAllBytes(
-                betweenPath,
-                CreatePostFilterWorld(width, height, spawnX, dungeonX, crimsonTileX: (spawnX + dungeonX) / 2));
+                nearPath,
+                CreatePostFilterWorld(width, height, spawnX, dungeonX, crimsonTileX: spawnX - nearDistance));
+            File.WriteAllBytes(
+                mediumPath,
+                CreatePostFilterWorld(width, height, spawnX, dungeonX, crimsonTileX: spawnX - mediumDistance));
+            File.WriteAllBytes(
+                farPath,
+                CreatePostFilterWorld(width, height, spawnX, dungeonX, crimsonTileX: dungeonX + 1));
             File.WriteAllBytes(
                 outsidePath,
                 CreatePostFilterWorld(width, height, spawnX, dungeonX, crimsonTileX: width - 200));
 
-            Check.True(scanner.TryScanCrimsonBetweenDungeonAndSpawn(betweenPath, out CrimsonCorridorScanResult between, out string betweenDetail));
-            Check.Equal(string.Empty, betweenDetail);
-            Check.True(between.HasCrimson);
-            Check.True(between.CrimsonTileCount >= 300);
-            Check.Equal(dungeonX + 1, between.Bounds.Left);
-            Check.Equal(spawnX, between.Bounds.Right);
+            Check.True(scanner.TryScanCrimsonBetweenDungeonAndSpawn(
+                nearPath,
+                out CrimsonCorridorScanResult near,
+                out string nearDetail,
+                AutoCreateCrimsonDistance.Near));
+            Check.Equal(string.Empty, nearDetail);
+            Check.True(near.HasCrimson);
+            Check.True(near.CrimsonTileCount >= 300);
+            Check.Equal(spawnX - nearDistance, near.Bounds.Left);
+            Check.Equal(spawnX, near.Bounds.Right);
+
+            Check.True(scanner.TryScanCrimsonBetweenDungeonAndSpawn(
+                mediumPath,
+                out CrimsonCorridorScanResult mediumRejectedByNear,
+                out _,
+                AutoCreateCrimsonDistance.Near));
+            Check.False(mediumRejectedByNear.HasCrimson);
+            Check.True(scanner.TryScanCrimsonBetweenDungeonAndSpawn(
+                mediumPath,
+                out CrimsonCorridorScanResult medium,
+                out _,
+                AutoCreateCrimsonDistance.Medium));
+            Check.True(medium.HasCrimson);
+            Check.Equal(spawnX - mediumDistance, medium.Bounds.Left);
+
+            Check.True(scanner.TryScanCrimsonBetweenDungeonAndSpawn(
+                farPath,
+                out CrimsonCorridorScanResult farRejectedByMedium,
+                out _,
+                AutoCreateCrimsonDistance.Medium));
+            Check.False(farRejectedByMedium.HasCrimson);
+            Check.True(scanner.TryScanCrimsonBetweenDungeonAndSpawn(
+                farPath,
+                out CrimsonCorridorScanResult far,
+                out _,
+                AutoCreateCrimsonDistance.Far));
+            Check.True(far.HasCrimson);
+            Check.Equal(dungeonX + 1, far.Bounds.Left);
 
             Check.True(scanner.TryScanCrimsonBetweenDungeonAndSpawn(outsidePath, out CrimsonCorridorScanResult outside, out string outsideDetail));
             Check.Equal(string.Empty, outsideDetail);
@@ -127,15 +173,18 @@ internal static class TerrariaIntegrationTests
                 WorldSize = size,
                 WorldEvil = AutoCreateWorldEvil.Crimson,
                 EnablePyramidFilter = false,
-                RequireCrimsonBetweenDungeonAndSpawn = true
+                RequireCrimsonBetweenDungeonAndSpawn = true,
+                CrimsonDistance = AutoCreateCrimsonDistance.Near
             };
-            PyramidFilterWorldFileResult kept = evaluator.Evaluate(betweenPath, settings);
-            PyramidFilterWorldFileResult rejected = evaluator.Evaluate(outsidePath, settings);
+            PyramidFilterWorldFileResult kept = evaluator.Evaluate(nearPath, settings);
+            PyramidFilterWorldFileResult rejected = evaluator.Evaluate(mediumPath, settings);
             Check.True(kept.Keep);
             Check.True(kept.CrimsonCorridorFilterEnabled);
             Check.False(rejected.Keep);
 
             string enabledSignature = WorldPoolSignature.From(settings);
+            settings.CrimsonDistance = AutoCreateCrimsonDistance.Medium;
+            Check.False(string.Equals(enabledSignature, WorldPoolSignature.From(settings), StringComparison.Ordinal));
             settings.RequireCrimsonBetweenDungeonAndSpawn = false;
             Check.False(string.Equals(enabledSignature, WorldPoolSignature.From(settings), StringComparison.Ordinal));
         }

@@ -184,7 +184,8 @@ internal sealed class TerrariaWorldFilePyramidScanner
     public bool TryScanCrimsonBetweenDungeonAndSpawn(
         string worldPath,
         out CrimsonCorridorScanResult result,
-        out string detail)
+        out string detail,
+        string crimsonDistance = AutoCreateCrimsonDistance.Default)
     {
         result = default;
         detail = string.Empty;
@@ -213,15 +214,32 @@ internal sealed class TerrariaWorldFilePyramidScanner
             phase = "read world header";
             stream.Position = sections.HeaderDataOffset;
             WorldHeaderData header = ReadWorldHeaderData(reader, sections.Version);
-            int left = Math.Min(header.SpawnTileX, header.DungeonTileX) + 1;
-            int rightExclusive = Math.Max(header.SpawnTileX, header.DungeonTileX);
-            if (header.Width <= 0 || header.Height <= 0 || left < 0 || rightExclusive > header.Width || rightExclusive <= left)
+            if (header.Width <= 0 ||
+                header.Height <= 0 ||
+                header.SpawnTileX < 0 ||
+                header.SpawnTileX >= header.Width ||
+                header.DungeonTileX < 0 ||
+                header.DungeonTileX >= header.Width ||
+                header.DungeonTileX == header.SpawnTileX)
             {
                 detail = "invalid spawn, dungeon or world dimensions";
                 return false;
             }
 
-            var bounds = Rectangle.FromLTRB(left, 0, rightExclusive, header.Height);
+            Rectangle bounds = BuildCrimsonCorridorBounds(
+                header.Width,
+                header.Height,
+                header.SpawnTileX,
+                header.DungeonTileX,
+                crimsonDistance);
+            if (bounds.Width <= 0)
+            {
+                detail = "empty Crimson distance corridor";
+                return false;
+            }
+
+            int left = bounds.Left;
+            int rightExclusive = bounds.Right;
             phase = "scan world tiles";
             stream.Position = sections.TileDataOffset;
             int crimsonTileCount = 0;
@@ -538,6 +556,29 @@ internal sealed class TerrariaWorldFilePyramidScanner
         }
 
         return Rectangle.FromLTRB(left, top, rightExclusive, bottom + 1);
+    }
+
+    internal static Rectangle BuildCrimsonCorridorBounds(
+        int worldWidth,
+        int worldHeight,
+        int spawnTileX,
+        int dungeonTileX,
+        string crimsonDistance)
+    {
+        int maximumDistance = AutoCreateCrimsonDistance.MaximumDistanceTiles(worldWidth, crimsonDistance);
+        if (worldWidth <= 0 || worldHeight <= 0 || maximumDistance <= 0 || spawnTileX == dungeonTileX)
+        {
+            return Rectangle.Empty;
+        }
+
+        if (dungeonTileX < spawnTileX)
+        {
+            int left = Math.Max(dungeonTileX + 1, spawnTileX - maximumDistance);
+            return Rectangle.FromLTRB(left, 0, spawnTileX, worldHeight);
+        }
+
+        int rightExclusive = Math.Min(dungeonTileX, spawnTileX + maximumDistance + 1);
+        return Rectangle.FromLTRB(spawnTileX + 1, 0, rightExclusive, worldHeight);
     }
 
     private static bool TryReadWorldFileSections(

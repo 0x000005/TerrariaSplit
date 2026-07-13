@@ -41,7 +41,8 @@ internal sealed class PyramidFilterWorldFileEvaluator
             crimsonScanned = scanner.TryScanCrimsonBetweenDungeonAndSpawn(
                 worldPath,
                 out crimsonCorridor,
-                out crimsonDetail);
+                out crimsonDetail,
+                settings.CrimsonDistance);
         }
 
         stopwatch.Stop();

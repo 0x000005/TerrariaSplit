@@ -21,6 +21,10 @@ internal sealed class AboutSettingsPage : SettingsPageBase
 
     internal string DisplayedVersion => versionValue.Text;
 
+    internal int ProductSectionNaturalHeight { get; private set; }
+
+    internal int ProductSectionMinimumHeight { get; private set; }
+
     protected override Control BuildPage(SettingsPageContext context)
     {
         Control page = context.BuildScrollPage(BuildSections);
@@ -99,6 +103,13 @@ internal sealed class AboutSettingsPage : SettingsPageBase
 
         TableLayoutPanel product = Factory.CreateSection();
         SettingsUiFactory.AddSectionControl(product, titleHost);
+        ProductSectionNaturalHeight = product.GetPreferredSize(Size.Empty).Height;
+        ProductSectionMinimumHeight = ProductSectionNaturalHeight * 2;
+        product.MinimumSize = new Size(0, ProductSectionMinimumHeight);
+        product.RowStyles[0] = new RowStyle(SizeType.Percent, 100f);
+        titleHost.AutoSize = false;
+        titleHost.Dock = DockStyle.Fill;
+        titleHost.RowStyles[0] = new RowStyle(SizeType.Percent, 100f);
         SettingsUiFactory.AddSection(parent, product);
 
         TableLayoutPanel update = Factory.CreateSection("Updates");

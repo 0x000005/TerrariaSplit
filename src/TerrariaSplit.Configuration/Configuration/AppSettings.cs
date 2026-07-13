@@ -398,6 +398,7 @@ public sealed class AutoCreateWorldSettings
     public bool EnablePyramidFilter { get; set; }
     public int PyramidFilterItemMask { get; set; } = AutoCreatePyramidFilterItem.SandstormInABottleMask | AutoCreatePyramidFilterItem.FlyingCarpetMask;
     public bool RequireCrimsonBetweenDungeonAndSpawn { get; set; }
+    public string CrimsonDistance { get; set; } = AutoCreateCrimsonDistance.Default;
     public bool ReturnToMainMenuOnFilterFailure { get; set; }
     public bool EnableWorldPool { get; set; }
     public int WorldPoolTargetCount { get; set; } = 10;
@@ -495,6 +496,39 @@ public static class AutoCreateWorldEvil
     public static string Normalize(string? value)
     {
         return All.FirstOrDefault(option => string.Equals(option, value, StringComparison.OrdinalIgnoreCase)) ?? Crimson;
+    }
+}
+
+public static class AutoCreateCrimsonDistance
+{
+    public const string Near = "Near";
+    public const string Medium = "Medium";
+    public const string Far = "Far";
+    public const string Default = Far;
+
+    public static readonly string[] All = { Near, Medium, Far };
+
+    public static string Normalize(string? value)
+    {
+        return All.FirstOrDefault(option => string.Equals(option, value, StringComparison.OrdinalIgnoreCase)) ?? Default;
+    }
+
+    public static bool Includes(string selectedDistance, string distance)
+    {
+        int selectedIndex = Array.IndexOf(All, Normalize(selectedDistance));
+        int distanceIndex = Array.IndexOf(All, Normalize(distance));
+        return distanceIndex <= selectedIndex;
+    }
+
+    public static int MaximumDistanceTiles(int worldWidth, string? distance)
+    {
+        int halfWorldWidth = Math.Max(0, worldWidth / 2);
+        return Normalize(distance) switch
+        {
+            Near => halfWorldWidth / 4,
+            Medium => halfWorldWidth * 9 / 20,
+            _ => halfWorldWidth
+        };
     }
 }
 

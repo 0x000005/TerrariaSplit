@@ -44,7 +44,9 @@ public static class WorldPoolSignature
         string pyramidItems = "pyramidItems=" + pyramidItemMask.ToString(CultureInfo.InvariantCulture);
         bool crimsonCorridorEnabled = autoCreate.RequireCrimsonBetweenDungeonAndSpawn &&
             string.Equals(evil, AutoCreateWorldEvil.Crimson, StringComparison.Ordinal);
-        string crimsonCorridor = crimsonCorridorEnabled ? "crimsonCorridor=1" : "crimsonCorridor=0";
+        string crimsonCorridor = crimsonCorridorEnabled
+            ? "crimsonCorridor=" + AutoCreateCrimsonDistance.Normalize(autoCreate.CrimsonDistance)
+            : "crimsonCorridor=0";
         string nameLanguage = "name=" + TerrariaLanguageCodes.FromAppLanguage(appLanguage);
         return string.Join("|", NormalizeTerrariaVersion(terrariaVersion), size, difficulty, evil, specialSeeds, secretSeeds, pyramid, pyramidItems, crimsonCorridor, nameLanguage);
     }

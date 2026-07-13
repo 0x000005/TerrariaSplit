@@ -1011,6 +1011,7 @@
             "EnablePyramidFilter": false,
             "PyramidFilterItemMask": 3,
             "RequireCrimsonBetweenDungeonAndSpawn": false,
+            "CrimsonDistance": "Far",
             "ReturnToMainMenuOnFilterFailure": false,
             "EnableWorldPool": false,
             "WorldPoolTargetCount": 10,

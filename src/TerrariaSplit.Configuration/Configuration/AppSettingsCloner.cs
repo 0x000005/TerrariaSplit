@@ -349,6 +349,7 @@ public static class AppSettingsCloner
             EnablePyramidFilter = source.EnablePyramidFilter,
             PyramidFilterItemMask = source.PyramidFilterItemMask,
             RequireCrimsonBetweenDungeonAndSpawn = source.RequireCrimsonBetweenDungeonAndSpawn,
+            CrimsonDistance = source.CrimsonDistance,
             ReturnToMainMenuOnFilterFailure = source.ReturnToMainMenuOnFilterFailure,
             EnableWorldPool = source.EnableWorldPool,
             WorldPoolTargetCount = source.WorldPoolTargetCount,

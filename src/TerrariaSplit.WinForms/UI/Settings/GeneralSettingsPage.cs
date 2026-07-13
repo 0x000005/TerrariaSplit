@@ -88,7 +88,7 @@ internal sealed class GeneralSettingsPage : SettingsPageBase
 
         TableLayoutPanel specialSection = Factory.CreateSection("Special Options");
         TableLayoutPanel specialGrid = Factory.CreateTwoColumnGrid(280f);
-        Factory.AddSettingRow(specialGrid, "Allow manual time editing", practiceModeBox);
+        Factory.AddSettingRow(specialGrid, "Allow right-click time editing", practiceModeBox);
         Factory.AddSettingRow(specialGrid, "Mouse passthrough indicator", showMouseClickThroughIndicatorBox);
         SettingsUiFactory.AddSectionControl(specialSection, specialGrid);
         SettingsUiFactory.AddSection(parent, specialSection);

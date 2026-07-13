@@ -140,6 +140,47 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
         return panel;
     }
 
+    private TableLayoutPanel CreateCrimsonDistanceSelector()
+    {
+        autoCreateCrimsonDistanceBoxes.Clear();
+
+        const int columnCount = 3;
+        var panel = new TableLayoutPanel
+        {
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            BackColor = UiTheme.Surface,
+            ColumnCount = columnCount,
+            Dock = DockStyle.Top,
+            Margin = new Padding(0, 0, 0, 8),
+            Padding = Padding.Empty
+        };
+        UiTheme.EnableDoubleBuffering(panel);
+        for (int index = 0; index < columnCount; index++)
+        {
+            panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f / columnCount));
+        }
+
+        string selectedDistance = AutoCreateCrimsonDistance.Normalize(Draft.Automation.AutoCreate.CrimsonDistance);
+        for (int index = 0; index < AutoCreateCrimsonDistance.All.Length; index++)
+        {
+            string distance = AutoCreateCrimsonDistance.All[index];
+            CheckBox button = CreateSelectorButton(
+                distance,
+                AutoCreateCrimsonDistance.Includes(selectedDistance, distance));
+            button.Margin = new Padding(0, 0, index == columnCount - 1 ? 0 : 8, 10);
+            button.CheckedChanged += (_, _) => SelectCrimsonDistance(distance);
+            autoCreateCrimsonDistanceBoxes[distance] = button;
+            panel.Controls.Add(button, index, 0);
+        }
+
+        panel.RowCount = 1;
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 54f));
+        ApplyCrimsonDistanceSelection(selectedDistance);
+        UpdatePostGenerationFilterAvailability();
+        return panel;
+    }
+
     private CheckBox CreateSpecialSeedButton(string seed, bool selected)
     {
         CheckBox button = CreateSelectorButton(seed, selected);
@@ -308,7 +349,54 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
         autoCreateCrimsonBetweenDungeonAndSpawnBox.ForeColor = supportsCrimsonCorridor
             ? UiTheme.Text
             : UiTheme.MutedText;
+        bool crimsonDistanceEnabled = supportsCrimsonCorridor && autoCreateCrimsonBetweenDungeonAndSpawnBox.Checked;
+        foreach (CheckBox button in autoCreateCrimsonDistanceBoxes.Values)
+        {
+            button.Enabled = crimsonDistanceEnabled;
+            UpdateSpecialSeedButtonState(button);
+        }
         UpdatePyramidItemAvailability();
+    }
+
+    private void SelectCrimsonDistance(string selectedDistance)
+    {
+        if (updatingCrimsonDistanceSelection)
+        {
+            return;
+        }
+
+        ApplyCrimsonDistanceSelection(selectedDistance);
+    }
+
+    private void ApplyCrimsonDistanceSelection(string selectedDistance)
+    {
+        updatingCrimsonDistanceSelection = true;
+        try
+        {
+            foreach ((string distance, CheckBox button) in autoCreateCrimsonDistanceBoxes)
+            {
+                button.Checked = AutoCreateCrimsonDistance.Includes(selectedDistance, distance);
+                UpdateSpecialSeedButtonState(button);
+            }
+        }
+        finally
+        {
+            updatingCrimsonDistanceSelection = false;
+        }
+    }
+
+    private string GetSelectedCrimsonDistance()
+    {
+        for (int index = AutoCreateCrimsonDistance.All.Length - 1; index >= 0; index--)
+        {
+            string distance = AutoCreateCrimsonDistance.All[index];
+            if (autoCreateCrimsonDistanceBoxes.TryGetValue(distance, out CheckBox? button) && button.Checked)
+            {
+                return distance;
+            }
+        }
+
+        return AutoCreateCrimsonDistance.Default;
     }
 
     private void SelectZenithStarCatchStage(string selectedStopStage)

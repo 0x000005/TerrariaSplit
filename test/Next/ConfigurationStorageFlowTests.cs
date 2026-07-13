@@ -22,6 +22,7 @@ internal static class ConfigurationStorageFlowTests
         settings.Overlay.WindowPositionX = -1200;
         settings.Overlay.WindowPositionY = 120;
         settings.Automation.AutoCreate.RequireCrimsonBetweenDungeonAndSpawn = true;
+        settings.Automation.AutoCreate.CrimsonDistance = AutoCreateCrimsonDistance.Near;
 
         Check.True(repository.Save(settings).Succeeded);
         AppSettings loaded = new AppSettingsRepository(paths).Load();
@@ -32,6 +33,7 @@ internal static class ConfigurationStorageFlowTests
         Check.Equal(-1200, loaded.Overlay.WindowPositionX);
         Check.Equal(120, loaded.Overlay.WindowPositionY);
         Check.True(loaded.Automation.AutoCreate.RequireCrimsonBetweenDungeonAndSpawn);
+        Check.Equal(AutoCreateCrimsonDistance.Near, loaded.Automation.AutoCreate.CrimsonDistance);
         Check.True(File.Exists(Path.Combine(paths.SettingsDirectory, "settings.json")));
         Check.True(File.Exists(Path.Combine(paths.SettingsDirectory, "active-profile.txt")));
     }
