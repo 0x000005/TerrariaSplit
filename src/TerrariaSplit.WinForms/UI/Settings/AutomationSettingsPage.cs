@@ -22,11 +22,16 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
     private readonly CheckBox autoCreateZenithStarCatchBox = new();
     private readonly ThemedSlider autoCreateZenithStarCatchSpeedBar = new();
     private readonly Label autoCreateZenithStarCatchSpeedValueLabel = new();
+    private readonly CheckBox autoCreateCheatsBox = new();
     private readonly CheckBox autoCreatePyramidFilterBox = new();
     private readonly CheckBox autoCreateCrimsonBetweenDungeonAndSpawnBox = new();
-    private readonly CheckBox autoCreateReturnToMainMenuOnFilterFailureBox = new();
     private readonly Dictionary<string, CheckBox> autoCreateCrimsonDistanceBoxes = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, CheckBox> autoCreatePyramidItemBoxes = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, CheckBox> autoCreateResourceItemBoxes = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<int, CheckBox> autoCreateLifeCrystalMinimumBoxes = new();
+    private readonly Dictionary<string, CheckBox> autoCreateHookMinimumBoxes = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<int, CheckBox> autoCreateSpelunkerMinimumBoxes = new();
+    private readonly Dictionary<int, CheckBox> autoCreateFeatherfallMinimumBoxes = new();
     private readonly CheckBox autoCreateWorldPoolBox = new();
     private readonly TextBox autoCreateWorldPoolTargetBox = new();
     private readonly TextBox autoCreateShortActionDelayBox = new();
@@ -40,6 +45,7 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
     private readonly List<PracticeSlotControls> practiceSlotControls = new();
     private bool updatingZenithStarCatchStageSelection;
     private bool updatingCrimsonDistanceSelection;
+    private bool updatingResourceMinimumSelection;
 
     public override SettingsPageId Id => SettingsPageId.Automation;
 
@@ -49,14 +55,20 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
     internal CheckBox AutoCreateZenithStarCatchBox => autoCreateZenithStarCatchBox;
     internal IReadOnlyDictionary<string, CheckBox> AutoCreateZenithStarCatchStageBoxes => autoCreateZenithStarCatchStageBoxes;
     internal ThemedSlider AutoCreateZenithStarCatchSpeedBar => autoCreateZenithStarCatchSpeedBar;
+    internal CheckBox AutoCreateCheatsBox => autoCreateCheatsBox;
     internal CheckBox AutoCreatePyramidFilterBox => autoCreatePyramidFilterBox;
     internal CheckBox AutoCreateCrimsonBetweenDungeonAndSpawnBox => autoCreateCrimsonBetweenDungeonAndSpawnBox;
     internal IReadOnlyDictionary<string, CheckBox> AutoCreateCrimsonDistanceBoxes => autoCreateCrimsonDistanceBoxes;
-    internal CheckBox AutoCreateReturnToMainMenuOnFilterFailureBox => autoCreateReturnToMainMenuOnFilterFailureBox;
+    internal IReadOnlyDictionary<string, CheckBox> AutoCreateResourceItemBoxes => autoCreateResourceItemBoxes;
+    internal IReadOnlyDictionary<int, CheckBox> AutoCreateLifeCrystalMinimumBoxes => autoCreateLifeCrystalMinimumBoxes;
+    internal IReadOnlyDictionary<string, CheckBox> AutoCreateHookMinimumBoxes => autoCreateHookMinimumBoxes;
+    internal IReadOnlyDictionary<int, CheckBox> AutoCreateSpelunkerMinimumBoxes => autoCreateSpelunkerMinimumBoxes;
+    internal IReadOnlyDictionary<int, CheckBox> AutoCreateFeatherfallMinimumBoxes => autoCreateFeatherfallMinimumBoxes;
     internal IReadOnlyDictionary<string, CheckBox> AutoCreatePyramidItemBoxes => autoCreatePyramidItemBoxes;
     internal CheckBox AutoCreateWorldPoolBox => autoCreateWorldPoolBox;
     internal TextBox AutoCreateWorldPoolTargetBox => autoCreateWorldPoolTargetBox;
     internal TextBox AutoCreateSecretSeedsBox => autoCreateSecretSeedsBox;
+    internal ThemedDropDownList AutoCreateWorldSizeBox => autoCreateWorldSizeBox;
 
     protected override Control BuildPage(SettingsPageContext context)
     {
@@ -85,10 +97,23 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
         settings.Automation.AutoCreate.EnableZenithStarCatch = autoCreateZenithStarCatchBox.Checked;
         settings.Automation.AutoCreate.ZenithStarCatchStopStage = GetSelectedZenithStarCatchStopStage();
         settings.Automation.AutoCreate.ZenithStarCatchSpeedSliderValue = AutoCreateZenithStarCatchSpeed.NormalizeSliderValue(autoCreateZenithStarCatchSpeedBar.Value);
+        settings.Automation.AutoCreate.EnableCheats = autoCreateCheatsBox.Checked;
         settings.Automation.AutoCreate.EnablePyramidFilter = autoCreatePyramidFilterBox.Checked;
         settings.Automation.AutoCreate.RequireCrimsonBetweenDungeonAndSpawn = autoCreateCrimsonBetweenDungeonAndSpawnBox.Checked;
         settings.Automation.AutoCreate.CrimsonDistance = GetSelectedCrimsonDistance();
-        settings.Automation.AutoCreate.ReturnToMainMenuOnFilterFailure = autoCreateReturnToMainMenuOnFilterFailureBox.Checked;
+        settings.Automation.AutoCreate.ResourceFilterItemMask = AutoCreateResourceFilterItem.ToMask(
+            AutoCreateResourceFilterItem.All.Where(item =>
+                autoCreateResourceItemBoxes.TryGetValue(item, out CheckBox? box) && box.Checked));
+        settings.Automation.AutoCreate.ResourceFilterLifeCrystalMinimum = GetSelectedMinimum(
+            autoCreateLifeCrystalMinimumBoxes,
+            AutoCreateResourceMinimum.LifeCrystals);
+        settings.Automation.AutoCreate.ResourceFilterHookMinimum = GetSelectedHookMinimum();
+        settings.Automation.AutoCreate.ResourceFilterSpelunkerPotionMinimum = GetSelectedMinimum(
+            autoCreateSpelunkerMinimumBoxes,
+            AutoCreateResourceMinimum.Potions);
+        settings.Automation.AutoCreate.ResourceFilterFeatherfallPotionMinimum = GetSelectedMinimum(
+            autoCreateFeatherfallMinimumBoxes,
+            AutoCreateResourceMinimum.Potions);
         settings.Automation.AutoCreate.PyramidFilterItemMask = AutoCreatePyramidFilterItem.ToMask(
             AutoCreatePyramidFilterItem.All.Where(item =>
                 autoCreatePyramidItemBoxes.TryGetValue(item, out CheckBox? box) && box.Checked));
@@ -169,15 +194,15 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
         autoCreateZenithStarCatchBox.CheckedChanged += (_, _) => UpdateZenithStarCatchAvailability();
         ConfigureZenithStarCatchSpeedBar(autoCreateZenithStarCatchSpeedBar, Draft.Automation.AutoCreate.ZenithStarCatchSpeedSliderValue);
         autoCreateZenithStarCatchSpeedBar.ValueChanged += (_, _) => UpdateZenithStarCatchSpeedLabel();
-        ConfigureCheckBox(autoCreatePyramidFilterBox, Draft.Automation.AutoCreate.EnablePyramidFilter);
+        ConfigureCheckBox(autoCreateCheatsBox, Draft.Automation.AutoCreate.EnableCheats);
+        autoCreateCheatsBox.CheckedChanged += (_, _) => UpdatePostGenerationFilterAvailability();
+        ConfigureSelectorButton(autoCreatePyramidFilterBox, "Pyramid", Draft.Automation.AutoCreate.EnablePyramidFilter);
         autoCreatePyramidFilterBox.CheckedChanged += (_, _) => UpdatePyramidItemAvailability();
-        ConfigureCheckBox(
+        ConfigureSelectorButton(
             autoCreateCrimsonBetweenDungeonAndSpawnBox,
+            "Crimson",
             Draft.Automation.AutoCreate.RequireCrimsonBetweenDungeonAndSpawn);
         autoCreateCrimsonBetweenDungeonAndSpawnBox.CheckedChanged += (_, _) => UpdatePostGenerationFilterAvailability();
-        ConfigureCheckBox(
-            autoCreateReturnToMainMenuOnFilterFailureBox,
-            Draft.Automation.AutoCreate.ReturnToMainMenuOnFilterFailure);
         ConfigureCheckBox(autoCreateWorldPoolBox, Draft.Automation.AutoCreate.EnableWorldPool);
         autoCreateWorldPoolBox.CheckedChanged += (_, _) => UpdateWorldPoolAvailability();
         ConfigureNumberBox(autoCreateWorldPoolTargetBox, Draft.Automation.AutoCreate.WorldPoolTargetCount, 1, 50);
@@ -305,39 +330,20 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
         Factory.AddSettingRow(zenithStarCatchSpeedGrid, "Catch speed", CreateZenithStarCatchSpeedControl());
         SettingsUiFactory.AddSectionControl(createSection, zenithStarCatchSpeedGrid);
 
-        SettingsUiFactory.AddSectionControl(createSection, Factory.CreateSubsectionLabel("Pyramid filter"));
-        TableLayoutPanel pyramidFilterGrid = Factory.CreateGrid(
+        SettingsUiFactory.AddSectionControl(createSection, Factory.CreateSubsectionLabel("Cheats"));
+        TableLayoutPanel cheatsGrid = Factory.CreateGrid(
             SettingsUiFactory.ColumnStylePercent(100f),
             SettingsUiFactory.ColumnStyleAbsolute(360f));
-        Factory.AddSettingRow(pyramidFilterGrid, "Enabled", autoCreatePyramidFilterBox);
-        SettingsUiFactory.AddSectionControl(createSection, pyramidFilterGrid);
-        SettingsUiFactory.AddSectionControl(createSection, Factory.CreateFieldLabel("Required pyramid items"));
+        Factory.AddSettingRow(cheatsGrid, "Enabled", autoCreateCheatsBox);
+        SettingsUiFactory.AddSectionControl(createSection, cheatsGrid);
         SettingsUiFactory.AddSectionControl(createSection, CreatePyramidItemSelector());
-
-        SettingsUiFactory.AddSectionControl(createSection, Factory.CreateSubsectionLabel("World post-generation filters"));
-        SettingsUiFactory.AddSectionControl(
-            createSection,
-            Factory.CreateWrappedFieldLabel(
-                "Available for Crimson worlds of any size. The generated world file is checked before the world is kept.",
-                UiTheme.Text));
-        TableLayoutPanel postGenerationFilterGrid = Factory.CreateGrid(
-            SettingsUiFactory.ColumnStylePercent(100f),
-            SettingsUiFactory.ColumnStyleAbsolute(360f));
-        Factory.AddSettingRow(
-            postGenerationFilterGrid,
-            "Require Crimson between dungeon and spawn",
-            autoCreateCrimsonBetweenDungeonAndSpawnBox);
-        SettingsUiFactory.AddSectionControl(createSection, postGenerationFilterGrid);
-        SettingsUiFactory.AddSectionControl(createSection, Factory.CreateFieldLabel("Maximum distance from spawn"));
         SettingsUiFactory.AddSectionControl(createSection, CreateCrimsonDistanceSelector());
-        TableLayoutPanel filterFailureGrid = Factory.CreateGrid(
-            SettingsUiFactory.ColumnStylePercent(100f),
-            SettingsUiFactory.ColumnStyleAbsolute(360f));
-        Factory.AddSettingRow(
-            filterFailureGrid,
-            "Return to main menu on filter failure",
-            autoCreateReturnToMainMenuOnFilterFailureBox);
-        SettingsUiFactory.AddSectionControl(createSection, filterFailureGrid);
+        SettingsUiFactory.AddSectionControl(createSection, CreateResourceItemSelector());
+        SettingsUiFactory.AddSectionControl(createSection, CreateLifeCrystalMinimumSelector());
+        SettingsUiFactory.AddSectionControl(createSection, CreateHookMinimumSelector());
+        SettingsUiFactory.AddSectionControl(createSection, CreateSpelunkerMinimumSelector());
+        SettingsUiFactory.AddSectionControl(createSection, CreateFeatherfallMinimumSelector());
+        UpdatePostGenerationFilterAvailability();
 
         SettingsUiFactory.AddSectionControl(createSection, Factory.CreateSubsectionLabel("Background world generation"));
         TableLayoutPanel worldPoolGrid = Factory.CreateGrid(

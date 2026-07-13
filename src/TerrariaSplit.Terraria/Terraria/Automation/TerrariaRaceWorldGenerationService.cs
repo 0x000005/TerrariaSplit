@@ -86,9 +86,16 @@ public sealed class TerrariaRaceWorldGenerationService : IDisposable
             WorldEvil = settings.WorldEvil,
             SpecialSeeds = settings.SpecialSeeds,
             SecretSeeds = settings.SecretSeeds,
+            EnableCheats = settings.EnableCheats,
             EnablePyramidFilter = settings.EnablePyramidFilter,
             PyramidFilterItemMask = settings.PyramidFilterItemMask,
             RequireCrimsonBetweenDungeonAndSpawn = settings.RequireCrimsonBetweenDungeonAndSpawn,
+            CrimsonDistance = settings.CrimsonDistance,
+            ResourceFilterItemMask = settings.ResourceFilterItemMask,
+            ResourceFilterLifeCrystalMinimum = settings.ResourceFilterLifeCrystalMinimum,
+            ResourceFilterHookMinimum = settings.ResourceFilterHookMinimum,
+            ResourceFilterSpelunkerPotionMinimum = settings.ResourceFilterSpelunkerPotionMinimum,
+            ResourceFilterFeatherfallPotionMinimum = settings.ResourceFilterFeatherfallPotionMinimum,
             PreserveExistingSaves = true
         };
     }

@@ -133,6 +133,12 @@ internal static class WindowsFlowTests
         Check.False(string.Equals(source.Overlay.Colors.NameText, draft.Overlay.Colors.NameText, StringComparison.Ordinal));
         Check.Equal("English", source.General.Language);
         AutomationSettingsPage automation = form.PageHost.GetOrCreatePage<AutomationSettingsPage>(SettingsPageId.Automation);
+        Check.Equal(16, automation.AutoCreateLifeCrystalMinimumBoxes.Count);
+        Check.Equal("10", automation.AutoCreateLifeCrystalMinimumBoxes[10].Text);
+        Check.Equal("15+", automation.AutoCreateLifeCrystalMinimumBoxes[15].Text);
+        Check.False(automation.AutoCreateLifeCrystalMinimumBoxes[15].AutoEllipsis);
+        Check.False(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Enabled);
+        automation.AutoCreateCheatsBox.Checked = true;
         Check.True(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Enabled);
         automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Checked = true;
         Check.True(automation.AutoCreateCrimsonDistanceBoxes.Values.All(static button => button.Enabled));
@@ -140,7 +146,43 @@ internal static class WindowsFlowTests
         AppSettings filteredDraft = form.PageHost.CreateAppliedSnapshot();
         Check.True(filteredDraft.Automation.AutoCreate.RequireCrimsonBetweenDungeonAndSpawn);
         Check.Equal(AutoCreateCrimsonDistance.Near, filteredDraft.Automation.AutoCreate.CrimsonDistance);
+        automation.AutoCreateWorldSizeBox.SelectedIndex = Array.IndexOf(AutoCreateWorldSize.All, AutoCreateWorldSize.Small);
+        Check.True(automation.AutoCreateResourceItemBoxes.Values.All(static button => button.Enabled));
+        automation.AutoCreateResourceItemBoxes[AutoCreateResourceFilterItem.Boomstick].Checked = true;
+        automation.AutoCreateLifeCrystalMinimumBoxes[0].Checked = true;
+        automation.AutoCreateLifeCrystalMinimumBoxes[8].Checked = false;
+        automation.AutoCreateHookMinimumBoxes[AutoCreateResourceHook.None].Checked = true;
+        automation.AutoCreateHookMinimumBoxes[AutoCreateResourceHook.Sapphire].Checked = false;
+        automation.AutoCreateSpelunkerMinimumBoxes[0].Checked = true;
+        automation.AutoCreateSpelunkerMinimumBoxes[2].Checked = false;
+        automation.AutoCreateFeatherfallMinimumBoxes[0].Checked = true;
+        automation.AutoCreateFeatherfallMinimumBoxes[1].Checked = false;
+        AppSettings resourceDraft = form.PageHost.CreateAppliedSnapshot();
+        Check.True(resourceDraft.Automation.AutoCreate.EnableCheats);
+        Check.Equal(AutoCreateResourceFilterItem.BoomstickMask, resourceDraft.Automation.AutoCreate.ResourceFilterItemMask);
+        Check.Equal(8, resourceDraft.Automation.AutoCreate.ResourceFilterLifeCrystalMinimum);
+        Check.Equal(AutoCreateResourceHook.Sapphire, resourceDraft.Automation.AutoCreate.ResourceFilterHookMinimum);
+        Check.Equal(2, resourceDraft.Automation.AutoCreate.ResourceFilterSpelunkerPotionMinimum);
+        Check.Equal(1, resourceDraft.Automation.AutoCreate.ResourceFilterFeatherfallPotionMinimum);
         Check.False(source.Automation.AutoCreate.RequireCrimsonBetweenDungeonAndSpawn);
+
+        using var contextMenu = new System.Windows.Forms.ContextMenuStrip();
+        bool cheatsToggleRequested = false;
+        new MainFormContextMenuBuilder().Rebuild(
+            contextMenu,
+            resourceDraft,
+            static () => { },
+            static () => { },
+            static () => { },
+            () => cheatsToggleRequested = true,
+            static _ => { },
+            static () => { });
+        var cheatsItem = Check.Is<System.Windows.Forms.ToolStripMenuItem>(
+            contextMenu.Items[MainFormContextMenuBuilder.CheatsToggleItemName]);
+        Check.Equal("Cheats", cheatsItem.Text);
+        Check.True(cheatsItem.Checked);
+        cheatsItem.PerformClick();
+        Check.True(cheatsToggleRequested);
     }, cancellationToken);
 
     private static void OverlayLayoutJourney()

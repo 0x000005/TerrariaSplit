@@ -482,9 +482,9 @@ internal sealed partial class MainForm : Form
         QueueStatusOverlayRender();
     }
 
-    private void TogglePyramidFilter()
+    private void ToggleCheats()
     {
-        ExecuteAppCommand(AppCommand.TogglePyramidFilter());
+        ExecuteAppCommand(AppCommand.ToggleCheats());
     }
 
     private void RefreshRuntimeUi()

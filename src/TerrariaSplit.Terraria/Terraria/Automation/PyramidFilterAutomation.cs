@@ -36,8 +36,10 @@ internal sealed class PyramidFilterAutomation
         IReadOnlyDictionary<string, DateTime> worldsBefore,
         CancellationToken cancellationToken)
     {
+        bool pyramidEnabled = PyramidFilterWorldFileEvaluator.IsPyramidFilterEnabled(settings);
         bool crimsonCorridorEnabled = PyramidFilterWorldFileEvaluator.IsCrimsonCorridorFilterEnabled(settings);
-        if (!settings.EnablePyramidFilter && !crimsonCorridorEnabled)
+        bool resourceFilterEnabled = PyramidFilterWorldFileEvaluator.IsResourceFilterEnabled(settings);
+        if (!pyramidEnabled && !crimsonCorridorEnabled && !resourceFilterEnabled)
         {
             return PyramidFilterOutcome.Disabled;
         }
@@ -72,6 +74,8 @@ internal sealed class PyramidFilterAutomation
             $"crimsonTiles={result.CrimsonCorridor.CrimsonTileCount}, " +
             $"crimsonBounds={result.CrimsonCorridor.Bounds.Left},{result.CrimsonCorridor.Bounds.Top}," +
             $"{result.CrimsonCorridor.Bounds.Right},{result.CrimsonCorridor.Bounds.Bottom}, " +
+            $"resourceFilterEnabled={result.ResourceFilterEnabled}, resourceFilterKeep={result.ResourceFilterKeep}, " +
+            $"resources={result.Resources.FormatSummary()}, " +
             $"scanMs={result.ScanDuration.TotalMilliseconds:0}");
 
         return result.Keep

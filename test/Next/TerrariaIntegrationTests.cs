@@ -11,6 +11,7 @@ internal static class TerrariaIntegrationTests
         yield return TestCase.Sync("pyramid pre-screen evaluates known positive, item mismatch and no-pyramid seeds", TestSuite.Flow, PyramidPredictionJourney, timeoutSeconds: 30);
         yield return TestCase.Async("race world upload validates, hashes, deduplicates, locates and deletes a Terraria world", TestSuite.Flow, WorldFileTransferJourney);
         yield return TestCase.Sync("post-generation filter handles small, medium and large Crimson worlds and rejects other placement", TestSuite.Flow, CrimsonCorridorPostFilter);
+        yield return TestCase.Sync("resource post-filter combines required items, count thresholds and hook tiers", TestSuite.Flow, ResourcePostFilterRules);
         yield return TestCase.Sync("world automation settings normalize incompatible options and secret seed lists", TestSuite.Core, WorldSettingsNormalization);
     }
 
@@ -19,6 +20,7 @@ internal static class TerrariaIntegrationTests
         var evaluator = new PyramidSeedPreScreenEvaluator();
         var settings = new AutoCreateWorldSettings
         {
+            EnableCheats = true,
             EnablePyramidFilter = true,
             WorldSize = AutoCreateWorldSize.Small,
             WorldDifficulty = AutoCreateWorldDifficulty.Classic,
@@ -29,6 +31,10 @@ internal static class TerrariaIntegrationTests
         Check.True(accepted.CanUsePrediction);
         Check.True(accepted.AcceptSeed);
         Check.True(accepted.Result.LootSummary.Contains("Sandstorm in a Bottle", StringComparison.Ordinal));
+
+        settings.EnableCheats = false;
+        Check.False(PyramidSeedPreScreenEvaluator.IsEnabledFor(settings));
+        settings.EnableCheats = true;
 
         settings.PyramidFilterItemMask = AutoCreatePyramidFilterItem.FlyingCarpetMask;
         PyramidSeedPreScreenPrediction mismatch = evaluator.Evaluate(settings, "540278984", TerrariaWorldGenerationVersion.Modern1456);
@@ -76,7 +82,12 @@ internal static class TerrariaIntegrationTests
             SpecialSeeds = "for the worthy, FOR THE WORTHY, not the bees",
             SecretSeeds = "  first ; second\nfirst  ",
             PyramidFilterItemMask = int.MaxValue,
-            CrimsonDistance = "invalid"
+            CrimsonDistance = "invalid",
+            ResourceFilterItemMask = int.MaxValue,
+            ResourceFilterLifeCrystalMinimum = 16,
+            ResourceFilterHookMinimum = "invalid",
+            ResourceFilterSpelunkerPotionMinimum = 7,
+            ResourceFilterFeatherfallPotionMinimum = -1
         };
         SettingsNormalizer.Normalize(new AppSettings { Automation = { AutoCreate = settings } });
         Check.Equal(AutoCreateWorldSize.Small, settings.WorldSize);
@@ -84,7 +95,70 @@ internal static class TerrariaIntegrationTests
         Check.Equal(AutoCreateWorldEvil.Crimson, settings.WorldEvil);
         Check.Equal(AutoCreateCrimsonDistance.Far, settings.CrimsonDistance);
         Check.True((settings.PyramidFilterItemMask & ~AutoCreatePyramidFilterItem.AllMask) == 0);
+        Check.Equal(AutoCreateResourceFilterItem.AllMask, settings.ResourceFilterItemMask);
+        Check.Equal(0, settings.ResourceFilterLifeCrystalMinimum);
+        Check.Equal(AutoCreateResourceHook.None, settings.ResourceFilterHookMinimum);
+        Check.Equal(0, settings.ResourceFilterSpelunkerPotionMinimum);
+        Check.Equal(0, settings.ResourceFilterFeatherfallPotionMinimum);
         Check.Equal(2, AutoCreateSeedList.Parse(settings.SecretSeeds).Count);
+    }
+
+    private static void ResourcePostFilterRules()
+    {
+        var settings = new AutoCreateWorldSettings
+        {
+            EnableCheats = true,
+            WorldSize = AutoCreateWorldSize.Small,
+            WorldEvil = AutoCreateWorldEvil.Crimson,
+            ResourceFilterItemMask = AutoCreateResourceFilterItem.AllMask,
+            ResourceFilterLifeCrystalMinimum = 8,
+            ResourceFilterHookMinimum = AutoCreateResourceHook.Sapphire,
+            ResourceFilterSpelunkerPotionMinimum = 2,
+            ResourceFilterFeatherfallPotionMinimum = 1
+        };
+        Dictionary<string, int> gems = AutoCreateResourceHook.All
+            .Where(hook => hook != AutoCreateResourceHook.None)
+            .ToDictionary(hook => hook, _ => 0, StringComparer.Ordinal);
+        gems[AutoCreateResourceHook.Sapphire] = 14;
+        gems[AutoCreateResourceHook.Emerald] = 15;
+        var resources = new WorldResourceFilterResult(
+            false,
+            Boomsticks: 1,
+            FeralClaws: 1,
+            CloudBottles: 1,
+            AnkletsOfTheWind: 1,
+            HermesBoots: 1,
+            LifeCrystals: 8,
+            SpelunkerPotions: 2,
+            FeatherfallPotions: 1,
+            gems,
+            TimeSpan.Zero);
+
+        Check.True(PyramidFilterWorldFileEvaluator.IsResourceFilterEnabled(settings));
+        Check.True(WorldResourceFilterMatcher.Matches(settings, resources));
+        settings.EnableCheats = false;
+        Check.False(PyramidFilterWorldFileEvaluator.IsResourceFilterEnabled(settings));
+        settings.EnableCheats = true;
+        gems[AutoCreateResourceHook.Emerald] = 14;
+        resources = resources with { Gems = new Dictionary<string, int>(gems, StringComparer.Ordinal) };
+        Check.False(WorldResourceFilterMatcher.Matches(settings, resources));
+        gems[AutoCreateResourceHook.Ruby] = 15;
+        resources = resources with { Gems = new Dictionary<string, int>(gems, StringComparer.Ordinal) };
+        Check.True(WorldResourceFilterMatcher.Matches(settings, resources));
+        settings.ResourceFilterHookMinimum = AutoCreateResourceHook.Diamond;
+        Check.False(WorldResourceFilterMatcher.Matches(settings, resources));
+        gems[AutoCreateResourceHook.Diamond] = 15;
+        resources = resources with { Gems = new Dictionary<string, int>(gems, StringComparer.Ordinal) };
+        Check.True(WorldResourceFilterMatcher.Matches(settings, resources));
+
+        settings.WorldSize = AutoCreateWorldSize.Medium;
+        Check.False(PyramidFilterWorldFileEvaluator.IsResourceFilterEnabled(settings));
+        settings.WorldSize = AutoCreateWorldSize.Small;
+        settings.WorldEvil = AutoCreateWorldEvil.Corruption;
+        Check.False(PyramidFilterWorldFileEvaluator.IsResourceFilterEnabled(settings));
+
+        var disabledRequirements = new AutoCreateWorldSettings();
+        Check.True(WorldResourceFilterMatcher.Matches(disabledRequirements, WorldResourceFilterResult.Empty));
     }
 
     private static void CrimsonCorridorPostFilter()
@@ -170,6 +244,7 @@ internal static class TerrariaIntegrationTests
 
             var settings = new AutoCreateWorldSettings
             {
+                EnableCheats = true,
                 WorldSize = size,
                 WorldEvil = AutoCreateWorldEvil.Crimson,
                 EnablePyramidFilter = false,
@@ -181,6 +256,12 @@ internal static class TerrariaIntegrationTests
             Check.True(kept.Keep);
             Check.True(kept.CrimsonCorridorFilterEnabled);
             Check.False(rejected.Keep);
+
+            settings.EnableCheats = false;
+            PyramidFilterWorldFileResult disabled = evaluator.Evaluate(mediumPath, settings);
+            Check.True(disabled.Keep);
+            Check.False(disabled.CrimsonCorridorFilterEnabled);
+            settings.EnableCheats = true;
 
             string enabledSignature = WorldPoolSignature.From(settings);
             settings.CrimsonDistance = AutoCreateCrimsonDistance.Medium;

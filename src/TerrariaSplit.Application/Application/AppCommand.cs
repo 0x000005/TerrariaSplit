@@ -9,7 +9,7 @@ public abstract record AppCommand
 
     public static AppCommand ToggleMouseClickThrough() => new ToggleMouseClickThroughCommand();
 
-    public static AppCommand TogglePyramidFilter() => new TogglePyramidFilterCommand();
+    public static AppCommand ToggleCheats() => new ToggleCheatsCommand();
 
     public static AppCommand QueueMenuAction(MenuActionKind action, DateTime requestedAtUtc) =>
         new QueueMenuActionCommand(action, requestedAtUtc);
@@ -40,7 +40,7 @@ public sealed record ResetRunCommand(bool RecordStats, bool PlayResetSound) : Ap
 
 public sealed record ToggleMouseClickThroughCommand : AppCommand;
 
-public sealed record TogglePyramidFilterCommand : AppCommand;
+public sealed record ToggleCheatsCommand : AppCommand;
 
 public sealed record QueueMenuActionCommand(MenuActionKind Action, DateTime RequestedAtUtc) : AppCommand;
 

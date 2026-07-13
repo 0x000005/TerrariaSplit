@@ -68,8 +68,7 @@ internal sealed class PyramidSeedPreScreenLoop
                     $"No new visible seed was observed after randomize. previousSeed={seedBeforeRandomize ?? "unknown"}, " +
                     $"lastSeed={readResult.LastSeedText}, lastStatus={readResult.LastStatus}, readAttempts={readResult.ReadAttempts}, " +
                     $"consecutiveFailures={consecutiveSeedReadFailures}.";
-                if (settings.ReturnToMainMenuOnFilterFailure ||
-                    consecutiveSeedReadFailures >= MaxConsecutiveSeedReadFailures)
+                if (consecutiveSeedReadFailures >= MaxConsecutiveSeedReadFailures)
                 {
                     logInfo("Pyramid seed pre-screen will continue without prediction: " + detail);
                     return new PyramidSeedPreScreenLoopResult(
@@ -123,14 +122,6 @@ internal sealed class PyramidSeedPreScreenLoop
                 $"class={prediction.Result.TargetClass}, loot={prediction.Result.LootSummary}, " +
                 $"attempt={attempt}, scanMs={prediction.Result.DurationMilliseconds}, " +
                 $"readAttempts={readResult.ReadAttempts}.");
-            if (settings.ReturnToMainMenuOnFilterFailure)
-            {
-                return new PyramidSeedPreScreenLoopResult(
-                    PyramidSeedPreScreenLoopStatus.RejectedSeed,
-                    attempt,
-                    AcceptedSeed: null,
-                    prediction.RejectReason);
-            }
         }
     }
 }
@@ -138,7 +129,6 @@ internal sealed class PyramidSeedPreScreenLoop
 internal enum PyramidSeedPreScreenLoopStatus
 {
     Accepted,
-    RejectedSeed,
     RandomizeFailed,
     SeedReadFailed,
     PredictionUnavailable,

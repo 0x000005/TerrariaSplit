@@ -4,7 +4,7 @@ namespace TerrariaSplit.UI;
 
 internal sealed class MainFormContextMenuBuilder
 {
-    internal const string PyramidFilterToggleItemName = "PyramidFilterToggle";
+    internal const string CheatsToggleItemName = "CheatsToggle";
     private readonly ISettingsRepository settingsRepository;
 
     public MainFormContextMenuBuilder()
@@ -23,7 +23,7 @@ internal sealed class MainFormContextMenuBuilder
         Action openStatistics,
         Action openRacePanel,
         Action openSettings,
-        Action togglePyramidFilter,
+        Action toggleCheats,
         Action<string> switchSettingsFile,
         Action exit)
     {
@@ -31,22 +31,22 @@ internal sealed class MainFormContextMenuBuilder
         menu.Items.Add(Localizer.Get("Statistics...", settings), null, (_, _) => openStatistics());
         menu.Items.Add(Localizer.Get("Race...", settings), null, (_, _) => openRacePanel());
         menu.Items.Add(Localizer.Get("Settings...", settings), null, (_, _) => openSettings());
-        menu.Items.Add(CreatePyramidFilterToggle(settings, togglePyramidFilter));
+        menu.Items.Add(CreateCheatsToggle(settings, toggleCheats));
         menu.Items.Add(CreateSettingsFileMenu(settings, switchSettingsFile));
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(Localizer.Get("Exit", settings), null, (_, _) => exit());
     }
 
-    private static ToolStripMenuItem CreatePyramidFilterToggle(
+    private static ToolStripMenuItem CreateCheatsToggle(
         AppSettings settings,
-        Action togglePyramidFilter)
+        Action toggleCheats)
     {
-        var item = new ToolStripMenuItem(Localizer.Get("Pyramid filter", settings))
+        var item = new ToolStripMenuItem(Localizer.Get("Cheats", settings))
         {
-            Name = PyramidFilterToggleItemName,
-            Checked = settings.Automation.AutoCreate.EnablePyramidFilter
+            Name = CheatsToggleItemName,
+            Checked = settings.Automation.AutoCreate.EnableCheats
         };
-        item.Click += (_, _) => togglePyramidFilter();
+        item.Click += (_, _) => toggleCheats();
         return item;
     }
 

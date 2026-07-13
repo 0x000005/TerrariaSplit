@@ -196,8 +196,8 @@ public sealed class ApplicationController
                 effects.Add(new ToggleMouseClickThroughEffect());
                 invalidations.Add(DisplayInvalidation.For(DisplayRefreshLevel.DisplaySettings, DisplayInvalidationTarget.All));
                 break;
-            case TogglePyramidFilterCommand:
-                TogglePyramidFilter(effects);
+            case ToggleCheatsCommand:
+                ToggleCheats(effects);
                 invalidations.Add(DisplayInvalidation.For(DisplayRefreshLevel.FullRebuild, DisplayInvalidationTarget.All));
                 break;
             case QueueMenuActionCommand queueMenuAction:
@@ -333,11 +333,11 @@ public sealed class ApplicationController
         effects.Add(new RefreshRuntimeUiEffect());
     }
 
-    private void TogglePyramidFilter(List<ApplicationEffect> effects)
+    private void ToggleCheats(List<ApplicationEffect> effects)
     {
         AppSettings previousSettings = settingsSnapshots.CreateSnapshot(Settings);
         AppSettings nextBaseSettings = settingsSnapshots.CreateSnapshot(baseSettings);
-        nextBaseSettings.Automation.AutoCreate.EnablePyramidFilter = !nextBaseSettings.Automation.AutoCreate.EnablePyramidFilter;
+        nextBaseSettings.Automation.AutoCreate.EnableCheats = !nextBaseSettings.Automation.AutoCreate.EnableCheats;
         SettingsNormalizer.Normalize(nextBaseSettings);
         baseSettings = nextBaseSettings;
         Settings = CreateEffectiveSettings(baseSettings);

@@ -6,6 +6,13 @@ namespace TerrariaSplit.UI.Settings;
 
 internal sealed partial class AutomationSettingsPage : SettingsPageBase
 {
+    private const float CheatActivationButtonPercent = 20f;
+    private const float CheatActivationSpacerPercent = 10f;
+    private const float CheatOptionButtonsPercent = 70f;
+    private const float CheatSelectorRowHeight = 54f;
+    private const int CheatSelectorHorizontalGap = 8;
+    private const int CheatSelectorGap = 10;
+
     private TableLayoutPanel CreateSpecialSeedSelector()
     {
         var selectedSeeds = AutoCreateSpecialWorldSeed.ParseList(Draft.Automation.AutoCreate.SpecialSeeds)
@@ -56,40 +63,22 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         autoCreatePyramidItemBoxes.Clear();
 
-        const int columnCount = 3;
-        var panel = new TableLayoutPanel
-        {
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            BackColor = UiTheme.Surface,
-            ColumnCount = columnCount,
-            Dock = DockStyle.Top,
-            Margin = new Padding(0, 0, 0, 8),
-            Padding = Padding.Empty
-        };
-        UiTheme.EnableDoubleBuffering(panel);
-        for (int i = 0; i < columnCount; i++)
-        {
-            panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f / columnCount));
-        }
+        int columnCount = AutoCreatePyramidFilterItem.All.Length + 1;
+        TableLayoutPanel panel = CreateSelectorPanel(columnCount, fixedFirstColumn: true);
+        autoCreatePyramidFilterBox.Margin = new Padding(0, 0, 0, CheatSelectorGap);
+        panel.Controls.Add(autoCreatePyramidFilterBox, 0, 0);
 
         for (int index = 0; index < AutoCreatePyramidFilterItem.All.Length; index++)
         {
             string item = AutoCreatePyramidFilterItem.All[index];
             CheckBox button = CreatePyramidItemButton(item, selectedItems.Contains(item));
-            int column = index % columnCount;
-            int row = index / columnCount;
-            if (column == 0)
-            {
-                panel.RowCount++;
-                panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 54f));
-            }
-
-            button.Margin = new Padding(0, 0, column == columnCount - 1 ? 0 : 8, 10);
+            int column = index + 2;
+            button.Margin = SelectorMargin(index, AutoCreatePyramidFilterItem.All.Length);
             autoCreatePyramidItemBoxes[item] = button;
-            panel.Controls.Add(button, column, row);
+            panel.Controls.Add(button, column, 0);
         }
 
+        FinishSingleRowSelector(panel);
         UpdatePyramidItemAvailability();
         return panel;
     }
@@ -140,26 +129,170 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
         return panel;
     }
 
-    private TableLayoutPanel CreateCrimsonDistanceSelector()
+    private TableLayoutPanel CreateResourceItemSelector()
     {
-        autoCreateCrimsonDistanceBoxes.Clear();
+        int selectedMask = AutoCreateResourceFilterItem.NormalizeMask(Draft.Automation.AutoCreate.ResourceFilterItemMask);
+        autoCreateResourceItemBoxes.Clear();
+        TableLayoutPanel panel = CreateSelectorPanel(1, fixedFirstColumn: true);
+        for (int index = 0; index < AutoCreateResourceFilterItem.All.Length; index++)
+        {
+            string item = AutoCreateResourceFilterItem.All[index];
+            CheckBox button = CreateSelectorButton(
+                item,
+                (selectedMask & AutoCreateResourceFilterItem.Mask(item)) != 0);
+            button.Margin = new Padding(0, 0, 0, CheatSelectorGap);
+            button.CheckedChanged += (_, _) => UpdateSpecialSeedButtonState(button);
+            autoCreateResourceItemBoxes[item] = button;
+            panel.RowCount++;
+            panel.RowStyles.Add(new RowStyle(SizeType.Absolute, CheatSelectorRowHeight));
+            panel.Controls.Add(button, 0, index);
+        }
 
-        const int columnCount = 3;
+        return panel;
+    }
+
+    private TableLayoutPanel CreateLifeCrystalMinimumSelector() => CreateMinimumSelector(
+        AutoCreateResourceMinimum.LifeCrystals,
+        AutoCreateResourceMinimum.NormalizeLifeCrystals(Draft.Automation.AutoCreate.ResourceFilterLifeCrystalMinimum),
+        autoCreateLifeCrystalMinimumBoxes,
+        "Life Crystal");
+
+    private TableLayoutPanel CreateSpelunkerMinimumSelector() => CreateMinimumSelector(
+        AutoCreateResourceMinimum.Potions,
+        AutoCreateResourceMinimum.NormalizePotions(Draft.Automation.AutoCreate.ResourceFilterSpelunkerPotionMinimum),
+        autoCreateSpelunkerMinimumBoxes,
+        "Spelunker Potion");
+
+    private TableLayoutPanel CreateFeatherfallMinimumSelector() => CreateMinimumSelector(
+        AutoCreateResourceMinimum.Potions,
+        AutoCreateResourceMinimum.NormalizePotions(Draft.Automation.AutoCreate.ResourceFilterFeatherfallPotionMinimum),
+        autoCreateFeatherfallMinimumBoxes,
+        "Featherfall Potion");
+
+    private TableLayoutPanel CreateMinimumSelector(
+        IReadOnlyList<int> values,
+        int selectedMinimum,
+        Dictionary<int, CheckBox> boxes,
+        string nameKey)
+    {
+        boxes.Clear();
+        TableLayoutPanel panel = CreateSelectorPanel(values.Count, fixedFirstColumn: true);
+        for (int index = 0; index < values.Count; index++)
+        {
+            int value = values[index];
+            string label = value == 0
+                ? nameKey
+                : index == values.Count - 1
+                ? $"{value.ToString(CultureInfo.InvariantCulture)}+"
+                : value.ToString(CultureInfo.InvariantCulture);
+            CheckBox button = CreateSelectorButton(
+                label,
+                selectedMinimum > 0 && (value == 0 || value >= selectedMinimum));
+            if (value != 0)
+            {
+                button.AutoEllipsis = false;
+                button.Padding = new Padding(0, 0, 0, 2);
+            }
+            button.Margin = value == 0
+                ? new Padding(0, 0, 0, CheatSelectorGap)
+                : SelectorMargin(index - 1, values.Count - 1);
+            button.CheckedChanged += (_, _) => SelectMinimum(value, button.Checked, values, boxes);
+            boxes[value] = button;
+            panel.Controls.Add(button, value == 0 ? 0 : index + 1, 0);
+        }
+
+        FinishSingleRowSelector(panel);
+        ApplyMinimumSelection(selectedMinimum, boxes);
+        return panel;
+    }
+
+    private TableLayoutPanel CreateHookMinimumSelector()
+    {
+        autoCreateHookMinimumBoxes.Clear();
+        string selectedMinimum = AutoCreateResourceHook.Normalize(Draft.Automation.AutoCreate.ResourceFilterHookMinimum);
+        TableLayoutPanel panel = CreateSelectorPanel(AutoCreateResourceHook.All.Length, fixedFirstColumn: true);
+        for (int index = 0; index < AutoCreateResourceHook.All.Length; index++)
+        {
+            string hook = AutoCreateResourceHook.All[index];
+            CheckBox button = CreateSelectorButton(
+                hook == AutoCreateResourceHook.None ? "Hook" : hook,
+                selectedMinimum != AutoCreateResourceHook.None &&
+                    (hook == AutoCreateResourceHook.None || AutoCreateResourceHook.Includes(selectedMinimum, hook)));
+            button.Margin = hook == AutoCreateResourceHook.None
+                ? new Padding(0, 0, 0, CheatSelectorGap)
+                : SelectorMargin(index - 1, AutoCreateResourceHook.All.Length - 1);
+            button.CheckedChanged += (_, _) => SelectHookMinimum(hook, button.Checked);
+            autoCreateHookMinimumBoxes[hook] = button;
+            panel.Controls.Add(button, hook == AutoCreateResourceHook.None ? 0 : index + 1, 0);
+        }
+
+        FinishSingleRowSelector(panel);
+        ApplyHookMinimumSelection(selectedMinimum);
+        return panel;
+    }
+
+    private static TableLayoutPanel CreateSelectorPanel(int columnCount, bool fixedFirstColumn = false)
+    {
+        int physicalColumnCount = fixedFirstColumn
+            ? columnCount == 1 ? 3 : columnCount + 1
+            : columnCount;
         var panel = new TableLayoutPanel
         {
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             BackColor = UiTheme.Surface,
-            ColumnCount = columnCount,
+            ColumnCount = physicalColumnCount,
             Dock = DockStyle.Top,
-            Margin = new Padding(0, 0, 0, 8),
+            Margin = Padding.Empty,
             Padding = Padding.Empty
         };
         UiTheme.EnableDoubleBuffering(panel);
-        for (int index = 0; index < columnCount; index++)
+        if (fixedFirstColumn)
         {
-            panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f / columnCount));
+            panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, CheatActivationButtonPercent));
+            panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, CheatActivationSpacerPercent));
+            if (columnCount == 1)
+            {
+                panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, CheatOptionButtonsPercent));
+            }
+            else
+            {
+                for (int index = 1; index < columnCount; index++)
+                {
+                    panel.ColumnStyles.Add(new ColumnStyle(
+                        SizeType.Percent,
+                        CheatOptionButtonsPercent / (columnCount - 1)));
+                }
+            }
         }
+        else
+        {
+            for (int index = 0; index < columnCount; index++)
+            {
+                panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f / columnCount));
+            }
+        }
+
+        return panel;
+    }
+
+    private static Padding SelectorMargin(int index, int count) =>
+        new(0, 0, index == count - 1 ? 0 : CheatSelectorHorizontalGap, CheatSelectorGap);
+
+    private static void FinishSingleRowSelector(TableLayoutPanel panel)
+    {
+        panel.RowCount = 1;
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, CheatSelectorRowHeight));
+    }
+
+    private TableLayoutPanel CreateCrimsonDistanceSelector()
+    {
+        autoCreateCrimsonDistanceBoxes.Clear();
+
+        int columnCount = AutoCreateCrimsonDistance.All.Length + 1;
+        TableLayoutPanel panel = CreateSelectorPanel(columnCount, fixedFirstColumn: true);
+        autoCreateCrimsonBetweenDungeonAndSpawnBox.Margin = new Padding(0, 0, 0, CheatSelectorGap);
+        panel.Controls.Add(autoCreateCrimsonBetweenDungeonAndSpawnBox, 0, 0);
 
         string selectedDistance = AutoCreateCrimsonDistance.Normalize(Draft.Automation.AutoCreate.CrimsonDistance);
         for (int index = 0; index < AutoCreateCrimsonDistance.All.Length; index++)
@@ -168,14 +301,14 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
             CheckBox button = CreateSelectorButton(
                 distance,
                 AutoCreateCrimsonDistance.Includes(selectedDistance, distance));
-            button.Margin = new Padding(0, 0, index == columnCount - 1 ? 0 : 8, 10);
+            int column = index + 2;
+            button.Margin = SelectorMargin(index, AutoCreateCrimsonDistance.All.Length);
             button.CheckedChanged += (_, _) => SelectCrimsonDistance(distance);
             autoCreateCrimsonDistanceBoxes[distance] = button;
-            panel.Controls.Add(button, index, 0);
+            panel.Controls.Add(button, column, 0);
         }
 
-        panel.RowCount = 1;
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 54f));
+        FinishSingleRowSelector(panel);
         ApplyCrimsonDistanceSelection(selectedDistance);
         UpdatePostGenerationFilterAvailability();
         return panel;
@@ -207,27 +340,31 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
 
     private CheckBox CreateSelectorButton(string textKey, bool selected)
     {
-        var button = new CheckBox
-        {
-            Appearance = Appearance.Button,
-            AutoEllipsis = true,
-            BackColor = selected ? UiTheme.Selection : UiTheme.SurfaceRaised,
-            Checked = selected,
-            Dock = DockStyle.Fill,
-            FlatStyle = FlatStyle.Flat,
-            Font = UiTheme.FormFont(9f),
-            ForeColor = UiTheme.Text,
-            Height = 44,
-            MinimumSize = new Size(0, 44),
-            Padding = new Padding(8, 0, 8, 2),
-            Text = Context.Localize(textKey),
-            TextAlign = ContentAlignment.MiddleCenter,
-            UseVisualStyleBackColor = false
-        };
+        var button = new CheckBox();
+        ConfigureSelectorButton(button, textKey, selected);
+        return button;
+    }
+
+    private void ConfigureSelectorButton(CheckBox button, string textKey, bool selected)
+    {
+        button.Appearance = Appearance.Button;
+        button.AutoEllipsis = true;
+        button.BackColor = selected ? UiTheme.Selection : UiTheme.SurfaceRaised;
+        button.Checked = selected;
+        button.Dock = DockStyle.Fill;
+        button.FlatStyle = FlatStyle.Flat;
+        button.Font = UiTheme.FormFont(9f);
+        button.ForeColor = UiTheme.Text;
+        button.Height = 44;
+        button.MinimumSize = new Size(0, 44);
+        button.Padding = new Padding(8, 0, 8, 2);
+        button.Text = Context.Localize(textKey);
+        button.TextAlign = ContentAlignment.MiddleCenter;
+        button.UseVisualStyleBackColor = false;
         button.FlatAppearance.CheckedBackColor = UiTheme.Selection;
+        button.CheckedChanged += (_, _) => UpdateSpecialSeedButtonState(button);
         button.EnabledChanged += (_, _) => UpdateSpecialSeedButtonState(button);
         UpdateSpecialSeedButtonState(button);
-        return button;
     }
 
     private CheckBox CreateZenithStarCatchStageButton(string stage, bool selected)
@@ -324,25 +461,25 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
 
     private void UpdatePyramidItemAvailability()
     {
-        autoCreateReturnToMainMenuOnFilterFailureBox.Enabled =
-            autoCreatePyramidFilterBox.Checked ||
-            (autoCreateCrimsonBetweenDungeonAndSpawnBox.Checked && autoCreateCrimsonBetweenDungeonAndSpawnBox.Enabled);
-        autoCreateReturnToMainMenuOnFilterFailureBox.ForeColor = autoCreateReturnToMainMenuOnFilterFailureBox.Enabled
-            ? UiTheme.Text
-            : UiTheme.MutedText;
-
+        bool cheatsEnabled = autoCreateCheatsBox.Checked;
+        autoCreatePyramidFilterBox.Enabled = cheatsEnabled;
+        UpdateSpecialSeedButtonState(autoCreatePyramidFilterBox);
         foreach (CheckBox button in autoCreatePyramidItemBoxes.Values)
         {
-            button.Enabled = autoCreatePyramidFilterBox.Checked;
+            button.Enabled = cheatsEnabled && autoCreatePyramidFilterBox.Checked;
             UpdateSpecialSeedButtonState(button);
         }
     }
 
     private void UpdatePostGenerationFilterAvailability()
     {
+        string selectedWorldSize = GetSelectedOption(autoCreateWorldSizeBox, AutoCreateWorldSize.Small);
+        string selectedWorldEvil = GetSelectedOption(autoCreateWorldEvilBox, AutoCreateWorldEvil.Crimson);
+        bool cheatsEnabled = autoCreateCheatsBox.Checked;
         bool supportsCrimsonCorridor =
+            cheatsEnabled &&
             string.Equals(
-                GetSelectedOption(autoCreateWorldEvilBox, AutoCreateWorldEvil.Crimson),
+                selectedWorldEvil,
                 AutoCreateWorldEvil.Crimson,
                 StringComparison.Ordinal);
         autoCreateCrimsonBetweenDungeonAndSpawnBox.Enabled = supportsCrimsonCorridor;
@@ -355,7 +492,151 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
             button.Enabled = crimsonDistanceEnabled;
             UpdateSpecialSeedButtonState(button);
         }
+
+        bool supportsResourceFilter =
+            cheatsEnabled &&
+            string.Equals(selectedWorldSize, AutoCreateWorldSize.Small, StringComparison.Ordinal) &&
+            string.Equals(selectedWorldEvil, AutoCreateWorldEvil.Crimson, StringComparison.Ordinal);
+        foreach (CheckBox button in autoCreateResourceItemBoxes.Values)
+        {
+            button.Enabled = supportsResourceFilter;
+            UpdateSpecialSeedButtonState(button);
+        }
+        UpdateMinimumAvailability(autoCreateLifeCrystalMinimumBoxes, supportsResourceFilter);
+        UpdateHookMinimumAvailability(supportsResourceFilter);
+        UpdateMinimumAvailability(autoCreateSpelunkerMinimumBoxes, supportsResourceFilter);
+        UpdateMinimumAvailability(autoCreateFeatherfallMinimumBoxes, supportsResourceFilter);
         UpdatePyramidItemAvailability();
+    }
+
+    private static void UpdateMinimumAvailability(
+        IReadOnlyDictionary<int, CheckBox> boxes,
+        bool supported)
+    {
+        bool enabled = supported && boxes.TryGetValue(0, out CheckBox? toggle) && toggle.Checked;
+        foreach ((int value, CheckBox button) in boxes)
+        {
+            button.Enabled = supported && (value == 0 || enabled);
+        }
+    }
+
+    private void UpdateHookMinimumAvailability(bool supported)
+    {
+        bool enabled = supported &&
+            autoCreateHookMinimumBoxes.TryGetValue(AutoCreateResourceHook.None, out CheckBox? toggle) &&
+            toggle.Checked;
+        foreach ((string hook, CheckBox button) in autoCreateHookMinimumBoxes)
+        {
+            button.Enabled = supported && (hook == AutoCreateResourceHook.None || enabled);
+        }
+    }
+
+    private void SelectMinimum(
+        int selectedMinimum,
+        bool selected,
+        IReadOnlyList<int> values,
+        Dictionary<int, CheckBox> boxes)
+    {
+        if (updatingResourceMinimumSelection)
+        {
+            return;
+        }
+
+        int normalized = selectedMinimum == 0
+            ? selected ? values.FirstOrDefault(value => value > 0) : 0
+            : values.Contains(selectedMinimum) ? selectedMinimum : 0;
+        ApplyMinimumSelection(normalized, boxes);
+        UpdatePostGenerationFilterAvailability();
+    }
+
+    private void ApplyMinimumSelection(int selectedMinimum, Dictionary<int, CheckBox> boxes)
+    {
+        updatingResourceMinimumSelection = true;
+        try
+        {
+            bool enabled = selectedMinimum > 0;
+            foreach ((int value, CheckBox button) in boxes)
+            {
+                button.Checked = enabled && (value == 0 || value >= selectedMinimum);
+                UpdateSpecialSeedButtonState(button);
+            }
+        }
+        finally
+        {
+            updatingResourceMinimumSelection = false;
+        }
+    }
+
+    private static int GetSelectedMinimum(
+        IReadOnlyDictionary<int, CheckBox> boxes,
+        IReadOnlyList<int> values)
+    {
+        if (!boxes.TryGetValue(0, out CheckBox? toggle) || !toggle.Checked)
+        {
+            return 0;
+        }
+
+        foreach (int value in values.Where(value => value > 0))
+        {
+            if (boxes.TryGetValue(value, out CheckBox? button) && button.Checked)
+            {
+                return value;
+            }
+        }
+
+        return 0;
+    }
+
+    private void SelectHookMinimum(string selectedMinimum, bool selected)
+    {
+        if (updatingResourceMinimumSelection)
+        {
+            return;
+        }
+
+        string normalized = selectedMinimum == AutoCreateResourceHook.None
+            ? selected ? AutoCreateResourceHook.Amethyst : AutoCreateResourceHook.None
+            : selectedMinimum;
+        ApplyHookMinimumSelection(normalized);
+        UpdatePostGenerationFilterAvailability();
+    }
+
+    private void ApplyHookMinimumSelection(string selectedMinimum)
+    {
+        updatingResourceMinimumSelection = true;
+        try
+        {
+            bool enabled = selectedMinimum != AutoCreateResourceHook.None;
+            foreach ((string hook, CheckBox button) in autoCreateHookMinimumBoxes)
+            {
+                button.Checked = enabled &&
+                    (hook == AutoCreateResourceHook.None || AutoCreateResourceHook.Includes(selectedMinimum, hook));
+                UpdateSpecialSeedButtonState(button);
+            }
+        }
+        finally
+        {
+            updatingResourceMinimumSelection = false;
+        }
+    }
+
+    private string GetSelectedHookMinimum()
+    {
+        if (!autoCreateHookMinimumBoxes.TryGetValue(AutoCreateResourceHook.None, out CheckBox? toggle) ||
+            !toggle.Checked)
+        {
+            return AutoCreateResourceHook.None;
+        }
+
+        foreach (string hook in AutoCreateResourceHook.All.Where(hook => hook != AutoCreateResourceHook.None))
+        {
+            if (autoCreateHookMinimumBoxes.TryGetValue(hook, out CheckBox? button) && button.Checked)
+            {
+                return hook;
+            }
+        }
+
+        return AutoCreateResourceHook.None;
     }
 
     private void SelectCrimsonDistance(string selectedDistance)

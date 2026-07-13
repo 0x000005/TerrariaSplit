@@ -16,6 +16,11 @@ public static class SettingsSectionNormalizer
         autoCreate.ZenithStarCatchSpeedSliderValue = AutoCreateZenithStarCatchSpeed.NormalizeSliderValue(autoCreate.ZenithStarCatchSpeedSliderValue);
         autoCreate.PyramidFilterItemMask = AutoCreatePyramidFilterItem.NormalizeMask(autoCreate.PyramidFilterItemMask);
         autoCreate.CrimsonDistance = AutoCreateCrimsonDistance.Normalize(autoCreate.CrimsonDistance);
+        autoCreate.ResourceFilterItemMask = AutoCreateResourceFilterItem.NormalizeMask(autoCreate.ResourceFilterItemMask);
+        autoCreate.ResourceFilterLifeCrystalMinimum = AutoCreateResourceMinimum.NormalizeLifeCrystals(autoCreate.ResourceFilterLifeCrystalMinimum);
+        autoCreate.ResourceFilterHookMinimum = AutoCreateResourceHook.Normalize(autoCreate.ResourceFilterHookMinimum);
+        autoCreate.ResourceFilterSpelunkerPotionMinimum = AutoCreateResourceMinimum.NormalizePotions(autoCreate.ResourceFilterSpelunkerPotionMinimum);
+        autoCreate.ResourceFilterFeatherfallPotionMinimum = AutoCreateResourceMinimum.NormalizePotions(autoCreate.ResourceFilterFeatherfallPotionMinimum);
         autoCreate.ShortActionDelayMilliseconds = Math.Clamp(autoCreate.ShortActionDelayMilliseconds, 0, 5000);
         autoCreate.MenuActionDelayMilliseconds = Math.Clamp(autoCreate.MenuActionDelayMilliseconds, 0, 5000);
         autoCreate.PyramidFilterPostDelayMilliseconds = Math.Clamp(autoCreate.PyramidFilterPostDelayMilliseconds, 0, 5000);

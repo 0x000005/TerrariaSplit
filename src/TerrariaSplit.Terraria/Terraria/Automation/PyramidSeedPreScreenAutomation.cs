@@ -68,7 +68,6 @@ internal sealed class PyramidSeedPreScreenAutomation
             return result.Status switch
             {
                 PyramidSeedPreScreenLoopStatus.Accepted => PyramidSeedPreScreenAutomationResult.FromAccepted(),
-                PyramidSeedPreScreenLoopStatus.RejectedSeed => PyramidSeedPreScreenAutomationResult.FromRetryFromMainMenu(result.Detail),
                 PyramidSeedPreScreenLoopStatus.SeedReadFailed or PyramidSeedPreScreenLoopStatus.PredictionUnavailable =>
                     PyramidSeedPreScreenAutomationResult.FromContinueWithoutPreScreen(result.Detail),
                 _ => PyramidSeedPreScreenAutomationResult.FromFailed(result.Detail)
@@ -116,7 +115,6 @@ internal sealed class PyramidSeedPreScreenAutomation
             return result.Status switch
             {
                 PyramidSeedPreScreenLoopStatus.Accepted => PyramidSeedPreScreenAutomationResult.FromAccepted(),
-                PyramidSeedPreScreenLoopStatus.RejectedSeed => PyramidSeedPreScreenAutomationResult.FromRetryFromMainMenu(result.Detail),
                 PyramidSeedPreScreenLoopStatus.SeedReadFailed or PyramidSeedPreScreenLoopStatus.PredictionUnavailable =>
                     PyramidSeedPreScreenAutomationResult.FromContinueWithoutPreScreen(result.Detail),
                 _ => PyramidSeedPreScreenAutomationResult.FromFailed(result.Detail)
@@ -218,7 +216,6 @@ internal enum PyramidSeedPreScreenAutomationStatus
 {
     Accepted,
     ContinueWithoutPreScreen,
-    RetryFromMainMenu,
     Failed
 }
 
@@ -234,9 +231,6 @@ internal readonly record struct PyramidSeedPreScreenAutomationResult(
 
     public static PyramidSeedPreScreenAutomationResult FromContinueWithoutPreScreen(string detail) =>
         new(PyramidSeedPreScreenAutomationStatus.ContinueWithoutPreScreen, detail);
-
-    public static PyramidSeedPreScreenAutomationResult FromRetryFromMainMenu(string detail) =>
-        new(PyramidSeedPreScreenAutomationStatus.RetryFromMainMenu, detail);
 
     public static PyramidSeedPreScreenAutomationResult FromFailed(string detail) =>
         new(PyramidSeedPreScreenAutomationStatus.Failed, detail);

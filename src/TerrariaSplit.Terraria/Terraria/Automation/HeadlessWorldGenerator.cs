@@ -114,8 +114,10 @@ internal sealed class HeadlessWorldGenerator : IDisposable
         bool candidateItemFound = false;
         bool postGenerationFilterMatches = true;
         PyramidFilterWorldFileResult pyramidFilterResult = default;
-        bool postGenerationFilterEnabled = settings.EnablePyramidFilter ||
-            PyramidFilterWorldFileEvaluator.IsCrimsonCorridorFilterEnabled(settings);
+        bool pyramidFilterEnabled = PyramidFilterWorldFileEvaluator.IsPyramidFilterEnabled(settings);
+        bool postGenerationFilterEnabled = pyramidFilterEnabled ||
+            PyramidFilterWorldFileEvaluator.IsCrimsonCorridorFilterEnabled(settings) ||
+            PyramidFilterWorldFileEvaluator.IsResourceFilterEnabled(settings);
         if (postGenerationFilterEnabled)
         {
             pyramidFilterResult = worldFileEvaluator.Evaluate(worldPath, settings);
@@ -142,10 +144,10 @@ internal sealed class HeadlessWorldGenerator : IDisposable
             StaticAppLogger.Instance.Info($"World pool could not read generated world metadata: {detail}");
         }
 
-        string requiredPyramidItems = settings.EnablePyramidFilter
+        string requiredPyramidItems = pyramidFilterEnabled
             ? PyramidFilterItemMatcher.FormatRequiredItems(pyramidFilterResult.RequiredItemMask)
             : "disabled";
-        string candidateChestsSummary = settings.EnablePyramidFilter
+        string candidateChestsSummary = pyramidFilterEnabled
             ? pyramidFilterResult.CandidateChests.FormatSummary()
             : "not scanned";
         StaticAppLogger.Instance.Info(
@@ -156,6 +158,9 @@ internal sealed class HeadlessWorldGenerator : IDisposable
             $"crimsonCorridorEnabled={pyramidFilterResult.CrimsonCorridorFilterEnabled}, " +
             $"crimsonCorridorKeep={pyramidFilterResult.CrimsonCorridorKeep}, " +
             $"crimsonTiles={pyramidFilterResult.CrimsonCorridor.CrimsonTileCount}, " +
+            $"resourceFilterEnabled={pyramidFilterResult.ResourceFilterEnabled}, " +
+            $"resourceFilterKeep={pyramidFilterResult.ResourceFilterKeep}, " +
+            $"resources={pyramidFilterResult.Resources?.FormatSummary() ?? "not scanned"}, " +
             $"metadata={metadataDetail}, expected={request.ExpectedDetail}, " +
             $"mode={request.ModeDetail}, keep={keep}.");
         if (!keep)

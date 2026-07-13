@@ -14,7 +14,7 @@ internal sealed class PyramidSeedPreScreenEvaluator : IPyramidSeedPreScreenEvalu
 {
     public static bool IsEnabledFor(AutoCreateWorldSettings settings)
     {
-        return settings.EnablePyramidFilter &&
+        return settings.EnableCheats && settings.EnablePyramidFilter &&
             AutoCreateWorldSize.Normalize(settings.WorldSize) == AutoCreateWorldSize.Small &&
             AutoCreateWorldEvil.Normalize(settings.WorldEvil) == AutoCreateWorldEvil.Crimson &&
             !AutoCreateSpecialWorldSeed.ParseList(settings.SpecialSeeds).Any() &&

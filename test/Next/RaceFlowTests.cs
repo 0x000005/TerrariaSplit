@@ -1,4 +1,5 @@
 using System.Text.Json;
+using TerrariaSplit.Race.Client;
 
 namespace TerrariaSplit.Tests;
 
@@ -65,12 +66,45 @@ internal static class RaceFlowTests
         Check.Equal(uploaded.RoomCode, restored.RoomCode);
         Check.Equal(2, restored.Route!.Splits.Count);
         Check.Equal("transport.wld", restored.WorldFile!.FileName);
+        Check.True(restored.WorldSettings!.Cheats.Enabled);
+        Check.Equal(8, restored.WorldSettings.Cheats.LifeCrystalMinimum);
+        Check.Equal(AutoCreateResourceHook.Sapphire, restored.WorldSettings.Cheats.HookMinimum);
+        Check.True(RaceWorldSettingsFactory.HasActiveFilters(restored.WorldSettings));
+        AutoCreateWorldSettings generatedSettings = RaceWorldSettingsFactory.ToAutoCreateWorldSettings(restored.WorldSettings);
+        Check.True(generatedSettings.EnableCheats);
+        Check.True(generatedSettings.EnablePyramidFilter);
+        Check.True(generatedSettings.RequireCrimsonBetweenDungeonAndSpawn);
+        Check.Equal(AutoCreateCrimsonDistance.Near, generatedSettings.CrimsonDistance);
+        Check.Equal(AutoCreateResourceFilterItem.BoomstickMask, generatedSettings.ResourceFilterItemMask);
+        Check.Equal(8, generatedSettings.ResourceFilterLifeCrystalMinimum);
+        Check.Equal(AutoCreateResourceHook.Sapphire, generatedSettings.ResourceFilterHookMinimum);
+        Check.Equal(2, generatedSettings.ResourceFilterSpelunkerPotionMinimum);
+        Check.Equal(1, generatedSettings.ResourceFilterFeatherfallPotionMinimum);
+        Check.False(RaceWorldSettingsFactory.HasActiveFilters(
+            restored.WorldSettings with { Cheats = restored.WorldSettings.Cheats with { Enabled = false } }));
         Check.Equal(uploaded.PackageRevision, restored.PackageRevision);
         Check.Equal("host", restored.Leaderboard.Single().Nickname);
     }
 
     private static RaceWorldFilePublishRequest Publish(string room, string nickname, string revisionName) =>
-        new(room, nickname, Route(), new RaceWorldSettings("1.4.4.9", 1, 1, true, 0, 0, "race"),
+        new(room, nickname, Route(), new RaceWorldSettings(
+                "1.4.4.9",
+                1,
+                1,
+                true,
+                0,
+                new RaceCheatSettings(
+                    true,
+                    true,
+                    AutoCreatePyramidFilterItem.FlyingCarpetMask,
+                    true,
+                    AutoCreateCrimsonDistance.Near,
+                    AutoCreateResourceFilterItem.BoomstickMask,
+                    8,
+                    AutoCreateResourceHook.Sapphire,
+                    2,
+                    1),
+                "race"),
             new RaceSeedAssignment("1234", RaceSeedSource.Fixed),
             new RaceWorldFileInfo(revisionName + ".wld", 128, revisionName, DateTimeOffset.UnixEpoch, nickname));
 

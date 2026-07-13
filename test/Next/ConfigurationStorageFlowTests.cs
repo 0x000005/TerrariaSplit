@@ -21,8 +21,14 @@ internal static class ConfigurationStorageFlowTests
         settings.Race.ServerUrl = "  https://example.test/race  ";
         settings.Overlay.WindowPositionX = -1200;
         settings.Overlay.WindowPositionY = 120;
+        settings.Automation.AutoCreate.EnableCheats = true;
         settings.Automation.AutoCreate.RequireCrimsonBetweenDungeonAndSpawn = true;
         settings.Automation.AutoCreate.CrimsonDistance = AutoCreateCrimsonDistance.Near;
+        settings.Automation.AutoCreate.ResourceFilterItemMask = AutoCreateResourceFilterItem.BoomstickMask;
+        settings.Automation.AutoCreate.ResourceFilterLifeCrystalMinimum = 8;
+        settings.Automation.AutoCreate.ResourceFilterHookMinimum = AutoCreateResourceHook.Sapphire;
+        settings.Automation.AutoCreate.ResourceFilterSpelunkerPotionMinimum = 2;
+        settings.Automation.AutoCreate.ResourceFilterFeatherfallPotionMinimum = 1;
 
         Check.True(repository.Save(settings).Succeeded);
         AppSettings loaded = new AppSettingsRepository(paths).Load();
@@ -32,8 +38,14 @@ internal static class ConfigurationStorageFlowTests
         Check.Equal("https://example.test/race", loaded.Race.ServerUrl);
         Check.Equal(-1200, loaded.Overlay.WindowPositionX);
         Check.Equal(120, loaded.Overlay.WindowPositionY);
+        Check.True(loaded.Automation.AutoCreate.EnableCheats);
         Check.True(loaded.Automation.AutoCreate.RequireCrimsonBetweenDungeonAndSpawn);
         Check.Equal(AutoCreateCrimsonDistance.Near, loaded.Automation.AutoCreate.CrimsonDistance);
+        Check.Equal(AutoCreateResourceFilterItem.BoomstickMask, loaded.Automation.AutoCreate.ResourceFilterItemMask);
+        Check.Equal(8, loaded.Automation.AutoCreate.ResourceFilterLifeCrystalMinimum);
+        Check.Equal(AutoCreateResourceHook.Sapphire, loaded.Automation.AutoCreate.ResourceFilterHookMinimum);
+        Check.Equal(2, loaded.Automation.AutoCreate.ResourceFilterSpelunkerPotionMinimum);
+        Check.Equal(1, loaded.Automation.AutoCreate.ResourceFilterFeatherfallPotionMinimum);
         Check.True(File.Exists(Path.Combine(paths.SettingsDirectory, "settings.json")));
         Check.True(File.Exists(Path.Combine(paths.SettingsDirectory, "active-profile.txt")));
     }

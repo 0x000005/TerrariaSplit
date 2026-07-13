@@ -56,13 +56,38 @@ public sealed record RaceRoutePayload(
     public IReadOnlyList<RaceRouteIconPayload> Icons { get; init; } = [];
 }
 
+public sealed record RaceCheatSettings(
+    bool Enabled,
+    bool PyramidEnabled,
+    int PyramidItemMask,
+    bool CrimsonEnabled,
+    string CrimsonDistance,
+    int ResourceItemMask,
+    int LifeCrystalMinimum,
+    string HookMinimum,
+    int SpelunkerPotionMinimum,
+    int FeatherfallPotionMinimum)
+{
+    public static RaceCheatSettings Disabled { get; } = new(
+        false,
+        false,
+        0,
+        false,
+        string.Empty,
+        0,
+        0,
+        "0",
+        0,
+        0);
+}
+
 public sealed record RaceWorldSettings(
     string TerrariaVersion,
     int SizeCode,
     int DifficultyCode,
     bool HasCrimson,
     int SpecialSeedMask,
-    int RequiredPyramidItemMask,
+    RaceCheatSettings Cheats,
     string WorldName = "",
     string SecretSeeds = "");
 

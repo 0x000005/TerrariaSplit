@@ -576,14 +576,30 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Filter pyramid", "\u7B5B\u5854" }
       , { "Quick pyramid filter", "\u7B5B\u5854" }
       , { "Required pyramid items", "\u6307\u5B9A\u7269\u54C1" }
-      , { "World post-generation filters", "\u4E16\u754C\u751F\u6210\u540E\u4E8C\u9A8C" }
-      , { "Available for Crimson worlds of any size. The generated world file is checked before the world is kept.", "\u9002\u7528\u4E8E\u4EFB\u610F\u5C3A\u5BF8\u7684\u7329\u7EA2\u4E16\u754C\uFF1B\u4FDD\u7559\u4E16\u754C\u524D\u4F1A\u68C0\u67E5\u5DF2\u751F\u6210\u7684\u4E16\u754C\u6587\u4EF6\u3002" }
+      , { "Cheats", "\u4F5C\u5F0A" }
+      , { "Pyramid", "\u7B5B\u5854" }
+      , { "Pyramid filter", "\u7B5B\u5854" }
       , { "Require Crimson between dungeon and spawn", "\u8981\u6C42\u5730\u7262\u4E0E\u51FA\u751F\u70B9\u4E4B\u95F4\u5B58\u5728\u7329\u7EA2" }
-      , { "Maximum distance from spawn", "\u8DDD\u51FA\u751F\u70B9\u6700\u5927\u8DDD\u79BB" }
+      , { "Required items", "\u6307\u5B9A\u7269\u54C1" }
+      , { "Boomstick", "\u4E09\u53D1\u730E\u67AA" }
+      , { "Feral Claws", "\u731B\u722A\u624B\u5957" }
+      , { "Cloud in a Bottle", "\u4E91\u6735\u74F6" }
+      , { "Anklet of the Wind", "\u75BE\u98CE\u811A\u956F" }
+      , { "Hermes Boots", "\u8D6B\u5C14\u58A8\u65AF\u9774" }
+      , { "Crimson filter", "\u7B5B\u7329\u7EA2" }
+      , { "Life Crystal", "\u751F\u547D\u6C34\u6676" }
+      , { "Hook", "\u94A9\u722A" }
+      , { "Spelunker Potion", "\u6D1E\u7A74\u63A2\u9669\u836F\u6C34" }
+      , { "Featherfall Potion", "\u7FBD\u843D\u836F\u6C34" }
+      , { "Amethyst", "\u7D2B\u6676" }
+      , { "Topaz", "\u9EC4\u7389" }
+      , { "Sapphire", "\u84DD\u7389" }
+      , { "Emerald", "\u7FE1\u7FE0" }
+      , { "Ruby", "\u7EA2\u7389" }
+      , { "Diamond", "\u94BB\u77F3" }
       , { "Near", "\u8FD1" }
       , { "Far", "\u8FDC" }
       , { "Filter Crimson between dungeon and spawn", "\u4E8C\u9A8C\u5730\u7262\u4E0E\u51FA\u751F\u70B9\u4E4B\u95F4\u7684\u7329\u7EA2" }
-      , { "Return to main menu on filter failure", "\u7B5B\u9009\u5931\u8D25\u8FD4\u56DE\u4E3B\u9875\u91CD\u65B0\u521B\u5EFA" }
       , { "Sandstorm in a Bottle", "\u6C99\u66B4\u74F6" }
       , { "Flying Carpet", "\u98DE\u6BEF" }
       , { "Pharaoh set", "\u6CD5\u8001\u5957" }

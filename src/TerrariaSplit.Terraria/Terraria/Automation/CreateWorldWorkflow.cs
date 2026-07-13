@@ -162,15 +162,6 @@ internal sealed class CreateWorldWorkflow : IDisposable
             automation.ThrowIfCancellationRequested(cancellationToken);
             Dictionary<string, DateTime> worldsBefore = savePreparation.SnapshotSaveFiles("Worlds", "*.wld");
             CreateWorldAttemptResult createResult = await menuDriver.CreateOneWorldAsync(settings, geometry, cancellationToken);
-            if (createResult == CreateWorldAttemptResult.RetryFromMainMenu)
-            {
-                return await menuDriver.ReturnToMainMenuFromAdvancedSeedPageAsync(geometry, cancellationToken)
-                    ? CreateWorldLoopResult.Continue()
-                    : CreateWorldLoopResult.Failure(
-                        "Could not return Terraria to the main menu after seed pre-screening.",
-                        "Create world automation failed to return to the main menu after pyramid seed pre-screen rejection.");
-            }
-
             if (createResult == CreateWorldAttemptResult.Failed)
             {
                 return CreateWorldLoopResult.Failure(menuDriver.BuildFailure(
@@ -186,15 +177,6 @@ internal sealed class CreateWorldWorkflow : IDisposable
             {
                 return CreateWorldLoopResult.Finished(
                     $"Create world automation stopped with post-generation filter outcome {outcome}.");
-            }
-
-            if (settings.ReturnToMainMenuOnFilterFailure)
-            {
-                return await menuDriver.ReturnToMainMenuByBackTwiceAsync(geometry, cancellationToken)
-                    ? CreateWorldLoopResult.Continue()
-                    : CreateWorldLoopResult.Failure(
-                        "Could not return Terraria to the main menu after rejecting the world.",
-                        "Create world automation failed to return to the main menu after post-generation filter rejection.");
             }
 
             if (!await menuDriver.PrepareRejectedWorldSelectRetryAsync(settings, cancellationToken))
@@ -266,13 +248,11 @@ internal readonly record struct CreateWorldLoopResult(
 internal enum CreateWorldAttemptResult
 {
     Created,
-    RetryFromMainMenu,
     Failed
 }
 
 internal enum WorldSeedOptionsResult
 {
     Applied,
-    RetryFromMainMenu,
     Failed
 }

@@ -5,21 +5,21 @@ namespace TerrariaSplit.Race.Client;
 
 public static class RaceWorldSettingsFactory
 {
-    public static RaceWorldSettings Create(AppSettings settings, string terrariaVersion)
+    public static bool HasActiveFilters(RaceWorldSettings settings)
     {
-        AutoCreateWorldSettings autoCreate = settings.Automation.AutoCreate;
-        int hasCrimsonEvilCode = TerrariaWorldSeedOptions.EvilCode(
-            autoCreate.WorldEvil,
-            () => TerrariaWorldSeedOptions.CrimsonEvilCode);
-        return new RaceWorldSettings(
-            terrariaVersion,
-            TerrariaWorldSeedOptions.SizeCode(autoCreate.WorldSize),
-            TerrariaWorldSeedOptions.CopiedDifficultyCode(autoCreate.WorldDifficulty),
-            hasCrimsonEvilCode == TerrariaWorldSeedOptions.CrimsonEvilCode,
-            TerrariaWorldSeedOptions.SpecialSeedMask(autoCreate.SpecialSeeds),
-            AutoCreatePyramidFilterItem.NormalizeMaskOrAll(autoCreate.PyramidFilterItemMask),
-            SecretSeeds: autoCreate.SecretSeeds?.Trim() ?? string.Empty);
+        RaceCheatSettings cheats = settings.Cheats;
+        return cheats.Enabled &&
+            (cheats.PyramidEnabled ||
+             cheats.CrimsonEnabled ||
+             AutoCreateResourceFilterItem.NormalizeMask(cheats.ResourceItemMask) != 0 ||
+             AutoCreateResourceMinimum.NormalizeLifeCrystals(cheats.LifeCrystalMinimum) > 0 ||
+             AutoCreateResourceHook.Normalize(cheats.HookMinimum) != AutoCreateResourceHook.None ||
+             AutoCreateResourceMinimum.NormalizePotions(cheats.SpelunkerPotionMinimum) > 0 ||
+             AutoCreateResourceMinimum.NormalizePotions(cheats.FeatherfallPotionMinimum) > 0);
     }
+
+    public static bool IsPyramidFilterEnabled(RaceWorldSettings settings) =>
+        settings.Cheats.Enabled && settings.Cheats.PyramidEnabled;
 
     public static AutoCreateWorldSettings ToAutoCreateWorldSettings(RaceWorldSettings settings)
     {
@@ -41,8 +41,16 @@ public static class RaceWorldSettingsFactory
             WorldEvil = settings.HasCrimson ? AutoCreateWorldEvil.Crimson : AutoCreateWorldEvil.Corruption,
             SpecialSeeds = SpecialSeedsFromMask(settings.SpecialSeedMask),
             SecretSeeds = settings.SecretSeeds?.Trim() ?? string.Empty,
-            EnablePyramidFilter = settings.RequiredPyramidItemMask != 0,
-            PyramidFilterItemMask = AutoCreatePyramidFilterItem.NormalizeMaskOrAll(settings.RequiredPyramidItemMask),
+            EnableCheats = settings.Cheats.Enabled,
+            EnablePyramidFilter = settings.Cheats.PyramidEnabled,
+            PyramidFilterItemMask = AutoCreatePyramidFilterItem.NormalizeMask(settings.Cheats.PyramidItemMask),
+            RequireCrimsonBetweenDungeonAndSpawn = settings.Cheats.CrimsonEnabled,
+            CrimsonDistance = AutoCreateCrimsonDistance.Normalize(settings.Cheats.CrimsonDistance),
+            ResourceFilterItemMask = AutoCreateResourceFilterItem.NormalizeMask(settings.Cheats.ResourceItemMask),
+            ResourceFilterLifeCrystalMinimum = AutoCreateResourceMinimum.NormalizeLifeCrystals(settings.Cheats.LifeCrystalMinimum),
+            ResourceFilterHookMinimum = AutoCreateResourceHook.Normalize(settings.Cheats.HookMinimum),
+            ResourceFilterSpelunkerPotionMinimum = AutoCreateResourceMinimum.NormalizePotions(settings.Cheats.SpelunkerPotionMinimum),
+            ResourceFilterFeatherfallPotionMinimum = AutoCreateResourceMinimum.NormalizePotions(settings.Cheats.FeatherfallPotionMinimum),
             PreserveExistingSaves = true
         };
     }

@@ -101,9 +101,9 @@ internal sealed class RaceShell : IRacePanelShell, IDisposable
 
     public bool IsHostInCurrentRoom => session.State is RaceRoomState state && IsCurrentUserHost(state);
 
-    public bool IsPyramidFilterActive =>
+    public bool IsCheatsActive =>
         session.State is RaceRoomState { Status: not RaceRoomStatus.Closed, WorldSettings: RaceWorldSettings worldSettings } &&
-        worldSettings.RequiredPyramidItemMask != 0;
+        worldSettings.Cheats.Enabled;
 
     public string? LocalWorldPath => localWorldPath;
 
@@ -327,7 +327,7 @@ internal sealed class RaceShell : IRacePanelShell, IDisposable
         SaveDraftState(draftState with { Role = RacePanelRole.Host });
         localWorldPath = null;
 
-        if (worldSettings.RequiredPyramidItemMask == 0)
+        if (!RaceWorldSettingsFactory.HasActiveFilters(worldSettings))
         {
             string seedText = CreateRandomSeedText();
             await GenerateWorldFromSeedAsync(
@@ -338,7 +338,13 @@ internal sealed class RaceShell : IRacePanelShell, IDisposable
             return;
         }
 
-        await GeneratePrescreenedWorldUntilVerifiedAsync(worldSettings, RaceRandomWorldMaxAttempts, progress);
+        if (RaceWorldSettingsFactory.IsPyramidFilterEnabled(worldSettings))
+        {
+            await GeneratePrescreenedWorldUntilVerifiedAsync(worldSettings, RaceRandomWorldMaxAttempts, progress);
+            return;
+        }
+
+        await GenerateRandomWorldUntilVerifiedAsync(worldSettings, RaceRandomWorldMaxAttempts, progress);
     }
 
     public async Task GenerateCustomSeedWorldAsync(

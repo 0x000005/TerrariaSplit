@@ -142,7 +142,7 @@ internal sealed partial class MainForm : Form
             OpenStatistics,
             raceShell.OpenPanel,
             settingsShell.Open,
-            TogglePyramidFilter,
+            ToggleCheats,
             settingsShell.SwitchSettingsFile,
             Close);
     }

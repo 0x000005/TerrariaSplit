@@ -20,11 +20,11 @@ internal static class ApplicationFlowTests
         ApplicationUpdate clickThrough = controller.HandleSystemEvent(new ControlCommandSystemEvent(AppCommand.ToggleMouseClickThrough()));
         Check.True(clickThrough.Effects.OfType<ToggleMouseClickThroughEffect>().Any());
 
-        bool previousFilter = controller.Settings.Automation.AutoCreate.EnablePyramidFilter;
-        ApplicationUpdate filter = controller.HandleSystemEvent(new ControlCommandSystemEvent(AppCommand.TogglePyramidFilter()));
-        Check.Equal(!previousFilter, controller.Settings.Automation.AutoCreate.EnablePyramidFilter);
-        Check.True(filter.Effects.OfType<SaveSettingsEffect>().Any());
-        Check.True(filter.Effects.OfType<ApplySettingsToShellEffect>().Any());
+        bool previousCheats = controller.Settings.Automation.AutoCreate.EnableCheats;
+        ApplicationUpdate cheats = controller.HandleSystemEvent(new ControlCommandSystemEvent(AppCommand.ToggleCheats()));
+        Check.Equal(!previousCheats, controller.Settings.Automation.AutoCreate.EnableCheats);
+        Check.True(cheats.Effects.OfType<SaveSettingsEffect>().Any());
+        Check.True(cheats.Effects.OfType<ApplySettingsToShellEffect>().Any());
 
         AppSettings changed = repository.Clone(controller.Settings);
         changed.General.AlwaysOnTop = !changed.General.AlwaysOnTop;

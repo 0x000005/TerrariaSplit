@@ -564,8 +564,8 @@ internal sealed partial class MainForm : Form
 
     private bool ShouldShowPyramidFilterIndicator()
     {
-        return settings.Automation.AutoCreate.EnablePyramidFilter ||
-            runtimeServices?.RaceShell.IsPyramidFilterActive == true;
+        return settings.Automation.AutoCreate.EnableCheats ||
+            runtimeServices?.RaceShell.IsCheatsActive == true;
     }
 
     private void UpdateTimerOverlayRefreshInterval()

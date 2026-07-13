@@ -20,6 +20,12 @@ internal sealed class RaceForm : Form
     private const float RaceWorldFileBrowseColumnWidth = 304f;
     private const float StatusPlayerListHeaderHeight = 64f;
     private const float StatusPlayerListRowHeight = 64f;
+    private const float CheatActivationButtonPercent = 20f;
+    private const float CheatActivationSpacerPercent = 10f;
+    private const float CheatOptionButtonsPercent = 70f;
+    private const float CheatSelectorRowHeight = 54f;
+    private const int CheatSelectorHorizontalGap = 8;
+    private const int CheatSelectorGap = 10;
     private static readonly Color SelectorButtonHover = Color.FromArgb(40, 48, 53);
     private static readonly Color SelectorButtonSelectedHover = Color.FromArgb(58, 93, 88);
     private static readonly Color SelectorButtonDown = Color.FromArgb(34, 41, 46);
@@ -64,9 +70,17 @@ internal sealed class RaceForm : Form
     private readonly CheckBox randomWorldSourceButton;
     private readonly CheckBox customSeedWorldSourceButton;
     private readonly CheckBox existingWorldFileSourceButton;
+    private readonly CheckBox cheatsEnabledBox;
     private readonly CheckBox pyramidEnabledBox;
+    private readonly CheckBox crimsonEnabledBox;
     private readonly Dictionary<string, CheckBox> specialSeedButtons = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, CheckBox> pyramidItemButtons = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, CheckBox> crimsonDistanceButtons = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, CheckBox> resourceItemButtons = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<int, CheckBox> lifeCrystalMinimumButtons = new();
+    private readonly Dictionary<string, CheckBox> hookMinimumButtons = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<int, CheckBox> spelunkerMinimumButtons = new();
+    private readonly Dictionary<int, CheckBox> featherfallMinimumButtons = new();
     private readonly ToolTip titleBarToolTip = new();
     private readonly RaceLeaderboardSettings leaderboardSettings;
     private readonly Dictionary<string, LeaderboardColumnControls> leaderboardColumnControls = new(StringComparer.OrdinalIgnoreCase);
@@ -99,6 +113,8 @@ internal sealed class RaceForm : Form
     private RacePanelRole selectedRole;
     private RacePanelWorldSource selectedWorldSource = RacePanelWorldSource.Random;
     private int programmaticUpdateDepth;
+    private bool updatingCrimsonDistanceSelection;
+    private bool updatingResourceMinimumSelection;
     private bool dragging;
     private Point dragStartCursor;
     private Point dragStartLocation;
@@ -147,13 +163,41 @@ internal sealed class RaceForm : Form
             "Directly use world file",
             RacePanelWorldSource.ExistingFile,
             selected: selectedWorldSource == RacePanelWorldSource.ExistingFile);
-        pyramidEnabledBox = uiFactory.CreateCheckBox(selected: true);
-        pyramidEnabledBox.CheckedChanged += (_, _) => UpdatePyramidItemAvailability();
+        cheatsEnabledBox = uiFactory.CreateCheckBox(selected: false);
+        cheatsEnabledBox.CheckedChanged += (_, _) => UpdateCheatAvailability();
+        pyramidEnabledBox = CreateSelectorButton("Pyramid", selected: false);
+        pyramidEnabledBox.CheckedChanged += (_, _) => UpdateCheatAvailability();
+        crimsonEnabledBox = CreateSelectorButton("Crimson", selected: false);
+        crimsonEnabledBox.CheckedChanged += (_, _) => UpdateCheatAvailability();
         foreach (string item in AutoCreatePyramidFilterItem.All)
         {
-            CheckBox button = CreatePyramidItemButton(item, selected: true);
+            bool selected = (AutoCreatePyramidFilterItem.Mask(item) &
+                (AutoCreatePyramidFilterItem.SandstormInABottleMask | AutoCreatePyramidFilterItem.FlyingCarpetMask)) != 0;
+            CheckBox button = CreatePyramidItemButton(item, selected);
             pyramidItemButtons[item] = button;
         }
+
+        foreach (string distance in AutoCreateCrimsonDistance.All)
+        {
+            CheckBox button = CreateSelectorButton(
+                distance,
+                AutoCreateCrimsonDistance.Includes(AutoCreateCrimsonDistance.Default, distance));
+            button.CheckedChanged += (_, _) => SelectCrimsonDistance(distance);
+            crimsonDistanceButtons[distance] = button;
+        }
+
+        foreach (string item in AutoCreateResourceFilterItem.All)
+        {
+            CheckBox button = CreatePyramidItemButton(item, selected: false);
+            resourceItemButtons[item] = button;
+        }
+
+        InitializeMinimumButtons(AutoCreateResourceMinimum.LifeCrystals, lifeCrystalMinimumButtons, "Life Crystal");
+        InitializeHookMinimumButtons();
+        InitializeMinimumButtons(AutoCreateResourceMinimum.Potions, spelunkerMinimumButtons, "Spelunker Potion");
+        InitializeMinimumButtons(AutoCreateResourceMinimum.Potions, featherfallMinimumButtons, "Featherfall Potion");
+        sizeBox.SelectedIndexChanged += (_, _) => UpdateCheatAvailability();
+        evilBox.SelectedIndexChanged += (_, _) => UpdateCheatAvailability();
 
         foreach (string seed in AutoCreateSpecialWorldSeed.All)
         {
@@ -1029,7 +1073,7 @@ internal sealed class RaceForm : Form
 
         SettingsUiFactory.AddSectionControl(section, CreateHostWorldActionRow());
         UpdateWorldSourceVisibility();
-        UpdatePyramidItemAvailability();
+        UpdateCheatAvailability();
         return section;
     }
 
@@ -1341,14 +1385,25 @@ internal sealed class RaceForm : Form
         uiFactory.AddSettingRow(seedGrid, "Secret seed", randomSecretSeedsBox);
         SettingsUiFactory.AddSectionControl(container, seedGrid);
 
-        SettingsUiFactory.AddSectionControl(container, uiFactory.CreateSubsectionLabel("Pyramid Filter"));
-        TableLayoutPanel pyramidFilterGrid = uiFactory.CreateGrid(
+        SettingsUiFactory.AddSectionControl(container, uiFactory.CreateSubsectionLabel("Cheats"));
+        TableLayoutPanel cheatsGrid = uiFactory.CreateGrid(
             SettingsUiFactory.ColumnStylePercent(100f),
             SettingsUiFactory.ColumnStyleAbsolute(RaceSettingsValueColumnWidth));
-        uiFactory.AddSettingRow(pyramidFilterGrid, "Enabled", pyramidEnabledBox);
-        SettingsUiFactory.AddSectionControl(container, pyramidFilterGrid);
-        SettingsUiFactory.AddSectionControl(container, uiFactory.CreateFieldLabel("Required pyramid items"));
+        uiFactory.AddSettingRow(cheatsGrid, "Enabled", cheatsEnabledBox);
+        SettingsUiFactory.AddSectionControl(container, cheatsGrid);
         SettingsUiFactory.AddSectionControl(container, CreatePyramidItemSelector());
+        SettingsUiFactory.AddSectionControl(container, CreateCrimsonDistanceSelector());
+        SettingsUiFactory.AddSectionControl(container, CreateResourceItemSelector());
+        SettingsUiFactory.AddSectionControl(container, CreateMinimumSelector(
+            AutoCreateResourceMinimum.LifeCrystals,
+            lifeCrystalMinimumButtons));
+        SettingsUiFactory.AddSectionControl(container, CreateHookMinimumSelector());
+        SettingsUiFactory.AddSectionControl(container, CreateMinimumSelector(
+            AutoCreateResourceMinimum.Potions,
+            spelunkerMinimumButtons));
+        SettingsUiFactory.AddSectionControl(container, CreateMinimumSelector(
+            AutoCreateResourceMinimum.Potions,
+            featherfallMinimumButtons));
 
         return container;
     }
@@ -1402,40 +1457,132 @@ internal sealed class RaceForm : Form
 
     private Control CreatePyramidItemSelector()
     {
+        int columnCount = AutoCreatePyramidFilterItem.All.Length + 1;
+        TableLayoutPanel panel = CreateCheatSelectorPanel(columnCount);
+        pyramidEnabledBox.Margin = new Padding(0, 0, 0, CheatSelectorGap);
+        panel.Controls.Add(pyramidEnabledBox, 0, 0);
+
+        for (int index = 0; index < AutoCreatePyramidFilterItem.All.Length; index++)
+        {
+            string item = AutoCreatePyramidFilterItem.All[index];
+            CheckBox button = pyramidItemButtons[item];
+            button.Margin = CheatSelectorMargin(index, AutoCreatePyramidFilterItem.All.Length);
+            panel.Controls.Add(button, index + 2, 0);
+        }
+
+        FinishCheatSelectorRow(panel);
+        UpdateCheatAvailability();
+        return panel;
+    }
+
+    private Control CreateCrimsonDistanceSelector()
+    {
+        int columnCount = AutoCreateCrimsonDistance.All.Length + 1;
+        TableLayoutPanel panel = CreateCheatSelectorPanel(columnCount);
+        crimsonEnabledBox.Margin = new Padding(0, 0, 0, CheatSelectorGap);
+        panel.Controls.Add(crimsonEnabledBox, 0, 0);
+        for (int index = 0; index < AutoCreateCrimsonDistance.All.Length; index++)
+        {
+            CheckBox button = crimsonDistanceButtons[AutoCreateCrimsonDistance.All[index]];
+            button.Margin = CheatSelectorMargin(index, AutoCreateCrimsonDistance.All.Length);
+            panel.Controls.Add(button, index + 2, 0);
+        }
+
+        FinishCheatSelectorRow(panel);
+        return panel;
+    }
+
+    private Control CreateResourceItemSelector()
+    {
+        TableLayoutPanel panel = CreateCheatSelectorPanel(1);
+        for (int index = 0; index < AutoCreateResourceFilterItem.All.Length; index++)
+        {
+            CheckBox button = resourceItemButtons[AutoCreateResourceFilterItem.All[index]];
+            button.Margin = new Padding(0, 0, 0, CheatSelectorGap);
+            panel.RowCount++;
+            panel.RowStyles.Add(new RowStyle(SizeType.Absolute, CheatSelectorRowHeight));
+            panel.Controls.Add(button, 0, index);
+        }
+
+        return panel;
+    }
+
+    private static Control CreateMinimumSelector(
+        IReadOnlyList<int> values,
+        IReadOnlyDictionary<int, CheckBox> buttons)
+    {
+        TableLayoutPanel panel = CreateCheatSelectorPanel(values.Count);
+        for (int index = 0; index < values.Count; index++)
+        {
+            int value = values[index];
+            CheckBox button = buttons[value];
+            button.Margin = value == 0
+                ? new Padding(0, 0, 0, CheatSelectorGap)
+                : CheatSelectorMargin(index - 1, values.Count - 1);
+            panel.Controls.Add(button, value == 0 ? 0 : index + 1, 0);
+        }
+
+        FinishCheatSelectorRow(panel);
+        return panel;
+    }
+
+    private Control CreateHookMinimumSelector()
+    {
+        TableLayoutPanel panel = CreateCheatSelectorPanel(AutoCreateResourceHook.All.Length);
+        for (int index = 0; index < AutoCreateResourceHook.All.Length; index++)
+        {
+            string hook = AutoCreateResourceHook.All[index];
+            CheckBox button = hookMinimumButtons[hook];
+            button.Margin = hook == AutoCreateResourceHook.None
+                ? new Padding(0, 0, 0, CheatSelectorGap)
+                : CheatSelectorMargin(index - 1, AutoCreateResourceHook.All.Length - 1);
+            panel.Controls.Add(button, hook == AutoCreateResourceHook.None ? 0 : index + 1, 0);
+        }
+
+        FinishCheatSelectorRow(panel);
+        return panel;
+    }
+
+    private static TableLayoutPanel CreateCheatSelectorPanel(int columnCount)
+    {
+        int physicalColumnCount = columnCount == 1 ? 3 : columnCount + 1;
         var panel = new TableLayoutPanel
         {
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             BackColor = UiTheme.Surface,
-            ColumnCount = 3,
+            ColumnCount = physicalColumnCount,
             Dock = DockStyle.Top,
-            Margin = new Padding(0, 0, 0, 8),
+            Margin = Padding.Empty,
             Padding = Padding.Empty
         };
         UiTheme.EnableDoubleBuffering(panel);
-        for (int column = 0; column < 3; column++)
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, CheatActivationButtonPercent));
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, CheatActivationSpacerPercent));
+        if (columnCount == 1)
         {
-            panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f / 3f));
+            panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, CheatOptionButtonsPercent));
         }
-
-        for (int index = 0; index < AutoCreatePyramidFilterItem.All.Length; index++)
+        else
         {
-            string item = AutoCreatePyramidFilterItem.All[index];
-            int column = index % 3;
-            int row = index / 3;
-            if (column == 0)
+            for (int index = 1; index < columnCount; index++)
             {
-                panel.RowCount++;
-                panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 54f));
+                panel.ColumnStyles.Add(new ColumnStyle(
+                    SizeType.Percent,
+                    CheatOptionButtonsPercent / (columnCount - 1)));
             }
-
-            CheckBox button = pyramidItemButtons[item];
-            button.Margin = new Padding(0, 0, column == 2 ? 0 : 8, 10);
-            panel.Controls.Add(button, column, row);
         }
 
-        UpdatePyramidItemAvailability();
         return panel;
+    }
+
+    private static Padding CheatSelectorMargin(int index, int count) =>
+        new(0, 0, index == count - 1 ? 0 : CheatSelectorHorizontalGap, CheatSelectorGap);
+
+    private static void FinishCheatSelectorRow(TableLayoutPanel panel)
+    {
+        panel.RowCount = 1;
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, CheatSelectorRowHeight));
     }
 
     private Control CreateSpecialSeedSelector()
@@ -1522,6 +1669,47 @@ internal sealed class RaceForm : Form
         CheckBox button = CreateSelectorButton(textKey, selected);
         button.CheckedChanged += (_, _) => UpdateSelectorButtonState(button);
         return button;
+    }
+
+    private void InitializeMinimumButtons(
+        IReadOnlyList<int> values,
+        Dictionary<int, CheckBox> buttons,
+        string nameKey)
+    {
+        for (int index = 0; index < values.Count; index++)
+        {
+            int value = values[index];
+            string label = value == 0
+                ? nameKey
+                : index == values.Count - 1
+                    ? $"{value.ToString(System.Globalization.CultureInfo.InvariantCulture)}+"
+                    : value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            CheckBox button = CreateSelectorButton(label, selected: false);
+            if (value != 0)
+            {
+                button.AutoEllipsis = false;
+                button.Padding = new Padding(0, 0, 0, 2);
+            }
+
+            button.CheckedChanged += (_, _) => SelectMinimum(value, button.Checked, values, buttons);
+            buttons[value] = button;
+        }
+
+        ApplyMinimumSelection(0, buttons);
+    }
+
+    private void InitializeHookMinimumButtons()
+    {
+        foreach (string hook in AutoCreateResourceHook.All)
+        {
+            CheckBox button = CreateSelectorButton(
+                hook == AutoCreateResourceHook.None ? "Hook" : hook,
+                selected: false);
+            button.CheckedChanged += (_, _) => SelectHookMinimum(hook, button.Checked);
+            hookMinimumButtons[hook] = button;
+        }
+
+        ApplyHookMinimumSelection(AutoCreateResourceHook.None);
     }
 
     private CheckBox CreateSpecialSeedButton(string textKey, bool selected)
@@ -1612,7 +1800,7 @@ internal sealed class RaceForm : Form
             GetSelectedInt(difficultyBox, 1),
             GetSelectedInt(evilBox, 2) == 2,
             GetSpecialSeedMask(),
-            GetRequiredPyramidItemMask(),
+            BuildCheatSettings(),
             SecretSeeds: randomSecretSeedsBox.Text.Trim());
     }
 
@@ -1625,7 +1813,7 @@ internal sealed class RaceForm : Form
             roomSettings?.DifficultyCode ?? 1,
             roomSettings?.HasCrimson ?? true,
             SpecialSeedMask: 0,
-            RequiredPyramidItemMask: 0);
+            Cheats: RaceCheatSettings.Disabled);
     }
 
     private RaceWorldSettings BuildUploadWorldSettings()
@@ -1635,9 +1823,30 @@ internal sealed class RaceForm : Form
 
     private RaceWorldSettings BuildUploadWorldSettings(RacePanelWorldSource worldSource)
     {
-        return worldSource == RacePanelWorldSource.Random
-            ? BuildRandomWorldSettings()
-            : BuildCustomSeedWorldSettings();
+        return worldSource switch
+        {
+            RacePanelWorldSource.Random => BuildRandomWorldSettings(),
+            _ => BuildCustomSeedWorldSettings()
+        };
+    }
+
+    private RaceCheatSettings BuildCheatSettings()
+    {
+        int pyramidItemMask = AutoCreatePyramidFilterItem.ToMask(
+            AutoCreatePyramidFilterItem.All.Where(item => pyramidItemButtons[item].Checked));
+        int resourceItemMask = AutoCreateResourceFilterItem.ToMask(
+            AutoCreateResourceFilterItem.All.Where(item => resourceItemButtons[item].Checked));
+        return new RaceCheatSettings(
+            cheatsEnabledBox.Checked,
+            pyramidEnabledBox.Checked,
+            pyramidItemMask,
+            crimsonEnabledBox.Checked,
+            GetSelectedCrimsonDistance(),
+            resourceItemMask,
+            GetSelectedMinimum(lifeCrystalMinimumButtons, AutoCreateResourceMinimum.LifeCrystals),
+            GetSelectedHookMinimum(),
+            GetSelectedMinimum(spelunkerMinimumButtons, AutoCreateResourceMinimum.Potions),
+            GetSelectedMinimum(featherfallMinimumButtons, AutoCreateResourceMinimum.Potions));
     }
 
     private async Task HandleHostWorldActionButtonClickAsync()
@@ -2010,15 +2219,37 @@ internal sealed class RaceForm : Form
             randomSecretSeedsBox.Text = worldSettings.SecretSeeds ?? string.Empty;
         }
 
-        pyramidEnabledBox.Checked = worldSettings.RequiredPyramidItemMask != 0;
+        RaceCheatSettings cheats = worldSettings.Cheats;
+        cheatsEnabledBox.Checked = cheats.Enabled;
+        pyramidEnabledBox.Checked = cheats.PyramidEnabled;
+        int pyramidItemMask = cheats.PyramidEnabled
+            ? AutoCreatePyramidFilterItem.NormalizeMaskOrAll(cheats.PyramidItemMask)
+            : AutoCreatePyramidFilterItem.NormalizeMask(cheats.PyramidItemMask);
         foreach ((string item, CheckBox button) in pyramidItemButtons)
         {
             int itemMask = AutoCreatePyramidFilterItem.Mask(item);
-            button.Checked = worldSettings.RequiredPyramidItemMask == 0 ||
-                (worldSettings.RequiredPyramidItemMask & itemMask) == itemMask;
+            button.Checked = (pyramidItemMask & itemMask) == itemMask;
         }
 
-        UpdatePyramidItemAvailability();
+        crimsonEnabledBox.Checked = cheats.CrimsonEnabled;
+        ApplyCrimsonDistanceSelection(AutoCreateCrimsonDistance.Normalize(cheats.CrimsonDistance));
+        int resourceItemMask = AutoCreateResourceFilterItem.NormalizeMask(cheats.ResourceItemMask);
+        foreach ((string item, CheckBox button) in resourceItemButtons)
+        {
+            button.Checked = (resourceItemMask & AutoCreateResourceFilterItem.Mask(item)) != 0;
+        }
+
+        ApplyMinimumSelection(
+            AutoCreateResourceMinimum.NormalizeLifeCrystals(cheats.LifeCrystalMinimum),
+            lifeCrystalMinimumButtons);
+        ApplyHookMinimumSelection(AutoCreateResourceHook.Normalize(cheats.HookMinimum));
+        ApplyMinimumSelection(
+            AutoCreateResourceMinimum.NormalizePotions(cheats.SpelunkerPotionMinimum),
+            spelunkerMinimumButtons);
+        ApplyMinimumSelection(
+            AutoCreateResourceMinimum.NormalizePotions(cheats.FeatherfallPotionMinimum),
+            featherfallMinimumButtons);
+        UpdateCheatAvailability();
     }
 
     private void PersistDraftState()
@@ -2416,35 +2647,211 @@ internal sealed class RaceForm : Form
         UpdateHostWorldActionButton();
     }
 
-    private void UpdatePyramidItemAvailability()
+    private void UpdateCheatAvailability()
     {
-        bool enabled = pyramidEnabledBox.Checked;
-        pyramidEnabledBox.ForeColor = UiTheme.Text;
-        pyramidEnabledBox.BackColor = UiTheme.Surface;
+        bool cheatsEnabled = cheatsEnabledBox.Checked;
+        pyramidEnabledBox.Enabled = cheatsEnabled;
+        crimsonEnabledBox.Enabled = cheatsEnabled && GetSelectedInt(evilBox, 2) == 2;
+        UpdateSelectorButtonState(pyramidEnabledBox);
+        UpdateSelectorButtonState(crimsonEnabledBox);
+
         foreach (CheckBox button in pyramidItemButtons.Values)
         {
-            button.Enabled = enabled;
+            button.Enabled = cheatsEnabled && pyramidEnabledBox.Checked;
+            UpdateSelectorButtonState(button);
+        }
+
+        bool crimsonDistanceEnabled = crimsonEnabledBox.Enabled && crimsonEnabledBox.Checked;
+        foreach (CheckBox button in crimsonDistanceButtons.Values)
+        {
+            button.Enabled = crimsonDistanceEnabled;
+            UpdateSelectorButtonState(button);
+        }
+
+        bool resourcesSupported = cheatsEnabled &&
+            GetSelectedInt(sizeBox, 2) == 1 &&
+            GetSelectedInt(evilBox, 2) == 2;
+        foreach (CheckBox button in resourceItemButtons.Values)
+        {
+            button.Enabled = resourcesSupported;
+            UpdateSelectorButtonState(button);
+        }
+
+        UpdateMinimumAvailability(lifeCrystalMinimumButtons, resourcesSupported);
+        UpdateHookMinimumAvailability(resourcesSupported);
+        UpdateMinimumAvailability(spelunkerMinimumButtons, resourcesSupported);
+        UpdateMinimumAvailability(featherfallMinimumButtons, resourcesSupported);
+    }
+
+    private static void UpdateMinimumAvailability(
+        IReadOnlyDictionary<int, CheckBox> buttons,
+        bool supported)
+    {
+        bool enabled = supported && buttons.TryGetValue(0, out CheckBox? toggle) && toggle.Checked;
+        foreach ((int value, CheckBox button) in buttons)
+        {
+            button.Enabled = supported && (value == 0 || enabled);
             UpdateSelectorButtonState(button);
         }
     }
 
-    private int GetRequiredPyramidItemMask()
+    private void UpdateHookMinimumAvailability(bool supported)
     {
-        if (selectedWorldSource != RacePanelWorldSource.Random || !pyramidEnabledBox.Checked)
+        bool enabled = supported &&
+            hookMinimumButtons.TryGetValue(AutoCreateResourceHook.None, out CheckBox? toggle) &&
+            toggle.Checked;
+        foreach ((string hook, CheckBox button) in hookMinimumButtons)
+        {
+            button.Enabled = supported && (hook == AutoCreateResourceHook.None || enabled);
+            UpdateSelectorButtonState(button);
+        }
+    }
+
+    private void SelectMinimum(
+        int selectedMinimum,
+        bool selected,
+        IReadOnlyList<int> values,
+        Dictionary<int, CheckBox> buttons)
+    {
+        if (updatingResourceMinimumSelection)
+        {
+            return;
+        }
+
+        int normalized = selectedMinimum == 0
+            ? selected ? values.FirstOrDefault(value => value > 0) : 0
+            : values.Contains(selectedMinimum) ? selectedMinimum : 0;
+        ApplyMinimumSelection(normalized, buttons);
+        UpdateCheatAvailability();
+    }
+
+    private void ApplyMinimumSelection(int selectedMinimum, Dictionary<int, CheckBox> buttons)
+    {
+        updatingResourceMinimumSelection = true;
+        try
+        {
+            bool enabled = selectedMinimum > 0;
+            foreach ((int value, CheckBox button) in buttons)
+            {
+                button.Checked = enabled && (value == 0 || value >= selectedMinimum);
+                UpdateSelectorButtonState(button);
+            }
+        }
+        finally
+        {
+            updatingResourceMinimumSelection = false;
+        }
+    }
+
+    private static int GetSelectedMinimum(
+        IReadOnlyDictionary<int, CheckBox> buttons,
+        IReadOnlyList<int> values)
+    {
+        if (!buttons.TryGetValue(0, out CheckBox? toggle) || !toggle.Checked)
         {
             return 0;
         }
 
-        int mask = 0;
-        foreach ((string item, CheckBox button) in pyramidItemButtons)
+        foreach (int value in values.Where(value => value > 0))
         {
-            if (button.Checked)
+            if (buttons.TryGetValue(value, out CheckBox? button) && button.Checked)
             {
-                mask |= AutoCreatePyramidFilterItem.Mask(item);
+                return value;
             }
         }
 
-        return AutoCreatePyramidFilterItem.NormalizeMaskOrAll(mask);
+        return 0;
+    }
+
+    private void SelectHookMinimum(string selectedMinimum, bool selected)
+    {
+        if (updatingResourceMinimumSelection)
+        {
+            return;
+        }
+
+        string normalized = selectedMinimum == AutoCreateResourceHook.None
+            ? selected ? AutoCreateResourceHook.Amethyst : AutoCreateResourceHook.None
+            : selectedMinimum;
+        ApplyHookMinimumSelection(normalized);
+        UpdateCheatAvailability();
+    }
+
+    private void ApplyHookMinimumSelection(string selectedMinimum)
+    {
+        updatingResourceMinimumSelection = true;
+        try
+        {
+            bool enabled = selectedMinimum != AutoCreateResourceHook.None;
+            foreach ((string hook, CheckBox button) in hookMinimumButtons)
+            {
+                button.Checked = enabled &&
+                    (hook == AutoCreateResourceHook.None || AutoCreateResourceHook.Includes(selectedMinimum, hook));
+                UpdateSelectorButtonState(button);
+            }
+        }
+        finally
+        {
+            updatingResourceMinimumSelection = false;
+        }
+    }
+
+    private string GetSelectedHookMinimum()
+    {
+        if (!hookMinimumButtons.TryGetValue(AutoCreateResourceHook.None, out CheckBox? toggle) ||
+            !toggle.Checked)
+        {
+            return AutoCreateResourceHook.None;
+        }
+
+        foreach (string hook in AutoCreateResourceHook.All.Where(hook => hook != AutoCreateResourceHook.None))
+        {
+            if (hookMinimumButtons.TryGetValue(hook, out CheckBox? button) && button.Checked)
+            {
+                return hook;
+            }
+        }
+
+        return AutoCreateResourceHook.None;
+    }
+
+    private void SelectCrimsonDistance(string selectedDistance)
+    {
+        if (!updatingCrimsonDistanceSelection)
+        {
+            ApplyCrimsonDistanceSelection(selectedDistance);
+        }
+    }
+
+    private void ApplyCrimsonDistanceSelection(string selectedDistance)
+    {
+        updatingCrimsonDistanceSelection = true;
+        try
+        {
+            foreach ((string distance, CheckBox button) in crimsonDistanceButtons)
+            {
+                button.Checked = AutoCreateCrimsonDistance.Includes(selectedDistance, distance);
+                UpdateSelectorButtonState(button);
+            }
+        }
+        finally
+        {
+            updatingCrimsonDistanceSelection = false;
+        }
+    }
+
+    private string GetSelectedCrimsonDistance()
+    {
+        for (int index = AutoCreateCrimsonDistance.All.Length - 1; index >= 0; index--)
+        {
+            string distance = AutoCreateCrimsonDistance.All[index];
+            if (crimsonDistanceButtons.TryGetValue(distance, out CheckBox? button) && button.Checked)
+            {
+                return distance;
+            }
+        }
+
+        return AutoCreateCrimsonDistance.Default;
     }
 
     private int GetSpecialSeedMask()

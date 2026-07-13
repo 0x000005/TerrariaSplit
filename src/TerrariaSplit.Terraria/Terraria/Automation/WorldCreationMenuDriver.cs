@@ -138,11 +138,6 @@ internal sealed class WorldCreationMenuDriver
         }
 
         WorldSeedOptionsResult seedOptionsResult = await ApplyWorldSeedOptionsAsync(settings, geometry, cancellationToken);
-        if (seedOptionsResult == WorldSeedOptionsResult.RetryFromMainMenu)
-        {
-            return CreateWorldAttemptResult.RetryFromMainMenu;
-        }
-
         if (seedOptionsResult == WorldSeedOptionsResult.Failed)
         {
             return CreateWorldAttemptResult.Failed;
@@ -180,12 +175,6 @@ internal sealed class WorldCreationMenuDriver
 
         PyramidSeedPreScreenAutomationResult preScreenResult =
             await pyramidSeedPreScreenAutomation.RandomizeCurrentSeedUntilAcceptedAsync(settings, geometry, shortActionDelay, cancellationToken);
-        if (preScreenResult.Status == PyramidSeedPreScreenAutomationStatus.RetryFromMainMenu)
-        {
-            StaticAppLogger.Instance.Info($"Create world automation will return to main menu after 1.4.4.9 pre-screen rejection: {preScreenResult.Detail}");
-            return CreateWorldAttemptResult.RetryFromMainMenu;
-        }
-
         if (!preScreenResult.CanCreateWorld)
         {
             RecordFailure(AutomationResult.Failure(
@@ -209,84 +198,6 @@ internal sealed class WorldCreationMenuDriver
         return await automation.ClickAsync("create world", geometry.CreateWorldButton(), shortActionDelay, cancellationToken)
             ? CreateWorldAttemptResult.Created
             : CreateWorldAttemptResult.Failed;
-    }
-
-    public async Task<bool> ReturnToMainMenuByBackTwiceAsync(
-        TerrariaMenuGeometry geometry,
-        CancellationToken cancellationToken)
-    {
-        if (!windowActivation.TryReactivate(
-                "before clicking back out of a rejected world",
-                pyramidFilterPostDelayMilliseconds))
-        {
-            return false;
-        }
-
-        if (!await automation.ClickOnceAsync(
-                "back from world select after rejected world",
-                geometry.SelectMenuBackButton(),
-                menuActionDelay,
-                cancellationToken))
-        {
-            return false;
-        }
-
-        if (!await automation.ClickOnceAsync(
-                "back from character select after rejected world",
-                geometry.SelectMenuBackButton(),
-                menuActionDelay,
-                cancellationToken))
-        {
-            return false;
-        }
-
-        return true;
-    }
-
-    public async Task<bool> ReturnToMainMenuFromAdvancedSeedPageAsync(
-        TerrariaMenuGeometry geometry,
-        CancellationToken cancellationToken)
-    {
-        if (!windowActivation.TryReactivate(
-                "before returning from rejected pre-screen seed",
-                pyramidFilterPostDelayMilliseconds))
-        {
-            return false;
-        }
-
-        if (!geometry.Profile.SupportsAdvancedSeedMenu)
-        {
-            if (!await automation.ClickOnceAsync(
-                    "back from legacy world creation after rejected pre-screen seed",
-                    geometry.CreateWorldBackButton(),
-                    menuActionDelay,
-                    cancellationToken))
-            {
-                return false;
-            }
-
-            return await ReturnToMainMenuByBackTwiceAsync(geometry, cancellationToken);
-        }
-
-        if (!await automation.ClickOnceAsync(
-                "apply visible seed after rejected pre-screen seed",
-                geometry.WorldAdvancedApplyButton(),
-                menuActionDelay,
-                cancellationToken))
-        {
-            return false;
-        }
-
-        if (!await automation.ClickOnceAsync(
-                "back from world creation after rejected pre-screen seed",
-                geometry.CreateWorldBackButton(),
-                menuActionDelay,
-                cancellationToken))
-        {
-            return false;
-        }
-
-        return await ReturnToMainMenuByBackTwiceAsync(geometry, cancellationToken);
     }
 
     public async Task<bool> PrepareRejectedWorldSelectRetryAsync(
@@ -457,12 +368,6 @@ internal sealed class WorldCreationMenuDriver
                 geometry,
                 shortActionDelay,
                 cancellationToken);
-        if (preScreenResult.Status == PyramidSeedPreScreenAutomationStatus.RetryFromMainMenu)
-        {
-            StaticAppLogger.Instance.Info($"Create world automation will return to main menu after pyramid seed pre-screen rejection: {preScreenResult.Detail}");
-            return WorldSeedOptionsResult.RetryFromMainMenu;
-        }
-
         if (!preScreenResult.CanCreateWorld)
         {
             RecordFailure(AutomationResult.Failure(

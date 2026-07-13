@@ -37,18 +37,34 @@ public static class WorldPoolSignature
         string evil = AutoCreateWorldEvil.Normalize(autoCreate.WorldEvil);
         string specialSeeds = string.Join(",", AutoCreateSpecialWorldSeed.ParseList(autoCreate.SpecialSeeds));
         string secretSeeds = string.Join(",", AutoCreateSeedList.Parse(autoCreate.SecretSeeds));
-        string pyramid = autoCreate.EnablePyramidFilter ? "pyramid=1" : "pyramid=0";
-        int pyramidItemMask = autoCreate.EnablePyramidFilter
+        bool cheatsEnabled = autoCreate.EnableCheats;
+        string cheats = cheatsEnabled ? "cheats=1" : "cheats=0";
+        bool pyramidEnabled = cheatsEnabled && autoCreate.EnablePyramidFilter;
+        string pyramid = pyramidEnabled ? "pyramid=1" : "pyramid=0";
+        int pyramidItemMask = pyramidEnabled
             ? AutoCreatePyramidFilterItem.NormalizeMaskOrAll(autoCreate.PyramidFilterItemMask)
-            : AutoCreatePyramidFilterItem.NormalizeMask(autoCreate.PyramidFilterItemMask);
+            : 0;
         string pyramidItems = "pyramidItems=" + pyramidItemMask.ToString(CultureInfo.InvariantCulture);
-        bool crimsonCorridorEnabled = autoCreate.RequireCrimsonBetweenDungeonAndSpawn &&
+        bool crimsonCorridorEnabled = cheatsEnabled && autoCreate.RequireCrimsonBetweenDungeonAndSpawn &&
             string.Equals(evil, AutoCreateWorldEvil.Crimson, StringComparison.Ordinal);
         string crimsonCorridor = crimsonCorridorEnabled
             ? "crimsonCorridor=" + AutoCreateCrimsonDistance.Normalize(autoCreate.CrimsonDistance)
             : "crimsonCorridor=0";
+        bool resourceFilterEnabled = cheatsEnabled && AutoCreateResourceFilter.HasRequirements(autoCreate) &&
+            string.Equals(size, AutoCreateWorldSize.Small, StringComparison.Ordinal) &&
+            string.Equals(evil, AutoCreateWorldEvil.Crimson, StringComparison.Ordinal);
+        string resourceFilter = resourceFilterEnabled
+            ? string.Join(
+                ",",
+                "resource=1",
+                "items=" + AutoCreateResourceFilterItem.NormalizeMask(autoCreate.ResourceFilterItemMask).ToString(CultureInfo.InvariantCulture),
+                "life=" + AutoCreateResourceMinimum.NormalizeLifeCrystals(autoCreate.ResourceFilterLifeCrystalMinimum).ToString(CultureInfo.InvariantCulture),
+                "hook=" + AutoCreateResourceHook.Normalize(autoCreate.ResourceFilterHookMinimum),
+                "spelunker=" + AutoCreateResourceMinimum.NormalizePotions(autoCreate.ResourceFilterSpelunkerPotionMinimum).ToString(CultureInfo.InvariantCulture),
+                "featherfall=" + AutoCreateResourceMinimum.NormalizePotions(autoCreate.ResourceFilterFeatherfallPotionMinimum).ToString(CultureInfo.InvariantCulture))
+            : "resource=0";
         string nameLanguage = "name=" + TerrariaLanguageCodes.FromAppLanguage(appLanguage);
-        return string.Join("|", NormalizeTerrariaVersion(terrariaVersion), size, difficulty, evil, specialSeeds, secretSeeds, pyramid, pyramidItems, crimsonCorridor, nameLanguage);
+        return string.Join("|", NormalizeTerrariaVersion(terrariaVersion), size, difficulty, evil, specialSeeds, secretSeeds, cheats, pyramid, pyramidItems, crimsonCorridor, resourceFilter, nameLanguage);
     }
 
     public static string NormalizeTerrariaVersion(string? terrariaVersion)
