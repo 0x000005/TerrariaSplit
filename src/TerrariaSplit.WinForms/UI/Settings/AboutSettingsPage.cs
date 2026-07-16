@@ -8,9 +8,10 @@ internal sealed class AboutSettingsPage : SettingsPageBase
     private readonly IApplicationUpdateService updateService;
     private readonly Label versionValue = new();
     private readonly Label statusLabel = new();
-    private readonly ProgressBar progressBar = new();
+    private readonly UiProgressBar progressBar = new();
     private readonly Button updateButton = new();
     private CancellationTokenSource? operationCancellation;
+    private long operationGeneration;
 
     public AboutSettingsPage(IApplicationUpdateService updateService)
     {
@@ -124,6 +125,7 @@ internal sealed class AboutSettingsPage : SettingsPageBase
         CancelOperation();
         operationCancellation = new CancellationTokenSource();
         CancellationToken token = operationCancellation.Token;
+        long generation = ++operationGeneration;
         SetBusy(Context.Localize("Checking for updates..."), showProgress: false);
         try
         {
@@ -151,10 +153,10 @@ internal sealed class AboutSettingsPage : SettingsPageBase
             }
 
             SetBusy(Context.Localize("Downloading update..."), showProgress: true);
-            var progress = new Progress<ApplicationUpdateProgress>(ReportProgress);
+            var progress = new Progress<ApplicationUpdateProgress>(progress => ReportProgress(generation, progress));
             PreparedApplicationUpdate prepared = await updateService.PrepareAsync(release, progress, token);
             statusLabel.Text = Context.Localize("Update verified. Preparing to restart...");
-            progressBar.Style = ProgressBarStyle.Marquee;
+            progressBar.Value = 0;
             if (!Owner.RequestApplicationUpdate(prepared))
             {
                 prepared.Discard();
@@ -173,29 +175,39 @@ internal sealed class AboutSettingsPage : SettingsPageBase
             StaticAppLogger.Instance.Error(ex, "Application update failed.");
             SetIdle(string.Format(Context.Localize("Update failed: {0}"), ex.Message));
         }
+        finally
+        {
+            if (operationGeneration == generation)
+            {
+                operationGeneration++;
+            }
+        }
     }
 
-    private void ReportProgress(ApplicationUpdateProgress progress)
+    private void ReportProgress(long generation, ApplicationUpdateProgress progress)
     {
+        if (operationGeneration != generation)
+        {
+            return;
+        }
+
         if (progress.Verifying)
         {
-            progressBar.Style = ProgressBarStyle.Marquee;
+            progressBar.Value = 0;
             statusLabel.Text = Context.Localize("Verifying update...");
             return;
         }
 
         if (progress.TotalBytes is > 0)
         {
-            progressBar.Style = ProgressBarStyle.Continuous;
-            progressBar.Maximum = 1000;
-            progressBar.Value = (int)Math.Clamp(progress.BytesReceived * 1000 / progress.TotalBytes.Value, 0, 1000);
+            progressBar.Value = (int)Math.Clamp(progress.BytesReceived * 100 / progress.TotalBytes.Value, 0, 100);
             statusLabel.Text = string.Format(
                 Context.Localize("Downloading update... {0}%"),
-                progressBar.Value / 10);
+                progressBar.Value);
         }
         else
         {
-            progressBar.Style = ProgressBarStyle.Marquee;
+            progressBar.Value = 0;
         }
     }
 
@@ -204,7 +216,6 @@ internal sealed class AboutSettingsPage : SettingsPageBase
         updateButton.Enabled = false;
         statusLabel.Text = status;
         progressBar.Visible = showProgress;
-        progressBar.Style = ProgressBarStyle.Marquee;
         progressBar.Value = 0;
     }
 

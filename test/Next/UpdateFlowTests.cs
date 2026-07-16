@@ -71,8 +71,8 @@ internal static class UpdateFlowTests
     private static void InstallationJourney()
     {
         using var directory = new TestDirectory();
-        string target = directory.Combine("target");
-        string package = directory.Combine("package");
+        string target = directory.Combine("目标 安装");
+        string package = directory.Combine("更新 包");
         Directory.CreateDirectory(target);
         Directory.CreateDirectory(package);
         WriteManifest(target, "TerrariaSplit.exe", "Assets", ApplicationUpdatePackage.ManifestDirectoryName);
@@ -89,7 +89,7 @@ internal static class UpdateFlowTests
         Directory.CreateDirectory(Path.Combine(package, "Assets"));
         File.WriteAllText(Path.Combine(package, "Assets", "current.txt"), "current");
 
-        ApplicationUpdateCommandLine.ApplyPackage(package, target, directory.Combine("backup"));
+        ApplicationUpdateCommandLine.ApplyPackage(package, target, directory.Combine("备份 空间"));
         Check.Equal("new", File.ReadAllText(Path.Combine(target, "TerrariaSplit.exe")));
         Check.True(File.Exists(Path.Combine(target, "Assets", "current.txt")));
         Check.False(File.Exists(Path.Combine(target, "Assets", "obsolete.txt")));

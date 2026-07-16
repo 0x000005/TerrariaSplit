@@ -186,36 +186,39 @@ internal sealed class GitHubApplicationUpdateService : IApplicationUpdateService
             }
 
             await using Stream source = await response.Content.ReadAsStreamAsync(timeout.Token);
-            await using FileStream destination = new(
+            using IncrementalHash hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+            byte[] buffer = new byte[1024 * 128];
+            long received = 0;
+            await using (FileStream destination = new(
                 archivePath,
                 FileMode.CreateNew,
                 FileAccess.Write,
                 FileShare.None,
                 1024 * 128,
-                FileOptions.Asynchronous | FileOptions.SequentialScan);
-            using IncrementalHash hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-            byte[] buffer = new byte[1024 * 128];
-            long received = 0;
-            while (true)
+                FileOptions.Asynchronous | FileOptions.SequentialScan))
             {
-                int read = await source.ReadAsync(buffer, timeout.Token);
-                if (read == 0)
+                while (true)
                 {
-                    break;
+                    int read = await source.ReadAsync(buffer, timeout.Token);
+                    if (read == 0)
+                    {
+                        break;
+                    }
+
+                    received += read;
+                    if (received > MaximumPackageBytes)
+                    {
+                        throw new InvalidDataException("Downloaded update is too large.");
+                    }
+
+                    hash.AppendData(buffer, 0, read);
+                    await destination.WriteAsync(buffer.AsMemory(0, read), timeout.Token);
+                    progress?.Report(new ApplicationUpdateProgress(received, contentLength ?? release.Size));
                 }
 
-                received += read;
-                if (received > MaximumPackageBytes)
-                {
-                    throw new InvalidDataException("Downloaded update is too large.");
-                }
-
-                hash.AppendData(buffer, 0, read);
-                await destination.WriteAsync(buffer.AsMemory(0, read), timeout.Token);
-                progress?.Report(new ApplicationUpdateProgress(received, contentLength ?? release.Size));
+                await destination.FlushAsync(timeout.Token);
             }
 
-            await destination.FlushAsync(timeout.Token);
             progress?.Report(new ApplicationUpdateProgress(received, contentLength ?? release.Size, Verifying: true));
             string actualHash = Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
             if (!CryptographicOperations.FixedTimeEquals(
@@ -378,8 +381,12 @@ internal static class ApplicationUpdateLauncher
     public static void Launch(PreparedApplicationUpdate update, int parentProcessId, string targetDirectory)
     {
         VerifyTargetWritable(targetDirectory);
-        string currentExecutable = Environment.ProcessPath
-            ?? throw new InvalidOperationException("Current executable path is unavailable.");
+        string currentExecutable = Path.Combine(targetDirectory, ApplicationUpdatePackage.MainExecutableName);
+        if (!File.Exists(currentExecutable))
+        {
+            throw new InvalidOperationException("The installed TerrariaSplit executable is unavailable.");
+        }
+
         string helperPath = Path.Combine(update.WorkDirectory, "TerrariaSplit.Update.exe");
         File.Copy(currentExecutable, helperPath, overwrite: true);
 
@@ -594,6 +601,16 @@ internal static class ApplicationUpdateCommandLine
     private static void Move(string source, string destination)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+        if (!string.Equals(
+                Path.GetPathRoot(source),
+                Path.GetPathRoot(destination),
+                StringComparison.OrdinalIgnoreCase))
+        {
+            Copy(source, destination);
+            Delete(source);
+            return;
+        }
+
         if (File.Exists(source))
         {
             File.Move(source, destination);
