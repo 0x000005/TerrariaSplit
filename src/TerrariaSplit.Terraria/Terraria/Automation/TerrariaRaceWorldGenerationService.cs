@@ -91,6 +91,7 @@ public sealed class TerrariaRaceWorldGenerationService : IDisposable
             PyramidFilterItemMask = settings.PyramidFilterItemMask,
             RequireCrimsonBetweenDungeonAndSpawn = settings.RequireCrimsonBetweenDungeonAndSpawn,
             CrimsonDistance = settings.CrimsonDistance,
+            JungleRouteDepth = settings.JungleRouteDepth,
             ResourceFilterItemMask = settings.ResourceFilterItemMask,
             ResourceFilterLifeCrystalMinimum = settings.ResourceFilterLifeCrystalMinimum,
             ResourceFilterHookMinimum = settings.ResourceFilterHookMinimum,

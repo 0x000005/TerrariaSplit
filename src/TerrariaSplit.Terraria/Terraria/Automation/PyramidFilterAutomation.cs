@@ -26,7 +26,7 @@ internal sealed class PyramidFilterAutomation
     {
         this.automation = automation;
         worldFileEvaluator = new PyramidFilterWorldFileEvaluator(scanner);
-        this.watcherFactory = watcherFactory ?? (() => new TerrariaWorldWatcher());
+        this.watcherFactory = watcherFactory ?? (() => new TerrariaWorldWatcher(observeWorldGeneration: true));
         this.worldsDirectoryProvider = worldsDirectoryProvider ?? DefaultWorldsDirectory;
         this.waitTimings = waitTimings ?? DefaultWaitTimings;
     }
@@ -47,8 +47,8 @@ internal sealed class PyramidFilterAutomation
         string? worldPath = await WaitForStableCreatedWorldFileAsync(worldsBefore, cancellationToken);
         if (string.IsNullOrWhiteSpace(worldPath))
         {
-            StaticAppLogger.Instance.Info("World post-generation filter kept the world because no completed world file was observed before timeout.");
-            return PyramidFilterOutcome.KeptWithoutVerification;
+            StaticAppLogger.Instance.Info("World post-generation filter rejected the attempt because no completed world file was observed before timeout.");
+            return PyramidFilterOutcome.Rejected;
         }
 
         StaticAppLogger.Instance.Info($"World post-generation filter will scan world file '{Path.GetFileName(worldPath)}'.");
@@ -127,8 +127,7 @@ internal sealed class PyramidFilterAutomation
                         return candidatePath;
                     }
 
-                    bool allowStableFallback = generationWatcher is null || (!generationWasVisible && !fastOpenActive);
-                    if (allowStableFallback && TryAcceptStableCandidate(
+                    if (TryAcceptStableCandidate(
                             candidatePath,
                             length,
                             writeTime,
@@ -238,7 +237,7 @@ internal sealed class PyramidFilterAutomation
         if (string.Equals(stablePath, candidatePath, StringComparison.OrdinalIgnoreCase) &&
             stableLength == length &&
             stableWriteTime == writeTime &&
-            FileAccessProbe.CanOpenForRead(candidatePath))
+            FileAccessProbe.CanOpenForExclusiveRead(candidatePath))
         {
             if (stableSince == DateTime.MinValue)
             {
@@ -336,6 +335,5 @@ internal enum PyramidFilterOutcome
 {
     Disabled,
     Kept,
-    KeptWithoutVerification,
     Rejected
 }

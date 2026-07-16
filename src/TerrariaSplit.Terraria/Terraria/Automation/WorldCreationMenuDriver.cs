@@ -143,7 +143,7 @@ internal sealed class WorldCreationMenuDriver
             return CreateWorldAttemptResult.Failed;
         }
 
-        return await automation.ClickAsync("create world", geometry.CreateWorldButton(), shortActionDelay, cancellationToken)
+        return await ClickCreateWorldAsync(geometry, cancellationToken)
             ? CreateWorldAttemptResult.Created
             : CreateWorldAttemptResult.Failed;
     }
@@ -195,9 +195,26 @@ internal sealed class WorldCreationMenuDriver
             return CreateWorldAttemptResult.Failed;
         }
 
-        return await automation.ClickAsync("create world", geometry.CreateWorldButton(), shortActionDelay, cancellationToken)
+        return await ClickCreateWorldAsync(geometry, cancellationToken)
             ? CreateWorldAttemptResult.Created
             : CreateWorldAttemptResult.Failed;
+    }
+
+    private async Task<bool> ClickCreateWorldAsync(
+        TerrariaMenuGeometry geometry,
+        CancellationToken cancellationToken)
+    {
+        long startedTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
+        StaticAppLogger.Instance.Info("Create world automation dispatching Terraria final create-world click.");
+        bool clicked = await automation.ClickAsync(
+            "create world",
+            geometry.CreateWorldButton(),
+            shortActionDelay,
+            cancellationToken);
+        TimeSpan elapsed = System.Diagnostics.Stopwatch.GetElapsedTime(startedTimestamp);
+        StaticAppLogger.Instance.Info(
+            $"Create world automation final create-world click returned; clicked={clicked}, elapsedMs={elapsed.TotalMilliseconds:F0}.");
+        return clicked;
     }
 
     public async Task<bool> PrepareRejectedWorldSelectRetryAsync(

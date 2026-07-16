@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
+using System.Security.Cryptography;
 using Microsoft.Extensions.Logging;
 using TerrariaSplit.Race.Contracts;
+using TerrariaSplit.Race.Determinism;
 
 namespace TerrariaSplit.Race.Server;
 
@@ -8,21 +10,27 @@ public sealed class RaceRoomManager
 {
     private const string RoomCodeChars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     private const int MaximumActiveRooms = 10_000;
-    private const int MaximumNicknameLength = 64;
+    private const int MaximumNicknameLength = RacePlayerNameRules.MaximumLength;
     private const int MaximumRouteSplits = 512;
     private const int MaximumRouteIcons = 2_048;
     private const int MaximumSerializedRouteLength = 8 * 1024 * 1024;
     private const int MaximumEmbeddedIconBase64Length = 3 * 1024 * 1024;
     private const long MaximumTotalIconBase64Length = 48L * 1024 * 1024;
     private const long MaximumWorldFileLength = 128L * 1024 * 1024;
+    private static readonly TimeSpan RaceStartCountdown = TimeSpan.FromSeconds(7);
     private readonly ConcurrentDictionary<string, RaceRoom> rooms = new(StringComparer.OrdinalIgnoreCase);
     private readonly IRaceRecordStore recordStore;
     private readonly ILogger<RaceRoomManager>? logger;
+    private readonly TimeProvider timeProvider;
 
-    public RaceRoomManager(IRaceRecordStore recordStore, ILogger<RaceRoomManager>? logger = null)
+    public RaceRoomManager(
+        IRaceRecordStore recordStore,
+        ILogger<RaceRoomManager>? logger = null,
+        TimeProvider? timeProvider = null)
     {
         this.recordStore = recordStore;
         this.logger = logger;
+        this.timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     public RaceOperationResult<RaceRoomState> CreateRoom(RaceRoomCreateRequest request)
@@ -79,7 +87,14 @@ public sealed class RaceRoomManager
                 return Failure(RaceErrors.NicknameTaken, "Nickname already exists in this room.");
             }
 
-            activeRoom.Players[nickname] = RacePlayer.Create(nickname, isHost: false, DateTimeOffset.UtcNow);
+            bool returningHost = string.Equals(nickname, activeRoom.HostNickname, StringComparison.OrdinalIgnoreCase) &&
+                activeRoom.Players.Values.All(static player => !player.IsHost);
+            RacePlayer joinedPlayer = RacePlayer.Create(nickname, isHost: returningHost, DateTimeOffset.UtcNow);
+            if (!IsRngControlEnabled(activeRoom))
+            {
+                joinedPlayer.RngControlStatus = RaceRngControlStatus.NotEnabled;
+            }
+            activeRoom.Players[nickname] = joinedPlayer;
             activeRoom.Touch();
             return RaceOperationResult<RaceRoomState>.Success(activeRoom.ToState());
         }
@@ -87,6 +102,14 @@ public sealed class RaceRoomManager
 
     public RaceOperationResult<RaceRoomState> PublishWorldFile(RaceWorldFilePublishRequest request)
     {
+        return PublishWorldFile(request, out _);
+    }
+
+    public RaceOperationResult<RaceRoomState> PublishWorldFile(
+        RaceWorldFilePublishRequest request,
+        out RaceWorldFileInfo? replacedWorldFile)
+    {
+        replacedWorldFile = null;
         if (!TryGetHostRoom(request.RoomCode, request.Nickname, out RaceRoom? room, out RaceOperationResult<RaceRoomState> failure))
         {
             return failure;
@@ -95,6 +118,11 @@ public sealed class RaceRoomManager
         if (!IsValidRoutePackage(request.Route))
         {
             return Failure(RaceErrors.RouteRequired, "Route package exceeds the Race server limits.");
+        }
+
+        if (!RacePlayerDifficultyCodes.IsValid(request.WorldSettings.PlayerDifficultyCode))
+        {
+            return Failure(RaceErrors.InvalidRequest, "Player difficulty is invalid.");
         }
 
         if (request.WorldFile.Length <= 0 || request.WorldFile.Length > MaximumWorldFileLength ||
@@ -115,16 +143,23 @@ public sealed class RaceRoomManager
             activeRoom.Route = request.Route;
             activeRoom.WorldSettings = request.WorldSettings;
             activeRoom.Seed = request.Seed;
+            replacedWorldFile = activeRoom.WorldFile;
             activeRoom.WorldFile = request.WorldFile;
+            activeRoom.Determinism = CreateDeterminismPackage(request.WorldSettings.RngControlEnabled);
             activeRoom.PackageRevision++;
+            activeRoom.ScheduledStartUtc = null;
             foreach (RacePlayer player in activeRoom.Players.Values)
             {
                 player.ClearProgress();
-                player.WorldReady = player.IsHost;
+                player.PlayerFileStatus = RacePlayerFileStatus.Waiting;
+                player.WorldFileStatus = player.IsHost
+                    ? RaceWorldFileStatus.Ready
+                    : RaceWorldFileStatus.Waiting;
+                player.RngControlStatus = request.WorldSettings.RngControlEnabled
+                    ? RaceRngControlStatus.Closed
+                    : RaceRngControlStatus.NotEnabled;
                 player.LastError = null;
-                player.Status = player.IsHost
-                    ? RacePlayerStatus.WorldReady
-                    : RacePlayerStatus.Joined;
+                player.Status = RacePlayerStatus.Joined;
                 player.Touch();
             }
 
@@ -174,7 +209,7 @@ public sealed class RaceRoomManager
         }
     }
 
-    public RaceOperationResult<RaceRoomState> MarkWorldReady(RaceWorldReadyRequest request)
+    public RaceOperationResult<RaceRoomState> UpdatePreparationStatus(RacePreparationStatusRequest request)
     {
         if (!TryGetPlayerRoom(request.RoomCode, request.Nickname, out RaceRoom? room, out RacePlayer? player, out RaceOperationResult<RaceRoomState> failure))
         {
@@ -190,18 +225,29 @@ public sealed class RaceRoomManager
                 return Failure(RaceErrors.RoomClosed, "Room is closed.");
             }
 
-            if (activeRoom.WorldFile is null && request.Ready)
+            RaceRngControlStatus rngControlStatus = IsRngControlEnabled(activeRoom)
+                ? request.RngControlStatus
+                : RaceRngControlStatus.NotEnabled;
+            bool ready = request.PlayerFileStatus == RacePlayerFileStatus.Ready &&
+                request.WorldFileStatus == RaceWorldFileStatus.Ready &&
+                IsRngControlReady(activeRoom, rngControlStatus);
+            if (activeRoom.WorldFile is null && ready)
             {
                 return Failure(RaceErrors.WorldRequired, "The room host has not uploaded a world file.");
             }
 
-            activePlayer.WorldReady = request.Ready;
+            activePlayer.PlayerFileStatus = request.PlayerFileStatus;
+            activePlayer.WorldFileStatus = request.WorldFileStatus;
+            activePlayer.RngControlStatus = rngControlStatus;
             activePlayer.LastError = string.IsNullOrWhiteSpace(request.Error)
                 ? null
                 : request.Error.Trim()[..Math.Min(request.Error.Trim().Length, 512)];
-            activePlayer.Status = request.Ready
-                ? RacePlayerStatus.WorldReady
-                : RacePlayerStatus.Joined;
+            activePlayer.Status = activeRoom.ScheduledStartUtc is not null &&
+                activePlayer.Status == RacePlayerStatus.Running
+                    ? RacePlayerStatus.Running
+                    : ready
+                        ? RacePlayerStatus.WorldReady
+                        : RacePlayerStatus.Joined;
             activePlayer.Touch();
             activeRoom.Status = ResolveRaceStatus(activeRoom);
             activeRoom.Touch();
@@ -230,6 +276,12 @@ public sealed class RaceRoomManager
                 return Failure(RaceErrors.WorldRequired, "The room host has not uploaded a world file.");
             }
 
+            if (activeRoom.ScheduledStartUtc is not DateTimeOffset scheduledStartUtc ||
+                timeProvider.GetUtcNow() < scheduledStartUtc)
+            {
+                return Failure(RaceErrors.RaceNotStarted, "The room host has not started the Race yet.");
+            }
+
             if (!TryValidateProgressIdentity(
                     activeRoom,
                     activePlayer,
@@ -242,7 +294,7 @@ public sealed class RaceRoomManager
             }
 
             activePlayer.Status = RacePlayerStatus.Running;
-            activePlayer.WorldReady = true;
+            activePlayer.MarkReady(IsRngControlEnabled(activeRoom));
             activePlayer.LastError = null;
             activePlayer.Touch();
             activeRoom.Status = ResolveRaceStatus(activeRoom);
@@ -253,6 +305,14 @@ public sealed class RaceRoomManager
 
     public RaceOperationResult<RaceRoomState> ReportSplit(RaceSplitReport report)
     {
+        return ReportSplit(report, out _);
+    }
+
+    public RaceOperationResult<RaceRoomState> ReportSplit(
+        RaceSplitReport report,
+        out RaceGroupCompleted? completedGroup)
+    {
+        completedGroup = null;
         if (!TryGetPlayerRoom(report.RoomCode, report.Nickname, out RaceRoom? room, out RacePlayer? player, out RaceOperationResult<RaceRoomState> failure))
         {
             return failure;
@@ -270,6 +330,12 @@ public sealed class RaceRoomManager
             if (activeRoom.Status == RaceRoomStatus.Closed)
             {
                 return Failure(RaceErrors.RoomClosed, "Room is closed.");
+            }
+
+            if (activeRoom.ScheduledStartUtc is not DateTimeOffset scheduledStartUtc ||
+                timeProvider.GetUtcNow() < scheduledStartUtc)
+            {
+                return Failure(RaceErrors.RaceNotStarted, "The room host has not started the Race yet.");
             }
 
             if (activeRoom.Route is null || report.SplitIndex >= activeRoom.Route.Splits.Count)
@@ -306,12 +372,25 @@ public sealed class RaceRoomManager
                 return RaceOperationResult<RaceRoomState>.Success(activeRoom.ToState());
             }
 
-            activePlayer.AddReport(normalizedReport);
+            bool firstCompletion = activePlayer.AddReport(normalizedReport);
             activePlayer.Status = RacePlayerStatus.Running;
-            activePlayer.WorldReady = true;
+            activePlayer.MarkReady(IsRngControlEnabled(activeRoom));
             activePlayer.Touch();
             activeRoom.Status = ResolveRaceStatus(activeRoom);
             activeRoom.Touch();
+
+            if (firstCompletion)
+            {
+                completedGroup = new RaceGroupCompleted(
+                    activeRoom.RoomCode,
+                    activeRoom.PackageRevision,
+                    normalizedReport.RunId,
+                    activePlayer.Nickname,
+                    normalizedReport.SplitIndex,
+                    routeSplit.Id,
+                    normalizedReport.ElapsedMilliseconds,
+                    activeRoom.NextCompletionSequence());
+            }
 
             return RaceOperationResult<RaceRoomState>.Success(activeRoom.ToState());
         }
@@ -347,7 +426,7 @@ public sealed class RaceRoomManager
             activePlayer.ClearProgress();
             activePlayer.RunId = runId;
             activePlayer.LastError = null;
-            activePlayer.Status = activePlayer.WorldReady
+            activePlayer.Status = activePlayer.IsReady(IsRngControlEnabled(activeRoom))
                 ? RacePlayerStatus.WorldReady
                 : RacePlayerStatus.Joined;
             activePlayer.Touch();
@@ -393,6 +472,115 @@ public sealed class RaceRoomManager
         }
 
         return RaceOperationResult<RaceRoomState>.Success(state);
+    }
+
+    public RaceOperationResult<RaceRoomState> DisconnectPlayer(string roomCode, string nickname)
+    {
+        if (!TryGetPlayerRoom(roomCode, nickname, out RaceRoom? room, out RacePlayer? player, out RaceOperationResult<RaceRoomState> failure))
+        {
+            return failure;
+        }
+
+        RaceRoom activeRoom = room!;
+        RacePlayer activePlayer = player!;
+        lock (activeRoom.Sync)
+        {
+            activePlayer.ServerConnectionStatus = RaceServerConnectionStatus.Disconnected;
+            activePlayer.Touch();
+            activeRoom.Status = ResolveRaceStatus(activeRoom);
+            activeRoom.Touch();
+            return RaceOperationResult<RaceRoomState>.Success(activeRoom.ToState());
+        }
+    }
+
+    public RaceOperationResult<RaceRoomState> StartRace(RaceHostActionRequest request)
+    {
+        if (!TryGetHostRoom(request.RoomCode, request.Nickname, out RaceRoom? room, out RaceOperationResult<RaceRoomState> failure))
+        {
+            return failure;
+        }
+
+        RaceRoom activeRoom = room!;
+        lock (activeRoom.Sync)
+        {
+            if (activeRoom.Status == RaceRoomStatus.Closed)
+            {
+                return Failure(RaceErrors.RoomClosed, "Room is closed.");
+            }
+
+            if (request.PackageRevision != activeRoom.PackageRevision)
+            {
+                return Failure(RaceErrors.StalePackage, "Race package revision is no longer current.");
+            }
+
+            if (activeRoom.ScheduledStartUtc is not null)
+            {
+                return Failure(RaceErrors.RaceAlreadyStarted, "The Race has already been started.");
+            }
+
+            if (activeRoom.WorldFile is null || activeRoom.Determinism is null)
+            {
+                return Failure(RaceErrors.WorldRequired, "The room host has not uploaded a world file.");
+            }
+
+            if (!AllPlayersReady(activeRoom))
+            {
+                return Failure(RaceErrors.PlayersNotReady, "Every player must be connected and ready before the Race can start.");
+            }
+
+            activeRoom.ScheduledStartUtc = timeProvider.GetUtcNow() + RaceStartCountdown;
+            activeRoom.StartSequence++;
+            activeRoom.Status = RaceRoomStatus.Starting;
+            activeRoom.Touch();
+            return RaceOperationResult<RaceRoomState>.Success(activeRoom.ToState());
+        }
+    }
+
+    public RaceOperationResult<RaceRoomState> RestartRace(RaceHostActionRequest request)
+    {
+        if (!TryGetHostRoom(request.RoomCode, request.Nickname, out RaceRoom? room, out RaceOperationResult<RaceRoomState> failure))
+        {
+            return failure;
+        }
+
+        RaceRoom activeRoom = room!;
+        lock (activeRoom.Sync)
+        {
+            if (activeRoom.Status == RaceRoomStatus.Closed)
+            {
+                return Failure(RaceErrors.RoomClosed, "Room is closed.");
+            }
+
+            if (request.PackageRevision != activeRoom.PackageRevision)
+            {
+                return Failure(RaceErrors.StalePackage, "Race package revision is no longer current.");
+            }
+
+            if (activeRoom.WorldFile is null || activeRoom.WorldSettings is null)
+            {
+                return Failure(RaceErrors.WorldRequired, "The room host has not uploaded a world file.");
+            }
+
+            activeRoom.Determinism = CreateDeterminismPackage(activeRoom.WorldSettings.RngControlEnabled);
+            activeRoom.PackageRevision++;
+            activeRoom.ScheduledStartUtc = null;
+            foreach (RacePlayer player in activeRoom.Players.Values)
+            {
+                player.ClearProgress();
+                player.PlayerFileStatus = RacePlayerFileStatus.Waiting;
+                player.WorldFileStatus = RaceWorldFileStatus.Waiting;
+                player.RngControlStatus = activeRoom.WorldSettings.RngControlEnabled
+                    ? RaceRngControlStatus.Closed
+                    : RaceRngControlStatus.NotEnabled;
+                player.LastError = null;
+                player.Status = RacePlayerStatus.Joined;
+                player.Touch();
+            }
+
+            activeRoom.Status = RaceRoomStatus.WorldUploaded;
+            activeRoom.Touch();
+            return RaceOperationResult<RaceRoomState>.Success(activeRoom.ToState());
+        }
     }
 
     public RaceOperationResult<RaceRoomState> KickPlayer(RacePlayerKickRequest request)
@@ -449,7 +637,9 @@ public sealed class RaceRoomManager
                 return Failure(RaceErrors.RoomClosed, "Room is closed.");
             }
 
+            activePlayer.ServerConnectionStatus = RaceServerConnectionStatus.Connected;
             activePlayer.Touch();
+            activeRoom.Status = ResolveRaceStatus(activeRoom);
             activeRoom.Touch();
             return RaceOperationResult<RaceRoomState>.Success(activeRoom.ToState());
         }
@@ -782,11 +972,33 @@ public sealed class RaceRoomManager
 
     private static bool AllPlayersReady(RaceRoom room)
     {
-        return room.Players.Count > 0 && room.Players.Values.All(static player => player.WorldReady);
+        bool rngControlEnabled = IsRngControlEnabled(room);
+        return room.Players.Count > 0 && room.Players.Values.All(player =>
+            player.ServerConnectionStatus == RaceServerConnectionStatus.Connected &&
+            player.IsReady(rngControlEnabled));
+    }
+
+    private static bool IsRngControlEnabled(RaceRoom room)
+    {
+        return room.WorldSettings?.RngControlEnabled != false;
+    }
+
+    private static bool IsRngControlReady(RaceRoom room, RaceRngControlStatus status)
+    {
+        return status == (IsRngControlEnabled(room)
+            ? RaceRngControlStatus.Enabled
+            : RaceRngControlStatus.NotEnabled);
     }
 
     private static RaceRoomStatus ResolveRaceStatus(RaceRoom room)
     {
+        if (room.ScheduledStartUtc is not null)
+        {
+            return room.Players.Values.Any(static player => player.Status == RacePlayerStatus.Running)
+                ? RaceRoomStatus.Running
+                : RaceRoomStatus.Starting;
+        }
+
         if (room.Players.Values.Any(static player => player.Status == RacePlayerStatus.Running))
         {
             return RaceRoomStatus.Running;
@@ -834,6 +1046,8 @@ public sealed class RaceRoomManager
 
     private sealed class RaceRoom
     {
+        private long completionSequence;
+
         public RaceRoom(
             string roomCode,
             string hostNickname,
@@ -861,7 +1075,13 @@ public sealed class RaceRoomManager
 
         public RaceWorldFileInfo? WorldFile { get; set; }
 
+        public RaceDeterminismPackage? Determinism { get; set; }
+
         public long PackageRevision { get; set; }
+
+        public DateTimeOffset? ScheduledStartUtc { get; set; }
+
+        public long StartSequence { get; set; }
 
         public Dictionary<string, RacePlayer> Players { get; } = new(StringComparer.OrdinalIgnoreCase);
 
@@ -874,6 +1094,11 @@ public sealed class RaceRoomManager
         public void Touch()
         {
             LastUpdatedAtUtc = DateTimeOffset.UtcNow;
+        }
+
+        public long NextCompletionSequence()
+        {
+            return ++completionSequence;
         }
 
         public RaceRoomState ToState()
@@ -892,12 +1117,18 @@ public sealed class RaceRoomManager
                 WorldSettings,
                 Seed,
                 WorldFile,
+                Determinism,
                 players,
                 leaderboard,
                 CreatedAtUtc,
                 LastUpdatedAtUtc)
             {
-                PackageRevision = PackageRevision
+                PackageRevision = PackageRevision,
+                ScheduledStartUtc = ScheduledStartUtc,
+                StartCountdownMilliseconds = ScheduledStartUtc is null
+                    ? 0
+                    : checked((int)RaceStartCountdown.TotalMilliseconds),
+                StartSequence = StartSequence
             };
         }
 
@@ -953,6 +1184,28 @@ public sealed class RaceRoomManager
         }
     }
 
+    private static RaceDeterminismPackage CreateDeterminismPackage(bool rngControlEnabled)
+    {
+        RaceDeterminismCapability capabilities = RaceDeterminismCapability.WorldLock;
+        if (rngControlEnabled)
+        {
+            capabilities |=
+                RaceDeterminismCapability.NpcDirectDrops |
+                RaceDeterminismCapability.PlayerTriggeredResults |
+                RaceDeterminismCapability.AlchemyAndLuck |
+                RaceDeterminismCapability.WorldTransitions |
+                RaceDeterminismCapability.StardustTownAndNaturalEvents;
+        }
+
+        return new RaceDeterminismPackage(
+            RaceDeterminismProtocol.CurrentVersion,
+            Guid.NewGuid().ToString("N"),
+            Convert.ToBase64String(RandomNumberGenerator.GetBytes(RaceDeterminismProtocol.EntropySeedLength)),
+            RaceDeterminismProtocol.TerrariaCompatibilityId,
+            capabilities,
+            RaceDeterminismProtocol.CurrentChancePolicyVersion);
+    }
+
     private sealed class RacePlayer
     {
         private RacePlayer(string nickname, bool isHost, DateTimeOffset now)
@@ -969,7 +1222,20 @@ public sealed class RaceRoomManager
 
         public RacePlayerStatus Status { get; set; } = RacePlayerStatus.Joined;
 
-        public bool WorldReady { get; set; }
+        public RacePlayerFileStatus PlayerFileStatus { get; set; }
+
+        public RaceWorldFileStatus WorldFileStatus { get; set; }
+
+        public RaceRngControlStatus RngControlStatus { get; set; }
+
+        public RaceServerConnectionStatus ServerConnectionStatus { get; set; } = RaceServerConnectionStatus.Connected;
+
+        public bool IsReady(bool rngControlEnabled) =>
+            PlayerFileStatus == RacePlayerFileStatus.Ready &&
+            WorldFileStatus == RaceWorldFileStatus.Ready &&
+            RngControlStatus == (rngControlEnabled
+                ? RaceRngControlStatus.Enabled
+                : RaceRngControlStatus.NotEnabled);
 
         public string? LastError { get; set; }
 
@@ -995,7 +1261,7 @@ public sealed class RaceRoomManager
             LastUpdatedAtUtc = DateTimeOffset.UtcNow;
         }
 
-        public void AddReport(RaceSplitReport report)
+        public bool AddReport(RaceSplitReport report)
         {
             RaceProgressKey progressKey = RaceProgressKey.From(report);
             if (!ProgressReports.ContainsKey(progressKey))
@@ -1007,7 +1273,10 @@ public sealed class RaceRoomManager
             {
                 CompletedReports[report.SplitIndex] = report;
                 CompletedSplitIndexes.Add(report.SplitIndex);
+                return true;
             }
+
+            return false;
         }
 
         public void ClearProgress()
@@ -1016,6 +1285,15 @@ public sealed class RaceRoomManager
             CompletedReports.Clear();
             CompletedSplitIndexes.Clear();
             RunId = string.Empty;
+        }
+
+        public void MarkReady(bool rngControlEnabled)
+        {
+            PlayerFileStatus = RacePlayerFileStatus.Ready;
+            WorldFileStatus = RaceWorldFileStatus.Ready;
+            RngControlStatus = rngControlEnabled
+                ? RaceRngControlStatus.Enabled
+                : RaceRngControlStatus.NotEnabled;
         }
 
         public RaceSplitReport? GetDisplayProgress(RaceRoutePayload? route)
@@ -1077,7 +1355,7 @@ public sealed class RaceRoomManager
                 Nickname,
                 Status,
                 IsHost,
-                WorldReady,
+                Status is RacePlayerStatus.WorldReady or RacePlayerStatus.Running,
                 CompletedSplitIndexes.Count,
                 last?.SplitIndex ?? -1,
                 last?.ConditionIndex ?? -1,
@@ -1089,7 +1367,13 @@ public sealed class RaceRoomManager
                 last?.ElapsedMilliseconds,
                 LastError,
                 JoinedAtUtc,
-                LastUpdatedAtUtc);
+                LastUpdatedAtUtc)
+            {
+                PlayerFileStatus = PlayerFileStatus,
+                WorldFileStatus = WorldFileStatus,
+                RngControlStatus = RngControlStatus,
+                ServerConnectionStatus = ServerConnectionStatus
+            };
         }
     }
 

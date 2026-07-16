@@ -589,7 +589,7 @@ internal sealed partial class MainForm : Form
 
     private void HandleTimerOverlayRightClickRequested(TimerOverlayRightClickRequest request)
     {
-        if (settings.General.PracticeMode &&
+        if (CanEditPracticeTimes &&
             overlayShell.WindowsInitialized &&
             TryGetLayout(out SplitLayout layout))
         {

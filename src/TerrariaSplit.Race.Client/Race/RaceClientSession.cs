@@ -10,11 +10,11 @@ namespace TerrariaSplit.Race.Client;
 
 public sealed class RaceClientSession : IAsyncDisposable
 {
+    private const long MaximumWorldFileLength = 128L * 1024 * 1024;
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true
     };
-    private static readonly TimeSpan DisposeLeaveTimeout = TimeSpan.FromSeconds(1);
     private static readonly TimeSpan DisposeConnectionTimeout = TimeSpan.FromSeconds(1);
     private static readonly TimeSpan HubConnectTimeout = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan HubInvokeTimeout = TimeSpan.FromSeconds(10);
@@ -30,13 +30,21 @@ public sealed class RaceClientSession : IAsyncDisposable
     private string serverUrl = string.Empty;
     private string lastPackageRevision = string.Empty;
 
+    public event EventHandler? ConnectionStatusChanged;
+
     public event EventHandler<RacePackageChanged>? PackageChanged;
 
     public event EventHandler<RaceRosterChanged>? RosterChanged;
 
     public event EventHandler<RaceProgressChanged>? ProgressChanged;
 
+    public event EventHandler<RaceGroupCompleted>? GroupCompleted;
+
+    public event EventHandler<RacePlayerProgressReset>? PlayerProgressReset;
+
     public RaceRoomState? State => state;
+
+    public RaceServerConnectionStatus ConnectionStatus { get; private set; } = RaceServerConnectionStatus.Disconnected;
 
     public bool IsConnected => connection?.State == HubConnectionState.Connected;
 
@@ -53,7 +61,17 @@ public sealed class RaceClientSession : IAsyncDisposable
         {
             if (connection.State != HubConnectionState.Connected)
             {
-                await StartConnectionAsync(connection, cancellationToken);
+                SetConnectionStatus(RaceServerConnectionStatus.Connecting);
+                try
+                {
+                    await StartConnectionAsync(connection, cancellationToken);
+                    SetConnectionStatus(RaceServerConnectionStatus.Connected);
+                }
+                catch
+                {
+                    SetConnectionStatus(RaceServerConnectionStatus.ConnectionFailed);
+                    throw;
+                }
             }
 
             return;
@@ -62,6 +80,7 @@ public sealed class RaceClientSession : IAsyncDisposable
         if (connection is not null)
         {
             await connection.DisposeAsync();
+            SetConnectionStatus(RaceServerConnectionStatus.Disconnected);
         }
 
         serverUrl = normalized;
@@ -72,8 +91,22 @@ public sealed class RaceClientSession : IAsyncDisposable
         connection.On<RacePackageChanged>("RacePackageChanged", ApplyPackageChanged);
         connection.On<RaceRosterChanged>("RaceRosterChanged", ApplyRosterChanged);
         connection.On<RaceProgressChanged>("RaceProgressChanged", ApplyProgressChanged);
+        connection.On<RaceGroupCompleted>("RaceGroupCompleted", ApplyGroupCompleted);
+        connection.On<RacePlayerProgressReset>("RacePlayerProgressReset", ApplyPlayerProgressReset);
+        connection.Reconnecting += HandleReconnectingAsync;
         connection.Reconnected += ResumeRoomAfterReconnectAsync;
-        await StartConnectionAsync(connection, cancellationToken);
+        connection.Closed += HandleConnectionClosedAsync;
+        SetConnectionStatus(RaceServerConnectionStatus.Connecting);
+        try
+        {
+            await StartConnectionAsync(connection, cancellationToken);
+            SetConnectionStatus(RaceServerConnectionStatus.Connected);
+        }
+        catch
+        {
+            SetConnectionStatus(RaceServerConnectionStatus.ConnectionFailed);
+            throw;
+        }
     }
 
     public async Task<RaceOperationResult<RaceRoomState>> CreateRoomAsync(
@@ -246,7 +279,7 @@ public sealed class RaceClientSession : IAsyncDisposable
 
     private static bool IsRetryableUploadException(Exception exception)
     {
-        return exception is InvalidOperationException or HttpRequestException or TimeoutException ||
+        return exception is IOException or InvalidOperationException or HttpRequestException or TimeoutException ||
             exception is OperationCanceledException;
     }
 
@@ -279,6 +312,11 @@ public sealed class RaceClientSession : IAsyncDisposable
             return RaceWorldFileTransferResult.Failure("The room host has not uploaded a world file.");
         }
 
+        if (worldFile.Length <= 0 || worldFile.Length > MaximumWorldFileLength)
+        {
+            return RaceWorldFileTransferResult.Failure("The room world file length is outside the supported limit.");
+        }
+
         using HttpResponseMessage response = await httpClient.GetAsync(
             BuildWorldTransferUrl(roomCode, nickname),
             HttpCompletionOption.ResponseHeadersRead,
@@ -294,6 +332,13 @@ public sealed class RaceClientSession : IAsyncDisposable
                 result.Message ??
                 response.ReasonPhrase ??
                 "World download failed.");
+        }
+
+        long? contentLength = response.Content.Headers.ContentLength;
+        if (contentLength is > MaximumWorldFileLength ||
+            (contentLength.HasValue && contentLength.Value != worldFile.Length))
+        {
+            return RaceWorldFileTransferResult.Failure("The world download response length does not match the room package.");
         }
 
         string? directory = Path.GetDirectoryName(destinationPath);
@@ -323,6 +368,12 @@ public sealed class RaceClientSession : IAsyncDisposable
                     if (read <= 0)
                     {
                         break;
+                    }
+
+                    if (read > worldFile.Length - transferred ||
+                        read > MaximumWorldFileLength - transferred)
+                    {
+                        return RaceWorldFileTransferResult.Failure("The world download exceeded its declared or supported length.");
                     }
 
                     await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
@@ -366,8 +417,10 @@ public sealed class RaceClientSession : IAsyncDisposable
         }
     }
 
-    public async Task<RaceOperationResult<RaceRoomState>> MarkWorldReadyAsync(
-        bool ready,
+    public async Task<RaceOperationResult<RaceRoomState>> UpdatePreparationStatusAsync(
+        RacePlayerFileStatus playerFileStatus,
+        RaceWorldFileStatus worldFileStatus,
+        RaceRngControlStatus rngControlStatus,
         string? error = null,
         CancellationToken cancellationToken = default)
     {
@@ -376,9 +429,15 @@ public sealed class RaceClientSession : IAsyncDisposable
             return failure;
         }
 
-        var request = new RaceWorldReadyRequest(roomCode, nickname, ready, error);
+        var request = new RacePreparationStatusRequest(
+            roomCode,
+            nickname,
+            playerFileStatus,
+            worldFileStatus,
+            rngControlStatus,
+            error);
         return await InvokeAndApplyAsync(
-            "MarkWorldReady",
+            "UpdatePreparationStatus",
             request,
             RaceRoomStateUpdateKind.WorldReadyChanged,
             nickname,
@@ -424,6 +483,48 @@ public sealed class RaceClientSession : IAsyncDisposable
         if (result.Succeeded && result.Value is RaceRoomProgressState progress)
         {
             ApplyProgressChanged(new RaceProgressChanged(progress));
+        }
+
+        return result;
+    }
+
+    public async Task<RaceOperationResult<RaceRoomState>> StartRaceAsync(CancellationToken cancellationToken = default)
+    {
+        if (!TryGetIdentity(out string roomCode, out string nickname, out RaceOperationResult<RaceRoomState> failure))
+        {
+            return failure;
+        }
+
+        RaceRoomState current = state!;
+        var request = new RaceHostActionRequest(roomCode, nickname, current.PackageRevision);
+        return await InvokeAndApplyAsync(
+            "StartRace",
+            request,
+            RaceRoomStateUpdateKind.RaceStarting,
+            nickname,
+            cancellationToken);
+    }
+
+    public async Task<RaceOperationResult<RaceRoomState>> RestartRaceAsync(CancellationToken cancellationToken = default)
+    {
+        if (!TryGetIdentity(out string roomCode, out string nickname, out RaceOperationResult<RaceRoomState> failure))
+        {
+            return failure;
+        }
+
+        RaceRoomState current = state!;
+        var request = new RaceHostActionRequest(roomCode, nickname, current.PackageRevision);
+        RaceOperationResult<RaceRoomState> result = await InvokeAsync<RaceHostActionRequest>(
+            "RestartRace",
+            request,
+            cancellationToken);
+        if (result.Succeeded && result.Value is RaceRoomState next)
+        {
+            ApplyPackageChanged(new RacePackageChanged(
+                next,
+                nickname,
+                RacePackageRevisionCalculator.Create(next),
+                RacePackageChangeKind.Restarted));
         }
 
         return result;
@@ -536,12 +637,13 @@ public sealed class RaceClientSession : IAsyncDisposable
             await DisposeConnectionAsync(connection, connectionDisposeTimeout).ConfigureAwait(false);
             connection = null;
         }
+
+        SetConnectionStatus(RaceServerConnectionStatus.Disconnected);
     }
 
     public async ValueTask DisposeAsync()
     {
-        using var cancellation = new CancellationTokenSource(DisposeLeaveTimeout);
-        await LeaveAsync(cancellation.Token, DisposeConnectionTimeout).ConfigureAwait(false);
+        await LeaveLocalAsync(DisposeConnectionTimeout).ConfigureAwait(false);
         httpClient.Dispose();
     }
 
@@ -692,7 +794,8 @@ public sealed class RaceClientSession : IAsyncDisposable
         ApplyPackageChanged(new RacePackageChanged(
             next,
             actorNickname,
-            RacePackageRevisionCalculator.Create(next)));
+            RacePackageRevisionCalculator.Create(next),
+            RacePackageChangeKind.Published));
     }
 
     private void ApplyRoster(
@@ -805,9 +908,40 @@ public sealed class RaceClientSession : IAsyncDisposable
         ProgressChanged?.Invoke(this, update);
     }
 
+    private void ApplyGroupCompleted(RaceGroupCompleted update)
+    {
+        RaceRoomState? current = state;
+        if (current is null ||
+            string.IsNullOrWhiteSpace(Nickname) ||
+            !string.Equals(current.RoomCode, update.RoomCode, StringComparison.OrdinalIgnoreCase) ||
+            current.PackageRevision != update.PackageRevision ||
+            update.SplitIndex < 0 ||
+            update.ElapsedMilliseconds < 0)
+        {
+            return;
+        }
+
+        GroupCompleted?.Invoke(this, update);
+    }
+
+    private void ApplyPlayerProgressReset(RacePlayerProgressReset update)
+    {
+        RaceRoomState? current = state;
+        if (current is null ||
+            string.IsNullOrWhiteSpace(Nickname) ||
+            !string.Equals(current.RoomCode, update.RoomCode, StringComparison.OrdinalIgnoreCase) ||
+            current.PackageRevision != update.PackageRevision)
+        {
+            return;
+        }
+
+        PlayerProgressReset?.Invoke(this, update);
+    }
+
     private async Task ResumeRoomAfterReconnectAsync(string? connectionId)
     {
         _ = connectionId;
+        SetConnectionStatus(RaceServerConnectionStatus.Connected);
         if (state?.RoomCode is not string roomCode ||
             Nickname is not string nickname ||
             connection is null)
@@ -832,6 +966,32 @@ public sealed class RaceClientSession : IAsyncDisposable
         catch (Exception ex) when (ex is InvalidOperationException or HttpRequestException or OperationCanceledException or TimeoutException)
         {
         }
+    }
+
+    private Task HandleReconnectingAsync(Exception? exception)
+    {
+        _ = exception;
+        SetConnectionStatus(RaceServerConnectionStatus.Reconnecting);
+        return Task.CompletedTask;
+    }
+
+    private Task HandleConnectionClosedAsync(Exception? exception)
+    {
+        SetConnectionStatus(exception is null
+            ? RaceServerConnectionStatus.Disconnected
+            : RaceServerConnectionStatus.ConnectionFailed);
+        return Task.CompletedTask;
+    }
+
+    private void SetConnectionStatus(RaceServerConnectionStatus next)
+    {
+        if (ConnectionStatus == next)
+        {
+            return;
+        }
+
+        ConnectionStatus = next;
+        ConnectionStatusChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private bool IsCurrentUserHost()

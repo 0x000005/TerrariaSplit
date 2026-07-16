@@ -214,7 +214,24 @@ public sealed class RaceSettings
 
     public string PreferredWorldSource { get; set; } = RacePreferredWorldSource.Random;
 
+    public string PlayerTemplateCode { get; set; } = string.Empty;
+
+    public string HostPlayerDifficulty { get; set; } = AutoCreatePlayerDifficulty.Softcore;
+
     public RaceLeaderboardSettings Leaderboard { get; set; } = new();
+
+    public RaceVoiceSettings Voice { get; set; } = new();
+}
+
+public sealed class RaceVoiceSettings
+{
+    public bool Enabled { get; set; }
+
+    public string VoiceName { get; set; } = string.Empty;
+
+    public int SpeedPercent { get; set; } = 100;
+
+    public int Volume { get; set; } = 100;
 }
 
 public static class RacePreferredRole
@@ -252,6 +269,20 @@ public static class RacePreferredWorldSource
 public sealed class RaceLeaderboardSettings
 {
     public bool UseRankColorForMainTimer { get; set; }
+
+    public int RankPlayerGap { get; set; }
+
+    public int PlayerIconGap { get; set; }
+
+    public int IconTimeGap { get; set; }
+
+    public string RankAlignment { get; set; } = UiColumnAlignment.Right;
+
+    public string PlayerAlignment { get; set; } = UiColumnAlignment.Right;
+
+    public string IconAlignment { get; set; } = UiColumnAlignment.Right;
+
+    public string TimeAlignment { get; set; } = UiColumnAlignment.Right;
 
     public UiColumnSettings Rank { get; set; } = new()
     {
@@ -395,11 +426,12 @@ public sealed class AutoCreateWorldSettings
     public bool EnableZenithStarCatch { get; set; }
     public string ZenithStarCatchStopStage { get; set; } = AutoCreateZenithStarCatchStage.Default;
     public int ZenithStarCatchSpeedSliderValue { get; set; } = AutoCreateZenithStarCatchSpeed.DefaultSliderValue;
-    public bool EnableCheats { get; set; }
-    public bool EnablePyramidFilter { get; set; }
+    public bool EnableCheats { get; set; } = true;
+    public bool EnablePyramidFilter { get; set; } = true;
     public int PyramidFilterItemMask { get; set; } = AutoCreatePyramidFilterItem.SandstormInABottleMask | AutoCreatePyramidFilterItem.FlyingCarpetMask;
-    public bool RequireCrimsonBetweenDungeonAndSpawn { get; set; }
+    public bool RequireCrimsonBetweenDungeonAndSpawn { get; set; } = true;
     public string CrimsonDistance { get; set; } = AutoCreateCrimsonDistance.Default;
+    public string JungleRouteDepth { get; set; } = AutoCreateJungleRouteDepth.Medium;
     public int ResourceFilterItemMask { get; set; }
     public int ResourceFilterLifeCrystalMinimum { get; set; }
     public string ResourceFilterHookMinimum { get; set; } = AutoCreateResourceHook.None;
@@ -537,6 +569,34 @@ public static class AutoCreateCrimsonDistance
     }
 }
 
+public static class AutoCreateJungleRouteDepth
+{
+    public const string None = "0";
+    public const string Medium = "Medium";
+    public const string Deep = "Deep";
+    public const string VeryDeep = "Very deep";
+
+    public static readonly string[] All = [Medium, Deep, VeryDeep];
+
+    public static string Normalize(string? value) =>
+        All.FirstOrDefault(option => string.Equals(option, value, StringComparison.OrdinalIgnoreCase)) ?? None;
+
+    public static bool Includes(string selectedDepth, string candidate)
+    {
+        int selectedIndex = Array.IndexOf(All, Normalize(selectedDepth));
+        int candidateIndex = Array.IndexOf(All, Normalize(candidate));
+        return selectedIndex >= 0 && candidateIndex >= selectedIndex;
+    }
+
+    public static int MinimumY(string? depth) => Normalize(depth) switch
+    {
+        Medium => 550,
+        Deep => 650,
+        VeryDeep => 750,
+        _ => 0
+    };
+}
+
 public static class AutoCreateResourceFilterItem
 {
     public const string Boomstick = "Boomstick";
@@ -580,6 +640,7 @@ public static class AutoCreateResourceFilterItem
 public static class AutoCreateResourceFilter
 {
     public static bool HasRequirements(AutoCreateWorldSettings settings) =>
+        AutoCreateJungleRouteDepth.Normalize(settings.JungleRouteDepth) != AutoCreateJungleRouteDepth.None ||
         AutoCreateResourceFilterItem.NormalizeMask(settings.ResourceFilterItemMask) != 0 ||
         AutoCreateResourceMinimum.NormalizeLifeCrystals(settings.ResourceFilterLifeCrystalMinimum) > 0 ||
         AutoCreateResourceHook.Normalize(settings.ResourceFilterHookMinimum) != AutoCreateResourceHook.None ||
@@ -589,7 +650,7 @@ public static class AutoCreateResourceFilter
 
 public static class AutoCreateResourceMinimum
 {
-    public static readonly int[] LifeCrystals = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
+    public static readonly int[] LifeCrystals = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
     public static readonly int[] Potions = [0, 1, 2, 3];
 
     public static int NormalizeLifeCrystals(int value) => Normalize(value, LifeCrystals);

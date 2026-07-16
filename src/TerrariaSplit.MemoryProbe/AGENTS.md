@@ -7,4 +7,4 @@
 ## 约束
 - 修改参数、退出码、JSON 字段或位数时，同步 `WinForms/Build/MemoryProbe.targets`、消费方和测试。
 - 普通失败返回结构化错误与非零退出码，不把标准输出改成人类日志。
-- 发布验证必须确认包含 `TerrariaSplit.MemoryProbe.exe` 且没有 `.pdb`。
+- 发布验证必须确认根目录包含单文件 `TerrariaSplit.MemoryBridge.exe` 且没有 `.pdb`。

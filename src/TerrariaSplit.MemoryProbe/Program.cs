@@ -1,4 +1,5 @@
 using Microsoft.Diagnostics.Runtime;
+using System.ComponentModel;
 using System.Globalization;
 using System.Text.Json;
 
@@ -37,6 +38,11 @@ internal static class Program
 
     private static int Main(string[] args)
     {
+        if (args.Length > 0 && string.Equals(args[0], "inject", StringComparison.OrdinalIgnoreCase))
+        {
+            return InjectorCommand.Run(args[1..]);
+        }
+
         if (args.Length != 2 ||
             !int.TryParse(args[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out int processId))
         {
@@ -78,6 +84,11 @@ internal static class Program
             return 1;
         }
         catch (ClrDiagnosticsException ex)
+        {
+            WriteResponse(new RuntimeLayoutProbeResponse(false, ex.Message, null));
+            return 1;
+        }
+        catch (Win32Exception ex)
         {
             WriteResponse(new RuntimeLayoutProbeResponse(false, ex.Message, null));
             return 1;

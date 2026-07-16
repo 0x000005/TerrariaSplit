@@ -21,6 +21,7 @@ internal sealed partial class SettingsForm : Form
     private readonly SettingsDialogService dialogService;
     private readonly ToolTip titleBarToolTip = new();
     private readonly IApplicationUpdateService applicationUpdateService;
+    private readonly Func<bool> canSaveSettings;
     private SettingsPageHost? pageHost;
     private Button maximizeButton = null!;
     private bool dragging;
@@ -31,11 +32,13 @@ internal sealed partial class SettingsForm : Form
         AppSettings currentSettings,
         SettingsMessageBoxPresenter? messageBoxPresenter = null,
         ISettingsSnapshotFactory? settingsSnapshots = null,
-        IApplicationUpdateService? applicationUpdateService = null)
+        IApplicationUpdateService? applicationUpdateService = null,
+        Func<bool>? canSaveSettings = null)
     {
         this.settingsSnapshots = settingsSnapshots ?? new StoredSettingsSnapshotFactory();
         settings = this.settingsSnapshots.CreateSnapshot(currentSettings);
         this.applicationUpdateService = applicationUpdateService ?? new GitHubApplicationUpdateService();
+        this.canSaveSettings = canSaveSettings ?? (() => true);
         uiFactory = new SettingsUiFactory(Localize);
         dialogService = new SettingsDialogService(this, Localize, messageBoxPresenter);
 
@@ -62,7 +65,7 @@ internal sealed partial class SettingsForm : Form
 
     internal bool RequestApplicationUpdate(PreparedApplicationUpdate update)
     {
-        if (!TryApplyToSettings(showError: true, out _))
+        if (!CanSaveSettings() || !TryApplyToSettings(showError: true, out _))
         {
             return false;
         }
@@ -423,7 +426,7 @@ internal sealed partial class SettingsForm : Form
         Button okButton = uiFactory.CreateButton("OK", accent: true, minimumWidth: 150);
         okButton.Click += (_, _) =>
         {
-            if (!TryApplyToSettings(showError: true, out _))
+            if (!CanSaveSettings() || !TryApplyToSettings(showError: true, out _))
             {
                 return;
             }
@@ -472,12 +475,25 @@ internal sealed partial class SettingsForm : Form
 
     private void ApplyAndNotify()
     {
-        if (!TryApplyToSettings(showError: true, out _))
+        if (!CanSaveSettings() || !TryApplyToSettings(showError: true, out _))
         {
             return;
         }
 
         Applied?.Invoke(this, EventArgs.Empty);
+    }
+
+    private bool CanSaveSettings()
+    {
+        if (canSaveSettings())
+        {
+            return true;
+        }
+
+        dialogService.ShowWarning(
+            Localize("Settings cannot be saved while in a Race room."),
+            Localize("TerrariaSplit Settings"));
+        return false;
     }
 
     private void BeginDrag(MouseEventArgs e)

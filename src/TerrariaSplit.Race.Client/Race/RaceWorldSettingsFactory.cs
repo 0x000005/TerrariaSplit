@@ -5,12 +5,22 @@ namespace TerrariaSplit.Race.Client;
 
 public static class RaceWorldSettingsFactory
 {
+    private const int JourneyWorldDifficultyCode = 4;
+
+    public static bool HasCompatibleJourneyDifficulties(RaceWorldSettings settings)
+    {
+        bool journeyWorld = settings.DifficultyCode == JourneyWorldDifficultyCode;
+        bool journeyPlayer = settings.PlayerDifficultyCode == RacePlayerDifficultyCodes.Journey;
+        return journeyWorld == journeyPlayer;
+    }
+
     public static bool HasActiveFilters(RaceWorldSettings settings)
     {
-        RaceCheatSettings cheats = settings.Cheats;
+        RaceCheatSettings cheats = settings.EffectiveCheats;
         return cheats.Enabled &&
             (cheats.PyramidEnabled ||
              cheats.CrimsonEnabled ||
+             AutoCreateJungleRouteDepth.Normalize(cheats.JungleRouteDepth) != AutoCreateJungleRouteDepth.None ||
              AutoCreateResourceFilterItem.NormalizeMask(cheats.ResourceItemMask) != 0 ||
              AutoCreateResourceMinimum.NormalizeLifeCrystals(cheats.LifeCrystalMinimum) > 0 ||
              AutoCreateResourceHook.Normalize(cheats.HookMinimum) != AutoCreateResourceHook.None ||
@@ -18,11 +28,26 @@ public static class RaceWorldSettingsFactory
              AutoCreateResourceMinimum.NormalizePotions(cheats.FeatherfallPotionMinimum) > 0);
     }
 
-    public static bool IsPyramidFilterEnabled(RaceWorldSettings settings) =>
-        settings.Cheats.Enabled && settings.Cheats.PyramidEnabled;
+    public static bool IsPyramidFilterEnabled(RaceWorldSettings settings)
+    {
+        RaceCheatSettings cheats = settings.EffectiveCheats;
+        return cheats.Enabled && cheats.PyramidEnabled;
+    }
+
+    public static string ToPlayerDifficulty(int difficultyCode)
+    {
+        return RacePlayerDifficultyCodes.Normalize(difficultyCode) switch
+        {
+            RacePlayerDifficultyCodes.Mediumcore => AutoCreatePlayerDifficulty.Mediumcore,
+            RacePlayerDifficultyCodes.Hardcore => AutoCreatePlayerDifficulty.Hardcore,
+            RacePlayerDifficultyCodes.Journey => AutoCreatePlayerDifficulty.Journey,
+            _ => AutoCreatePlayerDifficulty.Softcore
+        };
+    }
 
     public static AutoCreateWorldSettings ToAutoCreateWorldSettings(RaceWorldSettings settings)
     {
+        RaceCheatSettings cheats = settings.EffectiveCheats;
         return new AutoCreateWorldSettings
         {
             WorldSize = settings.SizeCode switch
@@ -41,16 +66,17 @@ public static class RaceWorldSettingsFactory
             WorldEvil = settings.HasCrimson ? AutoCreateWorldEvil.Crimson : AutoCreateWorldEvil.Corruption,
             SpecialSeeds = SpecialSeedsFromMask(settings.SpecialSeedMask),
             SecretSeeds = settings.SecretSeeds?.Trim() ?? string.Empty,
-            EnableCheats = settings.Cheats.Enabled,
-            EnablePyramidFilter = settings.Cheats.PyramidEnabled,
-            PyramidFilterItemMask = AutoCreatePyramidFilterItem.NormalizeMask(settings.Cheats.PyramidItemMask),
-            RequireCrimsonBetweenDungeonAndSpawn = settings.Cheats.CrimsonEnabled,
-            CrimsonDistance = AutoCreateCrimsonDistance.Normalize(settings.Cheats.CrimsonDistance),
-            ResourceFilterItemMask = AutoCreateResourceFilterItem.NormalizeMask(settings.Cheats.ResourceItemMask),
-            ResourceFilterLifeCrystalMinimum = AutoCreateResourceMinimum.NormalizeLifeCrystals(settings.Cheats.LifeCrystalMinimum),
-            ResourceFilterHookMinimum = AutoCreateResourceHook.Normalize(settings.Cheats.HookMinimum),
-            ResourceFilterSpelunkerPotionMinimum = AutoCreateResourceMinimum.NormalizePotions(settings.Cheats.SpelunkerPotionMinimum),
-            ResourceFilterFeatherfallPotionMinimum = AutoCreateResourceMinimum.NormalizePotions(settings.Cheats.FeatherfallPotionMinimum),
+            EnableCheats = cheats.Enabled,
+            EnablePyramidFilter = cheats.PyramidEnabled,
+            PyramidFilterItemMask = AutoCreatePyramidFilterItem.NormalizeMask(cheats.PyramidItemMask),
+            RequireCrimsonBetweenDungeonAndSpawn = cheats.CrimsonEnabled,
+            CrimsonDistance = AutoCreateCrimsonDistance.Normalize(cheats.CrimsonDistance),
+            JungleRouteDepth = AutoCreateJungleRouteDepth.Normalize(cheats.JungleRouteDepth),
+            ResourceFilterItemMask = AutoCreateResourceFilterItem.NormalizeMask(cheats.ResourceItemMask),
+            ResourceFilterLifeCrystalMinimum = AutoCreateResourceMinimum.NormalizeLifeCrystals(cheats.LifeCrystalMinimum),
+            ResourceFilterHookMinimum = AutoCreateResourceHook.Normalize(cheats.HookMinimum),
+            ResourceFilterSpelunkerPotionMinimum = AutoCreateResourceMinimum.NormalizePotions(cheats.SpelunkerPotionMinimum),
+            ResourceFilterFeatherfallPotionMinimum = AutoCreateResourceMinimum.NormalizePotions(cheats.FeatherfallPotionMinimum),
             PreserveExistingSaves = true
         };
     }

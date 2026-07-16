@@ -5,6 +5,7 @@ public enum RaceRoomStatus
     Lobby,
     WorldUploaded,
     Ready,
+    Starting,
     Running,
     Closed
 }
@@ -16,10 +17,61 @@ public enum RacePlayerStatus
     Running
 }
 
+public enum RacePlayerFileStatus
+{
+    Waiting,
+    Creating,
+    Ready,
+    Failed
+}
+
+public enum RaceWorldFileStatus
+{
+    Waiting,
+    Downloading,
+    Ready,
+    Failed
+}
+
+public enum RaceRngControlStatus
+{
+    Closed,
+    Enabling,
+    Enabled,
+    EnableFailed,
+    NotEnabled
+}
+
+public enum RaceServerConnectionStatus
+{
+    Connecting,
+    Connected,
+    Reconnecting,
+    Disconnected,
+    ConnectionFailed
+}
+
 public enum RaceSeedSource
 {
     Fixed,
     HostGenerated
+}
+
+public static class RacePlayerNameRules
+{
+    public const int MaximumLength = 20;
+}
+
+public static class RacePlayerDifficultyCodes
+{
+    public const int Softcore = 0;
+    public const int Mediumcore = 1;
+    public const int Hardcore = 2;
+    public const int Journey = 3;
+
+    public static bool IsValid(int value) => value is >= Softcore and <= Journey;
+
+    public static int Normalize(int value) => IsValid(value) ? value : Softcore;
 }
 
 public sealed record RaceSplitDefinition(
@@ -66,7 +118,8 @@ public sealed record RaceCheatSettings(
     int LifeCrystalMinimum,
     string HookMinimum,
     int SpelunkerPotionMinimum,
-    int FeatherfallPotionMinimum)
+    int FeatherfallPotionMinimum,
+    string JungleRouteDepth = "0")
 {
     public static RaceCheatSettings Disabled { get; } = new(
         false,
@@ -89,7 +142,12 @@ public sealed record RaceWorldSettings(
     int SpecialSeedMask,
     RaceCheatSettings Cheats,
     string WorldName = "",
-    string SecretSeeds = "");
+    string SecretSeeds = "",
+    int PlayerDifficultyCode = RacePlayerDifficultyCodes.Softcore,
+    bool RngControlEnabled = true)
+{
+    public RaceCheatSettings EffectiveCheats => Cheats ?? RaceCheatSettings.Disabled;
+}
 
 public sealed record RaceSeedAssignment(
     string SeedText,
@@ -148,7 +206,16 @@ public sealed record RacePlayerState(
     long? LastSplitElapsedMilliseconds,
     string? LastError,
     DateTimeOffset JoinedAtUtc,
-    DateTimeOffset LastUpdatedAtUtc);
+    DateTimeOffset LastUpdatedAtUtc)
+{
+    public RacePlayerFileStatus PlayerFileStatus { get; init; }
+
+    public RaceWorldFileStatus WorldFileStatus { get; init; }
+
+    public RaceRngControlStatus RngControlStatus { get; init; }
+
+    public RaceServerConnectionStatus ServerConnectionStatus { get; init; } = RaceServerConnectionStatus.Connected;
+}
 
 public sealed record RaceLeaderboardEntry(
     int Rank,
@@ -172,12 +239,19 @@ public sealed record RaceRoomState(
     RaceWorldSettings? WorldSettings,
     RaceSeedAssignment? Seed,
     RaceWorldFileInfo? WorldFile,
+    RaceDeterminismPackage? Determinism,
     IReadOnlyList<RacePlayerState> Players,
     IReadOnlyList<RaceLeaderboardEntry> Leaderboard,
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset LastUpdatedAtUtc)
 {
     public long PackageRevision { get; init; }
+
+    public DateTimeOffset? ScheduledStartUtc { get; init; }
+
+    public int StartCountdownMilliseconds { get; init; }
+
+    public long StartSequence { get; init; }
 }
 
 public enum RaceRoomStateUpdateKind
@@ -188,14 +262,23 @@ public enum RaceRoomStateUpdateKind
     WorldReadyChanged,
     PlayerLeft,
     PlayerKicked,
+    PlayerConnectionChanged,
+    RaceStarting,
     RoomClosed,
     RoomResumed
+}
+
+public enum RacePackageChangeKind
+{
+    Published,
+    Restarted
 }
 
 public sealed record RacePackageChanged(
     RaceRoomState State,
     string ActorNickname,
-    string PackageRevision);
+    string PackageRevision,
+    RacePackageChangeKind Kind);
 
 public sealed record RaceRosterChanged(
     RaceRoomStateUpdateKind Kind,
@@ -213,6 +296,22 @@ public sealed record RaceRoomProgressState(
 }
 
 public sealed record RaceProgressChanged(RaceRoomProgressState Progress);
+
+public sealed record RaceGroupCompleted(
+    string RoomCode,
+    long PackageRevision,
+    string RunId,
+    string Nickname,
+    int SplitIndex,
+    string SplitId,
+    long ElapsedMilliseconds,
+    long Sequence);
+
+public sealed record RacePlayerProgressReset(
+    string RoomCode,
+    long PackageRevision,
+    string RunId,
+    string Nickname);
 
 public sealed record RaceProgressResetRequest(
     string RoomCode,
@@ -234,10 +333,17 @@ public sealed record RaceRoomJoinRequest(
     string RoomCode,
     string Nickname);
 
-public sealed record RaceWorldReadyRequest(
+public sealed record RaceHostActionRequest(
     string RoomCode,
     string Nickname,
-    bool Ready,
+    long PackageRevision);
+
+public sealed record RacePreparationStatusRequest(
+    string RoomCode,
+    string Nickname,
+    RacePlayerFileStatus PlayerFileStatus,
+    RaceWorldFileStatus WorldFileStatus,
+    RaceRngControlStatus RngControlStatus,
     string? Error = null);
 
 public sealed record RacePlayerKickRequest(

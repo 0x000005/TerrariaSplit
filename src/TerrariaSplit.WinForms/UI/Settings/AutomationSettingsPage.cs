@@ -26,6 +26,8 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
     private readonly CheckBox autoCreatePyramidFilterBox = new();
     private readonly CheckBox autoCreateCrimsonBetweenDungeonAndSpawnBox = new();
     private readonly Dictionary<string, CheckBox> autoCreateCrimsonDistanceBoxes = new(StringComparer.OrdinalIgnoreCase);
+    private readonly CheckBox autoCreateJungleRouteDepthBox = new();
+    private readonly Dictionary<string, CheckBox> autoCreateJungleRouteDepthBoxes = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, CheckBox> autoCreatePyramidItemBoxes = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, CheckBox> autoCreateResourceItemBoxes = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<int, CheckBox> autoCreateLifeCrystalMinimumBoxes = new();
@@ -45,6 +47,7 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
     private readonly List<PracticeSlotControls> practiceSlotControls = new();
     private bool updatingZenithStarCatchStageSelection;
     private bool updatingCrimsonDistanceSelection;
+    private bool updatingJungleRouteDepthSelection;
     private bool updatingResourceMinimumSelection;
 
     public override SettingsPageId Id => SettingsPageId.Automation;
@@ -59,6 +62,8 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
     internal CheckBox AutoCreatePyramidFilterBox => autoCreatePyramidFilterBox;
     internal CheckBox AutoCreateCrimsonBetweenDungeonAndSpawnBox => autoCreateCrimsonBetweenDungeonAndSpawnBox;
     internal IReadOnlyDictionary<string, CheckBox> AutoCreateCrimsonDistanceBoxes => autoCreateCrimsonDistanceBoxes;
+    internal CheckBox AutoCreateJungleRouteDepthBox => autoCreateJungleRouteDepthBox;
+    internal IReadOnlyDictionary<string, CheckBox> AutoCreateJungleRouteDepthBoxes => autoCreateJungleRouteDepthBoxes;
     internal IReadOnlyDictionary<string, CheckBox> AutoCreateResourceItemBoxes => autoCreateResourceItemBoxes;
     internal IReadOnlyDictionary<int, CheckBox> AutoCreateLifeCrystalMinimumBoxes => autoCreateLifeCrystalMinimumBoxes;
     internal IReadOnlyDictionary<string, CheckBox> AutoCreateHookMinimumBoxes => autoCreateHookMinimumBoxes;
@@ -101,6 +106,7 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
         settings.Automation.AutoCreate.EnablePyramidFilter = autoCreatePyramidFilterBox.Checked;
         settings.Automation.AutoCreate.RequireCrimsonBetweenDungeonAndSpawn = autoCreateCrimsonBetweenDungeonAndSpawnBox.Checked;
         settings.Automation.AutoCreate.CrimsonDistance = GetSelectedCrimsonDistance();
+        settings.Automation.AutoCreate.JungleRouteDepth = GetSelectedJungleRouteDepth();
         settings.Automation.AutoCreate.ResourceFilterItemMask = AutoCreateResourceFilterItem.ToMask(
             AutoCreateResourceFilterItem.All.Where(item =>
                 autoCreateResourceItemBoxes.TryGetValue(item, out CheckBox? box) && box.Checked));
@@ -200,9 +206,16 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
         autoCreatePyramidFilterBox.CheckedChanged += (_, _) => UpdatePyramidItemAvailability();
         ConfigureSelectorButton(
             autoCreateCrimsonBetweenDungeonAndSpawnBox,
-            "Crimson",
+            "Dungeon-side Crimson",
             Draft.Automation.AutoCreate.RequireCrimsonBetweenDungeonAndSpawn);
         autoCreateCrimsonBetweenDungeonAndSpawnBox.CheckedChanged += (_, _) => UpdatePostGenerationFilterAvailability();
+        ConfigureSelectorButton(
+            autoCreateJungleRouteDepthBox,
+            "Jungle main route",
+            AutoCreateJungleRouteDepth.Normalize(Draft.Automation.AutoCreate.JungleRouteDepth) != AutoCreateJungleRouteDepth.None);
+        autoCreateJungleRouteDepthBox.CheckedChanged += (_, _) => SelectJungleRouteDepth(
+            AutoCreateJungleRouteDepth.None,
+            autoCreateJungleRouteDepthBox.Checked);
         ConfigureCheckBox(autoCreateWorldPoolBox, Draft.Automation.AutoCreate.EnableWorldPool);
         autoCreateWorldPoolBox.CheckedChanged += (_, _) => UpdateWorldPoolAvailability();
         ConfigureNumberBox(autoCreateWorldPoolTargetBox, Draft.Automation.AutoCreate.WorldPoolTargetCount, 1, 50);
@@ -338,6 +351,7 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
         SettingsUiFactory.AddSectionControl(createSection, cheatsGrid);
         SettingsUiFactory.AddSectionControl(createSection, CreatePyramidItemSelector());
         SettingsUiFactory.AddSectionControl(createSection, CreateCrimsonDistanceSelector());
+        SettingsUiFactory.AddSectionControl(createSection, CreateJungleRouteDepthSelector());
         SettingsUiFactory.AddSectionControl(createSection, CreateResourceItemSelector());
         SettingsUiFactory.AddSectionControl(createSection, CreateLifeCrystalMinimumSelector());
         SettingsUiFactory.AddSectionControl(createSection, CreateHookMinimumSelector());

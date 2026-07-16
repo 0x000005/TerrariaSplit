@@ -173,13 +173,23 @@ internal static class OverlayTextStyles
     public static TextRenderStyle GetNameTextStyle(
         AppSettings settings,
         UiPalette palette,
+        bool current,
         bool completed,
         bool attached = false)
     {
+        Color fill = completed
+            ? palette.CompletedNameText
+            : current ? palette.ActiveNameText : palette.NameText;
+        Color outline = completed
+            ? palette.CompletedNameTextOutline
+            : current ? palette.ActiveNameTextOutline : palette.NameTextOutline;
+        Color shadow = completed
+            ? palette.CompletedNameTextShadow
+            : current ? palette.ActiveNameTextShadow : palette.NameTextShadow;
         return new TextRenderStyle(
-            completed ? palette.CompletedNameText : palette.NameText,
-            completed ? palette.CompletedNameTextOutline : palette.NameTextOutline,
-            completed ? palette.CompletedNameTextShadow : palette.NameTextShadow,
+            fill,
+            outline,
+            shadow,
             attached
                 ? settings.Overlay.TextEffects.AttachedNameShadowPercent
                 : settings.Overlay.TextEffects.NameShadowPercent,

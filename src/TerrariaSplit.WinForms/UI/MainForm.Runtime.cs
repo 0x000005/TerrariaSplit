@@ -4,6 +4,8 @@ namespace TerrariaSplit.UI;
 
 internal sealed partial class MainForm : Form
 {
+    private long queuedControlTickTimestamp;
+
     private void ControlTick()
     {
         try
@@ -31,6 +33,7 @@ internal sealed partial class MainForm : Form
             return;
         }
 
+        System.Threading.Volatile.Write(ref queuedControlTickTimestamp, System.Diagnostics.Stopwatch.GetTimestamp());
         try
         {
             BeginInvoke(runtimeShell.DispatchedControlTick);
@@ -49,6 +52,15 @@ internal sealed partial class MainForm : Form
     {
         try
         {
+            long queuedTimestamp = System.Threading.Volatile.Read(ref queuedControlTickTimestamp);
+            TimeSpan dispatchDelay = queuedTimestamp == 0
+                ? TimeSpan.Zero
+                : System.Diagnostics.Stopwatch.GetElapsedTime(queuedTimestamp);
+            if (dispatchDelay >= TimeSpan.FromMilliseconds(250))
+            {
+                appLogger.Info($"UI control tick dispatch was delayed by {dispatchDelay.TotalMilliseconds:F0} ms.");
+            }
+
             if (CanDispatchToUiThread())
             {
                 ControlTick();
@@ -450,12 +462,15 @@ internal sealed partial class MainForm : Form
 
     private void FinalizeRunBeforeExit()
     {
-        ExecuteAppCommand(AppCommand.ResetRun(recordStats: true, playResetSound: false));
+        ExecuteAppCommand(AppCommand.ResetRun(
+            recordStats: true,
+            playResetSound: false,
+            allowDuringRace: true));
     }
 
-    private void ResetRun(bool recordStats = false)
+    private void ResetRun(bool recordStats = false, bool allowDuringRace = false)
     {
-        ExecuteAppCommand(AppCommand.ResetRun(recordStats, playResetSound: false));
+        ExecuteAppCommand(AppCommand.ResetRun(recordStats, playResetSound: false, allowDuringRace));
     }
 
     private void SetMouseClickThrough(bool enabled)

@@ -4,8 +4,11 @@ public abstract record AppCommand
 {
     public static AppCommand TogglePause() => new TogglePauseCommand();
 
-    public static AppCommand ResetRun(bool recordStats, bool playResetSound) =>
-        new ResetRunCommand(recordStats, playResetSound);
+    public static AppCommand ResetRun(
+        bool recordStats,
+        bool playResetSound,
+        bool allowDuringRace = false) =>
+        new ResetRunCommand(recordStats, playResetSound, allowDuringRace);
 
     public static AppCommand ToggleMouseClickThrough() => new ToggleMouseClickThroughCommand();
 
@@ -36,7 +39,10 @@ public abstract record AppCommand
 
 public sealed record TogglePauseCommand : AppCommand;
 
-public sealed record ResetRunCommand(bool RecordStats, bool PlayResetSound) : AppCommand;
+public sealed record ResetRunCommand(
+    bool RecordStats,
+    bool PlayResetSound,
+    bool AllowDuringRace) : AppCommand;
 
 public sealed record ToggleMouseClickThroughCommand : AppCommand;
 

@@ -9,6 +9,7 @@ internal sealed class SettingsDialogHost : IDisposable
     private readonly AppSettings initialSettings;
     private readonly ISettingsSnapshotFactory settingsSnapshots;
     private readonly Action<Action> dispatchToOwner;
+    private readonly Func<bool> canSaveSettings;
     private readonly Action<AppSettings> appliedCallback;
     private readonly Action<SettingsDialogResult> closedCallback;
     private readonly Action<AppSettings, PreparedApplicationUpdate> updateRestartCallback;
@@ -26,6 +27,7 @@ internal sealed class SettingsDialogHost : IDisposable
         AppSettings initialSettings,
         ISettingsSnapshotFactory settingsSnapshots,
         Action<Action> dispatchToOwner,
+        Func<bool> canSaveSettings,
         Action<AppSettings> appliedCallback,
         Action<SettingsDialogResult> closedCallback,
         Action<AppSettings, PreparedApplicationUpdate> updateRestartCallback,
@@ -34,6 +36,7 @@ internal sealed class SettingsDialogHost : IDisposable
         this.settingsSnapshots = settingsSnapshots;
         this.initialSettings = settingsSnapshots.CreateSnapshot(initialSettings);
         this.dispatchToOwner = dispatchToOwner;
+        this.canSaveSettings = canSaveSettings;
         this.appliedCallback = appliedCallback;
         this.closedCallback = closedCallback;
         this.updateRestartCallback = updateRestartCallback;
@@ -126,7 +129,8 @@ internal sealed class SettingsDialogHost : IDisposable
         SettingsDialogResult result;
         using var dialog = new SettingsForm(
             initialSettings,
-            settingsSnapshots: settingsSnapshots);
+            settingsSnapshots: settingsSnapshots,
+            canSaveSettings: canSaveSettings);
         dialog.HandleCreated += (_, _) =>
         {
             lock (sync)

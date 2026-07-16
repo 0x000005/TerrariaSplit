@@ -20,7 +20,7 @@ internal sealed class ZenithStarCatchAutomation
         Func<ITerrariaWorldWatcher>? watcherFactory = null)
     {
         this.automation = automation;
-        this.watcherFactory = watcherFactory ?? (() => new TerrariaWorldWatcher());
+        this.watcherFactory = watcherFactory ?? (() => new TerrariaWorldWatcher(observeWorldGeneration: true));
     }
 
     public static bool IsEnabledFor(AutoCreateWorldSettings settings)

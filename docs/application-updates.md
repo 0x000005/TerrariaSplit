@@ -10,6 +10,6 @@ The client reads the latest stable GitHub Release from `0x000005/TerrariaSplit`;
 3. Create a non-draft, non-prerelease GitHub Release tagged `v1.8.2.0` and attach that ZIP without renaming it.
 4. Confirm GitHub reports a `sha256:` digest for the uploaded asset. The client refuses assets without that digest.
 
-The archive includes `terrariasplit-update-manifest.json`. Its managed roots are replaced transactionally during an update. User-owned `Settings`, `Data`, `Worlds`, and `terrariasplit.log` paths are never managed by the updater.
+The archive includes `Runtime/terrariasplit-update-manifest.json`. Its managed roots are replaced transactionally during an update. User-owned `Settings`, `Data`, `Worlds`, and `terrariasplit.log` paths are never managed by the updater.
 
 The first release containing the updater establishes this contract. Older underscore-named archives such as `TerrariaSplit_v1.8.0.3.zip` are intentionally unsupported.

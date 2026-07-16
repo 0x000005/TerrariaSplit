@@ -66,7 +66,7 @@ internal sealed class TerrariaMemoryResolver
         {
             return new TerrariaMemoryResolveResult(
                 "layout resolving",
-                "waiting for MemoryProbe runtime layout",
+                "waiting for MemoryBridge runtime layout",
                 null);
         }
 
@@ -74,7 +74,7 @@ internal sealed class TerrariaMemoryResolver
         {
             return new TerrariaMemoryResolveResult(
                 "core layout missing",
-                "MemoryProbe did not resolve Terraria.Main.gameMenu",
+                "MemoryBridge did not resolve Terraria.Main.gameMenu",
                 null);
         }
 
@@ -88,7 +88,7 @@ internal sealed class TerrariaMemoryResolver
 
         return new TerrariaMemoryResolveResult(
             "menu state unreadable",
-            "MemoryProbe resolved Terraria.Main.gameMenu, but the static field address is unreadable",
+            "MemoryBridge resolved Terraria.Main.gameMenu, but the static field address is unreadable",
             null);
     }
 
@@ -189,25 +189,39 @@ internal sealed class TerrariaMemoryResolver
         string? progressMessage = null;
         double? currentProgress = null;
         double? totalProgress = null;
+        bool progressSlotRead = false;
+        bool controllerSlotRead = false;
+        IntPtr progressObjectAddress = IntPtr.Zero;
+        IntPtr controllerObjectAddress = IntPtr.Zero;
 
-        if (worldGeneration.HasStructuredProgress &&
-            TryReadObjectSlot(memory, worldGeneration.CurrentGenerationProgressStaticFieldAddress, out IntPtr progressObjectAddress) &&
-            progressObjectAddress != IntPtr.Zero)
+        if (worldGeneration.HasStructuredProgress)
         {
-            TryReadGenerationProgress(
+            progressSlotRead = TryReadObjectSlot(
                 memory,
-                worldGeneration,
-                progressObjectAddress,
-                out progressMessage,
-                out currentProgress,
-                out totalProgress);
+                worldGeneration.CurrentGenerationProgressStaticFieldAddress,
+                out progressObjectAddress);
+            if (progressSlotRead && progressObjectAddress != IntPtr.Zero)
+            {
+                TryReadGenerationProgress(
+                    memory,
+                    worldGeneration,
+                    progressObjectAddress,
+                    out progressMessage,
+                    out currentProgress,
+                    out totalProgress);
+            }
         }
 
-        if (worldGeneration.HasStructuredController &&
-            TryReadObjectSlot(memory, worldGeneration.CurrentControllerStaticFieldAddress, out IntPtr controllerObjectAddress) &&
-            controllerObjectAddress != IntPtr.Zero)
+        if (worldGeneration.HasStructuredController)
         {
-            currentPassName = ReadCurrentPassName(memory, worldGeneration, controllerObjectAddress);
+            controllerSlotRead = TryReadObjectSlot(
+                memory,
+                worldGeneration.CurrentControllerStaticFieldAddress,
+                out controllerObjectAddress);
+            if (controllerSlotRead && controllerObjectAddress != IntPtr.Zero)
+            {
+                currentPassName = ReadCurrentPassName(memory, worldGeneration, controllerObjectAddress);
+            }
         }
 
         var structuredState = new TerrariaWorldGenerationState(
@@ -218,6 +232,18 @@ internal sealed class TerrariaMemoryResolver
         if (structuredState.HasAnyData)
         {
             return structuredState;
+        }
+
+        bool structuredGenerationEnded =
+            (worldGeneration.HasStructuredProgress || worldGeneration.HasStructuredController) &&
+            (!worldGeneration.HasStructuredProgress || (progressSlotRead && progressObjectAddress == IntPtr.Zero)) &&
+            (!worldGeneration.HasStructuredController || (controllerSlotRead && controllerObjectAddress == IntPtr.Zero));
+        if (structuredGenerationEnded)
+        {
+            // Terraria clears both structured world-generation slots when generation
+            // finishes, but Main.statusText retains the final progress message. Do not
+            // mistake that stale fallback text for an active generation.
+            return TerrariaWorldGenerationState.Unknown;
         }
 
         return TryReadStatusTextFallback(memory, worldGeneration, out TerrariaWorldGenerationState statusTextState)
@@ -252,12 +278,12 @@ internal sealed class TerrariaMemoryResolver
     {
         if (runtimeLayout is null)
         {
-            return $"MemoryProbe layout {clrMemoryResolver.LayoutStatus}";
+            return $"MemoryBridge layout {clrMemoryResolver.LayoutStatus}";
         }
 
         if (!runtimeLayout.HasCore)
         {
-            return "MemoryProbe returned a layout without Terraria.Main.gameMenu";
+            return "MemoryBridge returned a layout without Terraria.Main.gameMenu";
         }
 
         bool bossReady = runtimeLayout.Boss.ResolvedFactCount > 0;

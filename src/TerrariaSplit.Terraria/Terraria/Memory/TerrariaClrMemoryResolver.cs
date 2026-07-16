@@ -10,7 +10,7 @@ internal sealed class TerrariaClrMemoryResolver
 {
     private static readonly TimeSpan ResolveRetryInterval = TimeSpan.FromSeconds(2);
     private const int MemoryProbeTimeoutMilliseconds = 15000;
-    private const string MemoryProbeExecutableName = "TerrariaSplit.MemoryProbe.exe";
+    private const string MemoryBridgeExecutableName = "TerrariaSplit.MemoryBridge.exe";
 
     private Process? process;
     private int? processId;
@@ -80,7 +80,7 @@ internal sealed class TerrariaClrMemoryResolver
         layout = null!;
         if (memory.Is64Bit)
         {
-            lastError = "x64 Terraria process is not supported by the x86 MemoryProbe resolver";
+            lastError = "x64 Terraria process is not supported by the x86 MemoryBridge resolver";
             return false;
         }
 
@@ -132,17 +132,21 @@ internal sealed class TerrariaClrMemoryResolver
         if (probePath is null)
         {
             lastExitCode = null;
-            lastError = "TerrariaSplit.MemoryProbe.exe not found";
+            lastError = "TerrariaSplit.MemoryBridge.exe not found";
             return false;
         }
 
+        long startedTimestamp = Stopwatch.GetTimestamp();
+        StaticAppLogger.Instance.Info(
+            $"MemoryBridge runtime-layout probe starting for Terraria PID {targetProcessId}; attempt={resolveAttempts}.");
         try
         {
             using Process? probe = StartMemoryProbe(probePath, targetProcessId);
             if (probe is null)
             {
                 lastExitCode = null;
-                lastError = "failed to start TerrariaSplit.MemoryProbe.exe";
+                lastError = "failed to start TerrariaSplit.MemoryBridge.exe";
+                LogProbeCompletion(targetProcessId, startedTimestamp);
                 return false;
             }
 
@@ -150,7 +154,8 @@ internal sealed class TerrariaClrMemoryResolver
             {
                 TryKill(probe);
                 lastExitCode = null;
-                lastError = "MemoryProbe timed out";
+                lastError = "MemoryBridge timed out";
+                LogProbeCompletion(targetProcessId, startedTimestamp);
                 return false;
             }
 
@@ -162,11 +167,12 @@ internal sealed class TerrariaClrMemoryResolver
             if (response?.Success == true && response.Layout is not null)
             {
                 layout = response.Layout.ToRuntimeMemoryLayout();
+                LogProbeCompletion(targetProcessId, startedTimestamp, layout.ResolvedFieldCount);
                 return true;
             }
 
             lastError = response?.Error ??
-                (string.IsNullOrWhiteSpace(errorOutput) ? "MemoryProbe returned no runtime layout" : errorOutput.Trim());
+                (string.IsNullOrWhiteSpace(errorOutput) ? "MemoryBridge returned no runtime layout" : errorOutput.Trim());
         }
         catch (InvalidOperationException ex)
         {
@@ -189,7 +195,18 @@ internal sealed class TerrariaClrMemoryResolver
             lastError = ex.Message;
         }
 
+        LogProbeCompletion(targetProcessId, startedTimestamp);
         return false;
+    }
+
+    private void LogProbeCompletion(int targetProcessId, long startedTimestamp, int? resolvedFieldCount = null)
+    {
+        TimeSpan elapsed = Stopwatch.GetElapsedTime(startedTimestamp);
+        StaticAppLogger.Instance.Info(
+            $"MemoryBridge runtime-layout probe completed for Terraria PID {targetProcessId}; " +
+            $"elapsedMs={elapsed.TotalMilliseconds:F0}, exitCode={lastExitCode?.ToString(CultureInfo.InvariantCulture) ?? "<none>"}, " +
+            $"fields={resolvedFieldCount?.ToString(CultureInfo.InvariantCulture) ?? "<none>"}, " +
+            $"error={lastError ?? "<none>"}.");
     }
 
     private static Process? StartMemoryProbe(string probePath, int targetProcessId)
@@ -223,8 +240,8 @@ internal sealed class TerrariaClrMemoryResolver
     {
         foreach (string baseDirectory in EnumerateBaseDirectories())
         {
-            yield return Path.Combine(baseDirectory, MemoryProbeExecutableName);
-            yield return Path.Combine(baseDirectory, "TerrariaSplit.MemoryProbe", MemoryProbeExecutableName);
+            yield return Path.Combine(baseDirectory, MemoryBridgeExecutableName);
+            yield return Path.Combine(baseDirectory, "TerrariaSplit.MemoryBridge", MemoryBridgeExecutableName);
 
             DirectoryInfo? directory = new(baseDirectory);
             for (int depth = 0; directory is not null && depth < 8; depth++, directory = directory.Parent)
@@ -238,14 +255,14 @@ internal sealed class TerrariaClrMemoryResolver
                         configuration,
                         "net10.0-windows",
                         "win-x86",
-                        MemoryProbeExecutableName);
+                        MemoryBridgeExecutableName);
                     yield return Path.Combine(
                         directory.FullName,
                         "TerrariaSplit.MemoryProbe",
                         "bin",
                         configuration,
                         "net10.0-windows",
-                        MemoryProbeExecutableName);
+                        MemoryBridgeExecutableName);
                     yield return Path.Combine(
                         directory.FullName,
                         "TerrariaSplit.MemoryProbe",
@@ -254,7 +271,7 @@ internal sealed class TerrariaClrMemoryResolver
                         configuration,
                         "net10.0-windows",
                         "win-x86",
-                        MemoryProbeExecutableName);
+                        MemoryBridgeExecutableName);
                     yield return Path.Combine(
                         directory.FullName,
                         "TerrariaSplit.MemoryProbe",
@@ -262,7 +279,7 @@ internal sealed class TerrariaClrMemoryResolver
                         "bin",
                         configuration,
                         "net10.0-windows",
-                        MemoryProbeExecutableName);
+                        MemoryBridgeExecutableName);
                 }
             }
         }

@@ -684,6 +684,7 @@ internal static class TileIds
     public const ushort Tungsten = 168;
     public const ushort Platinum = 169;
     public const ushort ExposedGems = 178;
+    public const ushort SmallPiles = 185;
     public const ushort LivingWood = 191;
     public const ushort LeafBlock = 192;
     public const ushort Crimtane = 204;
@@ -696,6 +697,7 @@ internal static class TileIds
     public const ushort HoneyBlock = 229;
     public const ushort CrispyHoneyBlock = 230;
     public const ushort Larva = 231;
+    public const ushort PlantDetritus = 233;
     public const ushort LivingLoom = 304;
     public const ushort MinecartTrack = 314;
     public const ushort CrimsonThorns = 352;
@@ -706,6 +708,7 @@ internal static class TileIds
     public const ushort LivingMahoganyLeaves = 384;
     public const ushort BeeHive = 444;
     public const ushort PlanteraThorns = 655;
+    public const ushort JunglePlantsEcho = 703;
     public const ushort Containers2 = 467;
 }
 

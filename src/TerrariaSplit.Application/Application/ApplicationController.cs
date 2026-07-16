@@ -137,12 +137,13 @@ public sealed class ApplicationController
 
     private ApplicationUpdate HandleRacePackageEvent(RacePackageSystemEvent racePackage)
     {
+        bool enteredRoom = racePackage.IsInRoom && !raceState.IsInRoom;
         raceState = new RaceSystemState(
             racePackage.IsInRoom,
             racePackage.IsInRoom ? racePackage.RoomCode : string.Empty,
             racePackage.IsInRoom ? racePackage.PackageRevision : string.Empty);
         return new ApplicationUpdate(
-            [],
+            enteredRoom ? CreateRaceRoomEntryEffects() : [],
             [DisplayInvalidation.For(DisplayRefreshLevel.RoutePackage, DisplayInvalidationTarget.All)]);
     }
 
@@ -161,11 +162,12 @@ public sealed class ApplicationController
 
     private ApplicationUpdate HandleRaceRosterEvent(RaceRosterSystemEvent raceRoster)
     {
+        bool enteredRoom = raceRoster.IsInRoom && !raceState.IsInRoom;
         raceState = raceRoster.IsInRoom
             ? raceState with { IsInRoom = true, RoomCode = raceRoster.RoomCode }
             : new RaceSystemState();
         return new ApplicationUpdate(
-            [],
+            enteredRoom ? CreateRaceRoomEntryEffects() : [],
             [DisplayInvalidation.For(DisplayRefreshLevel.RuntimeFacts, DisplayInvalidationTarget.RaceLeaderboard)]);
     }
 
@@ -177,6 +179,11 @@ public sealed class ApplicationController
 
     private ApplicationUpdate HandleCommand(AppCommand command)
     {
+        if (raceState.IsInRoom && IsRestrictedInRaceRoom(command))
+        {
+            return ApplicationUpdate.Empty;
+        }
+
         var effects = new List<ApplicationEffect>();
         var invalidations = new List<DisplayInvalidation>();
 
@@ -362,6 +369,11 @@ public sealed class ApplicationController
 
     private IReadOnlyList<ApplicationEffect> ResolveMenuActionEffects(MenuActionKind action)
     {
+        if (raceState.IsInRoom && IsRestrictedInRaceRoom(action))
+        {
+            return [];
+        }
+
         var effects = new List<ApplicationEffect>();
         switch (action)
         {
@@ -377,6 +389,38 @@ public sealed class ApplicationController
         }
 
         return effects;
+    }
+
+    private static IReadOnlyList<ApplicationEffect> CreateRaceRoomEntryEffects()
+    {
+        return
+        [
+            new CancelCreateWorldAutomationEffect(),
+            new CancelEnterWorldAutomationEffect(),
+            new SubmitRuntimeCommandEffect(RuntimeCommand.ClearPendingMenuActions())
+        ];
+    }
+
+    private static bool IsRestrictedInRaceRoom(AppCommand command)
+    {
+        return command switch
+        {
+            TogglePauseCommand => true,
+            ResetRunCommand reset => !reset.AllowDuringRace,
+            QueueMenuActionCommand queued => IsRestrictedInRaceRoom(queued.Action),
+            EditPracticeSplitTimeCommand => true,
+            EditPracticeTotalTimeCommand => true,
+            ApplySettingsCommand => true,
+            ApplyTemporarySettingsCommand => true,
+            _ => false
+        };
+    }
+
+    private static bool IsRestrictedInRaceRoom(MenuActionKind action)
+    {
+        return action is MenuActionKind.Reset or
+            MenuActionKind.CreateWorld or
+            MenuActionKind.PracticeWorld;
     }
 
     private void ApplySettings(

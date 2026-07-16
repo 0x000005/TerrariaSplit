@@ -7,6 +7,7 @@ internal static class HotkeyCommandMapper
         DateTime requestedAtUtc,
         bool createWorldRunning,
         bool enterWorldRunning,
+        bool isInRaceRoom,
         out AppCommand command)
     {
         command = action switch
@@ -24,6 +25,21 @@ internal static class HotkeyCommandMapper
         };
 
         if (command is null)
+        {
+            return false;
+        }
+
+        if (isInRaceRoom && action is HotkeyAction.PauseResume or HotkeyAction.Reset)
+        {
+            return false;
+        }
+
+        if (isInRaceRoom && action == HotkeyAction.CreateWorld && !createWorldRunning)
+        {
+            return false;
+        }
+
+        if (isInRaceRoom && action == HotkeyAction.PracticeWorld && !enterWorldRunning)
         {
             return false;
         }

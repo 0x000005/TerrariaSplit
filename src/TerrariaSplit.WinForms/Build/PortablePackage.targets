@@ -2,14 +2,15 @@
   <Target
     Name="CreateTerrariaSplitPortableArchive"
     AfterTargets="Publish"
-    DependsOnTargets="TerrariaSplitCopyMemoryProbeToPublishDirectory"
+    DependsOnTargets="TerrariaSplitCopyMemoryProbeToPublishDirectory;TerrariaSplitCopyWorldGuardToPublishDirectory"
     Condition="'$(Configuration)' == 'Release' and '$(TerrariaSplitCreatePortableArchive)' == 'true'">
     <PropertyGroup>
       <TerrariaSplitPortableArchivePath Condition="'$(TerrariaSplitPortableArchivePath)' == ''">$([System.IO.Path]::GetFullPath('$(PublishDir)..\TerrariaSplit-v$(FileVersion)-win-x64.zip'))</TerrariaSplitPortableArchivePath>
     </PropertyGroup>
+    <MakeDir Directories="$(PublishDir)Runtime" />
     <WriteLinesToFile
-      File="$(PublishDir)terrariasplit-update-manifest.json"
-      Lines="{&quot;schemaVersion&quot;:1,&quot;managedRoots&quot;:[&quot;TerrariaSplit.exe&quot;,&quot;TerrariaSplit.MemoryProbe.exe&quot;,&quot;Assets&quot;,&quot;terrariasplit-update-manifest.json&quot;]}"
+      File="$(PublishDir)Runtime\terrariasplit-update-manifest.json"
+      Lines="{&quot;schemaVersion&quot;:1,&quot;managedRoots&quot;:[&quot;TerrariaSplit.exe&quot;,&quot;TerrariaSplit.MemoryBridge.exe&quot;,&quot;Runtime&quot;,&quot;Assets&quot;]}"
       Overwrite="true"
       Encoding="UTF-8" />
     <ZipDirectory

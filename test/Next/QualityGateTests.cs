@@ -28,7 +28,8 @@ internal static class QualityGateTests
         string targets = File.ReadAllText(Path.Combine(root, "src", "TerrariaSplit.WinForms", "Build", "PortablePackage.targets"));
         Check.True(targets.Contains("TerrariaSplit-v$(FileVersion)-win-x64.zip", StringComparison.Ordinal));
         Check.True(targets.Contains(ApplicationUpdatePackage.ManifestFileName, StringComparison.Ordinal));
-        foreach (string managedRoot in new[] { "TerrariaSplit.exe", "TerrariaSplit.MemoryProbe.exe", "Assets" })
+        Check.True(targets.Contains("Runtime\\terrariasplit-update-manifest.json", StringComparison.Ordinal));
+        foreach (string managedRoot in new[] { "TerrariaSplit.exe", "TerrariaSplit.MemoryBridge.exe", "Runtime", "Assets" })
         {
             Check.True(targets.Contains(managedRoot, StringComparison.OrdinalIgnoreCase));
         }

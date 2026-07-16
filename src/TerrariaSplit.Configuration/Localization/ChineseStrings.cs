@@ -9,6 +9,7 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
         { "Startup failed", "启动失败" },
         { "TerrariaSplit could not finish initialization and must close.", "TerrariaSplit 无法完成初始化，程序必须关闭。" },
         { "TerrariaSplit Settings", "TerrariaSplit 设置" },
+        { "Settings cannot be saved while in a Race room.", "联机房间内不能保存设置，请先离开房间。" },
         { "OK", "确定" },
         { "Apply", "应用" },
         { "Cancel", "取消" },
@@ -130,8 +131,9 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
         { "Auto hide attached groups", "自动隐藏附属组" },
         { "Time", "时间" },
         { "Time (attached)", "时间（附属）" },
-        { "Name (not completed)", "名称（未完成）" },
-        { "Name (completed)", "名称（已完成）" },
+        { "Name (future stage)", "名称（未来阶段）" },
+        { "Name (current stage)", "名称（当前阶段）" },
+        { "Name (completed stage)", "名称（已完成阶段）" },
         { "Delta", "差值" },
         { "Delta time", "差值时间" },
         { "Delta (attached)", "差值（附属）" },
@@ -343,6 +345,14 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
         { "Settings saved.", "设置已保存。" },
         { "Leaderboard", "排行榜" },
         { "Race settings", "联机设置" },
+        { "Voice", "语音" },
+        { "Voice announcements", "语音播报" },
+        { "System default", "系统默认" },
+        { "Installed voice", "系统音色" },
+        { "Speech speed", "语速" },
+        { "Volume", "音量" },
+        { "Preview", "试听" },
+        { "Apply voice settings", "应用语音设置" },
         { "Connection", "连接" },
         { "Interface", "界面" },
         { "Server", "服务器" },
@@ -351,6 +361,7 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
         { "Host", "房主" },
         { "Member", "成员" },
         { "Select World", "选择世界" },
+        { "Room settings", "房间设置" },
         { "Room Info", "房间详情" },
         { "Room code", "房间码" },
         { "Create room", "创建房间" },
@@ -364,10 +375,9 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
         { "Fixed seed", "固定种子" },
         { "Secret/fixed seed", "秘密种子/固定种子" },
         { "Special seed", "彩蛋种子" },
-        { "World name", "世界名" },
         { "World source", "世界来源" },
         { "Directly use world file", "直接使用世界文件" },
-        { "Pyramid Filter", "筛塔" },
+        { "Pyramid Filter", "金字塔" },
         { "All pyramid items", "所有金字塔物品" },
         { "Generate world", "生成世界" },
         { "Generate and upload", "生成世界并上传" },
@@ -375,10 +385,26 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
         { "Generate custom seed world", "自定义种子生成世界" },
         { "Upload", "上传世界" },
         { "Upload failed.", "上传失败。" },
+        { "Journey player difficulty and Journey world difficulty must be selected together.", "人物难度和世界难度必须同时选择旅行模式，或同时不选择旅行模式。" },
         { "Leave", "离开" },
         { "Players", "玩家" },
         { "Rank", "排名" },
         { "Player", "玩家" },
+        { "RNG control", "RNG 控制" },
+        { "Enable RNG control", "启用 RNG 控制" },
+        { "Server connection", "服务器连接" },
+        { "Waiting", "等待中" },
+        { "Creating", "创建中" },
+        { "Downloading", "下载中" },
+        { "Failed", "失败" },
+        { "Enabling", "启用中" },
+        { "Enable failed", "启用失败" },
+        { "Not enabled", "未启用" },
+        { "Connecting", "连接中" },
+        { "Connected", "已连接" },
+        { "Reconnecting", "正在重连" },
+        { "Disconnected", "已断开" },
+        { "Connection failed", "连接失败" },
         { "Completed", "完成数" },
         { "Latest split", "最新分段" },
         { "Race split time", "分段时间" },
@@ -401,6 +427,15 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
         { "Room code: {0}", "房间号：{0}" },
         { "Room host route override hint", "所有成员都会使用你的路线与参考时间，如需进行调整，请先关闭房间，并于调整后重新开启房间。" },
         { "Room member route override hint", "在本房间内，计时器的路线与参考时间会被临时替换为房主所指定的路线与参考时间。" },
+        { "Room operation restrictions hint", "在房间内，暂停、重置、时间编辑、设置、自动创图、加载世界和切换配置均被禁用。" },
+        { "Room host restart hint", "只有房主可以重新开始。重新开始会让所有玩家返回主页，并重置人物文件、世界文件、计时进度和 RNG，重新准备一轮完整流程。" },
+        { "Race Start", "开始" },
+        { "Race Starting in {0}", "将在 {0} 秒后开始" },
+        { "Race Starting...", "正在开始…" },
+        { "Race Start failed.", "开始失败。" },
+        { "Restart", "重新开始" },
+        { "Restarting...", "正在重新准备…" },
+        { "Restart failed.", "重新开始失败。" },
         { "Kick", "踢出" },
         { "No players", "暂无玩家" },
         { "World generated: {0}", "世界已生成：{0}" },
@@ -531,7 +566,7 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Practice world", "\u7EC3\u4E60\u4E16\u754C" }
       , { "Key", "\u6309\u952E" }
       , { "Name", "\u540D\u79F0" }
-      , { "Player file", "\u4EBA\u7269\u6587\u4EF6" }
+      , { "Player file", "\u73A9\u5BB6\u6587\u4EF6" }
       , { "World file", "\u4E16\u754C\u6587\u4EF6" }
       , { "Choose player file", "\u9009\u62E9\u4EBA\u7269\u6587\u4EF6" }
       , { "Choose world file", "\u9009\u62E9\u4E16\u754C\u6587\u4EF6" }
@@ -562,6 +597,7 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Player name", "\u4EBA\u7269\u540D\u79F0" }
       , { "Player difficulty", "\u4EBA\u7269\u96BE\u5EA6" }
       , { "Player code", "\u4EBA\u7269\u4EE3\u7801" }
+      , { "Initial player", "Race \u521D\u59CB\u4EBA\u7269" }
       , { "World", "\u4E16\u754C" }
       , { "World options", "\u4E16\u754C\u9009\u9879" }
       , { "World size", "\u4E16\u754C\u5927\u5C0F" }
@@ -577,8 +613,8 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Quick pyramid filter", "\u7B5B\u5854" }
       , { "Required pyramid items", "\u6307\u5B9A\u7269\u54C1" }
       , { "Cheats", "\u4F5C\u5F0A" }
-      , { "Pyramid", "\u7B5B\u5854" }
-      , { "Pyramid filter", "\u7B5B\u5854" }
+      , { "World filters", "\u4E16\u754C\u7B5B\u9009" }
+      , { "Pyramid", "\u91D1\u5B57\u5854" }
       , { "Require Crimson between dungeon and spawn", "\u8981\u6C42\u5730\u7262\u4E0E\u51FA\u751F\u70B9\u4E4B\u95F4\u5B58\u5728\u7329\u7EA2" }
       , { "Required items", "\u6307\u5B9A\u7269\u54C1" }
       , { "Boomstick", "\u4E09\u53D1\u730E\u67AA" }
@@ -632,6 +668,9 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Journey", "\u65C5\u884C" }
       , { "Small", "\u5C0F" }
       , { "Medium", "\u4E2D" }
+      , { "Deep", "\u6DF1" }
+      , { "Very deep", "\u5F88\u6DF1" }
+      , { "Jungle main route", "\u4E1B\u6797\u4E3B\u8DEF" }
       , { "Large", "\u5927" }
       , { "Classic", "\u7ECF\u5178" }
       , { "Expert", "\u4E13\u5BB6" }
@@ -639,6 +678,7 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Random", "\u968F\u673A" }
       , { "Corruption", "\u8150\u5316" }
       , { "Crimson", "\u7329\u7EA2" }
+      , { "Dungeon-side Crimson", "\u5730\u7262\u4FA7\u7329\u7EA2" }
       , { "Not the Bees", "\u4E0D\u662F\u871C\u8702" }
       , { "Drunk", "\u9189\u9152" }
       , { "Celebration Mk 10", "\u5341\u5468\u5E74\u5E86\u5178" }
@@ -686,15 +726,15 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "window handle 0x{0}", "\u7A97\u53E3\u53E5\u67C4 0x{0}" }
       , { "scanning for {0} memory", "\u6B63\u5728\u626B\u63CF {0} \u5185\u5B58" }
       , { "resolving runtime layout", "\u6B63\u5728\u89E3\u6790\u8FD0\u884C\u65F6\u5E03\u5C40" }
-      , { "resolving MemoryProbe runtime layout", "\u6B63\u5728\u901A\u8FC7 MemoryProbe \u89E3\u6790\u8FD0\u884C\u65F6\u5E03\u5C40" }
-      , { "waiting for MemoryProbe runtime layout", "\u7B49\u5F85 MemoryProbe \u8FD0\u884C\u65F6\u5E03\u5C40" }
+      , { "resolving MemoryBridge runtime layout", "\u6B63\u5728\u901A\u8FC7 MemoryBridge \u89E3\u6790\u8FD0\u884C\u65F6\u5E03\u5C40" }
+      , { "waiting for MemoryBridge runtime layout", "\u7B49\u5F85 MemoryBridge \u8FD0\u884C\u65F6\u5E03\u5C40" }
       , { "core layout missing", "\u6838\u5FC3\u5E03\u5C40\u7F3A\u5931" }
-      , { "MemoryProbe did not resolve Terraria.Main.gameMenu", "MemoryProbe \u672A\u89E3\u6790 Terraria.Main.gameMenu" }
-      , { "MemoryProbe resolved Terraria.Main.gameMenu, but the static field address is unreadable", "MemoryProbe \u5DF2\u89E3\u6790 Terraria.Main.gameMenu\uFF0C\u4F46\u9759\u6001\u5B57\u6BB5\u5730\u5740\u4E0D\u53EF\u8BFB" }
+      , { "MemoryBridge did not resolve Terraria.Main.gameMenu", "MemoryBridge \u672A\u89E3\u6790 Terraria.Main.gameMenu" }
+      , { "MemoryBridge resolved Terraria.Main.gameMenu, but the static field address is unreadable", "MemoryBridge \u5DF2\u89E3\u6790 Terraria.Main.gameMenu\uFF0C\u4F46\u9759\u6001\u5B57\u6BB5\u5730\u5740\u4E0D\u53EF\u8BFB" }
       , { "world generation layout pending", "\u521B\u4E16\u754C\u5E03\u5C40\u7B49\u5F85\u4E2D" }
       , { "boss layout pending", "Boss \u5E03\u5C40\u7B49\u5F85\u4E2D" }
       , { "fact layouts pending", "\u4E8B\u5B9E\u5E03\u5C40\u7B49\u5F85\u4E2D" }
-      , { "MemoryProbe returned a layout without Terraria.Main.gameMenu", "MemoryProbe \u8FD4\u56DE\u7684\u5E03\u5C40\u7F3A\u5C11 Terraria.Main.gameMenu" }
+      , { "MemoryBridge returned a layout without Terraria.Main.gameMenu", "MemoryBridge \u8FD4\u56DE\u7684\u5E03\u5C40\u7F3A\u5C11 Terraria.Main.gameMenu" }
       , { "runtime layout ready", "\u8FD0\u884C\u65F6\u5E03\u5C40\u5C31\u7EEA" }
       , { "timer and boss layouts ready; world generation layout unavailable", "\u8BA1\u65F6\u5668\u4E0E Boss \u5E03\u5C40\u5C31\u7EEA\uFF1B\u521B\u4E16\u754C\u5E03\u5C40\u4E0D\u53EF\u7528" }
       , { "timer and world generation layouts ready; boss layout unavailable", "\u8BA1\u65F6\u5668\u4E0E\u521B\u4E16\u754C\u5E03\u5C40\u5C31\u7EEA\uFF1BBoss \u5E03\u5C40\u4E0D\u53EF\u7528" }
@@ -719,13 +759,15 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Waiting for Terraria process.", "\u6B63\u5728\u7B49\u5F85 Terraria \u8FDB\u7A0B\u3002" }
       , { "Target Terraria process is x64. The current managed runtime layout resolver is x86-only.", "\u76EE\u6807 Terraria \u8FDB\u7A0B\u4E3A x64\u3002\u5F53\u524D\u6258\u7BA1\u8FD0\u884C\u65F6\u5E03\u5C40\u89E3\u6790\u5668\u4EC5\u652F\u6301 x86\u3002" }
       , { "Watcher first became ready while Terraria was already in a world. The timer starts only on a menu-to-world transition, so return to the main menu once and enter the world again.", "\u76D1\u6D4B\u5668\u9996\u6B21\u5C31\u7EEA\u65F6\uFF0CTerraria \u5DF2\u7ECF\u5904\u4E8E\u4E16\u754C\u5185\u3002\u8BA1\u65F6\u53EA\u4F1A\u5728\u4ECE\u83DC\u5355\u8FDB\u5165\u4E16\u754C\u7684\u5207\u6362\u65F6\u5F00\u59CB\uFF0C\u6240\u4EE5\u8BF7\u5148\u8FD4\u56DE\u4E3B\u83DC\u5355\u4E00\u6B21\uFF0C\u518D\u91CD\u65B0\u8FDB\u5165\u4E16\u754C\u3002" }
-      , { "MemoryProbe has not resolved Terraria.Main.gameMenu yet.", "MemoryProbe \u5C1A\u672A\u89E3\u6790 Terraria.Main.gameMenu\u3002" }
+      , { "MemoryBridge has not resolved Terraria.Main.gameMenu yet.", "MemoryBridge \u5C1A\u672A\u89E3\u6790 Terraria.Main.gameMenu\u3002" }
       , { "gameMenu resolved, but boss fact static fields are unavailable in the managed layout.", "gameMenu \u5DF2\u89E3\u6790\uFF0C\u4F46\u6258\u7BA1\u5E03\u5C40\u4E2D\u7F3A\u5C11 Boss \u4E8B\u5B9E\u9759\u6001\u5B57\u6BB5\u3002" }
       , { "Watcher resolved timer and boss layouts, but world generation layout is unavailable. Timer and split facts can still work.", "\u76D1\u6D4B\u5668\u5DF2\u89E3\u6790\u8BA1\u65F6\u5668\u4E0E Boss \u5E03\u5C40\uFF0C\u4F46\u521B\u4E16\u754C\u5E03\u5C40\u4E0D\u53EF\u7528\u3002\u8BA1\u65F6\u4E0E\u5206\u6BB5\u4E8B\u5B9E\u4ECD\u53EF\u5DE5\u4F5C\u3002" }
       , { "Watcher resolved timer, boss, and world generation layouts. Seed UI layout is unavailable, so visible seed diagnostics may stay Unknown.", "\u76D1\u6D4B\u5668\u5DF2\u89E3\u6790\u8BA1\u65F6\u5668\u3001Boss \u548C\u521B\u4E16\u754C\u5E03\u5C40\u3002\u79CD\u5B50 UI \u5E03\u5C40\u4E0D\u53EF\u7528\uFF0C\u53EF\u89C1\u79CD\u5B50\u8BCA\u65AD\u53EF\u80FD\u4FDD\u6301\u672A\u77E5\u3002" }
       , { "Watcher resolved the managed runtime layout.", "\u76D1\u6D4B\u5668\u5DF2\u89E3\u6790\u6258\u7BA1\u8FD0\u884C\u65F6\u5E03\u5C40\u3002" }
       , { "gameMenu resolved, but boss and hardmode pointers are still pending or unreadable.", "\u83DC\u5355\u72B6\u6001\u5DF2\u89E3\u6790\uFF0C\u4F46 Boss \u4E0E hardmode \u6307\u9488\u4ECD\u5728\u7B49\u5F85\u89E3\u6790\u6216\u4E0D\u53EF\u8BFB\u3002" }
       , { "Watcher resolved all current pointers.", "\u76D1\u6D4B\u5668\u5DF2\u89E3\u6790\u5F53\u524D\u6240\u6709\u6307\u9488\u3002" }
+      , { "Only the assigned Race world can be entered until the run is completed.", "Race \u5B8C\u6210\u524D\u53EA\u80FD\u8FDB\u5165\u6307\u5B9A\u4E16\u754C\u3002" }
+      , { "Only the assigned Race world and player can be used until the run is completed.", "Race \u5B8C\u6210\u524D\u53EA\u80FD\u4F7F\u7528\u6307\u5B9A\u4EBA\u7269\u5E76\u8FDB\u5165\u6307\u5B9A\u4E16\u754C\u3002" }
     };
 
     public bool TryGet(string key, out string value)

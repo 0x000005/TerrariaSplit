@@ -16,6 +16,9 @@ public static class RaceErrors
     public const string InvalidSplit = "invalid_split";
     public const string StalePackage = "stale_package";
     public const string StaleRun = "stale_run";
+    public const string PlayersNotReady = "players_not_ready";
+    public const string RaceNotStarted = "race_not_started";
+    public const string RaceAlreadyStarted = "race_already_started";
     public const string ServerCapacity = "server_capacity";
     public const string SeedGenerationFailed = "seed_generation_failed";
 }

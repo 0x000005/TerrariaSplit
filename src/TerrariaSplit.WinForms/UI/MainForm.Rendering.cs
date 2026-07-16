@@ -243,6 +243,11 @@ internal sealed partial class MainForm : Form
 
     private void EditPracticeSplitTime(int rowIndex, SplitStatusSnapshot status)
     {
+        if (IsRaceRoomActive)
+        {
+            return;
+        }
+
         string currentText = status.Time is TimeSpan time ? TimeText.FormatRecord(time) : string.Empty;
         if (!PromptForTime(Localizer.Get("Edit split time", settings), currentText, allowEmpty: true, out string? editedText))
         {
@@ -265,6 +270,11 @@ internal sealed partial class MainForm : Form
 
     private void EditPracticeTotalTime()
     {
+        if (IsRaceRoomActive)
+        {
+            return;
+        }
+
         string currentText = TimeText.FormatRecord(timerElapsed);
         if (!PromptForTime(Localizer.Get("Edit total time", settings), currentText, allowEmpty: false, out string? editedText) ||
             !TimeText.TryParse(editedText, out TimeSpan editedTime))

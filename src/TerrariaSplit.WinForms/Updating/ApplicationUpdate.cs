@@ -271,6 +271,7 @@ internal sealed record ApplicationUpdateManifest(int SchemaVersion, string[] Man
 
 internal static class ApplicationUpdatePackage
 {
+    public const string ManifestDirectoryName = "Runtime";
     public const string ManifestFileName = "terrariasplit-update-manifest.json";
     public const string MainExecutableName = "TerrariaSplit.exe";
     private static readonly HashSet<string> ProtectedRoots = new(StringComparer.OrdinalIgnoreCase)
@@ -323,7 +324,7 @@ internal static class ApplicationUpdatePackage
         }
 
         if (!manifest.ManagedRoots.Contains(MainExecutableName, StringComparer.OrdinalIgnoreCase) ||
-            !manifest.ManagedRoots.Contains(ManifestFileName, StringComparer.OrdinalIgnoreCase))
+            !manifest.ManagedRoots.Contains(ManifestDirectoryName, StringComparer.OrdinalIgnoreCase))
         {
             throw new InvalidDataException("Update manifest does not manage required application files.");
         }
@@ -343,7 +344,7 @@ internal static class ApplicationUpdatePackage
 
     public static ApplicationUpdateManifest ReadManifest(string directory)
     {
-        string path = Path.Combine(directory, ManifestFileName);
+        string path = ManifestPath(directory);
         if (!File.Exists(path))
         {
             throw new InvalidDataException("Update manifest is missing.");
@@ -354,6 +355,9 @@ internal static class ApplicationUpdatePackage
             new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
         return manifest ?? throw new InvalidDataException("Update manifest is invalid.");
     }
+
+    public static string ManifestPath(string directory) =>
+        Path.Combine(directory, ManifestDirectoryName, ManifestFileName);
 
     public static void ValidateManagedRoot(string root)
     {
@@ -493,7 +497,7 @@ internal static class ApplicationUpdateCommandLine
     internal static void ApplyPackage(string packageDirectory, string targetDirectory, string backupDirectory)
     {
         ApplicationUpdateManifest next = ApplicationUpdatePackage.Validate(packageDirectory);
-        ApplicationUpdateManifest current = File.Exists(Path.Combine(targetDirectory, ApplicationUpdatePackage.ManifestFileName))
+        ApplicationUpdateManifest current = File.Exists(ApplicationUpdatePackage.ManifestPath(targetDirectory))
             ? ApplicationUpdatePackage.ReadManifest(targetDirectory)
             : next;
         string[] roots = current.ManagedRoots

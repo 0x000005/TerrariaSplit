@@ -300,6 +300,7 @@ internal static class SplitListRenderer
             TextRenderStyle nameStyle = OverlayTextStyles.GetNameTextStyle(
                 context.Settings,
                 context.Palette,
+                isCurrent,
                 completed,
                 attached);
             TextEffectRenderer.DrawStyledText(

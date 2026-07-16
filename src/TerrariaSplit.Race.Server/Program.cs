@@ -19,8 +19,9 @@ builder.Services.AddSignalR(options =>
 });
 builder.Services.AddSingleton<IRaceRecordStore>(_ =>
     new FileRaceRecordStore(Path.Combine(AppContext.BaseDirectory, "Data", "RaceRecords")));
-builder.Services.AddSingleton(_ =>
-    new RaceWorldFileStore(Path.Combine(AppContext.BaseDirectory, "Data", "RaceWorlds")));
+var raceWorldFiles = new RaceWorldFileStore(Path.Combine(AppContext.BaseDirectory, "Data", "RaceWorlds"));
+raceWorldFiles.DeleteAllRooms();
+builder.Services.AddSingleton(raceWorldFiles);
 builder.Services.AddSingleton<RaceRoomManager>();
 builder.Services.AddHostedService<RaceRoomCleanupService>();
 
@@ -94,10 +95,16 @@ app.MapPost(
                     route,
                     worldSettings,
                     seed,
-                    stored.Info));
+                    stored.Info),
+                out RaceWorldFileInfo? replacedWorldFile);
             if (!result.Succeeded)
             {
                 worldFiles.DeleteStoredFile(stored);
+            }
+            else if (replacedWorldFile is not null &&
+                     !string.Equals(replacedWorldFile.Sha256, stored.Info.Sha256, StringComparison.OrdinalIgnoreCase))
+            {
+                worldFiles.DeleteStoredFile(roomCode, replacedWorldFile);
             }
 
             if (result.Succeeded && result.Value is RaceRoomState state)
@@ -107,7 +114,8 @@ app.MapPost(
                     new RacePackageChanged(
                         state,
                         nickname.Trim(),
-                        RacePackageRevisionCalculator.Create(state)),
+                        RacePackageRevisionCalculator.Create(state),
+                        RacePackageChangeKind.Published),
                     cancellationToken);
             }
 

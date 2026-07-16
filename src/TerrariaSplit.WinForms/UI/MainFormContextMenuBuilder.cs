@@ -5,6 +5,8 @@ namespace TerrariaSplit.UI;
 internal sealed class MainFormContextMenuBuilder
 {
     internal const string CheatsToggleItemName = "CheatsToggle";
+    internal const string SettingsItemName = "Settings";
+    internal const string SettingsFileMenuItemName = "SettingsFileMenu";
     private readonly ISettingsRepository settingsRepository;
 
     public MainFormContextMenuBuilder()
@@ -20,6 +22,7 @@ internal sealed class MainFormContextMenuBuilder
     public void Rebuild(
         ContextMenuStrip menu,
         AppSettings settings,
+        bool canSwitchSettingsFile,
         Action openStatistics,
         Action openRacePanel,
         Action openSettings,
@@ -30,9 +33,15 @@ internal sealed class MainFormContextMenuBuilder
         menu.Items.Clear();
         menu.Items.Add(Localizer.Get("Statistics...", settings), null, (_, _) => openStatistics());
         menu.Items.Add(Localizer.Get("Race...", settings), null, (_, _) => openRacePanel());
-        menu.Items.Add(Localizer.Get("Settings...", settings), null, (_, _) => openSettings());
+        var settingsItem = new ToolStripMenuItem(Localizer.Get("Settings...", settings))
+        {
+            Name = SettingsItemName,
+            Enabled = canSwitchSettingsFile
+        };
+        settingsItem.Click += (_, _) => openSettings();
+        menu.Items.Add(settingsItem);
         menu.Items.Add(CreateCheatsToggle(settings, toggleCheats));
-        menu.Items.Add(CreateSettingsFileMenu(settings, switchSettingsFile));
+        menu.Items.Add(CreateSettingsFileMenu(settings, canSwitchSettingsFile, switchSettingsFile));
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(Localizer.Get("Exit", settings), null, (_, _) => exit());
     }
@@ -52,9 +61,14 @@ internal sealed class MainFormContextMenuBuilder
 
     private ToolStripMenuItem CreateSettingsFileMenu(
         AppSettings settings,
+        bool canSwitchSettingsFile,
         Action<string> switchSettingsFile)
     {
-        var menu = new ToolStripMenuItem(Localizer.Get("Switch config", settings));
+        var menu = new ToolStripMenuItem(Localizer.Get("Switch config", settings))
+        {
+            Name = SettingsFileMenuItemName,
+            Enabled = canSwitchSettingsFile
+        };
         menu.DropDownOpening += (_, _) => PopulateSettingsFileMenu(menu, settings, switchSettingsFile);
         return menu;
     }

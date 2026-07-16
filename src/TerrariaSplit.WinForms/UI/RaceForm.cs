@@ -13,7 +13,10 @@ namespace TerrariaSplit.UI;
 internal sealed class RaceForm : Form
 {
     private const int ResizeBorder = 8;
-    private const float LeaderboardVisualColumnWidthScale = 1.5f;
+    private const float LeaderboardNumericColumnWidth = 118f;
+    private const int LeaderboardNumericInputWidth = 86;
+    private const float LeaderboardAlignmentColumnWidth = 148f;
+    private const int LeaderboardAlignmentInputWidth = 132;
     private const float RaceSettingsLabelColumnWidth = 280f;
     private const float RaceSettingsCompactLabelColumnWidth = 220f;
     private const float RaceSettingsValueColumnWidth = 720f;
@@ -30,6 +33,8 @@ internal sealed class RaceForm : Form
     private static readonly Color SelectorButtonSelectedHover = Color.FromArgb(58, 93, 88);
     private static readonly Color SelectorButtonDown = Color.FromArgb(34, 41, 46);
     private static readonly Color SelectorButtonSelectedDown = Color.FromArgb(46, 76, 71);
+    private static readonly Color StatusSuccess = Color.FromArgb(91, 204, 139);
+    private static readonly Color StatusFailure = Color.FromArgb(235, 99, 99);
 
     private enum TitleBarButtonIcon
     {
@@ -43,7 +48,8 @@ internal sealed class RaceForm : Form
     {
         Connection,
         Interface,
-        Colors
+        Colors,
+        Voice
     }
 
     private enum HostWorldActionButtonState
@@ -62,6 +68,8 @@ internal sealed class RaceForm : Form
     private readonly TextBox seedBox;
     private readonly TextBox randomSecretSeedsBox;
     private readonly TextBox worldPathBox;
+    private readonly TextBox playerTemplateCodeBox;
+    private readonly ThemedDropDownList playerDifficultyBox;
     private readonly ThemedDropDownList sizeBox;
     private readonly ThemedDropDownList difficultyBox;
     private readonly ThemedDropDownList evilBox;
@@ -70,12 +78,15 @@ internal sealed class RaceForm : Form
     private readonly CheckBox randomWorldSourceButton;
     private readonly CheckBox customSeedWorldSourceButton;
     private readonly CheckBox existingWorldFileSourceButton;
+    private readonly CheckBox rngControlEnabledBox;
     private readonly CheckBox cheatsEnabledBox;
     private readonly CheckBox pyramidEnabledBox;
     private readonly CheckBox crimsonEnabledBox;
+    private readonly CheckBox jungleRouteDepthEnabledBox;
     private readonly Dictionary<string, CheckBox> specialSeedButtons = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, CheckBox> pyramidItemButtons = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, CheckBox> crimsonDistanceButtons = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, CheckBox> jungleRouteDepthButtons = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, CheckBox> resourceItemButtons = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<int, CheckBox> lifeCrystalMinimumButtons = new();
     private readonly Dictionary<string, CheckBox> hookMinimumButtons = new(StringComparer.OrdinalIgnoreCase);
@@ -83,7 +94,15 @@ internal sealed class RaceForm : Form
     private readonly Dictionary<int, CheckBox> featherfallMinimumButtons = new();
     private readonly ToolTip titleBarToolTip = new();
     private readonly RaceLeaderboardSettings leaderboardSettings;
+    private readonly RaceVoiceSettings voiceSettings;
+    private readonly CheckBox voiceEnabledBox;
+    private readonly ThemedDropDownList voiceNameBox;
+    private readonly ThemedSlider voiceSpeedBar;
+    private readonly ThemedSlider voiceVolumeBar;
+    private readonly Label voiceSpeedValueLabel;
+    private readonly Label voiceVolumeValueLabel;
     private readonly Dictionary<string, LeaderboardColumnControls> leaderboardColumnControls = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, TextBox> leaderboardSpacingControls = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, LeaderboardColorControls> leaderboardColorControls = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<RaceSettingsPage, Button> raceSettingsNavButtons = new();
     private readonly Dictionary<RaceSettingsPage, Control> raceSettingsPages = new();
@@ -99,21 +118,26 @@ internal sealed class RaceForm : Form
     private Control existingWorldFileConfig = null!;
     private Button maximizeButton = null!;
     private Button? hostWorldActionButton;
+    private Button? startRaceButton;
+    private Button? restartRoomButton;
     private Button? roomLifecycleButton;
+    private Button? voicePreviewButton;
     private RaceActionProgressBar? hostWorldProgressBar;
     private Label? statusRouteOverrideHint;
-    private Label? statusWorldNameValue;
     private TableLayoutPanel? statusPlayerList;
     private CancellationTokenSource? hostWorldActionCancellation;
     private RacePanelWorldSource hostWorldActionSource;
     private string? hostWorldActionWorldPath;
     private bool hostWorldActionCancelRequested;
     private bool hostWorldUploaded;
+    private bool startRaceRunning;
+    private bool restartRoomRunning;
     private int hostWorldProgressVersion;
     private RacePanelRole selectedRole;
     private RacePanelWorldSource selectedWorldSource = RacePanelWorldSource.Random;
     private int programmaticUpdateDepth;
     private bool updatingCrimsonDistanceSelection;
+    private bool updatingJungleRouteDepthSelection;
     private bool updatingResourceMinimumSelection;
     private bool dragging;
     private Point dragStartCursor;
@@ -124,17 +148,48 @@ internal sealed class RaceForm : Form
         this.shell = shell;
         RacePanelDraftState draftState = shell.DraftState;
         leaderboardSettings = CloneLeaderboardSettings(shell.LeaderboardSettings);
+        voiceSettings = CloneVoiceSettings(shell.VoiceSettings);
         uiFactory = new SettingsUiFactory(shell.Localize);
         dialogs = new SettingsDialogService(this, shell.Localize);
+        voiceEnabledBox = uiFactory.CreateCheckBox(voiceSettings.Enabled);
+        List<(string Text, object Value)> voices = [("System default", string.Empty)];
+        voices.AddRange(shell.InstalledVoices.Select(voice => (voice.DisplayName, (object)voice.Name)));
+        voiceNameBox = CreateDropDown(voices.ToArray());
+        SelectDropDownByValue(voiceNameBox, voiceSettings.VoiceName);
+        voiceSpeedBar = CreateVoiceSlider(50, 200, voiceSettings.SpeedPercent);
+        voiceVolumeBar = CreateVoiceSlider(0, 100, voiceSettings.Volume);
+        voiceSpeedValueLabel = uiFactory.CreateValueLabel();
+        voiceVolumeValueLabel = uiFactory.CreateValueLabel();
+        voiceEnabledBox.CheckedChanged += (_, _) => UpdateVoiceAvailability();
+        voiceSpeedBar.ValueChanged += (_, _) => UpdateVoiceValueLabels();
+        voiceVolumeBar.ValueChanged += (_, _) => UpdateVoiceValueLabels();
         selectedRole = draftState.Role;
         selectedWorldSource = draftState.WorldSource;
         serverBox = CreateTextBox(draftState.ServerUrl);
         nicknameBox = CreateTextBox(draftState.Nickname);
+        nicknameBox.MaxLength = RacePlayerNameRules.MaximumLength;
         roomCodeBox = CreateTextBox(draftState.RoomCode);
         seedBox = CreateTextBox(draftState.SeedText);
         randomSecretSeedsBox = CreateTextBox(string.Empty);
         worldPathBox = CreateTextBox(draftState.LocalWorldPath);
         worldPathBox.ReadOnly = true;
+        playerTemplateCodeBox = CreateTextBox(draftState.PlayerTemplateCode);
+        playerTemplateCodeBox.Multiline = true;
+        playerTemplateCodeBox.AcceptsReturn = true;
+        playerTemplateCodeBox.ScrollBars = ScrollBars.Vertical;
+        playerTemplateCodeBox.Height = playerTemplateCodeBox.Font.Height * 6 + 14;
+        playerDifficultyBox = CreateDropDown(
+            (AutoCreatePlayerDifficulty.Softcore, 0),
+            (AutoCreatePlayerDifficulty.Mediumcore, 1),
+            (AutoCreatePlayerDifficulty.Hardcore, 2),
+            (AutoCreatePlayerDifficulty.Journey, 3));
+        playerDifficultyBox.SelectedIndex = AutoCreatePlayerDifficulty.Normalize(draftState.HostPlayerDifficulty) switch
+        {
+            AutoCreatePlayerDifficulty.Mediumcore => 1,
+            AutoCreatePlayerDifficulty.Hardcore => 2,
+            AutoCreatePlayerDifficulty.Journey => 3,
+            _ => 0
+        };
         hostRoleButton = CreateRoleButton("Host", RacePanelRole.Host, selected: selectedRole == RacePanelRole.Host);
         memberRoleButton = CreateRoleButton("Member", RacePanelRole.Member, selected: selectedRole == RacePanelRole.Member);
         sizeBox = CreateDropDown(
@@ -163,12 +218,17 @@ internal sealed class RaceForm : Form
             "Directly use world file",
             RacePanelWorldSource.ExistingFile,
             selected: selectedWorldSource == RacePanelWorldSource.ExistingFile);
-        cheatsEnabledBox = uiFactory.CreateCheckBox(selected: false);
+        rngControlEnabledBox = uiFactory.CreateCheckBox(selected: true);
+        cheatsEnabledBox = uiFactory.CreateCheckBox(selected: true);
         cheatsEnabledBox.CheckedChanged += (_, _) => UpdateCheatAvailability();
-        pyramidEnabledBox = CreateSelectorButton("Pyramid", selected: false);
+        pyramidEnabledBox = CreateSelectorButton("Pyramid", selected: true);
         pyramidEnabledBox.CheckedChanged += (_, _) => UpdateCheatAvailability();
-        crimsonEnabledBox = CreateSelectorButton("Crimson", selected: false);
+        crimsonEnabledBox = CreateSelectorButton("Dungeon-side Crimson", selected: true);
         crimsonEnabledBox.CheckedChanged += (_, _) => UpdateCheatAvailability();
+        jungleRouteDepthEnabledBox = CreateSelectorButton("Jungle main route", selected: true);
+        jungleRouteDepthEnabledBox.CheckedChanged += (_, _) => SelectJungleRouteDepth(
+            AutoCreateJungleRouteDepth.None,
+            jungleRouteDepthEnabledBox.Checked);
         foreach (string item in AutoCreatePyramidFilterItem.All)
         {
             bool selected = (AutoCreatePyramidFilterItem.Mask(item) &
@@ -185,6 +245,14 @@ internal sealed class RaceForm : Form
             button.CheckedChanged += (_, _) => SelectCrimsonDistance(distance);
             crimsonDistanceButtons[distance] = button;
         }
+
+        foreach (string depth in AutoCreateJungleRouteDepth.All)
+        {
+            CheckBox button = CreateSelectorButton(depth, selected: false);
+            button.CheckedChanged += (_, _) => SelectJungleRouteDepth(depth, button.Checked);
+            jungleRouteDepthButtons[depth] = button;
+        }
+        ApplyJungleRouteDepthSelection(AutoCreateJungleRouteDepth.Medium);
 
         foreach (string item in AutoCreateResourceFilterItem.All)
         {
@@ -251,7 +319,6 @@ internal sealed class RaceForm : Form
             }
 
             hostWorldUploaded = state?.WorldFile is not null && state.Status != RaceRoomStatus.Closed;
-            RefreshStatusWorldName(state);
             RefreshStatusRouteOverrideHint(state);
             RefreshStatusPlayerList(state);
             UpdateRoleVisibility(persist: false);
@@ -577,6 +644,7 @@ internal sealed class RaceForm : Form
         AddRaceSettingsPage(nav, RaceSettingsPage.Connection, "Connection", CreateConnectionPage());
         AddRaceSettingsPage(nav, RaceSettingsPage.Interface, "UI", CreateInterfacePage());
         AddRaceSettingsPage(nav, RaceSettingsPage.Colors, "Colors", CreateColorsPage());
+        AddRaceSettingsPage(nav, RaceSettingsPage.Voice, "Voice", CreateVoicePage());
         SelectRaceSettingsPage(RaceSettingsPage.Connection);
 
         body.Controls.Add(nav, 0, 0);
@@ -615,6 +683,97 @@ internal sealed class RaceForm : Form
         {
             SettingsUiFactory.AddSection(content, CreateColorsSection());
         });
+    }
+
+    private Control CreateVoicePage()
+    {
+        return uiFactory.BuildScrollPage(content =>
+        {
+            SettingsUiFactory.AddSection(content, CreateVoiceSection());
+        });
+    }
+
+    private Control CreateVoiceSection()
+    {
+        TableLayoutPanel section = uiFactory.CreateSection("Voice announcements");
+        TableLayoutPanel grid = uiFactory.CreateGrid(
+            SettingsUiFactory.ColumnStyleAbsolute(RaceSettingsLabelColumnWidth),
+            SettingsUiFactory.ColumnStylePercent(100f));
+        uiFactory.AddSettingRow(grid, "Enabled", voiceEnabledBox);
+        uiFactory.AddSettingRow(grid, "Installed voice", voiceNameBox);
+        uiFactory.AddSettingRow(grid, "Speech speed", CreateVoiceSliderRow(voiceSpeedBar, voiceSpeedValueLabel));
+        uiFactory.AddSettingRow(grid, "Volume", CreateVoiceSliderRow(voiceVolumeBar, voiceVolumeValueLabel));
+        SettingsUiFactory.AddSectionControl(section, grid);
+
+        FlowLayoutPanel actions = CreateButtonRow();
+        AddButton(actions, "Apply voice settings", accent: false, () =>
+        {
+            shell.SaveVoiceSettings(BuildVoiceSettings());
+            return Task.CompletedTask;
+        });
+        voicePreviewButton = AddButton(actions, "Preview", accent: false, () =>
+        {
+            shell.PreviewVoice(BuildVoiceSettings());
+            return Task.CompletedTask;
+        });
+        SettingsUiFactory.AddSectionControl(section, actions);
+        UpdateVoiceValueLabels();
+        UpdateVoiceAvailability();
+        return section;
+    }
+
+    private static ThemedSlider CreateVoiceSlider(int minimum, int maximum, int value)
+    {
+        return new ThemedSlider
+        {
+            BackColor = UiTheme.Surface,
+            Dock = DockStyle.Fill,
+            Height = 36,
+            Margin = new Padding(0, 2, 0, 2),
+            Minimum = minimum,
+            Maximum = maximum,
+            Value = Math.Clamp(value, minimum, maximum)
+        };
+    }
+
+    private static Control CreateVoiceSliderRow(ThemedSlider slider, Label valueLabel)
+    {
+        var row = new TableLayoutPanel
+        {
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            BackColor = UiTheme.Surface,
+            ColumnCount = 2,
+            Dock = DockStyle.Fill,
+            Margin = Padding.Empty,
+            Padding = Padding.Empty
+        };
+        UiTheme.EnableDoubleBuffering(row);
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 110f));
+        row.Controls.Add(slider, 0, 0);
+        row.Controls.Add(valueLabel, 1, 0);
+        return row;
+    }
+
+    private void UpdateVoiceValueLabels()
+    {
+        voiceSpeedValueLabel.Text = $"{voiceSpeedBar.Value / 100d:0.00}×";
+        voiceVolumeValueLabel.Text = $"{voiceVolumeBar.Value}%";
+    }
+
+    private void UpdateVoiceAvailability()
+    {
+        bool enabled = voiceEnabledBox.Checked;
+        voiceNameBox.Enabled = enabled;
+        voiceSpeedBar.Enabled = enabled;
+        voiceVolumeBar.Enabled = enabled;
+        voiceSpeedValueLabel.Enabled = enabled;
+        voiceVolumeValueLabel.Enabled = enabled;
+        if (voicePreviewButton is not null)
+        {
+            voicePreviewButton.Enabled = enabled;
+        }
     }
 
     private void AddRaceSettingsPage(FlowLayoutPanel nav, RaceSettingsPage page, string title, Control content)
@@ -660,6 +819,8 @@ internal sealed class RaceForm : Form
         uiFactory.AddSettingRow(grid, "Nickname", nicknameBox);
         uiFactory.AddSettingRow(grid, "Role", CreateRoleButtonPanel());
         SettingsUiFactory.AddSectionControl(section, grid);
+        SettingsUiFactory.AddSectionControl(section, uiFactory.CreateFieldLabel("Player code"));
+        SettingsUiFactory.AddSectionControl(section, playerTemplateCodeBox);
         return section;
     }
 
@@ -689,21 +850,23 @@ internal sealed class RaceForm : Form
         TableLayoutPanel section = uiFactory.CreateSection("Leaderboard display");
         TableLayoutPanel grid = uiFactory.CreateGrid(
             SettingsUiFactory.ColumnStylePercent(100f),
-            SettingsUiFactory.ColumnStyleAbsolute(ScaleLeaderboardVisualColumnWidth(76f)),
-            SettingsUiFactory.ColumnStyleAbsolute(ScaleLeaderboardVisualColumnWidth(82f)),
-            SettingsUiFactory.ColumnStyleAbsolute(ScaleLeaderboardVisualColumnWidth(180f)),
-            SettingsUiFactory.ColumnStyleAbsolute(ScaleLeaderboardVisualColumnWidth(82f)),
-            SettingsUiFactory.ColumnStyleAbsolute(ScaleLeaderboardVisualColumnWidth(72f)),
-            SettingsUiFactory.ColumnStyleAbsolute(ScaleLeaderboardVisualColumnWidth(72f)),
-            SettingsUiFactory.ColumnStyleAbsolute(ScaleLeaderboardVisualColumnWidth(96f)),
-            SettingsUiFactory.ColumnStyleAbsolute(ScaleLeaderboardVisualColumnWidth(96f)),
-            SettingsUiFactory.ColumnStyleAbsolute(ScaleLeaderboardVisualColumnWidth(104f)));
+            SettingsUiFactory.ColumnStyleAbsolute(92f),
+            SettingsUiFactory.ColumnStyleAbsolute(LeaderboardNumericColumnWidth),
+            SettingsUiFactory.ColumnStyleAbsolute(LeaderboardAlignmentColumnWidth),
+            SettingsUiFactory.ColumnStyleAbsolute(220f),
+            SettingsUiFactory.ColumnStyleAbsolute(LeaderboardNumericColumnWidth),
+            SettingsUiFactory.ColumnStyleAbsolute(92f),
+            SettingsUiFactory.ColumnStyleAbsolute(92f),
+            SettingsUiFactory.ColumnStyleAbsolute(LeaderboardNumericColumnWidth),
+            SettingsUiFactory.ColumnStyleAbsolute(LeaderboardNumericColumnWidth),
+            SettingsUiFactory.ColumnStyleAbsolute(LeaderboardNumericColumnWidth));
         uiFactory.AddHeaderRow(
             grid,
             ContentAlignment.MiddleLeft,
             "Column",
             "Show",
             "Width",
+            "Alignment",
             "Font family",
             "Size",
             "Bold",
@@ -716,28 +879,41 @@ internal sealed class RaceForm : Form
             RaceLeaderboardColumnKeys.Rank,
             "Rank",
             leaderboardSettings.Rank,
+            leaderboardSettings.RankAlignment,
             leaderboardSettings.TextEffects.Rank);
+        AddLeaderboardSpacingRow(grid, RaceLeaderboardSpacingKeys.RankPlayer, leaderboardSettings.RankPlayerGap);
         AddLeaderboardSettingsRow(
             grid,
             RaceLeaderboardColumnKeys.Player,
             "Nickname",
             leaderboardSettings.Player,
+            leaderboardSettings.PlayerAlignment,
             leaderboardSettings.TextEffects.Player);
+        AddLeaderboardSpacingRow(grid, RaceLeaderboardSpacingKeys.PlayerIcon, leaderboardSettings.PlayerIconGap);
         AddLeaderboardSettingsRow(
             grid,
             RaceLeaderboardColumnKeys.Icon,
             "Icon",
             leaderboardSettings.Icon,
+            leaderboardSettings.IconAlignment,
             leaderboardSettings.TextEffects.Icon,
             includeFontFamily: false,
             includeBold: false,
             includeItalic: false);
+        AddLeaderboardSpacingRow(grid, RaceLeaderboardSpacingKeys.IconTime, leaderboardSettings.IconTimeGap);
         AddLeaderboardSettingsRow(
             grid,
             RaceLeaderboardColumnKeys.Time,
             "Time",
             leaderboardSettings.Time,
+            leaderboardSettings.TimeAlignment,
             leaderboardSettings.TextEffects.Time);
+        foreach (LeaderboardColumnControls controls in leaderboardColumnControls.Values)
+        {
+            controls.Show.CheckedChanged += (_, _) => UpdateLeaderboardSpacingAvailability();
+        }
+
+        UpdateLeaderboardSpacingAvailability();
         SettingsUiFactory.AddSectionControl(section, grid);
         AddLeaderboardApplyActions(section, "Apply UI settings");
         return section;
@@ -812,6 +988,7 @@ internal sealed class RaceForm : Form
         string key,
         string label,
         UiColumnSettings column,
+        string alignment,
         RaceLeaderboardColumnEffectSettings effect,
         bool includeFontFamily = true,
         bool includeFontSize = true,
@@ -820,6 +997,7 @@ internal sealed class RaceForm : Form
     {
         var showBox = uiFactory.CreateCheckBox(column.Show);
         TextBox widthBox = uiFactory.CreateNumberBox(column.Width, 1, 1000);
+        ThemedDropDownList alignmentBox = CreateColumnAlignmentBox(alignment);
         FontFamilySelector? fontFamilyBox = includeFontFamily ? CreateFontFamilyBox(column.FontFamily) : null;
         TextBox? fontSizeBox = includeFontSize ? uiFactory.CreateDecimalBox(column.FontSize, 6, 96) : null;
         CheckBox? boldBox = includeBold ? uiFactory.CreateCheckBox(column.Bold) : null;
@@ -831,6 +1009,7 @@ internal sealed class RaceForm : Form
         leaderboardColumnControls[key] = new LeaderboardColumnControls(
             showBox,
             widthBox,
+            alignmentBox,
             fontFamilyBox,
             fontSizeBox,
             boldBox,
@@ -841,25 +1020,95 @@ internal sealed class RaceForm : Form
 
         int row = uiFactory.AddGridRow(grid);
         grid.Controls.Add(uiFactory.CreateRowLabel(label), 0, row);
-        grid.Controls.Add(uiFactory.CreateCenteredCell(showBox, ScaleLeaderboardVisualCellWidth(28)), 1, row);
-        grid.Controls.Add(uiFactory.CreateCenteredCell(widthBox, ScaleLeaderboardVisualCellWidth(68)), 2, row);
-        grid.Controls.Add(fontFamilyBox is null ? CreateEmptyCell() : uiFactory.CreateCenteredCell(fontFamilyBox, ScaleLeaderboardVisualCellWidth(164)), 3, row);
-        grid.Controls.Add(fontSizeBox is null ? CreateEmptyCell() : uiFactory.CreateCenteredCell(fontSizeBox, ScaleLeaderboardVisualCellWidth(68)), 4, row);
-        grid.Controls.Add(boldBox is null ? CreateEmptyCell() : uiFactory.CreateCenteredCell(boldBox, ScaleLeaderboardVisualCellWidth(28)), 5, row);
-        grid.Controls.Add(italicBox is null ? CreateEmptyCell() : uiFactory.CreateCenteredCell(italicBox, ScaleLeaderboardVisualCellWidth(28)), 6, row);
-        grid.Controls.Add(uiFactory.CreateCenteredCell(opacityBox, ScaleLeaderboardVisualCellWidth(78)), 7, row);
-        grid.Controls.Add(uiFactory.CreateCenteredCell(shadowBox, ScaleLeaderboardVisualCellWidth(78)), 8, row);
-        grid.Controls.Add(uiFactory.CreateCenteredCell(outlineBox, ScaleLeaderboardVisualCellWidth(78)), 9, row);
+        grid.Controls.Add(uiFactory.CreateCenteredCell(showBox, 28), 1, row);
+        grid.Controls.Add(uiFactory.CreateCenteredCell(widthBox, LeaderboardNumericInputWidth), 2, row);
+        grid.Controls.Add(uiFactory.CreateCenteredCell(alignmentBox, LeaderboardAlignmentInputWidth), 3, row);
+        grid.Controls.Add(fontFamilyBox is null ? CreateEmptyCell() : uiFactory.CreateCenteredCell(fontFamilyBox, 210), 4, row);
+        grid.Controls.Add(fontSizeBox is null ? CreateEmptyCell() : uiFactory.CreateCenteredCell(fontSizeBox, LeaderboardNumericInputWidth), 5, row);
+        grid.Controls.Add(boldBox is null ? CreateEmptyCell() : uiFactory.CreateCenteredCell(boldBox, 28), 6, row);
+        grid.Controls.Add(italicBox is null ? CreateEmptyCell() : uiFactory.CreateCenteredCell(italicBox, 28), 7, row);
+        grid.Controls.Add(uiFactory.CreateCenteredCell(opacityBox, LeaderboardNumericInputWidth), 8, row);
+        grid.Controls.Add(uiFactory.CreateCenteredCell(shadowBox, LeaderboardNumericInputWidth), 9, row);
+        grid.Controls.Add(uiFactory.CreateCenteredCell(outlineBox, LeaderboardNumericInputWidth), 10, row);
     }
 
-    private static float ScaleLeaderboardVisualColumnWidth(float width)
+    private void AddLeaderboardSpacingRow(TableLayoutPanel grid, string key, int value)
     {
-        return width * LeaderboardVisualColumnWidthScale;
+        TextBox spacingBox = uiFactory.CreateNumberBox(value, 0, 1000);
+        leaderboardSpacingControls[key] = spacingBox;
+        int row = uiFactory.AddGridRow(grid);
+        grid.Controls.Add(uiFactory.CreateRowLabel("Spacing"), 0, row);
+        grid.Controls.Add(uiFactory.CreateCenteredCell(spacingBox, LeaderboardNumericInputWidth), 2, row);
     }
 
-    private static int ScaleLeaderboardVisualCellWidth(int width)
+    private void UpdateLeaderboardSpacingAvailability()
     {
-        return Math.Max(1, (int)MathF.Round(width * LeaderboardVisualColumnWidthScale));
+        foreach (LeaderboardColumnControls controls in leaderboardColumnControls.Values)
+        {
+            bool visible = controls.Show.Checked;
+            controls.Width.Enabled = visible;
+            controls.Alignment.Enabled = visible;
+            if (controls.FontFamily is not null)
+            {
+                controls.FontFamily.Enabled = visible;
+            }
+
+            if (controls.FontSize is not null)
+            {
+                controls.FontSize.Enabled = visible;
+            }
+
+            if (controls.Bold is not null)
+            {
+                controls.Bold.Enabled = visible;
+            }
+
+            if (controls.Italic is not null)
+            {
+                controls.Italic.Enabled = visible;
+            }
+
+            controls.Opacity.Enabled = visible;
+            controls.Shadow.Enabled = visible;
+            controls.Outline.Enabled = visible;
+        }
+
+        SetLeaderboardSpacingEnabled(
+            RaceLeaderboardSpacingKeys.RankPlayer,
+            IsLeaderboardColumnShown(RaceLeaderboardColumnKeys.Rank));
+        SetLeaderboardSpacingEnabled(
+            RaceLeaderboardSpacingKeys.PlayerIcon,
+            IsLeaderboardColumnShown(RaceLeaderboardColumnKeys.Player));
+        SetLeaderboardSpacingEnabled(
+            RaceLeaderboardSpacingKeys.IconTime,
+            IsLeaderboardColumnShown(RaceLeaderboardColumnKeys.Icon));
+    }
+
+    private bool IsLeaderboardColumnShown(string key)
+    {
+        return leaderboardColumnControls.TryGetValue(key, out LeaderboardColumnControls? controls) &&
+            controls.Show.Checked;
+    }
+
+    private void SetLeaderboardSpacingEnabled(string key, bool enabled)
+    {
+        if (leaderboardSpacingControls.TryGetValue(key, out TextBox? box))
+        {
+            box.Enabled = enabled;
+        }
+    }
+
+    private ThemedDropDownList CreateColumnAlignmentBox(string selectedAlignment)
+    {
+        ThemedDropDownList box = uiFactory.CreateDropDownList();
+        string normalized = UiColumnAlignment.Normalize(selectedAlignment, UiColumnAlignment.Right);
+        foreach (string alignment in UiColumnAlignment.All)
+        {
+            box.Items.Add(new OptionItem(Localize(UiColumnAlignment.GetDisplayName(alignment)), alignment));
+        }
+
+        SelectDropDownByValue(box, normalized);
+        return box;
     }
 
     private void AddLeaderboardRankColorRow(
@@ -1061,7 +1310,9 @@ internal sealed class RaceForm : Form
 
     private Control CreateHostSection()
     {
-        TableLayoutPanel section = uiFactory.CreateSection("Select World");
+        TableLayoutPanel section = uiFactory.CreateSection("Room settings");
+        SettingsUiFactory.AddSectionControl(section, CreateRngControlSettingsGrid());
+        SettingsUiFactory.AddSectionControl(section, CreateHostPlayerSettingsGrid());
         SettingsUiFactory.AddSectionControl(section, CreateWorldSourceSelector());
 
         randomWorldConfig = CreateRandomWorldConfig();
@@ -1077,6 +1328,15 @@ internal sealed class RaceForm : Form
         return section;
     }
 
+    private Control CreateHostPlayerSettingsGrid()
+    {
+        TableLayoutPanel grid = uiFactory.CreateGrid(
+            SettingsUiFactory.ColumnStylePercent(100f),
+            SettingsUiFactory.ColumnStyleAbsolute(RaceSettingsValueColumnWidth));
+        uiFactory.AddSettingRow(grid, "Player difficulty", playerDifficultyBox);
+        return grid;
+    }
+
     private Control CreateRaceStatusSection()
     {
         Button copyRoomInfoButton = CreateActionButton(
@@ -1090,18 +1350,18 @@ internal sealed class RaceForm : Form
         statusRouteOverrideHint = uiFactory.CreateWrappedFieldLabel(string.Empty, UiTheme.MutedText);
         statusRouteOverrideHint.Margin = new Padding(0, 2, 0, 8);
         SettingsUiFactory.AddSectionControl(section, statusRouteOverrideHint);
-        SettingsUiFactory.AddSectionControl(section, CreateStatusWorldNameGrid());
-
         statusPlayerList = CreateStatusPlayerList();
         SettingsUiFactory.AddSectionControl(section, statusPlayerList);
 
         FlowLayoutPanel roomActions = CreateButtonRow();
+        startRaceButton = AddButton(roomActions, "Race Start", accent: true, StartRaceAsync);
+        restartRoomButton = AddButton(roomActions, "Restart", accent: false, RestartRoomAsync);
         roomLifecycleButton = AddButton(roomActions, IsLocalHost(shell.State) ? "Close room" : "Leave room", accent: false, CloseOrLeaveRoomAsync);
         SettingsUiFactory.AddSectionControl(section, roomActions);
 
-        RefreshStatusWorldName(shell.State);
         RefreshStatusRouteOverrideHint(shell.State);
         RefreshStatusPlayerList(shell.State);
+        UpdateRoomLifecycleButton();
         return section;
     }
 
@@ -1112,51 +1372,24 @@ internal sealed class RaceForm : Form
             return;
         }
 
-        statusRouteOverrideHint.Text = Localize(IsLocalHost(state)
+        string routeHint = Localize(IsLocalHost(state)
             ? "Room host route override hint"
             : "Room member route override hint");
-    }
-
-    private Control CreateStatusWorldNameGrid()
-    {
-        var grid = uiFactory.CreateGrid(
-            SettingsUiFactory.ColumnStyleAbsolute(RaceSettingsLabelColumnWidth),
-            SettingsUiFactory.ColumnStylePercent(100f));
-        statusWorldNameValue = uiFactory.CreateValueLabel();
-        uiFactory.AddSettingRow(grid, "World name", statusWorldNameValue);
-        return grid;
-    }
-
-    private void RefreshStatusWorldName(RaceRoomState? state)
-    {
-        if (statusWorldNameValue is null)
-        {
-            return;
-        }
-
-        statusWorldNameValue.Text = ResolveStatusWorldName(state);
-    }
-
-    private string ResolveStatusWorldName(RaceRoomState? state)
-    {
-        string worldName = state?.WorldSettings?.WorldName?.Trim() ?? string.Empty;
-        if (!string.IsNullOrWhiteSpace(worldName))
-        {
-            return worldName;
-        }
-
-        string fileName = Path.GetFileNameWithoutExtension(state?.WorldFile?.FileName ?? string.Empty).Trim();
-        return string.IsNullOrWhiteSpace(fileName)
-            ? Localize("Not uploaded")
-            : fileName;
+        string restrictions = Localize("Room operation restrictions hint");
+        statusRouteOverrideHint.Text = IsLocalHost(state)
+            ? routeHint + Environment.NewLine + restrictions + Environment.NewLine + Localize("Room host restart hint")
+            : routeHint + Environment.NewLine + restrictions;
     }
 
     private TableLayoutPanel CreateStatusPlayerList()
     {
         var list = uiFactory.CreateGrid(
-            SettingsUiFactory.ColumnStylePercent(100f),
-            SettingsUiFactory.ColumnStyleAbsolute(240f),
-            SettingsUiFactory.ColumnStyleAbsolute(156f));
+            SettingsUiFactory.ColumnStylePercent(28f),
+            SettingsUiFactory.ColumnStylePercent(18f),
+            SettingsUiFactory.ColumnStylePercent(18f),
+            SettingsUiFactory.ColumnStylePercent(18f),
+            SettingsUiFactory.ColumnStylePercent(18f),
+            SettingsUiFactory.ColumnStyleAbsolute(132f));
         list.Margin = new Padding(0, 10, 0, 0);
         return list;
     }
@@ -1183,7 +1416,7 @@ internal sealed class RaceForm : Form
                 int emptyRow = AddGridRow(statusPlayerList, StatusPlayerListRowHeight);
                 Label emptyLabel = uiFactory.CreateMutedLabel("No players");
                 statusPlayerList.Controls.Add(emptyLabel, 0, emptyRow);
-                statusPlayerList.SetColumnSpan(emptyLabel, 3);
+                statusPlayerList.SetColumnSpan(emptyLabel, 6);
                 return;
             }
 
@@ -1205,8 +1438,11 @@ internal sealed class RaceForm : Form
     {
         int row = AddGridRow(list, StatusPlayerListHeaderHeight);
         list.Controls.Add(uiFactory.CreateHeaderLabel("Player"), 0, row);
-        list.Controls.Add(uiFactory.CreateHeaderLabel("Status", ContentAlignment.MiddleCenter), 1, row);
-        list.Controls.Add(uiFactory.CreateHeaderLabel(string.Empty, ContentAlignment.MiddleCenter), 2, row);
+        list.Controls.Add(uiFactory.CreateHeaderLabel("Player file", ContentAlignment.MiddleCenter), 1, row);
+        list.Controls.Add(uiFactory.CreateHeaderLabel("World file", ContentAlignment.MiddleCenter), 2, row);
+        list.Controls.Add(uiFactory.CreateHeaderLabel("RNG control", ContentAlignment.MiddleCenter), 3, row);
+        list.Controls.Add(uiFactory.CreateHeaderLabel("Server connection", ContentAlignment.MiddleCenter), 4, row);
+        list.Controls.Add(uiFactory.CreateHeaderLabel(string.Empty, ContentAlignment.MiddleCenter), 5, row);
     }
 
     private void AddStatusPlayerRow(TableLayoutPanel list, RacePlayerState player, bool canKickPlayers)
@@ -1215,12 +1451,31 @@ internal sealed class RaceForm : Form
         Label nameLabel = uiFactory.CreateRawRowLabel(player.IsHost
             ? player.Nickname + " (" + Localize("Host") + ")"
             : player.Nickname);
-        Label statusLabel = uiFactory.CreateRawRowLabel(LocalizePlayerStatus(player.Status));
+        Label playerFileLabel = CreateStatusLabel(
+            LocalizePlayerFileStatus(player.PlayerFileStatus),
+            player.PlayerFileStatus == RacePlayerFileStatus.Ready,
+            player.PlayerFileStatus == RacePlayerFileStatus.Failed);
+        Label worldFileLabel = CreateStatusLabel(
+            LocalizeWorldFileStatus(player.WorldFileStatus),
+            player.WorldFileStatus == RaceWorldFileStatus.Ready,
+            player.WorldFileStatus == RaceWorldFileStatus.Failed);
+        Label rngControlLabel = CreateStatusLabel(
+            LocalizeRngControlStatus(player.RngControlStatus),
+            player.RngControlStatus == RaceRngControlStatus.Enabled,
+            player.RngControlStatus == RaceRngControlStatus.EnableFailed);
+        RaceServerConnectionStatus connectionStatus = ResolveConnectionStatus(player);
+        Label connectionLabel = CreateStatusLabel(
+            LocalizeServerConnectionStatus(connectionStatus),
+            connectionStatus == RaceServerConnectionStatus.Connected,
+            connectionStatus is RaceServerConnectionStatus.ConnectionFailed);
         Control actionControl = CreateStatusPlayerActionControl(player, canKickPlayers);
 
         AddStatusPlayerCell(list, nameLabel, 0, row);
-        AddStatusPlayerCell(list, statusLabel, 1, row);
-        AddStatusPlayerCell(list, actionControl, 2, row);
+        AddStatusPlayerCell(list, playerFileLabel, 1, row);
+        AddStatusPlayerCell(list, worldFileLabel, 2, row);
+        AddStatusPlayerCell(list, rngControlLabel, 3, row);
+        AddStatusPlayerCell(list, connectionLabel, 4, row);
+        AddStatusPlayerCell(list, actionControl, 5, row);
     }
 
     private Control CreateStatusPlayerActionControl(RacePlayerState player, bool canKickPlayers)
@@ -1252,14 +1507,68 @@ internal sealed class RaceForm : Form
         list.Controls.Add(control, column, row);
     }
 
-    private string LocalizePlayerStatus(RacePlayerStatus status)
+    private Label CreateStatusLabel(string text, bool succeeded, bool failed)
+    {
+        Label label = uiFactory.CreateRawRowLabel(text);
+        label.ForeColor = succeeded
+            ? StatusSuccess
+            : failed
+                ? StatusFailure
+                : UiTheme.Text;
+        return label;
+    }
+
+    private RaceServerConnectionStatus ResolveConnectionStatus(RacePlayerState player)
+    {
+        return !string.IsNullOrWhiteSpace(shell.LocalNickname) &&
+            string.Equals(player.Nickname, shell.LocalNickname, StringComparison.OrdinalIgnoreCase)
+                ? shell.ServerConnectionStatus
+                : player.ServerConnectionStatus;
+    }
+
+    private string LocalizePlayerFileStatus(RacePlayerFileStatus status)
     {
         return status switch
         {
-            RacePlayerStatus.WorldReady => Localize("Ready"),
-            RacePlayerStatus.Running => Localize("Running"),
-            RacePlayerStatus.Joined => Localize("Not Ready"),
-            _ => Localize("Not Ready")
+            RacePlayerFileStatus.Creating => Localize("Creating"),
+            RacePlayerFileStatus.Ready => Localize("Ready"),
+            RacePlayerFileStatus.Failed => Localize("Failed"),
+            _ => Localize("Waiting")
+        };
+    }
+
+    private string LocalizeWorldFileStatus(RaceWorldFileStatus status)
+    {
+        return status switch
+        {
+            RaceWorldFileStatus.Downloading => Localize("Downloading"),
+            RaceWorldFileStatus.Ready => Localize("Ready"),
+            RaceWorldFileStatus.Failed => Localize("Failed"),
+            _ => Localize("Waiting")
+        };
+    }
+
+    private string LocalizeRngControlStatus(RaceRngControlStatus status)
+    {
+        return status switch
+        {
+            RaceRngControlStatus.Enabling => Localize("Enabling"),
+            RaceRngControlStatus.Enabled => Localize("Enabled"),
+            RaceRngControlStatus.EnableFailed => Localize("Enable failed"),
+            RaceRngControlStatus.NotEnabled => Localize("Not enabled"),
+            _ => Localize("Closed")
+        };
+    }
+
+    private string LocalizeServerConnectionStatus(RaceServerConnectionStatus status)
+    {
+        return status switch
+        {
+            RaceServerConnectionStatus.Connecting => Localize("Connecting"),
+            RaceServerConnectionStatus.Connected => Localize("Connected"),
+            RaceServerConnectionStatus.Reconnecting => Localize("Reconnecting"),
+            RaceServerConnectionStatus.ConnectionFailed => Localize("Connection failed"),
+            _ => Localize("Disconnected")
         };
     }
 
@@ -1338,6 +1647,15 @@ internal sealed class RaceForm : Form
         return grid;
     }
 
+    private Control CreateRngControlSettingsGrid()
+    {
+        TableLayoutPanel grid = uiFactory.CreateGrid(
+            SettingsUiFactory.ColumnStylePercent(100f),
+            SettingsUiFactory.ColumnStyleAbsolute(RaceSettingsValueColumnWidth));
+        uiFactory.AddSettingRow(grid, "Enable RNG control", rngControlEnabledBox);
+        return grid;
+    }
+
     private Control CreateWorldSourceSelector()
     {
         TableLayoutPanel container = CreateConfigContainer();
@@ -1385,7 +1703,7 @@ internal sealed class RaceForm : Form
         uiFactory.AddSettingRow(seedGrid, "Secret seed", randomSecretSeedsBox);
         SettingsUiFactory.AddSectionControl(container, seedGrid);
 
-        SettingsUiFactory.AddSectionControl(container, uiFactory.CreateSubsectionLabel("Cheats"));
+        SettingsUiFactory.AddSectionControl(container, uiFactory.CreateSubsectionLabel("World filters"));
         TableLayoutPanel cheatsGrid = uiFactory.CreateGrid(
             SettingsUiFactory.ColumnStylePercent(100f),
             SettingsUiFactory.ColumnStyleAbsolute(RaceSettingsValueColumnWidth));
@@ -1393,6 +1711,7 @@ internal sealed class RaceForm : Form
         SettingsUiFactory.AddSectionControl(container, cheatsGrid);
         SettingsUiFactory.AddSectionControl(container, CreatePyramidItemSelector());
         SettingsUiFactory.AddSectionControl(container, CreateCrimsonDistanceSelector());
+        SettingsUiFactory.AddSectionControl(container, CreateJungleRouteDepthSelector());
         SettingsUiFactory.AddSectionControl(container, CreateResourceItemSelector());
         SettingsUiFactory.AddSectionControl(container, CreateMinimumSelector(
             AutoCreateResourceMinimum.LifeCrystals,
@@ -1485,6 +1804,23 @@ internal sealed class RaceForm : Form
         {
             CheckBox button = crimsonDistanceButtons[AutoCreateCrimsonDistance.All[index]];
             button.Margin = CheatSelectorMargin(index, AutoCreateCrimsonDistance.All.Length);
+            panel.Controls.Add(button, index + 2, 0);
+        }
+
+        FinishCheatSelectorRow(panel);
+        return panel;
+    }
+
+    private Control CreateJungleRouteDepthSelector()
+    {
+        int columnCount = AutoCreateJungleRouteDepth.All.Length + 1;
+        TableLayoutPanel panel = CreateCheatSelectorPanel(columnCount);
+        jungleRouteDepthEnabledBox.Margin = new Padding(0, 0, 0, CheatSelectorGap);
+        panel.Controls.Add(jungleRouteDepthEnabledBox, 0, 0);
+        for (int index = 0; index < AutoCreateJungleRouteDepth.All.Length; index++)
+        {
+            CheckBox button = jungleRouteDepthButtons[AutoCreateJungleRouteDepth.All[index]];
+            button.Margin = CheatSelectorMargin(index, AutoCreateJungleRouteDepth.All.Length);
             panel.Controls.Add(button, index + 2, 0);
         }
 
@@ -1801,7 +2137,9 @@ internal sealed class RaceForm : Form
             GetSelectedInt(evilBox, 2) == 2,
             GetSpecialSeedMask(),
             BuildCheatSettings(),
-            SecretSeeds: randomSecretSeedsBox.Text.Trim());
+            SecretSeeds: randomSecretSeedsBox.Text.Trim(),
+            PlayerDifficultyCode: GetSelectedInt(playerDifficultyBox, RacePlayerDifficultyCodes.Softcore),
+            RngControlEnabled: rngControlEnabledBox.Checked);
     }
 
     private RaceWorldSettings BuildCustomSeedWorldSettings()
@@ -1813,7 +2151,9 @@ internal sealed class RaceForm : Form
             roomSettings?.DifficultyCode ?? 1,
             roomSettings?.HasCrimson ?? true,
             SpecialSeedMask: 0,
-            Cheats: RaceCheatSettings.Disabled);
+            Cheats: RaceCheatSettings.Disabled,
+            PlayerDifficultyCode: GetSelectedInt(playerDifficultyBox, RacePlayerDifficultyCodes.Softcore),
+            RngControlEnabled: rngControlEnabledBox.Checked);
     }
 
     private RaceWorldSettings BuildUploadWorldSettings()
@@ -1846,7 +2186,8 @@ internal sealed class RaceForm : Form
             GetSelectedMinimum(lifeCrystalMinimumButtons, AutoCreateResourceMinimum.LifeCrystals),
             GetSelectedHookMinimum(),
             GetSelectedMinimum(spelunkerMinimumButtons, AutoCreateResourceMinimum.Potions),
-            GetSelectedMinimum(featherfallMinimumButtons, AutoCreateResourceMinimum.Potions));
+            GetSelectedMinimum(featherfallMinimumButtons, AutoCreateResourceMinimum.Potions),
+            GetSelectedJungleRouteDepth());
     }
 
     private async Task HandleHostWorldActionButtonClickAsync()
@@ -1862,17 +2203,28 @@ internal sealed class RaceForm : Form
 
     private async Task RunHostWorldActionAsync()
     {
+        RacePanelWorldSource worldSource = selectedWorldSource;
+        RaceWorldSettings worldSettings = BuildUploadWorldSettings(worldSource);
+        if (worldSource != RacePanelWorldSource.ExistingFile &&
+            !RaceWorldSettingsFactory.HasCompatibleJourneyDifficulties(worldSettings))
+        {
+            ShowWorldUploadFailure(RaceOperationResult<RaceRoomState>.Failure(
+                "invalid_world_settings",
+                Localize("Journey player difficulty and Journey world difficulty must be selected together.")));
+            return;
+        }
+
         using var cancellation = new CancellationTokenSource();
         hostWorldActionCancellation = cancellation;
         hostWorldActionCancelRequested = false;
-        hostWorldActionSource = selectedWorldSource;
+        hostWorldActionSource = worldSource;
         hostWorldActionWorldPath = null;
         ApplyHostWorldActionButtonState(HostWorldActionButtonState.Running);
         UpdateConnectionInputLockState();
         try
         {
             PersistDraftState();
-            await HandleHostWorldActionAsync(cancellation.Token, hostWorldActionSource);
+            await HandleHostWorldActionAsync(cancellation.Token, hostWorldActionSource, worldSettings);
             PersistDraftState();
         }
         catch (OperationCanceledException)
@@ -1951,14 +2303,17 @@ internal sealed class RaceForm : Form
             detail));
     }
 
-    private async Task HandleHostWorldActionAsync(CancellationToken cancellationToken, RacePanelWorldSource worldSource)
+    private async Task HandleHostWorldActionAsync(
+        CancellationToken cancellationToken,
+        RacePanelWorldSource worldSource,
+        RaceWorldSettings worldSettings)
     {
         int progressVersion = StartHostWorldProgress();
         var generationProgress = new Progress<int>(value => HandleHostWorldProgressReport(progressVersion, value));
         if (worldSource == RacePanelWorldSource.Random)
         {
             worldPathBox.Text = string.Empty;
-            await shell.GenerateRandomWorldAsync(BuildRandomWorldSettings(), generationProgress);
+            await shell.GenerateRandomWorldAsync(worldSettings, generationProgress);
             cancellationToken.ThrowIfCancellationRequested();
             SyncLocalWorldPath();
             if (string.IsNullOrWhiteSpace(shell.LocalWorldPath))
@@ -1973,7 +2328,7 @@ internal sealed class RaceForm : Form
         else if (worldSource == RacePanelWorldSource.CustomSeed)
         {
             worldPathBox.Text = string.Empty;
-            await shell.GenerateCustomSeedWorldAsync(BuildCustomSeedWorldSettings(), seedBox.Text, generationProgress);
+            await shell.GenerateCustomSeedWorldAsync(worldSettings, seedBox.Text, generationProgress);
             cancellationToken.ThrowIfCancellationRequested();
             SyncLocalWorldPath();
             if (string.IsNullOrWhiteSpace(shell.LocalWorldPath))
@@ -2001,7 +2356,7 @@ internal sealed class RaceForm : Form
             serverBox.Text,
             nicknameBox.Text,
             uploadWorldPath,
-            BuildUploadWorldSettings(worldSource),
+            worldSettings,
             seedBox.Text,
             uploadProgress,
             cancellationToken);
@@ -2213,13 +2568,15 @@ internal sealed class RaceForm : Form
         SelectDropDownByValue(sizeBox, worldSettings.SizeCode);
         SelectDropDownByValue(difficultyBox, worldSettings.DifficultyCode);
         SelectDropDownByValue(evilBox, worldSettings.HasCrimson ? 2 : 1);
+        SelectDropDownByValue(playerDifficultyBox, RacePlayerDifficultyCodes.Normalize(worldSettings.PlayerDifficultyCode));
+        rngControlEnabledBox.Checked = worldSettings.RngControlEnabled;
         ApplySpecialSeedMask(worldSettings.SpecialSeedMask);
         if (!randomSecretSeedsBox.Focused)
         {
             randomSecretSeedsBox.Text = worldSettings.SecretSeeds ?? string.Empty;
         }
 
-        RaceCheatSettings cheats = worldSettings.Cheats;
+        RaceCheatSettings cheats = worldSettings.EffectiveCheats;
         cheatsEnabledBox.Checked = cheats.Enabled;
         pyramidEnabledBox.Checked = cheats.PyramidEnabled;
         int pyramidItemMask = cheats.PyramidEnabled
@@ -2233,6 +2590,7 @@ internal sealed class RaceForm : Form
 
         crimsonEnabledBox.Checked = cheats.CrimsonEnabled;
         ApplyCrimsonDistanceSelection(AutoCreateCrimsonDistance.Normalize(cheats.CrimsonDistance));
+        ApplyJungleRouteDepthSelection(AutoCreateJungleRouteDepth.Normalize(cheats.JungleRouteDepth));
         int resourceItemMask = AutoCreateResourceFilterItem.NormalizeMask(cheats.ResourceItemMask);
         foreach ((string item, CheckBox button) in resourceItemButtons)
         {
@@ -2265,8 +2623,21 @@ internal sealed class RaceForm : Form
             roomCodeBox.Text,
             seedBox.Text,
             worldPathBox.Text,
+            playerTemplateCodeBox.Text,
+            GetSelectedPlayerDifficulty(),
             selectedRole,
             selectedWorldSource));
+    }
+
+    private string GetSelectedPlayerDifficulty()
+    {
+        return GetSelectedInt(playerDifficultyBox, 0) switch
+        {
+            1 => AutoCreatePlayerDifficulty.Mediumcore,
+            2 => AutoCreatePlayerDifficulty.Hardcore,
+            3 => AutoCreatePlayerDifficulty.Journey,
+            _ => AutoCreatePlayerDifficulty.Softcore
+        };
     }
 
     private void SaveLeaderboardSettings()
@@ -2279,10 +2650,31 @@ internal sealed class RaceForm : Form
         shell.SaveLeaderboardSettings(BuildLeaderboardSettings());
     }
 
+    private RaceVoiceSettings BuildVoiceSettings()
+    {
+        string voiceName = voiceNameBox.SelectedItem is OptionItem { Value: string selectedVoice }
+            ? selectedVoice
+            : string.Empty;
+        return new RaceVoiceSettings
+        {
+            Enabled = voiceEnabledBox.Checked,
+            VoiceName = voiceName,
+            SpeedPercent = Math.Clamp(voiceSpeedBar.Value, 50, 200),
+            Volume = Math.Clamp(voiceVolumeBar.Value, 0, 100)
+        };
+    }
+
     private RaceLeaderboardSettings BuildLeaderboardSettings()
     {
         RaceLeaderboardSettings settings = CloneLeaderboardSettings(leaderboardSettings);
         settings.UseRankColorForMainTimer = useRankColorForMainTimerBox?.Checked ?? settings.UseRankColorForMainTimer;
+        settings.RankPlayerGap = GetLeaderboardSpacing(RaceLeaderboardSpacingKeys.RankPlayer, settings.RankPlayerGap);
+        settings.PlayerIconGap = GetLeaderboardSpacing(RaceLeaderboardSpacingKeys.PlayerIcon, settings.PlayerIconGap);
+        settings.IconTimeGap = GetLeaderboardSpacing(RaceLeaderboardSpacingKeys.IconTime, settings.IconTimeGap);
+        settings.RankAlignment = GetLeaderboardAlignment(RaceLeaderboardColumnKeys.Rank, settings.RankAlignment);
+        settings.PlayerAlignment = GetLeaderboardAlignment(RaceLeaderboardColumnKeys.Player, settings.PlayerAlignment);
+        settings.IconAlignment = GetLeaderboardAlignment(RaceLeaderboardColumnKeys.Icon, settings.IconAlignment);
+        settings.TimeAlignment = GetLeaderboardAlignment(RaceLeaderboardColumnKeys.Time, settings.TimeAlignment);
         ApplyLeaderboardSettingsRow(
             RaceLeaderboardColumnKeys.Rank,
             settings.Rank,
@@ -2307,6 +2699,21 @@ internal sealed class RaceForm : Form
             settings.Colors.Time);
         ApplyLeaderboardRankGradient(settings.Colors.RankGradient);
         return settings;
+    }
+
+    private int GetLeaderboardSpacing(string key, int fallback)
+    {
+        return leaderboardSpacingControls.TryGetValue(key, out TextBox? box)
+            ? SettingsValueParser.ParseIntBox(box, fallback, 0, 1000)
+            : fallback;
+    }
+
+    private string GetLeaderboardAlignment(string key, string fallback)
+    {
+        return leaderboardColumnControls.TryGetValue(key, out LeaderboardColumnControls? controls) &&
+            controls.Alignment.SelectedItem is OptionItem { Value: string alignment }
+                ? UiColumnAlignment.Normalize(alignment, fallback)
+                : fallback;
     }
 
     private void ApplyLeaderboardColorRow(string key, RaceLeaderboardColumnColorSettings colors)
@@ -2394,6 +2801,13 @@ internal sealed class RaceForm : Form
         return new RaceLeaderboardSettings
         {
             UseRankColorForMainTimer = source.UseRankColorForMainTimer,
+            RankPlayerGap = source.RankPlayerGap,
+            PlayerIconGap = source.PlayerIconGap,
+            IconTimeGap = source.IconTimeGap,
+            RankAlignment = source.RankAlignment,
+            PlayerAlignment = source.PlayerAlignment,
+            IconAlignment = source.IconAlignment,
+            TimeAlignment = source.TimeAlignment,
             Rank = CloneColumnSettings(source.Rank),
             Player = CloneColumnSettings(source.Player),
             Icon = CloneColumnSettings(source.Icon),
@@ -2415,6 +2829,18 @@ internal sealed class RaceForm : Form
                 Icon = CloneLeaderboardColumnColor(source.Colors?.Icon ?? new RaceLeaderboardColumnColorSettings()),
                 Time = CloneLeaderboardColumnColor(source.Colors?.Time ?? new RaceLeaderboardColumnColorSettings())
             }
+        };
+    }
+
+    private static RaceVoiceSettings CloneVoiceSettings(RaceVoiceSettings? source)
+    {
+        source ??= new RaceVoiceSettings();
+        return new RaceVoiceSettings
+        {
+            Enabled = source.Enabled,
+            VoiceName = source.VoiceName?.Trim() ?? string.Empty,
+            SpeedPercent = Math.Clamp(source.SpeedPercent, 50, 200),
+            Volume = Math.Clamp(source.Volume, 0, 100)
         };
     }
 
@@ -2544,12 +2970,85 @@ internal sealed class RaceForm : Form
 
     private void UpdateRoomLifecycleButton()
     {
-        if (roomLifecycleButton is null)
+        if (roomLifecycleButton is null || startRaceButton is null || restartRoomButton is null)
         {
             return;
         }
 
-        roomLifecycleButton.Text = Localize(IsLocalHost(shell.State) ? "Close room" : "Leave room");
+        RaceRoomState? state = shell.State;
+        bool isHost = IsLocalHost(state);
+        bool busy = startRaceRunning || restartRoomRunning;
+        roomLifecycleButton.Text = Localize(isHost ? "Close room" : "Leave room");
+        roomLifecycleButton.Enabled = !busy;
+
+        startRaceButton.Visible = isHost;
+        startRaceButton.Text = Localize(startRaceRunning ? "Race Starting..." : "Race Start");
+        startRaceButton.Enabled = !busy &&
+            HasOpenRaceRoom(state) &&
+            state?.Status == RaceRoomStatus.Ready &&
+            state.ScheduledStartUtc is null;
+
+        restartRoomButton.Visible = isHost;
+        restartRoomButton.Text = Localize(restartRoomRunning ? "Restarting..." : "Restart");
+        restartRoomButton.Enabled = !busy &&
+            HasOpenRaceRoom(state) &&
+            state?.WorldFile is not null;
+    }
+
+    private async Task StartRaceAsync()
+    {
+        if (startRaceRunning || !IsLocalHost(shell.State))
+        {
+            return;
+        }
+
+        startRaceRunning = true;
+        UpdateRoomLifecycleButton();
+        try
+        {
+            RaceOperationResult<RaceRoomState> result = await shell.StartAsync();
+            if (!result.Succeeded)
+            {
+                string detail = string.IsNullOrWhiteSpace(result.Message) ? result.ErrorCode : result.Message;
+                string message = string.IsNullOrWhiteSpace(detail)
+                    ? Localize("Race Start failed.")
+                    : Localize("Race Start failed.") + Environment.NewLine + detail;
+                dialogs.ShowWarning(message, Localize("Race"));
+            }
+        }
+        finally
+        {
+            startRaceRunning = false;
+            UpdateRoomLifecycleButton();
+        }
+    }
+
+    private async Task RestartRoomAsync()
+    {
+        if (restartRoomRunning || !IsLocalHost(shell.State))
+        {
+            return;
+        }
+
+        restartRoomRunning = true;
+        UpdateRoomLifecycleButton();
+        try
+        {
+            RaceOperationResult<RaceRoomState> result = await shell.RestartAsync();
+            if (!result.Succeeded)
+            {
+                string detail = string.IsNullOrWhiteSpace(result.Message) ? result.ErrorCode : result.Message;
+                string message = string.IsNullOrWhiteSpace(detail)
+                    ? Localize("Restart failed.")
+                    : Localize("Restart failed.") + Environment.NewLine + detail;
+                dialogs.ShowWarning(message, Localize("Race"));
+            }
+        }
+        finally
+        {
+            restartRoomRunning = false;
+            UpdateRoomLifecycleButton();
+        }
     }
 
     private Task CloseOrLeaveRoomAsync()
@@ -2571,6 +3070,7 @@ internal sealed class RaceForm : Form
         bool enabled = !AreConnectionInputsLocked();
         SetControlEnabled(serverBox, enabled);
         SetControlEnabled(nicknameBox, enabled);
+        SetControlEnabled(playerTemplateCodeBox, enabled);
         SetControlEnabled(hostRoleButton, enabled);
         SetControlEnabled(memberRoleButton, enabled);
     }
@@ -2671,6 +3171,13 @@ internal sealed class RaceForm : Form
         bool resourcesSupported = cheatsEnabled &&
             GetSelectedInt(sizeBox, 2) == 1 &&
             GetSelectedInt(evilBox, 2) == 2;
+        jungleRouteDepthEnabledBox.Enabled = resourcesSupported;
+        UpdateSelectorButtonState(jungleRouteDepthEnabledBox);
+        foreach (CheckBox button in jungleRouteDepthButtons.Values)
+        {
+            button.Enabled = resourcesSupported && jungleRouteDepthEnabledBox.Checked;
+            UpdateSelectorButtonState(button);
+        }
         foreach (CheckBox button in resourceItemButtons.Values)
         {
             button.Enabled = resourcesSupported;
@@ -2852,6 +3359,59 @@ internal sealed class RaceForm : Form
         }
 
         return AutoCreateCrimsonDistance.Default;
+    }
+
+    private void SelectJungleRouteDepth(string selectedDepth, bool selected)
+    {
+        if (updatingJungleRouteDepthSelection)
+        {
+            return;
+        }
+
+        string normalized = selectedDepth == AutoCreateJungleRouteDepth.None
+            ? selected ? AutoCreateJungleRouteDepth.Medium : AutoCreateJungleRouteDepth.None
+            : AutoCreateJungleRouteDepth.Normalize(selectedDepth);
+        ApplyJungleRouteDepthSelection(normalized);
+        UpdateCheatAvailability();
+    }
+
+    private void ApplyJungleRouteDepthSelection(string selectedDepth)
+    {
+        updatingJungleRouteDepthSelection = true;
+        try
+        {
+            string normalized = AutoCreateJungleRouteDepth.Normalize(selectedDepth);
+            bool enabled = normalized != AutoCreateJungleRouteDepth.None;
+            jungleRouteDepthEnabledBox.Checked = enabled;
+            UpdateSelectorButtonState(jungleRouteDepthEnabledBox);
+            foreach ((string depth, CheckBox button) in jungleRouteDepthButtons)
+            {
+                button.Checked = enabled && AutoCreateJungleRouteDepth.Includes(normalized, depth);
+                UpdateSelectorButtonState(button);
+            }
+        }
+        finally
+        {
+            updatingJungleRouteDepthSelection = false;
+        }
+    }
+
+    private string GetSelectedJungleRouteDepth()
+    {
+        if (!jungleRouteDepthEnabledBox.Checked)
+        {
+            return AutoCreateJungleRouteDepth.None;
+        }
+
+        foreach (string depth in AutoCreateJungleRouteDepth.All)
+        {
+            if (jungleRouteDepthButtons.TryGetValue(depth, out CheckBox? button) && button.Checked)
+            {
+                return depth;
+            }
+        }
+
+        return AutoCreateJungleRouteDepth.None;
     }
 
     private int GetSpecialSeedMask()
@@ -3047,6 +3607,10 @@ internal sealed class RaceForm : Form
             if (!button.IsDisposed)
             {
                 button.Enabled = true;
+                if (ReferenceEquals(button, restartRoomButton) || ReferenceEquals(button, startRaceButton))
+                {
+                    UpdateRoomLifecycleButton();
+                }
             }
         }
     }
@@ -3266,6 +3830,7 @@ internal sealed class RaceForm : Form
     private sealed record LeaderboardColumnControls(
         CheckBox Show,
         TextBox Width,
+        ThemedDropDownList Alignment,
         FontFamilySelector? FontFamily,
         TextBox? FontSize,
         CheckBox? Bold,
@@ -3292,5 +3857,12 @@ internal sealed class RaceForm : Form
         public const string PlayerOther = "RaceLeaderboardPlayerOther";
         public const string Icon = "RaceLeaderboardIcon";
         public const string Time = "RaceLeaderboardTime";
+    }
+
+    private static class RaceLeaderboardSpacingKeys
+    {
+        public const string RankPlayer = "RankPlayer";
+        public const string PlayerIcon = "PlayerIcon";
+        public const string IconTime = "IconTime";
     }
 }

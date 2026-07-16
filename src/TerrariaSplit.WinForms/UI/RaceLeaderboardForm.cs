@@ -428,9 +428,10 @@ internal sealed class RaceLeaderboardForm : Form
             layout.Rank,
             layout.RankEffect,
             columnWidths.Rank,
+            columnWidths.RankGap,
+            layout.RankAlignment,
             ref x,
             rowRect,
-            ContentAlignment.MiddleRight,
             rankFill,
             colors.Rank.Outline,
             colors.Rank.Shadow);
@@ -443,9 +444,10 @@ internal sealed class RaceLeaderboardForm : Form
             layout.Player,
             layout.PlayerEffect,
             columnWidths.Player,
+            columnWidths.PlayerGap,
+            layout.PlayerAlignment,
             ref x,
             rowRect,
-            ContentAlignment.MiddleRight,
             playerColors.Text,
             playerColors.Outline,
             playerColors.Shadow);
@@ -456,6 +458,8 @@ internal sealed class RaceLeaderboardForm : Form
             layout.IconEffect,
             colors.Icon,
             columnWidths.Icon,
+            columnWidths.IconGap,
+            layout.IconAlignment,
             ref x,
             rowRect,
             entry);
@@ -465,9 +469,10 @@ internal sealed class RaceLeaderboardForm : Form
             layout.Time,
             layout.TimeEffect,
             columnWidths.Time,
+            columnWidths.TimeGap,
+            layout.TimeAlignment,
             ref x,
             rowRect,
-            ContentAlignment.MiddleRight,
             colors.Time.Text,
             colors.Time.Outline,
             colors.Time.Shadow);
@@ -479,9 +484,10 @@ internal sealed class RaceLeaderboardForm : Form
         UiColumnSettings column,
         RaceLeaderboardColumnEffectSettings effect,
         int width,
+        int gapBefore,
+        string alignment,
         ref int x,
         Rectangle rowRect,
-        ContentAlignment alignment,
         Color fill,
         Color outline,
         Color shadow)
@@ -491,6 +497,7 @@ internal sealed class RaceLeaderboardForm : Form
             return;
         }
 
+        x += gapBefore;
         Rectangle bounds = GetColumnContentBounds(x, width, rowRect);
         Font font = CreateFittingFont(graphics, text, column, effect, bounds);
         DrawFittedText(
@@ -505,7 +512,7 @@ internal sealed class RaceLeaderboardForm : Form
                 effect.OutlineThicknessPercent,
                 LinearEffects: true),
             bounds,
-            alignment,
+            GetContentAlignment(alignment),
             Math.Clamp(effect.OpacityPercent, 0, 100) / 100f);
         x += width;
     }
@@ -564,6 +571,8 @@ internal sealed class RaceLeaderboardForm : Form
         RaceLeaderboardColumnEffectSettings effect,
         RaceLeaderboardColumnRenderColors colors,
         int width,
+        int gapBefore,
+        string alignment,
         ref int x,
         Rectangle rowRect,
         RaceLeaderboardEntry entry)
@@ -573,6 +582,7 @@ internal sealed class RaceLeaderboardForm : Form
             return;
         }
 
+        x += gapBefore;
         Rectangle bounds = GetColumnContentBounds(x, width, rowRect);
         Image? image = GetIconImage(entry, settings);
         if (image is not null)
@@ -581,7 +591,7 @@ internal sealed class RaceLeaderboardForm : Form
                 Math.Min(bounds.Height, bounds.Width),
                 Math.Max(12, ScaleInt((int)Math.Round(column.FontSize))));
             Rectangle iconRect = new(
-                bounds.Right - size,
+                GetAlignedLeft(bounds, size, alignment),
                 bounds.Y + Math.Max(0, (bounds.Height - size) / 2),
                 size,
                 size);
@@ -594,6 +604,26 @@ internal sealed class RaceLeaderboardForm : Form
         }
 
         x += width;
+    }
+
+    private static ContentAlignment GetContentAlignment(string? alignment)
+    {
+        return UiColumnAlignment.Normalize(alignment, UiColumnAlignment.Right) switch
+        {
+            UiColumnAlignment.Left => ContentAlignment.MiddleLeft,
+            UiColumnAlignment.Center => ContentAlignment.MiddleCenter,
+            _ => ContentAlignment.MiddleRight
+        };
+    }
+
+    private static int GetAlignedLeft(Rectangle bounds, int contentWidth, string? alignment)
+    {
+        return UiColumnAlignment.Normalize(alignment, UiColumnAlignment.Right) switch
+        {
+            UiColumnAlignment.Left => bounds.Left,
+            UiColumnAlignment.Center => bounds.Left + Math.Max(0, (bounds.Width - contentWidth) / 2),
+            _ => bounds.Right - contentWidth
+        };
     }
 
     private Image? GetIconImage(RaceLeaderboardEntry entry, AppSettings settings)
@@ -821,7 +851,7 @@ internal sealed class RaceLeaderboardForm : Form
 
     private Font CreateFont(UiColumnSettings column)
     {
-        return fontCache.GetColumnFont(column, UiDpiScale.GetAppliedScale(this));
+        return fontCache.GetColumnFont(column, GetContentScale());
     }
 
     private Rectangle GetColumnContentBounds(int x, int width, Rectangle rowRect)
@@ -843,7 +873,7 @@ internal sealed class RaceLeaderboardForm : Form
             ? baseFont
             : fontCache.GetColumnFont(
                 column,
-                UiDpiScale.GetAppliedScale(this),
+                GetContentScale(),
                 sizeScale: sizeScale,
                 minimumSize: MinimumFittingTextSize);
     }
@@ -893,7 +923,7 @@ internal sealed class RaceLeaderboardForm : Form
     {
         Font font = fontCache.GetColumnFont(
             column,
-            UiDpiScale.GetAppliedScale(this),
+            GetContentScale(),
             sizeScale: sizeScale,
             minimumSize: MinimumFittingTextSize);
         using var format = new StringFormat(StringFormat.GenericTypographic)
@@ -939,27 +969,47 @@ internal sealed class RaceLeaderboardForm : Form
         width += GetColumnWidth(layout.Player);
         width += GetColumnWidth(layout.Icon);
         width += GetColumnWidth(layout.Time);
+        width += GetGapWidth(GetPlayerGap(layout));
+        width += GetGapWidth(GetIconGap(layout));
+        width += GetGapWidth(GetTimeGap(layout));
         return width;
     }
 
     private RaceLeaderboardColumnWidths GetColumnWidths(RaceLeaderboardLayout layout, int clientWidth)
     {
-        int requestedWidth =
-            GetColumnWidth(layout.Rank) +
-            GetColumnWidth(layout.Player) +
-            GetColumnWidth(layout.Icon) +
-            GetColumnWidth(layout.Time);
+        int rankWidth = GetColumnWidth(layout.Rank);
+        int playerWidth = GetColumnWidth(layout.Player);
+        int iconWidth = GetColumnWidth(layout.Icon);
+        int timeWidth = GetColumnWidth(layout.Time);
+        int playerGap = GetGapWidth(GetPlayerGap(layout));
+        int iconGap = GetGapWidth(GetIconGap(layout));
+        int timeGap = GetGapWidth(GetTimeGap(layout));
+        int requestedWidth = rankWidth + playerWidth + iconWidth + timeWidth + playerGap + iconGap + timeGap;
         int availableWidth = Math.Max(1, clientWidth - ScaleInt(RowPaddingX * 2));
         float widthScale = requestedWidth > availableWidth && requestedWidth > 0
             ? availableWidth / (float)requestedWidth
             : 1f;
 
-        return FitColumnWidthsToAvailableWidth(
-            availableWidth,
-            GetColumnWidth(layout.Rank, widthScale),
-            GetColumnWidth(layout.Player, widthScale),
-            GetColumnWidth(layout.Icon, widthScale),
-            GetColumnWidth(layout.Time, widthScale));
+        rankWidth = ScaleLayoutValue(rankWidth, layout.Rank.Show, widthScale);
+        playerWidth = ScaleLayoutValue(playerWidth, layout.Player.Show, widthScale);
+        iconWidth = ScaleLayoutValue(iconWidth, layout.Icon.Show, widthScale);
+        timeWidth = ScaleLayoutValue(timeWidth, layout.Time.Show, widthScale);
+        playerGap = ScaleLayoutValue(playerGap, playerGap > 0, widthScale);
+        iconGap = ScaleLayoutValue(iconGap, iconGap > 0, widthScale);
+        timeGap = ScaleLayoutValue(timeGap, timeGap > 0, widthScale);
+        int contentWidth = Math.Max(1, availableWidth - playerGap - iconGap - timeGap);
+        RaceLeaderboardColumnWidths fitted = FitColumnWidthsToAvailableWidth(
+            contentWidth,
+            rankWidth,
+            playerWidth,
+            iconWidth,
+            timeWidth);
+        return fitted with
+        {
+            PlayerGap = playerGap,
+            IconGap = iconGap,
+            TimeGap = timeGap
+        };
     }
 
     private int GetColumnWidth(UiColumnSettings column)
@@ -967,10 +1017,30 @@ internal sealed class RaceLeaderboardForm : Form
         return column.Show ? ScaleInt(Math.Max(1, column.Width)) : 0;
     }
 
-    private int GetColumnWidth(UiColumnSettings column, float widthScale)
+    private int GetGapWidth(int gap)
     {
-        return column.Show
-            ? Math.Max(1, (int)Math.Round(GetColumnWidth(column) * widthScale))
+        return ScaleInt(Math.Max(0, gap));
+    }
+
+    private static int ScaleLayoutValue(int value, bool visible, float widthScale)
+    {
+        return visible ? Math.Max(1, (int)Math.Round(value * widthScale)) : 0;
+    }
+
+    private static int GetPlayerGap(RaceLeaderboardLayout layout)
+    {
+        return layout.Rank.Show && layout.Player.Show ? layout.RankPlayerGap : 0;
+    }
+
+    private static int GetIconGap(RaceLeaderboardLayout layout)
+    {
+        return layout.Icon.Show && (layout.Rank.Show || layout.Player.Show) ? layout.PlayerIconGap : 0;
+    }
+
+    private static int GetTimeGap(RaceLeaderboardLayout layout)
+    {
+        return layout.Time.Show && (layout.Rank.Show || layout.Player.Show || layout.Icon.Show)
+            ? layout.IconTimeGap
             : 0;
     }
 
@@ -986,7 +1056,7 @@ internal sealed class RaceLeaderboardForm : Form
         TrimColumnOverflow(ref player, ref overflow);
         TrimColumnOverflow(ref icon, ref overflow);
         TrimColumnOverflow(ref rank, ref overflow);
-        return new RaceLeaderboardColumnWidths(rank, player, icon, time);
+        return new RaceLeaderboardColumnWidths(rank, player, icon, time, 0, 0, 0, 0);
     }
 
     private static void TrimColumnOverflow(ref int width, ref int overflow)
@@ -1021,14 +1091,23 @@ internal sealed class RaceLeaderboardForm : Form
 
     private int ScaleInt(int value)
     {
-        return (int)Math.Round(value * UiDpiScale.GetAppliedScale(this));
+        return OverlayRenderContext.ScaleInt(getSettings(), value);
+    }
+
+    private float GetContentScale()
+    {
+        return OverlayRenderContext.GetScaleFactor(getSettings());
     }
 
     private readonly record struct RaceLeaderboardColumnWidths(
         int Rank,
         int Player,
         int Icon,
-        int Time);
+        int Time,
+        int RankGap,
+        int PlayerGap,
+        int IconGap,
+        int TimeGap);
 
     private readonly record struct RaceLeaderboardColumnRenderColors(
         Color Text,
@@ -1091,7 +1170,14 @@ internal sealed class RaceLeaderboardForm : Form
         UiColumnSettings Icon,
         RaceLeaderboardColumnEffectSettings IconEffect,
         UiColumnSettings Time,
-        RaceLeaderboardColumnEffectSettings TimeEffect)
+        RaceLeaderboardColumnEffectSettings TimeEffect,
+        int RankPlayerGap,
+        int PlayerIconGap,
+        int IconTimeGap,
+        string RankAlignment,
+        string PlayerAlignment,
+        string IconAlignment,
+        string TimeAlignment)
     {
         public static RaceLeaderboardLayout From(AppSettings settings, RaceLeaderboardSettings leaderboard)
         {
@@ -1105,7 +1191,14 @@ internal sealed class RaceLeaderboardForm : Form
                 leaderboard.Icon ?? defaults.Icon,
                 raceEffects.Icon ?? new RaceLeaderboardColumnEffectSettings(),
                 leaderboard.Time ?? defaults.Time,
-                raceEffects.Time ?? new RaceLeaderboardColumnEffectSettings());
+                raceEffects.Time ?? new RaceLeaderboardColumnEffectSettings(),
+                Math.Clamp(leaderboard.RankPlayerGap, 0, 1000),
+                Math.Clamp(leaderboard.PlayerIconGap, 0, 1000),
+                Math.Clamp(leaderboard.IconTimeGap, 0, 1000),
+                UiColumnAlignment.Normalize(leaderboard.RankAlignment, UiColumnAlignment.Right),
+                UiColumnAlignment.Normalize(leaderboard.PlayerAlignment, UiColumnAlignment.Right),
+                UiColumnAlignment.Normalize(leaderboard.IconAlignment, UiColumnAlignment.Right),
+                UiColumnAlignment.Normalize(leaderboard.TimeAlignment, UiColumnAlignment.Right));
         }
     }
 }

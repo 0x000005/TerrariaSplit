@@ -22,7 +22,7 @@ public sealed class RaceLocalPyramidSeedGenerator
             settings.DifficultyCode,
             settings.HasCrimson,
             settings.SpecialSeedMask,
-            settings.Cheats.PyramidItemMask,
+            settings.EffectiveCheats.PyramidItemMask,
             settings.TerrariaVersion);
 
         if (result.Status == PublicPyramidSeedPreScreenStatus.UnsupportedScope)

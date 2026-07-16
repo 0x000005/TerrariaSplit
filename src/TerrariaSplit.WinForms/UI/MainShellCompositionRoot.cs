@@ -159,6 +159,7 @@ internal static class MainShellCompositionRoot
 
     public static SettingsShell CreateSettingsShell(
         Func<AppSettings> getSettings,
+        Func<bool> isRaceRoomActive,
         ISettingsRepository settingsRepository,
         ISettingsSnapshotFactory settingsSnapshots,
         Action<Action> dispatch,
@@ -172,6 +173,7 @@ internal static class MainShellCompositionRoot
     {
         return new SettingsShell(
             getSettings,
+            isRaceRoomActive,
             settingsRepository,
             settingsSnapshots,
             dispatch,

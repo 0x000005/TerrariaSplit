@@ -1,4 +1,6 @@
 using System.Text;
+using TerrariaSplit.Race.Determinism;
+using TerrariaSplit.Terraria;
 using TerrariaSplit.Terraria.Automation;
 using TerrariaSplit.Terraria.WorldGeneration;
 
@@ -53,6 +55,67 @@ internal static class TerrariaIntegrationTests
         await File.WriteAllBytesAsync(path, world, cancellationToken);
         Check.True(RaceWorldFileValidator.IsValidWorldFilePath(path));
         Check.False(RaceWorldFileValidator.IsValidWorldFilePath(directory.Combine("missing.wld")));
+        Check.True(RaceWorldFileValidator.TryReadWorldIdentity(path, out RaceWorldIdentity? identity, out string identityDetail));
+        Check.Equal(string.Empty, identityDetail);
+        Check.Equal("test-world", identity!.Name);
+        Check.Equal(24680, identity.WorldId);
+        Check.Equal(new Guid("5c52f5aa-80ee-40e7-a6de-afb84ff79025"), identity.UniqueId);
+
+        const string rejectionMessage = "Only this Race world is allowed.";
+        var determinism = new RaceDeterminismPackage(
+            RaceDeterminismProtocol.CurrentVersion,
+            "5c52f5aa80ee40e7a6deafb84ff79025",
+            Convert.ToBase64String(Enumerable.Range(0, 32).Select(static value => (byte)value).ToArray()),
+            RaceDeterminismProtocol.TerrariaCompatibilityId,
+            RaceDeterminismCapability.WorldLock | RaceDeterminismCapability.NpcDirectDrops,
+            RaceDeterminismProtocol.CurrentChancePolicyVersion);
+        string lockCommand = TerrariaRaceWorldLockService.BuildLockCommand(
+            new TerrariaRaceWorldLockTarget(
+                path,
+                identity.WorldId,
+                identity.UniqueId,
+                new TerrariaRaceDeterminismConfiguration(
+                    determinism.ProtocolVersion,
+                    determinism.EpochId,
+                    determinism.EntropySeedBase64,
+                    determinism.TerrariaCompatibilityId,
+                    (int)determinism.EnabledCapabilities,
+                    determinism.ChancePolicyVersion,
+                    determinism.CreateDigest()),
+                TerrariaPlanteraBulbPlan.Empty,
+                EntryAllowed: false),
+            Path.Combine(directory.Path, "Race_Player.plr"),
+            rejectionMessage);
+        string[] lockParts = lockCommand.Split('\n');
+        Check.Equal(15, lockParts.Length);
+        Check.Equal("configure", lockParts[0]);
+        Check.Equal(Path.GetFullPath(path), Encoding.UTF8.GetString(Convert.FromBase64String(lockParts[1])));
+        Check.Equal(identity.WorldId.ToString(System.Globalization.CultureInfo.InvariantCulture), lockParts[2]);
+        Check.Equal(identity.UniqueId.ToString("D"), lockParts[3]);
+        Check.Equal(Path.Combine(directory.Path, "Race_Player.plr"), Encoding.UTF8.GetString(Convert.FromBase64String(lockParts[4])));
+        Check.Equal(rejectionMessage, Encoding.UTF8.GetString(Convert.FromBase64String(lockParts[5])));
+        Check.Equal(determinism.EpochId, lockParts[7]);
+        Check.Equal(determinism.EntropySeedBase64, lockParts[8]);
+        Check.Equal(Convert.ToBase64String(Encoding.UTF8.GetBytes("0")), lockParts[12]);
+        Check.Equal("0", lockParts[13]);
+        Check.Equal(determinism.CreateDigest(), lockParts[14]);
+        string[] startParts = TerrariaRaceWorldLockService.BuildStartRaceCommand(
+            TimeSpan.FromSeconds(7),
+            "将在 {0} 秒后开始").Split('\n');
+        Check.Equal(3, startParts.Length);
+        Check.Equal("start-race", startParts[0]);
+        Check.Equal("7000", startParts[1]);
+        Check.Equal("将在 {0} 秒后开始", Encoding.UTF8.GetString(Convert.FromBase64String(startParts[2])));
+        string createPlayerCommand = TerrariaRaceWorldLockService.BuildCreatePlayerCommand(
+            new TerrariaRaceInitialPlayerConfiguration("Runner", "{ template }", AutoCreatePlayerDifficulty.Hardcore));
+        string[] playerParts = createPlayerCommand.Split('\n');
+        Check.Equal(4, playerParts.Length);
+        Check.Equal("create-player", playerParts[0]);
+        Check.Equal("Runner", Encoding.UTF8.GetString(Convert.FromBase64String(playerParts[1])));
+        Check.Equal("{ template }", Encoding.UTF8.GetString(Convert.FromBase64String(playerParts[2])));
+        Check.Equal(AutoCreatePlayerDifficulty.Hardcore, playerParts[3]);
+        Check.Equal("TerrariaSplit.RaceHook.1234", TerrariaRaceWorldLockService.CreatePipeName(1234));
+        Check.Equal("TerrariaSplit.RaceHook.5678", TerrariaRaceWorldLockService.CreatePipeName(5678));
 
         var store = new RaceWorldFileStore(directory.Combine("server"));
         RaceStoredWorldFile first;
@@ -68,8 +131,17 @@ internal static class TerrariaIntegrationTests
         }
         Check.True(store.TryGetPath("AB12", first.Info, out string storedPath));
         Check.Equal(first.Path, storedPath);
-        store.DeleteRoom("AB12");
+        byte[] replacementWorld = CreateMinimalWorld("replacement-world", 13579);
+        RaceStoredWorldFile replacement;
+        await using (var stream = new MemoryStream(replacementWorld))
+        {
+            replacement = await store.SaveAsync("AB12", "host", "replacement.wld", stream, cancellationToken);
+        }
+        store.DeleteStoredFile("AB12", first.Info);
         Check.False(File.Exists(first.Path));
+        Check.True(File.Exists(replacement.Path));
+        store.DeleteAllRooms();
+        Check.False(File.Exists(replacement.Path));
     }
 
     private static void WorldSettingsNormalization()
@@ -114,7 +186,8 @@ internal static class TerrariaIntegrationTests
             ResourceFilterLifeCrystalMinimum = 8,
             ResourceFilterHookMinimum = AutoCreateResourceHook.Sapphire,
             ResourceFilterSpelunkerPotionMinimum = 2,
-            ResourceFilterFeatherfallPotionMinimum = 1
+            ResourceFilterFeatherfallPotionMinimum = 1,
+            JungleRouteDepth = AutoCreateJungleRouteDepth.None
         };
         Dictionary<string, int> gems = AutoCreateResourceHook.All
             .Where(hook => hook != AutoCreateResourceHook.None)
@@ -151,13 +224,23 @@ internal static class TerrariaIntegrationTests
         resources = resources with { Gems = new Dictionary<string, int>(gems, StringComparer.Ordinal) };
         Check.True(WorldResourceFilterMatcher.Matches(settings, resources));
 
+        settings.JungleRouteDepth = AutoCreateJungleRouteDepth.Deep;
+        resources = resources with { JungleRouteDeepestY = 649 };
+        Check.False(WorldResourceFilterMatcher.Matches(settings, resources));
+        resources = resources with { JungleRouteDeepestY = 650 };
+        Check.True(WorldResourceFilterMatcher.Matches(settings, resources));
+        settings.JungleRouteDepth = AutoCreateJungleRouteDepth.None;
+
         settings.WorldSize = AutoCreateWorldSize.Medium;
         Check.False(PyramidFilterWorldFileEvaluator.IsResourceFilterEnabled(settings));
         settings.WorldSize = AutoCreateWorldSize.Small;
         settings.WorldEvil = AutoCreateWorldEvil.Corruption;
         Check.False(PyramidFilterWorldFileEvaluator.IsResourceFilterEnabled(settings));
 
-        var disabledRequirements = new AutoCreateWorldSettings();
+        var disabledRequirements = new AutoCreateWorldSettings
+        {
+            JungleRouteDepth = AutoCreateJungleRouteDepth.None
+        };
         Check.True(WorldResourceFilterMatcher.Matches(disabledRequirements, WorldResourceFilterResult.Empty));
     }
 
@@ -249,6 +332,7 @@ internal static class TerrariaIntegrationTests
                 WorldEvil = AutoCreateWorldEvil.Crimson,
                 EnablePyramidFilter = false,
                 RequireCrimsonBetweenDungeonAndSpawn = true,
+                JungleRouteDepth = AutoCreateJungleRouteDepth.None,
                 CrimsonDistance = AutoCreateCrimsonDistance.Near
             };
             PyramidFilterWorldFileResult kept = evaluator.Evaluate(nearPath, settings);
@@ -271,7 +355,7 @@ internal static class TerrariaIntegrationTests
         }
     }
 
-    private static byte[] CreateMinimalWorld()
+    private static byte[] CreateMinimalWorld(string worldName = "test-world", int worldId = 24680)
     {
         using var stream = new MemoryStream();
         using var writer = new BinaryWriter(stream, Encoding.UTF8, leaveOpen: true);
@@ -284,8 +368,11 @@ internal static class TerrariaIntegrationTests
         writer.Write(0);
         writer.Write((short)0);
         int headerPosition = checked((int)stream.Position);
-        writer.Write("test-world");
-        writer.Write(new byte[16]);
+        writer.Write(worldName);
+        writer.Write("test-seed");
+        writer.Write((ulong)279);
+        writer.Write(new Guid("5c52f5aa-80ee-40e7-a6de-afb84ff79025").ToByteArray());
+        writer.Write(worldId);
         long end = stream.Position;
         stream.Position = pointerPosition;
         writer.Write(headerPosition);

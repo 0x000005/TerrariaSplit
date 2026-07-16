@@ -141,6 +141,183 @@ public static class RaceWorldFileValidator
         }
     }
 
+    public static bool TryReadWorldIdentity(
+        string? path,
+        out RaceWorldIdentity? identity,
+        out string detail)
+    {
+        identity = null;
+        detail = string.Empty;
+        if (string.IsNullOrWhiteSpace(path) || !HasWorldFileExtension(path) || !File.Exists(path))
+        {
+            detail = "A valid .wld file is required.";
+            return false;
+        }
+
+        try
+        {
+            using FileStream stream = new(
+                path,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete);
+            return TryReadWorldIdentity(stream, out identity, out detail);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            detail = ex.Message;
+            return false;
+        }
+    }
+
+    public static bool TryReadWorldIdentity(
+        Stream stream,
+        out RaceWorldIdentity? identity,
+        out string detail)
+    {
+        identity = null;
+        detail = string.Empty;
+        if (!stream.CanRead || !stream.CanSeek)
+        {
+            detail = "World stream must be readable and seekable.";
+            return false;
+        }
+
+        long originalPosition = stream.Position;
+        try
+        {
+            stream.Position = 0;
+            using var reader = new BinaryReader(stream, System.Text.Encoding.UTF8, leaveOpen: true);
+            if (!TrySeekWorldHeader(reader, stream, out int version, out detail))
+            {
+                return false;
+            }
+
+            if (!TryReadBoundedString(reader, MaximumWorldNameBytes, out string worldName) ||
+                string.IsNullOrWhiteSpace(worldName))
+            {
+                detail = "Invalid Terraria world name.";
+                return false;
+            }
+
+            if (version >= 179)
+            {
+                if (version == 179)
+                {
+                    _ = reader.ReadInt32();
+                }
+                else if (!TryReadBoundedString(reader, MaximumWorldNameBytes, out _))
+                {
+                    detail = "Invalid Terraria world seed.";
+                    return false;
+                }
+
+                _ = reader.ReadUInt64();
+            }
+
+            if (version < 181)
+            {
+                detail = $"Terraria world version {version} has no stable unique id.";
+                return false;
+            }
+
+            byte[] uniqueIdBytes = reader.ReadBytes(16);
+            if (uniqueIdBytes.Length != 16)
+            {
+                detail = "Truncated Terraria world unique id.";
+                return false;
+            }
+
+            Guid uniqueId = new(uniqueIdBytes);
+            int worldId = reader.ReadInt32();
+            identity = new RaceWorldIdentity(worldName, worldId, uniqueId);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or EndOfStreamException or ArgumentException or InvalidDataException)
+        {
+            detail = ex.Message;
+            return false;
+        }
+        finally
+        {
+            stream.Position = originalPosition;
+        }
+    }
+
+    private static bool TrySeekWorldHeader(
+        BinaryReader reader,
+        Stream stream,
+        out int version,
+        out string detail)
+    {
+        detail = string.Empty;
+        version = reader.ReadInt32();
+        if (version < MinimumSupportedVersion || version > MaximumReasonableVersion)
+        {
+            detail = $"Unsupported Terraria world version {version}.";
+            return false;
+        }
+
+        ulong metadata = reader.ReadUInt64();
+        if ((metadata & 0x00FFFFFFFFFFFFFFUL) != ReLogicMagic || (byte)(metadata >> 56) != WorldFileType)
+        {
+            detail = "The file is not a Terraria world file.";
+            return false;
+        }
+
+        _ = reader.ReadUInt32();
+        _ = reader.ReadUInt64();
+        short sectionCount = reader.ReadInt16();
+        if (sectionCount < 1 || sectionCount > MaximumSectionCount)
+        {
+            detail = $"Invalid Terraria world section count {sectionCount}.";
+            return false;
+        }
+
+        int firstSectionPointer = 0;
+        int previousPointer = 0;
+        for (int index = 0; index < sectionCount; index++)
+        {
+            int pointer = reader.ReadInt32();
+            if (pointer <= 0 || pointer > stream.Length || pointer < previousPointer)
+            {
+                detail = "Invalid Terraria world section table.";
+                return false;
+            }
+
+            if (index == 0)
+            {
+                firstSectionPointer = pointer;
+            }
+
+            previousPointer = pointer;
+        }
+
+        short frameImportanceCount = reader.ReadInt16();
+        if (frameImportanceCount < 0)
+        {
+            detail = "Invalid Terraria tile frame table.";
+            return false;
+        }
+
+        int frameImportanceBytes = (frameImportanceCount + 7) / 8;
+        if (stream.Position + frameImportanceBytes > stream.Length)
+        {
+            detail = "Truncated Terraria tile frame table.";
+            return false;
+        }
+
+        stream.Position += frameImportanceBytes;
+        if (firstSectionPointer < stream.Position || firstSectionPointer >= stream.Length)
+        {
+            detail = "Invalid Terraria world header offset.";
+            return false;
+        }
+
+        stream.Position = firstSectionPointer;
+        return true;
+    }
+
     private static bool TryReadBoundedString(BinaryReader reader, int maximumBytes, out string value)
     {
         value = string.Empty;

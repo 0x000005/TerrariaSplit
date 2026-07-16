@@ -1,3 +1,5 @@
+using TerrariaSplit.Race.Contracts;
+
 namespace TerrariaSplit.UI;
 
 internal enum RacePanelRole
@@ -19,6 +21,8 @@ internal sealed record RacePanelDraftState(
     string RoomCode,
     string SeedText,
     string LocalWorldPath,
+    string PlayerTemplateCode,
+    string HostPlayerDifficulty,
     RacePanelRole Role,
     RacePanelWorldSource WorldSource)
 {
@@ -39,6 +43,8 @@ internal sealed record RacePanelDraftState(
             string.Empty,
             string.Empty,
             string.Empty,
+            race.PlayerTemplateCode,
+            race.HostPlayerDifficulty,
             ToRole(race.PreferredRole),
             ToWorldSource(race.PreferredWorldSource)).Normalize();
     }
@@ -48,11 +54,21 @@ internal sealed record RacePanelDraftState(
         return this with
         {
             ServerUrl = ServerUrl.Trim(),
-            Nickname = Nickname.Trim(),
+            Nickname = NormalizeNickname(Nickname),
             RoomCode = RoomCode.Trim(),
             SeedText = SeedText.Trim(),
-            LocalWorldPath = LocalWorldPath.Trim()
+            LocalWorldPath = LocalWorldPath.Trim(),
+            PlayerTemplateCode = PlayerTemplateCode.Trim(),
+            HostPlayerDifficulty = AutoCreatePlayerDifficulty.Normalize(HostPlayerDifficulty)
         };
+    }
+
+    private static string NormalizeNickname(string? value)
+    {
+        string nickname = value?.Trim() ?? string.Empty;
+        return nickname.Length <= RacePlayerNameRules.MaximumLength
+            ? nickname
+            : nickname[..RacePlayerNameRules.MaximumLength];
     }
 
     private static RacePanelRole ToRole(string? value)

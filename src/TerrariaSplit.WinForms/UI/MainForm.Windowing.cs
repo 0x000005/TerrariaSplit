@@ -139,6 +139,7 @@ internal sealed partial class MainForm : Form
         contextMenuBuilder.Rebuild(
             contextMenu,
             settings,
+            !IsRaceRoomActive,
             OpenStatistics,
             raceShell.OpenPanel,
             settingsShell.Open,
@@ -327,7 +328,7 @@ internal sealed partial class MainForm : Form
             }
         }
 
-        if (e.Button == MouseButtons.Right && settings.General.PracticeMode)
+        if (e.Button == MouseButtons.Right && CanEditPracticeTimes)
         {
             TryOpenPracticeEdit(e.Location);
         }
@@ -377,6 +378,7 @@ internal sealed partial class MainForm : Form
                     DateTime.UtcNow,
                     runtimeServices?.AutomationShell.IsCreateWorldRunning == true,
                     runtimeServices?.AutomationShell.IsEnterWorldRunning == true,
+                    IsRaceRoomActive,
                     out AppCommand command))
             {
                 ExecuteAppCommand(command);

@@ -47,6 +47,7 @@ internal sealed partial class MainForm : Form
                 appLogger);
             SettingsShell nextSettingsShell = MainShellCompositionRoot.CreateSettingsShell(
                 () => editableSettings,
+                () => IsRaceRoomActive,
                 startupCore.SettingsRepository,
                 settingsSnapshots,
                 callback => BeginInvoke(callback),
@@ -64,13 +65,14 @@ internal sealed partial class MainForm : Form
             nextContextMenu = new ContextMenuStrip();
             nextContextMenu.Opening += (_, e) =>
             {
+                UpdateContextMenu();
                 if (mainWindowModalInputRouter.TryRedirectFromMainInput())
                 {
                     e.Cancel = true;
                     return;
                 }
 
-                if (settings.General.PracticeMode && IsEditablePracticePoint(PointToClient(Cursor.Position)))
+                if (CanEditPracticeTimes && IsEditablePracticePoint(PointToClient(Cursor.Position)))
                 {
                     e.Cancel = true;
                 }
@@ -92,7 +94,7 @@ internal sealed partial class MainForm : Form
                 PublishExternalSystemEvent,
                 this,
                 RefreshRaceMainTimerColor,
-                () => ResetRun(recordStats: false));
+                () => ResetRun(recordStats: false, allowDuringRace: true));
             ApplicationShellEffectExecutor nextEffectExecutor = MainShellCompositionRoot.CreateEffectExecutor(
                 SubmitRuntimeCommand,
                 preparation.SoundPlayer,

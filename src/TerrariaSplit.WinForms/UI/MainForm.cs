@@ -65,6 +65,11 @@ internal sealed partial class MainForm : Form
     private bool IsRuntimeReady =>
         runtimeServices is not null && runtimeBootstrapper.Phase == StartupPhase.FullyReady;
 
+    private bool IsRaceRoomActive =>
+        runtimeServices?.RaceShell.IsInRoom == true || applicationController.SystemState.Race.IsInRoom;
+
+    private bool CanEditPracticeTimes => settings.General.PracticeMode && !IsRaceRoomActive;
+
     internal StartupPhase CurrentStartupPhase => runtimeBootstrapper.Phase;
 
     private AppSettings settings => applicationController.Settings;

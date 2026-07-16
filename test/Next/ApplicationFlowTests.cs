@@ -44,7 +44,40 @@ internal static class ApplicationFlowTests
         ApplicationUpdate package = controller.HandleSystemEvent(new RacePackageSystemEvent("ROOM", "7"));
         Check.True(controller.SystemState.Race.IsInRoom);
         Check.Equal("ROOM", controller.SystemState.Race.RoomCode);
+        Check.True(package.Effects.OfType<CancelCreateWorldAutomationEffect>().Any());
+        Check.True(package.Effects.OfType<CancelEnterWorldAutomationEffect>().Any());
+        Check.True(package.Effects
+            .OfType<SubmitRuntimeCommandEffect>()
+            .Any(effect => effect.Command.Kind == RuntimeCommandKind.ClearPendingMenuActions));
         Check.True(package.DisplayInvalidations.Single().Targets.HasFlag(DisplayInvalidationTarget.All));
+
+        AppSettings changedRaceSettings = repository.Clone(controller.Settings);
+        changedRaceSettings.General.AlwaysOnTop = !changedRaceSettings.General.AlwaysOnTop;
+        bool raceAlwaysOnTop = controller.Settings.General.AlwaysOnTop;
+        AppCommand[] restrictedCommands =
+        [
+            AppCommand.TogglePause(),
+            AppCommand.ResetRun(recordStats: true, playResetSound: true),
+            AppCommand.QueueMenuAction(MenuActionKind.Reset, DateTime.UtcNow),
+            AppCommand.QueueMenuAction(MenuActionKind.CreateWorld, DateTime.UtcNow),
+            AppCommand.QueueMenuAction(MenuActionKind.PracticeWorld, DateTime.UtcNow),
+            AppCommand.EditPracticeSplitTime(0, TimeSpan.FromSeconds(1)),
+            AppCommand.EditPracticeTotalTime(TimeSpan.FromSeconds(1)),
+            AppCommand.ApplySettings(changedRaceSettings),
+            AppCommand.ApplyTemporarySettings(changedRaceSettings)
+        ];
+        foreach (AppCommand command in restrictedCommands)
+        {
+            ApplicationUpdate blocked = controller.HandleSystemEvent(new ControlCommandSystemEvent(command));
+            Check.Equal(0, blocked.Effects.Count);
+            Check.Equal(0, blocked.DisplayInvalidations.Count);
+        }
+        Check.Equal(raceAlwaysOnTop, controller.Settings.General.AlwaysOnTop);
+
+        ApplicationUpdate raceReset = controller.HandleSystemEvent(new ControlCommandSystemEvent(
+            AppCommand.ResetRun(recordStats: false, playResetSound: false, allowDuringRace: true)));
+        Check.True(raceReset.Effects.OfType<SubmitRuntimeCommandEffect>().Any());
+
         ApplicationUpdate otherRoom = controller.HandleSystemEvent(new RaceProgressSystemEvent("OTHER"));
         Check.Equal(0, otherRoom.DisplayInvalidations.Count);
         ApplicationUpdate progress = controller.HandleSystemEvent(new RaceProgressSystemEvent("room"));
@@ -54,6 +87,9 @@ internal static class ApplicationFlowTests
         Check.Equal(100, controller.SystemState.Jobs.ProgressPercent);
         controller.HandleSystemEvent(new RaceRosterSystemEvent("ROOM", IsInRoom: false));
         Check.False(controller.SystemState.Race.IsInRoom);
+        ApplicationUpdate createWorld = controller.HandleSystemEvent(new ControlCommandSystemEvent(
+            AppCommand.QueueMenuAction(MenuActionKind.CreateWorld, DateTime.UtcNow)));
+        Check.True(createWorld.Effects.OfType<SubmitRuntimeCommandEffect>().Any());
         controller.HandleSystemEvent(new DisplaySystemEvent(DisplayInvalidation.For(DisplayRefreshLevel.Frame, DisplayInvalidationTarget.TimerOverlay)));
         Check.Equal(DisplayInvalidationTarget.TimerOverlay, controller.SystemState.Display.ActiveTargets);
     }

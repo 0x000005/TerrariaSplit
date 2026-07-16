@@ -6,6 +6,7 @@ namespace TerrariaSplit.UI;
 internal sealed class SettingsShell : IDisposable
 {
     private readonly Func<AppSettings> getSettings;
+    private readonly Func<bool> isRaceRoomActive;
     private readonly ISettingsRepository settingsRepository;
     private readonly ISettingsSnapshotFactory settingsSnapshots;
     private readonly Action<Action> dispatch;
@@ -21,6 +22,7 @@ internal sealed class SettingsShell : IDisposable
 
     public SettingsShell(
         Func<AppSettings> getSettings,
+        Func<bool> isRaceRoomActive,
         ISettingsRepository settingsRepository,
         ISettingsSnapshotFactory settingsSnapshots,
         Action<Action> dispatch,
@@ -33,6 +35,7 @@ internal sealed class SettingsShell : IDisposable
         Action<PreparedApplicationUpdate> restartForUpdate)
     {
         this.getSettings = getSettings;
+        this.isRaceRoomActive = isRaceRoomActive;
         this.settingsRepository = settingsRepository;
         this.settingsSnapshots = settingsSnapshots;
         this.dispatch = dispatch;
@@ -49,6 +52,11 @@ internal sealed class SettingsShell : IDisposable
 
     public void Open()
     {
+        if (isRaceRoomActive())
+        {
+            return;
+        }
+
         if (isOpen)
         {
             dialogHost?.Activate();
@@ -62,10 +70,16 @@ internal sealed class SettingsShell : IDisposable
             getSettings(),
             settingsSnapshots,
             dispatch,
-            applySettings,
+            () => !isRaceRoomActive(),
+            ApplySettingsUnlessRaceRoomActive,
             Complete,
             (applied, update) =>
             {
+                if (isRaceRoomActive())
+                {
+                    return;
+                }
+
                 applySettings(applied);
                 restartForUpdate(update);
             },
@@ -75,6 +89,11 @@ internal sealed class SettingsShell : IDisposable
 
     public void SwitchSettingsFile(string path)
     {
+        if (isRaceRoomActive())
+        {
+            return;
+        }
+
         if (string.Equals(
                 Path.GetFullPath(path),
                 Path.GetFullPath(settingsRepository.SettingsPath),
@@ -96,7 +115,7 @@ internal sealed class SettingsShell : IDisposable
 
     private void Complete(SettingsDialogResult result)
     {
-        if (result.DialogResult == DialogResult.OK)
+        if (result.DialogResult == DialogResult.OK && !isRaceRoomActive())
         {
             applySettings(result.Result);
         }
@@ -105,6 +124,14 @@ internal sealed class SettingsShell : IDisposable
         if (isMainHandleCreated())
         {
             registerHotkeys();
+        }
+    }
+
+    private void ApplySettingsUnlessRaceRoomActive(AppSettings settings)
+    {
+        if (!isRaceRoomActive())
+        {
+            applySettings(settings);
         }
     }
 }

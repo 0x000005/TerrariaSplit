@@ -169,10 +169,17 @@ internal sealed class CreateWorldWorkflow : IDisposable
                     "Create world automation failed while configuring or creating the world."));
             }
 
+            StaticAppLogger.Instance.Info(
+                $"Create world automation entered post-click stage; " +
+                $"zenith={settings.EnableZenithStarCatch}, cheats={settings.EnableCheats}.");
+            long postClickTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
             await zenithStarCatchAutomation.RunAsync(settings, cancellationToken);
 
             PyramidFilterOutcome outcome = await pyramidFilterAutomation.RunAsync(settings, worldsBefore, cancellationToken);
-            StaticAppLogger.Instance.Info($"Create world automation post-generation filter outcome: {outcome}.");
+            TimeSpan postClickElapsed = System.Diagnostics.Stopwatch.GetElapsedTime(postClickTimestamp);
+            StaticAppLogger.Instance.Info(
+                $"Create world automation post-click stage completed; outcome={outcome}, " +
+                $"elapsedMs={postClickElapsed.TotalMilliseconds:F0}.");
             if (outcome != PyramidFilterOutcome.Rejected)
             {
                 return CreateWorldLoopResult.Finished(

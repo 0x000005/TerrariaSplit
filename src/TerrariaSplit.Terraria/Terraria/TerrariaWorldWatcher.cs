@@ -8,6 +8,7 @@ public sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
 {
     private readonly TerrariaMemoryResolver resolver = new();
     private readonly TerrariaWorldCreationSeedReader worldCreationSeedReader = new();
+    private readonly bool observeWorldGeneration;
     private readonly TimeSpan initialScanInterval = TimeSpan.FromMilliseconds(250);
     private readonly TimeSpan rescanInterval = TimeSpan.FromSeconds(2);
     private readonly TimeSpan processLookupInterval = TimeSpan.FromSeconds(1);
@@ -43,6 +44,11 @@ public sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
 
     public TerrariaWorldWatcher()
     {
+    }
+
+    internal TerrariaWorldWatcher(bool observeWorldGeneration)
+    {
+        this.observeWorldGeneration = observeWorldGeneration;
     }
 
     public TerrariaWatchSnapshot Poll()
@@ -95,7 +101,8 @@ public sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
                 status);
         }
 
-        if ((!resolver.HasResolvedBossAddresses || !resolver.HasResolvedWorldGenerationAddresses) &&
+        if ((!resolver.HasResolvedBossAddresses ||
+                (observeWorldGeneration && !resolver.HasResolvedWorldGenerationAddresses)) &&
             DateTime.UtcNow >= nextScanUtc)
         {
             TryResolveMemoryAddresses();
@@ -124,7 +131,7 @@ public sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
         TerrariaGameFacts facts = resolver.ReadGameFacts(
             memory,
             System.Threading.Volatile.Read(ref observedFactReadPlan) ?? TerrariaFactReadPlan.ReadAll);
-        TerrariaWorldGenerationState worldGeneration = isGameMenu
+        TerrariaWorldGenerationState worldGeneration = observeWorldGeneration && isGameMenu
             ? resolver.ReadWorldGenerationState(memory)
             : TerrariaWorldGenerationState.Unknown;
 
@@ -235,7 +242,7 @@ public sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
             nextProcessLookupUtc = DateTime.MinValue;
             nextScanUtc = DateTime.MinValue;
             diagnosticStage = "resolving runtime layout";
-            status = BuildAttachedStatus("resolving MemoryProbe runtime layout");
+            status = BuildAttachedStatus("resolving MemoryBridge runtime layout");
         }
         catch (Win32Exception ex)
         {
@@ -263,7 +270,15 @@ public sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
         }
 
         nextScanUtc = DateTime.UtcNow + GetNextScanInterval();
+        long resolveStartedTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
         TerrariaMemoryResolveResult result = resolver.Resolve(memory);
+        TimeSpan resolveElapsed = System.Diagnostics.Stopwatch.GetElapsedTime(resolveStartedTimestamp);
+        if (resolveElapsed >= TimeSpan.FromMilliseconds(250))
+        {
+            StaticAppLogger.Instance.Info(
+                $"Terraria watcher memory resolution took {resolveElapsed.TotalMilliseconds:F0} ms; " +
+                $"stage={result.Stage}, detail={result.StatusDetail}.");
+        }
 
         if (result.ObservedGameMenu.HasValue)
         {
@@ -491,8 +506,8 @@ public sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
         {
             TerrariaLayoutProbeDiagnostics probe = resolver.ProbeDiagnostics;
             return string.IsNullOrWhiteSpace(probe.LastError)
-                ? "MemoryProbe has not resolved Terraria.Main.gameMenu yet."
-                : $"MemoryProbe has not resolved Terraria.Main.gameMenu: {probe.LastError}";
+                ? "MemoryBridge has not resolved Terraria.Main.gameMenu yet."
+                : $"MemoryBridge has not resolved Terraria.Main.gameMenu: {probe.LastError}";
         }
 
         if (!resolution.HasResolvedBossAddresses)

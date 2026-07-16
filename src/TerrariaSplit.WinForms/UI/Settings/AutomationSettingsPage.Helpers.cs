@@ -314,6 +314,34 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
         return panel;
     }
 
+    private TableLayoutPanel CreateJungleRouteDepthSelector()
+    {
+        autoCreateJungleRouteDepthBoxes.Clear();
+
+        int columnCount = AutoCreateJungleRouteDepth.All.Length + 1;
+        TableLayoutPanel panel = CreateSelectorPanel(columnCount, fixedFirstColumn: true);
+        autoCreateJungleRouteDepthBox.Margin = new Padding(0, 0, 0, CheatSelectorGap);
+        panel.Controls.Add(autoCreateJungleRouteDepthBox, 0, 0);
+
+        string selectedDepth = AutoCreateJungleRouteDepth.Normalize(Draft.Automation.AutoCreate.JungleRouteDepth);
+        for (int index = 0; index < AutoCreateJungleRouteDepth.All.Length; index++)
+        {
+            string depth = AutoCreateJungleRouteDepth.All[index];
+            CheckBox button = CreateSelectorButton(
+                depth,
+                AutoCreateJungleRouteDepth.Includes(selectedDepth, depth));
+            button.Margin = SelectorMargin(index, AutoCreateJungleRouteDepth.All.Length);
+            button.CheckedChanged += (_, _) => SelectJungleRouteDepth(depth, button.Checked);
+            autoCreateJungleRouteDepthBoxes[depth] = button;
+            panel.Controls.Add(button, index + 2, 0);
+        }
+
+        FinishSingleRowSelector(panel);
+        ApplyJungleRouteDepthSelection(selectedDepth);
+        UpdatePostGenerationFilterAvailability();
+        return panel;
+    }
+
     private CheckBox CreateSpecialSeedButton(string seed, bool selected)
     {
         CheckBox button = CreateSelectorButton(seed, selected);
@@ -497,6 +525,13 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
             cheatsEnabled &&
             string.Equals(selectedWorldSize, AutoCreateWorldSize.Small, StringComparison.Ordinal) &&
             string.Equals(selectedWorldEvil, AutoCreateWorldEvil.Crimson, StringComparison.Ordinal);
+        autoCreateJungleRouteDepthBox.Enabled = supportsResourceFilter;
+        UpdateSpecialSeedButtonState(autoCreateJungleRouteDepthBox);
+        foreach (CheckBox button in autoCreateJungleRouteDepthBoxes.Values)
+        {
+            button.Enabled = supportsResourceFilter && autoCreateJungleRouteDepthBox.Checked;
+            UpdateSpecialSeedButtonState(button);
+        }
         foreach (CheckBox button in autoCreateResourceItemBoxes.Values)
         {
             button.Enabled = supportsResourceFilter;
@@ -507,6 +542,40 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
         UpdateMinimumAvailability(autoCreateSpelunkerMinimumBoxes, supportsResourceFilter);
         UpdateMinimumAvailability(autoCreateFeatherfallMinimumBoxes, supportsResourceFilter);
         UpdatePyramidItemAvailability();
+        DisableCheatActivator(autoCreateCrimsonBetweenDungeonAndSpawnBox);
+        DisableCheatActivator(autoCreateJungleRouteDepthBox);
+        foreach (CheckBox button in autoCreateResourceItemBoxes.Values)
+        {
+            DisableCheatActivator(button);
+        }
+
+        DisableMinimumActivator(autoCreateLifeCrystalMinimumBoxes);
+        DisableHookActivator();
+        DisableMinimumActivator(autoCreateSpelunkerMinimumBoxes);
+        DisableMinimumActivator(autoCreateFeatherfallMinimumBoxes);
+    }
+
+    private static void DisableCheatActivator(CheckBox button)
+    {
+        button.Checked = false;
+        button.Enabled = false;
+        UpdateSpecialSeedButtonState(button);
+    }
+
+    private static void DisableMinimumActivator(IReadOnlyDictionary<int, CheckBox> boxes)
+    {
+        if (boxes.TryGetValue(0, out CheckBox? button))
+        {
+            DisableCheatActivator(button);
+        }
+    }
+
+    private void DisableHookActivator()
+    {
+        if (autoCreateHookMinimumBoxes.TryGetValue(AutoCreateResourceHook.None, out CheckBox? button))
+        {
+            DisableCheatActivator(button);
+        }
     }
 
     private static void UpdateMinimumAvailability(
@@ -678,6 +747,59 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
         }
 
         return AutoCreateCrimsonDistance.Default;
+    }
+
+    private void SelectJungleRouteDepth(string selectedDepth, bool selected)
+    {
+        if (updatingJungleRouteDepthSelection)
+        {
+            return;
+        }
+
+        string normalized = selectedDepth == AutoCreateJungleRouteDepth.None
+            ? selected ? AutoCreateJungleRouteDepth.Medium : AutoCreateJungleRouteDepth.None
+            : AutoCreateJungleRouteDepth.Normalize(selectedDepth);
+        ApplyJungleRouteDepthSelection(normalized);
+        UpdatePostGenerationFilterAvailability();
+    }
+
+    private void ApplyJungleRouteDepthSelection(string selectedDepth)
+    {
+        updatingJungleRouteDepthSelection = true;
+        try
+        {
+            string normalized = AutoCreateJungleRouteDepth.Normalize(selectedDepth);
+            bool enabled = normalized != AutoCreateJungleRouteDepth.None;
+            autoCreateJungleRouteDepthBox.Checked = enabled;
+            UpdateSpecialSeedButtonState(autoCreateJungleRouteDepthBox);
+            foreach ((string depth, CheckBox button) in autoCreateJungleRouteDepthBoxes)
+            {
+                button.Checked = enabled && AutoCreateJungleRouteDepth.Includes(normalized, depth);
+                UpdateSpecialSeedButtonState(button);
+            }
+        }
+        finally
+        {
+            updatingJungleRouteDepthSelection = false;
+        }
+    }
+
+    private string GetSelectedJungleRouteDepth()
+    {
+        if (!autoCreateJungleRouteDepthBox.Checked)
+        {
+            return AutoCreateJungleRouteDepth.None;
+        }
+
+        foreach (string depth in AutoCreateJungleRouteDepth.All)
+        {
+            if (autoCreateJungleRouteDepthBoxes.TryGetValue(depth, out CheckBox? button) && button.Checked)
+            {
+                return depth;
+            }
+        }
+
+        return AutoCreateJungleRouteDepth.None;
     }
 
     private void SelectZenithStarCatchStage(string selectedStopStage)

@@ -75,7 +75,7 @@ internal static class UpdateFlowTests
         string package = directory.Combine("package");
         Directory.CreateDirectory(target);
         Directory.CreateDirectory(package);
-        WriteManifest(target, "TerrariaSplit.exe", "Assets", ApplicationUpdatePackage.ManifestFileName);
+        WriteManifest(target, "TerrariaSplit.exe", "Assets", ApplicationUpdatePackage.ManifestDirectoryName);
         File.WriteAllText(Path.Combine(target, "TerrariaSplit.exe"), "old");
         Directory.CreateDirectory(Path.Combine(target, "Assets"));
         File.WriteAllText(Path.Combine(target, "Assets", "obsolete.txt"), "obsolete");
@@ -84,7 +84,7 @@ internal static class UpdateFlowTests
         Directory.CreateDirectory(Path.Combine(target, "Data"));
         File.WriteAllText(Path.Combine(target, "Data", "pb.json"), "user-data");
 
-        WriteManifest(package, "TerrariaSplit.exe", "Assets", ApplicationUpdatePackage.ManifestFileName);
+        WriteManifest(package, "TerrariaSplit.exe", "Assets", ApplicationUpdatePackage.ManifestDirectoryName);
         File.WriteAllText(Path.Combine(package, "TerrariaSplit.exe"), "new");
         Directory.CreateDirectory(Path.Combine(package, "Assets"));
         File.WriteAllText(Path.Combine(package, "Assets", "current.txt"), "current");
@@ -100,7 +100,8 @@ internal static class UpdateFlowTests
     private static void WriteManifest(string directory, params string[] roots)
     {
         string managed = string.Join(',', roots.Select(root => $"\"{root}\""));
-        File.WriteAllText(Path.Combine(directory, ApplicationUpdatePackage.ManifestFileName),
+        Directory.CreateDirectory(Path.Combine(directory, ApplicationUpdatePackage.ManifestDirectoryName));
+        File.WriteAllText(ApplicationUpdatePackage.ManifestPath(directory),
             $"{{\"schemaVersion\":1,\"managedRoots\":[{managed}]}}", Encoding.UTF8);
     }
 

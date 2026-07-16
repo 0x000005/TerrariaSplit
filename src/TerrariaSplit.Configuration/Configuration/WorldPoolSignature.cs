@@ -57,6 +57,7 @@ public static class WorldPoolSignature
             ? string.Join(
                 ",",
                 "resource=1",
+                "jungleDepth=" + AutoCreateJungleRouteDepth.Normalize(autoCreate.JungleRouteDepth),
                 "items=" + AutoCreateResourceFilterItem.NormalizeMask(autoCreate.ResourceFilterItemMask).ToString(CultureInfo.InvariantCulture),
                 "life=" + AutoCreateResourceMinimum.NormalizeLifeCrystals(autoCreate.ResourceFilterLifeCrystalMinimum).ToString(CultureInfo.InvariantCulture),
                 "hook=" + AutoCreateResourceHook.Normalize(autoCreate.ResourceFilterHookMinimum),

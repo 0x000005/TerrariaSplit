@@ -29,7 +29,10 @@ internal sealed class WorldResourceFilterScanner
 
             ResourceAccumulator resources = ScanResources(world, jungleField, hellavatorField);
             stopwatch.Stop();
-            WorldResourceFilterResult measured = resources.ToResult(keep: false, stopwatch.Elapsed);
+            WorldResourceFilterResult measured = resources.ToResult(
+                keep: false,
+                stopwatch.Elapsed,
+                jungleRoute.DeepestY);
             result = measured with { Keep = WorldResourceFilterMatcher.Matches(settings, measured) };
             return true;
         }
@@ -234,7 +237,7 @@ internal sealed class WorldResourceFilterScanner
             .Where(hook => hook != AutoCreateResourceHook.None)
             .ToDictionary(hook => hook, _ => 0, StringComparer.Ordinal);
 
-        public WorldResourceFilterResult ToResult(bool keep, TimeSpan duration) => new(
+        public WorldResourceFilterResult ToResult(bool keep, TimeSpan duration, int jungleRouteDeepestY) => new(
             keep,
             Boomsticks,
             FeralClaws,
@@ -245,7 +248,8 @@ internal sealed class WorldResourceFilterScanner
             SpelunkerPotions,
             FeatherfallPotions,
             new Dictionary<string, int>(Gems, StringComparer.Ordinal),
-            duration);
+            duration,
+            jungleRouteDeepestY);
     }
 }
 
@@ -253,6 +257,11 @@ internal static class WorldResourceFilterMatcher
 {
     public static bool Matches(AutoCreateWorldSettings settings, WorldResourceFilterResult resources)
     {
+        if (resources.JungleRouteDeepestY < AutoCreateJungleRouteDepth.MinimumY(settings.JungleRouteDepth))
+        {
+            return false;
+        }
+
         int mask = AutoCreateResourceFilterItem.NormalizeMask(settings.ResourceFilterItemMask);
         if ((mask & AutoCreateResourceFilterItem.BoomstickMask) != 0 && resources.Boomsticks == 0)
         {
@@ -354,7 +363,8 @@ internal sealed record WorldResourceFilterResult(
     int SpelunkerPotions,
     int FeatherfallPotions,
     IReadOnlyDictionary<string, int> Gems,
-    TimeSpan ScanDuration)
+    TimeSpan ScanDuration,
+    int JungleRouteDeepestY = 0)
 {
     public static WorldResourceFilterResult Empty { get; } = new(
         false,
@@ -378,6 +388,7 @@ internal sealed record WorldResourceFilterResult(
                 .Select(hook => hook + "=" + Gems.GetValueOrDefault(hook).ToString(CultureInfo.InvariantCulture)));
         return $"boomstick={Boomsticks}, claws={FeralClaws}, cloud={CloudBottles}, " +
             $"anklet={AnkletsOfTheWind}, hermes={HermesBoots}, life={LifeCrystals}, " +
-            $"spelunker={SpelunkerPotions}, featherfall={FeatherfallPotions}, gems=[{gems}]";
+            $"spelunker={SpelunkerPotions}, featherfall={FeatherfallPotions}, " +
+            $"jungleDepth={JungleRouteDeepestY}, gems=[{gems}]";
     }
 }

@@ -8,6 +8,7 @@ namespace TerrariaSplit.Race.Server;
 public sealed class RaceHub : Hub
 {
     private static readonly ConcurrentDictionary<string, RaceConnectionIdentity> Connections = new();
+    private static readonly ConcurrentDictionary<string, string> PlayerConnections = new(StringComparer.OrdinalIgnoreCase);
     private readonly RaceRoomManager rooms;
     private readonly RaceWorldFileStore worldFiles;
     private readonly ILogger<RaceHub> logger;
@@ -25,7 +26,7 @@ public sealed class RaceHub : Hub
         if (result.Succeeded && result.Value is RaceRoomState state)
         {
             await Groups.AddToGroupAsync(Context.ConnectionId, state.RoomCode);
-            Connections[Context.ConnectionId] = new RaceConnectionIdentity(state.RoomCode, request.Nickname.Trim());
+            AttachConnection(Context.ConnectionId, state.RoomCode, request.Nickname);
             await BroadcastRosterAsync(state, RaceRoomStateUpdateKind.RoomCreated, request.Nickname);
         }
 
@@ -39,7 +40,7 @@ public sealed class RaceHub : Hub
         if (result.Succeeded && result.Value is RaceRoomState state)
         {
             await Groups.AddToGroupAsync(Context.ConnectionId, state.RoomCode);
-            Connections[Context.ConnectionId] = new RaceConnectionIdentity(state.RoomCode, request.Nickname.Trim());
+            AttachConnection(Context.ConnectionId, state.RoomCode, request.Nickname);
             await BroadcastRosterAsync(state, RaceRoomStateUpdateKind.PlayerJoined, request.Nickname);
         }
 
@@ -52,12 +53,12 @@ public sealed class RaceHub : Hub
         return Task.FromResult(rooms.GetRoomState(roomCode));
     }
 
-    public async Task<RaceOperationResult<RaceRoomState>> MarkWorldReady(RaceWorldReadyRequest request)
+    public async Task<RaceOperationResult<RaceRoomState>> UpdatePreparationStatus(RacePreparationStatusRequest request)
     {
-        RaceOperationResult<RaceRoomState> result = rooms.MarkWorldReady(request);
+        RaceOperationResult<RaceRoomState> result = rooms.UpdatePreparationStatus(request);
         await BroadcastRosterIfSucceededAsync(result, RaceRoomStateUpdateKind.WorldReadyChanged, request.Nickname);
         LogResult(
-            request.Ready ? "world-ready" : "world-not-ready",
+            "preparation-status",
             result,
             request.RoomCode,
             request.Nickname);
@@ -66,11 +67,15 @@ public sealed class RaceHub : Hub
 
     public async Task<RaceOperationResult<RaceRoomProgressState>> ReportSplit(RaceSplitReport report)
     {
-        RaceOperationResult<RaceRoomState> result = rooms.ReportSplit(report);
+        RaceOperationResult<RaceRoomState> result = rooms.ReportSplit(report, out RaceGroupCompleted? completedGroup);
         RaceOperationResult<RaceRoomProgressState> progressResult = CreateProgressResult(result);
         if (progressResult.Succeeded && progressResult.Value is RaceRoomProgressState progress)
         {
             await BroadcastProgressAsync(progress);
+            if (completedGroup is not null)
+            {
+                await Clients.Group(progress.RoomCode).SendAsync("RaceGroupCompleted", completedGroup);
+            }
         }
 
         LogSplitReport(report, result);
@@ -90,6 +95,32 @@ public sealed class RaceHub : Hub
         return progressResult;
     }
 
+    public async Task<RaceOperationResult<RaceRoomState>> StartRace(RaceHostActionRequest request)
+    {
+        RaceOperationResult<RaceRoomState> result = rooms.StartRace(request);
+        await BroadcastRosterIfSucceededAsync(result, RaceRoomStateUpdateKind.RaceStarting, request.Nickname);
+        LogResult("start-race", result, request.RoomCode, request.Nickname);
+        return result;
+    }
+
+    public async Task<RaceOperationResult<RaceRoomState>> RestartRace(RaceHostActionRequest request)
+    {
+        RaceOperationResult<RaceRoomState> result = rooms.RestartRace(request);
+        if (result.Succeeded && result.Value is RaceRoomState state)
+        {
+            await Clients.Group(state.RoomCode).SendAsync(
+                "RacePackageChanged",
+                new RacePackageChanged(
+                    state,
+                    request.Nickname,
+                    RacePackageRevisionCalculator.Create(state),
+                    RacePackageChangeKind.Restarted));
+        }
+
+        LogResult("restart-race", result, request.RoomCode, request.Nickname);
+        return result;
+    }
+
     public async Task<RaceOperationResult<RaceRoomProgressState>> ResetProgress(RaceProgressResetRequest request)
     {
         RaceOperationResult<RaceRoomState> result = rooms.ResetPlayerProgress(request);
@@ -97,6 +128,13 @@ public sealed class RaceHub : Hub
         if (progressResult.Succeeded && progressResult.Value is RaceRoomProgressState progress)
         {
             await BroadcastProgressAsync(progress);
+            await Clients.Group(progress.RoomCode).SendAsync(
+                "RacePlayerProgressReset",
+                new RacePlayerProgressReset(
+                    progress.RoomCode,
+                    progress.PackageRevision,
+                    request.RunId,
+                    request.Nickname));
         }
 
         LogResult("reset-progress", result, request.RoomCode, request.Nickname);
@@ -119,7 +157,7 @@ public sealed class RaceHub : Hub
 
     public async Task<RaceOperationResult<RaceRoomState>> LeaveRoom(string roomCode, string nickname)
     {
-        Connections.TryRemove(Context.ConnectionId, out _);
+        DetachConnection(Context.ConnectionId, out _);
         await Groups.RemoveFromGroupAsync(Context.ConnectionId, roomCode);
         RaceOperationResult<RaceRoomState> result = rooms.LeaveRoom(roomCode, nickname);
         RaceRoomStateUpdateKind kind = result.Value?.Status == RaceRoomStatus.Closed
@@ -147,7 +185,7 @@ public sealed class RaceHub : Hub
                     string.Equals(identity.Nickname, request.TargetNickname, StringComparison.OrdinalIgnoreCase))
                 {
                     await Groups.RemoveFromGroupAsync(connectionId, state.RoomCode);
-                    Connections.TryRemove(connectionId, out _);
+                    DetachConnection(connectionId, out _);
                 }
             }
 
@@ -164,7 +202,7 @@ public sealed class RaceHub : Hub
         if (result.Succeeded && result.Value is RaceRoomState state)
         {
             await Groups.AddToGroupAsync(Context.ConnectionId, state.RoomCode);
-            Connections[Context.ConnectionId] = new RaceConnectionIdentity(state.RoomCode, nickname.Trim());
+            AttachConnection(Context.ConnectionId, state.RoomCode, nickname);
             await BroadcastRosterAsync(state, RaceRoomStateUpdateKind.RoomResumed, nickname);
         }
 
@@ -174,12 +212,22 @@ public sealed class RaceHub : Hub
 
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
-        if (Connections.TryRemove(Context.ConnectionId, out RaceConnectionIdentity? identity))
+        if (DetachConnection(Context.ConnectionId, out RaceConnectionIdentity? identity) && identity is not null)
         {
             logger.LogInformation(
                 "Race connection dropped. Room={RoomCode} Nickname={Nickname}",
                 NormalizeLogText(identity.RoomCode),
                 NormalizeLogText(identity.Nickname));
+
+            RaceOperationResult<RaceRoomState> result = rooms.DisconnectPlayer(identity.RoomCode, identity.Nickname);
+            if (result.Succeeded && result.Value is RaceRoomState state)
+            {
+                await BroadcastRosterAsync(state, RaceRoomStateUpdateKind.PlayerConnectionChanged, identity.Nickname);
+            }
+            else
+            {
+                LogResult("disconnect-leave", result, identity.RoomCode, identity.Nickname);
+            }
         }
 
         await base.OnDisconnectedAsync(exception);
@@ -221,9 +269,31 @@ public sealed class RaceHub : Hub
             }
 
             await Groups.RemoveFromGroupAsync(connectionId, roomCode);
-            Connections.TryRemove(connectionId, out _);
+            DetachConnection(connectionId, out _);
         }
     }
+
+    private static void AttachConnection(string connectionId, string roomCode, string nickname)
+    {
+        var identity = new RaceConnectionIdentity(roomCode.Trim(), nickname.Trim());
+        Connections[connectionId] = identity;
+        PlayerConnections[CreatePlayerConnectionKey(identity)] = connectionId;
+    }
+
+    private static bool DetachConnection(string connectionId, out RaceConnectionIdentity? identity)
+    {
+        if (!Connections.TryRemove(connectionId, out identity) || identity is null)
+        {
+            return false;
+        }
+
+        string key = CreatePlayerConnectionKey(identity);
+        return ((ICollection<KeyValuePair<string, string>>)PlayerConnections)
+            .Remove(new KeyValuePair<string, string>(key, connectionId));
+    }
+
+    private static string CreatePlayerConnectionKey(RaceConnectionIdentity identity) =>
+        identity.RoomCode + "\n" + identity.Nickname;
 
     private static RaceOperationResult<RaceRoomProgressState> CreateProgressResult(
         RaceOperationResult<RaceRoomState> result)

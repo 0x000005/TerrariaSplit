@@ -182,6 +182,9 @@ public static class AppSettingsCloner
             NameText = source.NameText,
             NameTextOutline = source.NameTextOutline,
             NameTextShadow = source.NameTextShadow,
+            ActiveNameText = source.ActiveNameText,
+            ActiveNameTextOutline = source.ActiveNameTextOutline,
+            ActiveNameTextShadow = source.ActiveNameTextShadow,
             CompletedNameText = source.CompletedNameText,
             CompletedNameTextOutline = source.CompletedNameTextOutline,
             CompletedNameTextShadow = source.CompletedNameTextShadow,
@@ -351,6 +354,7 @@ public static class AppSettingsCloner
             PyramidFilterItemMask = source.PyramidFilterItemMask,
             RequireCrimsonBetweenDungeonAndSpawn = source.RequireCrimsonBetweenDungeonAndSpawn,
             CrimsonDistance = source.CrimsonDistance,
+            JungleRouteDepth = source.JungleRouteDepth,
             ResourceFilterItemMask = source.ResourceFilterItemMask,
             ResourceFilterLifeCrystalMinimum = source.ResourceFilterLifeCrystalMinimum,
             ResourceFilterHookMinimum = source.ResourceFilterHookMinimum,
@@ -376,7 +380,22 @@ public static class AppSettingsCloner
             Nickname = source.Nickname,
             PreferredRole = source.PreferredRole,
             PreferredWorldSource = source.PreferredWorldSource,
-            Leaderboard = Clone(source.Leaderboard)
+            PlayerTemplateCode = source.PlayerTemplateCode,
+            HostPlayerDifficulty = source.HostPlayerDifficulty,
+            Leaderboard = Clone(source.Leaderboard),
+            Voice = Clone(source.Voice)
+        };
+    }
+
+    private static RaceVoiceSettings Clone(RaceVoiceSettings? source)
+    {
+        source ??= new RaceVoiceSettings();
+        return new RaceVoiceSettings
+        {
+            Enabled = source.Enabled,
+            VoiceName = source.VoiceName,
+            SpeedPercent = source.SpeedPercent,
+            Volume = source.Volume
         };
     }
 
@@ -386,6 +405,13 @@ public static class AppSettingsCloner
         return new RaceLeaderboardSettings
         {
             UseRankColorForMainTimer = source.UseRankColorForMainTimer,
+            RankPlayerGap = source.RankPlayerGap,
+            PlayerIconGap = source.PlayerIconGap,
+            IconTimeGap = source.IconTimeGap,
+            RankAlignment = source.RankAlignment,
+            PlayerAlignment = source.PlayerAlignment,
+            IconAlignment = source.IconAlignment,
+            TimeAlignment = source.TimeAlignment,
             Rank = Clone(source.Rank),
             Player = Clone(source.Player),
             Icon = Clone(source.Icon),

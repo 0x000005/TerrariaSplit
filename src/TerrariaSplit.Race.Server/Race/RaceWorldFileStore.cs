@@ -103,6 +103,29 @@ public sealed class RaceWorldFileStore
         TryDeleteFile(stored.Path);
     }
 
+    public void DeleteStoredFile(string roomCode, RaceWorldFileInfo worldFile)
+    {
+        string hash = NormalizeSha256(worldFile.Sha256);
+        if (!string.IsNullOrWhiteSpace(hash))
+        {
+            TryDeleteFile(Path.Combine(GetRoomDirectory(roomCode), $"world-{hash}.wld"));
+        }
+    }
+
+    public void DeleteAllRooms()
+    {
+        try
+        {
+            if (Directory.Exists(rootDirectory))
+            {
+                Directory.Delete(rootDirectory, recursive: true);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+        }
+    }
+
     public void DeleteRoom(string roomCode)
     {
         string roomDirectory = GetRoomDirectory(roomCode);

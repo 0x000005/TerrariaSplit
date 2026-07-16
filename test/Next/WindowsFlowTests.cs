@@ -106,8 +106,10 @@ internal static class WindowsFlowTests
         }
         ColorSettingsPage colors = form.PageHost.GetOrCreatePage<ColorSettingsPage>(SettingsPageId.Colors);
         Check.True(colors.ColorTextBoxes.ContainsKey(nameof(UiColorSettings.NameText)));
+        Check.True(colors.ColorTextBoxes.ContainsKey(nameof(UiColorSettings.ActiveNameText)));
         Check.True(colors.ColorTextBoxes.ContainsKey(nameof(UiColorSettings.CompletedNameText)));
         colors.ColorTextBoxes[nameof(UiColorSettings.NameText)].Text = "#123456";
+        colors.ColorTextBoxes[nameof(UiColorSettings.ActiveNameText)].Text = "#345678";
         colors.ColorTextBoxes[nameof(UiColorSettings.CompletedNameText)].Text = "#654321";
         AppSettings draft = form.PageHost.CreateAppliedSnapshot();
         Check.False(ReferenceEquals(source, draft));
@@ -129,48 +131,46 @@ internal static class WindowsFlowTests
         Check.Equal(8, draft.Overlay.Columns.NameTimeGap);
         Check.Equal(9, draft.Overlay.Columns.TimeDeltaGap);
         Check.Equal("#123456", draft.Overlay.Colors.NameText);
+        Check.Equal("#345678", draft.Overlay.Colors.ActiveNameText);
         Check.Equal("#654321", draft.Overlay.Colors.CompletedNameText);
         Check.False(string.Equals(source.Overlay.Colors.NameText, draft.Overlay.Colors.NameText, StringComparison.Ordinal));
         Check.Equal("English", source.General.Language);
         AutomationSettingsPage automation = form.PageHost.GetOrCreatePage<AutomationSettingsPage>(SettingsPageId.Automation);
-        Check.Equal(16, automation.AutoCreateLifeCrystalMinimumBoxes.Count);
-        Check.Equal("10", automation.AutoCreateLifeCrystalMinimumBoxes[10].Text);
-        Check.Equal("15+", automation.AutoCreateLifeCrystalMinimumBoxes[15].Text);
-        Check.False(automation.AutoCreateLifeCrystalMinimumBoxes[15].AutoEllipsis);
+        Check.Equal(11, automation.AutoCreateLifeCrystalMinimumBoxes.Count);
+        Check.Equal("10+", automation.AutoCreateLifeCrystalMinimumBoxes[10].Text);
+        Check.False(automation.AutoCreateLifeCrystalMinimumBoxes[10].AutoEllipsis);
         Check.False(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Enabled);
         automation.AutoCreateCheatsBox.Checked = true;
-        Check.True(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Enabled);
-        automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Checked = true;
-        Check.True(automation.AutoCreateCrimsonDistanceBoxes.Values.All(static button => button.Enabled));
-        automation.AutoCreateCrimsonDistanceBoxes[AutoCreateCrimsonDistance.Near].Checked = false;
+        Check.False(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Enabled);
+        Check.False(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Checked);
+        Check.True(automation.AutoCreateCrimsonDistanceBoxes.Values.All(static button => !button.Enabled));
         AppSettings filteredDraft = form.PageHost.CreateAppliedSnapshot();
-        Check.True(filteredDraft.Automation.AutoCreate.RequireCrimsonBetweenDungeonAndSpawn);
-        Check.Equal(AutoCreateCrimsonDistance.Near, filteredDraft.Automation.AutoCreate.CrimsonDistance);
+        Check.False(filteredDraft.Automation.AutoCreate.RequireCrimsonBetweenDungeonAndSpawn);
         automation.AutoCreateWorldSizeBox.SelectedIndex = Array.IndexOf(AutoCreateWorldSize.All, AutoCreateWorldSize.Small);
-        Check.True(automation.AutoCreateResourceItemBoxes.Values.All(static button => button.Enabled));
-        automation.AutoCreateResourceItemBoxes[AutoCreateResourceFilterItem.Boomstick].Checked = true;
-        automation.AutoCreateLifeCrystalMinimumBoxes[0].Checked = true;
-        automation.AutoCreateLifeCrystalMinimumBoxes[8].Checked = false;
-        automation.AutoCreateHookMinimumBoxes[AutoCreateResourceHook.None].Checked = true;
-        automation.AutoCreateHookMinimumBoxes[AutoCreateResourceHook.Sapphire].Checked = false;
-        automation.AutoCreateSpelunkerMinimumBoxes[0].Checked = true;
-        automation.AutoCreateSpelunkerMinimumBoxes[2].Checked = false;
-        automation.AutoCreateFeatherfallMinimumBoxes[0].Checked = true;
-        automation.AutoCreateFeatherfallMinimumBoxes[1].Checked = false;
+        Check.False(automation.AutoCreateJungleRouteDepthBox.Enabled);
+        Check.False(automation.AutoCreateJungleRouteDepthBox.Checked);
+        Check.True(automation.AutoCreateJungleRouteDepthBoxes.Values.All(static button => !button.Enabled));
+        Check.True(automation.AutoCreateResourceItemBoxes.Values.All(static button => !button.Enabled));
+        Check.False(automation.AutoCreateLifeCrystalMinimumBoxes[0].Enabled);
+        Check.False(automation.AutoCreateHookMinimumBoxes[AutoCreateResourceHook.None].Enabled);
+        Check.False(automation.AutoCreateSpelunkerMinimumBoxes[0].Enabled);
+        Check.False(automation.AutoCreateFeatherfallMinimumBoxes[0].Enabled);
         AppSettings resourceDraft = form.PageHost.CreateAppliedSnapshot();
         Check.True(resourceDraft.Automation.AutoCreate.EnableCheats);
-        Check.Equal(AutoCreateResourceFilterItem.BoomstickMask, resourceDraft.Automation.AutoCreate.ResourceFilterItemMask);
-        Check.Equal(8, resourceDraft.Automation.AutoCreate.ResourceFilterLifeCrystalMinimum);
-        Check.Equal(AutoCreateResourceHook.Sapphire, resourceDraft.Automation.AutoCreate.ResourceFilterHookMinimum);
-        Check.Equal(2, resourceDraft.Automation.AutoCreate.ResourceFilterSpelunkerPotionMinimum);
-        Check.Equal(1, resourceDraft.Automation.AutoCreate.ResourceFilterFeatherfallPotionMinimum);
-        Check.False(source.Automation.AutoCreate.RequireCrimsonBetweenDungeonAndSpawn);
+        Check.Equal(AutoCreateJungleRouteDepth.None, resourceDraft.Automation.AutoCreate.JungleRouteDepth);
+        Check.Equal(AutoCreateResourceFilterItem.None, resourceDraft.Automation.AutoCreate.ResourceFilterItemMask);
+        Check.Equal(0, resourceDraft.Automation.AutoCreate.ResourceFilterLifeCrystalMinimum);
+        Check.Equal(AutoCreateResourceHook.None, resourceDraft.Automation.AutoCreate.ResourceFilterHookMinimum);
+        Check.Equal(0, resourceDraft.Automation.AutoCreate.ResourceFilterSpelunkerPotionMinimum);
+        Check.Equal(0, resourceDraft.Automation.AutoCreate.ResourceFilterFeatherfallPotionMinimum);
+        Check.True(source.Automation.AutoCreate.RequireCrimsonBetweenDungeonAndSpawn);
 
         using var contextMenu = new System.Windows.Forms.ContextMenuStrip();
         bool cheatsToggleRequested = false;
         new MainFormContextMenuBuilder().Rebuild(
             contextMenu,
             resourceDraft,
+            canSwitchSettingsFile: true,
             static () => { },
             static () => { },
             static () => { },
@@ -183,6 +183,49 @@ internal static class WindowsFlowTests
         Check.True(cheatsItem.Checked);
         cheatsItem.PerformClick();
         Check.True(cheatsToggleRequested);
+
+        var settingsFileMenu = Check.Is<System.Windows.Forms.ToolStripMenuItem>(
+            contextMenu.Items[MainFormContextMenuBuilder.SettingsFileMenuItemName]);
+        Check.True(settingsFileMenu.Enabled);
+        new MainFormContextMenuBuilder().Rebuild(
+            contextMenu,
+            resourceDraft,
+            canSwitchSettingsFile: false,
+            static () => { },
+            static () => { },
+            static () => { },
+            static () => { },
+            static _ => { },
+            static () => { });
+        settingsFileMenu = Check.Is<System.Windows.Forms.ToolStripMenuItem>(
+            contextMenu.Items[MainFormContextMenuBuilder.SettingsFileMenuItemName]);
+        var settingsItem = Check.Is<System.Windows.Forms.ToolStripMenuItem>(
+            contextMenu.Items[MainFormContextMenuBuilder.SettingsItemName]);
+        Check.False(settingsFileMenu.Enabled);
+        Check.False(settingsItem.Enabled);
+
+        Check.False(HotkeyCommandMapper.TryMap(
+            HotkeyAction.PauseResume,
+            DateTime.UtcNow,
+            createWorldRunning: false,
+            enterWorldRunning: false,
+            isInRaceRoom: true,
+            out _));
+        Check.False(HotkeyCommandMapper.TryMap(
+            HotkeyAction.CreateWorld,
+            DateTime.UtcNow,
+            createWorldRunning: false,
+            enterWorldRunning: false,
+            isInRaceRoom: true,
+            out _));
+        Check.True(HotkeyCommandMapper.TryMap(
+            HotkeyAction.CreateWorld,
+            DateTime.UtcNow,
+            createWorldRunning: true,
+            enterWorldRunning: false,
+            isInRaceRoom: true,
+            out AppCommand cancelCreate));
+        Check.Is<CancelCreateWorldCommand>(cancelCreate);
     }, cancellationToken);
 
     private static void OverlayLayoutJourney()

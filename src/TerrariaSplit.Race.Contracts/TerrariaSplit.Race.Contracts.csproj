@@ -6,4 +6,8 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\TerrariaSplit.Race.Determinism\TerrariaSplit.Race.Determinism.csproj" />
+  </ItemGroup>
+
 </Project>

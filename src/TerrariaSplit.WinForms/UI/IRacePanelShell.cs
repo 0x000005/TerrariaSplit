@@ -6,6 +6,10 @@ internal interface IRacePanelShell
 {
     RaceRoomState? State { get; }
 
+    RaceServerConnectionStatus ServerConnectionStatus { get; }
+
+    string? LocalNickname { get; }
+
     bool IsHostInCurrentRoom { get; }
 
     string? LocalWorldPath { get; }
@@ -14,11 +18,19 @@ internal interface IRacePanelShell
 
     RaceLeaderboardSettings LeaderboardSettings { get; }
 
+    RaceVoiceSettings VoiceSettings { get; }
+
+    IReadOnlyList<RaceVoiceOption> InstalledVoices { get; }
+
     string Localize(string key);
 
     void SaveDraftState(RacePanelDraftState draftState);
 
     void SaveLeaderboardSettings(RaceLeaderboardSettings leaderboardSettings);
+
+    void SaveVoiceSettings(RaceVoiceSettings voiceSettings);
+
+    void PreviewVoice(RaceVoiceSettings voiceSettings);
 
     Task CreateRoomAsync(string serverUrl, string nickname);
 
@@ -46,6 +58,10 @@ internal interface IRacePanelShell
     Task CancelWorldGenerationAsync();
 
     Task DiscardLocalWorldAsync(string worldPath);
+
+    Task<RaceOperationResult<RaceRoomState>> StartAsync();
+
+    Task<RaceOperationResult<RaceRoomState>> RestartAsync();
 
     Task LeaveAsync();
 }

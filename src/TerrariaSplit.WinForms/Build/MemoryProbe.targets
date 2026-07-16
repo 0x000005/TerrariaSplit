@@ -5,23 +5,12 @@
     <TerrariaSplitMemoryProbeTargetFramework>net10.0-windows</TerrariaSplitMemoryProbeTargetFramework>
     <TerrariaSplitMemoryProbeRuntimeIdentifier>win-x86</TerrariaSplitMemoryProbeRuntimeIdentifier>
     <TerrariaSplitMemoryProbePlatformTarget>x86</TerrariaSplitMemoryProbePlatformTarget>
-    <TerrariaSplitMemoryProbeOutputSubdirectory>TerrariaSplit.MemoryProbe\</TerrariaSplitMemoryProbeOutputSubdirectory>
-    <TerrariaSplitMemoryProbeBaseIntermediateOutputPath>$(TerrariaSplitMemoryProbeProjectDirectory)obj\TerrariaSplit.MemoryProbe\obj\</TerrariaSplitMemoryProbeBaseIntermediateOutputPath>
-    <TerrariaSplitMemoryProbeBaseOutputPath>$(TerrariaSplitMemoryProbeProjectDirectory)obj\TerrariaSplit.MemoryProbe\bin\</TerrariaSplitMemoryProbeBaseOutputPath>
-    <TerrariaSplitMemoryProbeBuildOutputDirectory>$(TerrariaSplitMemoryProbeBaseOutputPath)$(Configuration)\$(TerrariaSplitMemoryProbeTargetFramework)\$(TerrariaSplitMemoryProbeRuntimeIdentifier)\</TerrariaSplitMemoryProbeBuildOutputDirectory>
+    <TerrariaSplitMemoryProbeOutputSubdirectory>TerrariaSplit.MemoryBridge\</TerrariaSplitMemoryProbeOutputSubdirectory>
+    <TerrariaSplitMemoryProbeBuildOutputDirectory>$(TerrariaSplitMemoryProbeProjectDirectory)bin\$(Configuration)\$(TerrariaSplitMemoryProbeTargetFramework)\$(TerrariaSplitMemoryProbeRuntimeIdentifier)\</TerrariaSplitMemoryProbeBuildOutputDirectory>
     <TerrariaSplitMemoryProbePublishOutputDirectory>$(TerrariaSplitMemoryProbeProjectDirectory)obj\TerrariaSplit.MemoryProbe\publish\$(Configuration)\$(TerrariaSplitMemoryProbeRuntimeIdentifier)\</TerrariaSplitMemoryProbePublishOutputDirectory>
-    <TerrariaSplitMemoryProbeCommonProperties>Configuration=$(Configuration);TargetFramework=$(TerrariaSplitMemoryProbeTargetFramework);RuntimeIdentifier=$(TerrariaSplitMemoryProbeRuntimeIdentifier);PlatformTarget=$(TerrariaSplitMemoryProbePlatformTarget);BaseIntermediateOutputPath=$(TerrariaSplitMemoryProbeBaseIntermediateOutputPath);BaseOutputPath=$(TerrariaSplitMemoryProbeBaseOutputPath)</TerrariaSplitMemoryProbeCommonProperties>
-    <TerrariaSplitMemoryProbeBuildProperties>$(TerrariaSplitMemoryProbeCommonProperties);SelfContained=false;PublishSelfContained=false;PublishSingleFile=false;IncludeNativeLibrariesForSelfExtract=false;PublishTrimmed=false</TerrariaSplitMemoryProbeBuildProperties>
+    <TerrariaSplitMemoryProbeCommonProperties>Configuration=$(Configuration);TargetFramework=$(TerrariaSplitMemoryProbeTargetFramework);RuntimeIdentifier=$(TerrariaSplitMemoryProbeRuntimeIdentifier);PlatformTarget=$(TerrariaSplitMemoryProbePlatformTarget)</TerrariaSplitMemoryProbeCommonProperties>
     <TerrariaSplitMemoryProbePublishProperties>$(TerrariaSplitMemoryProbeCommonProperties);SelfContained=true;PublishSelfContained=true;PublishSingleFile=true;IncludeNativeLibrariesForSelfExtract=true;PublishTrimmed=false;DebugType=none;DebugSymbols=false</TerrariaSplitMemoryProbePublishProperties>
   </PropertyGroup>
-
-  <Target Name="TerrariaSplitBuildMemoryProbe"
-          BeforeTargets="Build"
-          Condition="'$(DesignTimeBuild)' != 'true' and '$(TerrariaSplitSkipMemoryProbe)' != 'true' and '$(SolutionPath)' == ''">
-    <MSBuild Projects="$(TerrariaSplitMemoryProbeProject)"
-             Targets="Restore;Build"
-             Properties="$(TerrariaSplitMemoryProbeBuildProperties)" />
-  </Target>
 
   <Target Name="TerrariaSplitCopyMemoryProbeToOutput"
           AfterTargets="Build"
@@ -41,11 +30,11 @@
     <RemoveDir Directories="$(TerrariaSplitMemoryProbePublishOutputDirectory)" />
 
     <MSBuild Projects="$(TerrariaSplitMemoryProbeProject)"
-             Targets="Restore;Publish"
+             Targets="Publish"
              Properties="$(TerrariaSplitMemoryProbePublishProperties);PublishDir=$(TerrariaSplitMemoryProbePublishOutputDirectory)" />
 
     <ItemGroup>
-      <TerrariaSplitMemoryProbePublishedFile Include="$(TerrariaSplitMemoryProbePublishOutputDirectory)TerrariaSplit.MemoryProbe.exe" />
+      <TerrariaSplitMemoryProbePublishedFile Include="$(TerrariaSplitMemoryProbePublishOutputDirectory)TerrariaSplit.MemoryBridge.exe" />
       <ResolvedFileToPublish Include="@(TerrariaSplitMemoryProbePublishedFile)">
         <RelativePath>%(Filename)%(Extension)</RelativePath>
         <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
@@ -57,7 +46,7 @@
           AfterTargets="Publish"
           Condition="'$(DesignTimeBuild)' != 'true' and '$(TerrariaSplitSkipMemoryProbe)' != 'true' and '$(PublishDir)' != ''">
     <ItemGroup>
-      <TerrariaSplitMemoryProbePublishedFile Include="$(TerrariaSplitMemoryProbePublishOutputDirectory)TerrariaSplit.MemoryProbe.exe" />
+      <TerrariaSplitMemoryProbePublishedFile Include="$(TerrariaSplitMemoryProbePublishOutputDirectory)TerrariaSplit.MemoryBridge.exe" />
     </ItemGroup>
 
     <Copy SourceFiles="@(TerrariaSplitMemoryProbePublishedFile)"
