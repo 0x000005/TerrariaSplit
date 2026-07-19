@@ -1,6 +1,8 @@
 using System.Text.Json;
 using TerrariaSplit.Race.Client;
 using TerrariaSplit.Race.Determinism;
+using TerrariaSplit.Race.InGame;
+using TerrariaSplit.UI;
 
 namespace TerrariaSplit.Tests;
 
@@ -11,8 +13,126 @@ internal static class RaceFlowTests
         yield return TestCase.Sync("race room journey covers preparation, synchronized start, reconnect, host restart and a fresh run", TestSuite.Flow, CompleteRoomJourney);
         yield return TestCase.Sync("race server rejects invalid identities, stale progress and unauthorized host actions", TestSuite.Flow, PermissionAndStalenessBoundaries);
         yield return TestCase.Sync("race package survives transport serialization with route, world and leaderboard intact", TestSuite.Flow, TransportRoundTrip);
+        yield return TestCase.Sync("in-game race protocol preserves bounded multilingual snapshots and ordered actions", TestSuite.Core, InGameProtocolRoundTrip);
+        yield return TestCase.Sync("in-game race navigation follows host, member and room lifecycle journeys", TestSuite.Flow, InGameNavigationJourney);
         yield return TestCase.Sync("race deterministic core derives stable domains, counts events, rolls independent chances and accumulates fixed chances", TestSuite.Core, DeterministicCore);
         yield return TestCase.Async("race voice announces main and attached groups once, queues players in order and clears obsolete work", TestSuite.Flow, VoiceAnnouncementJourney);
+    }
+
+    private static void InGameProtocolRoundTrip()
+    {
+        string longValue = "玩家 name with spaces " + new string('界', 12_000);
+        var snapshot = new RaceInGameSnapshot(
+            42,
+            true,
+            RaceInGamePageKind.Progress,
+            "Race 设置",
+            "正在生成 world",
+            "返回",
+            [
+                new RaceInGameControl(
+                    "nickname",
+                    RaceInGameControlKind.TextField,
+                    "用户名",
+                    longValue,
+                    true,
+                    false,
+                    0,
+                    20,
+                    false,
+                    "identity",
+                    "Images/UI/WorldCreation/IconRandomSeed",
+                    "支持中文 description"),
+                new RaceInGameControl(
+                    "progress",
+                    RaceInGameControlKind.Progress,
+                    "进度",
+                    string.Empty,
+                    false,
+                    false,
+                    73,
+                    0,
+                    true,
+                    string.Empty)
+            ]);
+
+        RaceInGameSnapshot decoded = RaceInGameProtocol.DecodeSnapshot(
+            RaceInGameProtocol.EncodeSnapshot(snapshot));
+        Check.Equal(42L, decoded.Revision);
+        Check.Equal(RaceInGamePageKind.Progress, decoded.PageKind);
+        Check.Equal("Race 设置", decoded.Title);
+        Check.Equal("返回", decoded.CloseLabel);
+        Check.Equal(longValue, decoded.Controls[0].Value);
+        Check.Equal("identity", decoded.Controls[0].LayoutGroup);
+        Check.Equal(
+            "Images/UI/WorldCreation/IconRandomSeed",
+            decoded.Controls[0].IconPath);
+        Check.Equal("支持中文 description", decoded.Controls[0].Description);
+        Check.Equal(73, decoded.Controls[1].ProgressValue);
+
+        RaceInGameAction[] actions = RaceInGameProtocol.DecodeActions(
+            RaceInGameProtocol.EncodeActions(
+            [
+                new RaceInGameAction(7, 42, "nickname", RaceInGameActionKind.TextSubmitted, "新 玩家"),
+                new RaceInGameAction(8, 42, "join", RaceInGameActionKind.Activate, string.Empty)
+            ]));
+        Check.Sequence([7L, 8L], actions.Select(action => action.ActionId));
+        Check.True(actions.All(action => action.SnapshotRevision == 42));
+        Check.Throws<InvalidDataException>(() => RaceInGameProtocol.DecodeSnapshot("not-base64"));
+        Check.Throws<InvalidDataException>(() => RaceInGameProtocol.EncodeSnapshot(
+            new RaceInGameSnapshot(
+                43,
+                true,
+                RaceInGamePageKind.WorldFilters,
+                "Race",
+                string.Empty,
+                "Back",
+                [
+                    new RaceInGameControl(
+                        "too-long",
+                        RaceInGameControlKind.Label,
+                        new string('x', 70_000),
+                        string.Empty,
+                        false,
+                        false,
+                        0,
+                        0,
+                        true,
+                        string.Empty)
+                ])));
+    }
+
+    private static void InGameNavigationJourney()
+    {
+        var navigation = new RaceInGameNavigator();
+        Check.Equal(RaceInGamePage.Entry, navigation.Current);
+        Check.True(navigation.TryMove(RaceInGameTransition.SelectHost, isHost: false));
+        Check.True(navigation.TryMove(RaceInGameTransition.SelectRandomWorld, isHost: false));
+        Check.True(navigation.TryMove(RaceInGameTransition.OpenSeedSettings, isHost: false));
+        Check.True(navigation.TryMove(RaceInGameTransition.BackToWorldSettings, isHost: false));
+        Check.True(navigation.TryMove(RaceInGameTransition.OpenFilterSettings, isHost: false));
+        Check.True(navigation.TryMove(RaceInGameTransition.RoomPrepared, isHost: true));
+        Check.Equal(
+            RaceInGamePage.RoomPreparation,
+            navigation.Resolve(RacePanelRole.Host, roomOpen: true, isHost: true));
+        Check.True(navigation.TryMove(RaceInGameTransition.RaceStarted, isHost: true));
+        Check.True(navigation.TryMove(RaceInGameTransition.OpenRoomManagement, isHost: true));
+        Check.True(navigation.TryMove(RaceInGameTransition.RoomPrepared, isHost: true));
+        Check.True(navigation.TryMove(RaceInGameTransition.RoomExited, isHost: true));
+        Check.Equal(RaceInGamePage.Entry, navigation.Current);
+
+        navigation.Reset(roomOpen: false);
+        Check.True(navigation.TryMove(RaceInGameTransition.SelectMember, isHost: false));
+        Check.True(navigation.TryMove(RaceInGameTransition.RoomPrepared, isHost: false));
+        Check.True(navigation.TryMove(RaceInGameTransition.RaceStarted, isHost: false));
+        Check.False(navigation.TryMove(RaceInGameTransition.OpenRoomManagement, isHost: false));
+        Check.Equal(
+            RaceInGamePage.RoomHome,
+            navigation.Resolve(RacePanelRole.Member, roomOpen: true, isHost: false));
+        Check.True(navigation.TryMove(RaceInGameTransition.RoomExited, isHost: false));
+        Check.Equal(
+            RaceInGamePage.Entry,
+            navigation.Resolve(RacePanelRole.Member, roomOpen: false, isHost: false));
     }
 
     private static void CompleteRoomJourney()
@@ -222,7 +342,7 @@ internal static class RaceFlowTests
         Check.Equal(AutoCreateCrimsonDistance.Near, generatedSettings.CrimsonDistance);
         Check.Equal(AutoCreateJungleRouteDepth.VeryDeep, generatedSettings.JungleRouteDepth);
         Check.Equal(AutoCreateResourceFilterItem.BoomstickMask, generatedSettings.ResourceFilterItemMask);
-        Check.Equal(8, generatedSettings.ResourceFilterLifeCrystalMinimum);
+        Check.Equal(5, generatedSettings.ResourceFilterLifeCrystalMinimum);
         Check.Equal(2, generatedSettings.ResourceFilterSpelunkerPotionMinimum);
         Check.Equal(1, generatedSettings.ResourceFilterFeatherfallPotionMinimum);
         Check.False(RaceWorldSettingsFactory.HasActiveFilters(

@@ -66,7 +66,14 @@ internal sealed partial class MainForm : Form
         runtimeServices is not null && runtimeBootstrapper.Phase == StartupPhase.FullyReady;
 
     private bool IsRaceRoomActive =>
-        runtimeServices?.RaceShell.IsInRoom == true || applicationController.SystemState.Race.IsInRoom;
+        runtimeServices is not null
+            ? runtimeServices.RaceShell.IsInRoom
+            : applicationController.SystemState.Race.IsInRoom;
+
+    private bool IsRaceModeActive =>
+        runtimeServices is not null
+            ? runtimeServices.RaceShell.IsRaceEnabled
+            : applicationController.SystemState.Race.IsModeEnabled;
 
     private bool CanEditPracticeTimes => settings.General.PracticeMode && !IsRaceRoomActive;
 
@@ -103,7 +110,8 @@ internal sealed partial class MainForm : Form
             () => settings,
             () => Handle,
             () => IsHandleCreated,
-            registerGlobalHotkeys);
+            registerGlobalHotkeys,
+            ShowHotkeyWarning);
         RefreshTimerOverlaySettingsSnapshot();
         overlayShell.RefreshPalette(settings);
 

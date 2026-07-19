@@ -33,6 +33,7 @@
       <TerrariaSplitWorldGuardBuiltFile Include="$(TerrariaSplitWorldGuardPayloadOutputDirectory)TerrariaSplit.WorldGuard.Payload.dll" />
       <TerrariaSplitWorldGuardBuiltFile Include="$(TerrariaSplitWorldGuardPayloadOutputDirectory)0Harmony.dll" />
       <TerrariaSplitWorldGuardBuiltFile Include="$(TerrariaSplitWorldGuardPayloadOutputDirectory)TerrariaSplit.Race.Determinism.dll" />
+      <TerrariaSplitWorldGuardBuiltFile Include="$(TerrariaSplitWorldGuardPayloadOutputDirectory)TerrariaSplit.Race.InGame.dll" />
       <TerrariaSplitWorldGuardBuiltFile Include="$(TerrariaSplitWorldGuardCompatibilityManifest)" />
       <TerrariaSplitWorldGuardBuiltFile Include="$(TerrariaSplitWorldGuardNativeOutputDirectory)\TerrariaSplit.WorldGuard.Bootstrap.dll" />
     </ItemGroup>
@@ -54,6 +55,7 @@
       <TerrariaSplitWorldGuardPublishedFile Include="$(TerrariaSplitWorldGuardPayloadOutputDirectory)TerrariaSplit.WorldGuard.Payload.dll" />
       <TerrariaSplitWorldGuardPublishedFile Include="$(TerrariaSplitWorldGuardPayloadOutputDirectory)0Harmony.dll" />
       <TerrariaSplitWorldGuardPublishedFile Include="$(TerrariaSplitWorldGuardPayloadOutputDirectory)TerrariaSplit.Race.Determinism.dll" />
+      <TerrariaSplitWorldGuardPublishedFile Include="$(TerrariaSplitWorldGuardPayloadOutputDirectory)TerrariaSplit.Race.InGame.dll" />
       <TerrariaSplitWorldGuardPublishedFile Include="$(TerrariaSplitWorldGuardCompatibilityManifest)" />
       <TerrariaSplitWorldGuardPublishedFile Include="$(TerrariaSplitWorldGuardNativeOutputDirectory)\TerrariaSplit.WorldGuard.Bootstrap.dll" />
       <ResolvedFileToPublish Include="@(TerrariaSplitWorldGuardPublishedFile)">
@@ -70,6 +72,7 @@
       <TerrariaSplitWorldGuardPublishedFile Include="$(TerrariaSplitWorldGuardPayloadOutputDirectory)TerrariaSplit.WorldGuard.Payload.dll" />
       <TerrariaSplitWorldGuardPublishedFile Include="$(TerrariaSplitWorldGuardPayloadOutputDirectory)0Harmony.dll" />
       <TerrariaSplitWorldGuardPublishedFile Include="$(TerrariaSplitWorldGuardPayloadOutputDirectory)TerrariaSplit.Race.Determinism.dll" />
+      <TerrariaSplitWorldGuardPublishedFile Include="$(TerrariaSplitWorldGuardPayloadOutputDirectory)TerrariaSplit.Race.InGame.dll" />
       <TerrariaSplitWorldGuardPublishedFile Include="$(TerrariaSplitWorldGuardCompatibilityManifest)" />
       <TerrariaSplitWorldGuardPublishedFile Include="$(TerrariaSplitWorldGuardNativeOutputDirectory)\TerrariaSplit.WorldGuard.Bootstrap.dll" />
     </ItemGroup>

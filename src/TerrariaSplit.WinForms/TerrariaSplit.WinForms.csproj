@@ -1,8 +1,8 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <Version>1.8.9.0</Version>
-    <FileVersion>1.8.9.0</FileVersion>
+    <Version>1.9.2.0</Version>
+    <FileVersion>1.9.2.0</FileVersion>
     <AssemblyName>TerrariaSplit</AssemblyName>
     <RootNamespace>TerrariaSplit</RootNamespace>
     <OutputType>WinExe</OutputType>
@@ -46,6 +46,7 @@
                       SkipGetTargetFrameworkProperties="true"
                       Private="false" />
     <ProjectReference Include="..\TerrariaSplit.Race.Client\TerrariaSplit.Race.Client.csproj" />
+    <ProjectReference Include="..\TerrariaSplit.Race.InGame\TerrariaSplit.Race.InGame.csproj" />
     <ProjectReference Include="..\TerrariaSplit.Statistics\TerrariaSplit.Statistics.csproj" />
     <ProjectReference Include="..\TerrariaSplit.Storage\TerrariaSplit.Storage.csproj" />
     <ProjectReference Include="..\TerrariaSplit.Terraria\TerrariaSplit.Terraria.csproj" />

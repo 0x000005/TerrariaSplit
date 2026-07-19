@@ -19,7 +19,9 @@ internal static class WindowsFlowTests
         var settings = new AutoCreateWorldSettings
         {
             EnableCheats = true,
-            EnablePyramidFilter = true
+            EnablePyramidFilter = true,
+            RequireCrimsonBetweenDungeonAndSpawn = false,
+            JungleRouteDepth = AutoCreateJungleRouteDepth.None
         };
         Check.Equal(
             Color.FromArgb(217, 166, 46).ToArgb(),
@@ -166,24 +168,24 @@ internal static class WindowsFlowTests
         Check.Equal(6, automation.AutoCreateLifeCrystalMinimumBoxes.Count);
         Check.Equal("5+", automation.AutoCreateLifeCrystalMinimumBoxes[5].Text);
         Check.False(automation.AutoCreateLifeCrystalMinimumBoxes[5].AutoEllipsis);
-        Check.False(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Enabled);
+        Check.True(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Enabled);
         automation.AutoCreateCheatsBox.Checked = true;
-        Check.False(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Enabled);
-        Check.False(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Checked);
-        Check.True(automation.AutoCreateCrimsonDistanceBoxes.Values.All(static button => !button.Enabled));
+        Check.True(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Enabled);
+        Check.True(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Checked);
+        Check.True(automation.AutoCreateCrimsonDistanceBoxes.Values.All(static button => button.Enabled));
         AppSettings filteredDraft = form.PageHost.CreateAppliedSnapshot();
-        Check.False(filteredDraft.Automation.AutoCreate.RequireCrimsonBetweenDungeonAndSpawn);
+        Check.True(filteredDraft.Automation.AutoCreate.RequireCrimsonBetweenDungeonAndSpawn);
         automation.AutoCreateWorldSizeBox.SelectedIndex = Array.IndexOf(AutoCreateWorldSize.All, AutoCreateWorldSize.Small);
-        Check.False(automation.AutoCreateJungleRouteDepthBox.Enabled);
-        Check.False(automation.AutoCreateJungleRouteDepthBox.Checked);
-        Check.True(automation.AutoCreateJungleRouteDepthBoxes.Values.All(static button => !button.Enabled));
-        Check.True(automation.AutoCreateResourceItemBoxes.Values.All(static button => !button.Enabled));
-        Check.False(automation.AutoCreateLifeCrystalMinimumBoxes[0].Enabled);
-        Check.False(automation.AutoCreateSpelunkerMinimumBoxes[0].Enabled);
-        Check.False(automation.AutoCreateFeatherfallMinimumBoxes[0].Enabled);
+        Check.True(automation.AutoCreateJungleRouteDepthBox.Enabled);
+        Check.True(automation.AutoCreateJungleRouteDepthBox.Checked);
+        Check.True(automation.AutoCreateJungleRouteDepthBoxes.Values.All(static button => button.Enabled));
+        Check.True(automation.AutoCreateResourceItemBoxes.Values.All(static button => button.Enabled));
+        Check.True(automation.AutoCreateLifeCrystalMinimumBoxes[0].Enabled);
+        Check.True(automation.AutoCreateSpelunkerMinimumBoxes[0].Enabled);
+        Check.True(automation.AutoCreateFeatherfallMinimumBoxes[0].Enabled);
         AppSettings resourceDraft = form.PageHost.CreateAppliedSnapshot();
         Check.True(resourceDraft.Automation.AutoCreate.EnableCheats);
-        Check.Equal(AutoCreateJungleRouteDepth.None, resourceDraft.Automation.AutoCreate.JungleRouteDepth);
+        Check.Equal(AutoCreateJungleRouteDepth.Medium, resourceDraft.Automation.AutoCreate.JungleRouteDepth);
         Check.Equal(0, resourceDraft.Automation.AutoCreate.ResourceFilterItemMask);
         Check.Equal(0, resourceDraft.Automation.AutoCreate.ResourceFilterLifeCrystalMinimum);
         Check.Equal(0, resourceDraft.Automation.AutoCreate.ResourceFilterSpelunkerPotionMinimum);
@@ -196,6 +198,7 @@ internal static class WindowsFlowTests
             contextMenu,
             resourceDraft,
             canSwitchSettingsFile: true,
+            canUseStandardAutomation: true,
             static () => { },
             static () => { },
             static () => { },
@@ -216,6 +219,7 @@ internal static class WindowsFlowTests
             contextMenu,
             resourceDraft,
             canSwitchSettingsFile: false,
+            canUseStandardAutomation: false,
             static () => { },
             static () => { },
             static () => { },
@@ -228,29 +232,44 @@ internal static class WindowsFlowTests
             contextMenu.Items[MainFormContextMenuBuilder.SettingsItemName]);
         Check.False(settingsFileMenu.Enabled);
         Check.False(settingsItem.Enabled);
+        cheatsItem = Check.Is<System.Windows.Forms.ToolStripMenuItem>(
+            contextMenu.Items[MainFormContextMenuBuilder.CheatsToggleItemName]);
+        Check.False(cheatsItem.Enabled);
 
         Check.False(HotkeyCommandMapper.TryMap(
             HotkeyAction.PauseResume,
             DateTime.UtcNow,
             createWorldRunning: false,
             enterWorldRunning: false,
-            isInRaceRoom: true,
+            isRaceModeEnabled: true,
+            isInRaceRoom: false,
             out _));
         Check.False(HotkeyCommandMapper.TryMap(
             HotkeyAction.CreateWorld,
             DateTime.UtcNow,
             createWorldRunning: false,
             enterWorldRunning: false,
-            isInRaceRoom: true,
+            isRaceModeEnabled: true,
+            isInRaceRoom: false,
             out _));
         Check.True(HotkeyCommandMapper.TryMap(
             HotkeyAction.CreateWorld,
             DateTime.UtcNow,
             createWorldRunning: true,
             enterWorldRunning: false,
-            isInRaceRoom: true,
+            isRaceModeEnabled: true,
+            isInRaceRoom: false,
             out AppCommand cancelCreate));
         Check.Is<CancelCreateWorldCommand>(cancelCreate);
+        Check.True(HotkeyCommandMapper.TryMap(
+            HotkeyAction.MouseClickThrough,
+            DateTime.UtcNow,
+            createWorldRunning: true,
+            enterWorldRunning: false,
+            isRaceModeEnabled: false,
+            isInRaceRoom: false,
+            out AppCommand toggleMouseClickThrough));
+        Check.Is<ToggleMouseClickThroughCommand>(toggleMouseClickThrough);
     }, cancellationToken);
 
     private static void OverlayLayoutJourney()

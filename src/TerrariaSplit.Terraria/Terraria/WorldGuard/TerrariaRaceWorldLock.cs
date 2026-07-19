@@ -4,6 +4,7 @@ using System.IO.Pipes;
 using System.Reflection;
 using System.Text;
 using TerrariaSplit.Configuration;
+using TerrariaSplit.Race.InGame;
 using TerrariaSplit.Terraria.Processes;
 
 namespace TerrariaSplit.Terraria;
@@ -42,10 +43,28 @@ internal sealed record TerrariaRaceWorldLockResult(
         new(false, message, processId);
 }
 
+internal sealed record TerrariaRaceMenuExchangeResult(
+    bool Succeeded,
+    string Message,
+    int? ProcessId,
+    RaceInGameAction[] Actions)
+{
+    public static TerrariaRaceMenuExchangeResult Success(
+        int processId,
+        RaceInGameAction[] actions) =>
+        new(true, string.Empty, processId, actions ?? []);
+
+    public static TerrariaRaceMenuExchangeResult Failure(
+        string message,
+        int? processId = null) =>
+        new(false, message, processId, []);
+}
+
 internal enum TerrariaRaceWorldLockState
 {
     Inactive,
     Injecting,
+    Attached,
     Configuring,
     Active,
     Stopping,
@@ -62,6 +81,18 @@ internal interface ITerrariaRaceWorldLockService
         TerrariaRaceWorldLockTarget target,
         TerrariaRaceInitialPlayerConfiguration player,
         string rejectionMessage,
+        CancellationToken cancellationToken = default);
+
+    Task<TerrariaRaceMenuExchangeResult> OpenRaceMenuAsync(
+        RaceInGameSnapshot snapshot,
+        CancellationToken cancellationToken = default);
+
+    Task<TerrariaRaceMenuExchangeResult> ExchangeRaceMenuAsync(
+        long knownRevision,
+        RaceInGameSnapshot? snapshot,
+        CancellationToken cancellationToken = default);
+
+    Task<TerrariaRaceWorldLockResult> CloseRaceMenuAsync(
         CancellationToken cancellationToken = default);
 
     Task<TerrariaRaceWorldLockResult> ResetDeterminismAsync(CancellationToken cancellationToken = default);
@@ -103,6 +134,8 @@ internal sealed class TerrariaRaceWorldLockService : ITerrariaRaceWorldLockServi
     private string? lastProvisionedLockKey;
     private string? lastProvisionedPlayerPath;
     private int lockedProcessId;
+    private int menuActive;
+    private int worldLockConfigured;
     private int lifecycleState;
     private int healthFailurePublished;
     private bool disposed;
@@ -117,11 +150,269 @@ internal sealed class TerrariaRaceWorldLockService : ITerrariaRaceWorldLockServi
         this.assetsDirectory = Path.GetFullPath(assetsDirectory);
     }
 
-    public bool IsLocked => Volatile.Read(ref lockedProcessId) > 0;
+    public bool IsLocked => Volatile.Read(ref worldLockConfigured) != 0;
 
     internal TerrariaRaceWorldLockState State => (TerrariaRaceWorldLockState)Volatile.Read(ref lifecycleState);
 
     public event Action<TerrariaRaceWorldLockResult>? HealthFailed;
+
+    public async Task<TerrariaRaceMenuExchangeResult> OpenRaceMenuAsync(
+        RaceInGameSnapshot snapshot,
+        CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        ArgumentNullException.ThrowIfNull(snapshot);
+        await commandGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            StopHeartbeat();
+            TerrariaRaceWorldLockResult attached = await EnsureHookAttachedUnderGateAsync(cancellationToken)
+                .ConfigureAwait(false);
+            if (!attached.Succeeded || attached.ProcessId is not int processId || string.IsNullOrWhiteSpace(activePipeName))
+            {
+                return TerrariaRaceMenuExchangeResult.Failure(attached.Message, attached.ProcessId);
+            }
+
+            string command = "race-ui-open\n" + RaceInGameProtocol.EncodeSnapshot(snapshot);
+            TerrariaRaceWorldLockResult opened = await SendPipeCommandAsync(
+                processId,
+                activePipeName,
+                command,
+                cancellationToken,
+                PlayerCreationPipeTimeout).ConfigureAwait(false);
+            if (!opened.Succeeded)
+            {
+                return TerrariaRaceMenuExchangeResult.Failure(opened.Message, processId);
+            }
+
+            RaceInGameAction[] actions = DecodeRaceMenuActions(opened.Message);
+            Volatile.Write(ref menuActive, 1);
+            Interlocked.Exchange(ref healthFailurePublished, 0);
+            SetState(IsLocked ? TerrariaRaceWorldLockState.Active : TerrariaRaceWorldLockState.Attached);
+            StartHeartbeat();
+            return TerrariaRaceMenuExchangeResult.Success(processId, actions);
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or InvalidOperationException or UnauthorizedAccessException)
+        {
+            return TerrariaRaceMenuExchangeResult.Failure(ex.Message, Volatile.Read(ref lockedProcessId));
+        }
+        finally
+        {
+            commandGate.Release();
+        }
+    }
+
+    public async Task<TerrariaRaceMenuExchangeResult> ExchangeRaceMenuAsync(
+        long knownRevision,
+        RaceInGameSnapshot? snapshot,
+        CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        await commandGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            int processId = Volatile.Read(ref lockedProcessId);
+            if (processId <= 0 || string.IsNullOrWhiteSpace(activePipeName))
+            {
+                return TerrariaRaceMenuExchangeResult.Failure("The Terraria Race menu is not attached.");
+            }
+
+            string command = "race-ui-exchange\n" +
+                knownRevision.ToString(CultureInfo.InvariantCulture);
+            if (snapshot is not null)
+            {
+                command += "\n" + RaceInGameProtocol.EncodeSnapshot(snapshot);
+            }
+
+            TerrariaRaceWorldLockResult exchanged = await SendPipeCommandAsync(
+                processId,
+                activePipeName,
+                command,
+                cancellationToken).ConfigureAwait(false);
+            if (!exchanged.Succeeded)
+            {
+                return TerrariaRaceMenuExchangeResult.Failure(exchanged.Message, processId);
+            }
+
+            return TerrariaRaceMenuExchangeResult.Success(
+                processId,
+                DecodeRaceMenuActions(exchanged.Message));
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or InvalidOperationException or UnauthorizedAccessException)
+        {
+            return TerrariaRaceMenuExchangeResult.Failure(ex.Message, Volatile.Read(ref lockedProcessId));
+        }
+        finally
+        {
+            commandGate.Release();
+        }
+    }
+
+    public async Task<TerrariaRaceWorldLockResult> CloseRaceMenuAsync(
+        CancellationToken cancellationToken = default)
+    {
+        if (disposed)
+        {
+            return TerrariaRaceWorldLockResult.Success();
+        }
+
+        await commandGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            int processId = Volatile.Read(ref lockedProcessId);
+            if (processId <= 0 || string.IsNullOrWhiteSpace(activePipeName))
+            {
+                Volatile.Write(ref menuActive, 0);
+                return TerrariaRaceWorldLockResult.Success();
+            }
+
+            TerrariaRaceWorldLockResult closed = await SendPipeCommandAsync(
+                processId,
+                activePipeName,
+                "race-ui-close",
+                cancellationToken).ConfigureAwait(false);
+            if (!closed.Succeeded)
+            {
+                return closed;
+            }
+
+            Volatile.Write(ref menuActive, 0);
+            if (IsLocked)
+            {
+                return TerrariaRaceWorldLockResult.Success(processId);
+            }
+
+            StopHeartbeat();
+            return await ShutdownActivePayloadAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            commandGate.Release();
+        }
+    }
+
+    private async Task<TerrariaRaceWorldLockResult> EnsureHookAttachedUnderGateAsync(
+        CancellationToken cancellationToken)
+    {
+        int currentProcessId = Volatile.Read(ref lockedProcessId);
+        if (currentProcessId > 0 &&
+            !string.IsNullOrWhiteSpace(activePipeName) &&
+            TryGetLiveProcess(currentProcessId, out Process? existingProcess))
+        {
+            existingProcess!.Dispose();
+            TerrariaRaceWorldLockResult version = await SendPipeCommandAsync(
+                currentProcessId,
+                activePipeName,
+                "version",
+                cancellationToken).ConfigureAwait(false);
+            if (version.Succeeded &&
+                string.Equals(version.Message, activePayloadVersion, StringComparison.Ordinal))
+            {
+                SetState(IsLocked ? TerrariaRaceWorldLockState.Active : TerrariaRaceWorldLockState.Attached);
+                return TerrariaRaceWorldLockResult.Success(currentProcessId, version.Message);
+            }
+        }
+
+        StopHeartbeat();
+        SetState(TerrariaRaceWorldLockState.Stopping);
+        TerrariaRaceWorldLockResult shutdown = await ShutdownActivePayloadAsync(cancellationToken).ConfigureAwait(false);
+        if (!shutdown.Succeeded)
+        {
+            return shutdown;
+        }
+
+        using Process? terraria = TerrariaProcessFinder.FindNewest();
+        if (terraria is null)
+        {
+            SetState(TerrariaRaceWorldLockState.Inactive);
+            return TerrariaRaceWorldLockResult.Failure(
+                "Terraria.exe must be running before the Race menu can open.");
+        }
+
+        TerrariaRaceWorldLockResult startupReady = await WaitForTerrariaStartupAsync(
+            terraria,
+            cancellationToken).ConfigureAwait(false);
+        if (!startupReady.Succeeded)
+        {
+            SetState(TerrariaRaceWorldLockState.Inactive);
+            return startupReady;
+        }
+
+        string pipeName = CreatePipeName(terraria.Id);
+        string startCommand = BuildStartCommand(pipeName, Environment.ProcessId);
+        string stagingDirectory;
+        try
+        {
+            stagingDirectory = PrepareStagingDirectory(terraria.Id);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            SetState(TerrariaRaceWorldLockState.Faulted);
+            return TerrariaRaceWorldLockResult.Failure(
+                "The Race hook staging directory could not be prepared: " + ex.Message,
+                terraria.Id);
+        }
+
+        activeStagingDirectory = stagingDirectory;
+        activePipeName = pipeName;
+        activePackageDigest = null;
+        activeLockKey = null;
+        Volatile.Write(ref worldLockConfigured, 0);
+        try
+        {
+            activePayloadVersion = ReadPayloadVersion(stagingDirectory);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or BadImageFormatException)
+        {
+            TryDeleteDirectory(stagingDirectory);
+            ClearActiveState();
+            SetState(TerrariaRaceWorldLockState.Faulted);
+            return TerrariaRaceWorldLockResult.Failure(
+                "The Race hook payload version could not be read: " + ex.Message,
+                terraria.Id);
+        }
+
+        Volatile.Write(ref lockedProcessId, terraria.Id);
+        SetState(TerrariaRaceWorldLockState.Injecting);
+        TerrariaRaceWorldLockResult start = await RunInjectorWhenReadyAsync(
+            terraria,
+            Path.Combine(stagingDirectory, BootstrapFileName),
+            startCommand,
+            cancellationToken).ConfigureAwait(false);
+        if (!start.Succeeded)
+        {
+            QueueStagingCleanup(terraria.Id, stagingDirectory);
+            ClearActiveState();
+            SetState(TerrariaRaceWorldLockState.Faulted);
+            return start;
+        }
+
+        TerrariaRaceWorldLockResult handshake = await SendPipeCommandAsync(
+            terraria.Id,
+            pipeName,
+            "version",
+            cancellationToken).ConfigureAwait(false);
+        if (!handshake.Succeeded ||
+            !string.Equals(handshake.Message, activePayloadVersion, StringComparison.Ordinal))
+        {
+            return await FailLockTransitionAsync(
+                terraria.Id,
+                "A different Race hook payload is already loaded. Restart Terraria before continuing.").ConfigureAwait(false);
+        }
+
+        SetState(TerrariaRaceWorldLockState.Attached);
+        return TerrariaRaceWorldLockResult.Success(terraria.Id, handshake.Message);
+    }
+
+    private static RaceInGameAction[] DecodeRaceMenuActions(string encoded)
+    {
+        return string.IsNullOrWhiteSpace(encoded)
+            ? []
+            : RaceInGameProtocol.DecodeActions(encoded);
+    }
 
     public async Task<TerrariaRaceWorldLockResult> LockAsync(
         TerrariaRaceWorldLockTarget target,
@@ -166,6 +457,25 @@ internal sealed class TerrariaRaceWorldLockService : ITerrariaRaceWorldLockServi
                 }
             }
 
+            if (!IsLocked &&
+                Volatile.Read(ref menuActive) != 0 &&
+                currentProcessId > 0 &&
+                !string.IsNullOrWhiteSpace(activePipeName) &&
+                TryGetLiveProcess(currentProcessId, out Process? attachedProcess))
+            {
+                attachedProcess!.Dispose();
+                StopHeartbeat();
+                transitionStarted = true;
+                return await ConfigureAttachedHookAsync(
+                    currentProcessId,
+                    activePipeName,
+                    lockKey,
+                    target,
+                    player,
+                    rejectionMessage,
+                    cancellationToken).ConfigureAwait(false);
+            }
+
             StopHeartbeat();
             transitionStarted = true;
             SetState(TerrariaRaceWorldLockState.Stopping);
@@ -194,7 +504,7 @@ internal sealed class TerrariaRaceWorldLockService : ITerrariaRaceWorldLockServi
             }
 
             string pipeName = CreatePipeName(terraria.Id);
-            string startCommand = "start\n" + Convert.ToBase64String(Encoding.UTF8.GetBytes(pipeName));
+            string startCommand = BuildStartCommand(pipeName, Environment.ProcessId);
             string stagingDirectory;
             try
             {
@@ -310,6 +620,7 @@ internal sealed class TerrariaRaceWorldLockService : ITerrariaRaceWorldLockServi
             }
 
             activeLockKey = lockKey;
+            Volatile.Write(ref worldLockConfigured, 1);
             Interlocked.Exchange(ref healthFailurePublished, 0);
             SetState(TerrariaRaceWorldLockState.Active);
             StartHeartbeat();
@@ -361,6 +672,32 @@ internal sealed class TerrariaRaceWorldLockService : ITerrariaRaceWorldLockServi
         {
             cancellationToken.ThrowIfCancellationRequested();
             StopHeartbeat();
+            int attachedProcessId = Volatile.Read(ref lockedProcessId);
+            if (attachedProcessId > 0 &&
+                !string.IsNullOrWhiteSpace(activePipeName))
+            {
+                TerrariaRaceWorldLockResult unlocked = await SendPipeCommandAsync(
+                    attachedProcessId,
+                    activePipeName,
+                    "unlock",
+                    cancellationToken).ConfigureAwait(false);
+                if (unlocked.Succeeded)
+                {
+                    activePackageDigest = null;
+                    activeLockKey = null;
+                    Volatile.Write(ref worldLockConfigured, 0);
+                    SetState(TerrariaRaceWorldLockState.Attached);
+                    StartHeartbeat();
+                }
+                else
+                {
+                    SetState(TerrariaRaceWorldLockState.Active);
+                    StartHeartbeat();
+                }
+
+                return unlocked;
+            }
+
             SetState(TerrariaRaceWorldLockState.Stopping);
             try
             {
@@ -607,6 +944,96 @@ internal sealed class TerrariaRaceWorldLockService : ITerrariaRaceWorldLockServi
         }
     }
 
+    private async Task<TerrariaRaceWorldLockResult> ConfigureAttachedHookAsync(
+        int processId,
+        string pipeName,
+        string lockKey,
+        TerrariaRaceWorldLockTarget target,
+        TerrariaRaceInitialPlayerConfiguration player,
+        string rejectionMessage,
+        CancellationToken cancellationToken)
+    {
+        SetState(TerrariaRaceWorldLockState.Configuring);
+        activePackageDigest = target.Determinism.PackageDigest;
+        TerrariaRaceWorldLockResult version = await SendPipeCommandAsync(
+            processId,
+            pipeName,
+            "version",
+            cancellationToken).ConfigureAwait(false);
+        if (!version.Succeeded ||
+            !string.Equals(version.Message, activePayloadVersion, StringComparison.Ordinal))
+        {
+            return await FailLockTransitionAsync(
+                processId,
+                "A different Race hook payload is already loaded. Restart Terraria before continuing.")
+                .ConfigureAwait(false);
+        }
+
+        TerrariaRaceWorldLockResult createdPlayer;
+        if (string.Equals(lastProvisionedLockKey, lockKey, StringComparison.Ordinal) &&
+            !string.IsNullOrWhiteSpace(lastProvisionedPlayerPath) &&
+            File.Exists(lastProvisionedPlayerPath))
+        {
+            createdPlayer = TerrariaRaceWorldLockResult.Success(processId, lastProvisionedPlayerPath);
+        }
+        else
+        {
+            createdPlayer = await CreatePlayerWhenReadyAsync(
+                processId,
+                pipeName,
+                BuildCreatePlayerCommand(player),
+                cancellationToken).ConfigureAwait(false);
+            if (createdPlayer.Succeeded && !string.IsNullOrWhiteSpace(createdPlayer.Message))
+            {
+                lastProvisionedLockKey = lockKey;
+                lastProvisionedPlayerPath = Path.GetFullPath(createdPlayer.Message);
+            }
+        }
+
+        if (!createdPlayer.Succeeded || string.IsNullOrWhiteSpace(createdPlayer.Message))
+        {
+            string message = createdPlayer.Succeeded
+                ? "The Race hook did not return the created player path."
+                : createdPlayer.Message;
+            return await FailLockTransitionAsync(processId, message).ConfigureAwait(false);
+        }
+
+        TerrariaRaceWorldLockResult configured = await SendPipeCommandAsync(
+            processId,
+            pipeName,
+            BuildLockCommand(target, createdPlayer.Message, rejectionMessage),
+            cancellationToken).ConfigureAwait(false);
+        if (!configured.Succeeded ||
+            !string.Equals(configured.Message, activePackageDigest, StringComparison.Ordinal))
+        {
+            string message = configured.Succeeded
+                ? "The Race hook returned the wrong package digest."
+                : configured.Message;
+            return await FailLockTransitionAsync(processId, message).ConfigureAwait(false);
+        }
+
+        TerrariaRaceWorldLockResult status = await SendPipeCommandAsync(
+            processId,
+            pipeName,
+            "status",
+            cancellationToken).ConfigureAwait(false);
+        if (!status.Succeeded ||
+            !string.Equals(status.Message, activePackageDigest, StringComparison.Ordinal))
+        {
+            string message = status.Succeeded
+                ? "The Race hook handshake digest did not match."
+                : status.Message;
+            return await FailLockTransitionAsync(processId, message).ConfigureAwait(false);
+        }
+
+        activeLockKey = lockKey;
+        Volatile.Write(ref worldLockConfigured, 1);
+        Interlocked.Exchange(ref healthFailurePublished, 0);
+        SetState(TerrariaRaceWorldLockState.Active);
+        StartHeartbeat();
+        return TerrariaRaceWorldLockResult.Success(processId, status.Message);
+    }
+
     internal static string BuildCreatePlayerCommand(TerrariaRaceInitialPlayerConfiguration player)
     {
         return string.Join(
@@ -651,6 +1078,17 @@ internal sealed class TerrariaRaceWorldLockService : ITerrariaRaceWorldLockServi
         return $"TerrariaSplit.RaceHook.{processId}";
     }
 
+    internal static string BuildStartCommand(string pipeName, int hostProcessId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(pipeName);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(hostProcessId);
+        return string.Join(
+            '\n',
+            "start",
+            Convert.ToBase64String(Encoding.UTF8.GetBytes(pipeName)),
+            hostProcessId.ToString(CultureInfo.InvariantCulture));
+    }
+
     public void Dispose()
     {
         disposed = true;
@@ -686,6 +1124,7 @@ internal sealed class TerrariaRaceWorldLockService : ITerrariaRaceWorldLockServi
                     int processId = Volatile.Read(ref lockedProcessId);
                     string? pipeName = activePipeName;
                     string? digest = activePackageDigest;
+                    bool locked = IsLocked;
                     Process? process = null;
                     if (processId <= 0 || string.IsNullOrWhiteSpace(pipeName) ||
                         !TryGetLiveProcess(processId, out process))
@@ -701,12 +1140,13 @@ internal sealed class TerrariaRaceWorldLockService : ITerrariaRaceWorldLockServi
                         status = await SendPipeCommandAsync(
                             processId,
                             pipeName,
-                            "status",
+                            locked ? "status" : "hook-status",
                             cancellationToken).ConfigureAwait(false);
-                        if (status.Succeeded && !string.Equals(status.Message, digest, StringComparison.Ordinal))
+                        string? expected = locked ? digest : activePayloadVersion;
+                        if (status.Succeeded && !string.Equals(status.Message, expected, StringComparison.Ordinal))
                         {
                             status = TerrariaRaceWorldLockResult.Failure(
-                                "The Race hook heartbeat returned the wrong package digest.",
+                                "The Race hook heartbeat returned the wrong identity.",
                                 processId);
                         }
                     }
@@ -779,6 +1219,8 @@ internal sealed class TerrariaRaceWorldLockService : ITerrariaRaceWorldLockServi
         activeStagingDirectory = null;
         activeLockKey = null;
         activePayloadVersion = null;
+        Volatile.Write(ref menuActive, 0);
+        Volatile.Write(ref worldLockConfigured, 0);
         Volatile.Write(ref lockedProcessId, 0);
         SetState(TerrariaRaceWorldLockState.Inactive);
     }
@@ -1115,6 +1557,7 @@ internal sealed class TerrariaRaceWorldLockService : ITerrariaRaceWorldLockServi
         yield return Path.Combine(directory, PayloadFileName);
         yield return Path.Combine(directory, "0Harmony.dll");
         yield return Path.Combine(directory, "TerrariaSplit.Race.Determinism.dll");
+        yield return Path.Combine(directory, "TerrariaSplit.Race.InGame.dll");
         yield return Path.Combine(directory, "terraria-compatibility.json");
     }
 

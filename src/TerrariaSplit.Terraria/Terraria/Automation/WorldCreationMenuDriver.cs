@@ -114,7 +114,6 @@ internal sealed class WorldCreationMenuDriver
         TerrariaMenuGeometry geometry,
         CancellationToken cancellationToken)
     {
-        pyramidSeedPreScreenAutomation.BeginVisibleSeedReaderPreparation(settings);
         if (!await automation.ClickAsync("new world", geometry.SelectMenuNewButton(), menuActionDelay, cancellationToken))
         {
             return CreateWorldAttemptResult.Failed;
@@ -174,6 +173,7 @@ internal sealed class WorldCreationMenuDriver
             return CreateWorldAttemptResult.Failed;
         }
 
+        pyramidSeedPreScreenAutomation.BeginVisibleSeedReaderPreparation(settings);
         PyramidSeedPreScreenAutomationResult preScreenResult =
             await pyramidSeedPreScreenAutomation.RandomizeCurrentSeedUntilAcceptedAsync(settings, geometry, shortActionDelay, cancellationToken);
         if (!preScreenResult.CanCreateWorld)
@@ -371,6 +371,7 @@ internal sealed class WorldCreationMenuDriver
             return WorldSeedOptionsResult.Failed;
         }
 
+        pyramidSeedPreScreenAutomation.BeginVisibleSeedReaderPreparation(settings);
         if (!await ApplySpecialSeedsAsync(settings.SpecialSeeds, geometry, cancellationToken))
         {
             return WorldSeedOptionsResult.Failed;
@@ -397,6 +398,16 @@ internal sealed class WorldCreationMenuDriver
         if (preScreenResult.Status == PyramidSeedPreScreenAutomationStatus.ContinueWithoutPreScreen)
         {
             StaticAppLogger.Instance.Info($"Create world automation will continue without pyramid seed pre-screen result: {preScreenResult.Detail}");
+        }
+
+        if (!windowActivation.TryReactivate(
+                "after world seed pre-screen",
+                settings.WindowActivationDelayMilliseconds))
+        {
+            RecordFailure(AutomationResult.Failure(
+                "Could not reactivate Terraria after screening the world seed.",
+                "Create world automation could not reactivate Terraria after the world seed pre-screen worker round was released."));
+            return WorldSeedOptionsResult.Failed;
         }
 
         return await automation.ClickAsync("apply visible seed", geometry.WorldAdvancedApplyButton(), menuActionDelay, cancellationToken)

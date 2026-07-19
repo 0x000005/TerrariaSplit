@@ -129,6 +129,14 @@ internal sealed partial class MainForm : Form
         appLogger.Info(message);
     }
 
+    private void ShowHotkeyWarning(string message)
+    {
+        using var dialog = new HotkeyWarningDialog(
+            Localizer.Get("Hotkey warning", settings),
+            message);
+        modalWindows.ShowDialog(dialog);
+    }
+
     private void UpdateContextMenu()
     {
         if (runtimeServices is null || contextMenu is null)
@@ -140,8 +148,9 @@ internal sealed partial class MainForm : Form
             contextMenu,
             settings,
             !IsRaceRoomActive,
+            !IsRaceModeActive,
             OpenStatistics,
-            raceShell.OpenPanel,
+            raceShell.OpenRaceEntryPoint,
             settingsShell.Open,
             ToggleCheats,
             settingsShell.SwitchSettingsFile,
@@ -378,6 +387,7 @@ internal sealed partial class MainForm : Form
                     DateTime.UtcNow,
                     runtimeServices?.AutomationShell.IsCreateWorldRunning == true,
                     runtimeServices?.AutomationShell.IsEnterWorldRunning == true,
+                    IsRaceModeActive,
                     IsRaceRoomActive,
                     out AppCommand command))
             {

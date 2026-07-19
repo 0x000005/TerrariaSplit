@@ -182,7 +182,13 @@ internal sealed partial class MainForm : Form
             "TerrariaSplit could not finish initialization and must close.",
             settings);
         string title = Localizer.Get("Startup failed", settings);
-        MessageBox.Show(this, message, title, MessageBoxButtons.OK, MessageBoxIcon.Error);
+        SettingsMessageDialog.ShowThemed(
+            this,
+            title,
+            message,
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Error,
+            key => Localizer.Get(key, settings));
         Close();
     }
 }

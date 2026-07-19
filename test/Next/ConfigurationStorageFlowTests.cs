@@ -19,8 +19,16 @@ internal static class ConfigurationStorageFlowTests
         settings.General.AlwaysOnTop = true;
         settings.Route.VisibleGroupCountLimit = -20;
         settings.Race.ServerUrl = "  https://example.test/race  ";
+        settings.Race.LastRoomCode = "  ABC123  ";
         settings.Race.PlayerTemplateCode = "  { player-template }  ";
-        settings.Race.HostPlayerDifficulty = AutoCreatePlayerDifficulty.Hardcore;
+        settings.Race.WorldSetup.Source = "LegacyExistingFile";
+        settings.Race.WorldSetup.SeedText = "  seed with spaces  ";
+        settings.Race.WorldSetup.WorldSize = AutoCreateWorldSize.Large;
+        settings.Race.WorldSetup.WorldDifficulty = AutoCreateWorldDifficulty.Master;
+        settings.Race.WorldSetup.WorldEvil = AutoCreateWorldEvil.Corruption;
+        settings.Race.WorldSetup.SpecialSeeds = "not the bees | no traps";
+        settings.Race.WorldSetup.RngControlEnabled = false;
+        settings.Race.WorldSetup.LifeCrystalMinimum = 5;
         settings.Race.Voice.Enabled = true;
         settings.Race.Voice.VoiceName = "  Test Voice  ";
         settings.Race.Voice.SpeedPercent = 250;
@@ -42,8 +50,18 @@ internal static class ConfigurationStorageFlowTests
         Check.True(loaded.General.AlwaysOnTop);
         Check.True(loaded.Route.VisibleGroupCountLimit > 0);
         Check.Equal("https://example.test/race", loaded.Race.ServerUrl);
+        Check.Equal("ABC123", loaded.Race.LastRoomCode);
         Check.Equal("{ player-template }", loaded.Race.PlayerTemplateCode);
-        Check.Equal(AutoCreatePlayerDifficulty.Hardcore, loaded.Race.HostPlayerDifficulty);
+        Check.Equal(RacePreferredWorldSource.Random, loaded.Race.WorldSetup.Source);
+        Check.Equal("seed with spaces", loaded.Race.WorldSetup.SeedText);
+        Check.Equal(AutoCreateWorldSize.Large, loaded.Race.WorldSetup.WorldSize);
+        Check.Equal(AutoCreateWorldDifficulty.Master, loaded.Race.WorldSetup.WorldDifficulty);
+        Check.Equal(AutoCreateWorldEvil.Corruption, loaded.Race.WorldSetup.WorldEvil);
+        Check.Sequence(
+            [AutoCreateSpecialWorldSeed.NotTheBees, AutoCreateSpecialWorldSeed.NoTraps],
+            AutoCreateSpecialWorldSeed.ParseList(loaded.Race.WorldSetup.SpecialSeeds));
+        Check.False(loaded.Race.WorldSetup.RngControlEnabled);
+        Check.Equal(5, loaded.Race.WorldSetup.LifeCrystalMinimum);
         Check.True(loaded.Race.Voice.Enabled);
         Check.Equal("Test Voice", loaded.Race.Voice.VoiceName);
         Check.Equal(200, loaded.Race.Voice.SpeedPercent);
@@ -55,7 +73,7 @@ internal static class ConfigurationStorageFlowTests
         Check.Equal(AutoCreateCrimsonDistance.Near, loaded.Automation.AutoCreate.CrimsonDistance);
         Check.Equal(AutoCreateJungleRouteDepth.Deep, loaded.Automation.AutoCreate.JungleRouteDepth);
         Check.Equal(AutoCreateResourceFilterItem.BoomstickMask, loaded.Automation.AutoCreate.ResourceFilterItemMask);
-        Check.Equal(8, loaded.Automation.AutoCreate.ResourceFilterLifeCrystalMinimum);
+        Check.Equal(5, loaded.Automation.AutoCreate.ResourceFilterLifeCrystalMinimum);
         Check.Equal(2, loaded.Automation.AutoCreate.ResourceFilterSpelunkerPotionMinimum);
         Check.Equal(1, loaded.Automation.AutoCreate.ResourceFilterFeatherfallPotionMinimum);
         Check.True(File.Exists(Path.Combine(paths.SettingsDirectory, "settings.json")));

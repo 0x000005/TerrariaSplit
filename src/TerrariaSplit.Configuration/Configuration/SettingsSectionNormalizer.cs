@@ -72,10 +72,13 @@ public static class SettingsSectionNormalizer
             ? defaults.ServerUrl
             : race.ServerUrl.Trim();
         race.Nickname = race.Nickname?.Trim() ?? string.Empty;
+        race.LastRoomCode = race.LastRoomCode?.Trim() ?? string.Empty;
         race.PreferredRole = RacePreferredRole.Normalize(race.PreferredRole);
         race.PreferredWorldSource = RacePreferredWorldSource.Normalize(race.PreferredWorldSource);
         race.PlayerTemplateCode = race.PlayerTemplateCode?.Trim() ?? string.Empty;
-        race.HostPlayerDifficulty = AutoCreatePlayerDifficulty.Normalize(race.HostPlayerDifficulty);
+        race.WorldSetup ??= defaults.WorldSetup ?? new RaceWorldSetupSettings();
+        defaults.WorldSetup ??= new RaceWorldSetupSettings();
+        NormalizeRaceWorldSetup(race.WorldSetup);
         race.Voice ??= defaults.Voice ?? new RaceVoiceSettings();
         defaults.Voice ??= new RaceVoiceSettings();
         race.Voice.VoiceName = race.Voice.VoiceName?.Trim() ?? string.Empty;
@@ -116,6 +119,24 @@ public static class SettingsSectionNormalizer
         NormalizeRaceLeaderboardColor(race.Leaderboard.Colors.PlayerOther, defaults.Leaderboard.Colors.PlayerOther);
         NormalizeRaceLeaderboardColor(race.Leaderboard.Colors.Icon ??= defaults.Leaderboard.Colors.Icon, defaults.Leaderboard.Colors.Icon);
         NormalizeRaceLeaderboardColor(race.Leaderboard.Colors.Time ??= defaults.Leaderboard.Colors.Time, defaults.Leaderboard.Colors.Time);
+    }
+
+    private static void NormalizeRaceWorldSetup(RaceWorldSetupSettings setup)
+    {
+        setup.Source = RacePreferredWorldSource.Normalize(setup.Source);
+        setup.SeedText = setup.SeedText?.Trim() ?? string.Empty;
+        setup.WorldSize = AutoCreateWorldSize.Normalize(setup.WorldSize);
+        setup.WorldDifficulty = AutoCreateWorldDifficulty.Normalize(setup.WorldDifficulty);
+        setup.WorldEvil = AutoCreateWorldEvil.Normalize(setup.WorldEvil);
+        setup.SpecialSeeds = string.Join("|", AutoCreateSpecialWorldSeed.ParseList(setup.SpecialSeeds));
+        setup.SecretSeeds = setup.SecretSeeds?.Trim() ?? string.Empty;
+        setup.PyramidItemMask = AutoCreatePyramidFilterItem.NormalizeMask(setup.PyramidItemMask);
+        setup.CrimsonDistance = AutoCreateCrimsonDistance.Normalize(setup.CrimsonDistance);
+        setup.JungleRouteDepth = AutoCreateJungleRouteDepth.Normalize(setup.JungleRouteDepth);
+        setup.ResourceItemMask = AutoCreateResourceFilterItem.NormalizeMask(setup.ResourceItemMask);
+        setup.LifeCrystalMinimum = AutoCreateResourceMinimum.NormalizeLifeCrystals(setup.LifeCrystalMinimum);
+        setup.SpelunkerPotionMinimum = AutoCreateResourceMinimum.NormalizePotions(setup.SpelunkerPotionMinimum);
+        setup.FeatherfallPotionMinimum = AutoCreateResourceMinimum.NormalizePotions(setup.FeatherfallPotionMinimum);
     }
 
     public static void NormalizeColumnSettings(UiColumnLayoutSettings columns, UiColumnLayoutSettings defaults)

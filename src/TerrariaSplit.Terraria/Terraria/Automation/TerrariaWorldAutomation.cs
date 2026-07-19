@@ -2,7 +2,7 @@ namespace TerrariaSplit.Terraria.Automation;
 
 public sealed class TerrariaWorldAutomation : IDisposable
 {
-    private readonly CreateWorldWorkflow createWorldWorkflow;
+    private readonly WorldPoolStore? worldPool;
     private readonly EnterWorldWorkflow enterWorldWorkflow = new();
     private readonly AutomationRunner<AppSettings> createWorldRunner;
     private readonly AutomationRunner<EnterWorldAutomationRequest> enterWorldRunner;
@@ -10,12 +10,11 @@ public sealed class TerrariaWorldAutomation : IDisposable
     public TerrariaWorldAutomation(WorldPoolStore? worldPool = null, IAppLogger? logger = null)
     {
         logger ??= NullAppLogger.Instance;
-        createWorldWorkflow = new CreateWorldWorkflow(worldPool);
+        this.worldPool = worldPool;
         createWorldRunner = new AutomationRunner<AppSettings>(
             "Create world",
-            createWorldWorkflow.RunAsync,
-            createWorldWorkflow.Dispose,
-            logger);
+            RunCreateWorldAsync,
+            logger: logger);
         enterWorldRunner = new AutomationRunner<EnterWorldAutomationRequest>(
             "Enter world",
             (request, cancellationToken) => enterWorldWorkflow.RunAsync(
@@ -68,6 +67,14 @@ public sealed class TerrariaWorldAutomation : IDisposable
     {
         createWorldRunner.Dispose();
         enterWorldRunner.Dispose();
+    }
+
+    private async Task<AutomationResult> RunCreateWorldAsync(
+        AppSettings settings,
+        CancellationToken cancellationToken)
+    {
+        using var workflow = new CreateWorldWorkflow(worldPool);
+        return await workflow.RunAsync(settings, cancellationToken);
     }
 
     private readonly record struct EnterWorldAutomationRequest(

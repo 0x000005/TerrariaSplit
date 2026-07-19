@@ -190,9 +190,15 @@ internal sealed class WorldSeedFilterEvaluator : IDisposable
         }
 
         disposed = true;
+        ReleaseWorkers();
+    }
+
+    public void ReleaseWorkers()
+    {
         if (ownsWorker)
         {
             worker?.Dispose();
+            worker = null;
             foreach (JungleSeedJudgeWorkerClient batchWorker in batchWorkers)
             {
                 batchWorker.Dispose();

@@ -131,15 +131,13 @@ internal sealed class SettingsDialogService
         MessageBoxButtons buttons,
         MessageBoxIcon icon)
     {
-        using var dialog = new SettingsMessageDialog(caption, text, buttons, icon, localize);
-        dialog.Shown += (_, _) =>
-        {
-            dialog.BringToFront();
-            dialog.Activate();
-            NativeMethods.SetForegroundWindow(dialog.Handle);
-        };
-
-        return dialog.ShowDialog(dialogOwner);
+        return SettingsMessageDialog.ShowThemed(
+            dialogOwner,
+            caption,
+            text,
+            buttons,
+            icon,
+            localize);
     }
 
     public void OpenAutoCreateBackupFolder(Func<string, string> localizeTitle)

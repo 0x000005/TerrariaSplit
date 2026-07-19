@@ -7,6 +7,7 @@ internal static class HotkeyCommandMapper
         DateTime requestedAtUtc,
         bool createWorldRunning,
         bool enterWorldRunning,
+        bool isRaceModeEnabled,
         bool isInRaceRoom,
         out AppCommand command)
     {
@@ -29,19 +30,17 @@ internal static class HotkeyCommandMapper
             return false;
         }
 
-        if (isInRaceRoom && action is HotkeyAction.PauseResume or HotkeyAction.Reset)
+        if (!RaceInteractionPolicy.Allows(command, isRaceModeEnabled, isInRaceRoom))
         {
             return false;
         }
 
-        if (isInRaceRoom && action == HotkeyAction.CreateWorld && !createWorldRunning)
+        // Window interaction is independent from Terraria automation. Keeping this
+        // available also lets the user recover the overlay while an automation
+        // cancellation is still unwinding.
+        if (action == HotkeyAction.MouseClickThrough)
         {
-            return false;
-        }
-
-        if (isInRaceRoom && action == HotkeyAction.PracticeWorld && !enterWorldRunning)
-        {
-            return false;
+            return true;
         }
 
         if (createWorldRunning && action != HotkeyAction.CreateWorld)

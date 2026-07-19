@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -26,6 +27,7 @@ namespace TerrariaSplit.WorldGuard.Payload
         private static readonly object PatchSync = new object();
         private static volatile WorldLockConfiguration configuration;
         private static PayloadCommandServer commandServer;
+        private static int hostProcessId;
         private static volatile string runtimeFailure;
         private static bool patchesInstalled;
         private static bool lootPatchInstalled;
@@ -48,6 +50,11 @@ namespace TerrariaSplit.WorldGuard.Payload
         private static FieldInfo menuServerField;
         private static PropertyInfo playerPathProperty;
         private static FieldInfo activePlayerFileDataField;
+        private static PropertyInfo uiElementParentProperty;
+        private static FieldInfo uiListItemsField;
+        private static MethodInfo uiElementGetSnapPointsMethod;
+        private static PropertyInfo snapPointIdProperty;
+        private static MethodInfo snapPointIdSetter;
         private static FieldInfo mainRandomField;
         private static FieldInfo npcTypeField;
         private static FieldInfo npcBossField;
@@ -66,7 +73,11 @@ namespace TerrariaSplit.WorldGuard.Payload
             try
             {
                 string[] parts = (command ?? string.Empty).Split(new[] { '\n' }, StringSplitOptions.None);
-                if (parts.Length != 2 || !string.Equals(parts[0], "start", StringComparison.Ordinal))
+                int nextHostProcessId;
+                if (parts.Length != 3 ||
+                    !string.Equals(parts[0], "start", StringComparison.Ordinal) ||
+                    !int.TryParse(parts[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out nextHostProcessId) ||
+                    nextHostProcessId <= 0)
                 {
                     return 2;
                 }
@@ -96,12 +107,23 @@ namespace TerrariaSplit.WorldGuard.Payload
                 {
                     if (commandServer != null)
                     {
-                        return string.Equals(commandServer.PipeName, pipeName, StringComparison.Ordinal)
-                            ? 0
-                            : 19;
+                        if (string.Equals(commandServer.PipeName, pipeName, StringComparison.Ordinal))
+                        {
+                            hostProcessId = nextHostProcessId;
+                            return 0;
+                        }
+
+                        if (IsProcessAlive(hostProcessId))
+                        {
+                            return 19;
+                        }
+
+                        commandServer.Stop();
+                        commandServer = null;
                     }
 
                     commandServer = new PayloadCommandServer(pipeName, HandleCommand);
+                    hostProcessId = nextHostProcessId;
                     commandServer.Start();
                 }
 
@@ -113,8 +135,38 @@ namespace TerrariaSplit.WorldGuard.Payload
             }
         }
 
+        private static bool IsProcessAlive(int processId)
+        {
+            if (processId <= 0)
+            {
+                return false;
+            }
+
+            try
+            {
+                using (Process process = Process.GetProcessById(processId))
+                {
+                    return !process.HasExited;
+                }
+            }
+            catch (ArgumentException)
+            {
+                return false;
+            }
+            catch (InvalidOperationException)
+            {
+                return false;
+            }
+        }
+
         private static PayloadCommandResult HandleCommand(string command)
         {
+            PayloadCommandResult raceUiResult;
+            if (TryHandleRaceUiCommand(command, out raceUiResult))
+            {
+                return raceUiResult;
+            }
+
             PayloadCommandResult playerResult;
             if (TryHandleCreatePlayer(command, out playerResult))
             {
@@ -151,6 +203,19 @@ namespace TerrariaSplit.WorldGuard.Payload
 
             if (string.Equals(command, "version", StringComparison.Ordinal))
             {
+                return new PayloadCommandResult(
+                    0,
+                    Assembly.GetExecutingAssembly().GetName().Version.ToString(),
+                    false);
+            }
+
+            if (string.Equals(command, "hook-status", StringComparison.Ordinal))
+            {
+                if (!string.IsNullOrWhiteSpace(runtimeFailure))
+                {
+                    return new PayloadCommandResult(4, runtimeFailure, false);
+                }
+
                 return new PayloadCommandResult(
                     0,
                     Assembly.GetExecutingAssembly().GetName().Version.ToString(),
@@ -204,6 +269,7 @@ namespace TerrariaSplit.WorldGuard.Payload
                 lock (PatchSync)
                 {
                     commandServer = null;
+                    hostProcessId = 0;
                 }
 
                 return new PayloadCommandResult(0, string.Empty, true);
@@ -663,8 +729,12 @@ namespace TerrariaSplit.WorldGuard.Payload
                 Type characterListItemType = terraria.GetType("Terraria.GameContent.UI.Elements.UICharacterListItem", false);
                 Type worldListItemType = terraria.GetType("Terraria.GameContent.UI.Elements.UIWorldListItem", false);
                 Type panelType = terraria.GetType("Terraria.GameContent.UI.Elements.UIPanel", false);
+                Type uiListType = terraria.GetType("Terraria.GameContent.UI.Elements.UIList", false);
+                Type uiElementType = terraria.GetType("Terraria.UI.UIElement", false);
+                Type snapPointType = terraria.GetType("Terraria.UI.SnapPoint", false);
                 if (mainType == null || playerFileDataType == null || worldFileDataType == null ||
-                    characterListItemType == null || worldListItemType == null || panelType == null)
+                    characterListItemType == null || worldListItemType == null || panelType == null ||
+                    uiListType == null || uiElementType == null || snapPointType == null)
                 {
                     return 13;
                 }
@@ -745,6 +815,18 @@ namespace TerrariaSplit.WorldGuard.Payload
                 worldPathProperty = worldFileDataType.GetProperty("Path", BindingFlags.Instance | BindingFlags.Public);
                 playerPathProperty = playerFileDataType.GetProperty("Path", BindingFlags.Instance | BindingFlags.Public);
                 activePlayerFileDataField = mainType.GetField("ActivePlayerFileData", BindingFlags.Static | BindingFlags.Public);
+                uiElementParentProperty = uiElementType.GetProperty("Parent", BindingFlags.Instance | BindingFlags.Public);
+                uiListItemsField = uiListType.GetField("_items", BindingFlags.Instance | BindingFlags.NonPublic);
+                uiElementGetSnapPointsMethod = uiElementType.GetMethod(
+                    "GetSnapPoints",
+                    BindingFlags.Instance | BindingFlags.Public,
+                    null,
+                    Type.EmptyTypes,
+                    null);
+                snapPointIdProperty = snapPointType.GetProperty("Id", BindingFlags.Instance | BindingFlags.Public);
+                snapPointIdSetter = snapPointIdProperty == null
+                    ? null
+                    : snapPointIdProperty.GetSetMethod(true);
                 worldIdField = worldFileDataType.GetField("WorldId", BindingFlags.Instance | BindingFlags.Public);
                 worldUniqueIdField = worldFileDataType.GetField("UniqueId", BindingFlags.Instance | BindingFlags.Public);
                 statusTextField = mainType.GetField("statusText", BindingFlags.Static | BindingFlags.Public);
@@ -760,7 +842,9 @@ namespace TerrariaSplit.WorldGuard.Payload
                 if (worldListItemDataField == null || characterListItemDataField == null ||
                     panelBorderColorField == null || assignedBorderColor == null ||
                     worldPathProperty == null || playerPathProperty == null ||
-                    activePlayerFileDataField == null || worldIdField == null ||
+                    activePlayerFileDataField == null || uiElementParentProperty == null ||
+                    uiListItemsField == null || uiElementGetSnapPointsMethod == null ||
+                    snapPointIdProperty == null || snapPointIdSetter == null || worldIdField == null ||
                     worldUniqueIdField == null || statusTextField == null || menuModeField == null ||
                     menuMultiplayerField == null || menuServerField == null)
                 {
@@ -959,6 +1043,7 @@ namespace TerrariaSplit.WorldGuard.Payload
 
             try
             {
+                SynchronizeCharacterListSnapPointIds(__instance);
                 if (IsAssignedPlayerListItem(__instance, current))
                 {
                     panelBorderColorField.SetValue(__instance, assignedBorderColor);
@@ -966,6 +1051,37 @@ namespace TerrariaSplit.WorldGuard.Payload
             }
             catch
             {
+            }
+        }
+
+        private static void SynchronizeCharacterListSnapPointIds(object item)
+        {
+            object innerList = uiElementParentProperty.GetValue(item, null);
+            object list = innerList == null
+                ? null
+                : uiElementParentProperty.GetValue(innerList, null);
+            IList items = list == null
+                ? null
+                : uiListItemsField.GetValue(list) as IList;
+            int visualIndex = items == null ? -1 : items.IndexOf(item);
+            if (visualIndex < 0)
+            {
+                return;
+            }
+
+            IEnumerable snapPoints = uiElementGetSnapPointsMethod.Invoke(item, null) as IEnumerable;
+            if (snapPoints == null)
+            {
+                return;
+            }
+
+            foreach (object snapPoint in snapPoints)
+            {
+                if (snapPoint != null &&
+                    (int)snapPointIdProperty.GetValue(snapPoint, null) != visualIndex)
+                {
+                    snapPointIdSetter.Invoke(snapPoint, new object[] { visualIndex });
+                }
             }
         }
 

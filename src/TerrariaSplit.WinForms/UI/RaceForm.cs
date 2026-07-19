@@ -62,6 +62,7 @@ internal sealed class RaceForm : Form
     private readonly IRacePanelShell shell;
     private readonly SettingsUiFactory uiFactory;
     private readonly SettingsDialogService dialogs;
+    private readonly Button raceModeButton;
     private readonly TextBox serverBox;
     private readonly TextBox nicknameBox;
     private readonly TextBox roomCodeBox;
@@ -69,7 +70,6 @@ internal sealed class RaceForm : Form
     private readonly TextBox randomSecretSeedsBox;
     private readonly TextBox worldPathBox;
     private readonly TextBox playerTemplateCodeBox;
-    private readonly ThemedDropDownList playerDifficultyBox;
     private readonly ThemedDropDownList sizeBox;
     private readonly ThemedDropDownList difficultyBox;
     private readonly ThemedDropDownList evilBox;
@@ -138,6 +138,7 @@ internal sealed class RaceForm : Form
     private bool updatingCrimsonDistanceSelection;
     private bool updatingJungleRouteDepthSelection;
     private bool updatingResourceMinimumSelection;
+    private bool raceModeChangeRunning;
     private bool dragging;
     private Point dragStartCursor;
     private Point dragStartLocation;
@@ -150,6 +151,7 @@ internal sealed class RaceForm : Form
         voiceSettings = CloneVoiceSettings(shell.VoiceSettings);
         uiFactory = new SettingsUiFactory(shell.Localize);
         dialogs = new SettingsDialogService(this, shell.Localize);
+        raceModeButton = uiFactory.CreateButton("Enter Race mode", accent: true, minimumWidth: 220);
         voiceEnabledBox = uiFactory.CreateCheckBox(voiceSettings.Enabled);
         List<(string Text, object Value)> voices = [("System default", string.Empty)];
         voices.AddRange(shell.InstalledVoices.Select(voice => (voice.DisplayName, (object)voice.Name)));
@@ -177,18 +179,6 @@ internal sealed class RaceForm : Form
         playerTemplateCodeBox.AcceptsReturn = true;
         playerTemplateCodeBox.ScrollBars = ScrollBars.Vertical;
         playerTemplateCodeBox.Height = playerTemplateCodeBox.Font.Height * 6 + 14;
-        playerDifficultyBox = CreateDropDown(
-            (AutoCreatePlayerDifficulty.Softcore, 0),
-            (AutoCreatePlayerDifficulty.Mediumcore, 1),
-            (AutoCreatePlayerDifficulty.Hardcore, 2),
-            (AutoCreatePlayerDifficulty.Journey, 3));
-        playerDifficultyBox.SelectedIndex = AutoCreatePlayerDifficulty.Normalize(draftState.HostPlayerDifficulty) switch
-        {
-            AutoCreatePlayerDifficulty.Mediumcore => 1,
-            AutoCreatePlayerDifficulty.Hardcore => 2,
-            AutoCreatePlayerDifficulty.Journey => 3,
-            _ => 0
-        };
         hostRoleButton = CreateRoleButton("Host", RacePanelRole.Host, selected: selectedRole == RacePanelRole.Host);
         memberRoleButton = CreateRoleButton("Member", RacePanelRole.Member, selected: selectedRole == RacePanelRole.Member);
         sizeBox = CreateDropDown(
@@ -282,6 +272,7 @@ internal sealed class RaceForm : Form
         UiTheme.ConfigureForm(this, new Size(760, 520));
 
         BuildUi();
+        raceModeButton.Click += async (_, _) => await ToggleRaceModeAsync();
         UiDpiScale.ApplyBase200ClientLayout(this, new Size(1800, 1000), new Size(760, 520));
         UpdateRaceState(shell.State);
     }
@@ -296,6 +287,8 @@ internal sealed class RaceForm : Form
 
         RunProgrammaticUpdate(() =>
         {
+            raceModeButton.Text = Localize(shell.IsRaceEnabled ? "Exit Race mode" : "Enter Race mode");
+            raceModeButton.Enabled = !raceModeChangeRunning;
             if (state?.WorldSettings is RaceWorldSettings worldSettings)
             {
                 ApplyWorldSettings(worldSettings);
@@ -659,9 +652,6 @@ internal sealed class RaceForm : Form
             hostSection = CreateHostSection();
             raceStatusSection = CreateRaceStatusSection();
             memberSection = CreateMemberSection();
-            SettingsUiFactory.AddSection(content, hostSection);
-            SettingsUiFactory.AddSection(content, raceStatusSection);
-            SettingsUiFactory.AddSection(content, memberSection);
         });
         settingsScrollPanel ??= page as ThemedScrollPanel;
         return page;
@@ -813,9 +803,9 @@ internal sealed class RaceForm : Form
         TableLayoutPanel grid = uiFactory.CreateGrid(
             SettingsUiFactory.ColumnStyleAbsolute(RaceSettingsLabelColumnWidth),
             SettingsUiFactory.ColumnStylePercent(100f));
+        uiFactory.AddSettingRow(grid, "Race mode", raceModeButton);
         uiFactory.AddSettingRow(grid, "Server", serverBox);
-        uiFactory.AddSettingRow(grid, "Nickname", nicknameBox);
-        uiFactory.AddSettingRow(grid, "Role", CreateRoleButtonPanel());
+        uiFactory.AddSettingRow(grid, "Username", nicknameBox);
         SettingsUiFactory.AddSectionControl(section, grid);
         SettingsUiFactory.AddSectionControl(section, uiFactory.CreateFieldLabel("Player code"));
         SettingsUiFactory.AddSectionControl(section, playerTemplateCodeBox);
@@ -1310,7 +1300,6 @@ internal sealed class RaceForm : Form
     {
         TableLayoutPanel section = uiFactory.CreateSection("Room settings");
         SettingsUiFactory.AddSectionControl(section, CreateRngControlSettingsGrid());
-        SettingsUiFactory.AddSectionControl(section, CreateHostPlayerSettingsGrid());
         SettingsUiFactory.AddSectionControl(section, CreateWorldSourceSelector());
 
         randomWorldConfig = CreateRandomWorldConfig();
@@ -1326,24 +1315,9 @@ internal sealed class RaceForm : Form
         return section;
     }
 
-    private Control CreateHostPlayerSettingsGrid()
-    {
-        TableLayoutPanel grid = uiFactory.CreateGrid(
-            SettingsUiFactory.ColumnStylePercent(100f),
-            SettingsUiFactory.ColumnStyleAbsolute(RaceSettingsValueColumnWidth));
-        uiFactory.AddSettingRow(grid, "Player difficulty", playerDifficultyBox);
-        return grid;
-    }
-
     private Control CreateRaceStatusSection()
     {
-        Button copyRoomInfoButton = CreateActionButton(
-            "Copy Room Info",
-            accent: false,
-            shell.CopyRoomInfoAsync,
-            minimumWidth: 220);
-        copyRoomInfoButton.Margin = Padding.Empty;
-        TableLayoutPanel section = uiFactory.CreateSection("Room Info", copyRoomInfoButton);
+        TableLayoutPanel section = uiFactory.CreateSection("Room Info");
 
         statusRouteOverrideHint = uiFactory.CreateWrappedFieldLabel(string.Empty, UiTheme.MutedText);
         statusRouteOverrideHint.Margin = new Padding(0, 2, 0, 8);
@@ -2104,7 +2078,7 @@ internal sealed class RaceForm : Form
             GetSpecialSeedMask(),
             BuildCheatSettings(),
             SecretSeeds: randomSecretSeedsBox.Text.Trim(),
-            PlayerDifficultyCode: GetSelectedInt(playerDifficultyBox, RacePlayerDifficultyCodes.Softcore),
+            PlayerDifficultyCode: RacePlayerDifficultyCodes.Softcore,
             RngControlEnabled: rngControlEnabledBox.Checked);
     }
 
@@ -2118,7 +2092,7 @@ internal sealed class RaceForm : Form
             roomSettings?.HasCrimson ?? true,
             SpecialSeedMask: 0,
             Cheats: RaceCheatSettings.Disabled,
-            PlayerDifficultyCode: GetSelectedInt(playerDifficultyBox, RacePlayerDifficultyCodes.Softcore),
+            PlayerDifficultyCode: RacePlayerDifficultyCodes.Softcore,
             RngControlEnabled: rngControlEnabledBox.Checked);
     }
 
@@ -2561,7 +2535,6 @@ internal sealed class RaceForm : Form
         SelectDropDownByValue(sizeBox, worldSettings.SizeCode);
         SelectDropDownByValue(difficultyBox, worldSettings.DifficultyCode);
         SelectDropDownByValue(evilBox, worldSettings.HasCrimson ? 2 : 1);
-        SelectDropDownByValue(playerDifficultyBox, RacePlayerDifficultyCodes.Normalize(worldSettings.PlayerDifficultyCode));
         rngControlEnabledBox.Checked = worldSettings.RngControlEnabled;
         ApplySpecialSeedMask(worldSettings.SpecialSeedMask);
         if (!randomSecretSeedsBox.Focused)
@@ -2616,20 +2589,8 @@ internal sealed class RaceForm : Form
             seedBox.Text,
             worldPathBox.Text,
             playerTemplateCodeBox.Text,
-            GetSelectedPlayerDifficulty(),
             selectedRole,
             selectedWorldSource));
-    }
-
-    private string GetSelectedPlayerDifficulty()
-    {
-        return GetSelectedInt(playerDifficultyBox, 0) switch
-        {
-            1 => AutoCreatePlayerDifficulty.Mediumcore,
-            2 => AutoCreatePlayerDifficulty.Hardcore,
-            3 => AutoCreatePlayerDifficulty.Journey,
-            _ => AutoCreatePlayerDifficulty.Softcore
-        };
     }
 
     private void SaveLeaderboardSettings()
@@ -3048,6 +3009,47 @@ internal sealed class RaceForm : Form
         return IsLocalHost(shell.State)
             ? shell.CloseRoomAsync()
             : shell.LeaveAsync();
+    }
+
+    private async Task ToggleRaceModeAsync()
+    {
+        if (raceModeChangeRunning)
+        {
+            return;
+        }
+
+        raceModeChangeRunning = true;
+        UpdateRaceState(shell.State);
+        try
+        {
+            PersistDraftState();
+            if (shell.IsRaceEnabled)
+            {
+                if (HasOpenRaceRoom(shell.State))
+                {
+                    await CloseOrLeaveRoomAsync();
+                }
+
+                shell.SaveRaceEnabled(false);
+            }
+            else
+            {
+                shell.SaveRaceEnabled(true);
+                if (shell.IsRaceEnabled)
+                {
+                    shell.OpenInGameMenu();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            dialogs.ShowWarning(ex.Message, Localize("Race"));
+        }
+        finally
+        {
+            raceModeChangeRunning = false;
+            UpdateRaceState(shell.State);
+        }
     }
 
     private bool AreConnectionInputsLocked()

@@ -23,6 +23,7 @@ internal sealed class MainFormContextMenuBuilder
         ContextMenuStrip menu,
         AppSettings settings,
         bool canSwitchSettingsFile,
+        bool canUseStandardAutomation,
         Action openStatistics,
         Action openRacePanel,
         Action openSettings,
@@ -40,7 +41,7 @@ internal sealed class MainFormContextMenuBuilder
         };
         settingsItem.Click += (_, _) => openSettings();
         menu.Items.Add(settingsItem);
-        menu.Items.Add(CreateCheatsToggle(settings, toggleCheats));
+        menu.Items.Add(CreateCheatsToggle(settings, canUseStandardAutomation, toggleCheats));
         menu.Items.Add(CreateSettingsFileMenu(settings, canSwitchSettingsFile, switchSettingsFile));
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(Localizer.Get("Exit", settings), null, (_, _) => exit());
@@ -48,12 +49,14 @@ internal sealed class MainFormContextMenuBuilder
 
     private static ToolStripMenuItem CreateCheatsToggle(
         AppSettings settings,
+        bool enabled,
         Action toggleCheats)
     {
         var item = new ToolStripMenuItem(Localizer.Get("Cheats", settings))
         {
             Name = CheatsToggleItemName,
-            Checked = settings.Automation.AutoCreate.EnableCheats
+            Checked = settings.Automation.AutoCreate.EnableCheats,
+            Enabled = enabled
         };
         item.Click += (_, _) => toggleCheats();
         return item;

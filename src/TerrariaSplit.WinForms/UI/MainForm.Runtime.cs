@@ -291,6 +291,27 @@ internal sealed partial class MainForm : Form
 
     private void ExecuteAppCommandNow(AppCommand command)
     {
+        if (runtimeServices is not null)
+        {
+            bool raceModeEnabled = runtimeServices.RaceShell.IsRaceEnabled;
+            if (applicationController.SystemState.Race.IsModeEnabled != raceModeEnabled)
+            {
+                ApplyApplicationUpdate(applicationController.HandleSystemEvent(
+                    new RaceModeSystemEvent(raceModeEnabled)));
+            }
+
+            bool isInRaceRoom = runtimeServices.RaceShell.IsInRoom;
+            if (applicationController.SystemState.Race.IsInRoom != isInRaceRoom)
+            {
+                ApplyApplicationUpdate(applicationController.HandleSystemEvent(
+                    new RaceRosterSystemEvent(
+                        isInRaceRoom
+                            ? runtimeServices.RaceShell.State?.RoomCode ?? string.Empty
+                            : string.Empty,
+                        isInRaceRoom)));
+            }
+        }
+
         ApplicationUpdate update = applicationController.HandleSystemEvent(new ControlCommandSystemEvent(command));
         if (command is ApplySettingsCommand or ApplyTemporarySettingsCommand or ApplyRouteOverrideCommand or ClearRouteOverrideCommand)
         {
@@ -326,6 +347,14 @@ internal sealed partial class MainForm : Form
         }
 
         ApplyApplicationUpdate(applicationController.HandleSystemEvent(systemEvent));
+        bool restoreHotkeys = systemEvent is RaceModeSystemEvent { Enabled: false } or
+            RaceRosterSystemEvent { IsInRoom: false };
+        if (restoreHotkeys &&
+            CanDispatchToUiThread() &&
+            runtimeServices?.SettingsShell.IsOpen != true)
+        {
+            hotkeyShell.Register();
+        }
     }
 
     private void ApplyDisplayInvalidations(IReadOnlyList<DisplayInvalidation> invalidations)

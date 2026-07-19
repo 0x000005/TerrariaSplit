@@ -5,6 +5,7 @@
   <Project Path="src/TerrariaSplit.Infrastructure.Windows/TerrariaSplit.Infrastructure.Windows.csproj" />
   <Project Path="src/TerrariaSplit.Race.Contracts/TerrariaSplit.Race.Contracts.csproj" />
   <Project Path="src/TerrariaSplit.Race.Determinism/TerrariaSplit.Race.Determinism.csproj" />
+  <Project Path="src/TerrariaSplit.Race.InGame/TerrariaSplit.Race.InGame.csproj" />
   <Project Path="src/TerrariaSplit.WorldGeneration/TerrariaSplit.WorldGeneration.csproj" />
   <Project Path="src/TerrariaSplit.Race.Server/TerrariaSplit.Race.Server.csproj" />
   <Project Path="src/TerrariaSplit.Race.Client/TerrariaSplit.Race.Client.csproj" />

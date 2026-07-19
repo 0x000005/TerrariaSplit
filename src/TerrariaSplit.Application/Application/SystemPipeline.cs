@@ -48,6 +48,8 @@ public sealed record RaceProgressSystemEvent(string RoomCode) : SystemEvent;
 
 public sealed record RaceRosterSystemEvent(string RoomCode, bool IsInRoom = true) : SystemEvent;
 
+public sealed record RaceModeSystemEvent(bool Enabled) : SystemEvent;
+
 public sealed record JobProgressSystemEvent(string JobKey, int ProgressPercent) : SystemEvent;
 
 public sealed record DisplaySystemEvent(DisplayInvalidation Invalidation) : SystemEvent;
@@ -63,7 +65,8 @@ public sealed record SystemState(
 public sealed record RaceSystemState(
     bool IsInRoom = false,
     string RoomCode = "",
-    string PackageRevision = "");
+    string PackageRevision = "",
+    bool IsModeEnabled = false);
 
 public sealed record JobSystemState(
     string ActiveJobKey = "",

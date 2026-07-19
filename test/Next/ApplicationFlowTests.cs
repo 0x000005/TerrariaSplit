@@ -14,6 +14,7 @@ internal static class ApplicationFlowTests
         var repository = new AppSettingsRepository(new AppContextRuntimeDataPaths(directory.Path));
         AppSettings settings = AppSettingsDefaults.Create();
         var controller = new ApplicationController(settings, _ => true, new StoredSettingsSnapshotFactory(repository));
+        Check.False(controller.SystemState.Race.IsModeEnabled);
 
         ApplicationUpdate idlePause = controller.HandleSystemEvent(new ControlCommandSystemEvent(AppCommand.TogglePause()));
         Check.Equal(0, idlePause.Effects.Count);
@@ -39,40 +40,63 @@ internal static class ApplicationFlowTests
     {
         using var directory = new TestDirectory();
         var repository = new AppSettingsRepository(new AppContextRuntimeDataPaths(directory.Path));
-        var controller = new ApplicationController(AppSettingsDefaults.Create(), _ => true, new StoredSettingsSnapshotFactory(repository));
+        AppSettings settings = AppSettingsDefaults.Create();
+        var controller = new ApplicationController(settings, _ => true, new StoredSettingsSnapshotFactory(repository));
+        Check.False(controller.SystemState.Race.IsModeEnabled);
 
-        ApplicationUpdate package = controller.HandleSystemEvent(new RacePackageSystemEvent("ROOM", "7"));
-        Check.True(controller.SystemState.Race.IsInRoom);
-        Check.Equal("ROOM", controller.SystemState.Race.RoomCode);
-        Check.True(package.Effects.OfType<CancelCreateWorldAutomationEffect>().Any());
-        Check.True(package.Effects.OfType<CancelEnterWorldAutomationEffect>().Any());
-        Check.True(package.Effects
+        ApplicationUpdate createBeforeRace = controller.HandleSystemEvent(new ControlCommandSystemEvent(
+            AppCommand.QueueMenuAction(MenuActionKind.CreateWorld, DateTime.UtcNow)));
+        Check.True(createBeforeRace.Effects.OfType<SubmitRuntimeCommandEffect>().Any());
+
+        ApplicationUpdate enteredMode = controller.HandleSystemEvent(new RaceModeSystemEvent(Enabled: true));
+        Check.True(controller.SystemState.Race.IsModeEnabled);
+        Check.True(enteredMode.Effects.OfType<CancelCreateWorldAutomationEffect>().Any());
+        Check.True(enteredMode.Effects.OfType<CancelEnterWorldAutomationEffect>().Any());
+        Check.True(enteredMode.Effects
             .OfType<SubmitRuntimeCommandEffect>()
             .Any(effect => effect.Command.Kind == RuntimeCommandKind.ClearPendingMenuActions));
-        Check.True(package.DisplayInvalidations.Single().Targets.HasFlag(DisplayInvalidationTarget.All));
 
         AppSettings changedRaceSettings = repository.Clone(controller.Settings);
         changedRaceSettings.General.AlwaysOnTop = !changedRaceSettings.General.AlwaysOnTop;
         bool raceAlwaysOnTop = controller.Settings.General.AlwaysOnTop;
-        AppCommand[] restrictedCommands =
+        AppCommand[] modeRestrictedCommands =
         [
             AppCommand.TogglePause(),
             AppCommand.ResetRun(recordStats: true, playResetSound: true),
+            AppCommand.ToggleCheats(),
             AppCommand.QueueMenuAction(MenuActionKind.Reset, DateTime.UtcNow),
             AppCommand.QueueMenuAction(MenuActionKind.CreateWorld, DateTime.UtcNow),
             AppCommand.QueueMenuAction(MenuActionKind.PracticeWorld, DateTime.UtcNow),
             AppCommand.EditPracticeSplitTime(0, TimeSpan.FromSeconds(1)),
-            AppCommand.EditPracticeTotalTime(TimeSpan.FromSeconds(1)),
-            AppCommand.ApplySettings(changedRaceSettings),
-            AppCommand.ApplyTemporarySettings(changedRaceSettings)
+            AppCommand.EditPracticeTotalTime(TimeSpan.FromSeconds(1))
         ];
-        foreach (AppCommand command in restrictedCommands)
+        foreach (AppCommand command in modeRestrictedCommands)
         {
             ApplicationUpdate blocked = controller.HandleSystemEvent(new ControlCommandSystemEvent(command));
             Check.Equal(0, blocked.Effects.Count);
             Check.Equal(0, blocked.DisplayInvalidations.Count);
         }
         Check.Equal(raceAlwaysOnTop, controller.Settings.General.AlwaysOnTop);
+
+        ApplicationUpdate settingsOutsideRoom = controller.HandleSystemEvent(new ControlCommandSystemEvent(
+            AppCommand.ApplyTemporarySettings(changedRaceSettings)));
+        Check.True(settingsOutsideRoom.Effects.Count > 0);
+
+        ApplicationUpdate package = controller.HandleSystemEvent(new RacePackageSystemEvent("ROOM", "7"));
+        Check.True(controller.SystemState.Race.IsInRoom);
+        Check.True(controller.SystemState.Race.IsModeEnabled);
+        Check.Equal("ROOM", controller.SystemState.Race.RoomCode);
+        Check.True(package.Effects.OfType<CancelCreateWorldAutomationEffect>().Any());
+        Check.True(package.DisplayInvalidations.Single().Targets.HasFlag(DisplayInvalidationTarget.All));
+        foreach (AppCommand command in new[]
+        {
+            AppCommand.ApplySettings(changedRaceSettings),
+            AppCommand.ApplyTemporarySettings(changedRaceSettings)
+        })
+        {
+            ApplicationUpdate blocked = controller.HandleSystemEvent(new ControlCommandSystemEvent(command));
+            Check.Equal(0, blocked.Effects.Count);
+        }
 
         ApplicationUpdate raceReset = controller.HandleSystemEvent(new ControlCommandSystemEvent(
             AppCommand.ResetRun(recordStats: false, playResetSound: false, allowDuringRace: true)));
@@ -87,6 +111,13 @@ internal static class ApplicationFlowTests
         Check.Equal(100, controller.SystemState.Jobs.ProgressPercent);
         controller.HandleSystemEvent(new RaceRosterSystemEvent("ROOM", IsInRoom: false));
         Check.False(controller.SystemState.Race.IsInRoom);
+        Check.True(controller.SystemState.Race.IsModeEnabled);
+        ApplicationUpdate blockedAfterLeavingRoom = controller.HandleSystemEvent(new ControlCommandSystemEvent(
+            AppCommand.QueueMenuAction(MenuActionKind.CreateWorld, DateTime.UtcNow)));
+        Check.Equal(0, blockedAfterLeavingRoom.Effects.Count);
+
+        controller.HandleSystemEvent(new RaceModeSystemEvent(Enabled: false));
+        Check.False(controller.SystemState.Race.IsModeEnabled);
         ApplicationUpdate createWorld = controller.HandleSystemEvent(new ControlCommandSystemEvent(
             AppCommand.QueueMenuAction(MenuActionKind.CreateWorld, DateTime.UtcNow)));
         Check.True(createWorld.Effects.OfType<SubmitRuntimeCommandEffect>().Any());

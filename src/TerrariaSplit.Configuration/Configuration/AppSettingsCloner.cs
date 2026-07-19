@@ -377,12 +377,39 @@ public static class AppSettingsCloner
         {
             ServerUrl = source.ServerUrl,
             Nickname = source.Nickname,
+            LastRoomCode = source.LastRoomCode,
             PreferredRole = source.PreferredRole,
             PreferredWorldSource = source.PreferredWorldSource,
             PlayerTemplateCode = source.PlayerTemplateCode,
-            HostPlayerDifficulty = source.HostPlayerDifficulty,
+            WorldSetup = Clone(source.WorldSetup),
             Leaderboard = Clone(source.Leaderboard),
             Voice = Clone(source.Voice)
+        };
+    }
+
+    private static RaceWorldSetupSettings Clone(RaceWorldSetupSettings? source)
+    {
+        source ??= new RaceWorldSetupSettings();
+        return new RaceWorldSetupSettings
+        {
+            Source = source.Source,
+            SeedText = source.SeedText,
+            WorldSize = source.WorldSize,
+            WorldDifficulty = source.WorldDifficulty,
+            WorldEvil = source.WorldEvil,
+            SpecialSeeds = source.SpecialSeeds,
+            SecretSeeds = source.SecretSeeds,
+            RngControlEnabled = source.RngControlEnabled,
+            CheatsEnabled = source.CheatsEnabled,
+            PyramidEnabled = source.PyramidEnabled,
+            PyramidItemMask = source.PyramidItemMask,
+            CrimsonEnabled = source.CrimsonEnabled,
+            CrimsonDistance = source.CrimsonDistance,
+            JungleRouteDepth = source.JungleRouteDepth,
+            ResourceItemMask = source.ResourceItemMask,
+            LifeCrystalMinimum = source.LifeCrystalMinimum,
+            SpelunkerPotionMinimum = source.SpelunkerPotionMinimum,
+            FeatherfallPotionMinimum = source.FeatherfallPotionMinimum
         };
     }
 

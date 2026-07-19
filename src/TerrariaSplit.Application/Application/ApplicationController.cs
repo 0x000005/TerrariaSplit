@@ -124,6 +124,7 @@ public sealed class ApplicationController
             RacePackageSystemEvent racePackage => HandleRacePackageEvent(racePackage),
             RaceProgressSystemEvent raceProgress => HandleRaceProgressEvent(raceProgress),
             RaceRosterSystemEvent raceRoster => HandleRaceRosterEvent(raceRoster),
+            RaceModeSystemEvent raceMode => HandleRaceModeEvent(raceMode),
             JobProgressSystemEvent jobProgress => HandleJobProgressEvent(jobProgress),
             _ => throw new NotSupportedException($"Unsupported system event {systemEvent.GetType().Name}.")
         };
@@ -141,7 +142,8 @@ public sealed class ApplicationController
         raceState = new RaceSystemState(
             racePackage.IsInRoom,
             racePackage.IsInRoom ? racePackage.RoomCode : string.Empty,
-            racePackage.IsInRoom ? racePackage.PackageRevision : string.Empty);
+            racePackage.IsInRoom ? racePackage.PackageRevision : string.Empty,
+            raceState.IsModeEnabled);
         return new ApplicationUpdate(
             enteredRoom ? CreateRaceRoomEntryEffects() : [],
             [DisplayInvalidation.For(DisplayRefreshLevel.RoutePackage, DisplayInvalidationTarget.All)]);
@@ -165,10 +167,19 @@ public sealed class ApplicationController
         bool enteredRoom = raceRoster.IsInRoom && !raceState.IsInRoom;
         raceState = raceRoster.IsInRoom
             ? raceState with { IsInRoom = true, RoomCode = raceRoster.RoomCode }
-            : new RaceSystemState();
+            : raceState with { IsInRoom = false, RoomCode = string.Empty, PackageRevision = string.Empty };
         return new ApplicationUpdate(
             enteredRoom ? CreateRaceRoomEntryEffects() : [],
             [DisplayInvalidation.For(DisplayRefreshLevel.RuntimeFacts, DisplayInvalidationTarget.RaceLeaderboard)]);
+    }
+
+    private ApplicationUpdate HandleRaceModeEvent(RaceModeSystemEvent raceMode)
+    {
+        bool enteredMode = raceMode.Enabled && !raceState.IsModeEnabled;
+        raceState = raceState with { IsModeEnabled = raceMode.Enabled };
+        return new ApplicationUpdate(
+            enteredMode ? CreateRaceRoomEntryEffects() : [],
+            [DisplayInvalidation.For(DisplayRefreshLevel.RuntimeFacts, DisplayInvalidationTarget.All)]);
     }
 
     private ApplicationUpdate HandleJobProgressEvent(JobProgressSystemEvent jobProgress)
@@ -179,7 +190,7 @@ public sealed class ApplicationController
 
     private ApplicationUpdate HandleCommand(AppCommand command)
     {
-        if (raceState.IsInRoom && IsRestrictedInRaceRoom(command))
+        if (!RaceInteractionPolicy.Allows(command, raceState.IsModeEnabled, raceState.IsInRoom))
         {
             return ApplicationUpdate.Empty;
         }
@@ -369,7 +380,7 @@ public sealed class ApplicationController
 
     private IReadOnlyList<ApplicationEffect> ResolveMenuActionEffects(MenuActionKind action)
     {
-        if (raceState.IsInRoom && IsRestrictedInRaceRoom(action))
+        if (!RaceInteractionPolicy.Allows(action, raceState.IsModeEnabled))
         {
             return [];
         }
@@ -399,28 +410,6 @@ public sealed class ApplicationController
             new CancelEnterWorldAutomationEffect(),
             new SubmitRuntimeCommandEffect(RuntimeCommand.ClearPendingMenuActions())
         ];
-    }
-
-    private static bool IsRestrictedInRaceRoom(AppCommand command)
-    {
-        return command switch
-        {
-            TogglePauseCommand => true,
-            ResetRunCommand reset => !reset.AllowDuringRace,
-            QueueMenuActionCommand queued => IsRestrictedInRaceRoom(queued.Action),
-            EditPracticeSplitTimeCommand => true,
-            EditPracticeTotalTimeCommand => true,
-            ApplySettingsCommand => true,
-            ApplyTemporarySettingsCommand => true,
-            _ => false
-        };
-    }
-
-    private static bool IsRestrictedInRaceRoom(MenuActionKind action)
-    {
-        return action is MenuActionKind.Reset or
-            MenuActionKind.CreateWorld or
-            MenuActionKind.PracticeWorld;
     }
 
     private void ApplySettings(

@@ -28,6 +28,7 @@
     <ProjectReference Include="..\src\TerrariaSplit.Race.Client\TerrariaSplit.Race.Client.csproj" />
     <ProjectReference Include="..\src\TerrariaSplit.Race.Contracts\TerrariaSplit.Race.Contracts.csproj" />
     <ProjectReference Include="..\src\TerrariaSplit.Race.Determinism\TerrariaSplit.Race.Determinism.csproj" />
+    <ProjectReference Include="..\src\TerrariaSplit.Race.InGame\TerrariaSplit.Race.InGame.csproj" />
     <ProjectReference Include="..\src\TerrariaSplit.Race.Server\TerrariaSplit.Race.Server.csproj" />
     <ProjectReference Include="..\src\TerrariaSplit.Statistics\TerrariaSplit.Statistics.csproj" />
     <ProjectReference Include="..\src\TerrariaSplit.Storage\TerrariaSplit.Storage.csproj" />

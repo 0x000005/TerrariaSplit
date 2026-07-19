@@ -18,6 +18,7 @@
     <ProjectReference Include="..\TerrariaSplit.Infrastructure\TerrariaSplit.Infrastructure.csproj" />
     <ProjectReference Include="..\TerrariaSplit.Infrastructure.Windows\TerrariaSplit.Infrastructure.Windows.csproj" />
     <ProjectReference Include="..\TerrariaSplit.Race.Determinism\TerrariaSplit.Race.Determinism.csproj" />
+    <ProjectReference Include="..\TerrariaSplit.Race.InGame\TerrariaSplit.Race.InGame.csproj" />
     <ProjectReference Include="..\TerrariaSplit.Storage\TerrariaSplit.Storage.csproj" />
   </ItemGroup>
 

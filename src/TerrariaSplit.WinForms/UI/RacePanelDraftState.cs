@@ -22,7 +22,6 @@ internal sealed record RacePanelDraftState(
     string SeedText,
     string LocalWorldPath,
     string PlayerTemplateCode,
-    string HostPlayerDifficulty,
     RacePanelRole Role,
     RacePanelWorldSource WorldSource)
 {
@@ -40,11 +39,10 @@ internal sealed record RacePanelDraftState(
         return new RacePanelDraftState(
             string.IsNullOrWhiteSpace(race.ServerUrl) ? new RaceSettings().ServerUrl : race.ServerUrl,
             nickname,
-            string.Empty,
+            race.LastRoomCode,
             string.Empty,
             string.Empty,
             race.PlayerTemplateCode,
-            race.HostPlayerDifficulty,
             ToRole(race.PreferredRole),
             ToWorldSource(race.PreferredWorldSource)).Normalize();
     }
@@ -58,8 +56,7 @@ internal sealed record RacePanelDraftState(
             RoomCode = RoomCode.Trim(),
             SeedText = SeedText.Trim(),
             LocalWorldPath = LocalWorldPath.Trim(),
-            PlayerTemplateCode = PlayerTemplateCode.Trim(),
-            HostPlayerDifficulty = AutoCreatePlayerDifficulty.Normalize(HostPlayerDifficulty)
+            PlayerTemplateCode = PlayerTemplateCode.Trim()
         };
     }
 
@@ -85,8 +82,6 @@ internal sealed record RacePanelDraftState(
             return RacePanelWorldSource.CustomSeed;
         }
 
-        return string.Equals(value, RacePreferredWorldSource.ExistingFile, StringComparison.OrdinalIgnoreCase)
-            ? RacePanelWorldSource.ExistingFile
-            : RacePanelWorldSource.Random;
+        return RacePanelWorldSource.Random;
     }
 }

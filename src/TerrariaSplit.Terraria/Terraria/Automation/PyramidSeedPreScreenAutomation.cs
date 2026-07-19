@@ -71,23 +71,30 @@ internal sealed class PyramidSeedPreScreenAutomation : IDisposable
             return await RandomizeOnceAndContinueWithoutPredictionAsync(geometry, clickDelay, detail, cancellationToken);
         }
 
-        using (seedReader)
+        try
         {
-            StaticAppLogger.Instance.Info("World seed pre-screen active for small Crimson world; seedReadTimeout=1000ms.");
-            var loop = new PyramidSeedPreScreenLoop(evaluator, StaticAppLogger.Instance.Info);
-            PyramidSeedPreScreenLoopResult result = await loop.RunAsync(
-                settings,
-                geometry.Profile,
-                new TerrariaVisibleSeedRandomizer(automation, geometry, clickDelay),
-                seedReader,
-                cancellationToken);
-            return result.Status switch
+            using (seedReader)
             {
-                PyramidSeedPreScreenLoopStatus.Accepted => PyramidSeedPreScreenAutomationResult.FromAccepted(),
-                PyramidSeedPreScreenLoopStatus.SeedReadFailed or PyramidSeedPreScreenLoopStatus.PredictionUnavailable =>
-                    PyramidSeedPreScreenAutomationResult.FromContinueWithoutPreScreen(result.Detail),
-                _ => PyramidSeedPreScreenAutomationResult.FromFailed(result.Detail)
-            };
+                StaticAppLogger.Instance.Info("World seed pre-screen active for small Crimson world; seedReadTimeout=1000ms.");
+                var loop = new PyramidSeedPreScreenLoop(evaluator, StaticAppLogger.Instance.Info);
+                PyramidSeedPreScreenLoopResult result = await loop.RunAsync(
+                    settings,
+                    geometry.Profile,
+                    new TerrariaVisibleSeedRandomizer(automation, geometry, clickDelay),
+                    seedReader,
+                    cancellationToken);
+                return result.Status switch
+                {
+                    PyramidSeedPreScreenLoopStatus.Accepted => PyramidSeedPreScreenAutomationResult.FromAccepted(),
+                    PyramidSeedPreScreenLoopStatus.SeedReadFailed or PyramidSeedPreScreenLoopStatus.PredictionUnavailable =>
+                        PyramidSeedPreScreenAutomationResult.FromContinueWithoutPreScreen(result.Detail),
+                    _ => PyramidSeedPreScreenAutomationResult.FromFailed(result.Detail)
+                };
+            }
+        }
+        finally
+        {
+            evaluator.ReleaseWorkers();
         }
     }
 
@@ -110,23 +117,30 @@ internal sealed class PyramidSeedPreScreenAutomation : IDisposable
             return await RandomizeLegacyOnceAndContinueWithoutPredictionAsync(geometry, clickDelay, detail, cancellationToken);
         }
 
-        using (seedReader)
+        try
         {
-            StaticAppLogger.Instance.Info("World seed pre-screen active for 1.4.4.9 small Crimson world; seedReadTimeout=1000ms.");
-            var loop = new PyramidSeedPreScreenLoop(evaluator, StaticAppLogger.Instance.Info);
-            PyramidSeedPreScreenLoopResult result = await loop.RunAsync(
-                settings,
-                geometry.Profile,
-                new TerrariaLegacy1449SeedRandomizer(automation, geometry, clickDelay),
-                seedReader,
-                cancellationToken);
-            return result.Status switch
+            using (seedReader)
             {
-                PyramidSeedPreScreenLoopStatus.Accepted => PyramidSeedPreScreenAutomationResult.FromAccepted(),
-                PyramidSeedPreScreenLoopStatus.SeedReadFailed or PyramidSeedPreScreenLoopStatus.PredictionUnavailable =>
-                    PyramidSeedPreScreenAutomationResult.FromContinueWithoutPreScreen(result.Detail),
-                _ => PyramidSeedPreScreenAutomationResult.FromFailed(result.Detail)
-            };
+                StaticAppLogger.Instance.Info("World seed pre-screen active for 1.4.4.9 small Crimson world; seedReadTimeout=1000ms.");
+                var loop = new PyramidSeedPreScreenLoop(evaluator, StaticAppLogger.Instance.Info);
+                PyramidSeedPreScreenLoopResult result = await loop.RunAsync(
+                    settings,
+                    geometry.Profile,
+                    new TerrariaLegacy1449SeedRandomizer(automation, geometry, clickDelay),
+                    seedReader,
+                    cancellationToken);
+                return result.Status switch
+                {
+                    PyramidSeedPreScreenLoopStatus.Accepted => PyramidSeedPreScreenAutomationResult.FromAccepted(),
+                    PyramidSeedPreScreenLoopStatus.SeedReadFailed or PyramidSeedPreScreenLoopStatus.PredictionUnavailable =>
+                        PyramidSeedPreScreenAutomationResult.FromContinueWithoutPreScreen(result.Detail),
+                    _ => PyramidSeedPreScreenAutomationResult.FromFailed(result.Detail)
+                };
+            }
+        }
+        finally
+        {
+            evaluator.ReleaseWorkers();
         }
     }
 

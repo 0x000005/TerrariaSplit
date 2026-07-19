@@ -360,6 +360,14 @@ internal static class TerrariaIntegrationTests
         Check.Equal(AutoCreatePlayerDifficulty.Hardcore, playerParts[3]);
         Check.Equal("TerrariaSplit.RaceHook.1234", TerrariaRaceWorldLockService.CreatePipeName(1234));
         Check.Equal("TerrariaSplit.RaceHook.5678", TerrariaRaceWorldLockService.CreatePipeName(5678));
+        string[] hookStart = TerrariaRaceWorldLockService.BuildStartCommand(
+            "TerrariaSplit.RaceHook.1234",
+            4321).Split('\n');
+        Check.Equal("start", hookStart[0]);
+        Check.Equal(
+            "TerrariaSplit.RaceHook.1234",
+            System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(hookStart[1])));
+        Check.Equal("4321", hookStart[2]);
 
         var store = new RaceWorldFileStore(directory.Combine("server"));
         RaceStoredWorldFile first;

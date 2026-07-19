@@ -37,7 +37,6 @@ internal sealed class EnglishStrings : ILocalizedStringProvider
         { "Race room is closed.", "Online room is closed." },
         { "Invalid race split report.", "Invalid online split report." },
         { "Join or create a race room before sending race updates.", "Join or create an online room before sending online updates." },
-        { "Copy Room Info", "Copy Room Info" },
         { "Server: {0}", "Server: {0}" },
         { "Room code: {0}", "Room code: {0}" },
         { "Room host route override hint", "All members will use your route and reference times. To adjust them, close the room first, then reopen it after applying changes." },

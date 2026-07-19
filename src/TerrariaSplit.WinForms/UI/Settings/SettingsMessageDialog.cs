@@ -17,6 +17,29 @@ internal sealed class SettingsMessageDialog : Form
     private Point dragStartCursor;
     private Point dragStartLocation;
 
+    public static DialogResult ShowThemed(
+        IWin32Window? owner,
+        string title,
+        string message,
+        MessageBoxButtons buttons,
+        MessageBoxIcon icon,
+        Func<string, string> localize)
+    {
+        using var dialog = new SettingsMessageDialog(
+            title,
+            message,
+            buttons,
+            icon,
+            localize);
+        dialog.Shown += (_, _) =>
+        {
+            dialog.BringToFront();
+            dialog.Activate();
+            NativeMethods.SetForegroundWindow(dialog.Handle);
+        };
+        return owner is null ? dialog.ShowDialog() : dialog.ShowDialog(owner);
+    }
+
     public SettingsMessageDialog(
         string title,
         string message,

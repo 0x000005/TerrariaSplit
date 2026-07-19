@@ -6,6 +6,10 @@ internal interface IRacePanelShell
 {
     RaceRoomState? State { get; }
 
+    bool IsRaceEnabled { get; }
+
+    RacePanelDraftState DraftState { get; }
+
     RaceServerConnectionStatus ServerConnectionStatus { get; }
 
     string? LocalNickname { get; }
@@ -13,8 +17,6 @@ internal interface IRacePanelShell
     bool IsHostInCurrentRoom { get; }
 
     string? LocalWorldPath { get; }
-
-    RacePanelDraftState DraftState { get; }
 
     RaceLeaderboardSettings LeaderboardSettings { get; }
 
@@ -24,7 +26,11 @@ internal interface IRacePanelShell
 
     string Localize(string key);
 
+    void SaveRaceEnabled(bool enabled);
+
     void SaveDraftState(RacePanelDraftState draftState);
+
+    void OpenInGameMenu();
 
     void SaveLeaderboardSettings(RaceLeaderboardSettings leaderboardSettings);
 
@@ -34,11 +40,12 @@ internal interface IRacePanelShell
 
     Task CreateRoomAsync(string serverUrl, string nickname);
 
-    Task<RaceOperationResult<RaceRoomState>> JoinRoomAsync(string serverUrl, string roomCode, string nickname);
+    Task<RaceOperationResult<RaceRoomState>> JoinRoomAsync(
+        string serverUrl,
+        string roomCode,
+        string nickname);
 
     Task CloseRoomAsync();
-
-    Task CopyRoomInfoAsync();
 
     Task KickPlayerAsync(string nickname);
 

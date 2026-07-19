@@ -485,12 +485,14 @@ internal static class ApplicationUpdateCommandLine
             {
             }
 
-            MessageBox.Show(
+            SettingsMessageDialog.ShowThemed(
+                null,
+                "TerrariaSplit Update",
                 "TerrariaSplit update failed and the previous version was restored.\n\n" + ex.Message +
                 "\n\nTerrariaSplit 更新失败，已尝试恢复原版本。",
-                "TerrariaSplit Update",
                 MessageBoxButtons.OK,
-                MessageBoxIcon.Error);
+                MessageBoxIcon.Error,
+                static key => key);
             string executable = Path.Combine(target!, ApplicationUpdatePackage.MainExecutableName);
             if (File.Exists(executable))
             {

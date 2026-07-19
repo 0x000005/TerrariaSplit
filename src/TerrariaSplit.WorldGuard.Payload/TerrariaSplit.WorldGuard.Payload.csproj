@@ -18,6 +18,7 @@
     <Reference Include="System.Windows.Forms" />
     <PackageReference Include="Lib.Harmony" Version="2.4.2" />
     <ProjectReference Include="..\TerrariaSplit.Race.Determinism\TerrariaSplit.Race.Determinism.csproj" />
+    <ProjectReference Include="..\TerrariaSplit.Race.InGame\TerrariaSplit.Race.InGame.csproj" />
   </ItemGroup>
 
 </Project>

@@ -9,6 +9,7 @@ internal sealed class HotkeyShell : IDisposable
     private readonly Func<IntPtr> getWindowHandle;
     private readonly Func<bool> canUseWindowHandle;
     private readonly bool registerGlobalHotkeys;
+    private readonly Action<string> showWarning;
     private string? lastWarningText;
 
     public HotkeyShell(
@@ -16,13 +17,15 @@ internal sealed class HotkeyShell : IDisposable
         Func<AppSettings> getSettings,
         Func<IntPtr> getWindowHandle,
         Func<bool> canUseWindowHandle,
-        bool registerGlobalHotkeys)
+        bool registerGlobalHotkeys,
+        Action<string> showWarning)
     {
         this.hotkeys = hotkeys;
         this.getSettings = getSettings;
         this.getWindowHandle = getWindowHandle;
         this.canUseWindowHandle = canUseWindowHandle;
         this.registerGlobalHotkeys = registerGlobalHotkeys;
+        this.showWarning = showWarning;
     }
 
     public void Register()
@@ -67,7 +70,7 @@ internal sealed class HotkeyShell : IDisposable
         string message = Localizer.Get("Some hotkeys could not be registered:", settings) +
             Environment.NewLine +
             warningText;
-        StaticAppLogger.Instance.Info(message);
+        showWarning(message);
     }
 
     private static string FormatWarning(AppSettings settings, HotkeyRegistrationWarning warning)

@@ -210,17 +210,60 @@ public sealed class RaceSettings
 
     public string Nickname { get; set; } = string.Empty;
 
+    public string LastRoomCode { get; set; } = string.Empty;
+
     public string PreferredRole { get; set; } = RacePreferredRole.Host;
 
     public string PreferredWorldSource { get; set; } = RacePreferredWorldSource.Random;
 
     public string PlayerTemplateCode { get; set; } = string.Empty;
 
-    public string HostPlayerDifficulty { get; set; } = AutoCreatePlayerDifficulty.Softcore;
+    public RaceWorldSetupSettings WorldSetup { get; set; } = new();
 
     public RaceLeaderboardSettings Leaderboard { get; set; } = new();
 
     public RaceVoiceSettings Voice { get; set; } = new();
+}
+
+public sealed class RaceWorldSetupSettings
+{
+    public string Source { get; set; } = RacePreferredWorldSource.Random;
+
+    public string SeedText { get; set; } = string.Empty;
+
+    public string WorldSize { get; set; } = AutoCreateWorldSize.Medium;
+
+    public string WorldDifficulty { get; set; } = AutoCreateWorldDifficulty.Classic;
+
+    public string WorldEvil { get; set; } = AutoCreateWorldEvil.Crimson;
+
+    public string SpecialSeeds { get; set; } = string.Empty;
+
+    public string SecretSeeds { get; set; } = string.Empty;
+
+    public bool RngControlEnabled { get; set; } = true;
+
+    public bool CheatsEnabled { get; set; } = true;
+
+    public bool PyramidEnabled { get; set; } = true;
+
+    public int PyramidItemMask { get; set; } =
+        AutoCreatePyramidFilterItem.SandstormInABottleMask |
+        AutoCreatePyramidFilterItem.FlyingCarpetMask;
+
+    public bool CrimsonEnabled { get; set; } = true;
+
+    public string CrimsonDistance { get; set; } = AutoCreateCrimsonDistance.Default;
+
+    public string JungleRouteDepth { get; set; } = AutoCreateJungleRouteDepth.Medium;
+
+    public int ResourceItemMask { get; set; }
+
+    public int LifeCrystalMinimum { get; set; }
+
+    public int SpelunkerPotionMinimum { get; set; }
+
+    public int FeatherfallPotionMinimum { get; set; }
 }
 
 public sealed class RaceVoiceSettings
@@ -251,17 +294,11 @@ public static class RacePreferredWorldSource
 {
     public const string Random = "Random";
     public const string CustomSeed = "CustomSeed";
-    public const string ExistingFile = "ExistingFile";
 
     public static string Normalize(string? value)
     {
-        if (string.Equals(value, CustomSeed, StringComparison.OrdinalIgnoreCase))
-        {
-            return CustomSeed;
-        }
-
-        return string.Equals(value, ExistingFile, StringComparison.OrdinalIgnoreCase)
-            ? ExistingFile
+        return string.Equals(value, CustomSeed, StringComparison.OrdinalIgnoreCase)
+            ? CustomSeed
             : Random;
     }
 }

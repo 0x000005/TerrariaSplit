@@ -78,6 +78,11 @@ namespace TerrariaSplit.WorldGuard.Payload
             watchdogThread.Start();
         }
 
+        public void Stop()
+        {
+            RequestStop();
+        }
+
         private void Run()
         {
             bool firstAttempt = true;
