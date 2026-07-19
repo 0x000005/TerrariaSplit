@@ -42,9 +42,14 @@ internal interface IRacePanelShell
 
     Task KickPlayerAsync(string nickname);
 
-    Task GenerateRandomWorldAsync(RaceWorldSettings worldSettings, IProgress<int>? progress = null);
+    Task<RacePanelWorldGenerationResult> GenerateRandomWorldAsync(
+        RaceWorldSettings worldSettings,
+        IProgress<int>? progress = null);
 
-    Task GenerateCustomSeedWorldAsync(RaceWorldSettings worldSettings, string seedText, IProgress<int>? progress = null);
+    Task<RacePanelWorldGenerationResult> GenerateCustomSeedWorldAsync(
+        RaceWorldSettings worldSettings,
+        string seedText,
+        IProgress<int>? progress = null);
 
     Task<RaceOperationResult<RaceRoomState>> UploadWorldAsync(
         string serverUrl,
@@ -64,4 +69,19 @@ internal interface IRacePanelShell
     Task<RaceOperationResult<RaceRoomState>> RestartAsync();
 
     Task LeaveAsync();
+}
+
+internal readonly record struct RacePanelWorldGenerationResult(
+    bool Succeeded,
+    string Message)
+{
+    public static RacePanelWorldGenerationResult Success()
+    {
+        return new RacePanelWorldGenerationResult(true, string.Empty);
+    }
+
+    public static RacePanelWorldGenerationResult Failure(string message)
+    {
+        return new RacePanelWorldGenerationResult(false, message);
+    }
 }

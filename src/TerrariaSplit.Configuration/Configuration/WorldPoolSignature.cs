@@ -60,7 +60,6 @@ public static class WorldPoolSignature
                 "jungleDepth=" + AutoCreateJungleRouteDepth.Normalize(autoCreate.JungleRouteDepth),
                 "items=" + AutoCreateResourceFilterItem.NormalizeMask(autoCreate.ResourceFilterItemMask).ToString(CultureInfo.InvariantCulture),
                 "life=" + AutoCreateResourceMinimum.NormalizeLifeCrystals(autoCreate.ResourceFilterLifeCrystalMinimum).ToString(CultureInfo.InvariantCulture),
-                "hook=" + AutoCreateResourceHook.Normalize(autoCreate.ResourceFilterHookMinimum),
                 "spelunker=" + AutoCreateResourceMinimum.NormalizePotions(autoCreate.ResourceFilterSpelunkerPotionMinimum).ToString(CultureInfo.InvariantCulture),
                 "featherfall=" + AutoCreateResourceMinimum.NormalizePotions(autoCreate.ResourceFilterFeatherfallPotionMinimum).ToString(CultureInfo.InvariantCulture))
             : "resource=0";

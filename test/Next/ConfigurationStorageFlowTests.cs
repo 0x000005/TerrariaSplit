@@ -33,7 +33,6 @@ internal static class ConfigurationStorageFlowTests
         settings.Automation.AutoCreate.JungleRouteDepth = AutoCreateJungleRouteDepth.Deep;
         settings.Automation.AutoCreate.ResourceFilterItemMask = AutoCreateResourceFilterItem.BoomstickMask;
         settings.Automation.AutoCreate.ResourceFilterLifeCrystalMinimum = 8;
-        settings.Automation.AutoCreate.ResourceFilterHookMinimum = AutoCreateResourceHook.Sapphire;
         settings.Automation.AutoCreate.ResourceFilterSpelunkerPotionMinimum = 2;
         settings.Automation.AutoCreate.ResourceFilterFeatherfallPotionMinimum = 1;
 
@@ -57,7 +56,6 @@ internal static class ConfigurationStorageFlowTests
         Check.Equal(AutoCreateJungleRouteDepth.Deep, loaded.Automation.AutoCreate.JungleRouteDepth);
         Check.Equal(AutoCreateResourceFilterItem.BoomstickMask, loaded.Automation.AutoCreate.ResourceFilterItemMask);
         Check.Equal(8, loaded.Automation.AutoCreate.ResourceFilterLifeCrystalMinimum);
-        Check.Equal(AutoCreateResourceHook.Sapphire, loaded.Automation.AutoCreate.ResourceFilterHookMinimum);
         Check.Equal(2, loaded.Automation.AutoCreate.ResourceFilterSpelunkerPotionMinimum);
         Check.Equal(1, loaded.Automation.AutoCreate.ResourceFilterFeatherfallPotionMinimum);
         Check.True(File.Exists(Path.Combine(paths.SettingsDirectory, "settings.json")));

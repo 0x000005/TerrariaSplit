@@ -357,7 +357,6 @@ public static class AppSettingsCloner
             JungleRouteDepth = source.JungleRouteDepth,
             ResourceFilterItemMask = source.ResourceFilterItemMask,
             ResourceFilterLifeCrystalMinimum = source.ResourceFilterLifeCrystalMinimum,
-            ResourceFilterHookMinimum = source.ResourceFilterHookMinimum,
             ResourceFilterSpelunkerPotionMinimum = source.ResourceFilterSpelunkerPotionMinimum,
             ResourceFilterFeatherfallPotionMinimum = source.ResourceFilterFeatherfallPotionMinimum,
             EnableWorldPool = source.EnableWorldPool,

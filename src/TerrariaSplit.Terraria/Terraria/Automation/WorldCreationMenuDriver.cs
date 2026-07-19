@@ -114,6 +114,7 @@ internal sealed class WorldCreationMenuDriver
         TerrariaMenuGeometry geometry,
         CancellationToken cancellationToken)
     {
+        pyramidSeedPreScreenAutomation.BeginVisibleSeedReaderPreparation(settings);
         if (!await automation.ClickAsync("new world", geometry.SelectMenuNewButton(), menuActionDelay, cancellationToken))
         {
             return CreateWorldAttemptResult.Failed;

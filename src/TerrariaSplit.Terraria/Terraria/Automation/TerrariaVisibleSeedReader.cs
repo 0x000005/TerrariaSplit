@@ -53,6 +53,45 @@ internal sealed class TerrariaVisibleSeedReader : IPyramidVisibleSeedReader, IDi
         }
     }
 
+    public static TerrariaVisibleSeedReaderPreparation Prepare(
+        Func<TimeSpan, CancellationToken, Task> delayAsync)
+    {
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        if (!TryCreate(delayAsync, out TerrariaVisibleSeedReader? reader, out string detail) ||
+            reader is null)
+        {
+            return new TerrariaVisibleSeedReaderPreparation(
+                null,
+                detail,
+                stopwatch.Elapsed);
+        }
+
+        try
+        {
+            _ = reader.ReadCurrentSeed();
+            bool complete = reader.resolver.Resolution.HasSeedUiLayout;
+            if (!complete)
+            {
+                reader.resolver.ResetResolvedAddresses();
+            }
+
+            return new TerrariaVisibleSeedReaderPreparation(
+                reader,
+                complete
+                    ? "MemoryBridge seed UI layout prewarmed."
+                    : "MemoryBridge prewarm was partial; seed UI layout will be retried.",
+                stopwatch.Elapsed);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            reader.Dispose();
+            return new TerrariaVisibleSeedReaderPreparation(
+                null,
+                ex.Message,
+                stopwatch.Elapsed);
+        }
+    }
+
     public string? ReadCurrentSeed()
     {
         TerrariaWorldCreationSeedSnapshot snapshot = ReadSeedSnapshot();
@@ -60,6 +99,19 @@ internal sealed class TerrariaVisibleSeedReader : IPyramidVisibleSeedReader, IDi
             !string.IsNullOrWhiteSpace(snapshot.SeedText)
             ? snapshot.SeedText
             : null;
+    }
+
+    public bool TryPredictNextSeedBatch(
+        int count,
+        out IReadOnlyList<string> seedTexts,
+        out string detail)
+    {
+        _ = count;
+        seedTexts = Array.Empty<string>();
+        detail =
+            "Terraria.Main.rand is shared with menu animation and advances every frame; " +
+            "future random-button seeds cannot be reserved exactly without mutating or hooking the game RNG.";
+        return false;
     }
 
     public async Task<PyramidVisibleSeedReadResult> WaitForSeedAfterRandomizeAsync(
@@ -110,3 +162,8 @@ internal sealed class TerrariaVisibleSeedReader : IPyramidVisibleSeedReader, IDi
         return seedReader.Read(memory, resolver.SeedUiLayout);
     }
 }
+
+internal readonly record struct TerrariaVisibleSeedReaderPreparation(
+    TerrariaVisibleSeedReader? Reader,
+    string Detail,
+    TimeSpan Duration);

@@ -459,6 +459,8 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
         { "Prepare and upload before creating the room.", "请先准备并上传，然后创建房间。" },
         { "World generation failed.", "世界生成失败。" },
         { "World generation cancelled.", "世界生成已取消。" },
+        { "A seed is required.", "需要填写种子。" },
+        { "World generation completed without a world file.", "世界生成结束，但没有产生世界文件。" },
         { "Race server URL is required.", "需要填写联机服务器地址。" },
         { "Invalid race request.", "联机请求无效。" },
         { "Race room was not found.", "找不到联机房间。" },

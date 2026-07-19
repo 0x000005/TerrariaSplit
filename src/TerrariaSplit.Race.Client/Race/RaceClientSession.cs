@@ -215,6 +215,17 @@ public sealed class RaceClientSession : IAsyncDisposable
 
                 lastResult = result;
             }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (IOException ex) when (cancellationToken.IsCancellationRequested)
+            {
+                throw new OperationCanceledException(
+                    "World upload was cancelled.",
+                    ex,
+                    cancellationToken);
+            }
             catch (Exception ex) when (IsRetryableUploadException(ex))
             {
                 if (attempt == UploadRetryDelays.Length)
@@ -279,8 +290,8 @@ public sealed class RaceClientSession : IAsyncDisposable
 
     private static bool IsRetryableUploadException(Exception exception)
     {
-        return exception is IOException or InvalidOperationException or HttpRequestException or TimeoutException ||
-            exception is OperationCanceledException;
+        return exception is IOException or InvalidOperationException or
+            HttpRequestException or TimeoutException or OperationCanceledException;
     }
 
     private static bool ShouldRetryUploadResult(RaceOperationResult<RaceRoomState> result)
@@ -1117,25 +1128,59 @@ public sealed class RaceClientSession : IAsyncDisposable
             this.progress = progress;
         }
 
-        protected override async Task SerializeToStreamAsync(Stream stream, TransportContext? context)
+        protected override Task SerializeToStreamAsync(
+            Stream stream,
+            TransportContext? context)
+        {
+            return SerializeToStreamCoreAsync(stream, CancellationToken.None);
+        }
+
+        protected override Task SerializeToStreamAsync(
+            Stream stream,
+            TransportContext? context,
+            CancellationToken cancellationToken)
+        {
+            return SerializeToStreamCoreAsync(stream, cancellationToken);
+        }
+
+        private async Task SerializeToStreamCoreAsync(
+            Stream stream,
+            CancellationToken cancellationToken)
         {
             Report(0);
             byte[] buffer = new byte[BufferSize];
             long transferred = 0;
-            while (true)
+            try
             {
-                int read = await source.ReadAsync(buffer.AsMemory(0, buffer.Length)).ConfigureAwait(false);
-                if (read <= 0)
+                while (true)
                 {
-                    break;
+                    cancellationToken.ThrowIfCancellationRequested();
+                    int read = await source.ReadAsync(
+                            buffer.AsMemory(0, buffer.Length),
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                    if (read <= 0)
+                    {
+                        break;
+                    }
+
+                    await stream.WriteAsync(
+                            buffer.AsMemory(0, read),
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                    transferred += read;
+                    Report(transferred);
                 }
 
-                await stream.WriteAsync(buffer.AsMemory(0, read)).ConfigureAwait(false);
-                transferred += read;
-                Report(transferred);
+                Report(length);
             }
-
-            Report(length);
+            catch (IOException ex) when (cancellationToken.IsCancellationRequested)
+            {
+                throw new OperationCanceledException(
+                    "World upload was cancelled.",
+                    ex,
+                    cancellationToken);
+            }
         }
 
         protected override bool TryComputeLength(out long contentLength)

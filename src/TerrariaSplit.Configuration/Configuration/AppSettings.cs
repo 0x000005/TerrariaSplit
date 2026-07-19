@@ -434,7 +434,6 @@ public sealed class AutoCreateWorldSettings
     public string JungleRouteDepth { get; set; } = AutoCreateJungleRouteDepth.Medium;
     public int ResourceFilterItemMask { get; set; }
     public int ResourceFilterLifeCrystalMinimum { get; set; }
-    public string ResourceFilterHookMinimum { get; set; } = AutoCreateResourceHook.None;
     public int ResourceFilterSpelunkerPotionMinimum { get; set; }
     public int ResourceFilterFeatherfallPotionMinimum { get; set; }
     public bool EnableWorldPool { get; set; }
@@ -601,17 +600,13 @@ public static class AutoCreateResourceFilterItem
 {
     public const string Boomstick = "Boomstick";
     public const string FeralClaws = "Feral Claws";
-    public const string CloudInABottle = "Cloud in a Bottle";
     public const string AnkletOfTheWind = "Anklet of the Wind";
-    public const string HermesBoots = "Hermes Boots";
     public const int BoomstickMask = 1;
     public const int FeralClawsMask = 2;
-    public const int CloudInABottleMask = 4;
     public const int AnkletOfTheWindMask = 8;
-    public const int HermesBootsMask = 16;
-    public const int AllMask = BoomstickMask | FeralClawsMask | CloudInABottleMask | AnkletOfTheWindMask | HermesBootsMask;
+    public const int AllMask = BoomstickMask | FeralClawsMask | AnkletOfTheWindMask;
 
-    public static readonly string[] All = [Boomstick, FeralClaws, CloudInABottle, AnkletOfTheWind, HermesBoots];
+    public static readonly string[] All = [Boomstick, FeralClaws, AnkletOfTheWind];
 
     public static int NormalizeMask(int mask) => mask & AllMask;
 
@@ -619,9 +614,7 @@ public static class AutoCreateResourceFilterItem
     {
         Boomstick => BoomstickMask,
         FeralClaws => FeralClawsMask,
-        CloudInABottle => CloudInABottleMask,
         AnkletOfTheWind => AnkletOfTheWindMask,
-        HermesBoots => HermesBootsMask,
         _ => 0
     };
 
@@ -643,46 +636,22 @@ public static class AutoCreateResourceFilter
         AutoCreateJungleRouteDepth.Normalize(settings.JungleRouteDepth) != AutoCreateJungleRouteDepth.None ||
         AutoCreateResourceFilterItem.NormalizeMask(settings.ResourceFilterItemMask) != 0 ||
         AutoCreateResourceMinimum.NormalizeLifeCrystals(settings.ResourceFilterLifeCrystalMinimum) > 0 ||
-        AutoCreateResourceHook.Normalize(settings.ResourceFilterHookMinimum) != AutoCreateResourceHook.None ||
         AutoCreateResourceMinimum.NormalizePotions(settings.ResourceFilterSpelunkerPotionMinimum) > 0 ||
         AutoCreateResourceMinimum.NormalizePotions(settings.ResourceFilterFeatherfallPotionMinimum) > 0;
 }
 
 public static class AutoCreateResourceMinimum
 {
-    public static readonly int[] LifeCrystals = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+    public static readonly int[] LifeCrystals = [0, 1, 2, 3, 4, 5];
     public static readonly int[] Potions = [0, 1, 2, 3];
 
-    public static int NormalizeLifeCrystals(int value) => Normalize(value, LifeCrystals);
+    public static int NormalizeLifeCrystals(int value) =>
+        value <= 0 ? 0 : Math.Min(value, LifeCrystals[^1]);
 
     public static int NormalizePotions(int value) => Normalize(value, Potions);
 
     private static int Normalize(int value, IReadOnlyList<int> values) =>
         values.Contains(value) ? value : 0;
-}
-
-public static class AutoCreateResourceHook
-{
-    public const string None = "0";
-    public const string Amethyst = "Amethyst";
-    public const string Topaz = "Topaz";
-    public const string Sapphire = "Sapphire";
-    public const string Emerald = "Emerald";
-    public const string Ruby = "Ruby";
-    public const string Diamond = "Diamond";
-    public const int RequiredGemCount = 15;
-
-    public static readonly string[] All = [None, Amethyst, Topaz, Sapphire, Emerald, Ruby, Diamond];
-
-    public static string Normalize(string? value) =>
-        All.FirstOrDefault(option => string.Equals(option, value, StringComparison.OrdinalIgnoreCase)) ?? None;
-
-    public static bool Includes(string selectedMinimum, string candidate)
-    {
-        int selectedIndex = Array.IndexOf(All, Normalize(selectedMinimum));
-        int candidateIndex = Array.IndexOf(All, Normalize(candidate));
-        return candidateIndex >= selectedIndex;
-    }
 }
 
 public static class AutoCreateSpecialWorldSeed

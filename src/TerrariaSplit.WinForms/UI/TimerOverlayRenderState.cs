@@ -10,7 +10,7 @@ internal sealed record TimerOverlayRenderState(
     SplitTimerState TimerState,
     bool MouseClickThrough,
     Color? TimerFillOverride = null,
-    bool ShowPyramidFilterIndicator = false);
+    CheatFilterIndicatorLevel CheatFilterIndicator = CheatFilterIndicatorLevel.None);
 
 internal readonly record struct TimerOverlayStateKey(
     SplitTimerState TimerState,
@@ -19,4 +19,4 @@ internal readonly record struct TimerOverlayStateKey(
     int StatusHash,
     long SettingsRevision,
     int? TimerFillOverrideArgb,
-    bool ShowPyramidFilterIndicator);
+    CheatFilterIndicatorLevel CheatFilterIndicator);

@@ -1,0 +1,56 @@
+<Project>
+  <PropertyGroup>
+    <TerrariaSplitMemoryBridgeProject>$(MSBuildThisFileDirectory)..\..\TerrariaSplit.MemoryBridge\TerrariaSplit.MemoryBridge.csproj</TerrariaSplitMemoryBridgeProject>
+    <TerrariaSplitMemoryBridgeProjectDirectory>$(MSBuildThisFileDirectory)..\..\TerrariaSplit.MemoryBridge\</TerrariaSplitMemoryBridgeProjectDirectory>
+    <TerrariaSplitMemoryBridgeTargetFramework>net10.0-windows</TerrariaSplitMemoryBridgeTargetFramework>
+    <TerrariaSplitMemoryBridgeRuntimeIdentifier>win-x86</TerrariaSplitMemoryBridgeRuntimeIdentifier>
+    <TerrariaSplitMemoryBridgePlatformTarget>x86</TerrariaSplitMemoryBridgePlatformTarget>
+    <TerrariaSplitMemoryBridgeOutputSubdirectory>TerrariaSplit.MemoryBridge\</TerrariaSplitMemoryBridgeOutputSubdirectory>
+    <TerrariaSplitMemoryBridgeBuildOutputDirectory>$(TerrariaSplitMemoryBridgeProjectDirectory)bin\$(Configuration)\$(TerrariaSplitMemoryBridgeTargetFramework)\$(TerrariaSplitMemoryBridgeRuntimeIdentifier)\</TerrariaSplitMemoryBridgeBuildOutputDirectory>
+    <TerrariaSplitMemoryBridgePublishOutputDirectory>$(TerrariaSplitMemoryBridgeProjectDirectory)obj\TerrariaSplit.MemoryBridge\publish\$(Configuration)\$(TerrariaSplitMemoryBridgeRuntimeIdentifier)\</TerrariaSplitMemoryBridgePublishOutputDirectory>
+    <TerrariaSplitMemoryBridgeCommonProperties>Configuration=$(Configuration);TargetFramework=$(TerrariaSplitMemoryBridgeTargetFramework);RuntimeIdentifier=$(TerrariaSplitMemoryBridgeRuntimeIdentifier);PlatformTarget=$(TerrariaSplitMemoryBridgePlatformTarget)</TerrariaSplitMemoryBridgeCommonProperties>
+    <TerrariaSplitMemoryBridgePublishProperties>$(TerrariaSplitMemoryBridgeCommonProperties);SelfContained=true;PublishSelfContained=true;PublishSingleFile=true;IncludeNativeLibrariesForSelfExtract=true;PublishTrimmed=false;DebugType=none;DebugSymbols=false</TerrariaSplitMemoryBridgePublishProperties>
+  </PropertyGroup>
+
+  <Target Name="TerrariaSplitCopyMemoryBridgeToOutput"
+          AfterTargets="Build"
+          Condition="'$(DesignTimeBuild)' != 'true' and '$(TerrariaSplitSkipMemoryBridge)' != 'true'">
+    <ItemGroup>
+      <TerrariaSplitMemoryBridgeBuiltFile Include="$(TerrariaSplitMemoryBridgeBuildOutputDirectory)**\*.*" />
+    </ItemGroup>
+
+    <Copy SourceFiles="@(TerrariaSplitMemoryBridgeBuiltFile)"
+          DestinationFiles="@(TerrariaSplitMemoryBridgeBuiltFile->'$(TargetDir)$(TerrariaSplitMemoryBridgeOutputSubdirectory)%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="TerrariaSplitPublishMemoryBridge"
+          BeforeTargets="ComputeFilesToPublish"
+          Condition="'$(DesignTimeBuild)' != 'true' and '$(TerrariaSplitSkipMemoryBridge)' != 'true'">
+    <RemoveDir Directories="$(TerrariaSplitMemoryBridgePublishOutputDirectory)" />
+
+    <MSBuild Projects="$(TerrariaSplitMemoryBridgeProject)"
+             Targets="Publish"
+             Properties="$(TerrariaSplitMemoryBridgePublishProperties);PublishDir=$(TerrariaSplitMemoryBridgePublishOutputDirectory)" />
+
+    <ItemGroup>
+      <TerrariaSplitMemoryBridgePublishedFile Include="$(TerrariaSplitMemoryBridgePublishOutputDirectory)TerrariaSplit.MemoryBridge.exe" />
+      <ResolvedFileToPublish Include="@(TerrariaSplitMemoryBridgePublishedFile)">
+        <RelativePath>%(Filename)%(Extension)</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </ResolvedFileToPublish>
+    </ItemGroup>
+  </Target>
+
+  <Target Name="TerrariaSplitCopyMemoryBridgeToPublishDirectory"
+          AfterTargets="Publish"
+          Condition="'$(DesignTimeBuild)' != 'true' and '$(TerrariaSplitSkipMemoryBridge)' != 'true' and '$(PublishDir)' != ''">
+    <ItemGroup>
+      <TerrariaSplitMemoryBridgePublishedFile Include="$(TerrariaSplitMemoryBridgePublishOutputDirectory)TerrariaSplit.MemoryBridge.exe" />
+    </ItemGroup>
+
+    <Copy SourceFiles="@(TerrariaSplitMemoryBridgePublishedFile)"
+          DestinationFiles="@(TerrariaSplitMemoryBridgePublishedFile->'$(PublishDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
+</Project>

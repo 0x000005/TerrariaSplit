@@ -23,7 +23,6 @@ public static class RaceWorldSettingsFactory
              AutoCreateJungleRouteDepth.Normalize(cheats.JungleRouteDepth) != AutoCreateJungleRouteDepth.None ||
              AutoCreateResourceFilterItem.NormalizeMask(cheats.ResourceItemMask) != 0 ||
              AutoCreateResourceMinimum.NormalizeLifeCrystals(cheats.LifeCrystalMinimum) > 0 ||
-             AutoCreateResourceHook.Normalize(cheats.HookMinimum) != AutoCreateResourceHook.None ||
              AutoCreateResourceMinimum.NormalizePotions(cheats.SpelunkerPotionMinimum) > 0 ||
              AutoCreateResourceMinimum.NormalizePotions(cheats.FeatherfallPotionMinimum) > 0);
     }
@@ -74,7 +73,6 @@ public static class RaceWorldSettingsFactory
             JungleRouteDepth = AutoCreateJungleRouteDepth.Normalize(cheats.JungleRouteDepth),
             ResourceFilterItemMask = AutoCreateResourceFilterItem.NormalizeMask(cheats.ResourceItemMask),
             ResourceFilterLifeCrystalMinimum = AutoCreateResourceMinimum.NormalizeLifeCrystals(cheats.LifeCrystalMinimum),
-            ResourceFilterHookMinimum = AutoCreateResourceHook.Normalize(cheats.HookMinimum),
             ResourceFilterSpelunkerPotionMinimum = AutoCreateResourceMinimum.NormalizePotions(cheats.SpelunkerPotionMinimum),
             ResourceFilterFeatherfallPotionMinimum = AutoCreateResourceMinimum.NormalizePotions(cheats.FeatherfallPotionMinimum),
             PreserveExistingSaves = true

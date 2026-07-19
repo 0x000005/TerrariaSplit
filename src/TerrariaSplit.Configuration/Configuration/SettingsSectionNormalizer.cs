@@ -19,7 +19,6 @@ public static class SettingsSectionNormalizer
         autoCreate.JungleRouteDepth = AutoCreateJungleRouteDepth.Normalize(autoCreate.JungleRouteDepth);
         autoCreate.ResourceFilterItemMask = AutoCreateResourceFilterItem.NormalizeMask(autoCreate.ResourceFilterItemMask);
         autoCreate.ResourceFilterLifeCrystalMinimum = AutoCreateResourceMinimum.NormalizeLifeCrystals(autoCreate.ResourceFilterLifeCrystalMinimum);
-        autoCreate.ResourceFilterHookMinimum = AutoCreateResourceHook.Normalize(autoCreate.ResourceFilterHookMinimum);
         autoCreate.ResourceFilterSpelunkerPotionMinimum = AutoCreateResourceMinimum.NormalizePotions(autoCreate.ResourceFilterSpelunkerPotionMinimum);
         autoCreate.ResourceFilterFeatherfallPotionMinimum = AutoCreateResourceMinimum.NormalizePotions(autoCreate.ResourceFilterFeatherfallPotionMinimum);
         autoCreate.ShortActionDelayMilliseconds = Math.Clamp(autoCreate.ShortActionDelayMilliseconds, 0, 5000);

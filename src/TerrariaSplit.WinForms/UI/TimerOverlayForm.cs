@@ -650,7 +650,7 @@ internal sealed class TimerOverlayForm : Form
             return true;
         }
 
-        if (previousState.ShowPyramidFilterIndicator != currentState.ShowPyramidFilterIndicator)
+        if (previousState.CheatFilterIndicator != currentState.CheatFilterIndicator)
         {
             return true;
         }
@@ -713,7 +713,7 @@ internal sealed class TimerOverlayForm : Form
             EmptySegmentBestDeltaHighlights,
             DateTime.UtcNow,
             TimerFillOverride: state.TimerFillOverride,
-            ShowPyramidFilterIndicator: state.ShowPyramidFilterIndicator);
+            CheatFilterIndicator: state.CheatFilterIndicator);
     }
 
     private readonly record struct RunningTimerPaintUpdate(TimerPaintFrame Frame, Rectangle? DirtyRect);

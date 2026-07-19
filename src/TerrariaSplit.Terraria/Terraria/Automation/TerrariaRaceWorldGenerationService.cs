@@ -5,22 +5,61 @@ namespace TerrariaSplit.Terraria.Automation;
 public sealed record TerrariaRaceWorldGenerationResult(
     bool Succeeded,
     string WorldPath,
-    string Message)
+    string Message,
+    bool Retryable)
 {
     public static TerrariaRaceWorldGenerationResult Success(string worldPath)
     {
-        return new TerrariaRaceWorldGenerationResult(true, worldPath, string.Empty);
+        return new TerrariaRaceWorldGenerationResult(true, worldPath, string.Empty, Retryable: false);
     }
 
-    public static TerrariaRaceWorldGenerationResult Failure(string message)
+    public static TerrariaRaceWorldGenerationResult Failure(string message, bool retryable = false)
     {
-        return new TerrariaRaceWorldGenerationResult(false, string.Empty, message);
+        return new TerrariaRaceWorldGenerationResult(false, string.Empty, message, retryable);
+    }
+}
+
+public sealed record TerrariaRaceSeedFilterCandidate(
+    string SeedText,
+    int BatchIndex,
+    string Detail);
+
+public sealed record TerrariaRaceSeedFilterBatchResult(
+    IReadOnlyList<TerrariaRaceSeedFilterCandidate> AcceptedCandidates,
+    int EvaluatedCount,
+    string FatalError,
+    string Detail)
+{
+    public bool HasFatalError => !string.IsNullOrWhiteSpace(FatalError);
+
+    public static TerrariaRaceSeedFilterBatchResult Complete(
+        IReadOnlyList<TerrariaRaceSeedFilterCandidate> acceptedCandidates,
+        int evaluatedCount,
+        string detail)
+    {
+        return new TerrariaRaceSeedFilterBatchResult(
+            acceptedCandidates,
+            evaluatedCount,
+            string.Empty,
+            detail);
+    }
+
+    public static TerrariaRaceSeedFilterBatchResult Fatal(
+        int evaluatedCount,
+        string error)
+    {
+        return new TerrariaRaceSeedFilterBatchResult(
+            Array.Empty<TerrariaRaceSeedFilterCandidate>(),
+            evaluatedCount,
+            error,
+            error);
     }
 }
 
 public sealed class TerrariaRaceWorldGenerationService : IDisposable
 {
     private readonly HeadlessWorldGenerator generator;
+    private readonly List<WorldSeedFilterEvaluator> seedFilterEvaluators = [];
 
     public TerrariaRaceWorldGenerationService(IRuntimeDataPaths? paths = null)
     {
@@ -34,7 +73,8 @@ public sealed class TerrariaRaceWorldGenerationService : IDisposable
         string? appLanguage,
         CancellationToken cancellationToken,
         IProgress<int>? progress = null,
-        int progressMaximum = 80)
+        int progressMaximum = 80,
+        bool seedFilterAlreadyAccepted = false)
     {
         TerrariaServerTarget? serverTarget = TerrariaServerLocator.TryResolveTarget();
         if (serverTarget is null)
@@ -50,9 +90,17 @@ public sealed class TerrariaRaceWorldGenerationService : IDisposable
             seedText,
             worldName,
             cancellationToken,
-            CreateRaceProgressMapper(progress, progressMaximum));
+            CreateRaceProgressMapper(progress, progressMaximum),
+            skipSeedFilter: seedFilterAlreadyAccepted);
         try
         {
+            if (!string.IsNullOrWhiteSpace(result.FailureDetail))
+            {
+                return TerrariaRaceWorldGenerationResult.Failure(
+                    result.FailureDetail,
+                    result.Retryable);
+            }
+
             if (!result.Generated)
             {
                 return TerrariaRaceWorldGenerationResult.Failure("World generation was skipped because another generator is running.");
@@ -60,7 +108,9 @@ public sealed class TerrariaRaceWorldGenerationService : IDisposable
 
             if (!result.Keep || string.IsNullOrWhiteSpace(result.WorldPath) || !File.Exists(result.WorldPath))
             {
-                return TerrariaRaceWorldGenerationResult.Failure("TerrariaServer.exe did not produce a matching world file.");
+                return TerrariaRaceWorldGenerationResult.Failure(
+                    "TerrariaServer.exe did not produce a matching world file.",
+                    retryable: true);
             }
 
             string installedPath = InstallWorld(result.WorldPath, worldName);
@@ -72,9 +122,124 @@ public sealed class TerrariaRaceWorldGenerationService : IDisposable
         }
     }
 
+    public static int CalculateSeedFilterConcurrency(int logicalProcessorCount)
+    {
+        return WorldSeedFilterEvaluator.CalculateParallelism(logicalProcessorCount);
+    }
+
+    public async Task<TerrariaRaceSeedFilterBatchResult> FilterSeedBatchAsync(
+        AutoCreateWorldSettings settings,
+        IReadOnlyList<string> seedTexts,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(seedTexts);
+        if (seedTexts.Count == 0)
+        {
+            return TerrariaRaceSeedFilterBatchResult.Complete(
+                Array.Empty<TerrariaRaceSeedFilterCandidate>(),
+                0,
+                "No seeds were supplied.");
+        }
+
+        TerrariaServerTarget? serverTarget = TerrariaServerLocator.TryResolveTarget();
+        if (serverTarget is null)
+        {
+            return TerrariaRaceSeedFilterBatchResult.Fatal(
+                seedTexts.Count,
+                "TerrariaServer.exe was not found.");
+        }
+
+        AutoCreateWorldSettings filterSettings = CloneRaceSettings(settings);
+        TerrariaWorldGenerationVersion worldGenerationVersion =
+            serverTarget.Value.IsLegacy1449
+                ? TerrariaWorldGenerationVersion.Legacy1449
+                : TerrariaWorldGenerationVersion.Modern1456;
+        var tasks = new Task<SeedFilterEvaluation>[seedTexts.Count];
+        EnsureSeedFilterEvaluatorCount(seedTexts.Count);
+        for (int index = 0; index < seedTexts.Count; index++)
+        {
+            tasks[index] = EvaluateSeedAsync(
+                seedFilterEvaluators[index],
+                filterSettings,
+                seedTexts[index],
+                index,
+                worldGenerationVersion,
+                cancellationToken);
+        }
+
+        SeedFilterEvaluation[] evaluations = await Task.WhenAll(tasks);
+        var accepted = new List<TerrariaRaceSeedFilterCandidate>();
+        string lastDetail = string.Empty;
+        foreach (SeedFilterEvaluation evaluation in evaluations.OrderBy(item => item.BatchIndex))
+        {
+            WorldSeedFilterPrediction prediction = evaluation.Prediction;
+            lastDetail = prediction.Detail;
+            if (prediction.CanUsePrediction && prediction.AcceptSeed ||
+                !prediction.CanUsePrediction && prediction.CanContinueWithoutPrediction)
+            {
+                accepted.Add(new TerrariaRaceSeedFilterCandidate(
+                    evaluation.SeedText,
+                    evaluation.BatchIndex,
+                    prediction.Detail));
+                continue;
+            }
+
+            if (!prediction.CanUsePrediction &&
+                !prediction.CanContinueWithoutPrediction)
+            {
+                if (accepted.Count == 0)
+                {
+                    return TerrariaRaceSeedFilterBatchResult.Fatal(
+                        evaluations.Length,
+                        prediction.Detail);
+                }
+
+                break;
+            }
+        }
+
+        return TerrariaRaceSeedFilterBatchResult.Complete(
+            accepted,
+            evaluations.Length,
+            lastDetail);
+    }
+
     public void Dispose()
     {
+        foreach (WorldSeedFilterEvaluator evaluator in seedFilterEvaluators)
+        {
+            evaluator.Dispose();
+        }
+        seedFilterEvaluators.Clear();
         generator.Dispose();
+    }
+
+    private static async Task<SeedFilterEvaluation> EvaluateSeedAsync(
+        WorldSeedFilterEvaluator evaluator,
+        AutoCreateWorldSettings settings,
+        string seedText,
+        int batchIndex,
+        TerrariaWorldGenerationVersion worldGenerationVersion,
+        CancellationToken cancellationToken)
+    {
+        WorldSeedFilterPrediction prediction = await evaluator.EvaluateAsync(
+            settings,
+            seedText,
+            worldGenerationVersion,
+            cancellationToken);
+        return new SeedFilterEvaluation(
+            seedText,
+            batchIndex,
+            prediction);
+    }
+
+    private void EnsureSeedFilterEvaluatorCount(int count)
+    {
+        while (seedFilterEvaluators.Count < count)
+        {
+            seedFilterEvaluators.Add(new WorldSeedFilterEvaluator());
+        }
     }
 
     private static AutoCreateWorldSettings CloneRaceSettings(AutoCreateWorldSettings settings)
@@ -94,7 +259,6 @@ public sealed class TerrariaRaceWorldGenerationService : IDisposable
             JungleRouteDepth = settings.JungleRouteDepth,
             ResourceFilterItemMask = settings.ResourceFilterItemMask,
             ResourceFilterLifeCrystalMinimum = settings.ResourceFilterLifeCrystalMinimum,
-            ResourceFilterHookMinimum = settings.ResourceFilterHookMinimum,
             ResourceFilterSpelunkerPotionMinimum = settings.ResourceFilterSpelunkerPotionMinimum,
             ResourceFilterFeatherfallPotionMinimum = settings.ResourceFilterFeatherfallPotionMinimum,
             PreserveExistingSaves = true
@@ -163,4 +327,9 @@ public sealed class TerrariaRaceWorldGenerationService : IDisposable
             File.Copy(backup, targetPath + ".bak", overwrite: false);
         }
     }
+
+    private readonly record struct SeedFilterEvaluation(
+        string SeedText,
+        int BatchIndex,
+        WorldSeedFilterPrediction Prediction);
 }

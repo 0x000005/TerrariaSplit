@@ -7,7 +7,6 @@ namespace TerrariaSplit.UI.Rendering;
 internal static class TimerRenderer
 {
     private static readonly Color MouseClickThroughIndicatorColor = Color.FromArgb(255, 179, 92, 255);
-    private static readonly Color PyramidFilterIndicatorColor = Color.FromArgb(255, 202, 154, 48);
 
     public static void Render(
         Graphics graphics,
@@ -29,7 +28,8 @@ internal static class TimerRenderer
             GetTimerTextStyle(context, milliseconds: true),
             timeRect);
         bool showMouseIndicator = context.Settings.General.ShowMouseClickThroughIndicator && !context.MouseClickThrough;
-        bool showPyramidFilterIndicator = context.ShowPyramidFilterIndicator;
+        bool showPyramidFilterIndicator =
+            context.CheatFilterIndicator != CheatFilterIndicatorLevel.None;
         int visibleIndicatorCount = GetVisibleTimerIndicatorCount(showMouseIndicator, showPyramidFilterIndicator);
         int indicatorIndex = 0;
         if (showMouseIndicator)
@@ -39,7 +39,13 @@ internal static class TimerRenderer
 
         if (showPyramidFilterIndicator)
         {
-            DrawPyramidFilterIndicator(graphics, timerRect, timerTextLayout, indicatorIndex, visibleIndicatorCount);
+            DrawPyramidFilterIndicator(
+                graphics,
+                timerRect,
+                timerTextLayout,
+                indicatorIndex,
+                visibleIndicatorCount,
+                context.CheatFilterIndicator);
         }
     }
 
@@ -145,7 +151,8 @@ internal static class TimerRenderer
         }
 
         bool showMouseIndicator = context.Settings.General.ShowMouseClickThroughIndicator && !context.MouseClickThrough;
-        bool showPyramidFilterIndicator = context.ShowPyramidFilterIndicator;
+        bool showPyramidFilterIndicator =
+            context.CheatFilterIndicator != CheatFilterIndicatorLevel.None;
         int visibleIndicatorCount = GetVisibleTimerIndicatorCount(showMouseIndicator, showPyramidFilterIndicator);
         int indicatorIndex = 0;
 
@@ -158,7 +165,13 @@ internal static class TimerRenderer
         TimerPaintElement pyramidFilterIndicator = TimerPaintElement.Empty;
         if (showPyramidFilterIndicator)
         {
-            pyramidFilterIndicator = CreatePyramidFilterIndicatorPaintElement(graphics, timerRect, geometry.Layout, indicatorIndex, visibleIndicatorCount);
+            pyramidFilterIndicator = CreatePyramidFilterIndicatorPaintElement(
+                graphics,
+                timerRect,
+                geometry.Layout,
+                indicatorIndex,
+                visibleIndicatorCount,
+                context.CheatFilterIndicator);
         }
 
         return new TimerPaintFrame(main, milliseconds, indicator, pyramidFilterIndicator);
@@ -334,7 +347,8 @@ internal static class TimerRenderer
         Rectangle timerBounds,
         TimerTextLayout timerTextLayout,
         int positionIndex,
-        int visibleIndicatorCount)
+        int visibleIndicatorCount,
+        CheatFilterIndicatorLevel level)
     {
         DrawTimerIndicator(
             graphics,
@@ -342,7 +356,7 @@ internal static class TimerRenderer
             timerTextLayout,
             positionIndex,
             visibleIndicatorCount,
-            PyramidFilterIndicatorColor);
+            CheatFilterIndicator.GetColor(level));
     }
 
     private static void DrawTimerIndicator(
@@ -451,7 +465,8 @@ internal static class TimerRenderer
         Rectangle timerBounds,
         TimerTextLayout timerTextLayout,
         int positionIndex,
-        int visibleIndicatorCount)
+        int visibleIndicatorCount,
+        CheatFilterIndicatorLevel level)
     {
         return CreateTimerIndicatorPaintElement(
             graphics,
@@ -459,7 +474,7 @@ internal static class TimerRenderer
             timerTextLayout,
             positionIndex,
             visibleIndicatorCount,
-            PyramidFilterIndicatorColor);
+            CheatFilterIndicator.GetColor(level));
     }
 
     private static TimerPaintElement CreateTimerIndicatorPaintElement(

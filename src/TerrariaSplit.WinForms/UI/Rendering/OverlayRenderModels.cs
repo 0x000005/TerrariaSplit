@@ -18,7 +18,7 @@ internal sealed record OverlayRenderContext(
     DateTime NowUtc,
     bool IgnoreVisibleGroupLimit = false,
     Color? TimerFillOverride = null,
-    bool ShowPyramidFilterIndicator = false)
+    CheatFilterIndicatorLevel CheatFilterIndicator = CheatFilterIndicatorLevel.None)
 {
     public float ScaleFactor => GetScaleFactor(Settings);
 

@@ -4,7 +4,7 @@ using System.IO.MemoryMappedFiles;
 using System.Runtime.InteropServices;
 using System.Text;
 
-namespace TerrariaSplit.MemoryProbe;
+namespace TerrariaSplit.MemoryBridge;
 
 internal static class InjectorCommand
 {

@@ -40,7 +40,7 @@ internal sealed partial class MainForm : Form
             DateTime.UtcNow,
             ignoreVisibleGroupLimit,
             TimerFillOverride: runtimeServices?.RaceShell.GetMainTimerRankColor(timerPhase, splitStatuses),
-            ShowPyramidFilterIndicator: ShouldShowPyramidFilterIndicator());
+            CheatFilterIndicator: GetCheatFilterIndicatorLevel());
         OverlayRenderResult result = OverlayRenderer.RenderStatus(
             graphics,
             context,

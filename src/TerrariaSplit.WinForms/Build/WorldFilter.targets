@@ -1,0 +1,39 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <TerrariaWorldFilterSource Condition="'$(TerrariaWorldFilterSource)' == ''">$(MSBuildThisFileDirectory)..\..\..\..\TerrariaJungleJudge\out\build\win32-release\Release\TerrariaSplit.WorldFilter.exe</TerrariaWorldFilterSource>
+    <TerrariaWorldFilterRequired Condition="'$(TerrariaWorldFilterRequired)' == '' and '$(Configuration)' == 'Release'">true</TerrariaWorldFilterRequired>
+  </PropertyGroup>
+
+  <ItemGroup Condition="Exists('$(TerrariaWorldFilterSource)')">
+    <Content Include="$(TerrariaWorldFilterSource)"
+             Link="TerrariaSplit.WorldFilter.exe"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <Target Name="ValidateRequiredTerrariaWorldFilter"
+          BeforeTargets="Build;ComputeFilesToPublish"
+          Condition="'$(TerrariaWorldFilterRequired)' == 'true' and !Exists('$(TerrariaWorldFilterSource)')">
+    <Error Text="Terraria World Filter was required but not found at '$(TerrariaWorldFilterSource)'." />
+  </Target>
+
+  <Target Name="TerrariaSplitPublishWorldFilter"
+          BeforeTargets="ComputeFilesToPublish"
+          Condition="Exists('$(TerrariaWorldFilterSource)')">
+    <ItemGroup>
+      <TerrariaWorldFilterPublishedFile Include="$(TerrariaWorldFilterSource)" />
+      <ResolvedFileToPublish Include="@(TerrariaWorldFilterPublishedFile)">
+        <RelativePath>TerrariaSplit.WorldFilter.exe</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </ResolvedFileToPublish>
+    </ItemGroup>
+  </Target>
+
+  <Target Name="TerrariaSplitCopyWorldFilterToPublishDirectory"
+          AfterTargets="Publish"
+          Condition="'$(PublishDir)' != '' and Exists('$(TerrariaWorldFilterSource)')">
+    <Copy SourceFiles="$(TerrariaWorldFilterSource)"
+          DestinationFiles="$(PublishDir)TerrariaSplit.WorldFilter.exe"
+          SkipUnchangedFiles="true" />
+  </Target>
+</Project>

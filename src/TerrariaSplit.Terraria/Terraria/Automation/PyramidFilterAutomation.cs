@@ -37,9 +37,7 @@ internal sealed class PyramidFilterAutomation
         CancellationToken cancellationToken)
     {
         bool pyramidEnabled = PyramidFilterWorldFileEvaluator.IsPyramidFilterEnabled(settings);
-        bool crimsonCorridorEnabled = PyramidFilterWorldFileEvaluator.IsCrimsonCorridorFilterEnabled(settings);
-        bool resourceFilterEnabled = PyramidFilterWorldFileEvaluator.IsResourceFilterEnabled(settings);
-        if (!pyramidEnabled && !crimsonCorridorEnabled && !resourceFilterEnabled)
+        if (!pyramidEnabled)
         {
             return PyramidFilterOutcome.Disabled;
         }
@@ -69,13 +67,6 @@ internal sealed class PyramidFilterAutomation
             $"requiredItems={PyramidFilterItemMatcher.FormatRequiredItems(result.RequiredItemMask)}, " +
             $"corridor={result.ScanBounds.Left},{result.ScanBounds.Top},{result.ScanBounds.Right},{result.ScanBounds.Bottom}, " +
             $"candidateChests={result.CandidateChests.FormatSummary()}, " +
-            $"crimsonCorridorEnabled={result.CrimsonCorridorFilterEnabled}, " +
-            $"crimsonCorridorKeep={result.CrimsonCorridorKeep}, " +
-            $"crimsonTiles={result.CrimsonCorridor.CrimsonTileCount}, " +
-            $"crimsonBounds={result.CrimsonCorridor.Bounds.Left},{result.CrimsonCorridor.Bounds.Top}," +
-            $"{result.CrimsonCorridor.Bounds.Right},{result.CrimsonCorridor.Bounds.Bottom}, " +
-            $"resourceFilterEnabled={result.ResourceFilterEnabled}, resourceFilterKeep={result.ResourceFilterKeep}, " +
-            $"resources={result.Resources.FormatSummary()}, " +
             $"scanMs={result.ScanDuration.TotalMilliseconds:0}");
 
         return result.Keep

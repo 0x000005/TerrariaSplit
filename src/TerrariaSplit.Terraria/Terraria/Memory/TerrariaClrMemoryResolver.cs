@@ -98,7 +98,7 @@ internal sealed class TerrariaClrMemoryResolver
         nextResolveAttemptUtc = DateTime.UtcNow + ResolveRetryInterval;
         resolveAttempts++;
         lastAttemptUtc = DateTime.UtcNow;
-        if (TryResolveRuntimeLayoutWithMemoryProbe(processId.Value, out TerrariaRuntimeMemoryLayout? resolvedLayout) &&
+        if (TryResolveRuntimeLayoutWithMemoryBridge(processId.Value, out TerrariaRuntimeMemoryLayout? resolvedLayout) &&
             resolvedLayout is not null)
         {
             runtimeLayout = resolvedLayout;
@@ -109,6 +109,90 @@ internal sealed class TerrariaClrMemoryResolver
         }
 
         return false;
+    }
+
+    public bool TryPredictRandomSeedBatch(
+        int count,
+        out IReadOnlyList<string> seedTexts,
+        out string detail)
+    {
+        seedTexts = Array.Empty<string>();
+        detail = string.Empty;
+        if (count is < 1 or > 256)
+        {
+            detail = "Random seed batch size must be between 1 and 256.";
+            return false;
+        }
+        if (process is null || processId is null)
+        {
+            detail = "Terraria process is unavailable.";
+            return false;
+        }
+
+        string? bridgePath = FindMemoryBridgeExecutable();
+        if (bridgePath is null)
+        {
+            detail = "TerrariaSplit.MemoryBridge.exe not found.";
+            return false;
+        }
+
+        try
+        {
+            using Process? bridge = StartRandomSeedBatchBridge(
+                bridgePath,
+                processId.Value,
+                count);
+            if (bridge is null)
+            {
+                detail = "Failed to start TerrariaSplit.MemoryBridge.exe.";
+                return false;
+            }
+            if (!bridge.WaitForExit(MemoryProbeTimeoutMilliseconds))
+            {
+                TryKill(bridge);
+                detail = "MemoryBridge random seed batch timed out.";
+                return false;
+            }
+
+            string output = bridge.StandardOutput.ReadToEnd();
+            string errorOutput = bridge.StandardError.ReadToEnd();
+            RandomSeedBatchProbeResponse? response =
+                JsonSerializer.Deserialize<RandomSeedBatchProbeResponse>(output.Trim());
+            if (bridge.ExitCode != 0 ||
+                response?.Success != true ||
+                response.Seeds is null)
+            {
+                detail = response?.Error ??
+                    (string.IsNullOrWhiteSpace(errorOutput)
+                        ? $"MemoryBridge random seed batch failed with exit code {bridge.ExitCode}."
+                        : errorOutput.Trim());
+                return false;
+            }
+            if (response.Seeds.Count != count ||
+                response.Seeds.Any(seed =>
+                    !int.TryParse(
+                        seed,
+                        NumberStyles.Integer,
+                        CultureInfo.InvariantCulture,
+                        out int parsed) ||
+                    parsed < 0))
+            {
+                detail = "MemoryBridge returned an invalid random seed batch.";
+                return false;
+            }
+
+            seedTexts = response.Seeds.ToArray();
+            detail =
+                $"predicted {seedTexts.Count} seeds from Terraria UI thread {response.OsThreadId?.ToString(CultureInfo.InvariantCulture) ?? "unknown"}";
+            return true;
+        }
+        catch (Exception ex)
+            when (ex is InvalidOperationException or Win32Exception or
+                IOException or JsonException)
+        {
+            detail = ex.Message;
+            return false;
+        }
     }
 
     private static int? GetProcessId(Process targetProcess)
@@ -123,12 +207,12 @@ internal sealed class TerrariaClrMemoryResolver
         }
     }
 
-    private bool TryResolveRuntimeLayoutWithMemoryProbe(
+    private bool TryResolveRuntimeLayoutWithMemoryBridge(
         int targetProcessId,
         out TerrariaRuntimeMemoryLayout? layout)
     {
         layout = null;
-        string? probePath = FindMemoryProbeExecutable();
+        string? probePath = FindMemoryBridgeExecutable();
         if (probePath is null)
         {
             lastExitCode = null;
@@ -141,7 +225,7 @@ internal sealed class TerrariaClrMemoryResolver
             $"MemoryBridge runtime-layout probe starting for Terraria PID {targetProcessId}; attempt={resolveAttempts}.");
         try
         {
-            using Process? probe = StartMemoryProbe(probePath, targetProcessId);
+            using Process? probe = StartMemoryBridge(probePath, targetProcessId);
             if (probe is null)
             {
                 lastExitCode = null;
@@ -209,7 +293,7 @@ internal sealed class TerrariaClrMemoryResolver
             $"error={lastError ?? "<none>"}.");
     }
 
-    private static Process? StartMemoryProbe(string probePath, int targetProcessId)
+    private static Process? StartMemoryBridge(string probePath, int targetProcessId)
     {
         var startInfo = new ProcessStartInfo(probePath)
         {
@@ -223,9 +307,27 @@ internal sealed class TerrariaClrMemoryResolver
         return Process.Start(startInfo);
     }
 
-    private static string? FindMemoryProbeExecutable()
+    private static Process? StartRandomSeedBatchBridge(
+        string bridgePath,
+        int targetProcessId,
+        int count)
     {
-        foreach (string path in EnumerateMemoryProbeCandidatePaths())
+        var startInfo = new ProcessStartInfo(bridgePath)
+        {
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        };
+        startInfo.ArgumentList.Add("random-seed-batch");
+        startInfo.ArgumentList.Add(targetProcessId.ToString(CultureInfo.InvariantCulture));
+        startInfo.ArgumentList.Add(count.ToString(CultureInfo.InvariantCulture));
+        return Process.Start(startInfo);
+    }
+
+    private static string? FindMemoryBridgeExecutable()
+    {
+        foreach (string path in EnumerateMemoryBridgeCandidatePaths())
         {
             if (File.Exists(path))
             {
@@ -236,7 +338,7 @@ internal sealed class TerrariaClrMemoryResolver
         return null;
     }
 
-    private static IEnumerable<string> EnumerateMemoryProbeCandidatePaths()
+    private static IEnumerable<string> EnumerateMemoryBridgeCandidatePaths()
     {
         foreach (string baseDirectory in EnumerateBaseDirectories())
         {
@@ -250,7 +352,7 @@ internal sealed class TerrariaClrMemoryResolver
                 {
                     yield return Path.Combine(
                         directory.FullName,
-                        "TerrariaSplit.MemoryProbe",
+                        "TerrariaSplit.MemoryBridge",
                         "bin",
                         configuration,
                         "net10.0-windows",
@@ -258,14 +360,14 @@ internal sealed class TerrariaClrMemoryResolver
                         MemoryBridgeExecutableName);
                     yield return Path.Combine(
                         directory.FullName,
-                        "TerrariaSplit.MemoryProbe",
+                        "TerrariaSplit.MemoryBridge",
                         "bin",
                         configuration,
                         "net10.0-windows",
                         MemoryBridgeExecutableName);
                     yield return Path.Combine(
                         directory.FullName,
-                        "TerrariaSplit.MemoryProbe",
+                        "TerrariaSplit.MemoryBridge",
                         ".codex-build",
                         "bin",
                         configuration,
@@ -274,7 +376,7 @@ internal sealed class TerrariaClrMemoryResolver
                         MemoryBridgeExecutableName);
                     yield return Path.Combine(
                         directory.FullName,
-                        "TerrariaSplit.MemoryProbe",
+                        "TerrariaSplit.MemoryBridge",
                         ".codex-build",
                         "bin",
                         configuration,
@@ -326,6 +428,12 @@ internal sealed class TerrariaClrMemoryResolver
         bool Success,
         string? Error,
         RuntimeLayoutProbeDto? Layout);
+
+    private sealed record RandomSeedBatchProbeResponse(
+        bool Success,
+        string? Error,
+        IReadOnlyList<string>? Seeds,
+        uint? OsThreadId);
 
     private sealed record RuntimeLayoutProbeDto(
         string? TerrariaVersion,

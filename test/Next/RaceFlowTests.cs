@@ -203,7 +203,6 @@ internal static class RaceFlowTests
             AutoCreatePlayerDifficulty.Hardcore,
             RaceWorldSettingsFactory.ToPlayerDifficulty(restored.WorldSettings.PlayerDifficultyCode));
         Check.Equal(8, restored.WorldSettings.Cheats.LifeCrystalMinimum);
-        Check.Equal(AutoCreateResourceHook.Sapphire, restored.WorldSettings.Cheats.HookMinimum);
         Check.Equal(AutoCreateJungleRouteDepth.VeryDeep, restored.WorldSettings.Cheats.JungleRouteDepth);
         Check.True(restored.WorldSettings.RngControlEnabled);
         Check.True(RaceWorldSettingsFactory.HasCompatibleJourneyDifficulties(restored.WorldSettings));
@@ -224,7 +223,6 @@ internal static class RaceFlowTests
         Check.Equal(AutoCreateJungleRouteDepth.VeryDeep, generatedSettings.JungleRouteDepth);
         Check.Equal(AutoCreateResourceFilterItem.BoomstickMask, generatedSettings.ResourceFilterItemMask);
         Check.Equal(8, generatedSettings.ResourceFilterLifeCrystalMinimum);
-        Check.Equal(AutoCreateResourceHook.Sapphire, generatedSettings.ResourceFilterHookMinimum);
         Check.Equal(2, generatedSettings.ResourceFilterSpelunkerPotionMinimum);
         Check.Equal(1, generatedSettings.ResourceFilterFeatherfallPotionMinimum);
         Check.False(RaceWorldSettingsFactory.HasActiveFilters(
@@ -471,7 +469,6 @@ internal static class RaceFlowTests
                     AutoCreateCrimsonDistance.Near,
                     AutoCreateResourceFilterItem.BoomstickMask,
                     8,
-                    AutoCreateResourceHook.Sapphire,
                     2,
                     1,
                     AutoCreateJungleRouteDepth.VeryDeep),

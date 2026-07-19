@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.Windows.Forms;
+using TerrariaSplit.UI.Settings;
 
 namespace TerrariaSplit.UI;
 
@@ -40,11 +41,15 @@ internal sealed class AutomationShell : IDisposable
         try
         {
             AutomationResult result = await worldAutomation.StartCreateWorldAsync(settingsSnapshots.CreateSnapshot(getSettings()));
-            LogAutomationFailure(result);
+            HandleAutomationResult(result, "Create World", "World generation failed.");
         }
         catch (Exception ex)
         {
             logger.Error(ex, "Unhandled create world automation error.");
+            ShowAutomationFailure(
+                "Create World",
+                "World generation failed.",
+                ex.Message);
         }
     }
 
@@ -105,15 +110,19 @@ internal sealed class AutomationShell : IDisposable
             AutomationResult result = await worldAutomation.StartEnterWorldAsync(
                 settingsSnapshots.CreateSnapshot(getSettings()),
                 selectedSlot);
-            LogAutomationFailure(result);
+            HandleAutomationResult(result, "Practice world", "Failed");
         }
         catch (Exception ex)
         {
             logger.Error(ex, "Unhandled practice world automation error.");
+            ShowAutomationFailure("Practice world", "Failed", ex.Message);
         }
     }
 
-    private void LogAutomationFailure(AutomationResult result)
+    private void HandleAutomationResult(
+        AutomationResult result,
+        string titleKey,
+        string failureMessageKey)
     {
         if (result.Succeeded || result.Cancelled)
         {
@@ -133,5 +142,30 @@ internal sealed class AutomationShell : IDisposable
         {
             logger.Info(result.DiagnosticMessage);
         }
+
+        string detail = !string.IsNullOrWhiteSpace(result.UserMessage)
+            ? result.UserMessage
+            : result.DiagnosticMessage;
+        ShowAutomationFailure(titleKey, failureMessageKey, detail);
+    }
+
+    private void ShowAutomationFailure(
+        string titleKey,
+        string failureMessageKey,
+        string detail)
+    {
+        AppSettings settings = getSettings();
+        string title = Localizer.Get(titleKey, settings);
+        string failureMessage = Localizer.Get(failureMessageKey, settings);
+        string message = string.IsNullOrWhiteSpace(detail)
+            ? failureMessage
+            : failureMessage + Environment.NewLine + detail;
+        using var dialog = new SettingsMessageDialog(
+            title,
+            message,
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Warning,
+            key => Localizer.Get(key, settings));
+        modalWindows.ShowDialog(dialog, ModalWindowOptions.ForceTopMostForeground);
     }
 }

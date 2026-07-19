@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
+using TerrariaSplit.Terraria.WorldGeneration;
 using Process = System.Diagnostics.Process;
 
 namespace TerrariaSplit.Terraria.Automation;
@@ -24,6 +25,7 @@ internal sealed class HeadlessWorldGenerator : IDisposable
 
     private readonly TerrariaWorldFilePyramidScanner scanner = new();
     private readonly PyramidFilterWorldFileEvaluator worldFileEvaluator;
+    private readonly WorldSeedFilterEvaluator seedFilterEvaluator = new();
     private readonly object currentProcessSync = new();
     private readonly string scratchDirectory;
     private readonly string serverPidPath;
@@ -62,7 +64,8 @@ internal sealed class HeadlessWorldGenerator : IDisposable
         string? seedOverride,
         string? worldNameOverride,
         CancellationToken cancellationToken,
-        IProgress<int>? progress = null)
+        IProgress<int>? progress = null,
+        bool skipSeedFilter = false)
     {
         using HeadlessGenerationLease? lease = HeadlessGenerationLease.TryAcquire(GenerationMutexName);
         if (lease is null)
@@ -86,6 +89,42 @@ internal sealed class HeadlessWorldGenerator : IDisposable
             StaticAppLogger.Instance.Info($"World pool headless generation skipped: {requestDetail}");
             scratch.Clean();
             return HeadlessWorldGenResult.Skipped;
+        }
+
+        if (!skipSeedFilter && WorldSeedFilterEvaluator.IsEnabledFor(settings))
+        {
+            TerrariaWorldGenerationVersion worldGenerationVersion =
+                serverTarget.IsLegacy1449
+                    ? TerrariaWorldGenerationVersion.Legacy1449
+                    : TerrariaWorldGenerationVersion.Modern1456;
+            WorldSeedFilterPrediction prediction =
+                await seedFilterEvaluator.EvaluateAsync(
+                    settings,
+                    request.ExpectedMetadata.SeedText,
+                    worldGenerationVersion,
+                    cancellationToken);
+            if (!prediction.CanUsePrediction &&
+                !prediction.CanContinueWithoutPrediction)
+            {
+                StaticAppLogger.Instance.Info(
+                    $"World pool seed filter failed closed for seed " +
+                    $"{request.ExpectedMetadata.SeedText}: {prediction.Detail}");
+                scratch.Clean();
+                return HeadlessWorldGenResult.Unavailable(prediction.Detail);
+            }
+            if (prediction.CanUsePrediction && !prediction.AcceptSeed)
+            {
+                StaticAppLogger.Instance.Info(
+                    $"World pool seed filter rejected seed " +
+                    $"{request.ExpectedMetadata.SeedText}: {prediction.Detail}");
+                scratch.Clean();
+                return HeadlessWorldGenResult.Rejected(prediction.Detail);
+            }
+
+            StaticAppLogger.Instance.Info(
+                prediction.CanUsePrediction
+                    ? $"World pool seed filter accepted seed {request.ExpectedMetadata.SeedText}: {prediction.Detail}"
+                    : $"World pool will rely on pyramid post-verification for seed {request.ExpectedMetadata.SeedText}: {prediction.Detail}");
         }
 
         List<string> serverArguments = new(request.ServerArguments);
@@ -115,15 +154,13 @@ internal sealed class HeadlessWorldGenerator : IDisposable
         bool postGenerationFilterMatches = true;
         PyramidFilterWorldFileResult pyramidFilterResult = default;
         bool pyramidFilterEnabled = PyramidFilterWorldFileEvaluator.IsPyramidFilterEnabled(settings);
-        bool postGenerationFilterEnabled = pyramidFilterEnabled ||
-            PyramidFilterWorldFileEvaluator.IsCrimsonCorridorFilterEnabled(settings) ||
-            PyramidFilterWorldFileEvaluator.IsResourceFilterEnabled(settings);
+        bool postGenerationFilterEnabled = pyramidFilterEnabled;
         if (postGenerationFilterEnabled)
         {
             pyramidFilterResult = worldFileEvaluator.Evaluate(worldPath, settings);
             if (!pyramidFilterResult.ScanSucceeded)
             {
-                StaticAppLogger.Instance.Info($"World pool could not run post-generation filters: {pyramidFilterResult.Detail}");
+                StaticAppLogger.Instance.Info($"World pool could not run pyramid post-verification: {pyramidFilterResult.Detail}");
             }
 
             candidateItemFound = pyramidFilterResult.PyramidFilterEnabled && pyramidFilterResult.PyramidKeep;
@@ -155,12 +192,6 @@ internal sealed class HeadlessWorldGenerator : IDisposable
             $"requiredPyramidItems={requiredPyramidItems}, " +
             $"candidateItems={candidateItemFound}, " +
             $"candidateChests={candidateChestsSummary}, " +
-            $"crimsonCorridorEnabled={pyramidFilterResult.CrimsonCorridorFilterEnabled}, " +
-            $"crimsonCorridorKeep={pyramidFilterResult.CrimsonCorridorKeep}, " +
-            $"crimsonTiles={pyramidFilterResult.CrimsonCorridor.CrimsonTileCount}, " +
-            $"resourceFilterEnabled={pyramidFilterResult.ResourceFilterEnabled}, " +
-            $"resourceFilterKeep={pyramidFilterResult.ResourceFilterKeep}, " +
-            $"resources={pyramidFilterResult.Resources?.FormatSummary() ?? "not scanned"}, " +
             $"metadata={metadataDetail}, expected={request.ExpectedDetail}, " +
             $"mode={request.ModeDetail}, keep={keep}.");
         if (!keep)
@@ -645,6 +676,7 @@ internal sealed class HeadlessWorldGenerator : IDisposable
         }
 
         ProcessLifecycleGuard.TryKill(processToKill, "World pool failed to stop headless Terraria server.");
+        seedFilterEvaluator.Dispose();
         TemporaryDirectoryScope.TryDeleteFile(serverPidPath);
         ClearScratch();
     }
@@ -736,9 +768,25 @@ internal readonly record struct HeadlessWorldGenResult(
     bool Keep,
     string WorldPath,
     TerrariaWorldSeedMetadata Metadata,
-    bool Generated)
+    bool Generated,
+    bool Retryable = false,
+    string FailureDetail = "")
 {
-    public static HeadlessWorldGenResult Miss => new(false, false, string.Empty, default, Generated: true);
+    public static HeadlessWorldGenResult Miss =>
+        new(
+            false,
+            false,
+            string.Empty,
+            default,
+            Generated: true,
+            Retryable: true,
+            FailureDetail: "TerrariaServer.exe did not produce a matching world file.");
 
     public static HeadlessWorldGenResult Skipped => new(false, false, string.Empty, default, Generated: false);
+
+    public static HeadlessWorldGenResult Rejected(string detail) =>
+        new(false, false, string.Empty, default, Generated: true, Retryable: true, detail);
+
+    public static HeadlessWorldGenResult Unavailable(string detail) =>
+        new(false, false, string.Empty, default, Generated: false, Retryable: false, detail);
 }

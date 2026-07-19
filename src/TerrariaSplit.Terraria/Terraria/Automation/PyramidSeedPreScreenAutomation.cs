@@ -1,21 +1,45 @@
 namespace TerrariaSplit.Terraria.Automation;
 
-internal sealed class PyramidSeedPreScreenAutomation
+internal sealed class PyramidSeedPreScreenAutomation : IDisposable
 {
     private readonly TerrariaAutomationContext automation;
-    private readonly IPyramidSeedPreScreenEvaluator evaluator;
+    private readonly WorldSeedFilterEvaluator evaluator;
+    private readonly bool ownsEvaluator;
+    private readonly object preparationGate = new();
+    private Task<TerrariaVisibleSeedReaderPreparation>? readerPreparationTask;
 
     public PyramidSeedPreScreenAutomation(
         TerrariaAutomationContext automation,
-        IPyramidSeedPreScreenEvaluator? evaluator = null)
+        WorldSeedFilterEvaluator? evaluator = null)
     {
         this.automation = automation;
-        this.evaluator = evaluator ?? new PyramidSeedPreScreenEvaluator();
+        this.evaluator = evaluator ?? new WorldSeedFilterEvaluator();
+        ownsEvaluator = evaluator is null;
     }
 
     public static bool IsEnabledFor(AutoCreateWorldSettings settings)
     {
-        return PyramidSeedPreScreenEvaluator.IsEnabledFor(settings);
+        return WorldSeedFilterEvaluator.IsEnabledFor(settings);
+    }
+
+    public void BeginVisibleSeedReaderPreparation(
+        AutoCreateWorldSettings settings)
+    {
+        if (!IsEnabledFor(settings))
+        {
+            return;
+        }
+
+        lock (preparationGate)
+        {
+            if (readerPreparationTask is null)
+            {
+                StaticAppLogger.Instance.Info(
+                    "Visible seed reader prewarm started at new-world entry.");
+                readerPreparationTask = Task.Run(
+                    () => TerrariaVisibleSeedReader.Prepare(automation.DelayAsync));
+            }
+        }
     }
 
     public async Task<PyramidSeedPreScreenAutomationResult> RandomizeUntilAcceptedAsync(
@@ -39,25 +63,17 @@ internal sealed class PyramidSeedPreScreenAutomation
                 : PyramidSeedPreScreenAutomationResult.FromFailed("Visible seed randomize click failed.");
         }
 
-        if (!TerrariaVisibleSeedReader.TryCreate(
-                automation.DelayAsync,
-                out TerrariaVisibleSeedReader? seedReader,
-                out string detail))
+        (TerrariaVisibleSeedReader? seedReader, string detail) =
+            await AcquireVisibleSeedReaderAsync(cancellationToken);
+        if (seedReader is null)
         {
             StaticAppLogger.Instance.Info($"Pyramid seed pre-screen could not start seed reader; randomizing once and continuing without prediction: {detail}");
             return await RandomizeOnceAndContinueWithoutPredictionAsync(geometry, clickDelay, detail, cancellationToken);
         }
 
-        if (seedReader is null)
-        {
-            const string missingReaderDetail = "Visible seed reader was not created.";
-            StaticAppLogger.Instance.Info($"Pyramid seed pre-screen could not start seed reader; randomizing once and continuing without prediction: {missingReaderDetail}");
-            return await RandomizeOnceAndContinueWithoutPredictionAsync(geometry, clickDelay, missingReaderDetail, cancellationToken);
-        }
-
         using (seedReader)
         {
-            StaticAppLogger.Instance.Info("Pyramid seed pre-screen active for small crimson world; seedReadTimeout=1000ms.");
+            StaticAppLogger.Instance.Info("World seed pre-screen active for small Crimson world; seedReadTimeout=1000ms.");
             var loop = new PyramidSeedPreScreenLoop(evaluator, StaticAppLogger.Instance.Info);
             PyramidSeedPreScreenLoopResult result = await loop.RunAsync(
                 settings,
@@ -86,25 +102,17 @@ internal sealed class PyramidSeedPreScreenAutomation
             return PyramidSeedPreScreenAutomationResult.FromAccepted();
         }
 
-        if (!TerrariaVisibleSeedReader.TryCreate(
-                automation.DelayAsync,
-                out TerrariaVisibleSeedReader? seedReader,
-                out string detail))
+        (TerrariaVisibleSeedReader? seedReader, string detail) =
+            await AcquireVisibleSeedReaderAsync(cancellationToken);
+        if (seedReader is null)
         {
             StaticAppLogger.Instance.Info($"Pyramid seed pre-screen could not start seed reader for 1.4.4.9 seed randomizer; randomizing once and continuing without prediction: {detail}");
             return await RandomizeLegacyOnceAndContinueWithoutPredictionAsync(geometry, clickDelay, detail, cancellationToken);
         }
 
-        if (seedReader is null)
-        {
-            const string missingReaderDetail = "Visible seed reader was not created.";
-            StaticAppLogger.Instance.Info($"Pyramid seed pre-screen could not start seed reader for 1.4.4.9 seed randomizer; randomizing once and continuing without prediction: {missingReaderDetail}");
-            return await RandomizeLegacyOnceAndContinueWithoutPredictionAsync(geometry, clickDelay, missingReaderDetail, cancellationToken);
-        }
-
         using (seedReader)
         {
-            StaticAppLogger.Instance.Info("Pyramid seed pre-screen active for 1.4.4.9 small crimson world; seedReadTimeout=1000ms.");
+            StaticAppLogger.Instance.Info("World seed pre-screen active for 1.4.4.9 small Crimson world; seedReadTimeout=1000ms.");
             var loop = new PyramidSeedPreScreenLoop(evaluator, StaticAppLogger.Instance.Info);
             PyramidSeedPreScreenLoopResult result = await loop.RunAsync(
                 settings,
@@ -120,6 +128,93 @@ internal sealed class PyramidSeedPreScreenAutomation
                 _ => PyramidSeedPreScreenAutomationResult.FromFailed(result.Detail)
             };
         }
+    }
+
+    public void Dispose()
+    {
+        Task<TerrariaVisibleSeedReaderPreparation>? pendingPreparation;
+        lock (preparationGate)
+        {
+            pendingPreparation = readerPreparationTask;
+            readerPreparationTask = null;
+        }
+        if (pendingPreparation is not null)
+        {
+            DisposePreparedReaderWhenCompleted(pendingPreparation);
+        }
+
+        if (ownsEvaluator)
+        {
+            evaluator.Dispose();
+        }
+    }
+
+    private async Task<(TerrariaVisibleSeedReader? Reader, string Detail)>
+        AcquireVisibleSeedReaderAsync(CancellationToken cancellationToken)
+    {
+        Task<TerrariaVisibleSeedReaderPreparation>? preparationTask;
+        lock (preparationGate)
+        {
+            preparationTask = readerPreparationTask;
+            readerPreparationTask = null;
+        }
+
+        if (preparationTask is not null)
+        {
+            try
+            {
+                TerrariaVisibleSeedReaderPreparation preparation =
+                    await preparationTask.WaitAsync(cancellationToken)
+                        .ConfigureAwait(false);
+                StaticAppLogger.Instance.Info(
+                    $"Visible seed reader prewarm completed; " +
+                    $"elapsedMs={preparation.Duration.TotalMilliseconds:F0}; " +
+                    $"detail={preparation.Detail}");
+                if (preparation.Reader is not null)
+                {
+                    return (preparation.Reader, preparation.Detail);
+                }
+
+                StaticAppLogger.Instance.Info(
+                    "Visible seed reader prewarm did not produce a reader; " +
+                    "retrying synchronously at the seed screen.");
+            }
+            catch (OperationCanceledException)
+                when (cancellationToken.IsCancellationRequested)
+            {
+                DisposePreparedReaderWhenCompleted(preparationTask);
+                throw;
+            }
+            catch (Exception ex)
+            {
+                StaticAppLogger.Instance.Info(
+                    "Visible seed reader prewarm failed; retrying synchronously " +
+                    "at the seed screen: " + ex.Message);
+            }
+        }
+
+        return TerrariaVisibleSeedReader.TryCreate(
+                automation.DelayAsync,
+                out TerrariaVisibleSeedReader? reader,
+                out string detail)
+            ? (reader, detail)
+            : (null, detail);
+    }
+
+    private static void DisposePreparedReaderWhenCompleted(
+        Task<TerrariaVisibleSeedReaderPreparation> preparationTask)
+    {
+        _ = preparationTask.ContinueWith(
+            static completed =>
+            {
+                if (completed.Status == TaskStatus.RanToCompletion)
+                {
+                    completed.Result.Reader?.Dispose();
+                }
+            },
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
     }
 
     private async Task<PyramidSeedPreScreenAutomationResult> RandomizeLegacyOnceAndContinueWithoutPredictionAsync(

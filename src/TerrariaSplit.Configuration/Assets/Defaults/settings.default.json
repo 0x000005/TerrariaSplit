@@ -1019,7 +1019,6 @@
             "JungleRouteDepth": "Medium",
             "ResourceFilterItemMask": 0,
             "ResourceFilterLifeCrystalMinimum": 0,
-            "ResourceFilterHookMinimum": "0",
             "ResourceFilterSpelunkerPotionMinimum": 0,
             "ResourceFilterFeatherfallPotionMinimum": 0,
             "EnableWorldPool": false,

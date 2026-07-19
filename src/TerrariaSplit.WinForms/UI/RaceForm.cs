@@ -89,7 +89,6 @@ internal sealed class RaceForm : Form
     private readonly Dictionary<string, CheckBox> jungleRouteDepthButtons = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, CheckBox> resourceItemButtons = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<int, CheckBox> lifeCrystalMinimumButtons = new();
-    private readonly Dictionary<string, CheckBox> hookMinimumButtons = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<int, CheckBox> spelunkerMinimumButtons = new();
     private readonly Dictionary<int, CheckBox> featherfallMinimumButtons = new();
     private readonly ToolTip titleBarToolTip = new();
@@ -261,7 +260,6 @@ internal sealed class RaceForm : Form
         }
 
         InitializeMinimumButtons(AutoCreateResourceMinimum.LifeCrystals, lifeCrystalMinimumButtons, "Life Crystal");
-        InitializeHookMinimumButtons();
         InitializeMinimumButtons(AutoCreateResourceMinimum.Potions, spelunkerMinimumButtons, "Spelunker Potion");
         InitializeMinimumButtons(AutoCreateResourceMinimum.Potions, featherfallMinimumButtons, "Featherfall Potion");
         sizeBox.SelectedIndexChanged += (_, _) => UpdateCheatAvailability();
@@ -1716,7 +1714,6 @@ internal sealed class RaceForm : Form
         SettingsUiFactory.AddSectionControl(container, CreateMinimumSelector(
             AutoCreateResourceMinimum.LifeCrystals,
             lifeCrystalMinimumButtons));
-        SettingsUiFactory.AddSectionControl(container, CreateHookMinimumSelector());
         SettingsUiFactory.AddSectionControl(container, CreateMinimumSelector(
             AutoCreateResourceMinimum.Potions,
             spelunkerMinimumButtons));
@@ -1856,23 +1853,6 @@ internal sealed class RaceForm : Form
                 ? new Padding(0, 0, 0, CheatSelectorGap)
                 : CheatSelectorMargin(index - 1, values.Count - 1);
             panel.Controls.Add(button, value == 0 ? 0 : index + 1, 0);
-        }
-
-        FinishCheatSelectorRow(panel);
-        return panel;
-    }
-
-    private Control CreateHookMinimumSelector()
-    {
-        TableLayoutPanel panel = CreateCheatSelectorPanel(AutoCreateResourceHook.All.Length);
-        for (int index = 0; index < AutoCreateResourceHook.All.Length; index++)
-        {
-            string hook = AutoCreateResourceHook.All[index];
-            CheckBox button = hookMinimumButtons[hook];
-            button.Margin = hook == AutoCreateResourceHook.None
-                ? new Padding(0, 0, 0, CheatSelectorGap)
-                : CheatSelectorMargin(index - 1, AutoCreateResourceHook.All.Length - 1);
-            panel.Controls.Add(button, hook == AutoCreateResourceHook.None ? 0 : index + 1, 0);
         }
 
         FinishCheatSelectorRow(panel);
@@ -2034,20 +2014,6 @@ internal sealed class RaceForm : Form
         ApplyMinimumSelection(0, buttons);
     }
 
-    private void InitializeHookMinimumButtons()
-    {
-        foreach (string hook in AutoCreateResourceHook.All)
-        {
-            CheckBox button = CreateSelectorButton(
-                hook == AutoCreateResourceHook.None ? "Hook" : hook,
-                selected: false);
-            button.CheckedChanged += (_, _) => SelectHookMinimum(hook, button.Checked);
-            hookMinimumButtons[hook] = button;
-        }
-
-        ApplyHookMinimumSelection(AutoCreateResourceHook.None);
-    }
-
     private CheckBox CreateSpecialSeedButton(string textKey, bool selected)
     {
         CheckBox button = CreateSelectorButton(textKey, selected);
@@ -2184,7 +2150,6 @@ internal sealed class RaceForm : Form
             GetSelectedCrimsonDistance(),
             resourceItemMask,
             GetSelectedMinimum(lifeCrystalMinimumButtons, AutoCreateResourceMinimum.LifeCrystals),
-            GetSelectedHookMinimum(),
             GetSelectedMinimum(spelunkerMinimumButtons, AutoCreateResourceMinimum.Potions),
             GetSelectedMinimum(featherfallMinimumButtons, AutoCreateResourceMinimum.Potions),
             GetSelectedJungleRouteDepth());
@@ -2313,12 +2278,22 @@ internal sealed class RaceForm : Form
         if (worldSource == RacePanelWorldSource.Random)
         {
             worldPathBox.Text = string.Empty;
-            await shell.GenerateRandomWorldAsync(worldSettings, generationProgress);
+            RacePanelWorldGenerationResult generation =
+                await shell.GenerateRandomWorldAsync(worldSettings, generationProgress);
             cancellationToken.ThrowIfCancellationRequested();
             SyncLocalWorldPath();
+            if (!generation.Succeeded)
+            {
+                ResetHostWorldProgress();
+                ShowWorldGenerationFailure(generation);
+                return;
+            }
+
             if (string.IsNullOrWhiteSpace(shell.LocalWorldPath))
             {
                 ResetHostWorldProgress();
+                ShowWorldGenerationFailure(RacePanelWorldGenerationResult.Failure(
+                    Localize("World generation completed without a world file.")));
                 return;
             }
 
@@ -2328,12 +2303,22 @@ internal sealed class RaceForm : Form
         else if (worldSource == RacePanelWorldSource.CustomSeed)
         {
             worldPathBox.Text = string.Empty;
-            await shell.GenerateCustomSeedWorldAsync(worldSettings, seedBox.Text, generationProgress);
+            RacePanelWorldGenerationResult generation =
+                await shell.GenerateCustomSeedWorldAsync(worldSettings, seedBox.Text, generationProgress);
             cancellationToken.ThrowIfCancellationRequested();
             SyncLocalWorldPath();
+            if (!generation.Succeeded)
+            {
+                ResetHostWorldProgress();
+                ShowWorldGenerationFailure(generation);
+                return;
+            }
+
             if (string.IsNullOrWhiteSpace(shell.LocalWorldPath))
             {
                 ResetHostWorldProgress();
+                ShowWorldGenerationFailure(RacePanelWorldGenerationResult.Failure(
+                    Localize("World generation completed without a world file.")));
                 return;
             }
 
@@ -2490,6 +2475,14 @@ internal sealed class RaceForm : Form
         dialogs.ShowWarning(message, Localize("Race"));
     }
 
+    private void ShowWorldGenerationFailure(RacePanelWorldGenerationResult result)
+    {
+        string message = string.IsNullOrWhiteSpace(result.Message)
+            ? Localize("World generation failed.")
+            : Localize("World generation failed.") + Environment.NewLine + result.Message;
+        dialogs.ShowWarning(message, Localize("Race"));
+    }
+
     private void ShowJoinRoomFailure(RaceOperationResult<RaceRoomState> result)
     {
         string detail = string.IsNullOrWhiteSpace(result.Message) ? result.ErrorCode : result.Message;
@@ -2600,7 +2593,6 @@ internal sealed class RaceForm : Form
         ApplyMinimumSelection(
             AutoCreateResourceMinimum.NormalizeLifeCrystals(cheats.LifeCrystalMinimum),
             lifeCrystalMinimumButtons);
-        ApplyHookMinimumSelection(AutoCreateResourceHook.Normalize(cheats.HookMinimum));
         ApplyMinimumSelection(
             AutoCreateResourceMinimum.NormalizePotions(cheats.SpelunkerPotionMinimum),
             spelunkerMinimumButtons);
@@ -3185,7 +3177,6 @@ internal sealed class RaceForm : Form
         }
 
         UpdateMinimumAvailability(lifeCrystalMinimumButtons, resourcesSupported);
-        UpdateHookMinimumAvailability(resourcesSupported);
         UpdateMinimumAvailability(spelunkerMinimumButtons, resourcesSupported);
         UpdateMinimumAvailability(featherfallMinimumButtons, resourcesSupported);
     }
@@ -3198,18 +3189,6 @@ internal sealed class RaceForm : Form
         foreach ((int value, CheckBox button) in buttons)
         {
             button.Enabled = supported && (value == 0 || enabled);
-            UpdateSelectorButtonState(button);
-        }
-    }
-
-    private void UpdateHookMinimumAvailability(bool supported)
-    {
-        bool enabled = supported &&
-            hookMinimumButtons.TryGetValue(AutoCreateResourceHook.None, out CheckBox? toggle) &&
-            toggle.Checked;
-        foreach ((string hook, CheckBox button) in hookMinimumButtons)
-        {
-            button.Enabled = supported && (hook == AutoCreateResourceHook.None || enabled);
             UpdateSelectorButtonState(button);
         }
     }
@@ -3268,58 +3247,6 @@ internal sealed class RaceForm : Form
         }
 
         return 0;
-    }
-
-    private void SelectHookMinimum(string selectedMinimum, bool selected)
-    {
-        if (updatingResourceMinimumSelection)
-        {
-            return;
-        }
-
-        string normalized = selectedMinimum == AutoCreateResourceHook.None
-            ? selected ? AutoCreateResourceHook.Amethyst : AutoCreateResourceHook.None
-            : selectedMinimum;
-        ApplyHookMinimumSelection(normalized);
-        UpdateCheatAvailability();
-    }
-
-    private void ApplyHookMinimumSelection(string selectedMinimum)
-    {
-        updatingResourceMinimumSelection = true;
-        try
-        {
-            bool enabled = selectedMinimum != AutoCreateResourceHook.None;
-            foreach ((string hook, CheckBox button) in hookMinimumButtons)
-            {
-                button.Checked = enabled &&
-                    (hook == AutoCreateResourceHook.None || AutoCreateResourceHook.Includes(selectedMinimum, hook));
-                UpdateSelectorButtonState(button);
-            }
-        }
-        finally
-        {
-            updatingResourceMinimumSelection = false;
-        }
-    }
-
-    private string GetSelectedHookMinimum()
-    {
-        if (!hookMinimumButtons.TryGetValue(AutoCreateResourceHook.None, out CheckBox? toggle) ||
-            !toggle.Checked)
-        {
-            return AutoCreateResourceHook.None;
-        }
-
-        foreach (string hook in AutoCreateResourceHook.All.Where(hook => hook != AutoCreateResourceHook.None))
-        {
-            if (hookMinimumButtons.TryGetValue(hook, out CheckBox? button) && button.Checked)
-            {
-                return hook;
-            }
-        }
-
-        return AutoCreateResourceHook.None;
     }
 
     private void SelectCrimsonDistance(string selectedDistance)

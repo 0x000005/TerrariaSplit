@@ -11,10 +11,254 @@ internal static class TerrariaIntegrationTests
     public static IEnumerable<TestCase> All()
     {
         yield return TestCase.Sync("pyramid pre-screen evaluates known positive, item mismatch and no-pyramid seeds", TestSuite.Flow, PyramidPredictionJourney, timeoutSeconds: 30);
+        yield return TestCase.Async("jungle seed judge worker preserves protocol and returns seed-only analysis", TestSuite.Flow, JungleSeedJudgeWorkerJourney, timeoutSeconds: 30);
+        yield return TestCase.Async("world seed filter skips a seed when the worker request times out", TestSuite.Flow, WorldSeedFilterTimeoutJourney, timeoutSeconds: 10);
+        yield return TestCase.Async("world seed filter skips a seed when the jungle route is partial", TestSuite.Flow, WorldSeedFilterPartialRouteJourney, timeoutSeconds: 10);
+        yield return TestCase.Sync("race seed filter concurrency uses eighty percent of processors", TestSuite.Core, RaceSeedFilterConcurrency);
+        yield return TestCase.Async("race seed filter evaluates candidate seeds as one parallel batch", TestSuite.Flow, RaceSeedFilterBatchJourney, timeoutSeconds: 15);
+        yield return TestCase.Async("UI seed pre-screen restarts after an empty batch or RNG drift without seed writeback", TestSuite.Flow, UiSeedBatchReplanJourney, timeoutSeconds: 30);
         yield return TestCase.Async("race world upload validates, hashes, deduplicates, locates and deletes a Terraria world", TestSuite.Flow, WorldFileTransferJourney);
-        yield return TestCase.Sync("post-generation filter handles small, medium and large Crimson worlds and rejects other placement", TestSuite.Flow, CrimsonCorridorPostFilter);
-        yield return TestCase.Sync("resource post-filter combines required items, count thresholds and hook tiers", TestSuite.Flow, ResourcePostFilterRules);
         yield return TestCase.Sync("world automation settings normalize incompatible options and secret seed lists", TestSuite.Core, WorldSettingsNormalization);
+    }
+
+    private static async Task JungleSeedJudgeWorkerJourney(CancellationToken cancellationToken)
+    {
+        string? workerPath = Environment.GetEnvironmentVariable(
+            "TERRARIA_WORLD_FILTER");
+        if (string.IsNullOrWhiteSpace(workerPath))
+        {
+            return;
+        }
+
+        await using var client = new JungleSeedJudgeWorkerClient(
+            workerPath,
+            TimeSpan.FromSeconds(5));
+        JungleSeedJudgeResult result = await client.AnalyzeAsync(
+            "1527488",
+            JungleSeedJudgeGameMode.Classic,
+            cancellationToken);
+        Check.Equal(JungleSeedJudgeStatus.Complete, result.Status);
+        Check.True(result.Complete);
+        Check.Equal(62, result.CheckpointPassIndex);
+        Check.Equal(JungleSeedAnalysisStatus.Complete, result.Jungle!.AnalysisStatus);
+        Check.Equal(JungleRouteStatus.Complete, result.Jungle.Route.Status);
+        Check.Equal(2754, result.Jungle.Route.DeepestX);
+        Check.Equal(846, result.Jungle.Route.DeepestY);
+        Check.True(result.Jungle.Resources.Count >= 10);
+        Check.True(result.Jungle.Resources.Any(resource =>
+            resource.Category == "FeralClaws" &&
+            resource.X == 2806 &&
+            resource.Y == 431 &&
+            Math.Abs(resource.Cost - 1.2) < 0.001));
+        Check.Equal(2, result.CrimsonVertices!.Count);
+        Check.Equal(new CrimsonCorridorVertex(1, 1608, 279), result.CrimsonVertices[0]);
+        Check.Equal(new CrimsonCorridorVertex(2, 3687, 223), result.CrimsonVertices[1]);
+        var filterSettings = new AutoCreateWorldSettings
+        {
+            EnableCheats = true,
+            EnablePyramidFilter = false,
+            RequireCrimsonBetweenDungeonAndSpawn = true,
+            CrimsonDistance = AutoCreateCrimsonDistance.Near,
+            JungleRouteDepth = AutoCreateJungleRouteDepth.VeryDeep,
+            ResourceFilterItemMask = AutoCreateResourceFilterItem.FeralClawsMask
+        };
+        Check.True(JungleSeedFilterMatcher.Match(filterSettings, result).Matches);
+        JungleSeedJudgeResult shallow = result with
+        {
+            Jungle = result.Jungle with
+            {
+                Route = result.Jungle.Route with { DeepestY = 749 }
+            }
+        };
+        Check.False(JungleSeedFilterMatcher.Match(filterSettings, shallow).Matches);
+
+        string[] reportedStallSeeds =
+        {
+            "1083872473",
+            "1160429121",
+            "1261980980"
+        };
+        for (int cycle = 0; cycle < 2; cycle++)
+        {
+            foreach (string seedText in reportedStallSeeds)
+            {
+                JungleSeedJudgeResult repeated = await client.AnalyzeAsync(
+                    seedText,
+                    JungleSeedJudgeGameMode.Classic,
+                    cancellationToken);
+                Check.Equal(JungleSeedJudgeStatus.Complete, repeated.Status);
+                Check.True(repeated.Complete);
+                Check.Equal(seedText, repeated.SeedText);
+            }
+        }
+
+        JungleSeedJudgeResult rejected = await client.AnalyzeAsync(
+            "5162020",
+            JungleSeedJudgeGameMode.Classic,
+            cancellationToken);
+        Check.Equal(JungleSeedJudgeStatus.SpecialSeedUnsupported, rejected.Status);
+        Check.False(rejected.Complete);
+        Check.True(rejected.Jungle is null);
+    }
+
+    private static async Task WorldSeedFilterTimeoutJourney(CancellationToken cancellationToken)
+    {
+        string? workerPath = Environment.GetEnvironmentVariable(
+            "TERRARIA_WORLD_FILTER");
+        if (string.IsNullOrWhiteSpace(workerPath))
+        {
+            return;
+        }
+
+        await using var worker = new JungleSeedJudgeWorkerClient(
+            workerPath,
+            TimeSpan.FromMilliseconds(1));
+        using var evaluator = new WorldSeedFilterEvaluator(worker: worker);
+        var settings = new AutoCreateWorldSettings
+        {
+            EnableCheats = true,
+            EnablePyramidFilter = false,
+            WorldSize = AutoCreateWorldSize.Small,
+            WorldDifficulty = AutoCreateWorldDifficulty.Classic,
+            WorldEvil = AutoCreateWorldEvil.Crimson,
+            JungleRouteDepth = AutoCreateJungleRouteDepth.Medium
+        };
+
+        WorldSeedFilterPrediction prediction = await evaluator.EvaluateAsync(
+            settings,
+            "1083872473",
+            TerrariaWorldGenerationVersion.Modern1456,
+            cancellationToken);
+
+        Check.True(prediction.CanUsePrediction);
+        Check.False(prediction.AcceptSeed);
+        Check.True(prediction.Detail.Contains(
+            "transient failure; skip seed",
+            StringComparison.Ordinal));
+    }
+
+    private static async Task WorldSeedFilterPartialRouteJourney(CancellationToken cancellationToken)
+    {
+        string? workerPath = Environment.GetEnvironmentVariable(
+            "TERRARIA_WORLD_FILTER");
+        if (string.IsNullOrWhiteSpace(workerPath))
+        {
+            return;
+        }
+
+        await using var worker = new JungleSeedJudgeWorkerClient(
+            workerPath,
+            TimeSpan.FromSeconds(5));
+        using var evaluator = new WorldSeedFilterEvaluator(worker: worker);
+        var settings = new AutoCreateWorldSettings
+        {
+            EnableCheats = true,
+            EnablePyramidFilter = false,
+            WorldSize = AutoCreateWorldSize.Small,
+            WorldDifficulty = AutoCreateWorldDifficulty.Classic,
+            WorldEvil = AutoCreateWorldEvil.Crimson,
+            JungleRouteDepth = AutoCreateJungleRouteDepth.Medium
+        };
+
+        WorldSeedFilterPrediction prediction = await evaluator.EvaluateAsync(
+            settings,
+            "576122169",
+            TerrariaWorldGenerationVersion.Modern1456,
+            cancellationToken);
+
+        Check.True(prediction.CanUsePrediction);
+        Check.False(prediction.AcceptSeed);
+        Check.True(prediction.Detail.Contains(
+            "jungle route depth 386 < 550; routeStatus=Partial",
+            StringComparison.Ordinal));
+    }
+
+    private static void RaceSeedFilterConcurrency()
+    {
+        Check.Equal(1, TerrariaRaceWorldGenerationService.CalculateSeedFilterConcurrency(1));
+        Check.Equal(1, TerrariaRaceWorldGenerationService.CalculateSeedFilterConcurrency(2));
+        Check.Equal(3, TerrariaRaceWorldGenerationService.CalculateSeedFilterConcurrency(4));
+        Check.Equal(6, TerrariaRaceWorldGenerationService.CalculateSeedFilterConcurrency(8));
+        Check.Equal(12, TerrariaRaceWorldGenerationService.CalculateSeedFilterConcurrency(16));
+    }
+
+    private static async Task RaceSeedFilterBatchJourney(CancellationToken cancellationToken)
+    {
+        string? workerPath = Environment.GetEnvironmentVariable(
+            "TERRARIA_WORLD_FILTER");
+        if (string.IsNullOrWhiteSpace(workerPath))
+        {
+            return;
+        }
+
+        var settings = new AutoCreateWorldSettings
+        {
+            EnableCheats = true,
+            EnablePyramidFilter = false,
+            WorldSize = AutoCreateWorldSize.Small,
+            WorldDifficulty = AutoCreateWorldDifficulty.Classic,
+            WorldEvil = AutoCreateWorldEvil.Crimson,
+            JungleRouteDepth = AutoCreateJungleRouteDepth.Medium
+        };
+        string[] seeds = ["576122169", "1527488", "1083872473"];
+        using var service = new TerrariaRaceWorldGenerationService();
+
+        TerrariaRaceSeedFilterBatchResult result =
+            await service.FilterSeedBatchAsync(
+                settings,
+                seeds,
+                cancellationToken);
+
+        Check.False(result.HasFatalError);
+        Check.Equal(seeds.Length, result.EvaluatedCount);
+        Check.True(result.AcceptedCandidates.Any(candidate =>
+            candidate.SeedText == "1527488" &&
+            candidate.BatchIndex == 1));
+    }
+
+    private static async Task UiSeedBatchReplanJourney(
+        CancellationToken cancellationToken)
+    {
+        int batchSize = WorldSeedFilterEvaluator.CalculateParallelism(
+            Environment.ProcessorCount);
+        string[] emptyPrediction = Enumerable.Repeat("702683177", batchSize).ToArray();
+        string[] driftedPrediction = Enumerable.Repeat("702683177", batchSize).ToArray();
+        driftedPrediction[1] = "540278984";
+        string[] acceptedPrediction = Enumerable.Repeat("702683177", batchSize).ToArray();
+        acceptedPrediction[0] = "540278984";
+        var ui = new FakePredictedSeedUi(
+            [
+                new FakeSeedPlan(
+                    emptyPrediction,
+                    Enumerable.Repeat("702683177", batchSize).ToArray()),
+                new FakeSeedPlan(driftedPrediction, ["111111111", "999999999"]),
+                new FakeSeedPlan(acceptedPrediction, ["540278984"])
+            ]);
+        var settings = new AutoCreateWorldSettings
+        {
+            EnableCheats = true,
+            EnablePyramidFilter = true,
+            WorldSize = AutoCreateWorldSize.Small,
+            WorldDifficulty = AutoCreateWorldDifficulty.Classic,
+            WorldEvil = AutoCreateWorldEvil.Crimson,
+            PyramidFilterItemMask = AutoCreatePyramidFilterItem.SandstormInABottleMask
+        };
+        using var evaluator = new WorldSeedFilterEvaluator();
+        var loop = new PyramidSeedPreScreenLoop(evaluator, _ => { });
+
+        PyramidSeedPreScreenLoopResult result = await loop.RunAsync(
+            settings,
+            TerrariaMenuProfile.Modern1456,
+            ui,
+            ui,
+            cancellationToken);
+
+        Check.True(result.Accepted);
+        Check.Equal("540278984", result.AcceptedSeed);
+        Check.Equal(batchSize + 3, result.Attempts);
+        Check.Equal(batchSize + 3, ui.RandomizeClicks);
+        Check.Equal(3, ui.PredictionReads);
+        Check.Equal("540278984", ui.ReadCurrentSeed());
     }
 
     private static void PyramidPredictionJourney()
@@ -157,7 +401,6 @@ internal static class TerrariaIntegrationTests
             CrimsonDistance = "invalid",
             ResourceFilterItemMask = int.MaxValue,
             ResourceFilterLifeCrystalMinimum = 16,
-            ResourceFilterHookMinimum = "invalid",
             ResourceFilterSpelunkerPotionMinimum = 7,
             ResourceFilterFeatherfallPotionMinimum = -1
         };
@@ -168,190 +411,86 @@ internal static class TerrariaIntegrationTests
         Check.Equal(AutoCreateCrimsonDistance.Far, settings.CrimsonDistance);
         Check.True((settings.PyramidFilterItemMask & ~AutoCreatePyramidFilterItem.AllMask) == 0);
         Check.Equal(AutoCreateResourceFilterItem.AllMask, settings.ResourceFilterItemMask);
-        Check.Equal(0, settings.ResourceFilterLifeCrystalMinimum);
-        Check.Equal(AutoCreateResourceHook.None, settings.ResourceFilterHookMinimum);
+        Check.Equal(5, settings.ResourceFilterLifeCrystalMinimum);
         Check.Equal(0, settings.ResourceFilterSpelunkerPotionMinimum);
         Check.Equal(0, settings.ResourceFilterFeatherfallPotionMinimum);
         Check.Equal(2, AutoCreateSeedList.Parse(settings.SecretSeeds).Count);
     }
 
-    private static void ResourcePostFilterRules()
+    private sealed record FakeSeedPlan(
+        IReadOnlyList<string> PredictedSeeds,
+        IReadOnlyList<string> VisibleSeedsAfterClicks);
+
+    private sealed class FakePredictedSeedUi :
+        IPyramidSeedRandomizer,
+        IPyramidVisibleSeedReader
     {
-        var settings = new AutoCreateWorldSettings
+        private readonly IReadOnlyList<FakeSeedPlan> plans;
+        private int nextPlanIndex;
+        private FakeSeedPlan? activePlan;
+        private int activeClickIndex;
+        private string currentSeed = "0";
+
+        public FakePredictedSeedUi(IReadOnlyList<FakeSeedPlan> plans)
         {
-            EnableCheats = true,
-            WorldSize = AutoCreateWorldSize.Small,
-            WorldEvil = AutoCreateWorldEvil.Crimson,
-            ResourceFilterItemMask = AutoCreateResourceFilterItem.AllMask,
-            ResourceFilterLifeCrystalMinimum = 8,
-            ResourceFilterHookMinimum = AutoCreateResourceHook.Sapphire,
-            ResourceFilterSpelunkerPotionMinimum = 2,
-            ResourceFilterFeatherfallPotionMinimum = 1,
-            JungleRouteDepth = AutoCreateJungleRouteDepth.None
-        };
-        Dictionary<string, int> gems = AutoCreateResourceHook.All
-            .Where(hook => hook != AutoCreateResourceHook.None)
-            .ToDictionary(hook => hook, _ => 0, StringComparer.Ordinal);
-        gems[AutoCreateResourceHook.Sapphire] = 14;
-        gems[AutoCreateResourceHook.Emerald] = 15;
-        var resources = new WorldResourceFilterResult(
-            false,
-            Boomsticks: 1,
-            FeralClaws: 1,
-            CloudBottles: 1,
-            AnkletsOfTheWind: 1,
-            HermesBoots: 1,
-            LifeCrystals: 8,
-            SpelunkerPotions: 2,
-            FeatherfallPotions: 1,
-            gems,
-            TimeSpan.Zero);
+            this.plans = plans;
+        }
 
-        Check.True(PyramidFilterWorldFileEvaluator.IsResourceFilterEnabled(settings));
-        Check.True(WorldResourceFilterMatcher.Matches(settings, resources));
-        settings.EnableCheats = false;
-        Check.False(PyramidFilterWorldFileEvaluator.IsResourceFilterEnabled(settings));
-        settings.EnableCheats = true;
-        gems[AutoCreateResourceHook.Emerald] = 14;
-        resources = resources with { Gems = new Dictionary<string, int>(gems, StringComparer.Ordinal) };
-        Check.False(WorldResourceFilterMatcher.Matches(settings, resources));
-        gems[AutoCreateResourceHook.Ruby] = 15;
-        resources = resources with { Gems = new Dictionary<string, int>(gems, StringComparer.Ordinal) };
-        Check.True(WorldResourceFilterMatcher.Matches(settings, resources));
-        settings.ResourceFilterHookMinimum = AutoCreateResourceHook.Diamond;
-        Check.False(WorldResourceFilterMatcher.Matches(settings, resources));
-        gems[AutoCreateResourceHook.Diamond] = 15;
-        resources = resources with { Gems = new Dictionary<string, int>(gems, StringComparer.Ordinal) };
-        Check.True(WorldResourceFilterMatcher.Matches(settings, resources));
+        public int RandomizeClicks { get; private set; }
 
-        settings.JungleRouteDepth = AutoCreateJungleRouteDepth.Deep;
-        resources = resources with { JungleRouteDeepestY = 649 };
-        Check.False(WorldResourceFilterMatcher.Matches(settings, resources));
-        resources = resources with { JungleRouteDeepestY = 650 };
-        Check.True(WorldResourceFilterMatcher.Matches(settings, resources));
-        settings.JungleRouteDepth = AutoCreateJungleRouteDepth.None;
+        public int PredictionReads { get; private set; }
 
-        settings.WorldSize = AutoCreateWorldSize.Medium;
-        Check.False(PyramidFilterWorldFileEvaluator.IsResourceFilterEnabled(settings));
-        settings.WorldSize = AutoCreateWorldSize.Small;
-        settings.WorldEvil = AutoCreateWorldEvil.Corruption;
-        Check.False(PyramidFilterWorldFileEvaluator.IsResourceFilterEnabled(settings));
+        public string? ReadCurrentSeed() => currentSeed;
 
-        var disabledRequirements = new AutoCreateWorldSettings
+        public bool TryPredictNextSeedBatch(
+            int count,
+            out IReadOnlyList<string> seedTexts,
+            out string detail)
         {
-            JungleRouteDepth = AutoCreateJungleRouteDepth.None
-        };
-        Check.True(WorldResourceFilterMatcher.Matches(disabledRequirements, WorldResourceFilterResult.Empty));
-    }
-
-    private static void CrimsonCorridorPostFilter()
-    {
-        using var directory = new TestDirectory();
-        var scanner = new TerrariaWorldFilePyramidScanner();
-        var evaluator = new PyramidFilterWorldFileEvaluator(scanner);
-        (string Size, int Width, int Height)[] sizes =
-        {
-            (AutoCreateWorldSize.Small, 4200, 1200),
-            (AutoCreateWorldSize.Medium, 6400, 1800),
-            (AutoCreateWorldSize.Large, 8400, 2400)
-        };
-
-        foreach ((string size, int width, int height) in sizes)
-        {
-            int dungeonX = 200;
-            int spawnX = width / 2;
-            int nearDistance = AutoCreateCrimsonDistance.MaximumDistanceTiles(width, AutoCreateCrimsonDistance.Near);
-            int mediumDistance = AutoCreateCrimsonDistance.MaximumDistanceTiles(width, AutoCreateCrimsonDistance.Medium);
-            Check.Equal((width / 2) / 4, nearDistance);
-            Check.Equal((width / 2) * 9 / 20, mediumDistance);
-            string nearPath = directory.Combine($"{size}-near.wld");
-            string mediumPath = directory.Combine($"{size}-medium.wld");
-            string farPath = directory.Combine($"{size}-far.wld");
-            string outsidePath = directory.Combine($"{size}-outside.wld");
-            File.WriteAllBytes(
-                nearPath,
-                CreatePostFilterWorld(width, height, spawnX, dungeonX, crimsonTileX: spawnX - nearDistance));
-            File.WriteAllBytes(
-                mediumPath,
-                CreatePostFilterWorld(width, height, spawnX, dungeonX, crimsonTileX: spawnX - mediumDistance));
-            File.WriteAllBytes(
-                farPath,
-                CreatePostFilterWorld(width, height, spawnX, dungeonX, crimsonTileX: dungeonX + 1));
-            File.WriteAllBytes(
-                outsidePath,
-                CreatePostFilterWorld(width, height, spawnX, dungeonX, crimsonTileX: width - 200));
-
-            Check.True(scanner.TryScanCrimsonBetweenDungeonAndSpawn(
-                nearPath,
-                out CrimsonCorridorScanResult near,
-                out string nearDetail,
-                AutoCreateCrimsonDistance.Near));
-            Check.Equal(string.Empty, nearDetail);
-            Check.True(near.HasCrimson);
-            Check.True(near.CrimsonTileCount >= 300);
-            Check.Equal(spawnX - nearDistance, near.Bounds.Left);
-            Check.Equal(spawnX, near.Bounds.Right);
-
-            Check.True(scanner.TryScanCrimsonBetweenDungeonAndSpawn(
-                mediumPath,
-                out CrimsonCorridorScanResult mediumRejectedByNear,
-                out _,
-                AutoCreateCrimsonDistance.Near));
-            Check.False(mediumRejectedByNear.HasCrimson);
-            Check.True(scanner.TryScanCrimsonBetweenDungeonAndSpawn(
-                mediumPath,
-                out CrimsonCorridorScanResult medium,
-                out _,
-                AutoCreateCrimsonDistance.Medium));
-            Check.True(medium.HasCrimson);
-            Check.Equal(spawnX - mediumDistance, medium.Bounds.Left);
-
-            Check.True(scanner.TryScanCrimsonBetweenDungeonAndSpawn(
-                farPath,
-                out CrimsonCorridorScanResult farRejectedByMedium,
-                out _,
-                AutoCreateCrimsonDistance.Medium));
-            Check.False(farRejectedByMedium.HasCrimson);
-            Check.True(scanner.TryScanCrimsonBetweenDungeonAndSpawn(
-                farPath,
-                out CrimsonCorridorScanResult far,
-                out _,
-                AutoCreateCrimsonDistance.Far));
-            Check.True(far.HasCrimson);
-            Check.Equal(dungeonX + 1, far.Bounds.Left);
-
-            Check.True(scanner.TryScanCrimsonBetweenDungeonAndSpawn(outsidePath, out CrimsonCorridorScanResult outside, out string outsideDetail));
-            Check.Equal(string.Empty, outsideDetail);
-            Check.False(outside.HasCrimson);
-            Check.Equal(0, outside.CrimsonTileCount);
-
-            var settings = new AutoCreateWorldSettings
+            PredictionReads++;
+            if (nextPlanIndex >= plans.Count)
             {
-                EnableCheats = true,
-                WorldSize = size,
-                WorldEvil = AutoCreateWorldEvil.Crimson,
-                EnablePyramidFilter = false,
-                RequireCrimsonBetweenDungeonAndSpawn = true,
-                JungleRouteDepth = AutoCreateJungleRouteDepth.None,
-                CrimsonDistance = AutoCreateCrimsonDistance.Near
-            };
-            PyramidFilterWorldFileResult kept = evaluator.Evaluate(nearPath, settings);
-            PyramidFilterWorldFileResult rejected = evaluator.Evaluate(mediumPath, settings);
-            Check.True(kept.Keep);
-            Check.True(kept.CrimsonCorridorFilterEnabled);
-            Check.False(rejected.Keep);
+                seedTexts = Array.Empty<string>();
+                detail = "No fake plan remains.";
+                return false;
+            }
 
-            settings.EnableCheats = false;
-            PyramidFilterWorldFileResult disabled = evaluator.Evaluate(mediumPath, settings);
-            Check.True(disabled.Keep);
-            Check.False(disabled.CrimsonCorridorFilterEnabled);
-            settings.EnableCheats = true;
+            activePlan = plans[nextPlanIndex++];
+            activeClickIndex = 0;
+            seedTexts = activePlan.PredictedSeeds;
+            detail = "fake Terraria Main.rand";
+            return seedTexts.Count == count;
+        }
 
-            string enabledSignature = WorldPoolSignature.From(settings);
-            settings.CrimsonDistance = AutoCreateCrimsonDistance.Medium;
-            Check.False(string.Equals(enabledSignature, WorldPoolSignature.From(settings), StringComparison.Ordinal));
-            settings.RequireCrimsonBetweenDungeonAndSpawn = false;
-            Check.False(string.Equals(enabledSignature, WorldPoolSignature.From(settings), StringComparison.Ordinal));
+        public Task<bool> RandomizeVisibleSeedAsync(
+            int attempt,
+            CancellationToken cancellationToken)
+        {
+            _ = attempt;
+            cancellationToken.ThrowIfCancellationRequested();
+            if (activePlan is null ||
+                activeClickIndex >= activePlan.VisibleSeedsAfterClicks.Count)
+            {
+                return Task.FromResult(false);
+            }
+
+            currentSeed = activePlan.VisibleSeedsAfterClicks[activeClickIndex++];
+            RandomizeClicks++;
+            return Task.FromResult(true);
+        }
+
+        public Task<PyramidVisibleSeedReadResult> WaitForSeedAfterRandomizeAsync(
+            string? previousSeedText,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(
+                string.Equals(currentSeed, previousSeedText, StringComparison.Ordinal)
+                    ? PyramidVisibleSeedReadResult.Failed(
+                        TerrariaWorldCreationSeedStatus.Seed,
+                        1,
+                        currentSeed)
+                    : PyramidVisibleSeedReadResult.FromSeed(currentSeed, 1));
         }
     }
 

@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.Windows.Forms;
+using TerrariaSplit.UI.Rendering;
 
 namespace TerrariaSplit.UI;
 
@@ -547,7 +548,7 @@ internal sealed partial class MainForm : Form
             runtimeSnapshot.TimerState,
             overlayShell.MouseClickThrough,
             runtimeServices?.RaceShell.GetMainTimerRankColor(runtimeSnapshot.TimerState.Phase, splitStatuses),
-            ShouldShowPyramidFilterIndicator());
+            GetCheatFilterIndicatorLevel());
     }
 
     private TimerOverlayStateKey BuildTimerOverlaySnapshotKey()
@@ -559,13 +560,17 @@ internal sealed partial class MainForm : Form
             viewState.StatusHash,
             overlayShell.TimerOverlaySettingsRevision,
             runtimeServices?.RaceShell.GetMainTimerRankColor(runtimeSnapshot.TimerState.Phase, splitStatuses)?.ToArgb(),
-            ShouldShowPyramidFilterIndicator());
+            GetCheatFilterIndicatorLevel());
     }
 
-    private bool ShouldShowPyramidFilterIndicator()
+    private CheatFilterIndicatorLevel GetCheatFilterIndicatorLevel()
     {
-        return settings.Automation.AutoCreate.EnableCheats ||
-            runtimeServices?.RaceShell.IsCheatsActive == true;
+        CheatFilterIndicatorLevel local = CheatFilterIndicator.Resolve(
+            settings.Automation.AutoCreate);
+        CheatFilterIndicatorLevel race =
+            runtimeServices?.RaceShell.CheatFilterIndicatorLevel ??
+            CheatFilterIndicatorLevel.None;
+        return CheatFilterIndicator.Max(local, race);
     }
 
     private void UpdateTimerOverlayRefreshInterval()

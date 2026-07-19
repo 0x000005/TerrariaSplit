@@ -31,7 +31,6 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
     private readonly Dictionary<string, CheckBox> autoCreatePyramidItemBoxes = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, CheckBox> autoCreateResourceItemBoxes = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<int, CheckBox> autoCreateLifeCrystalMinimumBoxes = new();
-    private readonly Dictionary<string, CheckBox> autoCreateHookMinimumBoxes = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<int, CheckBox> autoCreateSpelunkerMinimumBoxes = new();
     private readonly Dictionary<int, CheckBox> autoCreateFeatherfallMinimumBoxes = new();
     private readonly CheckBox autoCreateWorldPoolBox = new();
@@ -66,7 +65,6 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
     internal IReadOnlyDictionary<string, CheckBox> AutoCreateJungleRouteDepthBoxes => autoCreateJungleRouteDepthBoxes;
     internal IReadOnlyDictionary<string, CheckBox> AutoCreateResourceItemBoxes => autoCreateResourceItemBoxes;
     internal IReadOnlyDictionary<int, CheckBox> AutoCreateLifeCrystalMinimumBoxes => autoCreateLifeCrystalMinimumBoxes;
-    internal IReadOnlyDictionary<string, CheckBox> AutoCreateHookMinimumBoxes => autoCreateHookMinimumBoxes;
     internal IReadOnlyDictionary<int, CheckBox> AutoCreateSpelunkerMinimumBoxes => autoCreateSpelunkerMinimumBoxes;
     internal IReadOnlyDictionary<int, CheckBox> AutoCreateFeatherfallMinimumBoxes => autoCreateFeatherfallMinimumBoxes;
     internal IReadOnlyDictionary<string, CheckBox> AutoCreatePyramidItemBoxes => autoCreatePyramidItemBoxes;
@@ -113,7 +111,6 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
         settings.Automation.AutoCreate.ResourceFilterLifeCrystalMinimum = GetSelectedMinimum(
             autoCreateLifeCrystalMinimumBoxes,
             AutoCreateResourceMinimum.LifeCrystals);
-        settings.Automation.AutoCreate.ResourceFilterHookMinimum = GetSelectedHookMinimum();
         settings.Automation.AutoCreate.ResourceFilterSpelunkerPotionMinimum = GetSelectedMinimum(
             autoCreateSpelunkerMinimumBoxes,
             AutoCreateResourceMinimum.Potions);
@@ -354,7 +351,6 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
         SettingsUiFactory.AddSectionControl(createSection, CreateJungleRouteDepthSelector());
         SettingsUiFactory.AddSectionControl(createSection, CreateResourceItemSelector());
         SettingsUiFactory.AddSectionControl(createSection, CreateLifeCrystalMinimumSelector());
-        SettingsUiFactory.AddSectionControl(createSection, CreateHookMinimumSelector());
         SettingsUiFactory.AddSectionControl(createSection, CreateSpelunkerMinimumSelector());
         SettingsUiFactory.AddSectionControl(createSection, CreateFeatherfallMinimumSelector());
         UpdatePostGenerationFilterAvailability();

@@ -220,6 +220,7 @@ internal sealed class CreateWorldWorkflow : IDisposable
 
     public void Dispose()
     {
+        pyramidSeedPreScreenAutomation.Dispose();
     }
 }
 

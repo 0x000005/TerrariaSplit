@@ -116,7 +116,6 @@ public sealed record RaceCheatSettings(
     string CrimsonDistance,
     int ResourceItemMask,
     int LifeCrystalMinimum,
-    string HookMinimum,
     int SpelunkerPotionMinimum,
     int FeatherfallPotionMinimum,
     string JungleRouteDepth = "0")
@@ -129,7 +128,6 @@ public sealed record RaceCheatSettings(
         string.Empty,
         0,
         0,
-        "0",
         0,
         0);
 }

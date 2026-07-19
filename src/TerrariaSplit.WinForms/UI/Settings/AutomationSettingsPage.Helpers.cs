@@ -206,31 +206,6 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
         return panel;
     }
 
-    private TableLayoutPanel CreateHookMinimumSelector()
-    {
-        autoCreateHookMinimumBoxes.Clear();
-        string selectedMinimum = AutoCreateResourceHook.Normalize(Draft.Automation.AutoCreate.ResourceFilterHookMinimum);
-        TableLayoutPanel panel = CreateSelectorPanel(AutoCreateResourceHook.All.Length, fixedFirstColumn: true);
-        for (int index = 0; index < AutoCreateResourceHook.All.Length; index++)
-        {
-            string hook = AutoCreateResourceHook.All[index];
-            CheckBox button = CreateSelectorButton(
-                hook == AutoCreateResourceHook.None ? "Hook" : hook,
-                selectedMinimum != AutoCreateResourceHook.None &&
-                    (hook == AutoCreateResourceHook.None || AutoCreateResourceHook.Includes(selectedMinimum, hook)));
-            button.Margin = hook == AutoCreateResourceHook.None
-                ? new Padding(0, 0, 0, CheatSelectorGap)
-                : SelectorMargin(index - 1, AutoCreateResourceHook.All.Length - 1);
-            button.CheckedChanged += (_, _) => SelectHookMinimum(hook, button.Checked);
-            autoCreateHookMinimumBoxes[hook] = button;
-            panel.Controls.Add(button, hook == AutoCreateResourceHook.None ? 0 : index + 1, 0);
-        }
-
-        FinishSingleRowSelector(panel);
-        ApplyHookMinimumSelection(selectedMinimum);
-        return panel;
-    }
-
     private static TableLayoutPanel CreateSelectorPanel(int columnCount, bool fixedFirstColumn = false)
     {
         int physicalColumnCount = fixedFirstColumn
@@ -538,44 +513,9 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
             UpdateSpecialSeedButtonState(button);
         }
         UpdateMinimumAvailability(autoCreateLifeCrystalMinimumBoxes, supportsResourceFilter);
-        UpdateHookMinimumAvailability(supportsResourceFilter);
         UpdateMinimumAvailability(autoCreateSpelunkerMinimumBoxes, supportsResourceFilter);
         UpdateMinimumAvailability(autoCreateFeatherfallMinimumBoxes, supportsResourceFilter);
         UpdatePyramidItemAvailability();
-        DisableCheatActivator(autoCreateCrimsonBetweenDungeonAndSpawnBox);
-        DisableCheatActivator(autoCreateJungleRouteDepthBox);
-        foreach (CheckBox button in autoCreateResourceItemBoxes.Values)
-        {
-            DisableCheatActivator(button);
-        }
-
-        DisableMinimumActivator(autoCreateLifeCrystalMinimumBoxes);
-        DisableHookActivator();
-        DisableMinimumActivator(autoCreateSpelunkerMinimumBoxes);
-        DisableMinimumActivator(autoCreateFeatherfallMinimumBoxes);
-    }
-
-    private static void DisableCheatActivator(CheckBox button)
-    {
-        button.Checked = false;
-        button.Enabled = false;
-        UpdateSpecialSeedButtonState(button);
-    }
-
-    private static void DisableMinimumActivator(IReadOnlyDictionary<int, CheckBox> boxes)
-    {
-        if (boxes.TryGetValue(0, out CheckBox? button))
-        {
-            DisableCheatActivator(button);
-        }
-    }
-
-    private void DisableHookActivator()
-    {
-        if (autoCreateHookMinimumBoxes.TryGetValue(AutoCreateResourceHook.None, out CheckBox? button))
-        {
-            DisableCheatActivator(button);
-        }
     }
 
     private static void UpdateMinimumAvailability(
@@ -586,17 +526,6 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
         foreach ((int value, CheckBox button) in boxes)
         {
             button.Enabled = supported && (value == 0 || enabled);
-        }
-    }
-
-    private void UpdateHookMinimumAvailability(bool supported)
-    {
-        bool enabled = supported &&
-            autoCreateHookMinimumBoxes.TryGetValue(AutoCreateResourceHook.None, out CheckBox? toggle) &&
-            toggle.Checked;
-        foreach ((string hook, CheckBox button) in autoCreateHookMinimumBoxes)
-        {
-            button.Enabled = supported && (hook == AutoCreateResourceHook.None || enabled);
         }
     }
 
@@ -654,58 +583,6 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
         }
 
         return 0;
-    }
-
-    private void SelectHookMinimum(string selectedMinimum, bool selected)
-    {
-        if (updatingResourceMinimumSelection)
-        {
-            return;
-        }
-
-        string normalized = selectedMinimum == AutoCreateResourceHook.None
-            ? selected ? AutoCreateResourceHook.Amethyst : AutoCreateResourceHook.None
-            : selectedMinimum;
-        ApplyHookMinimumSelection(normalized);
-        UpdatePostGenerationFilterAvailability();
-    }
-
-    private void ApplyHookMinimumSelection(string selectedMinimum)
-    {
-        updatingResourceMinimumSelection = true;
-        try
-        {
-            bool enabled = selectedMinimum != AutoCreateResourceHook.None;
-            foreach ((string hook, CheckBox button) in autoCreateHookMinimumBoxes)
-            {
-                button.Checked = enabled &&
-                    (hook == AutoCreateResourceHook.None || AutoCreateResourceHook.Includes(selectedMinimum, hook));
-                UpdateSpecialSeedButtonState(button);
-            }
-        }
-        finally
-        {
-            updatingResourceMinimumSelection = false;
-        }
-    }
-
-    private string GetSelectedHookMinimum()
-    {
-        if (!autoCreateHookMinimumBoxes.TryGetValue(AutoCreateResourceHook.None, out CheckBox? toggle) ||
-            !toggle.Checked)
-        {
-            return AutoCreateResourceHook.None;
-        }
-
-        foreach (string hook in AutoCreateResourceHook.All.Where(hook => hook != AutoCreateResourceHook.None))
-        {
-            if (autoCreateHookMinimumBoxes.TryGetValue(hook, out CheckBox? button) && button.Checked)
-            {
-                return hook;
-            }
-        }
-
-        return AutoCreateResourceHook.None;
     }
 
     private void SelectCrimsonDistance(string selectedDistance)

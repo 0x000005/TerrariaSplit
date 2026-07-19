@@ -55,6 +55,17 @@ internal sealed class TerrariaMemoryResolver
         runtimeLayout = null;
     }
 
+    public bool TryPredictRandomSeedBatch(
+        int count,
+        out IReadOnlyList<string> seedTexts,
+        out string detail)
+    {
+        return clrMemoryResolver.TryPredictRandomSeedBatch(
+            count,
+            out seedTexts,
+            out detail);
+    }
+
     internal void SetRuntimeLayoutForTests(TerrariaRuntimeMemoryLayout layout)
     {
         runtimeLayout = layout;

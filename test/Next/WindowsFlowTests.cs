@@ -10,7 +10,34 @@ internal static class WindowsFlowTests
         yield return TestCase.Async("settings window opens every page and produces a normalized draft without mutating the source", TestSuite.Windows, SettingsDraftJourney);
         yield return TestCase.Sync("overlay restores a visible multi-monitor position and keeps dense layouts inside composite bounds", TestSuite.Windows, OverlayLayoutJourney);
         yield return TestCase.Sync("timer reserves stable proportional-font slots for milliseconds and indicators", TestSuite.Windows, TimerProportionalFontLayoutJourney);
+        yield return TestCase.Sync("cheat filter indicator uses yellow orange and red priority", TestSuite.Core, CheatFilterIndicatorPriority);
         yield return TestCase.Sync("hotkey settings normalize modifiers and fall back when keys are unsafe", TestSuite.Windows, HotkeyJourney);
+    }
+
+    private static void CheatFilterIndicatorPriority()
+    {
+        var settings = new AutoCreateWorldSettings
+        {
+            EnableCheats = true,
+            EnablePyramidFilter = true
+        };
+        Check.Equal(
+            Color.FromArgb(217, 166, 46).ToArgb(),
+            CheatFilterIndicator.GetColor(
+                CheatFilterIndicator.Resolve(settings)).ToArgb());
+
+        settings.RequireCrimsonBetweenDungeonAndSpawn = true;
+        Check.Equal(
+            Color.FromArgb(240, 138, 50).ToArgb(),
+            CheatFilterIndicator.GetColor(
+                CheatFilterIndicator.Resolve(settings)).ToArgb());
+
+        settings.ResourceFilterItemMask =
+            AutoCreateResourceFilterItem.BoomstickMask;
+        Check.Equal(
+            Color.FromArgb(213, 72, 72).ToArgb(),
+            CheatFilterIndicator.GetColor(
+                CheatFilterIndicator.Resolve(settings)).ToArgb());
     }
 
     private static Task AboutPageJourney(CancellationToken cancellationToken) => StaTestHost.RunAsync(() =>
@@ -136,9 +163,9 @@ internal static class WindowsFlowTests
         Check.False(string.Equals(source.Overlay.Colors.NameText, draft.Overlay.Colors.NameText, StringComparison.Ordinal));
         Check.Equal("English", source.General.Language);
         AutomationSettingsPage automation = form.PageHost.GetOrCreatePage<AutomationSettingsPage>(SettingsPageId.Automation);
-        Check.Equal(11, automation.AutoCreateLifeCrystalMinimumBoxes.Count);
-        Check.Equal("10+", automation.AutoCreateLifeCrystalMinimumBoxes[10].Text);
-        Check.False(automation.AutoCreateLifeCrystalMinimumBoxes[10].AutoEllipsis);
+        Check.Equal(6, automation.AutoCreateLifeCrystalMinimumBoxes.Count);
+        Check.Equal("5+", automation.AutoCreateLifeCrystalMinimumBoxes[5].Text);
+        Check.False(automation.AutoCreateLifeCrystalMinimumBoxes[5].AutoEllipsis);
         Check.False(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Enabled);
         automation.AutoCreateCheatsBox.Checked = true;
         Check.False(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Enabled);
@@ -152,15 +179,13 @@ internal static class WindowsFlowTests
         Check.True(automation.AutoCreateJungleRouteDepthBoxes.Values.All(static button => !button.Enabled));
         Check.True(automation.AutoCreateResourceItemBoxes.Values.All(static button => !button.Enabled));
         Check.False(automation.AutoCreateLifeCrystalMinimumBoxes[0].Enabled);
-        Check.False(automation.AutoCreateHookMinimumBoxes[AutoCreateResourceHook.None].Enabled);
         Check.False(automation.AutoCreateSpelunkerMinimumBoxes[0].Enabled);
         Check.False(automation.AutoCreateFeatherfallMinimumBoxes[0].Enabled);
         AppSettings resourceDraft = form.PageHost.CreateAppliedSnapshot();
         Check.True(resourceDraft.Automation.AutoCreate.EnableCheats);
         Check.Equal(AutoCreateJungleRouteDepth.None, resourceDraft.Automation.AutoCreate.JungleRouteDepth);
-        Check.Equal(AutoCreateResourceFilterItem.None, resourceDraft.Automation.AutoCreate.ResourceFilterItemMask);
+        Check.Equal(0, resourceDraft.Automation.AutoCreate.ResourceFilterItemMask);
         Check.Equal(0, resourceDraft.Automation.AutoCreate.ResourceFilterLifeCrystalMinimum);
-        Check.Equal(AutoCreateResourceHook.None, resourceDraft.Automation.AutoCreate.ResourceFilterHookMinimum);
         Check.Equal(0, resourceDraft.Automation.AutoCreate.ResourceFilterSpelunkerPotionMinimum);
         Check.Equal(0, resourceDraft.Automation.AutoCreate.ResourceFilterFeatherfallPotionMinimum);
         Check.True(source.Automation.AutoCreate.RequireCrimsonBetweenDungeonAndSpawn);

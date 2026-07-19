@@ -7,6 +7,7 @@ using TerrariaSplit.Race.Client;
 using TerrariaSplit.Race.Contracts;
 using TerrariaSplit.Terraria;
 using TerrariaSplit.Terraria.Automation;
+using TerrariaSplit.UI.Rendering;
 
 namespace TerrariaSplit.UI;
 
@@ -21,7 +22,6 @@ internal sealed class RaceShell : IRacePanelShell, IDisposable
     private const int RaceDirectGenerationProgressMaximum = 90;
     private readonly RaceClientSession session = new();
     private readonly RaceRouteOverrideController routeOverride;
-    private readonly RaceLocalPyramidSeedGenerator seedGenerator = new();
     private readonly TerrariaRaceWorldGenerationService worldGeneration = new();
     private readonly ITerrariaRaceWorldLockService worldLock;
     private readonly RaceSpeechCoordinator speechCoordinator;
@@ -133,6 +133,15 @@ internal sealed class RaceShell : IRacePanelShell, IDisposable
     public bool IsCheatsActive =>
         session.State is RaceRoomState { Status: not RaceRoomStatus.Closed, WorldSettings: RaceWorldSettings worldSettings } &&
         worldSettings.EffectiveCheats.Enabled;
+
+    public CheatFilterIndicatorLevel CheatFilterIndicatorLevel =>
+        session.State is RaceRoomState
+        {
+            Status: not RaceRoomStatus.Closed,
+            WorldSettings: RaceWorldSettings worldSettings
+        }
+            ? CheatFilterIndicator.Resolve(worldSettings.EffectiveCheats)
+            : CheatFilterIndicatorLevel.None;
 
     public string? LocalWorldPath => localWorldPath;
 
@@ -389,7 +398,9 @@ internal sealed class RaceShell : IRacePanelShell, IDisposable
         LogRaceOperationFailure(result, "kick player");
     }
 
-    public async Task GenerateRandomWorldAsync(RaceWorldSettings worldSettings, IProgress<int>? progress = null)
+    public async Task<RacePanelWorldGenerationResult> GenerateRandomWorldAsync(
+        RaceWorldSettings worldSettings,
+        IProgress<int>? progress = null)
     {
         progress = CreateJobProgress("race-world-generation", progress);
         SaveDraftState(draftState with { Role = RacePanelRole.Host });
@@ -398,24 +409,20 @@ internal sealed class RaceShell : IRacePanelShell, IDisposable
         if (!RaceWorldSettingsFactory.HasActiveFilters(worldSettings))
         {
             string seedText = CreateRandomSeedText();
-            await GenerateWorldFromSeedAsync(
+            return await GenerateWorldFromSeedAsync(
                 worldSettings,
                 new RaceSeedAssignment(seedText, RaceSeedSource.HostGenerated),
                 progress,
                 RaceDirectGenerationProgressMaximum);
-            return;
         }
 
-        if (RaceWorldSettingsFactory.IsPyramidFilterEnabled(worldSettings))
-        {
-            await GeneratePrescreenedWorldUntilVerifiedAsync(worldSettings, RaceRandomWorldMaxAttempts, progress);
-            return;
-        }
-
-        await GenerateRandomWorldUntilVerifiedAsync(worldSettings, RaceRandomWorldMaxAttempts, progress);
+        return await GenerateRandomWorldUntilVerifiedAsync(
+            worldSettings,
+            RaceRandomWorldMaxAttempts,
+            progress);
     }
 
-    public async Task GenerateCustomSeedWorldAsync(
+    public async Task<RacePanelWorldGenerationResult> GenerateCustomSeedWorldAsync(
         RaceWorldSettings worldSettings,
         string seedText,
         IProgress<int>? progress = null)
@@ -425,12 +432,12 @@ internal sealed class RaceShell : IRacePanelShell, IDisposable
         if (string.IsNullOrWhiteSpace(seedText))
         {
             logger.Info("Race custom seed world generation ignored because seed is empty.");
-            return;
+            return RacePanelWorldGenerationResult.Failure(Localize("A seed is required."));
         }
 
         SaveDraftState(draftState with { SeedText = seedText.Trim() });
 
-        await GenerateWorldFromSeedAsync(
+        return await GenerateWorldFromSeedAsync(
             worldSettings,
             new RaceSeedAssignment(seedText.Trim(), RaceSeedSource.Fixed),
             progress,
@@ -871,114 +878,114 @@ internal sealed class RaceShell : IRacePanelShell, IDisposable
         LogRaceOperationFailure(ready, "mark world ready");
     }
 
-    private async Task GenerateWorldFromSeedAsync(
+    private async Task<RacePanelWorldGenerationResult> GenerateWorldFromSeedAsync(
         RaceWorldSettings worldSettings,
         RaceSeedAssignment seed,
         IProgress<int>? progress,
-        int progressMaximum)
+        int progressMaximum,
+        bool seedFilterAlreadyAccepted = false,
+        bool reuseWorldGenerationCancellation = false)
     {
         progress?.Report(0);
         RaceLocalWorldGenerationAttempt attempt = await TryGenerateWorldFromSeedAsync(
             worldSettings,
             seed,
             progress,
-            progressMaximum);
+            progressMaximum,
+            seedFilterAlreadyAccepted,
+            reuseWorldGenerationCancellation);
         if (!attempt.Succeeded)
         {
             logger.Info("Race world generation failed: " + attempt.Message);
-            return;
+            return RacePanelWorldGenerationResult.Failure(attempt.Message);
         }
 
         progress?.Report(90);
+        return RacePanelWorldGenerationResult.Success();
     }
 
-    private async Task GeneratePrescreenedWorldUntilVerifiedAsync(
+    private async Task<RacePanelWorldGenerationResult> GenerateRandomWorldUntilVerifiedAsync(
         RaceWorldSettings worldSettings,
         int maxAttempts,
         IProgress<int>? progress)
     {
         int attempts = Math.Clamp(maxAttempts <= 0 ? RaceRandomWorldMaxAttempts : maxAttempts, 1, 5_000_000);
-        int verifiedAttempts = 0;
+        int concurrency = TerrariaRaceWorldGenerationService.CalculateSeedFilterConcurrency(
+            Environment.ProcessorCount);
+        CancellationToken cancellationToken = ResetWorldGenerationCancellation();
+        AutoCreateWorldSettings filterSettings =
+            RaceWorldSettingsFactory.ToAutoCreateWorldSettings(worldSettings);
+        logger.Info(
+            $"Race seed pre-filter starting with {concurrency} workers " +
+            $"({Environment.ProcessorCount} logical processors, 80% policy).");
+        int evaluatedSeeds = 0;
         string lastFailure = string.Empty;
-        for (int prescreenAttempts = 1; prescreenAttempts <= attempts; prescreenAttempts++)
+        while (evaluatedSeeds < attempts)
         {
-            RaceLocalPyramidSeedAttempt seedAttempt = seedGenerator.TryNext(worldSettings);
-            if (seedAttempt.Status == RaceLocalPyramidSeedAttemptStatus.Miss)
+            cancellationToken.ThrowIfCancellationRequested();
+            int batchCount = Math.Min(concurrency, attempts - evaluatedSeeds);
+            string[] seedTexts = Enumerable.Range(0, batchCount)
+                .Select(_ => CreateRandomSeedText())
+                .ToArray();
+            progress?.Report(0);
+            TerrariaRaceSeedFilterBatchResult batch =
+                await worldGeneration.FilterSeedBatchAsync(
+                    filterSettings,
+                    seedTexts,
+                    cancellationToken);
+            int batchStartAttempt = evaluatedSeeds + 1;
+            evaluatedSeeds += batch.EvaluatedCount;
+            if (batch.HasFatalError)
             {
+                logger.Info("Race seed pre-filter failed: " + batch.FatalError);
+                return RacePanelWorldGenerationResult.Failure(batch.FatalError);
+            }
+
+            if (batch.AcceptedCandidates.Count == 0)
+            {
+                lastFailure = batch.Detail;
                 continue;
             }
 
-            if (seedAttempt.Status == RaceLocalPyramidSeedAttemptStatus.Fatal ||
-                seedAttempt.Seed is not RaceSeedAssignment seed)
+            foreach (TerrariaRaceSeedFilterCandidate candidate in batch.AcceptedCandidates)
             {
-                logger.Info("Race pyramid pre-screen is unavailable; falling back to direct world generation and world-file verification. Detail=" + seedAttempt.Message);
-                await GenerateRandomWorldUntilVerifiedAsync(worldSettings, attempts, progress);
-                return;
-            }
+                cancellationToken.ThrowIfCancellationRequested();
+                int generationAttempt = batchStartAttempt + candidate.BatchIndex;
+                var seed = new RaceSeedAssignment(
+                    candidate.SeedText,
+                    RaceSeedSource.HostGenerated);
+                RaceLocalWorldGenerationAttempt worldAttempt =
+                    await TryGenerateWorldFromSeedAsync(
+                        worldSettings,
+                        seed,
+                        progress,
+                        RaceVerifiedGenerationProgressMaximum,
+                        seedFilterAlreadyAccepted: true,
+                        reuseWorldGenerationCancellation: true);
+                if (worldAttempt.Succeeded)
+                {
+                    logger.Info(
+                        $"Race world generated after {generationAttempt} parallel pre-filter attempts: " +
+                        worldAttempt.WorldPath);
+                    progress?.Report(90);
+                    return RacePanelWorldGenerationResult.Success();
+                }
 
-            verifiedAttempts++;
-            progress?.Report(0);
-            RaceLocalWorldGenerationAttempt worldAttempt = await TryGenerateWorldFromSeedAsync(
-                worldSettings,
-                seed,
-                progress,
-                RaceVerifiedGenerationProgressMaximum);
-            if (worldAttempt.Succeeded)
-            {
-                logger.Info($"Race world generated after {verifiedAttempts} verified pre-screen candidates: {worldAttempt.WorldPath}");
-                progress?.Report(90);
-                return;
-            }
+                if (!worldAttempt.Retryable)
+                {
+                    logger.Info("Race world generation failed: " + worldAttempt.Message);
+                    return RacePanelWorldGenerationResult.Failure(worldAttempt.Message);
+                }
 
-            if (!worldAttempt.Retryable)
-            {
-                logger.Info("Race world generation failed: " + worldAttempt.Message);
-                return;
+                lastFailure = worldAttempt.Message;
             }
-
-            lastFailure = worldAttempt.Message;
         }
 
-        logger.Info(string.IsNullOrWhiteSpace(lastFailure)
-            ? $"Race found no verified world after {attempts} pre-screen attempts."
-            : $"Race found no verified world after {attempts} pre-screen attempts. Last verification failure: {lastFailure}");
-    }
-
-    private async Task GenerateRandomWorldUntilVerifiedAsync(
-        RaceWorldSettings worldSettings,
-        int maxAttempts,
-        IProgress<int>? progress)
-    {
-        int attempts = Math.Clamp(maxAttempts <= 0 ? RaceRandomWorldMaxAttempts : maxAttempts, 1, 5_000_000);
-        string lastFailure = string.Empty;
-        for (int generationAttempt = 1; generationAttempt <= attempts; generationAttempt++)
-        {
-            RaceSeedAssignment seed = new(CreateRandomSeedText(), RaceSeedSource.HostGenerated);
-            progress?.Report(0);
-            RaceLocalWorldGenerationAttempt worldAttempt = await TryGenerateWorldFromSeedAsync(
-                worldSettings,
-                seed,
-                progress,
-                RaceVerifiedGenerationProgressMaximum);
-            if (worldAttempt.Succeeded)
-            {
-                logger.Info($"Race world generated after {generationAttempt} generated-world verification attempts: {worldAttempt.WorldPath}");
-                progress?.Report(90);
-                return;
-            }
-
-            if (!worldAttempt.Retryable)
-            {
-                logger.Info("Race world generation failed: " + worldAttempt.Message);
-                return;
-            }
-
-            lastFailure = worldAttempt.Message;
-        }
-
-        logger.Info(string.IsNullOrWhiteSpace(lastFailure)
+        string message = string.IsNullOrWhiteSpace(lastFailure)
             ? $"Race found no verified world after {attempts} generated worlds."
-            : $"Race found no verified world after {attempts} generated worlds. Last verification failure: {lastFailure}");
+            : $"Race found no verified world after {attempts} generated worlds. Last verification failure: {lastFailure}";
+        logger.Info(message);
+        return RacePanelWorldGenerationResult.Failure(message);
     }
 
     private static string CreateRandomSeedText()
@@ -990,11 +997,15 @@ internal sealed class RaceShell : IRacePanelShell, IDisposable
         RaceWorldSettings worldSettings,
         RaceSeedAssignment seed,
         IProgress<int>? progress,
-        int progressMaximum)
+        int progressMaximum,
+        bool seedFilterAlreadyAccepted = false,
+        bool reuseWorldGenerationCancellation = false)
     {
-        worldGenerationCancellation?.Cancel();
-        worldGenerationCancellation?.Dispose();
-        worldGenerationCancellation = new CancellationTokenSource();
+        CancellationToken cancellationToken = reuseWorldGenerationCancellation
+            ? worldGenerationCancellation?.Token ??
+                throw new InvalidOperationException(
+                    "Race world generation cancellation was not initialized.")
+            : ResetWorldGenerationCancellation();
         string worldName = CreateRaceWorldStem(DateTimeOffset.Now);
         try
         {
@@ -1003,9 +1014,10 @@ internal sealed class RaceShell : IRacePanelShell, IDisposable
                 seed.SeedText,
                 worldName,
                 getSettings().General.Language,
-                worldGenerationCancellation.Token,
+                cancellationToken,
                 progress,
-                progressMaximum);
+                progressMaximum,
+                seedFilterAlreadyAccepted);
             localWorldPath = result.Succeeded ? result.WorldPath : null;
             if (result.Succeeded)
             {
@@ -1018,7 +1030,7 @@ internal sealed class RaceShell : IRacePanelShell, IDisposable
 
             return result.Succeeded
                 ? RaceLocalWorldGenerationAttempt.Success(result.WorldPath)
-                : RaceLocalWorldGenerationAttempt.Failure(result.Message, IsRetryableWorldGenerationFailure(result.Message));
+                : RaceLocalWorldGenerationAttempt.Failure(result.Message, result.Retryable);
         }
         catch (OperationCanceledException)
         {
@@ -1031,12 +1043,12 @@ internal sealed class RaceShell : IRacePanelShell, IDisposable
         }
     }
 
-    private static bool IsRetryableWorldGenerationFailure(string message)
+    private CancellationToken ResetWorldGenerationCancellation()
     {
-        return string.Equals(
-            message,
-            "TerrariaServer.exe did not produce a matching world file.",
-            StringComparison.Ordinal);
+        worldGenerationCancellation?.Cancel();
+        worldGenerationCancellation?.Dispose();
+        worldGenerationCancellation = new CancellationTokenSource();
+        return worldGenerationCancellation.Token;
     }
 
     private void DeleteRaceWorldFile(string worldPath)
