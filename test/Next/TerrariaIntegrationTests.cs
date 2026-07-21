@@ -454,8 +454,8 @@ internal static class TerrariaIntegrationTests
         Check.Equal(AutoCreateWorldEvil.Crimson, settings.WorldEvil);
         Check.Equal(AutoCreateCrimsonDistance.Far, settings.CrimsonDistance);
         Check.True((settings.PyramidFilterItemMask & ~AutoCreatePyramidFilterItem.AllMask) == 0);
-        Check.Equal(AutoCreateResourceFilterItem.AllMask, settings.ResourceFilterItemMask);
-        Check.Equal(5, settings.ResourceFilterLifeCrystalMinimum);
+        Check.Equal(0, settings.ResourceFilterItemMask);
+        Check.Equal(0, settings.ResourceFilterLifeCrystalMinimum);
         Check.Equal(0, settings.ResourceFilterSpelunkerPotionMinimum);
         Check.Equal(0, settings.ResourceFilterFeatherfallPotionMinimum);
         Check.Equal(2, AutoCreateSeedList.Parse(settings.SecretSeeds).Count);

@@ -21,7 +21,8 @@ public static class SettingsJsonSectionMigrator
         nameof(HotkeySettings.ResetKey),
         nameof(HotkeySettings.MouseClickThroughKey),
         nameof(HotkeySettings.CreateWorldKey),
-        nameof(HotkeySettings.PracticeWorldKey)
+        nameof(HotkeySettings.PracticeWorldKey),
+        nameof(HotkeySettings.ManualSplitKey)
     ];
 
     private static readonly string[] RouteKeys =
@@ -89,6 +90,7 @@ public static class SettingsJsonSectionMigrator
 
     private static readonly string[] AdvancedKeys =
     [
+        nameof(AdvancedSettings.EnableManualSplit),
         nameof(AdvancedSettings.EnableTerrariaUiScalePatch),
         nameof(AdvancedSettings.EnableRtssOverlay),
         nameof(AdvancedSettings.RtssExecutablePath),

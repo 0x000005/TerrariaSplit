@@ -413,8 +413,13 @@ public static class SplitCatalog
                 lightingConditions);
         }
 
+        IReadOnlyDictionary<string, string> allIconFilePaths = iconOverride.AllIconFilePaths ??
+            new Dictionary<string, string>();
         string[] iconFileNames = targetIds
-            .Select(id => TryGetTargetIconData(id, out _, out string iconFileName) ? iconFileName : "target.png")
+            .Select(id => allIconFilePaths.TryGetValue(id, out string? filePath) &&
+                !string.IsNullOrWhiteSpace(filePath)
+                    ? filePath.Trim()
+                    : TryGetTargetIconData(id, out _, out string iconFileName) ? iconFileName : "target.png")
             .ToArray();
         return new SplitIconData(iconFileNames, targetIds.ToArray(), []);
     }

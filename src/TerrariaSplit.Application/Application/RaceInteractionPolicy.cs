@@ -26,6 +26,7 @@ public static class RaceInteractionPolicy
             QueueMenuActionCommand queued => Allows(queued.Action, isRaceModeEnabled),
             EditPracticeSplitTimeCommand => false,
             EditPracticeTotalTimeCommand => false,
+            CompleteNextSplitManuallyCommand => false,
             _ => true
         };
     }

@@ -23,6 +23,20 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
 
         statusLabel = new Label { Visible = false };
         SettingsUiFactory.AddSection(parent, section);
+        AddAllIconFilesSection(parent);
+    }
+
+    private void AddAllIconFilesSection(TableLayoutPanel parent)
+    {
+        allIconFilesSection = Factory.CreateSection("Icon files");
+        allIconFilesGrid = Factory.CreateGrid(
+            SettingsUiFactory.ColumnStyleAbsolute(420f),
+            SettingsUiFactory.ColumnStylePercent(100f),
+            SettingsUiFactory.ColumnStyleAbsolute(152f),
+            SettingsUiFactory.ColumnStyleAbsolute(144f));
+        SettingsUiFactory.AddSectionControl(allIconFilesSection, allIconFilesGrid);
+        SettingsUiFactory.AddSection(parent, allIconFilesSection);
+        allIconFilesSection.Visible = false;
     }
 
     private Control CreateTargetLibraryPanel()
@@ -136,6 +150,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
         iconOverrideBox = CreateIconOverrideBox();
         iconOverrideBox.SelectedIndexChanged += (_, _) =>
         {
+            UpdateAllIconFilesSectionVisibility();
             if (updatingUi || conditionController.UpdatingSettings)
             {
                 return;
@@ -331,7 +346,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
     private ThemedDropDownList CreateIconOverrideBox()
     {
         ThemedDropDownList comboBox = Factory.CreateDropDownList();
-        comboBox.Items.Add(new IconOverrideOption(SplitIconOverrideSource.All, string.Empty, Context.Localize("All")));
+        comboBox.Items.Add(new IconOverrideOption(SplitIconOverrideSource.All, string.Empty, Context.Localize("All icons")));
         comboBox.SelectedIndex = 0;
         return comboBox;
     }
@@ -358,20 +373,20 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
                 iconOverrideBox.Items.Add(new IconOverrideOption(
                     SplitIconOverrideSource.All,
                     string.Empty,
-                    Context.Localize("All")));
+                    Context.Localize("All icons")));
 
                 foreach (SplitTargetDefinition target in GetCurrentConditionTargets())
                 {
                     iconOverrideBox.Items.Add(new IconOverrideOption(
                         SplitIconOverrideSource.Target,
                         target.Id,
-                        FormatTargetListItem(target)));
+                        FormatSingleIconOption(FormatTargetListItem(target))));
                 }
 
                 iconOverrideBox.Items.Add(new IconOverrideOption(
                     SplitIconOverrideSource.CustomFile,
                     string.Empty,
-                    Context.Localize("Custom image")));
+                    FormatSingleIconOption(Context.Localize("Custom image"))));
             }
             finally
             {
@@ -396,11 +411,89 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
 
             iconOverrideBox.SelectedItem = selected ?? iconOverrideBox.Items[0];
             iconOverrideFileBox.Text = source == SplitIconOverrideSource.CustomFile ? filePath : string.Empty;
+            RefreshAllIconFileRows(iconOverride);
         }
         finally
         {
             conditionController.UpdatingSettings = false;
         }
+    }
+
+    private string FormatSingleIconOption(string iconName)
+    {
+        return string.Format(
+            CultureInfo.InvariantCulture,
+            Context.Localize("Single icon: {0}"),
+            iconName);
+    }
+
+    private void RefreshAllIconFileRows(SplitIconOverride iconOverride)
+    {
+        if (allIconFilesGrid is null)
+        {
+            return;
+        }
+
+        IReadOnlyDictionary<string, string> filePaths = iconOverride.AllIconFilePaths ??
+            new Dictionary<string, string>();
+        allIconFilesGrid.SuspendLayout();
+        try
+        {
+            allIconFilesGrid.Controls.Clear();
+            allIconFilesGrid.RowStyles.Clear();
+            allIconFilesGrid.RowCount = 0;
+            allIconFileBoxes.Clear();
+
+            foreach (SplitTargetDefinition target in GetCurrentConditionTargets())
+            {
+                string value = filePaths.FirstOrDefault(pair =>
+                    string.Equals(pair.Key, target.Id, StringComparison.OrdinalIgnoreCase)).Value ?? string.Empty;
+                TextBox textBox = Factory.CreateTextBox(value);
+                textBox.TextChanged += (_, _) =>
+                {
+                    if (!updatingUi && !conditionController.UpdatingSettings)
+                    {
+                        MarkSelectedEntryDirty();
+                    }
+                };
+
+                Button browseButton = Factory.CreateSmallButton("Browse");
+                browseButton.Click += (_, _) => Dialogs.PickBossIcon(textBox);
+
+                Button clearButton = Factory.CreateSmallButton("Clear");
+                clearButton.Click += (_, _) => textBox.Text = string.Empty;
+
+                int row = Factory.AddGridRow(allIconFilesGrid);
+                allIconFilesGrid.Controls.Add(
+                    Factory.CreateRawRowLabel(SplitTargetDisplayNames.GetTargetName(target, Draft.General.Language)),
+                    0,
+                    row);
+                allIconFilesGrid.Controls.Add(textBox, 1, row);
+                allIconFilesGrid.Controls.Add(browseButton, 2, row);
+                allIconFilesGrid.Controls.Add(clearButton, 3, row);
+                allIconFileBoxes[target.Id] = textBox;
+            }
+        }
+        finally
+        {
+            allIconFilesGrid.ResumeLayout();
+        }
+
+        UpdateAllIconFilesSectionVisibility();
+    }
+
+    private void UpdateAllIconFilesSectionVisibility()
+    {
+        if (allIconFilesSection is null)
+        {
+            return;
+        }
+
+        allIconFilesSectionExpanded =
+            iconOverrideBox?.SelectedItem is IconOverrideOption option &&
+            option.Source == SplitIconOverrideSource.All &&
+            allIconFileBoxes.Count > 0;
+        allIconFilesSection.Visible = allIconFilesSectionExpanded;
     }
 
     private void SetIconOverrideSource(string source)

@@ -71,6 +71,7 @@ public sealed record ApplicationViewState(
         {
             hash.Add(status.Time);
             hash.Add(status.IsSkipped);
+            hash.Add(status.IsManuallyCompleted);
             foreach (string factKey in status.CompletedFactKeys)
             {
                 hash.Add(factKey, StringComparer.OrdinalIgnoreCase);

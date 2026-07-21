@@ -10,7 +10,8 @@ internal enum HotkeyAction
     Reset,
     MouseClickThrough,
     CreateWorld,
-    PracticeWorld
+    PracticeWorld,
+    ManualSplit
 }
 
 internal interface IHotkeyRegistrationManager : IDisposable
@@ -51,6 +52,10 @@ internal sealed class GlobalHotkeyManager : IHotkeyRegistrationManager
         RegisterAction(HotkeyAction.MouseClickThrough, settings.GetMouseClickThroughKeys(), registeredChords, warnings);
         RegisterAction(HotkeyAction.CreateWorld, settings.GetCreateWorldKeys(), registeredChords, warnings);
         RegisterAction(HotkeyAction.PracticeWorld, settings.GetPracticeWorldKeys(), registeredChords, warnings);
+        if (settings.Advanced.EnableManualSplit)
+        {
+            RegisterAction(HotkeyAction.ManualSplit, settings.GetManualSplitKeys(), registeredChords, warnings);
+        }
         return warnings;
     }
 

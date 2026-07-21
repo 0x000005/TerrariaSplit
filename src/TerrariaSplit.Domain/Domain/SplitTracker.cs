@@ -85,6 +85,22 @@ public sealed class SplitTracker
         return adjustedTime;
     }
 
+    public SplitRecord? CompleteNextManually(TimeSpan elapsed)
+    {
+        int index = FindNextActiveIndex();
+        if (index < 0 || index >= statuses.Count)
+        {
+            currentIndex = statuses.Count;
+            return null;
+        }
+
+        SplitStatus status = statuses[index];
+        status.CompleteManually(elapsed);
+        initialStateResolved[index] = true;
+        currentIndex = FindNextActiveIndex();
+        return new SplitRecord(index, status.Definition.Id, status.Time ?? TimeSpan.Zero);
+    }
+
     public SplitTrackerState CaptureState()
     {
         return new SplitTrackerState(

@@ -11,27 +11,27 @@ public static class SettingsSplitSetNormalizer
                 keys: SplitConditionDataRows.BuildKeys(settings)));
         }
 
-        HashSet<string> conditionRowKeys = SplitConditionDataRows.BuildKeys(settings)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach (ReferenceSplitSet set in settings.Comparison.ReferenceSplitSets)
         {
             set.Name = string.IsNullOrWhiteSpace(set.Name) ? "Reference" : set.Name.Trim();
             set.Splits ??= new Dictionary<string, string>();
-            SettingsNormalizationHelpers.RemoveKeysExcept(set.Splits, conditionRowKeys);
-
-            foreach (string key in conditionRowKeys)
-            {
-                set.Splits.TryAdd(key, string.Empty);
-            }
         }
 
-        if (string.IsNullOrWhiteSpace(settings.Comparison.ActiveReferenceSplitSet) ||
-            !settings.Comparison.ReferenceSplitSets.Any(set => string.Equals(
+        ReferenceSplitSet? activeSet = settings.Comparison.ReferenceSplitSets.FirstOrDefault(set => string.Equals(
                 set.Name,
                 settings.Comparison.ActiveReferenceSplitSet,
-                StringComparison.OrdinalIgnoreCase)))
+                StringComparison.OrdinalIgnoreCase));
+        if (activeSet is null)
         {
-            settings.Comparison.ActiveReferenceSplitSet = settings.Comparison.ReferenceSplitSets[0].Name;
+            activeSet = settings.Comparison.ReferenceSplitSets[0];
+            settings.Comparison.ActiveReferenceSplitSet = activeSet.Name;
+        }
+
+        HashSet<string> conditionRowKeys = SplitConditionDataRows.BuildKeys(settings)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (string key in conditionRowKeys)
+        {
+            activeSet.Splits.TryAdd(key, string.Empty);
         }
     }
 

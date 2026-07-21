@@ -22,6 +22,7 @@ internal static class HotkeyCommandMapper
             HotkeyAction.PracticeWorld => enterWorldRunning
                 ? AppCommand.CancelEnterWorld()
                 : AppCommand.QueueMenuAction(MenuActionKind.PracticeWorld, requestedAtUtc),
+            HotkeyAction.ManualSplit => AppCommand.CompleteNextSplitManually(),
             _ => null!
         };
 

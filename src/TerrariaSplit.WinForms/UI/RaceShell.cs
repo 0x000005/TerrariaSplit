@@ -1592,20 +1592,29 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
             return true;
         }
 
-        if (!routeOverride.MarkApplied(package))
-        {
-            logger.Info("Race route override ignored: " + RaceRouteOverrideController.AlreadyAppliedDetail);
-            return false;
-        }
-
         try
         {
             applyRouteOverride(package);
+            if (!routeOverride.MarkApplied(package))
+            {
+                logger.Info("Race route override ignored: " + RaceRouteOverrideController.AlreadyAppliedDetail);
+                clearRouteOverride();
+                return false;
+            }
+
             return true;
         }
         catch (Exception ex)
         {
-            routeOverride.Clear();
+            try
+            {
+                clearRouteOverride();
+            }
+            finally
+            {
+                routeOverride.Clear();
+            }
+
             logger.Error(ex, "Race route override application failed.");
             return false;
         }
@@ -1613,9 +1622,16 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
 
     private void RestoreRouteOverride()
     {
-        if (routeOverride.Clear())
+        if (routeOverride.HasOverride)
         {
-            clearRouteOverride();
+            try
+            {
+                clearRouteOverride();
+            }
+            finally
+            {
+                routeOverride.Clear();
+            }
         }
     }
 

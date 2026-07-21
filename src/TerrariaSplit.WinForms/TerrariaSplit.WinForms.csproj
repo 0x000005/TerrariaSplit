@@ -1,8 +1,8 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <Version>1.9.2.4</Version>
-    <FileVersion>1.9.2.4</FileVersion>
+    <Version>1.9.3.0</Version>
+    <FileVersion>1.9.3.0</FileVersion>
     <AssemblyName>TerrariaSplit</AssemblyName>
     <RootNamespace>TerrariaSplit</RootNamespace>
     <OutputType>WinExe</OutputType>

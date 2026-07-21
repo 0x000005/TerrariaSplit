@@ -51,6 +51,7 @@ public sealed record RuntimeRunSnapshot(
         {
             hash.Add(status.Time);
             hash.Add(status.IsSkipped);
+            hash.Add(status.IsManuallyCompleted);
             foreach (string factKey in status.CompletedFactKeys)
             {
                 hash.Add(factKey, StringComparer.OrdinalIgnoreCase);
@@ -75,6 +76,7 @@ public enum RuntimeCommandKind
     QueueMenuAction,
     SetPracticeSplitTime,
     SetPracticeTotalTime,
+    CompleteNextSplitManually,
     ClearPendingMenuActions
 }
 
@@ -139,6 +141,11 @@ public sealed record RuntimeCommand
         {
             Time = time
         };
+    }
+
+    public static RuntimeCommand CompleteNextSplitManually()
+    {
+        return new RuntimeCommand(RuntimeCommandKind.CompleteNextSplitManually);
     }
 
     public static RuntimeCommand ClearPendingMenuActions()

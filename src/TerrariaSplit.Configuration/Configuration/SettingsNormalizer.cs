@@ -177,6 +177,20 @@ public static class SettingsNormalizer
         entry.IconOverride.Source = SplitIconOverrideSource.Normalize(entry.IconOverride.Source);
         entry.IconOverride.TargetId = entry.IconOverride.TargetId?.Trim() ?? string.Empty;
         entry.IconOverride.FilePath = entry.IconOverride.FilePath?.Trim() ?? string.Empty;
+        var normalizedAllIconFilePaths = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach ((string targetId, string filePath) in entry.IconOverride.AllIconFilePaths ?? [])
+        {
+            string? normalizedTargetId = conditionTargetIds.FirstOrDefault(candidate =>
+                string.Equals(candidate, targetId?.Trim(), StringComparison.OrdinalIgnoreCase));
+            string normalizedFilePath = filePath?.Trim() ?? string.Empty;
+            if (!string.IsNullOrWhiteSpace(normalizedTargetId) &&
+                !string.IsNullOrWhiteSpace(normalizedFilePath))
+            {
+                normalizedAllIconFilePaths[normalizedTargetId] = normalizedFilePath;
+            }
+        }
+
+        entry.IconOverride.AllIconFilePaths = normalizedAllIconFilePaths;
 
         if (entry.IconOverride.Source == SplitIconOverrideSource.Target)
         {
@@ -302,11 +316,6 @@ public static class SettingsNormalizer
     private static void RemoveUnknownCumulativeKeys(AppSettings settings, HashSet<string> conditionRowKeys)
     {
         SettingsNormalizationHelpers.RemoveKeysExcept(settings.Comparison.PersonalBestTimes, conditionRowKeys);
-
-        foreach (ReferenceSplitSet set in settings.Comparison.ReferenceSplitSets)
-        {
-            SettingsNormalizationHelpers.RemoveKeysExcept(set.Splits, conditionRowKeys);
-        }
     }
 
     private static void RemoveUnknownRouteGroupKeys(AppSettings settings)

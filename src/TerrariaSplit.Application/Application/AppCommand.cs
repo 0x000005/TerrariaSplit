@@ -27,6 +27,8 @@ public abstract record AppCommand
     public static AppCommand EditPracticeTotalTime(TimeSpan time) =>
         new EditPracticeTotalTimeCommand(time);
 
+    public static AppCommand CompleteNextSplitManually() => new CompleteNextSplitManuallyCommand();
+
     public static AppCommand ApplySettings(AppSettings settings) => new ApplySettingsCommand(settings);
 
     public static AppCommand ApplyTemporarySettings(AppSettings settings) => new ApplyTemporarySettingsCommand(settings);
@@ -57,6 +59,8 @@ public sealed record CancelEnterWorldCommand : AppCommand;
 public sealed record EditPracticeSplitTimeCommand(int SplitIndex, TimeSpan? Time) : AppCommand;
 
 public sealed record EditPracticeTotalTimeCommand(TimeSpan Time) : AppCommand;
+
+public sealed record CompleteNextSplitManuallyCommand : AppCommand;
 
 public sealed record ApplySettingsCommand(AppSettings Settings) : AppCommand;
 

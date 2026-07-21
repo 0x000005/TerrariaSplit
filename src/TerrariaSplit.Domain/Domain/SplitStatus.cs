@@ -13,6 +13,8 @@ public sealed class SplitStatus
 
     public bool IsSkipped { get; private set; }
 
+    public bool IsManuallyCompleted { get; private set; }
+
     public IReadOnlyList<string> CompletedFactKeys => completedFactKeys;
 
     public IReadOnlyDictionary<string, TimeSpan> FactCompletionTimes => factCompletionTimes;
@@ -27,6 +29,7 @@ public sealed class SplitStatus
     {
         Time = null;
         IsSkipped = false;
+        IsManuallyCompleted = false;
         ClearCompletedFactKeys();
         factCompletionTimes.Clear();
     }
@@ -44,6 +47,7 @@ public sealed class SplitStatus
     private void Skip(IReadOnlyList<string> completedFactKeys)
     {
         IsSkipped = true;
+        IsManuallyCompleted = false;
         ReplaceCompletedFactKeys(completedFactKeys);
         factCompletionTimes.Clear();
     }
@@ -52,8 +56,17 @@ public sealed class SplitStatus
     {
         Time = time;
         IsSkipped = false;
+        IsManuallyCompleted = false;
         ClearCompletedFactKeys();
         factCompletionTimes.Clear();
+    }
+
+    public void CompleteManually(TimeSpan time)
+    {
+        Time = time < TimeSpan.Zero ? TimeSpan.Zero : time;
+        IsSkipped = false;
+        IsManuallyCompleted = true;
+        MergeCompletedFactKeys(factCompletionTimes.Keys);
     }
 
     public SplitStatusState CaptureState()
@@ -61,6 +74,7 @@ public sealed class SplitStatus
         return new SplitStatusState(
             Time,
             IsSkipped,
+            IsManuallyCompleted,
             CompletedFactKeys.ToArray(),
             new Dictionary<string, TimeSpan>(factCompletionTimes, StringComparer.OrdinalIgnoreCase));
     }
@@ -76,6 +90,7 @@ public sealed class SplitStatus
     {
         Time = state.Time;
         IsSkipped = state.Time.HasValue ? false : state.IsSkipped;
+        IsManuallyCompleted = state.Time.HasValue && state.IsManuallyCompleted;
         ReplaceCompletedFactKeys(state.CompletedFactKeys);
         factCompletionTimes.Clear();
         foreach ((string factKey, TimeSpan time) in state.FactCompletionTimes ?? new Dictionary<string, TimeSpan>())
@@ -125,6 +140,7 @@ public sealed class SplitStatus
         }
 
         Time = elapsed;
+        IsManuallyCompleted = false;
         MergeCompletedFactKeys(factCompletionTimes.Keys.Concat(Definition.GetMatchedFactKeys(facts)));
         return new SplitRecord(index, Definition.Id, elapsed);
     }
@@ -187,5 +203,6 @@ public sealed class SplitStatus
 public readonly record struct SplitStatusState(
     TimeSpan? Time,
     bool IsSkipped,
+    bool IsManuallyCompleted,
     IReadOnlyList<string>? CompletedFactKeys,
     IReadOnlyDictionary<string, TimeSpan>? FactCompletionTimes = null);

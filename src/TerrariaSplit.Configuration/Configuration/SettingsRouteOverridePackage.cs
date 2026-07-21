@@ -61,7 +61,10 @@ public static class SettingsRouteOverrideService
             {
                 Source = SplitIconOverrideSource.Normalize(entry.IconOverride?.Source),
                 TargetId = entry.IconOverride?.TargetId ?? string.Empty,
-                FilePath = entry.IconOverride?.FilePath ?? string.Empty
+                FilePath = entry.IconOverride?.FilePath ?? string.Empty,
+                AllIconFilePaths = new Dictionary<string, string>(
+                    entry.IconOverride?.AllIconFilePaths ?? new Dictionary<string, string>(),
+                    StringComparer.OrdinalIgnoreCase)
             },
             IsAttached = entry.IsAttached,
             UseAdvancedConditionEditor = entry.UseAdvancedConditionEditor,

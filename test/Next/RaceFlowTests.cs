@@ -13,6 +13,7 @@ internal static class RaceFlowTests
         yield return TestCase.Sync("race room journey covers preparation, synchronized start, reconnect, host restart and a fresh run", TestSuite.Flow, CompleteRoomJourney);
         yield return TestCase.Sync("race server rejects invalid identities, stale progress and unauthorized host actions", TestSuite.Flow, PermissionAndStalenessBoundaries);
         yield return TestCase.Sync("race package survives transport serialization with route, world and leaderboard intact", TestSuite.Flow, TransportRoundTrip);
+        yield return TestCase.Sync("race route carries host all-icon customizations to the member and cleans its cache", TestSuite.Flow, HostAllIconsReachMember);
         yield return TestCase.Sync("in-game race protocol preserves bounded multilingual snapshots and ordered actions", TestSuite.Core, InGameProtocolRoundTrip);
         yield return TestCase.Sync("in-game race navigation follows host, member and room lifecycle journeys", TestSuite.Flow, InGameNavigationJourney);
         yield return TestCase.Sync("race client rejects late updates from a room left before joining another room", TestSuite.Flow, CrossRoomUpdateIsolation);
@@ -108,6 +109,90 @@ internal static class RaceFlowTests
         Check.True(RaceClientSession.IsRoomUpdateForCurrentRoom(null, "OLD1"));
         Check.True(RaceClientSession.IsRoomUpdateForCurrentRoom("NEW2", "new2"));
         Check.False(RaceClientSession.IsRoomUpdateForCurrentRoom("NEW2", "OLD1"));
+    }
+
+    private static void HostAllIconsReachMember()
+    {
+        using var directory = new TestDirectory();
+        string hostIconDirectory = directory.Combine("房主 图标");
+        Directory.CreateDirectory(hostIconDirectory);
+        string eyeIconPath = Path.Combine(hostIconDirectory, "眼球 自定义.png");
+        string eaterIconPath = Path.Combine(hostIconDirectory, "世界吞噬者 自定义.png");
+        byte[] eyeIconData = Convert.FromBase64String(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
+        byte[] eaterIconData = Convert.FromBase64String(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Z1pEAAAAASUVORK5CYII=");
+        File.WriteAllBytes(eyeIconPath, eyeIconData);
+        File.WriteAllBytes(eaterIconPath, eaterIconData);
+
+        var hostSettings = new AppSettings
+        {
+            Route = new RouteSettings
+            {
+                SplitRoute =
+                [
+                    new SplitRouteEntry
+                    {
+                        Id = "pre-hardmode-bosses",
+                        Enabled = true,
+                        DisplayName = "Pre-hardmode bosses",
+                        Condition = SplitCondition.All(
+                        [
+                            SplitCondition.Fact("boss:eye-of-cthulhu:defeated"),
+                            SplitCondition.Fact("boss:eater-of-worlds:defeated")
+                        ]),
+                        IconTargetIds = ["boss:eye-of-cthulhu", "boss:eater-of-worlds"],
+                        IconOverride = new SplitIconOverride
+                        {
+                            Source = SplitIconOverrideSource.All,
+                            FilePath = directory.Combine("hidden-host-only.png"),
+                            AllIconFilePaths = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                            {
+                                ["boss:eye-of-cthulhu"] = eyeIconPath,
+                                ["boss:eater-of-worlds"] = eaterIconPath
+                            }
+                        }
+                    }
+                ]
+            }
+        };
+
+        RaceRoutePayload payload = RaceRoutePayloadFactory.Create(hostSettings);
+        Check.False(payload.SerializedRouteJson.Contains(hostIconDirectory, StringComparison.OrdinalIgnoreCase));
+        Check.False(payload.SerializedRouteJson.Contains("hidden-host-only.png", StringComparison.OrdinalIgnoreCase));
+        Check.Equal(
+            Convert.ToBase64String(eyeIconData),
+            payload.Icons.Single(icon => icon.Key == "boss:eye-of-cthulhu").DataBase64);
+        Check.Equal(
+            Convert.ToBase64String(eaterIconData),
+            payload.Icons.Single(icon => icon.Key == "boss:eater-of-worlds").DataBase64);
+
+        string memberCache = directory.Combine("member", "Data", "RaceIcons");
+        var controller = new RaceRouteOverrideController(new CloningSettingsSnapshotFactory(), memberCache);
+        bool applied = controller.TryApply(
+            new AppSettings(),
+            payload,
+            out AppSettings memberSettings,
+            out string detail);
+        if (!applied)
+        {
+            throw new InvalidOperationException(detail);
+        }
+
+        SplitRouteEntry memberEntry = memberSettings.Route.SplitRoute.Single();
+        string memberEyePath = memberEntry.IconOverride.AllIconFilePaths["boss:eye-of-cthulhu"];
+        string memberEaterPath = memberEntry.IconOverride.AllIconFilePaths["boss:eater-of-worlds"];
+        Check.True(memberEyePath.StartsWith(memberCache, StringComparison.OrdinalIgnoreCase));
+        Check.True(memberEaterPath.StartsWith(memberCache, StringComparison.OrdinalIgnoreCase));
+        Check.Sequence(eyeIconData, File.ReadAllBytes(memberEyePath));
+        Check.Sequence(eaterIconData, File.ReadAllBytes(memberEaterPath));
+        Check.Sequence(
+            [memberEyePath, memberEaterPath],
+            SplitCatalog.Build(memberSettings).Single().IconFileNames);
+
+        string routeCacheDirectory = Path.GetDirectoryName(memberEyePath)!;
+        Check.True(controller.Clear());
+        Check.False(Directory.Exists(routeCacheDirectory));
     }
 
     private static void InGameNavigationJourney()
@@ -766,6 +851,11 @@ internal static class RaceFlowTests
         public override DateTimeOffset GetUtcNow() => utcNow;
 
         public void Advance(TimeSpan elapsed) => utcNow += elapsed;
+    }
+
+    private sealed class CloningSettingsSnapshotFactory : ISettingsSnapshotFactory
+    {
+        public AppSettings CreateSnapshot(AppSettings settings) => AppSettingsCloner.Clone(settings);
     }
 
     private static T Success<T>(RaceOperationResult<T> result)

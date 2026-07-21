@@ -10,7 +10,8 @@
         "ResetKey": "F6",
         "MouseClickThroughKey": "F9",
         "CreateWorldKey": "None",
-        "PracticeWorldKey": "None"
+        "PracticeWorldKey": "None",
+        "ManualSplitKey": "None"
     },
     "Route": {
         "SplitRoute": [
@@ -1199,6 +1200,7 @@
         ]
     },
     "Advanced": {
+        "EnableManualSplit": false,
         "EnableTerrariaUiScalePatch": false,
         "EnableRtssOverlay": false,
         "RtssExecutablePath": "",

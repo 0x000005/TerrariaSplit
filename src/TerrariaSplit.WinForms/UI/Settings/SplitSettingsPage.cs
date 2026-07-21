@@ -25,6 +25,9 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
     private ThemedDropDownList conditionMatchModeBox = null!;
     private ThemedDropDownList iconOverrideBox = null!;
     private TextBox iconOverrideFileBox = null!;
+    private TableLayoutPanel allIconFilesSection = null!;
+    private TableLayoutPanel allIconFilesGrid = null!;
+    private readonly Dictionary<string, TextBox> allIconFileBoxes = new(StringComparer.OrdinalIgnoreCase);
     private ListBox conditionList = null!;
     private TextBox advancedConditionBox = null!;
     private Panel conditionEditorFrame = null!;
@@ -34,6 +37,7 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
     private Button advancedConditionButton = null!;
     private Label statusLabel = null!;
     private bool updatingUi;
+    private bool allIconFilesSectionExpanded;
 
     private List<SplitRouteEntry> routeEntries => routeDraft.Entries;
 
@@ -60,6 +64,10 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
     internal ThemedDropDownList IconOverrideBoxForTests => iconOverrideBox;
 
     internal TextBox IconOverrideFileBoxForTests => iconOverrideFileBox;
+
+    internal bool AllIconFilesSectionVisibleForTests => allIconFilesSectionExpanded;
+
+    internal IReadOnlyDictionary<string, TextBox> AllIconFileBoxesForTests => allIconFileBoxes;
 
     internal ThemedDropDownList ConditionMatchModeBoxForTests => conditionMatchModeBox;
 

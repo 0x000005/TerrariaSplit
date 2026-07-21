@@ -339,9 +339,31 @@ public static class RaceRoutePayloadFactory
     private static SplitRouteEntry CreateSyncedRouteEntry(SplitRouteEntry source)
     {
         SplitRouteEntry clone = SettingsRouteOverrideService.CloneEntry(source);
-        if (SplitIconOverrideSource.Normalize(clone.IconOverride.Source) == SplitIconOverrideSource.CustomFile)
+        string iconSource = SplitIconOverrideSource.Normalize(clone.IconOverride.Source);
+        clone.IconOverride.Source = iconSource;
+        if (iconSource == SplitIconOverrideSource.CustomFile)
         {
             clone.IconOverride.FilePath = NormalizePayloadFileName(clone.IconOverride.FilePath);
+            clone.IconOverride.AllIconFilePaths.Clear();
+        }
+        else if (iconSource == SplitIconOverrideSource.All)
+        {
+            clone.IconOverride.FilePath = string.Empty;
+            clone.IconOverride.AllIconFilePaths = clone.IconOverride.AllIconFilePaths
+                .Where(static pair => !string.IsNullOrWhiteSpace(pair.Key))
+                .Select(pair => new KeyValuePair<string, string>(
+                    pair.Key.Trim(),
+                    NormalizePayloadFileName(pair.Value)))
+                .Where(static pair => !string.IsNullOrWhiteSpace(pair.Value))
+                .ToDictionary(
+                    static pair => pair.Key,
+                    static pair => pair.Value,
+                    StringComparer.OrdinalIgnoreCase);
+        }
+        else
+        {
+            clone.IconOverride.FilePath = string.Empty;
+            clone.IconOverride.AllIconFilePaths.Clear();
         }
 
         return clone;

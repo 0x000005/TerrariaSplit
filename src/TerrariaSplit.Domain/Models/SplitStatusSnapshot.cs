@@ -5,7 +5,8 @@ public sealed record SplitStatusSnapshot(
     TimeSpan? Time,
     bool IsSkipped,
     IReadOnlyList<string> CompletedFactKeys,
-    IReadOnlyDictionary<string, TimeSpan>? FactCompletionTimes = null)
+    IReadOnlyDictionary<string, TimeSpan>? FactCompletionTimes = null,
+    bool IsManuallyCompleted = false)
 {
     public bool IsCompleted => Time.HasValue;
 
@@ -24,7 +25,8 @@ public sealed record SplitStatusSnapshot(
             status.Time,
             status.IsSkipped,
             status.CompletedFactKeys.ToArray(),
-            new Dictionary<string, TimeSpan>(status.FactCompletionTimes, StringComparer.OrdinalIgnoreCase));
+            new Dictionary<string, TimeSpan>(status.FactCompletionTimes, StringComparer.OrdinalIgnoreCase),
+            status.IsManuallyCompleted);
     }
 
     public static SplitStatusSnapshot FromDefinition(SplitDefinition definition)

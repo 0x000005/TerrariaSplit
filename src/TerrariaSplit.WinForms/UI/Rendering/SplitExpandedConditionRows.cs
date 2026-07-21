@@ -53,7 +53,8 @@ internal static class SplitExpandedConditionRows
 
         SplitStatusSnapshot status = statuses[statusIndex];
         if (status.Definition.IsAttached ||
-            status.IsSkipped)
+            status.IsSkipped ||
+            status.IsManuallyCompleted)
         {
             return false;
         }

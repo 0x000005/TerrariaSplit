@@ -94,6 +94,42 @@ internal sealed class TimerController
         pendingMenuActions.Queue(kind, requestedAtUtc, pendingMenuGraceDuration);
     }
 
+    public IReadOnlyList<RunEvent> CompleteNextSplitManually(long observedTimestamp)
+    {
+        if (runTimer.Phase == SplitTimerPhase.NotStarted)
+        {
+            if (splitTracker.CurrentIndex >= splitTracker.Statuses.Count)
+            {
+                return [];
+            }
+
+            runTimer.StartAt(observedTimestamp);
+            splitTracker.OnRunStarted(TerrariaGameFacts.Unknown);
+            return [new RunEvent(RunEventKind.RunStarted)];
+        }
+
+        SplitRecord? split = splitTracker.CompleteNextManually(runTimer.ElapsedAt(observedTimestamp));
+        if (split is null)
+        {
+            return [];
+        }
+
+        bool runCompleted = splitTracker.CurrentIndex >= splitTracker.Statuses.Count;
+        if (runCompleted)
+        {
+            runTimer.StopAt(observedTimestamp);
+        }
+
+        var events = new List<RunEvent>(2);
+        events.Add(new RunEvent(RunEventKind.SplitCompleted, split.Value.Index));
+        if (runCompleted)
+        {
+            events.Add(new RunEvent(RunEventKind.RunCompleted));
+        }
+
+        return events;
+    }
+
     private bool TryConsumePendingMenuAction(TerrariaWatchSnapshot snapshot, out MenuActionKind kind)
     {
         return pendingMenuActions.TryConsume(

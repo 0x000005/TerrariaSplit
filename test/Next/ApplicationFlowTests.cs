@@ -7,6 +7,8 @@ internal static class ApplicationFlowTests
         yield return TestCase.Sync("application commands coordinate settings, runtime effects and full display invalidation", TestSuite.Flow, CommandJourney);
         yield return TestCase.Sync("race, job and display events update system state and target only relevant views", TestSuite.Flow, SystemEventJourney);
         yield return TestCase.Sync("world-entry transition facts cannot skip or complete a split", TestSuite.Flow, WorldEntryTransitionFacts);
+        yield return TestCase.Sync("manual split starts an idle run without completing a split", TestSuite.Flow, ManualSplitStartsIdleRun);
+        yield return TestCase.Sync("manual split completes exactly one advanced split at the timer time without inventing conditions", TestSuite.Flow, ManualSplitJourney);
     }
 
     private static void CommandJourney()
@@ -21,6 +23,10 @@ internal static class ApplicationFlowTests
         Check.Equal(0, idlePause.Effects.Count);
         ApplicationUpdate clickThrough = controller.HandleSystemEvent(new ControlCommandSystemEvent(AppCommand.ToggleMouseClickThrough()));
         Check.True(clickThrough.Effects.OfType<ToggleMouseClickThroughEffect>().Any());
+        ApplicationUpdate manualSplit = controller.HandleSystemEvent(new ControlCommandSystemEvent(AppCommand.CompleteNextSplitManually()));
+        Check.True(manualSplit.Effects
+            .OfType<SubmitRuntimeCommandEffect>()
+            .Any(static effect => effect.Command.Kind == RuntimeCommandKind.CompleteNextSplitManually));
 
         bool previousCheats = controller.Settings.Automation.AutoCreate.EnableCheats;
         ApplicationUpdate cheats = controller.HandleSystemEvent(new ControlCommandSystemEvent(AppCommand.ToggleCheats()));
@@ -69,7 +75,8 @@ internal static class ApplicationFlowTests
             AppCommand.QueueMenuAction(MenuActionKind.CreateWorld, DateTime.UtcNow),
             AppCommand.QueueMenuAction(MenuActionKind.PracticeWorld, DateTime.UtcNow),
             AppCommand.EditPracticeSplitTime(0, TimeSpan.FromSeconds(1)),
-            AppCommand.EditPracticeTotalTime(TimeSpan.FromSeconds(1))
+            AppCommand.EditPracticeTotalTime(TimeSpan.FromSeconds(1)),
+            AppCommand.CompleteNextSplitManually()
         ];
         foreach (AppCommand command in modeRestrictedCommands)
         {
@@ -177,6 +184,136 @@ internal static class ApplicationFlowTests
         Check.True(underworldEvents.Any(item => item.Kind == RunEventKind.RunCompleted));
         Check.True(tracker.Statuses[0].IsCompleted);
         Check.Equal(TimeSpan.FromSeconds(5), tracker.Statuses[0].Time);
+    }
+
+    private static void ManualSplitJourney()
+    {
+        const string firstFact = "manual:first";
+        const string secondFact = "manual:second";
+        const string thirdFact = "manual:third";
+        const string nextFact = "manual:next";
+        var processor = new WatcherRuntimeProcessor(TimeSpan.FromSeconds(1));
+        processor.SetDefinitions(
+        [
+            new SplitDefinition(
+                "advanced",
+                "Advanced",
+                SplitCondition.AtLeast(
+                [
+                    SplitCondition.Fact(firstFact),
+                    SplitCondition.Fact(secondFact),
+                    SplitCondition.Fact(thirdFact)
+                ],
+                requiredCount: 2),
+                [],
+                [],
+                []),
+            new SplitDefinition(
+                "next",
+                "Next",
+                SplitCondition.Fact(nextFact),
+                [],
+                [],
+                [])
+        ]);
+
+        long startedAt = 20_000;
+        processor.Tick(
+            Snapshot(CoreAndRunTests.Facts(), enteredWorld: true),
+            startedAt,
+            []);
+        processor.Tick(
+            Snapshot(CoreAndRunTests.Facts((firstFact, true), (secondFact, false), (thirdFact, false))),
+            startedAt + TestTiming.Timestamp(TimeSpan.FromSeconds(1)),
+            []);
+
+        long manualTimestamp = startedAt + TestTiming.Timestamp(TimeSpan.FromSeconds(2));
+        IReadOnlyList<RunEvent> manualEvents = processor.ApplyCommand(
+            RuntimeCommand.CompleteNextSplitManually(),
+            manualTimestamp);
+        Check.Equal(1, manualEvents.Count);
+        Check.Equal(RunEventKind.SplitCompleted, manualEvents[0].Kind);
+
+        RuntimeProcessorTickResult manualTick = processor.Tick(
+            Snapshot(CoreAndRunTests.Facts((nextFact, true))),
+            manualTimestamp,
+            manualEvents);
+        SplitStatusSnapshot manuallyCompleted = manualTick.Snapshot.Statuses[0];
+        Check.Equal(TimeSpan.FromSeconds(2), manuallyCompleted.Time);
+        Check.True(manuallyCompleted.IsManuallyCompleted);
+        Check.True(manuallyCompleted.CompletedFactKeys.Contains(firstFact, StringComparer.OrdinalIgnoreCase));
+        Check.False(manuallyCompleted.CompletedFactKeys.Contains(secondFact, StringComparer.OrdinalIgnoreCase));
+        Check.False(manuallyCompleted.CompletedFactKeys.Contains(thirdFact, StringComparer.OrdinalIgnoreCase));
+        Check.False(manualTick.Snapshot.Statuses[1].IsCompleted);
+
+        RuntimeProcessorTickResult nextReadyTick = processor.Tick(
+            Snapshot(CoreAndRunTests.Facts((nextFact, false))),
+            manualTimestamp + TestTiming.Timestamp(TimeSpan.FromMilliseconds(500)),
+            []);
+        Check.False(nextReadyTick.Snapshot.Statuses[1].IsCompleted);
+
+        RuntimeProcessorTickResult nextTick = processor.Tick(
+            Snapshot(CoreAndRunTests.Facts((nextFact, true))),
+            manualTimestamp + TestTiming.Timestamp(TimeSpan.FromSeconds(1)),
+            []);
+        Check.True(nextTick.Snapshot.Statuses[1].IsCompleted);
+        Check.True(nextTick.Events.Any(static item => item.Kind == RunEventKind.RunCompleted));
+    }
+
+    private static void ManualSplitStartsIdleRun()
+    {
+        var processor = new WatcherRuntimeProcessor(TimeSpan.FromSeconds(1));
+        processor.SetDefinitions(
+        [
+            new SplitDefinition(
+                "first",
+                "First",
+                SplitCondition.Fact("manual:first"),
+                [],
+                [],
+                []),
+            new SplitDefinition(
+                "second",
+                "Second",
+                SplitCondition.Fact("manual:second"),
+                [],
+                [],
+                [])
+        ]);
+
+        const long manualTimestamp = 20_000;
+        IReadOnlyList<RunEvent> manualEvents = processor.ApplyCommand(
+            RuntimeCommand.CompleteNextSplitManually(),
+            manualTimestamp);
+
+        Check.Equal(1, manualEvents.Count);
+        Check.Equal(RunEventKind.RunStarted, manualEvents[0].Kind);
+
+        RuntimeProcessorTickResult tick = processor.Tick(
+            Snapshot(CoreAndRunTests.Facts()),
+            manualTimestamp,
+            manualEvents);
+        Check.Equal(SplitTimerPhase.Running, tick.Snapshot.TimerPhase);
+        Check.False(tick.Snapshot.Statuses[0].IsCompleted);
+        Check.False(tick.Snapshot.Statuses[0].IsManuallyCompleted);
+        Check.False(tick.Snapshot.Statuses[1].IsCompleted);
+        Check.Equal(0, tick.Snapshot.CurrentSplitIndex);
+
+        long splitTimestamp = manualTimestamp + TestTiming.Timestamp(TimeSpan.FromSeconds(2));
+        IReadOnlyList<RunEvent> splitEvents = processor.ApplyCommand(
+            RuntimeCommand.CompleteNextSplitManually(),
+            splitTimestamp);
+        Check.Equal(1, splitEvents.Count);
+        Check.Equal(RunEventKind.SplitCompleted, splitEvents[0].Kind);
+
+        RuntimeProcessorTickResult splitTick = processor.Tick(
+            Snapshot(CoreAndRunTests.Facts()),
+            splitTimestamp,
+            splitEvents);
+        Check.Equal(SplitTimerPhase.Running, splitTick.Snapshot.TimerPhase);
+        Check.Equal(TimeSpan.FromSeconds(2), splitTick.Snapshot.Statuses[0].Time);
+        Check.True(splitTick.Snapshot.Statuses[0].IsManuallyCompleted);
+        Check.Equal(1, splitTick.Snapshot.CurrentSplitIndex);
     }
 
     private static TerrariaWatchSnapshot Snapshot(

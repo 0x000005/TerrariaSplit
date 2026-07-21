@@ -117,6 +117,7 @@ internal sealed class HotkeyShell : IDisposable
             HotkeyAction.MouseClickThrough => "Mouse passthrough",
             HotkeyAction.CreateWorld => "Create world (Disabled in world)",
             HotkeyAction.PracticeWorld => "Load world (Disabled in world)",
+            HotkeyAction.ManualSplit => "Complete next split",
             _ => action.ToString()
         };
     }

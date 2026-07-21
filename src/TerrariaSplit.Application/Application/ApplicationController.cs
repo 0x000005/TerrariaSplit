@@ -235,6 +235,9 @@ public sealed class ApplicationController
             case EditPracticeTotalTimeCommand editTotalTime:
                 effects.Add(new SubmitRuntimeCommandEffect(RuntimeCommand.SetPracticeTotalTime(editTotalTime.Time)));
                 break;
+            case CompleteNextSplitManuallyCommand:
+                effects.Add(new SubmitRuntimeCommandEffect(RuntimeCommand.CompleteNextSplitManually()));
+                break;
             case ApplySettingsCommand applySettings:
                 ApplySettings(applySettings.Settings, effects, saveSettings: true);
                 invalidations.Add(DisplayInvalidation.For(DisplayRefreshLevel.FullRebuild, DisplayInvalidationTarget.All));

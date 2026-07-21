@@ -454,9 +454,15 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
 
     private SplitIconOverride GetCurrentIconOverride()
     {
+        Dictionary<string, string> allIconFilePaths = allIconFileBoxes
+            .Where(static pair => !string.IsNullOrWhiteSpace(pair.Value.Text))
+            .ToDictionary(
+                static pair => pair.Key,
+                static pair => pair.Value.Text.Trim(),
+                StringComparer.OrdinalIgnoreCase);
         if (iconOverrideBox?.SelectedItem is not IconOverrideOption option)
         {
-            return new SplitIconOverride();
+            return new SplitIconOverride { AllIconFilePaths = allIconFilePaths };
         }
 
         return option.Source switch
@@ -465,15 +471,17 @@ internal sealed partial class SplitSettingsPage : SettingsPageBase
             {
                 Source = SplitIconOverrideSource.Target,
                 TargetId = option.TargetId,
-                FilePath = string.Empty
+                FilePath = string.Empty,
+                AllIconFilePaths = allIconFilePaths
             },
             SplitIconOverrideSource.CustomFile => new SplitIconOverride
             {
                 Source = SplitIconOverrideSource.CustomFile,
                 TargetId = string.Empty,
-                FilePath = iconOverrideFileBox?.Text.Trim() ?? string.Empty
+                FilePath = iconOverrideFileBox?.Text.Trim() ?? string.Empty,
+                AllIconFilePaths = allIconFilePaths
             },
-            _ => new SplitIconOverride()
+            _ => new SplitIconOverride { AllIconFilePaths = allIconFilePaths }
         };
     }
 

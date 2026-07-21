@@ -8,6 +8,7 @@ internal static class WindowsFlowTests
     {
         yield return TestCase.Async("settings window exposes About last, displays the executable version and owns update cancellation", TestSuite.Windows, AboutPageJourney);
         yield return TestCase.Async("settings window opens every page and produces a normalized draft without mutating the source", TestSuite.Windows, SettingsDraftJourney);
+        yield return TestCase.Async("all-icons mode exposes per-target optional files and preserves them across mode changes", TestSuite.Windows, AllIconFilesJourney);
         yield return TestCase.Sync("overlay restores a visible multi-monitor position and keeps dense layouts inside composite bounds", TestSuite.Windows, OverlayLayoutJourney);
         yield return TestCase.Sync("timer reserves stable proportional-font slots for milliseconds and indicators", TestSuite.Windows, TimerProportionalFontLayoutJourney);
         yield return TestCase.Sync("expanded current condition follows early delta timing after a prior condition completes", TestSuite.Windows, ExpandedConditionEarlyDeltaJourney);
@@ -55,6 +56,58 @@ internal static class WindowsFlowTests
         Check.Equal(page.ProductSectionNaturalHeight * 2, page.ProductSectionMinimumHeight);
         form.Dispose();
         Check.True(service.Disposed);
+    }, cancellationToken);
+
+    private static Task AllIconFilesJourney(CancellationToken cancellationToken) => StaTestHost.RunAsync(() =>
+    {
+        AppSettings settings = AppSettingsDefaults.Create();
+        settings.General.Language = "English";
+        settings.Route.SplitRoute =
+        [
+            new SplitRouteEntry
+            {
+                Id = "split:icon-test",
+                DisplayName = "Icon test",
+                Enabled = true,
+                Condition = SplitCondition.All(
+                [
+                    SplitCatalog.CreateBossFactCondition(SplitCatalog.Destroyer),
+                    SplitCatalog.CreateBossFactCondition(SplitCatalog.Twins)
+                ]),
+                IconTargetIds = [SplitCatalog.Destroyer, SplitCatalog.Twins]
+            }
+        ];
+
+        using var form = new SettingsForm(
+            settings,
+            applicationUpdateService: new FakeUpdateService(new Version(1, 0, 0, 0)));
+        form.PageHost.Select(SettingsPageId.Splits);
+        SplitSettingsPage page = form.PageHost.GetOrCreatePage<SplitSettingsPage>(SettingsPageId.Splits);
+
+        Check.True(page.AllIconFilesSectionVisibleForTests);
+        Check.Equal(2, page.AllIconFileBoxesForTests.Count);
+        Check.True(page.IconOverrideBoxForTests.Items
+            .Cast<object>()
+            .Skip(1)
+            .All(item => item.ToString()?.StartsWith("Single icon: ", StringComparison.Ordinal) == true));
+        const string customPath = @"C:\icons\destroyer-custom.png";
+        page.AllIconFileBoxesForTests[SplitCatalog.Destroyer].Text = customPath;
+
+        page.IconOverrideBoxForTests.SelectedIndex = 1;
+        Check.False(page.AllIconFilesSectionVisibleForTests);
+        page.IconOverrideBoxForTests.SelectedIndex = 0;
+        Check.True(page.AllIconFilesSectionVisibleForTests);
+        Check.Equal(customPath, page.AllIconFileBoxesForTests[SplitCatalog.Destroyer].Text);
+
+        AppSettings draft = form.PageHost.CreateAppliedSnapshot();
+        SplitIconOverride iconOverride = draft.Route.SplitRoute.Single().IconOverride;
+        Check.Equal(SplitIconOverrideSource.All, iconOverride.Source);
+        Check.Equal(customPath, iconOverride.AllIconFilePaths[SplitCatalog.Destroyer]);
+        Check.False(iconOverride.AllIconFilePaths.ContainsKey(SplitCatalog.Twins));
+
+        SplitDefinition definition = SplitCatalog.Build(draft).Single();
+        Check.Sequence([customPath, "twins.png"], definition.IconFileNames);
+        Check.Sequence([SplitCatalog.Destroyer, SplitCatalog.Twins], definition.IconKeys);
     }, cancellationToken);
 
     private static Task SettingsDraftJourney(CancellationToken cancellationToken) => StaTestHost.RunAsync(() =>
@@ -142,6 +195,12 @@ internal static class WindowsFlowTests
         colors.ColorTextBoxes[nameof(UiColorSettings.NameText)].Text = "#123456";
         colors.ColorTextBoxes[nameof(UiColorSettings.ActiveNameText)].Text = "#345678";
         colors.ColorTextBoxes[nameof(UiColorSettings.CompletedNameText)].Text = "#654321";
+        AdvancedSettingsPage advanced = form.PageHost.GetOrCreatePage<AdvancedSettingsPage>(SettingsPageId.Advanced);
+        Check.False(advanced.EnableManualSplitBox.Checked);
+        Check.False(advanced.ManualSplitKeyBox.Enabled);
+        advanced.EnableManualSplitBox.Checked = true;
+        advanced.ManualSplitKeyBox.SetHotkey(System.Windows.Forms.Keys.Control | System.Windows.Forms.Keys.F7);
+        Check.True(advanced.ManualSplitKeyBox.Enabled);
         AppSettings draft = form.PageHost.CreateAppliedSnapshot();
         Check.False(ReferenceEquals(source, draft));
         Check.Equal("English", draft.General.Language);
@@ -164,6 +223,10 @@ internal static class WindowsFlowTests
         Check.Equal("#123456", draft.Overlay.Colors.NameText);
         Check.Equal("#345678", draft.Overlay.Colors.ActiveNameText);
         Check.Equal("#654321", draft.Overlay.Colors.CompletedNameText);
+        Check.True(draft.Advanced.EnableManualSplit);
+        Check.Equal(
+            (System.Windows.Forms.Keys.Control | System.Windows.Forms.Keys.F7).ToString(),
+            draft.Hotkeys.ManualSplitKey);
         Check.False(string.Equals(source.Overlay.Colors.NameText, draft.Overlay.Colors.NameText, StringComparison.Ordinal));
         Check.Equal("English", source.General.Language);
         AutomationSettingsPage automation = form.PageHost.GetOrCreatePage<AutomationSettingsPage>(SettingsPageId.Automation);
@@ -270,6 +333,23 @@ internal static class WindowsFlowTests
             isRaceModeEnabled: true,
             isInRaceRoom: false,
             out _));
+        Check.False(HotkeyCommandMapper.TryMap(
+            HotkeyAction.ManualSplit,
+            DateTime.UtcNow,
+            createWorldRunning: false,
+            enterWorldRunning: false,
+            isRaceModeEnabled: true,
+            isInRaceRoom: false,
+            out _));
+        Check.True(HotkeyCommandMapper.TryMap(
+            HotkeyAction.ManualSplit,
+            DateTime.UtcNow,
+            createWorldRunning: false,
+            enterWorldRunning: false,
+            isRaceModeEnabled: false,
+            isInRaceRoom: false,
+            out AppCommand manualSplit));
+        Check.Is<CompleteNextSplitManuallyCommand>(manualSplit);
         Check.True(HotkeyCommandMapper.TryMap(
             HotkeyAction.CreateWorld,
             DateTime.UtcNow,
@@ -432,10 +512,13 @@ internal static class WindowsFlowTests
         settings.Hotkeys.PauseResumeKey = "Control, Shift, F10";
         settings.Hotkeys.ResetKey = "ControlKey";
         settings.Hotkeys.CreateWorldKey = "None";
+        settings.Hotkeys.ManualSplitKey = "Control, F7";
         Check.Equal(System.Windows.Forms.Keys.Control | System.Windows.Forms.Keys.Shift | System.Windows.Forms.Keys.F10,
             TerrariaSplit.UI.Input.AppSettingsHotkeys.GetPauseResumeKeys(settings));
         Check.Equal(System.Windows.Forms.Keys.F6, TerrariaSplit.UI.Input.AppSettingsHotkeys.GetResetKeys(settings));
         Check.Equal(System.Windows.Forms.Keys.None, TerrariaSplit.UI.Input.AppSettingsHotkeys.GetCreateWorldKeys(settings));
+        Check.Equal(System.Windows.Forms.Keys.Control | System.Windows.Forms.Keys.F7,
+            TerrariaSplit.UI.Input.AppSettingsHotkeys.GetManualSplitKeys(settings));
         Check.Equal("Ctrl + Shift + F10", TerrariaSplit.UI.Input.HotkeyKeyValidator.Format(
             TerrariaSplit.UI.Input.AppSettingsHotkeys.GetPauseResumeKeys(settings)));
     }

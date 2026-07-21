@@ -25,7 +25,7 @@ test/Results
 .build-check/
 .verify/
 artifacts/
-test/Temp/*
+**/test/Temp/
 !test/Temp/.gitkeep
 test-output/
 **/test-output/

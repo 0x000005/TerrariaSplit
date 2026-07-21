@@ -78,6 +78,8 @@ public sealed class SplitIconOverride
     public string TargetId { get; set; } = string.Empty;
 
     public string FilePath { get; set; } = string.Empty;
+
+    public Dictionary<string, string> AllIconFilePaths { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }
 
 public sealed class SplitRouteEntry

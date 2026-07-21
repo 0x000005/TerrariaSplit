@@ -132,6 +132,7 @@ public sealed class HotkeySettings
     public string MouseClickThroughKey { get; set; } = "F9";
     public string CreateWorldKey { get; set; } = "None";
     public string PracticeWorldKey { get; set; } = "None";
+    public string ManualSplitKey { get; set; } = "None";
 }
 
 public sealed class RouteSettings
@@ -441,6 +442,7 @@ public sealed class RaceLeaderboardColumnColorSettings
 
 public sealed class AdvancedSettings
 {
+    public bool EnableManualSplit { get; set; }
     public bool EnableTerrariaUiScalePatch { get; set; }
     public bool EnableRtssOverlay { get; set; }
     public string RtssExecutablePath { get; set; } = string.Empty;

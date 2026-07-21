@@ -6,6 +6,8 @@ namespace TerrariaSplit.UI.Settings;
 
 internal sealed class AdvancedSettingsPage : SettingsPageBase
 {
+    private readonly CheckBox enableManualSplitBox = new();
+    private readonly SettingsHotkeyTextBox manualSplitKeyBox = new();
     private readonly CheckBox enableTerrariaUiScalePatchBox = new();
     private readonly CheckBox enableRtssOverlayBox = new();
     private readonly TextBox rtssExecutablePathBox = new();
@@ -21,6 +23,8 @@ internal sealed class AdvancedSettingsPage : SettingsPageBase
     public override SettingsPageId Id => SettingsPageId.Advanced;
 
     internal CheckBox EnableTerrariaUiScalePatchBox => enableTerrariaUiScalePatchBox;
+    internal CheckBox EnableManualSplitBox => enableManualSplitBox;
+    internal SettingsHotkeyTextBox ManualSplitKeyBox => manualSplitKeyBox;
     internal CheckBox EnableRtssOverlayBox => enableRtssOverlayBox;
     internal TextBox RtssExecutablePathBox => rtssExecutablePathBox;
     internal TextBox RtssOverlayXBox => rtssOverlayXBox;
@@ -64,6 +68,8 @@ internal sealed class AdvancedSettingsPage : SettingsPageBase
         }
 
         settings.Advanced ??= new AdvancedSettings();
+        settings.Advanced.EnableManualSplit = enableManualSplitBox.Checked;
+        settings.Hotkeys.ManualSplitKey = manualSplitKeyBox.Hotkey.ToString();
         settings.Advanced.EnableTerrariaUiScalePatch = enableTerrariaUiScalePatchBox.Checked;
         settings.Advanced.EnableRtssOverlay = enableRtssOverlay;
         settings.Advanced.RtssExecutablePath = rtssExecutablePath;
@@ -86,6 +92,10 @@ internal sealed class AdvancedSettingsPage : SettingsPageBase
 
     private void BuildSections(TableLayoutPanel parent)
     {
+        ConfigureCheckBox(enableManualSplitBox, Draft.Advanced?.EnableManualSplit == true);
+        ConfigureHotkeyBox(manualSplitKeyBox, Draft.GetManualSplitKeys());
+        enableManualSplitBox.CheckedChanged += (_, _) => UpdateManualSplitControlsEnabled();
+
         ConfigureCheckBox(enableTerrariaUiScalePatchBox, Draft.Advanced?.EnableTerrariaUiScalePatch == true);
         ConfigureCheckBox(enableRtssOverlayBox, Draft.Advanced?.EnableRtssOverlay == true);
         ConfigurePathBox(rtssExecutablePathBox, Draft.Advanced?.RtssExecutablePath ?? string.Empty);
@@ -113,6 +123,14 @@ internal sealed class AdvancedSettingsPage : SettingsPageBase
             RefreshRateSettings.PaintRefreshHzOptions,
             RefreshRateSettings.NormalizeTimerOverlayRefreshHz(
                 Draft.Advanced?.TimerOverlayRefreshHz ?? AppSettingsDefaults.Advanced.TimerOverlayRefreshHz));
+
+        TableLayoutPanel manualSplitSection = Factory.CreateSection("Manual split");
+        TableLayoutPanel manualSplitGrid = Factory.CreateTwoColumnGrid(280f);
+        Factory.AddSettingRow(manualSplitGrid, "Enabled", enableManualSplitBox);
+        Factory.AddSettingRow(manualSplitGrid, "Hotkey", manualSplitKeyBox);
+        SettingsUiFactory.AddSectionControl(manualSplitSection, manualSplitGrid);
+        SettingsUiFactory.AddSection(parent, manualSplitSection);
+        UpdateManualSplitControlsEnabled();
 
         TableLayoutPanel uiScaleSection = Factory.CreateSection("Terraria UI scale enhancement");
         TableLayoutPanel uiScaleGrid = Factory.CreateTwoColumnGrid(280f);
@@ -173,6 +191,19 @@ internal sealed class AdvancedSettingsPage : SettingsPageBase
         checkBox.Checked = selected;
         checkBox.Dock = DockStyle.Fill;
         UiTheme.StyleCheckBox(checkBox);
+    }
+
+    private static void ConfigureHotkeyBox(SettingsHotkeyTextBox textBox, Keys selected)
+    {
+        textBox.Dock = DockStyle.Fill;
+        textBox.ReadOnly = true;
+        UiTheme.StyleTextBox(textBox);
+        textBox.SetHotkey(selected);
+    }
+
+    private void UpdateManualSplitControlsEnabled()
+    {
+        manualSplitKeyBox.Enabled = enableManualSplitBox.Checked;
     }
 
     private static void ConfigurePathBox(TextBox textBox, string value)

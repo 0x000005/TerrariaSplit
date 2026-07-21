@@ -40,7 +40,8 @@ public static class AppSettingsCloner
             ResetKey = source.ResetKey,
             MouseClickThroughKey = source.MouseClickThroughKey,
             CreateWorldKey = source.CreateWorldKey,
-            PracticeWorldKey = source.PracticeWorldKey
+            PracticeWorldKey = source.PracticeWorldKey,
+            ManualSplitKey = source.ManualSplitKey
         };
     }
 
@@ -76,7 +77,10 @@ public static class AppSettingsCloner
             {
                 Source = source.IconOverride?.Source ?? SplitIconOverrideSource.All,
                 TargetId = source.IconOverride?.TargetId ?? string.Empty,
-                FilePath = source.IconOverride?.FilePath ?? string.Empty
+                FilePath = source.IconOverride?.FilePath ?? string.Empty,
+                AllIconFilePaths = new Dictionary<string, string>(
+                    source.IconOverride?.AllIconFilePaths ?? new Dictionary<string, string>(),
+                    StringComparer.OrdinalIgnoreCase)
             },
             IsAttached = source.IsAttached,
             UseAdvancedConditionEditor = source.UseAdvancedConditionEditor,
@@ -528,6 +532,7 @@ public static class AppSettingsCloner
         source ??= new AdvancedSettings();
         return new AdvancedSettings
         {
+            EnableManualSplit = source.EnableManualSplit,
             EnableTerrariaUiScalePatch = source.EnableTerrariaUiScalePatch,
             EnableRtssOverlay = source.EnableRtssOverlay,
             RtssExecutablePath = source.RtssExecutablePath,

@@ -49,7 +49,7 @@ public sealed class RaceRouteOverrideController
         }
 
         nextSettings = SettingsRouteOverrideService.Apply(currentSettings, package, settingsSnapshots);
-        appliedRouteKey = routeKey;
+        SetActiveRouteKey(routeKey);
         return true;
     }
 
@@ -96,7 +96,7 @@ public sealed class RaceRouteOverrideController
             return false;
         }
 
-        appliedRouteKey = key;
+        SetActiveRouteKey(key);
         return true;
     }
 
@@ -107,8 +107,68 @@ public sealed class RaceRouteOverrideController
             return false;
         }
 
+        string clearedRouteKey = appliedRouteKey;
         appliedRouteKey = null;
+        DeleteIconCache(clearedRouteKey);
         return true;
+    }
+
+    private void SetActiveRouteKey(string routeKey)
+    {
+        string? previousRouteKey = appliedRouteKey;
+        appliedRouteKey = routeKey;
+        if (!string.IsNullOrWhiteSpace(previousRouteKey) &&
+            !string.Equals(previousRouteKey, routeKey, StringComparison.Ordinal))
+        {
+            DeleteIconCache(previousRouteKey);
+        }
+    }
+
+    private void DeleteIconCache(string routeKey)
+    {
+        try
+        {
+            string routeDirectory = GetRouteDirectory(routeKey);
+            if (Directory.Exists(routeDirectory))
+            {
+                Directory.Delete(routeDirectory, recursive: true);
+            }
+        }
+        catch (IOException)
+        {
+            ScheduleIconCacheDeletion(routeKey);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            ScheduleIconCacheDeletion(routeKey);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException)
+        {
+        }
+    }
+
+    private void ScheduleIconCacheDeletion(string routeKey)
+    {
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(500).ConfigureAwait(false);
+            try
+            {
+                if (string.Equals(appliedRouteKey, routeKey, StringComparison.Ordinal))
+                {
+                    return;
+                }
+
+                string routeDirectory = GetRouteDirectory(routeKey);
+                if (Directory.Exists(routeDirectory))
+                {
+                    Directory.Delete(routeDirectory, recursive: true);
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+            {
+            }
+        });
     }
 
     private static string CreateRouteKey(RaceRoutePayload payload)
@@ -157,6 +217,12 @@ public sealed class RaceRouteOverrideController
 
                 nextEntry.IconOverride.FilePath = localPath;
             }
+            else if (SplitIconOverrideSource.Normalize(nextEntry.IconOverride.Source) == SplitIconOverrideSource.All &&
+                !TryMaterializeAllIconOverrides(nextEntry, payload, routeKey, out detail))
+            {
+                route.Clear();
+                return false;
+            }
 
             route.Add(nextEntry);
         }
@@ -172,6 +238,39 @@ public sealed class RaceRouteOverrideController
     {
         localPath = string.Empty;
         RaceRouteIconPayload? icon = FindCustomIconPayload(entry, payload);
+        return TryMaterializeIcon(icon, routeKey, out localPath);
+    }
+
+    private bool TryMaterializeAllIconOverrides(
+        SplitRouteEntry entry,
+        RaceRoutePayload payload,
+        string routeKey,
+        out string detail)
+    {
+        detail = string.Empty;
+        var materializedPaths = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach ((string targetId, string fileName) in entry.IconOverride.AllIconFilePaths)
+        {
+            RaceRouteIconPayload? icon = FindIconPayload(payload, targetId, fileName);
+            if (!TryMaterializeIcon(icon, routeKey, out string localPath))
+            {
+                detail = $"Race route custom icon is unavailable for target '{targetId}' in split '{entry.Id}'.";
+                return false;
+            }
+
+            materializedPaths[targetId] = localPath;
+        }
+
+        entry.IconOverride.AllIconFilePaths = materializedPaths;
+        return true;
+    }
+
+    private bool TryMaterializeIcon(
+        RaceRouteIconPayload? icon,
+        string routeKey,
+        out string localPath)
+    {
+        localPath = string.Empty;
         if (icon?.DataBase64 is not string dataBase64 || string.IsNullOrWhiteSpace(dataBase64))
         {
             return false;
@@ -194,7 +293,7 @@ public sealed class RaceRouteOverrideController
 
         try
         {
-            string routeDirectory = Path.Combine(iconCacheDirectory, CreateSafeFileName(routeKey));
+            string routeDirectory = GetRouteDirectory(routeKey);
             Directory.CreateDirectory(routeDirectory);
             string extension = Path.GetExtension(icon.FileName).ToLowerInvariant();
             if (extension is not (".png" or ".gif" or ".jpg" or ".jpeg" or ".bmp"))
@@ -229,6 +328,11 @@ public sealed class RaceRouteOverrideController
         }
     }
 
+    private string GetRouteDirectory(string routeKey)
+    {
+        return Path.Combine(iconCacheDirectory, CreateSafeFileName(routeKey));
+    }
+
     private static RaceRouteIconPayload? FindCustomIconPayload(
         SplitRouteEntry entry,
         RaceRoutePayload payload)
@@ -251,6 +355,32 @@ public sealed class RaceRouteOverrideController
         return string.IsNullOrWhiteSpace(customPath)
             ? null
             : icons.FirstOrDefault(icon => string.Equals(icon.FileName, customPath, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static RaceRouteIconPayload? FindIconPayload(
+        RaceRoutePayload payload,
+        string key,
+        string fileName)
+    {
+        string normalizedKey = key?.Trim() ?? string.Empty;
+        string normalizedFileName;
+        try
+        {
+            normalizedFileName = Path.GetFileName(fileName?.Trim() ?? string.Empty);
+        }
+        catch (ArgumentException)
+        {
+            return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(normalizedKey) || string.IsNullOrWhiteSpace(normalizedFileName))
+        {
+            return null;
+        }
+
+        return (payload.Icons ?? []).FirstOrDefault(icon =>
+            string.Equals(icon.Key, normalizedKey, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(icon.FileName, normalizedFileName, StringComparison.OrdinalIgnoreCase));
     }
 
     private static string CreateSafeFileName(string value)

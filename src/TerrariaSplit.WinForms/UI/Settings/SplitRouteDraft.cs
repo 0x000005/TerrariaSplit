@@ -109,7 +109,10 @@ internal sealed class SplitRouteDraft
         {
             Source = SplitIconOverrideSource.Normalize(iconOverride?.Source),
             TargetId = iconOverride?.TargetId ?? string.Empty,
-            FilePath = iconOverride?.FilePath ?? string.Empty
+            FilePath = iconOverride?.FilePath ?? string.Empty,
+            AllIconFilePaths = new Dictionary<string, string>(
+                iconOverride?.AllIconFilePaths ?? new Dictionary<string, string>(),
+                StringComparer.OrdinalIgnoreCase)
         };
     }
 }

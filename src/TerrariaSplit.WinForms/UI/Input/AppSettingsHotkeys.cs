@@ -29,6 +29,11 @@ internal static class AppSettingsHotkeys
         return ParseKey(settings.Hotkeys.PracticeWorldKey, Keys.None);
     }
 
+    public static Keys GetManualSplitKeys(this AppSettings settings)
+    {
+        return ParseKey(settings.Hotkeys.ManualSplitKey, Keys.None);
+    }
+
     private static Keys ParseKey(string? value, Keys fallback)
     {
         if (Enum.TryParse(value, ignoreCase: true, out Keys key) &&

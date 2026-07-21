@@ -63,6 +63,8 @@ internal sealed class WatcherRuntimeProcessor
                 }
 
                 return [];
+            case RuntimeCommandKind.CompleteNextSplitManually:
+                return timerController.CompleteNextSplitManually(observedTimestamp);
             case RuntimeCommandKind.ClearPendingMenuActions:
                 ClearPendingMenuActions();
                 return [];
@@ -76,7 +78,9 @@ internal sealed class WatcherRuntimeProcessor
         long observedTimestamp,
         IReadOnlyList<RunEvent> commandEvents)
     {
-        IReadOnlyList<RunEvent> tickEvents = timerController.Tick(snapshot, observedTimestamp);
+        IReadOnlyList<RunEvent> tickEvents = commandEvents.Any(static item => item.Kind == RunEventKind.SplitCompleted)
+            ? []
+            : timerController.Tick(snapshot, observedTimestamp);
         IReadOnlyList<RunEvent> events;
         if (commandEvents.Count == 0)
         {
@@ -138,6 +142,7 @@ internal sealed class WatcherRuntimeProcessor
             if (!ReferenceEquals(copy.Definition, status.Definition) ||
                 copy.Time != status.Time ||
                 copy.IsSkipped != status.IsSkipped ||
+                copy.IsManuallyCompleted != status.IsManuallyCompleted ||
                 !copy.CompletedFactKeys.SequenceEqual(status.CompletedFactKeys, StringComparer.OrdinalIgnoreCase) ||
                 !FactCompletionTimesMatch(copy.FactCompletionTimes, status.FactCompletionTimes))
             {

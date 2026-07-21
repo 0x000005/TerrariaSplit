@@ -5,6 +5,7 @@ internal static class ConfigurationStorageFlowTests
     public static IEnumerable<TestCase> All()
     {
         yield return TestCase.Sync("settings save, profile selection and reload preserve normalized user choices", TestSuite.Flow, SettingsRoundTrip);
+        yield return TestCase.Sync("switching routes preserves reference data owned by another profile", TestSuite.Flow, SwitchingRoutesPreservesInactiveReferenceData);
         yield return TestCase.Sync("advanced world filters require a plain small Crimson world while pyramid remains available", TestSuite.Flow, AdvancedFilterEligibility);
         yield return TestCase.Sync("split time and run statistics persist through injected runtime paths", TestSuite.Flow, SplitAndRunStorageFlow);
         yield return TestCase.Sync("corrupt settings recover to usable defaults without escaping the data root", TestSuite.Flow, CorruptSettingsRecovery);
@@ -18,6 +19,8 @@ internal static class ConfigurationStorageFlowTests
         AppSettings settings = AppSettingsDefaults.Create();
         settings.General.Language = "Chinese";
         settings.General.AlwaysOnTop = true;
+        settings.Advanced.EnableManualSplit = true;
+        settings.Hotkeys.ManualSplitKey = "Control, F7";
         settings.Route.VisibleGroupCountLimit = -20;
         settings.Race.ServerUrl = "  https://example.test/race  ";
         settings.Race.LastRoomCode = "  ABC123  ";
@@ -46,11 +49,19 @@ internal static class ConfigurationStorageFlowTests
         settings.Automation.AutoCreate.ResourceFilterLifeCrystalMinimum = 8;
         settings.Automation.AutoCreate.ResourceFilterSpelunkerPotionMinimum = 2;
         settings.Automation.AutoCreate.ResourceFilterFeatherfallPotionMinimum = 1;
+        SplitRouteEntry multiIconEntry = settings.Route.SplitRoute.First(entry => entry.IconTargetIds.Count >= 2);
+        string customizedTargetId = multiIconEntry.IconTargetIds[0];
+        const string customizedIconPath = @"C:\icons\custom-all-icon.png";
+        multiIconEntry.IconOverride.Source = SplitIconOverrideSource.All;
+        multiIconEntry.IconOverride.AllIconFilePaths[customizedTargetId] = $"  {customizedIconPath}  ";
+        multiIconEntry.IconOverride.AllIconFilePaths["boss:not-in-condition"] = @"C:\icons\unused.png";
 
         Check.True(repository.Save(settings).Succeeded);
         AppSettings loaded = new AppSettingsRepository(paths).Load();
         Check.Equal("中文", loaded.General.Language);
         Check.True(loaded.General.AlwaysOnTop);
+        Check.True(loaded.Advanced.EnableManualSplit);
+        Check.Equal("Control, F7", loaded.Hotkeys.ManualSplitKey);
         Check.True(loaded.Route.VisibleGroupCountLimit > 0);
         Check.Equal("https://example.test/race", loaded.Race.ServerUrl);
         Check.Equal(string.Empty, loaded.Race.LastRoomCode);
@@ -83,8 +94,82 @@ internal static class ConfigurationStorageFlowTests
         Check.Equal(5, loaded.Automation.AutoCreate.ResourceFilterLifeCrystalMinimum);
         Check.Equal(2, loaded.Automation.AutoCreate.ResourceFilterSpelunkerPotionMinimum);
         Check.Equal(1, loaded.Automation.AutoCreate.ResourceFilterFeatherfallPotionMinimum);
+        SplitRouteEntry loadedMultiIconEntry = loaded.Route.SplitRoute.Single(entry => entry.Id == multiIconEntry.Id);
+        Check.Equal(customizedIconPath, loadedMultiIconEntry.IconOverride.AllIconFilePaths[customizedTargetId]);
+        Check.Equal(1, loadedMultiIconEntry.IconOverride.AllIconFilePaths.Count);
+        SplitDefinition loadedMultiIconDefinition = SplitCatalog.Build(loaded)
+            .Single(definition => definition.Id == multiIconEntry.Id);
+        Check.Equal(customizedIconPath, loadedMultiIconDefinition.IconFileNames[0]);
+        Check.Equal(customizedTargetId, loadedMultiIconDefinition.IconKeys[0]);
         Check.True(File.Exists(Path.Combine(paths.SettingsDirectory, "settings.json")));
         Check.True(File.Exists(Path.Combine(paths.SettingsDirectory, "active-profile.txt")));
+    }
+
+    private static void SwitchingRoutesPreservesInactiveReferenceData()
+    {
+        using var directory = new TestDirectory();
+        var paths = new AppContextRuntimeDataPaths(directory.Path);
+        var splitSets = new SplitTimeSetRepository(paths);
+        var repository = new AppSettingsRepository(paths, splitSets);
+        AppSettings settings = AppSettingsDefaults.Create();
+        settings.Route.SplitRoute =
+        [
+            new SplitRouteEntry
+            {
+                Id = "route-a",
+                DisplayName = "Route A",
+                Condition = SplitCondition.Fact("event:a")
+            }
+        ];
+        string routeAKey = SplitConditionDataRows.BuildKeys(settings).Single();
+        var routeBEntry = new SplitRouteEntry
+        {
+            Id = "route-b",
+            DisplayName = "Route B",
+            Condition = SplitCondition.Fact("event:b")
+        };
+        string routeBKey = SplitConditionDataRows.BuildKeys([routeBEntry]).Single();
+
+        var routeAReference = new ReferenceSplitSet
+        {
+            Name = "Reference A",
+            Splits = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                [routeAKey] = "00:10"
+            }
+        };
+        var routeBReference = new ReferenceSplitSet
+        {
+            Name = "Reference B",
+            Splits = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                [routeBKey] = "00:20"
+            }
+        };
+        settings.Comparison.ReferenceSplitSets = [routeAReference, routeBReference];
+        settings.Comparison.ActiveReferenceSplitSet = routeAReference.Name;
+
+        SettingsNormalizer.Normalize(settings);
+        Check.Equal("00:20", routeBReference.Splits[routeBKey]);
+        Check.True(repository.Save(settings).Succeeded);
+        Check.Equal(
+            "00:20",
+            splitSets.LoadReferenceSets().Single(set => set.Name == routeBReference.Name).Splits[routeBKey]);
+
+        settings.Route.SplitRoute = [routeBEntry];
+        SettingsNormalizer.Normalize(settings);
+        Check.Equal("00:10", routeAReference.Splits[routeAKey]);
+        Check.Equal("00:20", routeBReference.Splits[routeBKey]);
+
+        settings.Comparison.ActiveReferenceSplitSet = routeBReference.Name;
+
+        SettingsNormalizer.Normalize(settings);
+        Check.Equal("00:20", routeBReference.Splits[routeBKey]);
+        Check.Equal("00:10", routeAReference.Splits[routeAKey]);
+        Check.True(repository.Save(settings).Succeeded);
+        Check.Equal(
+            "00:10",
+            splitSets.LoadReferenceSets().Single(set => set.Name == routeAReference.Name).Splits[routeAKey]);
     }
 
     private static void AdvancedFilterEligibility()
