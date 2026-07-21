@@ -10,8 +10,10 @@ internal static class WindowsFlowTests
         yield return TestCase.Async("settings window opens every page and produces a normalized draft without mutating the source", TestSuite.Windows, SettingsDraftJourney);
         yield return TestCase.Sync("overlay restores a visible multi-monitor position and keeps dense layouts inside composite bounds", TestSuite.Windows, OverlayLayoutJourney);
         yield return TestCase.Sync("timer reserves stable proportional-font slots for milliseconds and indicators", TestSuite.Windows, TimerProportionalFontLayoutJourney);
+        yield return TestCase.Sync("expanded current condition follows early delta timing after a prior condition completes", TestSuite.Windows, ExpandedConditionEarlyDeltaJourney);
         yield return TestCase.Sync("cheat filter indicator uses yellow orange and red priority", TestSuite.Core, CheatFilterIndicatorPriority);
         yield return TestCase.Sync("hotkey settings normalize modifiers and fall back when keys are unsafe", TestSuite.Windows, HotkeyJourney);
+        yield return TestCase.Async("hotkey restore returns to the main window thread after an external lifecycle event", TestSuite.Windows, HotkeyThreadAffinityJourney);
     }
 
     private static void CheatFilterIndicatorPriority()
@@ -168,21 +170,37 @@ internal static class WindowsFlowTests
         Check.Equal(6, automation.AutoCreateLifeCrystalMinimumBoxes.Count);
         Check.Equal("5+", automation.AutoCreateLifeCrystalMinimumBoxes[5].Text);
         Check.False(automation.AutoCreateLifeCrystalMinimumBoxes[5].AutoEllipsis);
-        Check.True(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Enabled);
+        Check.True(automation.AutoCreatePyramidFilterBox.Enabled);
+        Check.False(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Enabled);
+        Check.False(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Checked);
+        Check.False(automation.AutoCreateJungleRouteDepthBox.Enabled);
         automation.AutoCreateCheatsBox.Checked = true;
-        Check.True(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Enabled);
-        Check.True(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Checked);
-        Check.True(automation.AutoCreateCrimsonDistanceBoxes.Values.All(static button => button.Enabled));
-        AppSettings filteredDraft = form.PageHost.CreateAppliedSnapshot();
-        Check.True(filteredDraft.Automation.AutoCreate.RequireCrimsonBetweenDungeonAndSpawn);
         automation.AutoCreateWorldSizeBox.SelectedIndex = Array.IndexOf(AutoCreateWorldSize.All, AutoCreateWorldSize.Small);
+        Check.True(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Enabled);
+        automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Checked = true;
+        Check.True(automation.AutoCreateCrimsonDistanceBoxes.Values.All(static button => button.Enabled));
         Check.True(automation.AutoCreateJungleRouteDepthBox.Enabled);
+        automation.AutoCreateJungleRouteDepthBox.Checked = true;
         Check.True(automation.AutoCreateJungleRouteDepthBox.Checked);
         Check.True(automation.AutoCreateJungleRouteDepthBoxes.Values.All(static button => button.Enabled));
         Check.True(automation.AutoCreateResourceItemBoxes.Values.All(static button => button.Enabled));
         Check.True(automation.AutoCreateLifeCrystalMinimumBoxes[0].Enabled);
         Check.True(automation.AutoCreateSpelunkerMinimumBoxes[0].Enabled);
         Check.True(automation.AutoCreateFeatherfallMinimumBoxes[0].Enabled);
+        automation.AutoCreateSpecialSeedBoxes[AutoCreateSpecialWorldSeed.NotTheBees].Checked = true;
+        Check.True(automation.AutoCreatePyramidFilterBox.Enabled);
+        Check.False(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Enabled);
+        Check.False(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Checked);
+        Check.False(automation.AutoCreateJungleRouteDepthBox.Enabled);
+        Check.False(automation.AutoCreateJungleRouteDepthBox.Checked);
+        automation.AutoCreateSpecialSeedBoxes[AutoCreateSpecialWorldSeed.NotTheBees].Checked = false;
+        Check.True(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Enabled);
+        automation.AutoCreateSecretSeedsBox.Text = "secret";
+        Check.False(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Enabled);
+        Check.True(automation.AutoCreatePyramidFilterBox.Enabled);
+        automation.AutoCreateSecretSeedsBox.Text = string.Empty;
+        automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Checked = true;
+        automation.AutoCreateJungleRouteDepthBox.Checked = true;
         AppSettings resourceDraft = form.PageHost.CreateAppliedSnapshot();
         Check.True(resourceDraft.Automation.AutoCreate.EnableCheats);
         Check.Equal(AutoCreateJungleRouteDepth.Medium, resourceDraft.Automation.AutoCreate.JungleRouteDepth);
@@ -270,6 +288,31 @@ internal static class WindowsFlowTests
             isInRaceRoom: false,
             out AppCommand toggleMouseClickThrough));
         Check.Is<ToggleMouseClickThroughCommand>(toggleMouseClickThrough);
+    }, cancellationToken);
+
+    private static Task HotkeyThreadAffinityJourney(
+        CancellationToken cancellationToken) => StaTestHost.RunAsync(() =>
+    {
+        using var owner = new System.Windows.Forms.Form();
+        _ = owner.Handle;
+        int ownerThreadId = Environment.CurrentManagedThreadId;
+        var manager = new RecordingHotkeyManager();
+        using var shell = new HotkeyShell(
+            owner,
+            manager,
+            AppSettingsDefaults.Create,
+            () => owner.Handle,
+            () => owner.IsHandleCreated,
+            registerGlobalHotkeys: true,
+            _ => { });
+
+        Task.Run(shell.Register).GetAwaiter().GetResult();
+        System.Windows.Forms.Application.DoEvents();
+        Check.Equal(ownerThreadId, manager.LastRegisterThreadId);
+
+        Task.Run(shell.Unregister).GetAwaiter().GetResult();
+        System.Windows.Forms.Application.DoEvents();
+        Check.Equal(ownerThreadId, manager.LastDisposeThreadId);
     }, cancellationToken);
 
     private static void OverlayLayoutJourney()
@@ -422,6 +465,74 @@ internal static class WindowsFlowTests
 
         Check.Equal(narrowDigits.Milliseconds.Bounds.X, wideDigits.Milliseconds.Bounds.X);
         Check.Equal(narrowDigits.Indicator.Bounds.X, wideDigits.Indicator.Bounds.X);
+    }
+
+    private static void ExpandedConditionEarlyDeltaJourney()
+    {
+        AppSettings settings = AppSettingsDefaults.Create();
+        settings.Overlay.ShowEarlyDeltaTime = true;
+        settings.Overlay.EarlyDeltaTimeSeconds = 10;
+        var nextCondition = new SplitExpandedConditionRow(
+            ConditionIndex: 1,
+            SplitCondition.Fact("boss:next"),
+            ReferenceTime: TimeSpan.FromSeconds(60),
+            CompletionTime: null);
+
+        SplitComparison hidden = OverlayFrameBuilder.GetExpandedComparison(
+            settings,
+            SplitTimerPhase.Running,
+            TimeSpan.FromSeconds(49),
+            nextCondition,
+            isCurrent: true);
+        Check.False(hidden.ShowDelta);
+
+        SplitComparison visible = OverlayFrameBuilder.GetExpandedComparison(
+            settings,
+            SplitTimerPhase.Running,
+            TimeSpan.FromSeconds(50),
+            nextCondition,
+            isCurrent: true);
+        Check.True(visible.ShowDelta);
+        Check.Equal(TimeSpan.FromSeconds(-10), visible.Delta);
+
+        SplitComparison completed = OverlayFrameBuilder.GetExpandedComparison(
+            settings,
+            SplitTimerPhase.Running,
+            TimeSpan.FromSeconds(70),
+            nextCondition with { CompletionTime = TimeSpan.FromSeconds(58) },
+            isCurrent: true);
+        Check.True(completed.ShowDelta);
+        Check.Equal(TimeSpan.FromSeconds(-2), completed.Delta);
+    }
+
+    private sealed class RecordingHotkeyManager :
+        IHotkeyRegistrationManager
+    {
+        public int LastRegisterThreadId { get; private set; }
+
+        public int LastDisposeThreadId { get; private set; }
+
+        public IReadOnlyList<HotkeyRegistrationWarning>
+            RegisterConfiguredHotkeys(
+                IntPtr windowHandle,
+                AppSettings settings)
+        {
+            LastRegisterThreadId = Environment.CurrentManagedThreadId;
+            return [];
+        }
+
+        public bool TryGetAction(
+            System.Windows.Forms.Message message,
+            out HotkeyAction action)
+        {
+            action = default;
+            return false;
+        }
+
+        public void Dispose()
+        {
+            LastDisposeThreadId = Environment.CurrentManagedThreadId;
+        }
     }
 
     private sealed class FakeUpdateService(Version version) : IApplicationUpdateService

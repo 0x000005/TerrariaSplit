@@ -126,7 +126,7 @@ internal sealed partial class RaceShell
             Localize("I am a member / Join room"),
             draft.RoomCode,
             !busy,
-            32,
+            RaceRoomCodeRules.Length,
             false,
             "menu",
             Localize("Room code"));
@@ -137,7 +137,7 @@ internal sealed partial class RaceShell
         AddButton(controls, "terraria-single-player", Localize("Single Player"), !busy, "menu");
         if (IsHostInCurrentRoom)
         {
-            AddButton(controls, "room-management", Localize("Room management"), !busy, "menu");
+            AddButton(controls, "room-management", Localize("Room management"), !busy, "menu-lower");
         }
 
         AddButton(
@@ -145,7 +145,7 @@ internal sealed partial class RaceShell
             "leave-room",
             Localize("Leave room"),
             !busy,
-            "menu",
+            "menu-lower",
             description: Localize(
                 IsHostInCurrentRoom
                     ? "Are you sure you want to close the room?"
@@ -163,7 +163,7 @@ internal sealed partial class RaceShell
             Localize("Room code"),
             draft.RoomCode,
             !busy,
-            32,
+            RaceRoomCodeRules.Length,
             false,
             "field",
             Localize("Enter the room code provided by the host."));
@@ -174,7 +174,7 @@ internal sealed partial class RaceShell
             Localize("Join"),
             !busy &&
             !string.IsNullOrWhiteSpace(draft.ServerUrl) &&
-            !string.IsNullOrWhiteSpace(draft.RoomCode),
+            RaceRoomCodeRules.IsValid(draft.RoomCode),
             "footer");
     }
 
@@ -287,6 +287,7 @@ internal sealed partial class RaceShell
         RaceWorldSetupSettings setup,
         bool busy)
     {
+        bool advancedFiltersEligible = AutoCreateAdvancedFilterEligibility.IsEligible(setup);
         AddToggle(
             controls,
             "rng",
@@ -316,20 +317,21 @@ internal sealed partial class RaceShell
             controls,
             "crimson",
             Localize("Dungeon-side Crimson"),
-            setup.CrimsonEnabled,
-            !busy,
+            advancedFiltersEligible && setup.CrimsonEnabled,
+            !busy && advancedFiltersEligible,
             "crimson-row");
         AddChoiceControls(
             controls,
             "crimson-distance:",
             AutoCreateCrimsonDistance.All,
             setup.CrimsonDistance,
-            !busy && setup.CrimsonEnabled,
+            !busy && advancedFiltersEligible && setup.CrimsonEnabled,
             "crimson-row",
             isSelected: value =>
-                setup.CrimsonEnabled &&
+                advancedFiltersEligible && setup.CrimsonEnabled &&
                 AutoCreateCrimsonDistance.Includes(setup.CrimsonDistance, value));
         bool jungleEnabled =
+            advancedFiltersEligible &&
             AutoCreateJungleRouteDepth.Normalize(setup.JungleRouteDepth) !=
             AutoCreateJungleRouteDepth.None;
         AddToggle(
@@ -337,7 +339,7 @@ internal sealed partial class RaceShell
             "jungle-route",
             Localize("Jungle main route"),
             jungleEnabled,
-            !busy,
+            !busy && advancedFiltersEligible,
             "jungle-depth");
         AddChoiceControls(
             controls,
@@ -361,11 +363,17 @@ internal sealed partial class RaceShell
         AddLabel(controls, "room-code-label", Localize("Room code"), state.RoomCode, "room-header");
         foreach (RacePlayerState player in state.Players)
         {
-            bool ready =
+            bool technicallyReady =
                 player.PlayerFileStatus == RacePlayerFileStatus.Ready &&
                 player.WorldFileStatus == RaceWorldFileStatus.Ready &&
-                player.RngControlStatus is RaceRngControlStatus.Enabled or
-                    RaceRngControlStatus.NotEnabled;
+                (player.RngControlStatus is RaceRngControlStatus.Enabled or
+                    RaceRngControlStatus.NotEnabled) &&
+                player.ServerConnectionStatus == RaceServerConnectionStatus.Connected;
+            string readiness = !technicallyReady
+                ? "Preparing"
+                : player.IsHost || player.IsReady
+                    ? "Ready"
+                    : "Not Ready";
             string label = player.IsHost
                 ? "\u2605 " + player.Nickname
                 : player.Nickname;
@@ -373,7 +381,7 @@ internal sealed partial class RaceShell
                 controls,
                 "member:" + player.Nickname,
                 label,
-                Localize(ready ? "Ready" : "Preparing"),
+                Localize(readiness),
                 "members");
         }
 
@@ -384,12 +392,20 @@ internal sealed partial class RaceShell
                 controls,
                 "start",
                 Localize("Start Race"),
-                !busy &&
-                state.Status is RaceRoomStatus.Ready or RaceRoomStatus.WorldUploaded,
+                !busy && state.Status == RaceRoomStatus.Ready,
                 "footer");
         }
         else
         {
+            RacePlayerState? localPlayer = state.Players.FirstOrDefault(player =>
+                string.Equals(player.Nickname, session.Nickname, StringComparison.OrdinalIgnoreCase));
+            bool technicallyReady =
+                localPlayer is not null &&
+                localPlayer.PlayerFileStatus == RacePlayerFileStatus.Ready &&
+                localPlayer.WorldFileStatus == RaceWorldFileStatus.Ready &&
+                (localPlayer.RngControlStatus is RaceRngControlStatus.Enabled or
+                    RaceRngControlStatus.NotEnabled) &&
+                localPlayer.ServerConnectionStatus == RaceServerConnectionStatus.Connected;
             AddButton(
                 controls,
                 "leave-room",
@@ -397,6 +413,12 @@ internal sealed partial class RaceShell
                 !busy,
                 "footer",
                 description: Localize("Are you sure you want to leave the room?"));
+            AddButton(
+                controls,
+                "ready",
+                Localize(localPlayer?.IsReady == true ? "Not Ready" : "Ready"),
+                !busy && technicallyReady && state.ScheduledStartUtc is null,
+                "footer");
         }
     }
 
@@ -408,7 +430,6 @@ internal sealed partial class RaceShell
         bool busy = Volatile.Read(ref inGameMenuBusy) != 0;
         AddButton(controls, "room-back", Localize("Back"), !busy, "footer");
         AddButton(controls, "room-close", Localize("Close room"), !busy, "footer");
-        AddButton(controls, "room-new-race", Localize("New Race"), !busy, "footer");
         AddButton(
             controls,
             "room-restart",

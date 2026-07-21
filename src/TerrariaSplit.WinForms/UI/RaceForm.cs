@@ -170,6 +170,7 @@ internal sealed class RaceForm : Form
         nicknameBox = CreateTextBox(draftState.Nickname);
         nicknameBox.MaxLength = RacePlayerNameRules.MaximumLength;
         roomCodeBox = CreateTextBox(draftState.RoomCode);
+        roomCodeBox.MaxLength = RaceRoomCodeRules.Length;
         seedBox = CreateTextBox(draftState.SeedText);
         randomSecretSeedsBox = CreateTextBox(string.Empty);
         worldPathBox = CreateTextBox(draftState.LocalWorldPath);
@@ -2070,29 +2071,33 @@ internal sealed class RaceForm : Form
 
     private RaceWorldSettings BuildRandomWorldSettings()
     {
+        int worldDifficultyCode = GetSelectedInt(difficultyBox, 1);
         return new RaceWorldSettings(
             shell.State?.WorldSettings?.TerrariaVersion ?? string.Empty,
             GetSelectedInt(sizeBox, 2),
-            GetSelectedInt(difficultyBox, 1),
+            worldDifficultyCode,
             GetSelectedInt(evilBox, 2) == 2,
             GetSpecialSeedMask(),
             BuildCheatSettings(),
             SecretSeeds: randomSecretSeedsBox.Text.Trim(),
-            PlayerDifficultyCode: RacePlayerDifficultyCodes.Softcore,
+            PlayerDifficultyCode:
+                RacePlayerDifficultyCodes.ForWorldDifficulty(worldDifficultyCode),
             RngControlEnabled: rngControlEnabledBox.Checked);
     }
 
     private RaceWorldSettings BuildCustomSeedWorldSettings()
     {
         RaceWorldSettings? roomSettings = shell.State?.WorldSettings;
+        int worldDifficultyCode = roomSettings?.DifficultyCode ?? 1;
         return new RaceWorldSettings(
             roomSettings?.TerrariaVersion ?? string.Empty,
             roomSettings?.SizeCode ?? 2,
-            roomSettings?.DifficultyCode ?? 1,
+            worldDifficultyCode,
             roomSettings?.HasCrimson ?? true,
             SpecialSeedMask: 0,
             Cheats: RaceCheatSettings.Disabled,
-            PlayerDifficultyCode: RacePlayerDifficultyCodes.Softcore,
+            PlayerDifficultyCode:
+                RacePlayerDifficultyCodes.ForWorldDifficulty(worldDifficultyCode),
             RngControlEnabled: rngControlEnabledBox.Checked);
     }
 
@@ -2754,6 +2759,8 @@ internal sealed class RaceForm : Form
         return new RaceLeaderboardSettings
         {
             UseRankColorForMainTimer = source.UseRankColorForMainTimer,
+            WindowPositionX = source.WindowPositionX,
+            WindowPositionY = source.WindowPositionY,
             RankPlayerGap = source.RankPlayerGap,
             PlayerIconGap = source.PlayerIconGap,
             IconTimeGap = source.IconTimeGap,
@@ -3054,7 +3061,9 @@ internal sealed class RaceForm : Form
 
     private bool AreConnectionInputsLocked()
     {
-        return HasOpenRaceRoom(shell.State) ||
+        return shell.IsRaceEnabled ||
+            raceModeChangeRunning ||
+            HasOpenRaceRoom(shell.State) ||
             (selectedRole == RacePanelRole.Host &&
                 (hostWorldActionCancellation is not null || hostWorldUploaded || HasUploadedOpenWorld(shell.State)));
     }

@@ -8,18 +8,19 @@ internal sealed class WorldSeedFilterEvaluator : IDisposable
 {
     private const int CpuUsagePercent = 80;
     private readonly PyramidSeedPreScreenEvaluator pyramidEvaluator;
-    private readonly List<JungleSeedJudgeWorkerClient> batchWorkers = [];
-    private JungleSeedJudgeWorkerClient? worker;
-    private readonly bool ownsWorker;
+    private readonly Lazy<JungleSeedJudgeNativeClient> nativeClient;
     private bool disposed;
 
     public WorldSeedFilterEvaluator(
         PyramidSeedPreScreenEvaluator? pyramidEvaluator = null,
-        JungleSeedJudgeWorkerClient? worker = null)
+        JungleSeedJudgeNativeClient? nativeClient = null)
     {
         this.pyramidEvaluator = pyramidEvaluator ?? new PyramidSeedPreScreenEvaluator();
-        this.worker = worker;
-        ownsWorker = worker is null;
+        this.nativeClient = new Lazy<JungleSeedJudgeNativeClient>(
+            nativeClient is null
+                ? () => JungleSeedJudgeNativeClient.CreateDefault()
+                : () => nativeClient,
+            LazyThreadSafetyMode.ExecutionAndPublication);
     }
 
     public static bool IsEnabledFor(AutoCreateWorldSettings settings)
@@ -31,6 +32,7 @@ internal sealed class WorldSeedFilterEvaluator : IDisposable
     public static bool IsJudgeFilterEnabled(AutoCreateWorldSettings settings)
     {
         return settings.EnableCheats &&
+            AutoCreateAdvancedFilterEligibility.IsEligible(settings) &&
             (settings.RequireCrimsonBetweenDungeonAndSpawn ||
              AutoCreateResourceFilter.HasRequirements(settings));
     }
@@ -40,7 +42,8 @@ internal sealed class WorldSeedFilterEvaluator : IDisposable
         int normalizedLogicalProcessorCount = Math.Max(1, logicalProcessorCount);
         return Math.Max(
             1,
-            (int)((long)normalizedLogicalProcessorCount * CpuUsagePercent / 100));
+            (int)((long)normalizedLogicalProcessorCount *
+                CpuUsagePercent / 100));
     }
 
     public async Task<IReadOnlyList<WorldSeedFilterPrediction>> EvaluateBatchAsync(
@@ -53,24 +56,12 @@ internal sealed class WorldSeedFilterEvaluator : IDisposable
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(seedTexts);
 
-        bool judgeEnabled = IsJudgeFilterEnabled(settings);
-        if (judgeEnabled && ownsWorker)
-        {
-            EnsureBatchWorkerCount(seedTexts.Count);
-        }
-
         var tasks = new Task<WorldSeedFilterPrediction>[seedTexts.Count];
         for (int index = 0; index < seedTexts.Count; index++)
         {
             string seedText = seedTexts[index];
-            JungleSeedJudgeWorkerClient? batchWorker = judgeEnabled
-                ? ownsWorker
-                    ? batchWorkers[index]
-                    : worker
-                : null;
             tasks[index] = Task.Run(
-                () => EvaluateIsolatedAsync(
-                    batchWorker,
+                () => EvaluateAsync(
                     settings,
                     seedText,
                     worldGenerationVersion,
@@ -136,9 +127,7 @@ internal sealed class WorldSeedFilterEvaluator : IDisposable
         StaticAppLogger.Instance.Info($"World seed judge starting seed {seedText}.");
         try
         {
-            JungleSeedJudgeWorkerClient client =
-                worker ??= JungleSeedJudgeWorkerClient.CreateDefault();
-            judge = await client.AnalyzeAsync(
+            judge = await nativeClient.Value.AnalyzeAsync(
                 seedText,
                 ResolveGameMode(settings.WorldDifficulty),
                 cancellationToken).ConfigureAwait(false);
@@ -190,44 +179,6 @@ internal sealed class WorldSeedFilterEvaluator : IDisposable
         }
 
         disposed = true;
-        ReleaseWorkers();
-    }
-
-    public void ReleaseWorkers()
-    {
-        if (ownsWorker)
-        {
-            worker?.Dispose();
-            worker = null;
-            foreach (JungleSeedJudgeWorkerClient batchWorker in batchWorkers)
-            {
-                batchWorker.Dispose();
-            }
-            batchWorkers.Clear();
-        }
-    }
-
-    private static async Task<WorldSeedFilterPrediction> EvaluateIsolatedAsync(
-        JungleSeedJudgeWorkerClient? worker,
-        AutoCreateWorldSettings settings,
-        string seedText,
-        TerrariaWorldGenerationVersion worldGenerationVersion,
-        CancellationToken cancellationToken)
-    {
-        using var evaluator = new WorldSeedFilterEvaluator(worker: worker);
-        return await evaluator.EvaluateAsync(
-            settings,
-            seedText,
-            worldGenerationVersion,
-            cancellationToken).ConfigureAwait(false);
-    }
-
-    private void EnsureBatchWorkerCount(int count)
-    {
-        while (batchWorkers.Count < count)
-        {
-            batchWorkers.Add(JungleSeedJudgeWorkerClient.CreateDefault());
-        }
     }
 
     private static string? UnsupportedJudgeScope(

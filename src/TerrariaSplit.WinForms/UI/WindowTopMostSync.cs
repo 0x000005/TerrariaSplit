@@ -8,8 +8,17 @@ internal static class WindowTopMostSync
     private const uint SwpNoMove = 0x0002;
     private const uint SwpNoActivate = 0x0010;
     private const uint SwpNoOwnerZOrder = 0x0200;
+    private const uint SwpAsyncWindowPos = 0x4000;
 
-    private const uint Flags = SwpNoSize | SwpNoMove | SwpNoActivate | SwpNoOwnerZOrder;
+    // Race package updates can arrive while another UI thread owns one of the
+    // overlay windows. A synchronous SetWindowPos then waits for that thread
+    // while the package handler is holding the main UI thread.
+    private const uint Flags =
+        SwpNoSize |
+        SwpNoMove |
+        SwpNoActivate |
+        SwpNoOwnerZOrder |
+        SwpAsyncWindowPos;
 
     public static void Apply(bool topMost, params IntPtr[] handles)
     {

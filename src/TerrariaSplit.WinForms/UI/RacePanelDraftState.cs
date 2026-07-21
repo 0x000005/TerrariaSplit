@@ -53,7 +53,7 @@ internal sealed record RacePanelDraftState(
         {
             ServerUrl = ServerUrl.Trim(),
             Nickname = NormalizeNickname(Nickname),
-            RoomCode = RoomCode.Trim(),
+            RoomCode = NormalizeRoomCode(RoomCode),
             SeedText = SeedText.Trim(),
             LocalWorldPath = LocalWorldPath.Trim(),
             PlayerTemplateCode = PlayerTemplateCode.Trim()
@@ -66,6 +66,12 @@ internal sealed record RacePanelDraftState(
         return nickname.Length <= RacePlayerNameRules.MaximumLength
             ? nickname
             : nickname[..RacePlayerNameRules.MaximumLength];
+    }
+
+    private static string NormalizeRoomCode(string? value)
+    {
+        string roomCode = value?.Trim() ?? string.Empty;
+        return RaceRoomCodeRules.IsValid(roomCode) ? roomCode : string.Empty;
     }
 
     private static RacePanelRole ToRole(string? value)

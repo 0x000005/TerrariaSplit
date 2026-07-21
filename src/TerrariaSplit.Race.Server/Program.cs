@@ -109,14 +109,10 @@ app.MapPost(
 
             if (result.Succeeded && result.Value is RaceRoomState state)
             {
-                await hubContext.Clients.Group(state.RoomCode).SendAsync(
-                    "RacePackageChanged",
-                    new RacePackageChanged(
-                        state,
-                        nickname.Trim(),
-                        RacePackageRevisionCalculator.Create(state),
-                        RacePackageChangeKind.Published),
-                    cancellationToken);
+                _ = BroadcastPackageChangedBestEffortAsync(
+                    hubContext,
+                    state,
+                    nickname.Trim());
             }
 
             return Results.Json(
@@ -172,5 +168,29 @@ static T? DeserializeFormJson<T>(string? json)
     catch (JsonException)
     {
         return default;
+    }
+}
+
+static async Task BroadcastPackageChangedBestEffortAsync(
+    IHubContext<RaceHub> hubContext,
+    RaceRoomState state,
+    string nickname)
+{
+    try
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await hubContext.Clients.Group(state.RoomCode).SendAsync(
+            "RacePackageChanged",
+            new RacePackageChanged(
+                state,
+                nickname,
+                RacePackageRevisionCalculator.Create(state),
+                RacePackageChangeKind.Published),
+            timeout.Token);
+    }
+    catch
+    {
+        // The upload is already committed. A failed notification must not turn
+        // the successful upload response into a failure or trigger a retry.
     }
 }

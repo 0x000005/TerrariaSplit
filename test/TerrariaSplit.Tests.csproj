@@ -20,6 +20,10 @@
 
   <ItemGroup>
     <Compile Include="Next\*.cs" />
+    <Compile Include="..\src\TerrariaSplit.WorldGuard.Payload\RaceUiReflection.cs"
+             Link="Support\RaceUiReflection.cs" />
+    <Compile Include="..\src\TerrariaSplit.WorldGuard.Payload\RaceUiRuntimeFailure.cs"
+             Link="Support\RaceUiRuntimeFailure.cs" />
     <ProjectReference Include="..\src\TerrariaSplit.Application\TerrariaSplit.Application.csproj" />
     <ProjectReference Include="..\src\TerrariaSplit.Configuration\TerrariaSplit.Configuration.csproj" />
     <ProjectReference Include="..\src\TerrariaSplit.Domain\TerrariaSplit.Domain.csproj" />

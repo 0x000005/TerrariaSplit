@@ -106,6 +106,7 @@ internal sealed partial class MainForm : Form
         appLogger = startupCore.AppLogger;
         applicationController = startupCore.ApplicationController;
         hotkeyShell = new HotkeyShell(
+            this,
             startupCore.HotkeyManager,
             () => settings,
             () => Handle,

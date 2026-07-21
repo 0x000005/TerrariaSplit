@@ -44,7 +44,18 @@ namespace TerrariaSplit.WorldGuard.Payload
         private static MethodInfo raceUiSetScrollbarMethod;
         private static MethodInfo raceUiSetPaddingMethod;
         private static MethodInfo raceUiSetSnapPointMethod;
+        private static MethodInfo raceUiNewTextMethod;
+        private static MethodInfo raceUiGetDimensionsMethod;
+        private static MethodInfo raceUiLinkSetPositionMethod;
+        private static MethodInfo raceUiLinkChangePointMethod;
+        private static IDictionary raceUiLinkPoints;
+        private static FieldInfo raceUiFancyHighestIndexField;
         private static FieldInfo raceUiManualSortField;
+        private static PropertyInfo raceUiLocalPlayerProperty;
+        private static FieldInfo raceUiPlayerDeadField;
+        private static FieldInfo raceUiPlayerNameField;
+        private static MethodInfo raceUiDeathReasonGetTextMethod;
+        private static string raceUiLocalDeathMessage;
         private static EventInfo raceUiLeftClickEvent;
         private static EventInfo raceUiMouseOverEvent;
         private static EventInfo raceUiMouseOutEvent;
@@ -58,12 +69,15 @@ namespace TerrariaSplit.WorldGuard.Payload
         private static object raceUiStatusText;
         private static bool raceUiStatusTextLarge;
         private static string raceUiStructureKey;
+        private static volatile string raceUiRuntimeFailure;
         private static readonly Dictionary<string, Action<RaceInGameControl>> RaceUiRefreshers =
             new Dictionary<string, Action<RaceInGameControl>>(StringComparer.Ordinal);
         private static long raceUiActionId;
         private static long raceUiLastHostContactUtcTicks;
         private static Timer raceUiEmergencyExitTimer;
         private static Delegate raceUiHomeRestoreHandler;
+        private static int raceUiDefaultNavigationPoint = -1;
+        private static bool raceUiLocalPlayerWasDead;
 
         private static bool TryHandleRaceUiCommand(string command, out PayloadCommandResult result)
         {
@@ -81,8 +95,20 @@ namespace TerrariaSplit.WorldGuard.Payload
                 {
                     RaceInGameSnapshot snapshot = RaceInGameProtocol.DecodeSnapshot(parts[1]);
                     EnsureRaceUiInitialized();
-                    runtimeFailure = null;
+                    raceUiRuntimeFailure = null;
+                    // A fresh, unlocked menu may recover from an earlier hook attempt.
+                    // Never hide a runtime failure while an active Race package is locked.
+                    if (configuration == null)
+                    {
+                        runtimeFailure = null;
+                    }
+
                     QueueRaceUiSnapshot(snapshot, true);
+                    if (TryCreateRaceUiFailureResult(out result))
+                    {
+                        return true;
+                    }
+
                     result = new PayloadCommandResult(0, RaceInGameProtocol.EncodeActions(DrainRaceUiActions()), false);
                     return true;
                 }
@@ -97,6 +123,11 @@ namespace TerrariaSplit.WorldGuard.Payload
                         return true;
                     }
 
+                    if (TryCreateRaceUiFailureResult(out result))
+                    {
+                        return true;
+                    }
+
                     EnsureRaceUiInitialized();
                     if (parts.Length == 3 && parts[2].Length > 0)
                     {
@@ -107,6 +138,11 @@ namespace TerrariaSplit.WorldGuard.Payload
                         }
                     }
 
+                    if (TryCreateRaceUiFailureResult(out result))
+                    {
+                        return true;
+                    }
+
                     result = new PayloadCommandResult(0, RaceInGameProtocol.EncodeActions(DrainRaceUiActions()), false);
                     return true;
                 }
@@ -114,8 +150,48 @@ namespace TerrariaSplit.WorldGuard.Payload
                 if (string.Equals(parts[0], "race-ui-close", StringComparison.Ordinal) && parts.Length == 1)
                 {
                     EnsureRaceUiInitialized();
+                    raceUiRuntimeFailure = null;
                     QueueOnTerrariaMainThread(CloseRaceUiOnMainThread);
                     result = new PayloadCommandResult(0, RaceInGameProtocol.EncodeActions(DrainRaceUiActions()), false);
+                    return true;
+                }
+
+                if (string.Equals(parts[0], "race-ui-message", StringComparison.Ordinal) &&
+                    parts.Length == 3)
+                {
+                    int kind;
+                    byte[] encodedMessage;
+                    if (!int.TryParse(
+                            parts[1],
+                            NumberStyles.Integer,
+                            CultureInfo.InvariantCulture,
+                            out kind) ||
+                        (kind != 0 && kind != 1))
+                    {
+                        result = new PayloadCommandResult(2, "The Race game message kind is invalid.", false);
+                        return true;
+                    }
+
+                    try
+                    {
+                        encodedMessage = Convert.FromBase64String(parts[2]);
+                    }
+                    catch (FormatException)
+                    {
+                        result = new PayloadCommandResult(2, "The Race game message is invalid.", false);
+                        return true;
+                    }
+
+                    if (encodedMessage.Length == 0 || encodedMessage.Length > 1024)
+                    {
+                        result = new PayloadCommandResult(2, "The Race game message length is invalid.", false);
+                        return true;
+                    }
+
+                    string message = new UTF8Encoding(false, true).GetString(encodedMessage);
+                    EnsureRaceUiInitialized();
+                    QueueRaceGameMessage(message, kind);
+                    result = new PayloadCommandResult(0, string.Empty, false);
                     return true;
                 }
 
@@ -127,6 +203,25 @@ namespace TerrariaSplit.WorldGuard.Payload
                 result = new PayloadCommandResult(70, "The Terraria Race menu failed: " + Unwrap(ex).Message, false);
                 return true;
             }
+        }
+
+        private static bool TryCreateRaceUiFailureResult(out PayloadCommandResult result)
+        {
+            string failure;
+            if (!RaceUiRuntimeFailure.TryResolve(
+                raceUiRuntimeFailure,
+                runtimeFailure,
+                out failure))
+            {
+                result = null;
+                return false;
+            }
+
+            result = new PayloadCommandResult(
+                RaceUiRuntimeFailure.ErrorCode,
+                failure,
+                false);
+            return true;
         }
 
         private static void EnsureRaceUiInitialized()
@@ -153,6 +248,7 @@ namespace TerrariaSplit.WorldGuard.Payload
             }
 
             Type mainType = RequireType(terraria, "Terraria.Main");
+            Type playerType = RequireType(terraria, "Terraria.Player");
             Type worldGenType = RequireType(terraria, "Terraria.WorldGen");
             Type colorsType = RequireType(terraria, "Terraria.ID.Colors");
             raceUiElementType = RequireType(terraria, "Terraria.UI.UIElement");
@@ -220,6 +316,19 @@ namespace TerrariaSplit.WorldGuard.Payload
             raceUiManualSortField = RequireField(raceUiListType, "ManualSortMethod");
             raceUiSetPaddingMethod = RequireMethod(raceUiElementType, "SetPadding", BindingFlags.Instance | BindingFlags.Public);
             raceUiSetSnapPointMethod = RequireMethod(raceUiElementType, "SetSnapPoint", BindingFlags.Instance | BindingFlags.Public);
+            raceUiNewTextMethod = mainType.GetMethod(
+                "NewText",
+                BindingFlags.Static | BindingFlags.Public,
+                null,
+                new[] { typeof(string), typeof(byte), typeof(byte), typeof(byte) },
+                null);
+            raceUiLocalPlayerProperty = mainType.GetProperty(
+                "LocalPlayer",
+                BindingFlags.Static | BindingFlags.Public);
+            raceUiPlayerDeadField = playerType.GetField(
+                "dead",
+                BindingFlags.Instance | BindingFlags.Public);
+            TryInitializePlainMenuNavigation(terraria);
             raceUiLeftClickEvent = raceUiElementType.GetEvent("OnLeftClick", BindingFlags.Instance | BindingFlags.Public);
             raceUiMouseOverEvent = raceUiElementType.GetEvent("OnMouseOver", BindingFlags.Instance | BindingFlags.Public);
             raceUiMouseOutEvent = raceUiElementType.GetEvent("OnMouseOut", BindingFlags.Instance | BindingFlags.Public);
@@ -258,7 +367,9 @@ namespace TerrariaSplit.WorldGuard.Payload
                 raceUiMouseOverEvent == null || raceUiMouseOutEvent == null ||
                 raceUiUpdateEvent == null || raceUiTickEvent == null ||
                 raceUiColorMultiplyMethod == null || raceUiPlaySoundMethod == null ||
-                raceUiSetStateMethod == null || raceUiScrollbarThemeType == null)
+                raceUiSetStateMethod == null || raceUiScrollbarThemeType == null ||
+                raceUiNewTextMethod == null || raceUiLocalPlayerProperty == null ||
+                raceUiPlayerDeadField == null)
             {
                 throw new MissingMemberException("The Terraria Race menu API is incomplete.");
             }
@@ -291,7 +402,10 @@ namespace TerrariaSplit.WorldGuard.Payload
                     }
                     catch (Exception ex)
                     {
-                        runtimeFailure = "The Terraria Race menu could not be displayed: " + Unwrap(ex).Message;
+                        raceUiRuntimeFailure =
+                            "The Terraria Race menu could not be displayed: " +
+                            Unwrap(ex).Message;
+                        CloseRaceUiOnMainThread();
                     }
                 };
 
@@ -323,6 +437,7 @@ namespace TerrariaSplit.WorldGuard.Payload
                     object existingMenu = raceUiMenuField.GetValue(null);
                     raceUiMenuModeField.SetValue(null, 888);
                     raceUiSetStateMethod.Invoke(existingMenu, new[] { raceUiState });
+                    ApplyDefaultRaceUiNavigationPoint();
                 }
 
                 return;
@@ -332,6 +447,7 @@ namespace TerrariaSplit.WorldGuard.Payload
             raceUiStructureKey = structureKey;
             raceUiStatusText = null;
             raceUiStatusTextLarge = false;
+            raceUiDefaultNavigationPoint = -1;
             RaceUiRefreshers.Clear();
 
             object state;
@@ -370,6 +486,7 @@ namespace TerrariaSplit.WorldGuard.Payload
             object menu = raceUiMenuField.GetValue(null);
             raceUiMenuModeField.SetValue(null, 888);
             raceUiSetStateMethod.Invoke(menu, new[] { state });
+            ApplyDefaultRaceUiNavigationPoint();
         }
 
         private static object BuildPlainMenuPage(RaceInGameSnapshot snapshot, bool showTitle)
@@ -388,11 +505,26 @@ namespace TerrariaSplit.WorldGuard.Payload
             RaceInGameControl[] controls = snapshot.Controls ?? new RaceInGameControl[0];
             int startTop = 220;
             int snapId = 0;
+            int visualRow = 0;
+            bool lowerMenuStarted = false;
+            // Terraria's Fancy UI page enters at point 3002 when keyboard
+            // navigation is activated, so bind the first menu item there.
+            int navigationStart = 3002;
             for (int index = 0; index < controls.Length; index++)
             {
                 RaceInGameControl control = controls[index];
+                if (string.Equals(
+                        control.LayoutGroup,
+                        "menu-lower",
+                        StringComparison.Ordinal) &&
+                    !lowerMenuStarted)
+                {
+                    visualRow += 3;
+                    lowerMenuStarted = true;
+                }
+
                 object item = CreateText(PlainMenuText(control), 0.8f, true);
-                SetDimension(item, "Top", startTop + index * 52, 0f);
+                SetDimension(item, "Top", startTop + visualRow * 52, 0f);
                 SetDimension(item, "Width", 0f, 0.8f);
                 SetDimension(item, "MaxWidth", 650f, 0f);
                 SetDimension(item, "Height", 50f, 0f);
@@ -400,11 +532,25 @@ namespace TerrariaSplit.WorldGuard.Payload
                 AddPlainMenuAnimation(item, control.Id);
                 AddControlClick(item, control.Id);
                 SetSnapPoint(item, snapId++);
-                raceUiAppendMethod.Invoke(state, new[] { item });
-                BindText(control.Id, item, delegate(RaceInGameControl next)
+                if (IsPlainMenuNavigationAvailable())
                 {
-                    return PlainMenuText(next);
-                }, true);
+                    AddPlainMenuNavigation(
+                        item,
+                        control.Id,
+                        navigationStart + index,
+                        index == 0 ? -1 : navigationStart + index - 1,
+                        index == controls.Length - 1 ? -2 : navigationStart + index + 1);
+                }
+                raceUiAppendMethod.Invoke(state, new[] { item });
+                visualRow++;
+            }
+
+            if (controls.Length > 0 && IsPlainMenuNavigationAvailable())
+            {
+                raceUiDefaultNavigationPoint = navigationStart;
+                raceUiFancyHighestIndexField.SetValue(
+                    null,
+                    navigationStart + controls.Length - 1);
             }
 
             return state;
@@ -1135,8 +1281,7 @@ namespace TerrariaSplit.WorldGuard.Payload
 
                 QueueRaceUiAction(controlId, RaceInGameActionKind.Activate, current.Value);
                 if (string.Equals(controlId, "leave-room", StringComparison.Ordinal) ||
-                    string.Equals(controlId, "room-close", StringComparison.Ordinal) ||
-                    string.Equals(controlId, "room-new-race", StringComparison.Ordinal))
+                    string.Equals(controlId, "room-close", StringComparison.Ordinal))
                 {
                     ArmRaceUiEmergencyExit();
                 }
@@ -1207,6 +1352,7 @@ namespace TerrariaSplit.WorldGuard.Payload
             {
                 try
                 {
+                    PollLocalRacePlayerDeath();
                     RestoreRaceUiAtMainMenu();
                 }
                 catch
@@ -1215,6 +1361,34 @@ namespace TerrariaSplit.WorldGuard.Payload
             };
             raceUiHomeRestoreHandler = callback;
             raceUiTickEvent.AddEventHandler(null, callback);
+        }
+
+        private static void PollLocalRacePlayerDeath()
+        {
+            if (configuration == null ||
+                raceUiSnapshot == null ||
+                !raceUiSnapshot.Visible ||
+                (bool)raceUiGameMenuField.GetValue(null))
+            {
+                raceUiLocalPlayerWasDead = false;
+                return;
+            }
+
+            object player = raceUiLocalPlayerProperty.GetValue(null, null);
+            bool isDead =
+                player != null &&
+                (bool)raceUiPlayerDeadField.GetValue(player);
+            if (isDead && !raceUiLocalPlayerWasDead)
+            {
+                string deathMessage = Interlocked.Exchange(ref raceUiLocalDeathMessage, null) ??
+                    string.Empty;
+                QueueRaceUiAction(
+                    "race-player-died",
+                    RaceInGameActionKind.Activate,
+                    deathMessage);
+            }
+
+            raceUiLocalPlayerWasDead = isDead;
         }
 
         private static void RestoreRaceUiAtMainMenu()
@@ -1274,6 +1448,17 @@ namespace TerrariaSplit.WorldGuard.Payload
         private static void AddPlainMenuAnimation(object element, string controlId)
         {
             float scale = 0.8f;
+            RaceInGameControl initial = FindCurrentControl(controlId);
+            string displayedText = initial == null ? string.Empty : PlainMenuText(initial);
+            Bind(controlId, delegate(RaceInGameControl current)
+            {
+                string nextText = PlainMenuText(current);
+                if (!string.Equals(displayedText, nextText, StringComparison.Ordinal))
+                {
+                    displayedText = nextText;
+                    SetTextValue(element, displayedText, scale, true);
+                }
+            });
             AddEventHandler(element, raceUiMouseOverEvent, delegate
             {
                 RaceInGameControl current = FindCurrentControl(controlId);
@@ -1290,6 +1475,7 @@ namespace TerrariaSplit.WorldGuard.Payload
                 bool hovering = hover != null && (bool)hover.GetValue(element, null);
                 RaceInGameControl current = FindCurrentControl(controlId);
                 float target = hovering && current != null && current.Enabled ? 1f : 0.8f;
+                float previousScale = scale;
                 if (scale < target)
                 {
                     scale = Math.Min(target, scale + 0.02f);
@@ -1299,8 +1485,10 @@ namespace TerrariaSplit.WorldGuard.Payload
                     scale = Math.Max(target, scale - 0.02f);
                 }
 
-                string text = current == null ? string.Empty : PlainMenuText(current);
-                SetTextValue(element, text, scale, true);
+                if (scale != previousScale)
+                {
+                    SetTextValue(element, displayedText, scale, true);
+                }
             });
         }
 
@@ -1390,8 +1578,7 @@ namespace TerrariaSplit.WorldGuard.Payload
                     .Append(control.Id).Append(':')
                     .Append((int)control.Kind).Append(':')
                     .Append(control.LayoutGroup).Append(':')
-                    .Append(control.IconPath).Append(':')
-                    .Append(control.Label);
+                    .Append(control.IconPath);
             }
 
             return builder.ToString();
@@ -1765,6 +1952,160 @@ namespace TerrariaSplit.WorldGuard.Payload
             raceUiSetSnapPointMethod.Invoke(element, new object[] { "TerrariaSplitRace", id, null, null });
         }
 
+        private static void TryInitializePlainMenuNavigation(Assembly terraria)
+        {
+            try
+            {
+                raceUiGetDimensionsMethod = RequireMethod(
+                    raceUiElementType,
+                    "GetDimensions",
+                    BindingFlags.Instance | BindingFlags.Public);
+                Type linkNavigatorType = RequireType(
+                    terraria,
+                    "Terraria.UI.Gamepad.UILinkPointNavigator");
+                raceUiLinkSetPositionMethod = RequireMethod(
+                    linkNavigatorType,
+                    "SetPosition",
+                    BindingFlags.Static | BindingFlags.Public);
+                raceUiLinkChangePointMethod = RequireMethod(
+                    linkNavigatorType,
+                    "ChangePoint",
+                    BindingFlags.Static | BindingFlags.Public);
+                raceUiLinkPoints =
+                    RequireField(linkNavigatorType, "Points").GetValue(null) as IDictionary;
+                Type linkShortcutsType = linkNavigatorType.GetNestedType(
+                    "Shortcuts",
+                    BindingFlags.Public);
+                raceUiFancyHighestIndexField = linkShortcutsType == null
+                    ? null
+                    : linkShortcutsType.GetField(
+                        "FANCYUI_HIGHEST_INDEX",
+                        BindingFlags.Static | BindingFlags.Public);
+            }
+            catch
+            {
+                ClearPlainMenuNavigation();
+            }
+
+            if (!IsPlainMenuNavigationAvailable())
+            {
+                ClearPlainMenuNavigation();
+            }
+        }
+
+        private static bool IsPlainMenuNavigationAvailable()
+        {
+            return raceUiGetDimensionsMethod != null &&
+                raceUiLinkSetPositionMethod != null &&
+                raceUiLinkChangePointMethod != null &&
+                raceUiLinkPoints != null &&
+                raceUiFancyHighestIndexField != null;
+        }
+
+        private static void ClearPlainMenuNavigation()
+        {
+            raceUiGetDimensionsMethod = null;
+            raceUiLinkSetPositionMethod = null;
+            raceUiLinkChangePointMethod = null;
+            raceUiLinkPoints = null;
+            raceUiFancyHighestIndexField = null;
+            raceUiDefaultNavigationPoint = -1;
+        }
+
+        private static void AddPlainMenuNavigation(
+            object element,
+            string controlId,
+            int pointId,
+            int upPointId,
+            int downPointId)
+        {
+            object point = raceUiLinkPoints[pointId];
+            if (point == null)
+            {
+                ClearPlainMenuNavigation();
+                return;
+            }
+
+            if (!TryConfigurePlainMenuNavigationPoint(
+                point,
+                upPointId,
+                downPointId))
+            {
+                ClearPlainMenuNavigation();
+                return;
+            }
+
+            AddEventHandler(element, raceUiUpdateEvent, delegate
+            {
+                try
+                {
+                    if (!IsPlainMenuNavigationAvailable())
+                    {
+                        return;
+                    }
+
+                    RaceInGameControl current = FindCurrentControl(controlId);
+                    if (!RaceUiReflection.TrySetPublicInstanceField(
+                        point,
+                        "Enabled",
+                        current != null && current.Enabled))
+                    {
+                        ClearPlainMenuNavigation();
+                        return;
+                    }
+
+                    object dimensions = raceUiGetDimensionsMethod.Invoke(element, null);
+                    float x = ReadNumericMember(dimensions, "X") +
+                        ReadNumericMember(dimensions, "Width") * 0.5f;
+                    float y = ReadNumericMember(dimensions, "Y") +
+                        ReadNumericMember(dimensions, "Height") * 0.5f;
+                    Type vectorType =
+                        raceUiLinkSetPositionMethod.GetParameters()[1].ParameterType;
+                    object position = Activator.CreateInstance(
+                        vectorType,
+                        new object[] { x, y });
+                    raceUiLinkSetPositionMethod.Invoke(
+                        null,
+                        new[] { (object)pointId, position });
+                }
+                catch
+                {
+                    ClearPlainMenuNavigation();
+                }
+            });
+        }
+
+        private static bool TryConfigurePlainMenuNavigationPoint(
+            object point,
+            int upPointId,
+            int downPointId)
+        {
+            return RaceUiReflection.TrySetPublicInstanceField(point, "Left", -3) &&
+                RaceUiReflection.TrySetPublicInstanceField(point, "Right", -4) &&
+                RaceUiReflection.TrySetPublicInstanceField(point, "Up", upPointId) &&
+                RaceUiReflection.TrySetPublicInstanceField(point, "Down", downPointId);
+        }
+
+        private static void ApplyDefaultRaceUiNavigationPoint()
+        {
+            if (raceUiDefaultNavigationPoint < 0 ||
+                !IsPlainMenuNavigationAvailable())
+            {
+                return;
+            }
+
+            try
+            {
+                raceUiLinkChangePointMethod.Invoke(
+                    null,
+                    new object[] { raceUiDefaultNavigationPoint });
+            }
+            catch
+            {
+                ClearPlainMenuNavigation();
+            }
+        }
+
         private static void SetDimension(object element, string fieldName, float pixels, float percent)
         {
             FieldInfo field = raceUiElementType.GetField(fieldName, BindingFlags.Instance | BindingFlags.Public);
@@ -1776,12 +2117,17 @@ namespace TerrariaSplit.WorldGuard.Payload
 
         private static void SetFloatField(object element, string fieldName, float value)
         {
-            FieldInfo field = raceUiElementType.GetField(fieldName, BindingFlags.Instance | BindingFlags.Public) ??
-                element.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.Public);
-            if (field != null)
-            {
-                field.SetValue(element, value);
-            }
+            RaceUiReflection.TrySetPublicInstanceField(element, fieldName, value);
+        }
+
+        private static void SetIntField(object element, string fieldName, int value)
+        {
+            RaceUiReflection.TrySetPublicInstanceField(element, fieldName, value);
+        }
+
+        private static void SetBoolField(object element, string fieldName, bool value)
+        {
+            RaceUiReflection.TrySetPublicInstanceField(element, fieldName, value);
         }
 
         private static void SetFloatMember(object element, string name, float value)
@@ -1798,34 +2144,6 @@ namespace TerrariaSplit.WorldGuard.Payload
             SetFloatField(element, name, value);
         }
 
-        private static void SetIntField(object element, string fieldName, int value)
-        {
-            FieldInfo field = raceUiElementType.GetField(
-                fieldName,
-                BindingFlags.Instance | BindingFlags.Public) ??
-                element.GetType().GetField(
-                    fieldName,
-                    BindingFlags.Instance | BindingFlags.Public);
-            if (field != null)
-            {
-                field.SetValue(element, value);
-            }
-        }
-
-        private static void SetBoolField(object element, string fieldName, bool value)
-        {
-            FieldInfo field = raceUiElementType.GetField(
-                fieldName,
-                BindingFlags.Instance | BindingFlags.Public) ??
-                element.GetType().GetField(
-                    fieldName,
-                    BindingFlags.Instance | BindingFlags.Public);
-            if (field != null)
-            {
-                field.SetValue(element, value);
-            }
-        }
-
         private static void QueueRaceUiAction(string controlId, RaceInGameActionKind kind, string value)
         {
             long actionId = Interlocked.Increment(ref raceUiActionId);
@@ -1839,6 +2157,19 @@ namespace TerrariaSplit.WorldGuard.Payload
 
                 RaceUiActions.Enqueue(new RaceInGameAction(actionId, revision, controlId, kind, value));
             }
+        }
+
+        private static void QueueRaceGameMessage(string message, int kind)
+        {
+            QueueOnTerrariaMainThread(delegate
+            {
+                byte red = kind == 1 ? (byte)225 : (byte)255;
+                byte green = kind == 1 ? (byte)25 : (byte)240;
+                byte blue = kind == 1 ? (byte)25 : (byte)20;
+                raceUiNewTextMethod.Invoke(
+                    null,
+                    new object[] { message, red, green, blue });
+            });
         }
 
         private static void ArmRaceUiEmergencyExit()
@@ -1858,6 +2189,7 @@ namespace TerrariaSplit.WorldGuard.Payload
                         configuration = null;
                         ResetAdvancedDeterminismState();
                         runtimeFailure = null;
+                        raceUiRuntimeFailure = null;
                         PrepareRestart();
                         QueueOnTerrariaMainThread(CloseRaceUiOnMainThread);
                     }
@@ -1910,6 +2242,8 @@ namespace TerrariaSplit.WorldGuard.Payload
                 raceUiStatusText = null;
                 raceUiStatusTextLarge = false;
                 raceUiStructureKey = null;
+                raceUiLocalPlayerWasDead = false;
+                Interlocked.Exchange(ref raceUiLocalDeathMessage, null);
                 RaceUiRefreshers.Clear();
             }
             catch

@@ -60,6 +60,9 @@ namespace TerrariaSplit.WorldGuard.Payload
                 MethodInfo loadPlayers = mainType == null
                     ? null
                     : mainType.GetMethod("LoadPlayers", BindingFlags.Static | BindingFlags.Public, null, Type.EmptyTypes, null);
+                MethodInfo loadWorlds = mainType == null
+                    ? null
+                    : mainType.GetMethod("LoadWorlds", BindingFlags.Static | BindingFlags.Public, null, Type.EmptyTypes, null);
                 MethodInfo selectPlayer = mainType == null || playerFileDataType == null
                     ? null
                     : mainType.GetMethod("SelectPlayer", BindingFlags.Static | BindingFlags.Public, null, new[] { playerFileDataType }, null);
@@ -74,7 +77,8 @@ namespace TerrariaSplit.WorldGuard.Payload
                     : worldGenType.GetMethod("SaveAndQuit", BindingFlags.Static | BindingFlags.Public, null, new[] { typeof(Action) }, null);
                 FieldInfo statusText = mainType == null ? null : mainType.GetField("statusText", BindingFlags.Static | BindingFlags.Public);
                 if (gameMenu == null || playerList == null || worldList == null || menuMultiplayer == null || menuServer == null ||
-                    menuMode == null || queue == null || loadPlayers == null || selectPlayer == null || setWorldActive == null ||
+                    menuMode == null || queue == null || loadPlayers == null || loadWorlds == null ||
+                    selectPlayer == null || setWorldActive == null ||
                     playWorld == null || saveAndQuit == null || statusText == null)
                 {
                     return new PayloadCommandResult(48, "The Terraria Race start helper is unavailable.", false);
@@ -107,6 +111,10 @@ namespace TerrariaSplit.WorldGuard.Payload
                         }
 
                         selectPlayer.Invoke(null, new[] { assignedPlayer });
+                        // Race worlds are downloaded while Terraria is already at the
+                        // menu. Refresh explicitly so a world from a newly joined room
+                        // cannot be missed because the previous room's list is cached.
+                        loadWorlds.Invoke(null, null);
                         object assignedWorld = FindAssignedWorld((IEnumerable)worldList.GetValue(null), current);
                         if (assignedWorld == null)
                         {

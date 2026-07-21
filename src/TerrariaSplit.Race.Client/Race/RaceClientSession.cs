@@ -40,6 +40,8 @@ public sealed class RaceClientSession : IAsyncDisposable
 
     public event EventHandler<RaceGroupCompleted>? GroupCompleted;
 
+    public event EventHandler<RacePlayerDied>? PlayerDied;
+
     public event EventHandler<RacePlayerProgressReset>? PlayerProgressReset;
 
     public RaceRoomState? State => state;
@@ -77,29 +79,44 @@ public sealed class RaceClientSession : IAsyncDisposable
             return;
         }
 
-        if (connection is not null)
+        if (connection is HubConnection previousConnection)
         {
-            await connection.DisposeAsync();
+            connection = null;
+            await previousConnection.DisposeAsync();
             SetConnectionStatus(RaceServerConnectionStatus.Disconnected);
         }
 
         serverUrl = normalized;
-        connection = new HubConnectionBuilder()
+        HubConnection nextConnection = new HubConnectionBuilder()
             .WithUrl(CombineHubUrl(normalized))
             .WithAutomaticReconnect(RaceReconnectRetryPolicy.Instance)
             .Build();
-        connection.On<RacePackageChanged>("RacePackageChanged", ApplyPackageChanged);
-        connection.On<RaceRosterChanged>("RaceRosterChanged", ApplyRosterChanged);
-        connection.On<RaceProgressChanged>("RaceProgressChanged", ApplyProgressChanged);
-        connection.On<RaceGroupCompleted>("RaceGroupCompleted", ApplyGroupCompleted);
-        connection.On<RacePlayerProgressReset>("RacePlayerProgressReset", ApplyPlayerProgressReset);
-        connection.Reconnecting += HandleReconnectingAsync;
-        connection.Reconnected += ResumeRoomAfterReconnectAsync;
-        connection.Closed += HandleConnectionClosedAsync;
+        nextConnection.On<RacePackageChanged>(
+            "RacePackageChanged",
+            update => ApplyPackageChanged(nextConnection, update));
+        nextConnection.On<RaceRosterChanged>(
+            "RaceRosterChanged",
+            update => ApplyRosterChanged(nextConnection, update));
+        nextConnection.On<RaceProgressChanged>(
+            "RaceProgressChanged",
+            update => ApplyProgressChanged(nextConnection, update));
+        nextConnection.On<RaceGroupCompleted>(
+            "RaceGroupCompleted",
+            update => ApplyGroupCompleted(nextConnection, update));
+        nextConnection.On<RacePlayerDied>(
+            "RacePlayerDied",
+            update => ApplyPlayerDied(nextConnection, update));
+        nextConnection.On<RacePlayerProgressReset>(
+            "RacePlayerProgressReset",
+            update => ApplyPlayerProgressReset(nextConnection, update));
+        nextConnection.Reconnecting += exception => HandleReconnectingAsync(nextConnection, exception);
+        nextConnection.Reconnected += connectionId => ResumeRoomAfterReconnectAsync(nextConnection, connectionId);
+        nextConnection.Closed += exception => HandleConnectionClosedAsync(nextConnection, exception);
+        connection = nextConnection;
         SetConnectionStatus(RaceServerConnectionStatus.Connecting);
         try
         {
-            await StartConnectionAsync(connection, cancellationToken);
+            await StartConnectionAsync(nextConnection, cancellationToken);
             SetConnectionStatus(RaceServerConnectionStatus.Connected);
         }
         catch
@@ -133,15 +150,42 @@ public sealed class RaceClientSession : IAsyncDisposable
         RaceRoomJoinRequest request,
         CancellationToken cancellationToken = default)
     {
+        string roomCode = request.RoomCode.Trim();
+        if (!RaceRoomCodeRules.IsValid(roomCode))
+        {
+            return RaceOperationResult<RaceRoomState>.Failure(
+                "invalid_request",
+                "Room code must be four digits.");
+        }
+
+        request = request with { RoomCode = roomCode };
         await ConnectAsync(baseServerUrl, cancellationToken);
         RaceOperationResult<RaceRoomState> result = await InvokeAsync<RaceRoomJoinRequest>(
             "JoinRoom",
             request,
             cancellationToken);
+        bool resumedExistingPlayer = false;
+        if (!result.Succeeded &&
+            string.Equals(result.ErrorCode, "nickname_taken", StringComparison.OrdinalIgnoreCase))
+        {
+            RaceOperationResult<RaceRoomState> resumed = await InvokeResumeRoomAsync(
+                request.RoomCode,
+                request.Nickname,
+                cancellationToken);
+            if (resumed.Succeeded)
+            {
+                result = resumed;
+                resumedExistingPlayer = true;
+            }
+        }
+
         if (result.Succeeded && result.Value is RaceRoomState next)
         {
             Nickname = request.Nickname.Trim();
-            ApplyStateAfterJoin(next, request.Nickname);
+            RaceRoomStateUpdateKind updateKind = resumedExistingPlayer
+                ? RaceRoomStateUpdateKind.RoomResumed
+                : RaceRoomStateUpdateKind.PlayerJoined;
+            ApplyStateAfterJoin(next, request.Nickname, updateKind);
         }
 
         return result;
@@ -433,7 +477,8 @@ public sealed class RaceClientSession : IAsyncDisposable
         RaceWorldFileStatus worldFileStatus,
         RaceRngControlStatus rngControlStatus,
         string? error = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        long? packageRevision = null)
     {
         if (!TryGetIdentity(out string roomCode, out string nickname, out RaceOperationResult<RaceRoomState> failure))
         {
@@ -446,11 +491,35 @@ public sealed class RaceClientSession : IAsyncDisposable
             playerFileStatus,
             worldFileStatus,
             rngControlStatus,
-            error);
+            error,
+            packageRevision ?? state?.PackageRevision ?? 0);
         return await InvokeAndApplyAsync(
             "UpdatePreparationStatus",
             request,
             RaceRoomStateUpdateKind.WorldReadyChanged,
+            nickname,
+            cancellationToken);
+    }
+
+    public async Task<RaceOperationResult<RaceRoomState>> SetReadyAsync(
+        bool isReady,
+        CancellationToken cancellationToken = default)
+    {
+        if (!TryGetIdentity(out string roomCode, out string nickname, out RaceOperationResult<RaceRoomState> failure))
+        {
+            return failure;
+        }
+
+        RaceRoomState current = state!;
+        var request = new RacePlayerReadyRequest(
+            roomCode,
+            nickname,
+            current.PackageRevision,
+            isReady);
+        return await InvokeAndApplyAsync(
+            "SetPlayerReady",
+            request,
+            RaceRoomStateUpdateKind.PlayerReadyChanged,
             nickname,
             cancellationToken);
     }
@@ -497,6 +566,21 @@ public sealed class RaceClientSession : IAsyncDisposable
         }
 
         return result;
+    }
+
+    public async Task<RaceOperationResult<RaceRoomState>> ReportDeathAsync(
+        RaceDeathReport report,
+        CancellationToken cancellationToken = default)
+    {
+        if (!TryGetIdentity(out _, out _, out RaceOperationResult<RaceRoomState> failure))
+        {
+            return failure;
+        }
+
+        return await RequiredConnection.InvokeAsync<RaceOperationResult<RaceRoomState>>(
+            "ReportDeath",
+            report,
+            cancellationToken);
     }
 
     public async Task<RaceOperationResult<RaceRoomState>> StartRaceAsync(CancellationToken cancellationToken = default)
@@ -640,13 +724,14 @@ public sealed class RaceClientSession : IAsyncDisposable
 
     public async Task LeaveLocalAsync(TimeSpan? connectionDisposeTimeout = null)
     {
+        HubConnection? previousConnection = connection;
+        connection = null;
         state = null;
         Nickname = null;
         lastPackageRevision = string.Empty;
-        if (connection is not null)
+        if (previousConnection is not null)
         {
-            await DisposeConnectionAsync(connection, connectionDisposeTimeout).ConfigureAwait(false);
-            connection = null;
+            await DisposeConnectionAsync(previousConnection, connectionDisposeTimeout).ConfigureAwait(false);
         }
 
         SetConnectionStatus(RaceServerConnectionStatus.Disconnected);
@@ -709,6 +794,27 @@ public sealed class RaceClientSession : IAsyncDisposable
         CancellationToken cancellationToken)
     {
         return InvokeHubAsync(methodName, request, cancellationToken);
+    }
+
+    private async Task<RaceOperationResult<RaceRoomState>> InvokeResumeRoomAsync(
+        string roomCode,
+        string nickname,
+        CancellationToken cancellationToken)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(HubInvokeTimeout);
+        try
+        {
+            return await RequiredConnection.InvokeAsync<RaceOperationResult<RaceRoomState>>(
+                "ResumeRoom",
+                roomCode,
+                nickname,
+                timeout.Token);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new TimeoutException("Race server request timed out.");
+        }
     }
 
     private static async Task StartConnectionAsync(
@@ -829,6 +935,11 @@ public sealed class RaceClientSession : IAsyncDisposable
             return;
         }
 
+        if (!IsRoomUpdateForCurrentRoom(state?.RoomCode, next.RoomCode))
+        {
+            return;
+        }
+
         bool containsCurrentPlayer = next.Players.Any(player =>
             string.Equals(player.Nickname, Nickname, StringComparison.OrdinalIgnoreCase));
         if (!containsCurrentPlayer)
@@ -870,6 +981,11 @@ public sealed class RaceClientSession : IAsyncDisposable
             return;
         }
 
+        if (!IsRoomUpdateForCurrentRoom(state?.RoomCode, next.RoomCode))
+        {
+            return;
+        }
+
         bool containsCurrentPlayer = next.Players.Any(player =>
             string.Equals(player.Nickname, Nickname, StringComparison.OrdinalIgnoreCase));
         if (!containsCurrentPlayer)
@@ -888,6 +1004,60 @@ public sealed class RaceClientSession : IAsyncDisposable
 
         state = next;
         RosterChanged?.Invoke(this, update);
+    }
+
+    internal static bool IsRoomUpdateForCurrentRoom(string? currentRoomCode, string nextRoomCode)
+    {
+        return string.IsNullOrWhiteSpace(currentRoomCode) ||
+            string.Equals(currentRoomCode, nextRoomCode, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void ApplyPackageChanged(HubConnection source, RacePackageChanged update)
+    {
+        if (ReferenceEquals(connection, source))
+        {
+            ApplyPackageChanged(update);
+        }
+    }
+
+    private void ApplyRosterChanged(HubConnection source, RaceRosterChanged update)
+    {
+        if (ReferenceEquals(connection, source))
+        {
+            ApplyRosterChanged(update);
+        }
+    }
+
+    private void ApplyProgressChanged(HubConnection source, RaceProgressChanged update)
+    {
+        if (ReferenceEquals(connection, source))
+        {
+            ApplyProgressChanged(update);
+        }
+    }
+
+    private void ApplyGroupCompleted(HubConnection source, RaceGroupCompleted update)
+    {
+        if (ReferenceEquals(connection, source))
+        {
+            ApplyGroupCompleted(update);
+        }
+    }
+
+    private void ApplyPlayerDied(HubConnection source, RacePlayerDied update)
+    {
+        if (ReferenceEquals(connection, source))
+        {
+            ApplyPlayerDied(update);
+        }
+    }
+
+    private void ApplyPlayerProgressReset(HubConnection source, RacePlayerProgressReset update)
+    {
+        if (ReferenceEquals(connection, source))
+        {
+            ApplyPlayerProgressReset(update);
+        }
     }
 
     private void ApplyProgressChanged(RaceProgressChanged update)
@@ -935,6 +1105,20 @@ public sealed class RaceClientSession : IAsyncDisposable
         GroupCompleted?.Invoke(this, update);
     }
 
+    private void ApplyPlayerDied(RacePlayerDied update)
+    {
+        RaceRoomState? current = state;
+        if (current is null ||
+            string.IsNullOrWhiteSpace(Nickname) ||
+            !string.Equals(current.RoomCode, update.RoomCode, StringComparison.OrdinalIgnoreCase) ||
+            current.PackageRevision != update.PackageRevision)
+        {
+            return;
+        }
+
+        PlayerDied?.Invoke(this, update);
+    }
+
     private void ApplyPlayerProgressReset(RacePlayerProgressReset update)
     {
         RaceRoomState? current = state;
@@ -949,13 +1133,18 @@ public sealed class RaceClientSession : IAsyncDisposable
         PlayerProgressReset?.Invoke(this, update);
     }
 
-    private async Task ResumeRoomAfterReconnectAsync(string? connectionId)
+    private async Task ResumeRoomAfterReconnectAsync(HubConnection source, string? connectionId)
     {
         _ = connectionId;
+        if (!ReferenceEquals(connection, source))
+        {
+            return;
+        }
+
         SetConnectionStatus(RaceServerConnectionStatus.Connected);
         if (state?.RoomCode is not string roomCode ||
             Nickname is not string nickname ||
-            connection is null)
+            !ReferenceEquals(connection, source))
         {
             return;
         }
@@ -964,12 +1153,14 @@ public sealed class RaceClientSession : IAsyncDisposable
         {
             using var timeout = new CancellationTokenSource(HubInvokeTimeout);
             RaceOperationResult<RaceRoomState> result =
-                await connection.InvokeAsync<RaceOperationResult<RaceRoomState>>(
+                await source.InvokeAsync<RaceOperationResult<RaceRoomState>>(
                     "ResumeRoom",
                     roomCode,
                     nickname,
                     timeout.Token);
-            if (result.Succeeded && result.Value is RaceRoomState next)
+            if (ReferenceEquals(connection, source) &&
+                result.Succeeded &&
+                result.Value is RaceRoomState next)
             {
                 ApplyStateAfterJoin(next, nickname, RaceRoomStateUpdateKind.RoomResumed);
             }
@@ -979,18 +1170,26 @@ public sealed class RaceClientSession : IAsyncDisposable
         }
     }
 
-    private Task HandleReconnectingAsync(Exception? exception)
+    private Task HandleReconnectingAsync(HubConnection source, Exception? exception)
     {
         _ = exception;
-        SetConnectionStatus(RaceServerConnectionStatus.Reconnecting);
+        if (ReferenceEquals(connection, source))
+        {
+            SetConnectionStatus(RaceServerConnectionStatus.Reconnecting);
+        }
+
         return Task.CompletedTask;
     }
 
-    private Task HandleConnectionClosedAsync(Exception? exception)
+    private Task HandleConnectionClosedAsync(HubConnection source, Exception? exception)
     {
-        SetConnectionStatus(exception is null
-            ? RaceServerConnectionStatus.Disconnected
-            : RaceServerConnectionStatus.ConnectionFailed);
+        if (ReferenceEquals(connection, source))
+        {
+            SetConnectionStatus(exception is null
+                ? RaceServerConnectionStatus.Disconnected
+                : RaceServerConnectionStatus.ConnectionFailed);
+        }
+
         return Task.CompletedTask;
     }
 
@@ -1206,9 +1405,11 @@ public sealed class RaceClientSession : IAsyncDisposable
                 return;
             }
 
+            // Writing the file content only completes the request body. The
+            // server still has to validate, publish, and acknowledge it.
             int percent = length <= 0
-                ? 100
-                : (int)Math.Clamp(Math.Round(transferred * 100d / length, MidpointRounding.AwayFromZero), 0d, 100d);
+                ? 0
+                : (int)Math.Clamp(Math.Round(transferred * 99d / length, MidpointRounding.AwayFromZero), 0d, 99d);
             if (percent == lastReported)
             {
                 return;

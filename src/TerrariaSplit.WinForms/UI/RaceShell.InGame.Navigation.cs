@@ -29,19 +29,20 @@ internal enum RaceInGameTransition
     BackToRoomHome,
     RoomPrepared,
     RaceStarted,
-    RoomExited,
-    RoomExitedForNewRace
+    RoomExited
 }
 
 internal sealed class RaceInGameNavigator
 {
     public RaceInGamePage Current { get; private set; } = RaceInGamePage.Entry;
 
-    public void Reset(bool roomOpen)
+    public void Reset(bool roomOpen, bool raceStarted = false)
     {
-        Current = roomOpen
-            ? RaceInGamePage.RoomHome
-            : RaceInGamePage.Entry;
+        Current = !roomOpen
+            ? RaceInGamePage.Entry
+            : raceStarted
+                ? RaceInGamePage.RoomHome
+                : RaceInGamePage.RoomPreparation;
     }
 
     public bool TryMove(RaceInGameTransition transition, bool isHost)
@@ -78,8 +79,6 @@ internal sealed class RaceInGameNavigator
                 RaceInGamePage.RoomHome,
             (_, RaceInGameTransition.RoomExited) =>
                 RaceInGamePage.Entry,
-            (_, RaceInGameTransition.RoomExitedForNewRace) =>
-                RaceInGamePage.HostWorldSource,
             _ => null
         };
 
@@ -129,7 +128,10 @@ internal sealed partial class RaceShell
 
     private void ResetInGameNavigation()
     {
-        inGameNavigation.Reset(HasOpenRaceRoom(State));
+        RaceRoomState? state = State;
+        inGameNavigation.Reset(
+            HasOpenRaceRoom(state),
+            HasRaceStarted(state));
     }
 
     private bool TransitionInGameMenu(RaceInGameTransition transition)
@@ -142,9 +144,7 @@ internal sealed partial class RaceShell
             return false;
         }
 
-        if (transition is
-            RaceInGameTransition.RoomExited or
-            RaceInGameTransition.RoomExitedForNewRace)
+        if (transition is RaceInGameTransition.RoomExited)
         {
             // Local room cleanup is complete when these transitions are
             // published. Do not expose an entry page that still carries the
@@ -169,5 +169,10 @@ internal sealed partial class RaceShell
     private static bool HasOpenRaceRoom(RaceRoomState? state)
     {
         return state is not null && state.Status != RaceRoomStatus.Closed;
+    }
+
+    private static bool HasRaceStarted(RaceRoomState? state)
+    {
+        return state?.ScheduledStartUtc is not null;
     }
 }

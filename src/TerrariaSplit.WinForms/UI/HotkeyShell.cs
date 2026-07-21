@@ -4,6 +4,7 @@ namespace TerrariaSplit.UI;
 
 internal sealed class HotkeyShell : IDisposable
 {
+    private readonly Control owner;
     private readonly IHotkeyRegistrationManager hotkeys;
     private readonly Func<AppSettings> getSettings;
     private readonly Func<IntPtr> getWindowHandle;
@@ -13,6 +14,7 @@ internal sealed class HotkeyShell : IDisposable
     private string? lastWarningText;
 
     public HotkeyShell(
+        Control owner,
         IHotkeyRegistrationManager hotkeys,
         Func<AppSettings> getSettings,
         Func<IntPtr> getWindowHandle,
@@ -20,6 +22,7 @@ internal sealed class HotkeyShell : IDisposable
         bool registerGlobalHotkeys,
         Action<string> showWarning)
     {
+        this.owner = owner;
         this.hotkeys = hotkeys;
         this.getSettings = getSettings;
         this.getWindowHandle = getWindowHandle;
@@ -30,6 +33,11 @@ internal sealed class HotkeyShell : IDisposable
 
     public void Register()
     {
+        if (DispatchToOwnerThread(Register))
+        {
+            return;
+        }
+
         if (!registerGlobalHotkeys || !canUseWindowHandle())
         {
             Unregister();
@@ -43,6 +51,11 @@ internal sealed class HotkeyShell : IDisposable
 
     public void Unregister()
     {
+        if (DispatchToOwnerThread(Unregister))
+        {
+            return;
+        }
+
         hotkeys.Dispose();
         lastWarningText = null;
     }
@@ -110,6 +123,29 @@ internal sealed class HotkeyShell : IDisposable
 
     public void Dispose()
     {
-        hotkeys.Dispose();
+        Unregister();
+    }
+
+    private bool DispatchToOwnerThread(Action action)
+    {
+        if (!owner.IsHandleCreated ||
+            owner.IsDisposed ||
+            owner.Disposing ||
+            !owner.InvokeRequired)
+        {
+            return false;
+        }
+
+        try
+        {
+            owner.BeginInvoke(action);
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+        catch (InvalidOperationException)
+        {
+        }
+        return true;
     }
 }

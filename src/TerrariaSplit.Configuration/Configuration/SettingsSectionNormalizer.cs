@@ -21,6 +21,7 @@ public static class SettingsSectionNormalizer
         autoCreate.ResourceFilterLifeCrystalMinimum = AutoCreateResourceMinimum.NormalizeLifeCrystals(autoCreate.ResourceFilterLifeCrystalMinimum);
         autoCreate.ResourceFilterSpelunkerPotionMinimum = AutoCreateResourceMinimum.NormalizePotions(autoCreate.ResourceFilterSpelunkerPotionMinimum);
         autoCreate.ResourceFilterFeatherfallPotionMinimum = AutoCreateResourceMinimum.NormalizePotions(autoCreate.ResourceFilterFeatherfallPotionMinimum);
+        AutoCreateAdvancedFilterEligibility.ClearUnsupportedFilters(autoCreate);
         autoCreate.ShortActionDelayMilliseconds = Math.Clamp(autoCreate.ShortActionDelayMilliseconds, 0, 5000);
         autoCreate.MenuActionDelayMilliseconds = Math.Clamp(autoCreate.MenuActionDelayMilliseconds, 0, 5000);
         autoCreate.PyramidFilterPostDelayMilliseconds = Math.Clamp(autoCreate.PyramidFilterPostDelayMilliseconds, 0, 5000);
@@ -72,7 +73,7 @@ public static class SettingsSectionNormalizer
             ? defaults.ServerUrl
             : race.ServerUrl.Trim();
         race.Nickname = race.Nickname?.Trim() ?? string.Empty;
-        race.LastRoomCode = race.LastRoomCode?.Trim() ?? string.Empty;
+        race.LastRoomCode = NormalizeRaceRoomCode(race.LastRoomCode);
         race.PreferredRole = RacePreferredRole.Normalize(race.PreferredRole);
         race.PreferredWorldSource = RacePreferredWorldSource.Normalize(race.PreferredWorldSource);
         race.PlayerTemplateCode = race.PlayerTemplateCode?.Trim() ?? string.Empty;
@@ -121,6 +122,15 @@ public static class SettingsSectionNormalizer
         NormalizeRaceLeaderboardColor(race.Leaderboard.Colors.Time ??= defaults.Leaderboard.Colors.Time, defaults.Leaderboard.Colors.Time);
     }
 
+    private static string NormalizeRaceRoomCode(string? value)
+    {
+        string roomCode = value?.Trim() ?? string.Empty;
+        return roomCode.Length == 4 &&
+            roomCode.All(character => character is >= '0' and <= '9')
+                ? roomCode
+                : string.Empty;
+    }
+
     private static void NormalizeRaceWorldSetup(RaceWorldSetupSettings setup)
     {
         setup.Source = RacePreferredWorldSource.Normalize(setup.Source);
@@ -137,6 +147,7 @@ public static class SettingsSectionNormalizer
         setup.LifeCrystalMinimum = AutoCreateResourceMinimum.NormalizeLifeCrystals(setup.LifeCrystalMinimum);
         setup.SpelunkerPotionMinimum = AutoCreateResourceMinimum.NormalizePotions(setup.SpelunkerPotionMinimum);
         setup.FeatherfallPotionMinimum = AutoCreateResourceMinimum.NormalizePotions(setup.FeatherfallPotionMinimum);
+        AutoCreateAdvancedFilterEligibility.ClearUnsupportedFilters(setup);
     }
 
     public static void NormalizeColumnSettings(UiColumnLayoutSettings columns, UiColumnLayoutSettings defaults)

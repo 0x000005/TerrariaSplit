@@ -45,14 +45,14 @@ public static class WorldPoolSignature
             ? AutoCreatePyramidFilterItem.NormalizeMaskOrAll(autoCreate.PyramidFilterItemMask)
             : 0;
         string pyramidItems = "pyramidItems=" + pyramidItemMask.ToString(CultureInfo.InvariantCulture);
-        bool crimsonCorridorEnabled = cheatsEnabled && autoCreate.RequireCrimsonBetweenDungeonAndSpawn &&
-            string.Equals(evil, AutoCreateWorldEvil.Crimson, StringComparison.Ordinal);
+        bool advancedFiltersEligible = AutoCreateAdvancedFilterEligibility.IsEligible(autoCreate);
+        bool crimsonCorridorEnabled = cheatsEnabled && advancedFiltersEligible &&
+            autoCreate.RequireCrimsonBetweenDungeonAndSpawn;
         string crimsonCorridor = crimsonCorridorEnabled
             ? "crimsonCorridor=" + AutoCreateCrimsonDistance.Normalize(autoCreate.CrimsonDistance)
             : "crimsonCorridor=0";
-        bool resourceFilterEnabled = cheatsEnabled && AutoCreateResourceFilter.HasRequirements(autoCreate) &&
-            string.Equals(size, AutoCreateWorldSize.Small, StringComparison.Ordinal) &&
-            string.Equals(evil, AutoCreateWorldEvil.Crimson, StringComparison.Ordinal);
+        bool resourceFilterEnabled = cheatsEnabled && advancedFiltersEligible &&
+            AutoCreateResourceFilter.HasRequirements(autoCreate);
         string resourceFilter = resourceFilterEnabled
             ? string.Join(
                 ",",

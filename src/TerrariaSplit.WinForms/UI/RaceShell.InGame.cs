@@ -9,7 +9,8 @@ namespace TerrariaSplit.UI;
 
 internal sealed partial class RaceShell
 {
-    private static readonly TimeSpan InGameMenuPollInterval = TimeSpan.FromMilliseconds(125);
+    private static readonly TimeSpan InGameMenuPollInterval = TimeSpan.FromMilliseconds(25);
+    private static readonly TimeSpan InGameMenuReconnectInterval = TimeSpan.FromSeconds(1);
     private CancellationTokenSource? inGameMenuCancellation;
     private CancellationTokenSource? inGameOperationCancellation;
     private Task? inGameMenuPump;
@@ -20,6 +21,8 @@ internal sealed partial class RaceShell
     private int inGameMenuDedicatedProgress;
     private int inGameMenuDirty;
     private int inGameMenuOpening;
+    private int inGameMenuFailureReported;
+    private int inGameMenuAttachedOnce;
     private long inGameMenuRevision;
     private long inGameMenuSentRevision;
     private long inGameMenuLastActionId;
@@ -52,6 +55,7 @@ internal sealed partial class RaceShell
         ResetInGameNavigation();
         inGameMenuStatus = string.Empty;
         inGameMenuProgress = 0;
+        Interlocked.Exchange(ref inGameMenuFailureReported, 0);
         ResetInGameActionSnapshots();
         inGameMenuCancellation = new CancellationTokenSource();
         inGameMenuPump = RunInGameMenuAsync(inGameMenuCancellation.Token);
@@ -70,101 +74,120 @@ internal sealed partial class RaceShell
             TerrariaRaceMenuExchangeResult result = await worldLock.OpenRaceMenuAsync(snapshot);
             if (result.Succeeded)
             {
+                Interlocked.Exchange(ref inGameMenuAttachedOnce, 1);
                 RecordSentInGameSnapshot(snapshot);
             }
             else
             {
-                ShowInGameMenuFailure(result.Message);
+                if (ShouldRecoverInGameMenu(result.Message))
+                {
+                    PrepareInGameMenuForHookRecovery(result.Message);
+                }
+                else
+                {
+                    HandleInGameMenuFailure(result.Message);
+                }
             }
         }
         catch (Exception ex) when (ex is IOException or InvalidOperationException or OperationCanceledException)
         {
-            ShowInGameMenuFailure(ex.Message);
+            if (ShouldRecoverInGameMenu(ex.Message))
+            {
+                PrepareInGameMenuForHookRecovery(ex.Message);
+            }
+            else
+            {
+                HandleInGameMenuFailure(ex.Message);
+            }
         }
     }
 
     private async Task RunInGameMenuAsync(CancellationToken cancellationToken)
     {
-        bool initialMenuOpened = false;
         try
         {
-            RaceInGameSnapshot initial = BuildInGameSnapshot(NextInGameMenuRevision());
-            TerrariaRaceMenuExchangeResult opened = await worldLock.OpenRaceMenuAsync(
-                initial,
-                cancellationToken).ConfigureAwait(false);
-            if (!opened.Succeeded)
-            {
-                RollBackRaceModeAfterInitialMenuFailure();
-                ShowInGameMenuFailure(opened.Message);
-                return;
-            }
-
-            initialMenuOpened = true;
-            RecordSentInGameSnapshot(initial);
-            await HandleInGameActionsAsync(opened.Actions, cancellationToken).ConfigureAwait(false);
-
             while (!cancellationToken.IsCancellationRequested)
             {
-                RaceInGameSnapshot? snapshot = null;
-                if (Interlocked.Exchange(ref inGameMenuDirty, 0) != 0)
+                try
                 {
-                    snapshot = BuildInGameSnapshot(NextInGameMenuRevision());
-                }
-
-                TerrariaRaceMenuExchangeResult exchange = await worldLock.ExchangeRaceMenuAsync(
-                    Volatile.Read(ref inGameMenuSentRevision),
-                    snapshot,
-                    cancellationToken).ConfigureAwait(false);
-                if (!exchange.Succeeded)
-                {
-                    if (!cancellationToken.IsCancellationRequested &&
-                        IsDetachedRaceMenu(exchange.Message))
+                    RaceInGameSnapshot initial = BuildInGameSnapshot(NextInGameMenuRevision());
+                    TerrariaRaceMenuExchangeResult opened = await worldLock.OpenRaceMenuAsync(
+                        initial,
+                        cancellationToken).ConfigureAwait(false);
+                    if (!opened.Succeeded)
                     {
-                        RaceInGameSnapshot recovery = snapshot ??
-                            BuildInGameSnapshot(NextInGameMenuRevision());
-                        TerrariaRaceMenuExchangeResult reopened = await worldLock.OpenRaceMenuAsync(
-                            recovery,
-                            cancellationToken).ConfigureAwait(false);
-                        if (reopened.Succeeded)
+                        if (!ShouldRecoverInGameMenu(opened.Message))
                         {
-                            RecordSentInGameSnapshot(recovery);
-                            await HandleInGameActionsAsync(reopened.Actions, cancellationToken).ConfigureAwait(false);
-                            continue;
+                            HandleInGameMenuFailure(opened.Message);
+                            return;
                         }
 
-                        ShowInGameMenuFailure(reopened.Message);
+                        PrepareInGameMenuForHookRecovery(opened.Message);
+                        await Task.Delay(InGameMenuReconnectInterval, cancellationToken).ConfigureAwait(false);
+                        continue;
                     }
-                    else if (!cancellationToken.IsCancellationRequested)
+
+                    Interlocked.Exchange(ref inGameMenuAttachedOnce, 1);
+                    Interlocked.Exchange(ref inGameMenuFailureReported, 0);
+                    RecordSentInGameSnapshot(initial);
+                    await HandleInGameActionsAsync(opened.Actions, cancellationToken).ConfigureAwait(false);
+
+                    bool reconnect = false;
+                    while (!cancellationToken.IsCancellationRequested)
                     {
-                        ShowInGameMenuFailure(exchange.Message);
+                        RaceInGameSnapshot? snapshot = null;
+                        if (Interlocked.Exchange(ref inGameMenuDirty, 0) != 0)
+                        {
+                            snapshot = BuildInGameSnapshot(NextInGameMenuRevision());
+                        }
+
+                        TerrariaRaceMenuExchangeResult exchange = await worldLock.ExchangeRaceMenuAsync(
+                            Volatile.Read(ref inGameMenuSentRevision),
+                            snapshot,
+                            cancellationToken).ConfigureAwait(false);
+                        if (!exchange.Succeeded)
+                        {
+                            if (!ShouldRecoverInGameMenu(exchange.Message))
+                            {
+                                HandleInGameMenuFailure(exchange.Message);
+                                return;
+                            }
+
+                            PrepareInGameMenuForHookRecovery(exchange.Message);
+                            reconnect = true;
+                            break;
+                        }
+
+                        if (snapshot is not null)
+                        {
+                            RecordSentInGameSnapshot(snapshot);
+                        }
+
+                        await HandleInGameActionsAsync(exchange.Actions, cancellationToken).ConfigureAwait(false);
+                        await Task.Delay(InGameMenuPollInterval, cancellationToken).ConfigureAwait(false);
                     }
 
-                    return;
+                    if (reconnect)
+                    {
+                        await Task.Delay(InGameMenuReconnectInterval, cancellationToken).ConfigureAwait(false);
+                    }
                 }
-
-                if (snapshot is not null)
+                catch (Exception ex) when (
+                    ex is IOException or InvalidOperationException or ObjectDisposedException)
                 {
-                    RecordSentInGameSnapshot(snapshot);
-                }
+                    if (!ShouldRecoverInGameMenu(ex.Message))
+                    {
+                        HandleInGameMenuFailure(ex.Message);
+                        return;
+                    }
 
-                await HandleInGameActionsAsync(exchange.Actions, cancellationToken).ConfigureAwait(false);
-                await Task.Delay(InGameMenuPollInterval, cancellationToken).ConfigureAwait(false);
+                    PrepareInGameMenuForHookRecovery(ex.Message);
+                    await Task.Delay(InGameMenuReconnectInterval, cancellationToken).ConfigureAwait(false);
+                }
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-        }
-        catch (Exception ex) when (ex is IOException or InvalidOperationException or ObjectDisposedException)
-        {
-            if (!cancellationToken.IsCancellationRequested)
-            {
-                if (!initialMenuOpened)
-                {
-                    RollBackRaceModeAfterInitialMenuFailure();
-                }
-
-                ShowInGameMenuFailure(ex.Message);
-            }
         }
         finally
         {
@@ -174,19 +197,36 @@ internal sealed partial class RaceShell
         }
     }
 
-    private void RollBackRaceModeAfterInitialMenuFailure()
-    {
-        if (IsRaceEnabled && !IsInRoom)
-        {
-            SaveRaceEnabled(false);
-        }
-    }
-
     private static bool IsDetachedRaceMenu(string message)
     {
         return message.Contains(
             "Race menu is not attached",
             StringComparison.OrdinalIgnoreCase);
+    }
+
+    private bool ShouldRecoverInGameMenu(string message)
+    {
+        if (!IsRaceEnabled ||
+            (Volatile.Read(ref inGameMenuAttachedOnce) == 0 && !IsInRoom))
+        {
+            return false;
+        }
+
+        return IsTerrariaProcessUnavailable(message) ||
+            IsDetachedRaceMenu(message) ||
+            message.Contains("pipe", StringComparison.OrdinalIgnoreCase) ||
+            message.Contains("connection reset", StringComparison.OrdinalIgnoreCase) ||
+            message.Contains("not connected", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void PrepareInGameMenuForHookRecovery(string message)
+    {
+        logger.Info("Terraria Race hook is offline; waiting to reattach. " + message);
+        ResetInGameNavigation();
+        ResetInGameActionSnapshots();
+        Volatile.Write(ref inGameMenuLastActionId, 0);
+        Volatile.Write(ref inGameMenuSentRevision, 0);
+        Interlocked.Exchange(ref inGameMenuDirty, 1);
     }
 
     private async Task HandleInGameActionsAsync(
@@ -207,6 +247,13 @@ internal sealed partial class RaceShell
                 return;
             }
 
+            if (action.Kind == RaceInGameActionKind.Activate &&
+                string.Equals(action.ControlId, "race-player-died", StringComparison.Ordinal))
+            {
+                QueueLocalDeathReport(action.Value);
+                continue;
+            }
+
             if (!IsActionValidForCurrentSnapshot(action))
             {
                 continue;
@@ -214,6 +261,30 @@ internal sealed partial class RaceShell
 
             await HandleInGameActionAsync(action, cancellationToken).ConfigureAwait(false);
         }
+    }
+
+    private void QueueLocalDeathReport(string deathMessage)
+    {
+        long packageRevision = Volatile.Read(ref activePackageRevision);
+        string runId = Volatile.Read(ref activeRunId);
+        if (!session.IsInRoom ||
+            packageRevision <= 0 ||
+            string.IsNullOrWhiteSpace(runId) ||
+            string.IsNullOrWhiteSpace(session.RoomCode) ||
+            string.IsNullOrWhiteSpace(session.Nickname))
+        {
+            return;
+        }
+
+        progressUploads.Writer.TryWrite(RaceProgressUpload.ForDeath(new RaceDeathReport(
+            session.RoomCode,
+            session.Nickname,
+            DateTimeOffset.UtcNow,
+            RaceDeathMessageRules.Normalize(deathMessage))
+        {
+            PackageRevision = packageRevision,
+            RunId = runId
+        }));
     }
 
     private void RecordSentInGameSnapshot(RaceInGameSnapshot snapshot)
@@ -397,27 +468,41 @@ internal sealed partial class RaceShell
         else if (id == "crimson")
         {
             RaceWorldSetupSettings setup = EnsureInGameWorldSetup();
-            setup.CrimsonEnabled = !setup.CrimsonEnabled;
+            if (AutoCreateAdvancedFilterEligibility.IsEligible(setup))
+            {
+                setup.CrimsonEnabled = !setup.CrimsonEnabled;
+            }
             PersistInGameWorldSetup();
         }
         else if (id.StartsWith("crimson-distance:", StringComparison.Ordinal))
         {
-            EnsureInGameWorldSetup().CrimsonDistance = id["crimson-distance:".Length..];
+            RaceWorldSetupSettings setup = EnsureInGameWorldSetup();
+            if (AutoCreateAdvancedFilterEligibility.IsEligible(setup))
+            {
+                setup.CrimsonDistance = id["crimson-distance:".Length..];
+            }
             PersistInGameWorldSetup();
         }
         else if (id.StartsWith("jungle-depth:", StringComparison.Ordinal))
         {
-            EnsureInGameWorldSetup().JungleRouteDepth = id["jungle-depth:".Length..];
+            RaceWorldSetupSettings setup = EnsureInGameWorldSetup();
+            if (AutoCreateAdvancedFilterEligibility.IsEligible(setup))
+            {
+                setup.JungleRouteDepth = id["jungle-depth:".Length..];
+            }
             PersistInGameWorldSetup();
         }
         else if (id == "jungle-route")
         {
             RaceWorldSetupSettings setup = EnsureInGameWorldSetup();
-            setup.JungleRouteDepth =
-                AutoCreateJungleRouteDepth.Normalize(setup.JungleRouteDepth) ==
-                AutoCreateJungleRouteDepth.None
-                    ? AutoCreateJungleRouteDepth.Medium
-                    : AutoCreateJungleRouteDepth.None;
+            if (AutoCreateAdvancedFilterEligibility.IsEligible(setup))
+            {
+                setup.JungleRouteDepth =
+                    AutoCreateJungleRouteDepth.Normalize(setup.JungleRouteDepth) ==
+                    AutoCreateJungleRouteDepth.None
+                        ? AutoCreateJungleRouteDepth.Medium
+                        : AutoCreateJungleRouteDepth.None;
+            }
             PersistInGameWorldSetup();
         }
         else if (id == "host-generate")
@@ -447,10 +532,36 @@ internal sealed partial class RaceShell
         {
             _ = RunSimpleOperationAsync(Localize("Starting Race..."), async () => await StartAsync());
         }
+        else if (id == "ready")
+        {
+            RacePlayerState? localPlayer = session.State?.Players.FirstOrDefault(player =>
+                string.Equals(player.Nickname, session.Nickname, StringComparison.OrdinalIgnoreCase));
+            bool nextReady = localPlayer?.IsReady != true;
+            _ = RunSimpleOperationAsync(
+                Localize(nextReady ? "Ready" : "Not Ready"),
+                async () =>
+                {
+                    RaceOperationResult<RaceRoomState> result =
+                        await session.SetReadyAsync(nextReady).ConfigureAwait(false);
+                    ApplyOperationState(result);
+                    LogRaceOperationFailure(result, nextReady ? "become ready" : "cancel ready");
+                    return result;
+                });
+        }
         else if (id is "restart" or "room-restart")
         {
-            _ = TransitionInGameMenu(RaceInGameTransition.RoomPrepared);
-            _ = RunSimpleOperationAsync(Localize("Restarting..."), async () => await RestartAsync());
+            _ = RunSimpleOperationAsync(
+                Localize("Restarting..."),
+                async () =>
+                {
+                    RaceOperationResult<RaceRoomState> result = await RestartAsync().ConfigureAwait(false);
+                    if (result.Succeeded)
+                    {
+                        _ = TransitionInGameMenu(RaceInGameTransition.RoomPrepared);
+                    }
+
+                    return result;
+                });
         }
         else if (id == "room-close")
         {
@@ -460,17 +571,6 @@ internal sealed partial class RaceShell
                 {
                     await CloseRoomAsync().ConfigureAwait(false);
                     _ = TransitionInGameMenu(RaceInGameTransition.RoomExited);
-                    return null;
-                });
-        }
-        else if (id == "room-new-race")
-        {
-            _ = RunSimpleOperationAsync(
-                Localize("Closing room..."),
-                async () =>
-                {
-                    await CloseRoomAsync().ConfigureAwait(false);
-                    _ = TransitionInGameMenu(RaceInGameTransition.RoomExitedForNewRace);
                     return null;
                 });
         }
@@ -507,9 +607,9 @@ internal sealed partial class RaceShell
                     Role = RacePanelRole.Member,
                     RoomCode = value
                 });
-                if (string.IsNullOrWhiteSpace(value))
+                if (!RaceRoomCodeRules.IsValid(value))
                 {
-                    inGameMenuStatus = Localize("Room code is required.");
+                    inGameMenuStatus = Localize("Room code must be four digits.");
                     break;
                 }
 
@@ -653,7 +753,10 @@ internal sealed partial class RaceShell
             }
 
             _ = TransitionInGameMenu(RaceInGameTransition.RoomPrepared);
-            SetInGameOperationState(operationId, Localize("World ready."), 100);
+            SetInGameOperationState(
+                operationId,
+                Localize("World uploaded. Preparing Race environment..."),
+                100);
         }
         catch (OperationCanceledException)
         {
@@ -702,7 +805,10 @@ internal sealed partial class RaceShell
             token.ThrowIfCancellationRequested();
             if (result.Succeeded)
             {
-                _ = TransitionInGameMenu(RaceInGameTransition.RoomPrepared);
+                _ = TransitionInGameMenu(
+                    HasRaceStarted(result.Value)
+                        ? RaceInGameTransition.RaceStarted
+                        : RaceInGameTransition.RoomPrepared);
             }
 
             SetInGameOperationState(

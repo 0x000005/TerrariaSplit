@@ -5,6 +5,7 @@ internal static class ConfigurationStorageFlowTests
     public static IEnumerable<TestCase> All()
     {
         yield return TestCase.Sync("settings save, profile selection and reload preserve normalized user choices", TestSuite.Flow, SettingsRoundTrip);
+        yield return TestCase.Sync("advanced world filters require a plain small Crimson world while pyramid remains available", TestSuite.Flow, AdvancedFilterEligibility);
         yield return TestCase.Sync("split time and run statistics persist through injected runtime paths", TestSuite.Flow, SplitAndRunStorageFlow);
         yield return TestCase.Sync("corrupt settings recover to usable defaults without escaping the data root", TestSuite.Flow, CorruptSettingsRecovery);
     }
@@ -33,6 +34,8 @@ internal static class ConfigurationStorageFlowTests
         settings.Race.Voice.VoiceName = "  Test Voice  ";
         settings.Race.Voice.SpeedPercent = 250;
         settings.Race.Voice.Volume = -5;
+        settings.Race.Leaderboard.WindowPositionX = -900;
+        settings.Race.Leaderboard.WindowPositionY = 240;
         settings.Overlay.WindowPositionX = -1200;
         settings.Overlay.WindowPositionY = 120;
         settings.Automation.AutoCreate.EnableCheats = true;
@@ -50,7 +53,7 @@ internal static class ConfigurationStorageFlowTests
         Check.True(loaded.General.AlwaysOnTop);
         Check.True(loaded.Route.VisibleGroupCountLimit > 0);
         Check.Equal("https://example.test/race", loaded.Race.ServerUrl);
-        Check.Equal("ABC123", loaded.Race.LastRoomCode);
+        Check.Equal(string.Empty, loaded.Race.LastRoomCode);
         Check.Equal("{ player-template }", loaded.Race.PlayerTemplateCode);
         Check.Equal(RacePreferredWorldSource.Random, loaded.Race.WorldSetup.Source);
         Check.Equal("seed with spaces", loaded.Race.WorldSetup.SeedText);
@@ -61,11 +64,15 @@ internal static class ConfigurationStorageFlowTests
             [AutoCreateSpecialWorldSeed.NotTheBees, AutoCreateSpecialWorldSeed.NoTraps],
             AutoCreateSpecialWorldSeed.ParseList(loaded.Race.WorldSetup.SpecialSeeds));
         Check.False(loaded.Race.WorldSetup.RngControlEnabled);
-        Check.Equal(5, loaded.Race.WorldSetup.LifeCrystalMinimum);
+        Check.False(loaded.Race.WorldSetup.CrimsonEnabled);
+        Check.Equal(AutoCreateJungleRouteDepth.None, loaded.Race.WorldSetup.JungleRouteDepth);
+        Check.Equal(0, loaded.Race.WorldSetup.LifeCrystalMinimum);
         Check.True(loaded.Race.Voice.Enabled);
         Check.Equal("Test Voice", loaded.Race.Voice.VoiceName);
         Check.Equal(200, loaded.Race.Voice.SpeedPercent);
         Check.Equal(0, loaded.Race.Voice.Volume);
+        Check.Equal(-900, loaded.Race.Leaderboard.WindowPositionX);
+        Check.Equal(240, loaded.Race.Leaderboard.WindowPositionY);
         Check.Equal(-1200, loaded.Overlay.WindowPositionX);
         Check.Equal(120, loaded.Overlay.WindowPositionY);
         Check.True(loaded.Automation.AutoCreate.EnableCheats);
@@ -78,6 +85,58 @@ internal static class ConfigurationStorageFlowTests
         Check.Equal(1, loaded.Automation.AutoCreate.ResourceFilterFeatherfallPotionMinimum);
         Check.True(File.Exists(Path.Combine(paths.SettingsDirectory, "settings.json")));
         Check.True(File.Exists(Path.Combine(paths.SettingsDirectory, "active-profile.txt")));
+    }
+
+    private static void AdvancedFilterEligibility()
+    {
+        var valid = new AutoCreateWorldSettings
+        {
+            WorldSize = AutoCreateWorldSize.Small,
+            WorldEvil = AutoCreateWorldEvil.Crimson,
+            EnableCheats = true,
+            EnablePyramidFilter = true,
+            RequireCrimsonBetweenDungeonAndSpawn = true,
+            JungleRouteDepth = AutoCreateJungleRouteDepth.Deep,
+            ResourceFilterItemMask = AutoCreateResourceFilterItem.BoomstickMask,
+            ResourceFilterLifeCrystalMinimum = 5
+        };
+        SettingsSectionNormalizer.NormalizeAutoCreate(valid);
+        Check.True(AutoCreateAdvancedFilterEligibility.IsEligible(valid));
+        Check.True(valid.RequireCrimsonBetweenDungeonAndSpawn);
+        Check.Equal(AutoCreateJungleRouteDepth.Deep, valid.JungleRouteDepth);
+
+        foreach (Action<AutoCreateWorldSettings> makeUnsupported in new Action<AutoCreateWorldSettings>[]
+        {
+            settings => settings.WorldSize = AutoCreateWorldSize.Medium,
+            settings => settings.WorldEvil = AutoCreateWorldEvil.Corruption,
+            settings => settings.SpecialSeeds = AutoCreateSpecialWorldSeed.NotTheBees,
+            settings => settings.SecretSeeds = "secret"
+        })
+        {
+            var unsupported = new AutoCreateWorldSettings
+            {
+                WorldSize = AutoCreateWorldSize.Small,
+                WorldEvil = AutoCreateWorldEvil.Crimson,
+                EnableCheats = true,
+                EnablePyramidFilter = true,
+                RequireCrimsonBetweenDungeonAndSpawn = true,
+                JungleRouteDepth = AutoCreateJungleRouteDepth.VeryDeep,
+                ResourceFilterItemMask = AutoCreateResourceFilterItem.FeralClawsMask,
+                ResourceFilterLifeCrystalMinimum = 5,
+                ResourceFilterSpelunkerPotionMinimum = 3,
+                ResourceFilterFeatherfallPotionMinimum = 3
+            };
+            makeUnsupported(unsupported);
+            SettingsSectionNormalizer.NormalizeAutoCreate(unsupported);
+            Check.False(AutoCreateAdvancedFilterEligibility.IsEligible(unsupported));
+            Check.True(unsupported.EnablePyramidFilter);
+            Check.False(unsupported.RequireCrimsonBetweenDungeonAndSpawn);
+            Check.Equal(AutoCreateJungleRouteDepth.None, unsupported.JungleRouteDepth);
+            Check.Equal(0, unsupported.ResourceFilterItemMask);
+            Check.Equal(0, unsupported.ResourceFilterLifeCrystalMinimum);
+            Check.Equal(0, unsupported.ResourceFilterSpelunkerPotionMinimum);
+            Check.Equal(0, unsupported.ResourceFilterFeatherfallPotionMinimum);
+        }
     }
 
     private static void SplitAndRunStorageFlow()

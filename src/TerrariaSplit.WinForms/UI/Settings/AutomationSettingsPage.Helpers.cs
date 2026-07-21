@@ -329,6 +329,7 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
             else
             {
                 UpdateSpecialSeedButtonState(button);
+                UpdatePostGenerationFilterAvailability();
             }
         };
         return button;
@@ -460,6 +461,7 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
         }
 
         UpdateZenithStarCatchAvailability();
+        UpdatePostGenerationFilterAvailability();
     }
 
     private void UpdatePyramidItemAvailability()
@@ -476,46 +478,75 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
 
     private void UpdatePostGenerationFilterAvailability()
     {
-        string selectedWorldSize = GetSelectedOption(autoCreateWorldSizeBox, AutoCreateWorldSize.Small);
-        string selectedWorldEvil = GetSelectedOption(autoCreateWorldEvilBox, AutoCreateWorldEvil.Crimson);
-        bool cheatsEnabled = autoCreateCheatsBox.Checked;
-        bool supportsCrimsonCorridor =
-            cheatsEnabled &&
-            string.Equals(
-                selectedWorldEvil,
-                AutoCreateWorldEvil.Crimson,
-                StringComparison.Ordinal);
-        autoCreateCrimsonBetweenDungeonAndSpawnBox.Enabled = supportsCrimsonCorridor;
-        autoCreateCrimsonBetweenDungeonAndSpawnBox.ForeColor = supportsCrimsonCorridor
-            ? UiTheme.Text
-            : UiTheme.MutedText;
-        bool crimsonDistanceEnabled = supportsCrimsonCorridor && autoCreateCrimsonBetweenDungeonAndSpawnBox.Checked;
-        foreach (CheckBox button in autoCreateCrimsonDistanceBoxes.Values)
+        if (updatingPostGenerationFilterAvailability)
         {
-            button.Enabled = crimsonDistanceEnabled;
-            UpdateSpecialSeedButtonState(button);
+            return;
         }
 
-        bool supportsResourceFilter =
-            cheatsEnabled &&
-            string.Equals(selectedWorldSize, AutoCreateWorldSize.Small, StringComparison.Ordinal) &&
-            string.Equals(selectedWorldEvil, AutoCreateWorldEvil.Crimson, StringComparison.Ordinal);
-        autoCreateJungleRouteDepthBox.Enabled = supportsResourceFilter;
-        UpdateSpecialSeedButtonState(autoCreateJungleRouteDepthBox);
-        foreach (CheckBox button in autoCreateJungleRouteDepthBoxes.Values)
+        updatingPostGenerationFilterAvailability = true;
+        try
         {
-            button.Enabled = supportsResourceFilter && autoCreateJungleRouteDepthBox.Checked;
-            UpdateSpecialSeedButtonState(button);
+            string selectedWorldSize = GetSelectedOption(autoCreateWorldSizeBox, AutoCreateWorldSize.Small);
+            string selectedWorldEvil = GetSelectedOption(autoCreateWorldEvilBox, AutoCreateWorldEvil.Crimson);
+            string selectedSpecialSeeds = string.Join(
+                "|",
+                AutoCreateSpecialWorldSeed.All.Where(seed =>
+                    autoCreateSpecialSeedBoxes.TryGetValue(seed, out CheckBox? button) && button.Checked));
+            bool cheatsEnabled = autoCreateCheatsBox.Checked;
+            bool supportsAdvancedFilters = cheatsEnabled &&
+                AutoCreateAdvancedFilterEligibility.IsEligible(
+                    selectedWorldSize,
+                    selectedWorldEvil,
+                    selectedSpecialSeeds,
+                    autoCreateSecretSeedsBox.Text);
+            if (!supportsAdvancedFilters)
+            {
+                autoCreateCrimsonBetweenDungeonAndSpawnBox.Checked = false;
+                ApplyJungleRouteDepthSelection(AutoCreateJungleRouteDepth.None);
+                foreach (CheckBox button in autoCreateResourceItemBoxes.Values)
+                {
+                    button.Checked = false;
+                    UpdateSpecialSeedButtonState(button);
+                }
+
+                ApplyMinimumSelection(0, autoCreateLifeCrystalMinimumBoxes);
+                ApplyMinimumSelection(0, autoCreateSpelunkerMinimumBoxes);
+                ApplyMinimumSelection(0, autoCreateFeatherfallMinimumBoxes);
+            }
+
+            autoCreateCrimsonBetweenDungeonAndSpawnBox.Enabled = supportsAdvancedFilters;
+            autoCreateCrimsonBetweenDungeonAndSpawnBox.ForeColor = supportsAdvancedFilters
+                ? UiTheme.Text
+                : UiTheme.MutedText;
+            UpdateSpecialSeedButtonState(autoCreateCrimsonBetweenDungeonAndSpawnBox);
+            bool crimsonDistanceEnabled = supportsAdvancedFilters && autoCreateCrimsonBetweenDungeonAndSpawnBox.Checked;
+            foreach (CheckBox button in autoCreateCrimsonDistanceBoxes.Values)
+            {
+                button.Enabled = crimsonDistanceEnabled;
+                UpdateSpecialSeedButtonState(button);
+            }
+
+            autoCreateJungleRouteDepthBox.Enabled = supportsAdvancedFilters;
+            UpdateSpecialSeedButtonState(autoCreateJungleRouteDepthBox);
+            foreach (CheckBox button in autoCreateJungleRouteDepthBoxes.Values)
+            {
+                button.Enabled = supportsAdvancedFilters && autoCreateJungleRouteDepthBox.Checked;
+                UpdateSpecialSeedButtonState(button);
+            }
+            foreach (CheckBox button in autoCreateResourceItemBoxes.Values)
+            {
+                button.Enabled = supportsAdvancedFilters;
+                UpdateSpecialSeedButtonState(button);
+            }
+            UpdateMinimumAvailability(autoCreateLifeCrystalMinimumBoxes, supportsAdvancedFilters);
+            UpdateMinimumAvailability(autoCreateSpelunkerMinimumBoxes, supportsAdvancedFilters);
+            UpdateMinimumAvailability(autoCreateFeatherfallMinimumBoxes, supportsAdvancedFilters);
+            UpdatePyramidItemAvailability();
         }
-        foreach (CheckBox button in autoCreateResourceItemBoxes.Values)
+        finally
         {
-            button.Enabled = supportsResourceFilter;
-            UpdateSpecialSeedButtonState(button);
+            updatingPostGenerationFilterAvailability = false;
         }
-        UpdateMinimumAvailability(autoCreateLifeCrystalMinimumBoxes, supportsResourceFilter);
-        UpdateMinimumAvailability(autoCreateSpelunkerMinimumBoxes, supportsResourceFilter);
-        UpdateMinimumAvailability(autoCreateFeatherfallMinimumBoxes, supportsResourceFilter);
-        UpdatePyramidItemAvailability();
     }
 
     private static void UpdateMinimumAvailability(

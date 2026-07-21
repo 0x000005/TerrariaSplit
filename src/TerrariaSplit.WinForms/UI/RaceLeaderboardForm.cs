@@ -11,6 +11,7 @@ namespace TerrariaSplit.UI;
 
 internal sealed class RaceLeaderboardForm : Form
 {
+    private const string LeaderboardWindowTitle = "TerrariaSplit - Race Leaderboard";
     private const int ResizeBorder = 8;
     private const int RowPaddingX = 8;
     private const int LayoutVerticalPadding = 6;
@@ -21,6 +22,7 @@ internal sealed class RaceLeaderboardForm : Form
     private readonly Func<AppSettings> getSettings;
     private readonly Func<string, string> localize;
     private readonly Func<string?> getLocalNickname;
+    private readonly Action<Point> savePosition;
     private readonly OverlayWindowController overlayWindowController;
     private readonly BossIconCache iconCache = new();
     private readonly Dictionary<string, RouteIconCacheEntry> routeIconDataCache = new(StringComparer.OrdinalIgnoreCase);
@@ -34,16 +36,18 @@ internal sealed class RaceLeaderboardForm : Form
     public RaceLeaderboardForm(
         Func<AppSettings> getSettings,
         Func<string, string> localize,
-        Func<string?> getLocalNickname)
+        Func<string?> getLocalNickname,
+        Action<Point> savePosition)
     {
         this.getSettings = getSettings;
         this.localize = localize;
         this.getLocalNickname = getLocalNickname;
+        this.savePosition = savePosition;
         overlayWindowController = new OverlayWindowController(this, DrawOverlay);
 
-        Text = localize("Race leaderboard");
+        Text = LeaderboardWindowTitle;
         ShowInTaskbar = false;
-        StartPosition = FormStartPosition.CenterParent;
+        StartPosition = FormStartPosition.Manual;
         FormBorderStyle = FormBorderStyle.None;
         AutoScaleMode = AutoScaleMode.None;
         DoubleBuffered = true;
@@ -55,6 +59,7 @@ internal sealed class RaceLeaderboardForm : Form
         MinimumSize = GetMinimumClientSize();
         ResizeRedraw = true;
         ApplySettings();
+        RestoreWindowPosition();
     }
 
     protected override CreateParams CreateParams
@@ -323,12 +328,38 @@ internal sealed class RaceLeaderboardForm : Form
 
     protected override void OnMouseUp(MouseEventArgs e)
     {
-        if (e.Button == MouseButtons.Left)
+        if (e.Button == MouseButtons.Left && dragging)
         {
             dragging = false;
+            savePosition(Location);
         }
 
         base.OnMouseUp(e);
+    }
+
+    protected override void OnResizeEnd(EventArgs e)
+    {
+        base.OnResizeEnd(e);
+        savePosition(Location);
+    }
+
+    protected override void OnFormClosing(FormClosingEventArgs e)
+    {
+        savePosition(Location);
+        base.OnFormClosing(e);
+    }
+
+    private void RestoreWindowPosition()
+    {
+        RaceLeaderboardSettings leaderboard =
+            getSettings().Race?.Leaderboard ?? new RaceLeaderboardSettings();
+        Rectangle fallbackWorkingArea = Screen.FromPoint(Cursor.Position).WorkingArea;
+        Location = OverlayWindowPlacement.Resolve(
+            Size,
+            leaderboard.WindowPositionX,
+            leaderboard.WindowPositionY,
+            fallbackWorkingArea,
+            Screen.AllScreens.Select(screen => screen.WorkingArea));
     }
 
     protected override void WndProc(ref Message m)

@@ -71,6 +71,12 @@ internal enum TerrariaRaceWorldLockState
     Faulted
 }
 
+internal enum TerrariaRaceMessageKind
+{
+    SplitCompleted,
+    PlayerDied
+}
+
 internal interface ITerrariaRaceWorldLockService
 {
     bool IsLocked { get; }
@@ -90,6 +96,11 @@ internal interface ITerrariaRaceWorldLockService
     Task<TerrariaRaceMenuExchangeResult> ExchangeRaceMenuAsync(
         long knownRevision,
         RaceInGameSnapshot? snapshot,
+        CancellationToken cancellationToken = default);
+
+    Task<TerrariaRaceWorldLockResult> ShowInGameMessageAsync(
+        string message,
+        TerrariaRaceMessageKind kind,
         CancellationToken cancellationToken = default);
 
     Task<TerrariaRaceWorldLockResult> CloseRaceMenuAsync(
@@ -243,6 +254,48 @@ internal sealed class TerrariaRaceWorldLockService : ITerrariaRaceWorldLockServi
         catch (Exception ex) when (ex is IOException or InvalidDataException or InvalidOperationException or UnauthorizedAccessException)
         {
             return TerrariaRaceMenuExchangeResult.Failure(ex.Message, Volatile.Read(ref lockedProcessId));
+        }
+        finally
+        {
+            commandGate.Release();
+        }
+    }
+
+    public async Task<TerrariaRaceWorldLockResult> ShowInGameMessageAsync(
+        string message,
+        TerrariaRaceMessageKind kind,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return TerrariaRaceWorldLockResult.Failure("The Race game message is empty.");
+        }
+
+        byte[] messageBytes = Encoding.UTF8.GetBytes(message);
+        if (messageBytes.Length > 1024)
+        {
+            return TerrariaRaceWorldLockResult.Failure("The Race game message is too long.");
+        }
+
+        await commandGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            int processId = Volatile.Read(ref lockedProcessId);
+            if (processId <= 0 || string.IsNullOrWhiteSpace(activePipeName))
+            {
+                return TerrariaRaceWorldLockResult.Failure("The Terraria Race hook is not attached.");
+            }
+
+            string command = string.Join(
+                '\n',
+                "race-ui-message",
+                ((int)kind).ToString(CultureInfo.InvariantCulture),
+                Convert.ToBase64String(messageBytes));
+            return await SendPipeCommandAsync(
+                processId,
+                activePipeName,
+                command,
+                cancellationToken).ConfigureAwait(false);
         }
         finally
         {

@@ -1046,6 +1046,8 @@
           },
         "Leaderboard": {
             "UseRankColorForMainTimer": true,
+            "WindowPositionX": null,
+            "WindowPositionY": null,
             "RankPlayerGap": 5,
             "PlayerIconGap": 5,
             "IconTimeGap": 15,

@@ -62,8 +62,52 @@ public static class RacePlayerNameRules
     public const int MaximumLength = 20;
 }
 
+public static class RaceRoomCodeRules
+{
+    public const int Length = 4;
+
+    public static bool IsValid(string? value)
+    {
+        if (value?.Length != Length)
+        {
+            return false;
+        }
+
+        foreach (char character in value)
+        {
+            if (character is < '0' or > '9')
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+}
+
+public static class RaceDeathMessageRules
+{
+    public const int MaximumUtf8Length = 1024;
+
+    public static string Normalize(string? value)
+    {
+        return (value ?? string.Empty)
+            .Replace('\r', ' ')
+            .Replace('\n', ' ')
+            .Replace('\0', ' ')
+            .Trim();
+    }
+
+    public static bool IsValid(string value)
+    {
+        return System.Text.Encoding.UTF8.GetByteCount(value) <= MaximumUtf8Length;
+    }
+}
+
 public static class RacePlayerDifficultyCodes
 {
+    private const int JourneyWorldDifficultyCode = 4;
+
     public const int Softcore = 0;
     public const int Mediumcore = 1;
     public const int Hardcore = 2;
@@ -72,6 +116,9 @@ public static class RacePlayerDifficultyCodes
     public static bool IsValid(int value) => value is >= Softcore and <= Journey;
 
     public static int Normalize(int value) => IsValid(value) ? value : Softcore;
+
+    public static int ForWorldDifficulty(int worldDifficultyCode) =>
+        worldDifficultyCode == JourneyWorldDifficultyCode ? Journey : Softcore;
 }
 
 public sealed record RaceSplitDefinition(
@@ -188,6 +235,17 @@ public sealed record RaceRunStartReport(
     public string RunId { get; init; } = string.Empty;
 }
 
+public sealed record RaceDeathReport(
+    string RoomCode,
+    string Nickname,
+    DateTimeOffset? ReportedAtUtc = null,
+    string DeathMessage = "")
+{
+    public long PackageRevision { get; init; }
+
+    public string RunId { get; init; } = string.Empty;
+}
+
 public sealed record RacePlayerState(
     string Nickname,
     RacePlayerStatus Status,
@@ -213,6 +271,8 @@ public sealed record RacePlayerState(
     public RaceRngControlStatus RngControlStatus { get; init; }
 
     public RaceServerConnectionStatus ServerConnectionStatus { get; init; } = RaceServerConnectionStatus.Connected;
+
+    public bool IsReady { get; init; }
 }
 
 public sealed record RaceLeaderboardEntry(
@@ -261,6 +321,7 @@ public enum RaceRoomStateUpdateKind
     PlayerLeft,
     PlayerKicked,
     PlayerConnectionChanged,
+    PlayerReadyChanged,
     RaceStarting,
     RoomClosed,
     RoomResumed
@@ -305,6 +366,14 @@ public sealed record RaceGroupCompleted(
     long ElapsedMilliseconds,
     long Sequence);
 
+public sealed record RacePlayerDied(
+    string RoomCode,
+    long PackageRevision,
+    string RunId,
+    string Nickname,
+    long Sequence,
+    string DeathMessage = "");
+
 public sealed record RacePlayerProgressReset(
     string RoomCode,
     long PackageRevision,
@@ -342,7 +411,14 @@ public sealed record RacePreparationStatusRequest(
     RacePlayerFileStatus PlayerFileStatus,
     RaceWorldFileStatus WorldFileStatus,
     RaceRngControlStatus RngControlStatus,
-    string? Error = null);
+    string? Error = null,
+    long PackageRevision = 0);
+
+public sealed record RacePlayerReadyRequest(
+    string RoomCode,
+    string Nickname,
+    long PackageRevision,
+    bool IsReady);
 
 public sealed record RacePlayerKickRequest(
     string RoomCode,

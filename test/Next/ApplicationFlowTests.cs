@@ -6,6 +6,7 @@ internal static class ApplicationFlowTests
     {
         yield return TestCase.Sync("application commands coordinate settings, runtime effects and full display invalidation", TestSuite.Flow, CommandJourney);
         yield return TestCase.Sync("race, job and display events update system state and target only relevant views", TestSuite.Flow, SystemEventJourney);
+        yield return TestCase.Sync("world-entry transition facts cannot skip or complete a split", TestSuite.Flow, WorldEntryTransitionFacts);
     }
 
     private static void CommandJourney()
@@ -123,6 +124,74 @@ internal static class ApplicationFlowTests
         Check.True(createWorld.Effects.OfType<SubmitRuntimeCommandEffect>().Any());
         controller.HandleSystemEvent(new DisplaySystemEvent(DisplayInvalidation.For(DisplayRefreshLevel.Frame, DisplayInvalidationTarget.TimerOverlay)));
         Check.Equal(DisplayInvalidationTarget.TimerOverlay, controller.SystemState.Display.ActiveTargets);
+    }
+
+    private static void WorldEntryTransitionFacts()
+    {
+        const string underworldFact = "biome:underworld";
+        var timer = new SplitTimer();
+        var tracker = new SplitTracker();
+        tracker.SetDefinitions(
+        [
+            new SplitDefinition(
+                "underworld",
+                "Underworld",
+                SplitCondition.Fact(underworldFact),
+                [],
+                [],
+                [],
+                false)
+        ]);
+        var controller = new TimerController(
+            timer,
+            tracker,
+            new PendingMenuActionScheduler(),
+            TimeSpan.FromSeconds(1));
+        long startedAt = 10_000;
+
+        IReadOnlyList<RunEvent> entryEvents = controller.Tick(
+            Snapshot(CoreAndRunTests.Facts((underworldFact, true)), enteredWorld: true),
+            startedAt);
+
+        Check.Equal(1, entryEvents.Count);
+        Check.Equal(RunEventKind.RunStarted, entryEvents[0].Kind);
+        Check.Equal(SplitTimerPhase.Running, timer.Phase);
+        Check.Equal(0, tracker.CurrentIndex);
+        Check.False(tracker.Statuses[0].IsSkipped);
+        Check.False(tracker.Statuses[0].IsCompleted);
+
+        IReadOnlyList<RunEvent> stableSpawnEvents = controller.Tick(
+            Snapshot(CoreAndRunTests.Facts((underworldFact, false))),
+            startedAt + TestTiming.Timestamp(TimeSpan.FromMilliseconds(20)));
+
+        Check.Equal(0, stableSpawnEvents.Count);
+        Check.Equal(0, tracker.CurrentIndex);
+        Check.False(tracker.Statuses[0].IsSkipped);
+        Check.False(tracker.Statuses[0].IsCompleted);
+
+        IReadOnlyList<RunEvent> underworldEvents = controller.Tick(
+            Snapshot(CoreAndRunTests.Facts((underworldFact, true))),
+            startedAt + TestTiming.Timestamp(TimeSpan.FromSeconds(5)));
+
+        Check.True(underworldEvents.Any(item => item.Kind == RunEventKind.SplitCompleted));
+        Check.True(underworldEvents.Any(item => item.Kind == RunEventKind.RunCompleted));
+        Check.True(tracker.Statuses[0].IsCompleted);
+        Check.Equal(TimeSpan.FromSeconds(5), tracker.Statuses[0].Time);
+    }
+
+    private static TerrariaWatchSnapshot Snapshot(
+        TerrariaGameFacts facts,
+        bool enteredWorld = false)
+    {
+        return new TerrariaWatchSnapshot(
+            IsAttached: true,
+            ProcessId: 1,
+            IsReady: true,
+            IsGameMenu: false,
+            facts,
+            TerrariaWorldGenerationState.Unknown,
+            enteredWorld,
+            Status: "In world");
     }
 }
 

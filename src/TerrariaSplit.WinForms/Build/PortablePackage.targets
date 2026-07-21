@@ -10,7 +10,7 @@
     <MakeDir Directories="$(PublishDir)Runtime" />
     <WriteLinesToFile
       File="$(PublishDir)Runtime\terrariasplit-update-manifest.json"
-      Lines="{&quot;schemaVersion&quot;:1,&quot;managedRoots&quot;:[&quot;TerrariaSplit.exe&quot;,&quot;TerrariaSplit.MemoryBridge.exe&quot;,&quot;TerrariaSplit.WorldFilter.exe&quot;,&quot;Runtime&quot;,&quot;Assets&quot;]}"
+      Lines="{&quot;schemaVersion&quot;:1,&quot;managedRoots&quot;:[&quot;TerrariaSplit.exe&quot;,&quot;TerrariaSplit.MemoryBridge.exe&quot;,&quot;TerrariaSplit.WorldFilter.dll&quot;,&quot;Runtime&quot;,&quot;Assets&quot;]}"
       Overwrite="true"
       Encoding="UTF-8" />
     <ZipDirectory

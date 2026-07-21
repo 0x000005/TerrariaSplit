@@ -11,6 +11,8 @@ internal sealed partial class RaceShell
             setup.Source,
             RacePreferredWorldSource.CustomSeed,
             StringComparison.OrdinalIgnoreCase);
+        bool advancedFiltersEligible =
+            !fixedSeed && AutoCreateAdvancedFilterEligibility.IsEligible(setup);
         bool hasCrimson = setup.WorldEvil switch
         {
             AutoCreateWorldEvil.Corruption => false,
@@ -21,22 +23,27 @@ internal sealed partial class RaceShell
             !fixedSeed,
             !fixedSeed && setup.PyramidEnabled,
             setup.PyramidItemMask,
-            !fixedSeed && setup.CrimsonEnabled,
+            advancedFiltersEligible && setup.CrimsonEnabled,
             setup.CrimsonDistance,
             0,
             0,
             0,
             0,
-            fixedSeed ? AutoCreateJungleRouteDepth.None : setup.JungleRouteDepth);
+            advancedFiltersEligible
+                ? setup.JungleRouteDepth
+                : AutoCreateJungleRouteDepth.None);
+        int worldDifficultyCode =
+            TerrariaWorldSeedOptions.CopiedDifficultyCode(setup.WorldDifficulty);
         return new RaceWorldSettings(
             getTerrariaVersion() ?? string.Empty,
             TerrariaWorldSeedOptions.SizeCode(setup.WorldSize),
-            TerrariaWorldSeedOptions.CopiedDifficultyCode(setup.WorldDifficulty),
+            worldDifficultyCode,
             hasCrimson,
             TerrariaWorldSeedOptions.SpecialSeedMask(setup.SpecialSeeds),
             cheats,
             SecretSeeds: setup.SecretSeeds,
-            PlayerDifficultyCode: RacePlayerDifficultyCodes.Softcore,
+            PlayerDifficultyCode:
+                RacePlayerDifficultyCodes.ForWorldDifficulty(worldDifficultyCode),
             RngControlEnabled: setup.RngControlEnabled);
     }
 
@@ -132,6 +139,7 @@ internal sealed partial class RaceShell
         setup.LifeCrystalMinimum = 0;
         setup.SpelunkerPotionMinimum = 0;
         setup.FeatherfallPotionMinimum = 0;
+        AutoCreateAdvancedFilterEligibility.ClearUnsupportedFilters(setup);
         return setup;
     }
 
@@ -243,6 +251,7 @@ internal sealed partial class RaceShell
 
     private void StopInGameMenu()
     {
+        Interlocked.Exchange(ref inGameMenuAttachedOnce, 0);
         CancellationTokenSource? operation = Interlocked.Exchange(
             ref inGameOperationCancellation,
             null);
@@ -291,19 +300,49 @@ internal sealed partial class RaceShell
         return Interlocked.Increment(ref inGameMenuRevision);
     }
 
-    private void ShowInGameMenuFailure(string message)
+    private void HandleInGameMenuFailure(string message)
     {
+        if (Interlocked.Exchange(ref inGameMenuFailureReported, 1) != 0)
+        {
+            return;
+        }
+
+        CancellationTokenSource? cancellation = Volatile.Read(ref inGameMenuCancellation);
+        try
+        {
+            cancellation?.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+
+        _ = CloseInGameMenuBestEffortAsync();
         string detail = string.IsNullOrWhiteSpace(message)
             ? Localize("Unable to open the Terraria Race page.")
             : message;
         logger.Info("Terraria Race page failed: " + detail);
-        _ = PostOwnerThread(() => SettingsMessageDialog.ShowThemed(
+        _ = PostOwnerThread(() => ReportInGameMenuFailureOnOwnerThread(detail));
+    }
+
+    private void ReportInGameMenuFailureOnOwnerThread(string detail)
+    {
+        if (disposed || owner.IsDisposed)
+        {
+            return;
+        }
+
+        if (IsRaceEnabled && !IsInRoom)
+        {
+            SaveRaceEnabled(false);
+        }
+
+        SettingsMessageDialog.ShowThemed(
             owner,
             Localize("Race"),
             detail,
             MessageBoxButtons.OK,
             MessageBoxIcon.Error,
-            Localize));
+            Localize);
     }
 
 }

@@ -5,21 +5,28 @@ namespace TerrariaSplit.Race.Client;
 
 public static class RaceWorldSettingsFactory
 {
-    private const int JourneyWorldDifficultyCode = 4;
-
     public static bool HasCompatibleJourneyDifficulties(RaceWorldSettings settings)
     {
-        bool journeyWorld = settings.DifficultyCode == JourneyWorldDifficultyCode;
-        bool journeyPlayer = settings.PlayerDifficultyCode == RacePlayerDifficultyCodes.Journey;
-        return journeyWorld == journeyPlayer;
+        return settings.PlayerDifficultyCode ==
+            RacePlayerDifficultyCodes.ForWorldDifficulty(settings.DifficultyCode);
     }
 
     public static bool HasActiveFilters(RaceWorldSettings settings)
     {
         RaceCheatSettings cheats = settings.EffectiveCheats;
-        return cheats.Enabled &&
-            (cheats.PyramidEnabled ||
-             cheats.CrimsonEnabled ||
+        if (!cheats.Enabled)
+        {
+            return false;
+        }
+
+        bool advancedFiltersEligible = AutoCreateAdvancedFilterEligibility.IsEligible(
+            settings.SizeCode,
+            settings.HasCrimson,
+            settings.SpecialSeedMask,
+            settings.SecretSeeds);
+        return cheats.PyramidEnabled ||
+            advancedFiltersEligible &&
+            (cheats.CrimsonEnabled ||
              AutoCreateJungleRouteDepth.Normalize(cheats.JungleRouteDepth) != AutoCreateJungleRouteDepth.None ||
              AutoCreateResourceFilterItem.NormalizeMask(cheats.ResourceItemMask) != 0 ||
              AutoCreateResourceMinimum.NormalizeLifeCrystals(cheats.LifeCrystalMinimum) > 0 ||
@@ -44,10 +51,13 @@ public static class RaceWorldSettingsFactory
         };
     }
 
+    public static string ToPlayerDifficultyForWorld(RaceWorldSettings settings) =>
+        ToPlayerDifficulty(RacePlayerDifficultyCodes.ForWorldDifficulty(settings.DifficultyCode));
+
     public static AutoCreateWorldSettings ToAutoCreateWorldSettings(RaceWorldSettings settings)
     {
         RaceCheatSettings cheats = settings.EffectiveCheats;
-        return new AutoCreateWorldSettings
+        var result = new AutoCreateWorldSettings
         {
             WorldSize = settings.SizeCode switch
             {
@@ -77,6 +87,8 @@ public static class RaceWorldSettingsFactory
             ResourceFilterFeatherfallPotionMinimum = AutoCreateResourceMinimum.NormalizePotions(cheats.FeatherfallPotionMinimum),
             PreserveExistingSaves = true
         };
+        SettingsSectionNormalizer.NormalizeAutoCreate(result);
+        return result;
     }
 
     private static string SpecialSeedsFromMask(int mask)

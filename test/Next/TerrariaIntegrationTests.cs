@@ -3,6 +3,7 @@ using TerrariaSplit.Race.Determinism;
 using TerrariaSplit.Terraria;
 using TerrariaSplit.Terraria.Automation;
 using TerrariaSplit.Terraria.WorldGeneration;
+using TerrariaSplit.WorldGuard.Payload;
 
 namespace TerrariaSplit.Tests;
 
@@ -11,17 +12,50 @@ internal static class TerrariaIntegrationTests
     public static IEnumerable<TestCase> All()
     {
         yield return TestCase.Sync("pyramid pre-screen evaluates known positive, item mismatch and no-pyramid seeds", TestSuite.Flow, PyramidPredictionJourney, timeoutSeconds: 30);
-        yield return TestCase.Async("jungle seed judge worker preserves protocol and returns seed-only analysis", TestSuite.Flow, JungleSeedJudgeWorkerJourney, timeoutSeconds: 30);
-        yield return TestCase.Async("world seed filter skips a seed when the worker request times out", TestSuite.Flow, WorldSeedFilterTimeoutJourney, timeoutSeconds: 10);
+        yield return TestCase.Async("native jungle seed judge preserves protocol and returns seed-only analysis", TestSuite.Flow, JungleSeedJudgeNativeJourney, timeoutSeconds: 30);
+        yield return TestCase.Async("world seed filter skips a seed when the native call times out", TestSuite.Flow, WorldSeedFilterTimeoutJourney, timeoutSeconds: 10);
         yield return TestCase.Async("world seed filter skips a seed when the jungle route is partial", TestSuite.Flow, WorldSeedFilterPartialRouteJourney, timeoutSeconds: 10);
         yield return TestCase.Sync("race seed filter concurrency uses eighty percent of processors", TestSuite.Core, RaceSeedFilterConcurrency);
         yield return TestCase.Async("race seed filter evaluates candidate seeds as one parallel batch", TestSuite.Flow, RaceSeedFilterBatchJourney, timeoutSeconds: 15);
         yield return TestCase.Async("UI seed pre-screen restarts after an empty batch or RNG drift without seed writeback", TestSuite.Flow, UiSeedBatchReplanJourney, timeoutSeconds: 30);
         yield return TestCase.Async("race world upload validates, hashes, deduplicates, locates and deletes a Terraria world", TestSuite.Flow, WorldFileTransferJourney);
         yield return TestCase.Sync("world automation settings normalize incompatible options and secret seed lists", TestSuite.Core, WorldSettingsNormalization);
+        yield return TestCase.Sync("race UI reflection targets compatible runtime fields and preserves deferred failures", TestSuite.Core, RaceUiRuntimeSafety);
     }
 
-    private static async Task JungleSeedJudgeWorkerJourney(CancellationToken cancellationToken)
+    private static void RaceUiRuntimeSafety()
+    {
+        var element = new DerivedRaceUiElement();
+        Check.True(RaceUiReflection.TrySetPublicInstanceField(element, "Left", 12.5f));
+        Check.Equal(12.5f, element.Left);
+
+        var point = new RaceUiLinkPoint();
+        Check.True(RaceUiReflection.TrySetPublicInstanceField(point, "Left", -3));
+        Check.True(RaceUiReflection.TrySetPublicInstanceField(point, "Right", -4));
+        Check.True(RaceUiReflection.TrySetPublicInstanceField(point, "Enabled", true));
+        Check.Equal(-3, point.Left);
+        Check.Equal(-4, point.Right);
+        Check.True(point.Enabled);
+
+        Check.False(RaceUiReflection.TrySetPublicInstanceField(point, "Left", 1.5f));
+        Check.False(RaceUiReflection.TrySetPublicInstanceField(point, "Missing", 1));
+        Check.Equal(-3, point.Left);
+
+        Check.False(RaceUiRuntimeFailure.TryResolve(string.Empty, string.Empty, out string empty));
+        Check.Equal(string.Empty, empty);
+        Check.True(RaceUiRuntimeFailure.TryResolve(
+            "delayed UI failure",
+            "world lock failure",
+            out string uiFailure));
+        Check.Equal("delayed UI failure", uiFailure);
+        Check.True(RaceUiRuntimeFailure.TryResolve(
+            string.Empty,
+            "world lock failure",
+            out string worldLockFailure));
+        Check.Equal("world lock failure", worldLockFailure);
+    }
+
+    private static async Task JungleSeedJudgeNativeJourney(CancellationToken cancellationToken)
     {
         string? workerPath = Environment.GetEnvironmentVariable(
             "TERRARIA_WORLD_FILTER");
@@ -30,7 +64,7 @@ internal static class TerrariaIntegrationTests
             return;
         }
 
-        await using var client = new JungleSeedJudgeWorkerClient(
+        var client = new JungleSeedJudgeNativeClient(
             workerPath,
             TimeSpan.FromSeconds(5));
         JungleSeedJudgeResult result = await client.AnalyzeAsync(
@@ -110,10 +144,11 @@ internal static class TerrariaIntegrationTests
             return;
         }
 
-        await using var worker = new JungleSeedJudgeWorkerClient(
+        var nativeClient = new JungleSeedJudgeNativeClient(
             workerPath,
             TimeSpan.FromMilliseconds(1));
-        using var evaluator = new WorldSeedFilterEvaluator(worker: worker);
+        using var evaluator = new WorldSeedFilterEvaluator(
+            nativeClient: nativeClient);
         var settings = new AutoCreateWorldSettings
         {
             EnableCheats = true,
@@ -146,10 +181,11 @@ internal static class TerrariaIntegrationTests
             return;
         }
 
-        await using var worker = new JungleSeedJudgeWorkerClient(
+        var nativeClient = new JungleSeedJudgeNativeClient(
             workerPath,
             TimeSpan.FromSeconds(5));
-        using var evaluator = new WorldSeedFilterEvaluator(worker: worker);
+        using var evaluator = new WorldSeedFilterEvaluator(
+            nativeClient: nativeClient);
         var settings = new AutoCreateWorldSettings
         {
             EnableCheats = true,
@@ -162,14 +198,14 @@ internal static class TerrariaIntegrationTests
 
         WorldSeedFilterPrediction prediction = await evaluator.EvaluateAsync(
             settings,
-            "576122169",
+            "1160429121",
             TerrariaWorldGenerationVersion.Modern1456,
             cancellationToken);
 
         Check.True(prediction.CanUsePrediction);
         Check.False(prediction.AcceptSeed);
         Check.True(prediction.Detail.Contains(
-            "jungle route depth 386 < 550; routeStatus=Partial",
+            "jungle route depth 534 < 550; routeStatus=Partial",
             StringComparison.Ordinal));
     }
 
@@ -500,6 +536,22 @@ internal static class TerrariaIntegrationTests
                         currentSeed)
                     : PyramidVisibleSeedReadResult.FromSeed(currentSeed, 1));
         }
+    }
+
+    private class RaceUiElement
+    {
+        public float Left = 0f;
+    }
+
+    private sealed class DerivedRaceUiElement : RaceUiElement
+    {
+    }
+
+    private sealed class RaceUiLinkPoint
+    {
+        public int Left = 0;
+        public int Right = 0;
+        public bool Enabled = false;
     }
 
     private static byte[] CreateMinimalWorld(string worldName = "test-world", int worldId = 24680)

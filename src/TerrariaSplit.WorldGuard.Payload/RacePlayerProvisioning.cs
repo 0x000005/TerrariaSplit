@@ -176,6 +176,7 @@ namespace TerrariaSplit.WorldGuard.Payload
                 .Invoke(creation, null);
             RequireMethod(creationType, "SetupPlayerStatsAndInventoryBasedOnDifficulty", BindingFlags.Instance | BindingFlags.NonPublic)
                 .Invoke(creation, null);
+            ClearInitialItemPrefixes(terraria, playerType, player);
 
             MethodInfo getPath = mainType.GetMethod(
                 "GetPlayerPathFromName",
@@ -215,6 +216,33 @@ namespace TerrariaSplit.WorldGuard.Payload
             }
 
             return new PayloadCommandResult(0, Path.GetFullPath(path), false);
+        }
+
+        private static void ClearInitialItemPrefixes(Assembly terraria, Type playerType, object player)
+        {
+            Type itemType = RequireType(terraria, "Terraria.Item");
+            MethodInfo resetPrefix = RequireMethod(
+                itemType,
+                "ResetPrefix",
+                BindingFlags.Instance | BindingFlags.Public);
+
+            ResetItemPrefixes(
+                (Array)RequireField(playerType, "inventory").GetValue(player),
+                resetPrefix);
+            ResetItemPrefixes(
+                (Array)RequireField(playerType, "armor").GetValue(player),
+                resetPrefix);
+        }
+
+        private static void ResetItemPrefixes(Array items, MethodInfo resetPrefix)
+        {
+            foreach (object item in items)
+            {
+                if (item != null)
+                {
+                    resetPrefix.Invoke(item, null);
+                }
+            }
         }
 
         private static void ApplyPlayerTemplate(Type creationType, object creation, string template)

@@ -1,12 +1,12 @@
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
-    <TerrariaWorldFilterSource Condition="'$(TerrariaWorldFilterSource)' == ''">$(MSBuildThisFileDirectory)..\..\..\..\TerrariaJungleJudge\out\build\win32-release\Release\TerrariaSplit.WorldFilter.exe</TerrariaWorldFilterSource>
+    <TerrariaWorldFilterSource Condition="'$(TerrariaWorldFilterSource)' == ''">$(MSBuildThisFileDirectory)..\..\..\..\TerrariaJungleJudge\out\build\x64-release\Release\TerrariaSplit.WorldFilter.dll</TerrariaWorldFilterSource>
     <TerrariaWorldFilterRequired Condition="'$(TerrariaWorldFilterRequired)' == '' and '$(Configuration)' == 'Release'">true</TerrariaWorldFilterRequired>
   </PropertyGroup>
 
   <ItemGroup Condition="Exists('$(TerrariaWorldFilterSource)')">
     <Content Include="$(TerrariaWorldFilterSource)"
-             Link="TerrariaSplit.WorldFilter.exe"
+             Link="TerrariaSplit.WorldFilter.dll"
              CopyToOutputDirectory="PreserveNewest"
              CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
@@ -23,7 +23,7 @@
     <ItemGroup>
       <TerrariaWorldFilterPublishedFile Include="$(TerrariaWorldFilterSource)" />
       <ResolvedFileToPublish Include="@(TerrariaWorldFilterPublishedFile)">
-        <RelativePath>TerrariaSplit.WorldFilter.exe</RelativePath>
+        <RelativePath>TerrariaSplit.WorldFilter.dll</RelativePath>
         <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
       </ResolvedFileToPublish>
     </ItemGroup>
@@ -33,7 +33,7 @@
           AfterTargets="Publish"
           Condition="'$(PublishDir)' != '' and Exists('$(TerrariaWorldFilterSource)')">
     <Copy SourceFiles="$(TerrariaWorldFilterSource)"
-          DestinationFiles="$(PublishDir)TerrariaSplit.WorldFilter.exe"
+          DestinationFiles="$(PublishDir)TerrariaSplit.WorldFilter.dll"
           SkipUnchangedFiles="true" />
   </Target>
 </Project>

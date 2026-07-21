@@ -48,6 +48,7 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
     private bool updatingCrimsonDistanceSelection;
     private bool updatingJungleRouteDepthSelection;
     private bool updatingResourceMinimumSelection;
+    private bool updatingPostGenerationFilterAvailability;
 
     public override SettingsPageId Id => SettingsPageId.Automation;
 
@@ -156,6 +157,7 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
             AppSettingsDefaults.AutoCreate.InputPressDurationMilliseconds,
             1,
             5000);
+        SettingsSectionNormalizer.NormalizeAutoCreate(settings.Automation.AutoCreate);
 
         settings.PracticeWorlds.Slots.Clear();
         foreach (PracticeSlotControls controls in practiceSlotControls)
@@ -193,6 +195,7 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
         ConfigureOptionBox(autoCreateWorldEvilBox, AutoCreateWorldEvil.All, Draft.Automation.AutoCreate.WorldEvil);
         autoCreateWorldEvilBox.SelectedIndexChanged += (_, _) => UpdatePostGenerationFilterAvailability();
         ConfigureSeedListBox(autoCreateSecretSeedsBox, Draft.Automation.AutoCreate.SecretSeeds);
+        autoCreateSecretSeedsBox.TextChanged += (_, _) => UpdatePostGenerationFilterAvailability();
         ConfigureCheckBox(autoCreateZenithStarCatchBox, Draft.Automation.AutoCreate.EnableZenithStarCatch);
         autoCreateZenithStarCatchBox.CheckedChanged += (_, _) => UpdateZenithStarCatchAvailability();
         ConfigureZenithStarCatchSpeedBar(autoCreateZenithStarCatchSpeedBar, Draft.Automation.AutoCreate.ZenithStarCatchSpeedSliderValue);

@@ -65,6 +65,14 @@ public sealed class RaceHub : Hub
         return result;
     }
 
+    public async Task<RaceOperationResult<RaceRoomState>> SetPlayerReady(RacePlayerReadyRequest request)
+    {
+        RaceOperationResult<RaceRoomState> result = rooms.SetPlayerReady(request);
+        await BroadcastRosterIfSucceededAsync(result, RaceRoomStateUpdateKind.PlayerReadyChanged, request.Nickname);
+        LogResult("player-ready", result, request.RoomCode, request.Nickname);
+        return result;
+    }
+
     public async Task<RaceOperationResult<RaceRoomProgressState>> ReportSplit(RaceSplitReport report)
     {
         RaceOperationResult<RaceRoomState> result = rooms.ReportSplit(report, out RaceGroupCompleted? completedGroup);
@@ -93,6 +101,19 @@ public sealed class RaceHub : Hub
 
         LogStartReport(report, result);
         return progressResult;
+    }
+
+    public async Task<RaceOperationResult<RaceRoomState>> ReportDeath(RaceDeathReport report)
+    {
+        RaceOperationResult<RaceRoomState> result =
+            rooms.ReportDeath(report, out RacePlayerDied? playerDied);
+        if (result.Succeeded && playerDied is not null)
+        {
+            await Clients.Group(playerDied.RoomCode).SendAsync("RacePlayerDied", playerDied);
+        }
+
+        LogResult("player-death", result, report.RoomCode, report.Nickname);
+        return result;
     }
 
     public async Task<RaceOperationResult<RaceRoomState>> StartRace(RaceHostActionRequest request)

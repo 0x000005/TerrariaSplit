@@ -5,7 +5,8 @@ namespace TerrariaSplit.Terraria.WorldGeneration;
 internal static class JungleSeedJudgeProtocol
 {
     public const int Version = 1;
-    public const string CompatibilityId = "terraria-1.4.5.6-win32-world-filter-pass62-v2";
+    public const string CompatibilityId =
+        "terraria-1.4.5.6-world-filter-pass62-v3";
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<JungleSeedJudgeGameMode>))]

@@ -431,6 +431,8 @@ public static class AppSettingsCloner
         return new RaceLeaderboardSettings
         {
             UseRankColorForMainTimer = source.UseRankColorForMainTimer,
+            WindowPositionX = source.WindowPositionX,
+            WindowPositionY = source.WindowPositionY,
             RankPlayerGap = source.RankPlayerGap,
             PlayerIconGap = source.PlayerIconGap,
             IconTimeGap = source.IconTimeGap,

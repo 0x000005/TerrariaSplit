@@ -15,6 +15,7 @@ internal static class RaceFlowTests
         yield return TestCase.Sync("race package survives transport serialization with route, world and leaderboard intact", TestSuite.Flow, TransportRoundTrip);
         yield return TestCase.Sync("in-game race protocol preserves bounded multilingual snapshots and ordered actions", TestSuite.Core, InGameProtocolRoundTrip);
         yield return TestCase.Sync("in-game race navigation follows host, member and room lifecycle journeys", TestSuite.Flow, InGameNavigationJourney);
+        yield return TestCase.Sync("race client rejects late updates from a room left before joining another room", TestSuite.Flow, CrossRoomUpdateIsolation);
         yield return TestCase.Sync("race deterministic core derives stable domains, counts events, rolls independent chances and accumulates fixed chances", TestSuite.Core, DeterministicCore);
         yield return TestCase.Async("race voice announces main and attached groups once, queues players in order and clears obsolete work", TestSuite.Flow, VoiceAnnouncementJourney);
     }
@@ -102,6 +103,13 @@ internal static class RaceFlowTests
                 ])));
     }
 
+    private static void CrossRoomUpdateIsolation()
+    {
+        Check.True(RaceClientSession.IsRoomUpdateForCurrentRoom(null, "OLD1"));
+        Check.True(RaceClientSession.IsRoomUpdateForCurrentRoom("NEW2", "new2"));
+        Check.False(RaceClientSession.IsRoomUpdateForCurrentRoom("NEW2", "OLD1"));
+    }
+
     private static void InGameNavigationJourney()
     {
         var navigation = new RaceInGameNavigator();
@@ -133,6 +141,11 @@ internal static class RaceFlowTests
         Check.Equal(
             RaceInGamePage.Entry,
             navigation.Resolve(RacePanelRole.Member, roomOpen: false, isHost: false));
+
+        navigation.Reset(roomOpen: true, raceStarted: false);
+        Check.Equal(RaceInGamePage.RoomPreparation, navigation.Current);
+        navigation.Reset(roomOpen: true, raceStarted: true);
+        Check.Equal(RaceInGamePage.RoomHome, navigation.Current);
     }
 
     private static void CompleteRoomJourney()
@@ -142,6 +155,8 @@ internal static class RaceFlowTests
         var manager = new RaceRoomManager(store, timeProvider: clock);
         RaceRoomState created = Success(manager.CreateRoom(new RaceRoomCreateRequest("host")));
         string room = created.RoomCode;
+        Check.Equal(RaceRoomCodeRules.Length, room.Length);
+        Check.True(room.All(character => character is >= '0' and <= '9'));
         Success(manager.JoinRoom(new RaceRoomJoinRequest(room, "guest")));
         RaceRoomState uploaded = Success(manager.PublishWorldFile(Publish(room, "host", revisionName: "first")));
         Check.Equal(RaceRoomStatus.WorldUploaded, uploaded.Status);
@@ -157,9 +172,28 @@ internal static class RaceFlowTests
         RacePlayerState uploadedHost = uploaded.Players.Single(player => player.IsHost);
         Check.Equal(RaceWorldFileStatus.Ready, uploadedHost.WorldFileStatus);
         Check.Equal(RaceRngControlStatus.Closed, uploadedHost.RngControlStatus);
-        Success(manager.UpdatePreparationStatus(Ready(room, "host")));
-        RaceRoomState ready = Success(manager.UpdatePreparationStatus(Ready(room, "guest")));
+        Success(manager.UpdatePreparationStatus(Ready(room, "host", 1)));
+        RaceRoomState technicallyReady = Success(manager.UpdatePreparationStatus(Ready(room, "guest", 1)));
+        Check.Equal(RaceRoomStatus.WorldUploaded, technicallyReady.Status);
+        Check.False(technicallyReady.Players.Single(player => player.Nickname == "guest").IsReady);
+        Check.Equal(
+            RaceErrors.PlayersNotReady,
+            manager.StartRace(new RaceHostActionRequest(room, "host", 1)).ErrorCode);
+        RaceRoomState ready = Success(manager.SetPlayerReady(PlayerReady(room, "guest", 1, true)));
         Check.Equal(RaceRoomStatus.Ready, ready.Status);
+        Check.True(ready.Players.Single(player => player.Nickname == "guest").IsReady);
+        RaceRoomState notReady = Success(manager.SetPlayerReady(PlayerReady(room, "guest", 1, false)));
+        Check.Equal(RaceRoomStatus.WorldUploaded, notReady.Status);
+        Check.False(notReady.Players.Single(player => player.Nickname == "guest").IsReady);
+        Success(manager.SetPlayerReady(PlayerReady(room, "guest", 1, true)));
+        RaceRoomState disconnectedBeforeStart = Success(manager.DisconnectPlayer(room, "guest"));
+        Check.False(disconnectedBeforeStart.Players.Single(player => player.Nickname == "guest").IsReady);
+        RaceRoomState resumedBeforeStart = Success(manager.ResumeRoom(room, "guest"));
+        Check.False(resumedBeforeStart.Players.Single(player => player.Nickname == "guest").IsReady);
+        Check.Equal(
+            RaceErrors.InvalidRequest,
+            manager.SetPlayerReady(PlayerReady(room, "host", 1, true)).ErrorCode);
+        ready = Success(manager.SetPlayerReady(PlayerReady(room, "guest", 1, true)));
         Check.True(ready.Players.All(player => player.WorldReady));
         Check.True(ready.Players.All(player => player.PlayerFileStatus == RacePlayerFileStatus.Ready));
         Check.True(ready.Players.All(player => player.WorldFileStatus == RaceWorldFileStatus.Ready));
@@ -175,10 +209,27 @@ internal static class RaceFlowTests
         Check.Equal(7000, starting.StartCountdownMilliseconds);
         Check.Equal(1L, starting.StartSequence);
         Check.Equal(
+            RaceErrors.RaceAlreadyStarted,
+            manager.JoinRoom(new RaceRoomJoinRequest(room, "late-during-race")).ErrorCode);
+        Check.Equal(
             RaceErrors.RaceNotStarted,
             manager.ReportStart(new RaceRunStartReport(room, "guest") { PackageRevision = 1, RunId = "guest-run" }).ErrorCode);
+        Check.Equal(
+            RaceErrors.RaceNotStarted,
+            manager.ReportDeath(Death(room, "guest", "guest-run"), out _).ErrorCode);
         clock.Advance(TimeSpan.FromSeconds(7));
         Success(manager.ReportStart(new RaceRunStartReport(room, "guest") { PackageRevision = 1, RunId = "guest-run" }));
+        Success(manager.ReportDeath(
+            Death(
+                room,
+                "guest",
+                "guest-run",
+                deathMessage: "guest was slain by Zombie."),
+            out RacePlayerDied? guestDeath));
+        Check.Equal("guest", guestDeath!.Nickname);
+        Check.Equal(1L, guestDeath.PackageRevision);
+        Check.Equal("guest-run", guestDeath.RunId);
+        Check.Equal("guest was slain by Zombie.", guestDeath.DeathMessage);
         RaceRoomState hostFirstState = Success(manager.ReportSplit(
             Report(room, "host", 0, 4_000, "host-run"),
             out RaceGroupCompleted? hostFirst));
@@ -221,9 +272,12 @@ internal static class RaceFlowTests
         Check.True(restarted.Players.All(player => player.CompletedSplitCount == 0));
         Check.True(restarted.Players.All(player => player.PlayerFileStatus == RacePlayerFileStatus.Waiting));
         Check.True(restarted.Players.All(player => player.WorldFileStatus == RaceWorldFileStatus.Waiting));
+        Success(manager.JoinRoom(new RaceRoomJoinRequest(room, "post-restart")));
+        Success(manager.KickPlayer(new RacePlayerKickRequest(room, "host", "post-restart")));
 
-        Success(manager.UpdatePreparationStatus(Ready(room, "host")));
-        Success(manager.UpdatePreparationStatus(Ready(room, "guest")));
+        Success(manager.UpdatePreparationStatus(Ready(room, "host", 2)));
+        Success(manager.UpdatePreparationStatus(Ready(room, "guest", 2)));
+        Success(manager.SetPlayerReady(PlayerReady(room, "guest", 2, true)));
         RaceRoomState secondStarting = Success(manager.StartRace(new RaceHostActionRequest(room, "host", 2)));
         Check.Equal(2L, secondStarting.StartSequence);
         clock.Advance(TimeSpan.FromSeconds(7));
@@ -248,8 +302,9 @@ internal static class RaceFlowTests
         Check.Equal(
             RaceRngControlStatus.NotEnabled,
             lateJoin.Players.Single(player => player.Nickname == "late").RngControlStatus);
-        Success(manager.UpdatePreparationStatus(Ready(room, "host")));
-        RaceRoomState rngDisabledReady = Success(manager.UpdatePreparationStatus(Ready(room, "late")));
+        Success(manager.UpdatePreparationStatus(Ready(room, "host", 3)));
+        RaceRoomState rngDisabledReady = Success(manager.UpdatePreparationStatus(Ready(room, "late", 3)));
+        rngDisabledReady = Success(manager.SetPlayerReady(PlayerReady(room, "late", 3, true)));
         Check.Equal(RaceRoomStatus.Ready, rngDisabledReady.Status);
         Check.True(rngDisabledReady.Players.All(player => player.RngControlStatus == RaceRngControlStatus.NotEnabled));
 
@@ -266,6 +321,9 @@ internal static class RaceFlowTests
         string room = created.RoomCode;
         Success(manager.JoinRoom(new RaceRoomJoinRequest(room, "guest")));
         Check.Equal(RaceErrors.NicknameTaken, manager.JoinRoom(new RaceRoomJoinRequest(room, "guest")).ErrorCode);
+        Check.Equal(RaceErrors.NicknameTaken, manager.ResumeRoom(room, "guest").ErrorCode);
+        Success(manager.LeaveRoom(room, "guest"));
+        Success(manager.JoinRoom(new RaceRoomJoinRequest(room, "guest")));
         Check.False(manager.PublishWorldFile(Publish(room, "guest", "forbidden")).Succeeded);
         RaceWorldFilePublishRequest invalidDifficulty = Publish(room, "host", "invalid-difficulty") with
         {
@@ -279,18 +337,23 @@ internal static class RaceFlowTests
         Check.True(initialWorld is null);
         Check.Equal(RaceErrors.RaceNotStarted, manager.ReportSplit(Report(room, "host", 0, 1_000, "run-1")).ErrorCode);
         Check.Equal(RaceErrors.PlayersNotReady, manager.StartRace(new RaceHostActionRequest(room, "host", 1)).ErrorCode);
-        Success(manager.UpdatePreparationStatus(Ready(room, "host")));
-        Success(manager.UpdatePreparationStatus(Ready(room, "guest")));
+        Success(manager.UpdatePreparationStatus(Ready(room, "host", 1)));
+        Success(manager.UpdatePreparationStatus(Ready(room, "guest", 1)));
+        Success(manager.SetPlayerReady(PlayerReady(room, "guest", 1, true)));
         Success(manager.StartRace(new RaceHostActionRequest(room, "host", 1)));
         clock.Advance(TimeSpan.FromSeconds(7));
         Success(manager.ReportSplit(Report(room, "host", 0, 1_000, "run-1")));
         Success(manager.PublishWorldFile(Publish(room, "host", "second"), out RaceWorldFileInfo? replacedWorld));
         Check.Equal("first.wld", replacedWorld!.FileName);
-        Success(manager.UpdatePreparationStatus(Ready(room, "host")));
-        Success(manager.UpdatePreparationStatus(Ready(room, "guest")));
+        Success(manager.UpdatePreparationStatus(Ready(room, "host", 2)));
+        Success(manager.UpdatePreparationStatus(Ready(room, "guest", 2)));
+        Success(manager.SetPlayerReady(PlayerReady(room, "guest", 2, true)));
         Success(manager.StartRace(new RaceHostActionRequest(room, "host", 2)));
         clock.Advance(TimeSpan.FromSeconds(7));
         Check.Equal(RaceErrors.StalePackage, manager.ReportSplit(Report(room, "host", 0, 2_000, "run-1")).ErrorCode);
+        Check.Equal(
+            RaceErrors.StalePackage,
+            manager.ReportDeath(Death(room, "host", "run-1"), out _).ErrorCode);
         Check.False(manager.KickPlayer(new RacePlayerKickRequest(room, "guest", "host")).Succeeded);
         Check.False(manager.CloseRoom(room, "guest").Succeeded);
 
@@ -318,9 +381,9 @@ internal static class RaceFlowTests
         Check.Equal(2, restored.Route!.Splits.Count);
         Check.Equal("transport.wld", restored.WorldFile!.FileName);
         Check.True(restored.WorldSettings!.Cheats.Enabled);
-        Check.Equal(RacePlayerDifficultyCodes.Hardcore, restored.WorldSettings.PlayerDifficultyCode);
+        Check.Equal(RacePlayerDifficultyCodes.Softcore, restored.WorldSettings.PlayerDifficultyCode);
         Check.Equal(
-            AutoCreatePlayerDifficulty.Hardcore,
+            AutoCreatePlayerDifficulty.Softcore,
             RaceWorldSettingsFactory.ToPlayerDifficulty(restored.WorldSettings.PlayerDifficultyCode));
         Check.Equal(8, restored.WorldSettings.Cheats.LifeCrystalMinimum);
         Check.Equal(AutoCreateJungleRouteDepth.VeryDeep, restored.WorldSettings.Cheats.JungleRouteDepth);
@@ -345,21 +408,70 @@ internal static class RaceFlowTests
         Check.Equal(5, generatedSettings.ResourceFilterLifeCrystalMinimum);
         Check.Equal(2, generatedSettings.ResourceFilterSpelunkerPotionMinimum);
         Check.Equal(1, generatedSettings.ResourceFilterFeatherfallPotionMinimum);
+        RaceWorldSettings unsupportedAdvancedFilters = restored.WorldSettings with
+        {
+            SizeCode = 2,
+            Cheats = restored.WorldSettings.Cheats with { PyramidEnabled = false }
+        };
+        Check.False(RaceWorldSettingsFactory.HasActiveFilters(unsupportedAdvancedFilters));
+        AutoCreateWorldSettings unsupportedGeneratedSettings =
+            RaceWorldSettingsFactory.ToAutoCreateWorldSettings(unsupportedAdvancedFilters);
+        Check.False(unsupportedGeneratedSettings.RequireCrimsonBetweenDungeonAndSpawn);
+        Check.Equal(AutoCreateJungleRouteDepth.None, unsupportedGeneratedSettings.JungleRouteDepth);
+        Check.Equal(0, unsupportedGeneratedSettings.ResourceFilterItemMask);
+        Check.Equal(0, unsupportedGeneratedSettings.ResourceFilterLifeCrystalMinimum);
+        Check.True(RaceWorldSettingsFactory.HasActiveFilters(
+            unsupportedAdvancedFilters with
+            {
+                Cheats = unsupportedAdvancedFilters.Cheats with { PyramidEnabled = true }
+            }));
         Check.False(RaceWorldSettingsFactory.HasActiveFilters(
             restored.WorldSettings with { Cheats = restored.WorldSettings.Cheats with { Enabled = false } }));
         Check.Equal(uploaded.PackageRevision, restored.PackageRevision);
         Check.Equal(uploaded.Determinism!.CreateDigest(), restored.Determinism!.CreateDigest());
         Check.Equal("host", restored.Leaderboard.Single().Nickname);
+
+        RaceWorldFilePublishRequest journeyRequest = Publish(
+            created.RoomCode,
+            "host",
+            "journey") with
+        {
+            WorldSettings = Publish(created.RoomCode, "host", "journey").WorldSettings with
+            {
+                DifficultyCode = 4,
+                PlayerDifficultyCode = RacePlayerDifficultyCodes.Softcore
+            }
+        };
+        RaceRoomState journey = Success(manager.PublishWorldFile(journeyRequest));
+        Check.Equal(
+            RacePlayerDifficultyCodes.Journey,
+            journey.WorldSettings!.PlayerDifficultyCode);
+        Check.Equal(
+            AutoCreatePlayerDifficulty.Journey,
+            RaceWorldSettingsFactory.ToPlayerDifficultyForWorld(journey.WorldSettings));
     }
 
-    private static RacePreparationStatusRequest Ready(string roomCode, string nickname)
+    private static RacePreparationStatusRequest Ready(
+        string roomCode,
+        string nickname,
+        long packageRevision)
     {
         return new RacePreparationStatusRequest(
             roomCode,
             nickname,
             RacePlayerFileStatus.Ready,
             RaceWorldFileStatus.Ready,
-            RaceRngControlStatus.Enabled);
+            RaceRngControlStatus.Enabled,
+            PackageRevision: packageRevision);
+    }
+
+    private static RacePlayerReadyRequest PlayerReady(
+        string roomCode,
+        string nickname,
+        long packageRevision,
+        bool isReady)
+    {
+        return new RacePlayerReadyRequest(roomCode, nickname, packageRevision, isReady);
     }
 
     private static void DeterministicCore()
@@ -493,6 +605,20 @@ internal static class RaceFlowTests
         Check.Equal(
             "Player completed split: Moon Lord. Time: one hour, one minute, two seconds.",
             RaceSpeechTextFormatter.FormatPreview(isChinese: false));
+        Check.Equal(
+            "玩家完成分段：月亮领主，用时1:01:02.03。",
+            RaceSpeechTextFormatter.FormatGameMessage(
+                "玩家",
+                "月亮领主",
+                3_662_030,
+                isChinese: true));
+        Check.Equal(
+            "Player completed split: Moon Lord. Time: 1:01:02.03.",
+            RaceSpeechTextFormatter.FormatGameMessage(
+                "Player",
+                "Moon Lord",
+                3_662_030,
+                isChinese: false));
 
         var engine = new ControlledRaceSpeechEngine();
         using var speech = new RaceSpeechCoordinator(engine);
@@ -611,6 +737,18 @@ internal static class RaceFlowTests
         string runId,
         long packageRevision = 1) =>
         new(room, nickname, index, $"split-{index}", elapsed)
+        {
+            PackageRevision = packageRevision,
+            RunId = runId
+        };
+
+    private static RaceDeathReport Death(
+        string room,
+        string nickname,
+        string runId,
+        long packageRevision = 1,
+        string deathMessage = "") =>
+        new(room, nickname, DateTimeOffset.UnixEpoch, deathMessage)
         {
             PackageRevision = packageRevision,
             RunId = runId

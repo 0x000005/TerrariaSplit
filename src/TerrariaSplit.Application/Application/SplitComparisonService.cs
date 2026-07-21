@@ -19,6 +19,21 @@ public static class SplitComparisonService
             return new SplitComparison(splitTime - referenceTime, ShowDelta: true);
         }
 
+        return GetRunningComparison(
+            settings,
+            timerPhase,
+            timerElapsed,
+            referenceTime,
+            isCurrent);
+    }
+
+    public static SplitComparison GetRunningComparison(
+        AppSettings settings,
+        SplitTimerPhase timerPhase,
+        TimeSpan timerElapsed,
+        TimeSpan referenceTime,
+        bool isCurrent)
+    {
         if (!isCurrent || timerPhase == SplitTimerPhase.NotStarted)
         {
             return SplitComparison.Empty;

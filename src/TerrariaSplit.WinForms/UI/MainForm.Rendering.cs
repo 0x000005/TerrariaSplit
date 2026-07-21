@@ -101,19 +101,39 @@ internal sealed partial class MainForm : Form
             return new StatusOverlayDynamicKey(index, string.Empty, 0);
         }
 
-        SplitComparison comparison = SplitComparisonService.GetSplitComparison(
-            settings,
-            timerPhase,
-            elapsed,
-            status,
-            isCurrent: true);
+        SplitComparison comparison;
+        IReadOnlyList<SplitExpandedConditionRow> expandedRows =
+            SplitExpandedConditionRows.Build(settings, splitStatuses, index);
+        SplitExpandedConditionRow? activeExpandedRow = expandedRows
+            .Where(static row =>
+                !row.CompletionTime.HasValue && row.ReferenceTime.HasValue)
+            .Select(static row => (SplitExpandedConditionRow?)row)
+            .FirstOrDefault();
+        if (activeExpandedRow is SplitExpandedConditionRow expanded)
+        {
+            comparison = SplitComparisonService.GetRunningComparison(
+                settings,
+                timerPhase,
+                elapsed,
+                expanded.ReferenceTime.GetValueOrDefault(),
+                isCurrent: true);
+        }
+        else
+        {
+            comparison = SplitComparisonService.GetSplitComparison(
+                settings,
+                timerPhase,
+                elapsed,
+                status,
+                isCurrent: true);
+        }
         string deltaText = SplitRenderData.FormatSplitDelta(settings, comparison);
         if (deltaText.Length == 0)
         {
             return new StatusOverlayDynamicKey(index, string.Empty, 0);
         }
 
-        bool enableDeltaGradient = status.Time is TimeSpan
+        bool enableDeltaGradient = activeExpandedRow is null && status.Time is TimeSpan
             ? settings.Overlay.EnableDeltaGradientColor
             : settings.Overlay.EnableCurrentDeltaGradientColor;
         Color deltaColor = OverlayColorMath.GetDeltaComparisonColor(
@@ -138,35 +158,35 @@ internal sealed partial class MainForm : Form
         OverlayCompositeLayout compositeLayout = overlayShell.BoundsController.CurrentLayout;
         int bleed = SplitListRenderer.GetRowBleedMargin(settings);
         bool ignoreVisibleGroupLimit = ShouldIgnoreVisibleGroupLimitForCompletedRun();
+        IReadOnlyList<SplitDisplayRow> displayRows = SplitDisplayRows.Build(
+            settings,
+            splitStatuses,
+            currentSplitIndex,
+            GetCurrentVisibleStatusRowCount(),
+            ignoreVisibleGroupLimit);
         Rectangle? region = null;
 
-        void AddRow(int row)
+        void AddRows(int statusIndex)
         {
-            if (!SplitDisplayRows.TryGetRowIndex(
-                    settings,
-                    splitStatuses,
-                    row,
-                    currentSplitIndex,
-                    GetCurrentVisibleStatusRowCount(),
-                    ignoreVisibleGroupLimit,
-                    out int visualRow))
+            foreach (SplitDisplayRow displayRow in displayRows.Where(row =>
+                         row.StatusIndex == statusIndex))
             {
-                return;
+                Rectangle rect = Rectangle.Inflate(
+                    compositeLayout.ToStatusLocal(layout.GetRowRect(displayRow.RowIndex)),
+                    bleed,
+                    bleed);
+                region = region is Rectangle existing
+                    ? Rectangle.Union(existing, rect)
+                    : rect;
             }
-
-            Rectangle rect = Rectangle.Inflate(
-                compositeLayout.ToStatusLocal(layout.GetRowRect(visualRow)),
-                bleed,
-                bleed);
-            region = region is Rectangle existing ? Rectangle.Union(existing, rect) : rect;
         }
 
-        AddRow(currentSplitIndex);
+        AddRows(currentSplitIndex);
         if (StatusOverlayHighlightsActive)
         {
             foreach (int row in overlayShell.Animations.SegmentBestDeltaHighlights.Keys)
             {
-                AddRow(row);
+                AddRows(row);
             }
         }
 

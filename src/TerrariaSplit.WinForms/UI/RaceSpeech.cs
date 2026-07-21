@@ -386,6 +386,49 @@ internal static class RaceSpeechTextFormatter
             : $"{nickname} completed split: {splitName}. Time: {FormatEnglishDuration(hours, minutes, seconds)}.";
     }
 
+    public static string FormatGameMessage(
+        string nickname,
+        string splitName,
+        long elapsedMilliseconds,
+        bool isChinese)
+    {
+        long safeMilliseconds = Math.Max(0, elapsedMilliseconds);
+        long totalSeconds = safeMilliseconds / 1000;
+        int centiseconds = (int)(safeMilliseconds % 1000 / 10);
+        int seconds = (int)(totalSeconds % 60);
+        int minutes = (int)(totalSeconds / 60 % 60);
+        long hours = totalSeconds / 3600;
+        string duration = FormatGameDuration(hours, minutes, seconds, centiseconds);
+        return isChinese
+            ? $"{nickname}完成分段：{splitName}，用时{duration}。"
+            : $"{nickname} completed split: {splitName}. Time: {duration}.";
+    }
+
+    private static string FormatGameDuration(
+        long hours,
+        int minutes,
+        int seconds,
+        int centiseconds)
+    {
+        if (hours > 0)
+        {
+            return string.Create(
+                CultureInfo.InvariantCulture,
+                $"{hours}:{minutes:D2}:{seconds:D2}.{centiseconds:D2}");
+        }
+
+        if (minutes > 0)
+        {
+            return string.Create(
+                CultureInfo.InvariantCulture,
+                $"{minutes}:{seconds:D2}.{centiseconds:D2}");
+        }
+
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"{seconds}.{centiseconds:D2}");
+    }
+
     private static string FormatChineseDuration(long hours, int minutes, int seconds)
     {
         var parts = new List<string>();

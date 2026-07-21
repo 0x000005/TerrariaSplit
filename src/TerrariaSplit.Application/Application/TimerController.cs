@@ -43,10 +43,12 @@ internal sealed class TimerController
         {
             runStarted = true;
             runTimer.StartAt(observedTimestamp);
-            splitTracker.OnRunStarted(snapshot.Facts);
+            // This snapshot can straddle the menu-to-world transition, so defer
+            // initial fact resolution and split evaluation until the next poll.
+            splitTracker.OnRunStarted(TerrariaGameFacts.Unknown);
         }
 
-        if (runTimer.Phase == SplitTimerPhase.Running)
+        if (runTimer.Phase == SplitTimerPhase.Running && !runStarted)
         {
             SplitRecord? split = splitTracker.Update(
                 snapshot.Facts,

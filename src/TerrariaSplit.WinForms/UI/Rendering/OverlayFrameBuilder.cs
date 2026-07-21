@@ -62,7 +62,12 @@ internal static class OverlayFrameBuilder
             : null;
 
         SplitComparison comparison = expandedRow is SplitExpandedConditionRow expandedComparison
-            ? GetExpandedComparison(expandedComparison)
+            ? GetExpandedComparison(
+                context.Settings,
+                context.TimerPhase,
+                context.TimerElapsed,
+                expandedComparison,
+                isCurrent)
             : SplitComparisonService.GetSplitComparison(
                 context.Settings,
                 context.TimerPhase,
@@ -110,7 +115,12 @@ internal static class OverlayFrameBuilder
             expandedRows[0].ConditionIndex == expandedRow.ConditionIndex;
     }
 
-    private static SplitComparison GetExpandedComparison(SplitExpandedConditionRow row)
+    internal static SplitComparison GetExpandedComparison(
+        AppSettings settings,
+        SplitTimerPhase timerPhase,
+        TimeSpan timerElapsed,
+        SplitExpandedConditionRow row,
+        bool isCurrent)
     {
         if (row.ReferenceTime is not TimeSpan reference)
         {
@@ -122,7 +132,12 @@ internal static class OverlayFrameBuilder
             return new SplitComparison(completion - reference, ShowDelta: true);
         }
 
-        return SplitComparison.Empty;
+        return SplitComparisonService.GetRunningComparison(
+            settings,
+            timerPhase,
+            timerElapsed,
+            reference,
+            isCurrent);
     }
 
     private static bool GetUseSplitTimeStyle(

@@ -8,6 +8,7 @@ using System.Linq;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
 using HarmonyLib;
 using TerrariaSplit.Race.Determinism;
 
@@ -724,6 +725,10 @@ namespace TerrariaSplit.WorldGuard.Payload
                 }
 
                 Type mainType = terraria.GetType("Terraria.Main", false);
+                Type playerType = terraria.GetType("Terraria.Player", false);
+                Type playerDeathReasonType = terraria.GetType(
+                    "Terraria.DataStructures.PlayerDeathReason",
+                    false);
                 Type playerFileDataType = terraria.GetType("Terraria.IO.PlayerFileData", false);
                 Type worldFileDataType = terraria.GetType("Terraria.IO.WorldFileData", false);
                 Type characterListItemType = terraria.GetType("Terraria.GameContent.UI.Elements.UICharacterListItem", false);
@@ -732,7 +737,8 @@ namespace TerrariaSplit.WorldGuard.Payload
                 Type uiListType = terraria.GetType("Terraria.GameContent.UI.Elements.UIList", false);
                 Type uiElementType = terraria.GetType("Terraria.UI.UIElement", false);
                 Type snapPointType = terraria.GetType("Terraria.UI.SnapPoint", false);
-                if (mainType == null || playerFileDataType == null || worldFileDataType == null ||
+                if (mainType == null || playerType == null || playerDeathReasonType == null ||
+                    playerFileDataType == null || worldFileDataType == null ||
                     characterListItemType == null || worldListItemType == null || panelType == null ||
                     uiListType == null || uiElementType == null || snapPointType == null)
                 {
@@ -764,6 +770,12 @@ namespace TerrariaSplit.WorldGuard.Payload
                     null,
                     new[] { playerFileDataType },
                     null);
+                MethodInfo playerKillMeMethod = playerType.GetMethod(
+                    "KillMe",
+                    BindingFlags.Instance | BindingFlags.Public,
+                    null,
+                    new[] { playerDeathReasonType, typeof(double), typeof(int), typeof(bool) },
+                    null);
                 MethodInfo characterListCompareMethod = characterListItemType.GetMethod(
                     "CompareTo",
                     BindingFlags.Instance | BindingFlags.Public,
@@ -791,6 +803,7 @@ namespace TerrariaSplit.WorldGuard.Payload
                         method.GetParameters().Length == 1 &&
                         method.GetParameters()[0].ParameterType.FullName == "Microsoft.Xna.Framework.Graphics.SpriteBatch");
                 if (worldRejectionMethod == null || selectPlayerMethod == null ||
+                    playerKillMeMethod == null ||
                     characterListCompareMethod == null || worldListCompareMethod == null ||
                     characterListDrawMethod == null || worldListDrawMethod == null ||
                     characterListCompareMethod.DeclaringType != characterListItemType ||
@@ -833,6 +846,15 @@ namespace TerrariaSplit.WorldGuard.Payload
                 menuModeField = mainType.GetField("menuMode", BindingFlags.Static | BindingFlags.Public);
                 menuMultiplayerField = mainType.GetField("menuMultiplayer", BindingFlags.Static | BindingFlags.Public);
                 menuServerField = mainType.GetField("menuServer", BindingFlags.Static | BindingFlags.Public);
+                raceUiPlayerNameField = playerType.GetField(
+                    "name",
+                    BindingFlags.Instance | BindingFlags.Public);
+                raceUiDeathReasonGetTextMethod = playerDeathReasonType.GetMethod(
+                    "GetDeathText",
+                    BindingFlags.Instance | BindingFlags.Public,
+                    null,
+                    new[] { typeof(string) },
+                    null);
                 PropertyInfo goldColorProperty = panelBorderColorField == null
                     ? null
                     : panelBorderColorField.FieldType.GetProperty("Gold", BindingFlags.Static | BindingFlags.Public);
@@ -846,7 +868,8 @@ namespace TerrariaSplit.WorldGuard.Payload
                     uiListItemsField == null || uiElementGetSnapPointsMethod == null ||
                     snapPointIdProperty == null || snapPointIdSetter == null || worldIdField == null ||
                     worldUniqueIdField == null || statusTextField == null || menuModeField == null ||
-                    menuMultiplayerField == null || menuServerField == null)
+                    menuMultiplayerField == null || menuServerField == null ||
+                    raceUiPlayerNameField == null || raceUiDeathReasonGetTextMethod == null)
                 {
                     return 16;
                 }
@@ -869,9 +892,13 @@ namespace TerrariaSplit.WorldGuard.Payload
                 MethodInfo worldListDrawPrefix = typeof(EntryPoint).GetMethod(
                     "WorldListDrawPrefix",
                     BindingFlags.Static | BindingFlags.NonPublic);
+                MethodInfo playerKillMePostfix = typeof(EntryPoint).GetMethod(
+                    "PlayerKillMePostfix",
+                    BindingFlags.Static | BindingFlags.NonPublic);
                 if (worldPrefix == null || multiplayerPrefix == null ||
                     characterListComparePrefix == null || worldListComparePrefix == null ||
-                    characterListDrawPrefix == null || worldListDrawPrefix == null)
+                    characterListDrawPrefix == null || worldListDrawPrefix == null ||
+                    playerKillMePostfix == null)
                 {
                     return 17;
                 }
@@ -884,7 +911,8 @@ namespace TerrariaSplit.WorldGuard.Payload
                     characterListCompareMethod,
                     worldListCompareMethod,
                     characterListDrawMethod,
-                    worldListDrawMethod
+                    worldListDrawMethod,
+                    playerKillMeMethod
                 };
                 int installResult = InstallPatchSet(
                     harmony,
@@ -897,8 +925,14 @@ namespace TerrariaSplit.WorldGuard.Payload
                         harmony.Patch(worldListCompareMethod, new HarmonyMethod(worldListComparePrefix));
                         harmony.Patch(characterListDrawMethod, new HarmonyMethod(characterListDrawPrefix));
                         harmony.Patch(worldListDrawMethod, new HarmonyMethod(worldListDrawPrefix));
+                        harmony.Patch(
+                            playerKillMeMethod,
+                            postfix: new HarmonyMethod(playerKillMePostfix));
                     },
-                    () => patchedMethods.All(HasOwnedPrefix),
+                    () => patchedMethods
+                            .Where(method => method != playerKillMeMethod)
+                            .All(HasOwnedPrefix) &&
+                        HasOwnedPostfix(playerKillMeMethod),
                     18);
                 if (installResult != 0)
                 {
@@ -907,6 +941,46 @@ namespace TerrariaSplit.WorldGuard.Payload
 
                 patchesInstalled = true;
                 return 0;
+            }
+        }
+
+        private static void PlayerKillMePostfix(object __instance, object __0)
+        {
+            try
+            {
+                if (configuration == null ||
+                    __instance == null ||
+                    __0 == null ||
+                    raceUiLocalPlayerProperty == null ||
+                    raceUiPlayerDeadField == null ||
+                    raceUiPlayerNameField == null ||
+                    raceUiDeathReasonGetTextMethod == null)
+                {
+                    return;
+                }
+
+                object localPlayer = raceUiLocalPlayerProperty.GetValue(null, null);
+                if (!ReferenceEquals(__instance, localPlayer) ||
+                    !(bool)raceUiPlayerDeadField.GetValue(__instance))
+                {
+                    return;
+                }
+
+                string playerName = (string)raceUiPlayerNameField.GetValue(__instance) ??
+                    string.Empty;
+                object deathText = raceUiDeathReasonGetTextMethod.Invoke(
+                    __0,
+                    new object[] { playerName });
+                string message = deathText == null
+                    ? string.Empty
+                    : deathText.ToString().Trim();
+                if (!string.IsNullOrWhiteSpace(message))
+                {
+                    Interlocked.Exchange(ref raceUiLocalDeathMessage, message);
+                }
+            }
+            catch
+            {
             }
         }
 

@@ -16,6 +16,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
     private static readonly TimeSpan DisposeWorldLockTimeout = TimeSpan.FromSeconds(7);
     private static readonly TimeSpan CloseWindowTimeout = TimeSpan.FromSeconds(1);
     private static readonly TimeSpan RemoteRoomExitTimeout = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan HostWorldPreparationTimeout = TimeSpan.FromSeconds(45);
     private const int RaceRandomWorldMaxAttempts = 250_000;
     private const int RaceVerifiedGenerationProgressMaximum = 80;
     private const int RaceDirectGenerationProgressMaximum = 90;
@@ -26,6 +27,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
     private readonly RaceSpeechCoordinator speechCoordinator;
     private readonly SemaphoreSlim worldLockLifecycleGate = new(1, 1);
     private readonly SemaphoreSlim restartLifecycleGate = new(1, 1);
+    private readonly object hostWorldPreparationSync = new();
     private readonly ISettingsSnapshotFactory settingsSnapshots;
     private readonly IAppLogger logger;
     private readonly Func<AppSettings> getSettings;
@@ -50,6 +52,8 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
     private RaceLeaderboardForm? leaderboardForm;
     private CancellationTokenSource? worldGenerationCancellation;
     private CancellationTokenSource? memberWorldDownloadCancellation;
+    private CancellationTokenSource? hostWorldPreparationCancellation;
+    private Task? hostWorldPreparationTask;
     private CancellationTokenSource? worldLockRetryCancellation;
     private CancellationTokenSource? scheduledRaceStartCancellation;
     private CancellationTokenSource? restartCancellation;
@@ -118,6 +122,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
         session.PackageChanged += HandlePackageChanged;
         session.ProgressChanged += HandleProgressChanged;
         session.GroupCompleted += HandleGroupCompleted;
+        session.PlayerDied += HandlePlayerDied;
         session.PlayerProgressReset += HandlePlayerProgressReset;
         session.RosterChanged += HandleRosterChanged;
         session.ConnectionStatusChanged += HandleConnectionStatusChanged;
@@ -226,6 +231,45 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
         catch (Exception ex)
         {
             logger.Error(ex, "Race leaderboard settings save failed.");
+        }
+    }
+
+    private void SaveLeaderboardPosition(Point location)
+    {
+        RaceLeaderboardSettings current =
+            getBaseSettings().Race?.Leaderboard ?? new RaceLeaderboardSettings();
+        if (current.WindowPositionX == location.X && current.WindowPositionY == location.Y)
+        {
+            return;
+        }
+
+        try
+        {
+            AppSettings nextSettings = settingsSnapshots.CreateSnapshot(getBaseSettings());
+            nextSettings.Race ??= new RaceSettings();
+            nextSettings.Race.Leaderboard ??= new RaceLeaderboardSettings();
+            nextSettings.Race.Leaderboard.WindowPositionX = location.X;
+            nextSettings.Race.Leaderboard.WindowPositionY = location.Y;
+
+            OperationResult result = saveSettings(nextSettings);
+            if (!result.Succeeded)
+            {
+                logger.Info("Race leaderboard position save failed: " + result.Message);
+                return;
+            }
+
+            getBaseSettings().Race ??= new RaceSettings();
+            getBaseSettings().Race.Leaderboard ??= new RaceLeaderboardSettings();
+            getBaseSettings().Race.Leaderboard.WindowPositionX = location.X;
+            getBaseSettings().Race.Leaderboard.WindowPositionY = location.Y;
+            getSettings().Race ??= new RaceSettings();
+            getSettings().Race.Leaderboard ??= new RaceLeaderboardSettings();
+            getSettings().Race.Leaderboard.WindowPositionX = location.X;
+            getSettings().Race.Leaderboard.WindowPositionY = location.Y;
+        }
+        catch (Exception ex)
+        {
+            logger.Error(ex, "Race leaderboard position save failed.");
         }
     }
 
@@ -355,6 +399,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
 
     public async Task<RaceOperationResult<RaceRoomState>> JoinRoomAsync(string serverUrl, string roomCode, string nickname)
     {
+        roomCode = roomCode.Trim();
         SaveDraftState(draftState with
         {
             ServerUrl = serverUrl,
@@ -362,6 +407,13 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
             RoomCode = roomCode,
             Role = RacePanelRole.Member
         });
+
+        if (!RaceRoomCodeRules.IsValid(roomCode))
+        {
+            return RaceOperationResult<RaceRoomState>.Failure(
+                "invalid_request",
+                Localize("Room code must be four digits."));
+        }
 
         try
         {
@@ -583,29 +635,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
             if (result.Value is RaceRoomState state)
             {
                 RememberObtainedWorldFile(state.RoomCode, state.WorldFile, resetTimer: true);
-                _ = await MarkWorldLockStartingAsync(cancellationToken);
-                TerrariaRaceWorldLockResult worldLockResult = await LockRaceWorldAsync(uploadWorldPath, state.Determinism, cancellationToken);
-                RaceOperationResult<RaceRoomState> preparation = await MarkWorldLockResultAsync(
-                    worldLockResult,
-                    cancellationToken);
-                if (worldLockResult.Succeeded)
-                {
-                    result = preparation;
-                }
-                else
-                {
-                    if (IsTerrariaProcessUnavailable(worldLockResult.Message) && preparation.Succeeded)
-                    {
-                        result = preparation;
-                        logger.Info("Race world uploaded; waiting for Terraria to start before installing the hook.");
-                    }
-                    else
-                    {
-                        result = preparation.Succeeded
-                            ? RaceOperationResult<RaceRoomState>.Failure("world_lock_failed", worldLockResult.Message)
-                            : preparation;
-                    }
-                }
+                StartHostWorldPreparation(state, uploadWorldPath);
             }
         }
         else if (!string.Equals(uploadWorldPath, normalizedWorldPath, StringComparison.OrdinalIgnoreCase))
@@ -1142,6 +1172,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
             await CancelRestartAndWaitAsync().ConfigureAwait(false);
             worldGenerationCancellation?.Cancel();
             CancelMemberWorldDownload();
+            await ObserveCanceledPreparationAsync(CancelHostWorldPreparation()).ConfigureAwait(false);
             try
             {
                 using var cancellation = new CancellationTokenSource(RemoteRoomExitTimeout);
@@ -1167,6 +1198,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
         await CancelRestartAndWaitAsync().ConfigureAwait(false);
         worldGenerationCancellation?.Cancel();
         CancelMemberWorldDownload();
+        await ObserveCanceledPreparationAsync(CancelHostWorldPreparation()).ConfigureAwait(false);
         await session.LeaveLocalAsync(DisposeRaceSessionTimeout);
         await UnlockRaceWorldBestEffortAsync();
         ClearLocalRoomStateAfterLeave();
@@ -1421,6 +1453,13 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
                     cancellationToken).ConfigureAwait(false);
                 return ClassifyProgressResult(result, "split report");
             }
+            case RaceProgressUpload.Death death:
+            {
+                RaceOperationResult<RaceRoomState> result = await session.ReportDeathAsync(
+                    death.Report,
+                    cancellationToken).ConfigureAwait(false);
+                return ClassifyRoomResult(result, "death report");
+            }
             default:
                 throw new NotSupportedException($"Unsupported Race progress upload {upload.GetType().Name}.");
         }
@@ -1428,6 +1467,19 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
 
     private RaceProgressSendResult ClassifyProgressResult(
         RaceOperationResult<RaceRoomProgressState> result,
+        string operation)
+    {
+        if (result.Succeeded)
+        {
+            return RaceProgressSendResult.Accepted;
+        }
+
+        logger.Info($"Race {operation} rejected. Error={result.ErrorCode} Message={result.Message}.");
+        return RaceProgressSendResult.Obsolete;
+    }
+
+    private RaceProgressSendResult ClassifyRoomResult(
+        RaceOperationResult<RaceRoomState> result,
         string operation)
     {
         if (result.Succeeded)
@@ -1455,6 +1507,18 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
 
         disposed = true;
         StopInGameMenu();
+        Task hostWorldPreparation = CancelHostWorldPreparation();
+        try
+        {
+            hostWorldPreparation.Wait(DisposeWorldLockTimeout);
+        }
+        catch (AggregateException ex) when (ex.InnerExceptions.All(static item => item is OperationCanceledException))
+        {
+        }
+        catch (Exception ex)
+        {
+            logger.Error(ex, "Race host world preparation shutdown failed.");
+        }
         UnlockRaceWorldForDispose();
         CloseWindows();
         worldGenerationCancellation?.Cancel();
@@ -1482,6 +1546,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
         session.PackageChanged -= HandlePackageChanged;
         session.ProgressChanged -= HandleProgressChanged;
         session.GroupCompleted -= HandleGroupCompleted;
+        session.PlayerDied -= HandlePlayerDied;
         session.PlayerProgressReset -= HandlePlayerProgressReset;
         session.RosterChanged -= HandleRosterChanged;
         session.ConnectionStatusChanged -= HandleConnectionStatusChanged;
@@ -1562,6 +1627,160 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
         pendingWorldFileKey = null;
     }
 
+    private void StartHostWorldPreparation(RaceRoomState state, string worldPath)
+    {
+        CancelWorldLockRetry();
+        Task previous = CancelHostWorldPreparation();
+        var cancellation = new CancellationTokenSource();
+        Task task;
+        lock (hostWorldPreparationSync)
+        {
+            task = Task.Run(async () =>
+            {
+                await ObserveCanceledPreparationAsync(previous).ConfigureAwait(false);
+                await PrepareHostWorldInBackgroundAsync(state, worldPath, cancellation).ConfigureAwait(false);
+            });
+            hostWorldPreparationCancellation = cancellation;
+            hostWorldPreparationTask = task;
+        }
+    }
+
+    private async Task PrepareHostWorldInBackgroundAsync(
+        RaceRoomState state,
+        string worldPath,
+        CancellationTokenSource lifetime)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
+        timeout.CancelAfter(HostWorldPreparationTimeout);
+        try
+        {
+            if (!IsCurrentPackage(state))
+            {
+                return;
+            }
+
+            _ = await MarkWorldLockStartingAsync(
+                timeout.Token,
+                state.PackageRevision).ConfigureAwait(false);
+            TerrariaRaceWorldLockResult worldLockResult = await LockRaceWorldAsync(
+                worldPath,
+                state.Determinism,
+                timeout.Token).ConfigureAwait(false);
+            if (!IsCurrentPackage(state))
+            {
+                return;
+            }
+
+            RaceOperationResult<RaceRoomState> preparation = await MarkWorldLockResultAsync(
+                worldLockResult,
+                timeout.Token,
+                state.PackageRevision).ConfigureAwait(false);
+            LogRaceOperationFailure(preparation, "prepare host Race world");
+            if (!worldLockResult.Succeeded && IsTerrariaProcessUnavailable(worldLockResult.Message))
+            {
+                logger.Info("Race world uploaded; waiting for Terraria to start before installing the hook.");
+            }
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (OperationCanceledException)
+        {
+            await MarkHostWorldPreparationTimedOutAsync(state).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or InvalidOperationException or HttpRequestException or TimeoutException)
+        {
+            logger.Error(ex, "Race host world preparation failed.");
+            if (IsCurrentPackage(state))
+            {
+                RaceOperationResult<RaceRoomState> failure = await session.UpdatePreparationStatusAsync(
+                    RacePlayerFileStatus.Failed,
+                    RaceWorldFileStatus.Ready,
+                    GetRngControlFailureStatus(state),
+                    ex.Message,
+                    packageRevision: state.PackageRevision).ConfigureAwait(false);
+                LogRaceOperationFailure(failure, "mark host Race world preparation failed");
+            }
+        }
+        finally
+        {
+            lock (hostWorldPreparationSync)
+            {
+                if (ReferenceEquals(hostWorldPreparationCancellation, lifetime))
+                {
+                    hostWorldPreparationCancellation = null;
+                    hostWorldPreparationTask = null;
+                }
+            }
+
+            lifetime.Dispose();
+        }
+    }
+
+    private async Task MarkHostWorldPreparationTimedOutAsync(RaceRoomState state)
+    {
+        if (!IsCurrentPackage(state))
+        {
+            return;
+        }
+
+        const string message = "Preparing the local Race environment timed out.";
+        RaceOperationResult<RaceRoomState> failure = await session.UpdatePreparationStatusAsync(
+            RacePlayerFileStatus.Failed,
+            RaceWorldFileStatus.Ready,
+            GetRngControlFailureStatus(state),
+            message,
+            packageRevision: state.PackageRevision).ConfigureAwait(false);
+        LogRaceOperationFailure(failure, "mark host Race world preparation timed out");
+    }
+
+    private bool IsCurrentPackage(RaceRoomState state)
+    {
+        RaceRoomState? current = session.State;
+        return current is not null &&
+            current.Status != RaceRoomStatus.Closed &&
+            current.PackageRevision == state.PackageRevision &&
+            string.Equals(current.RoomCode, state.RoomCode, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private Task CancelHostWorldPreparation()
+    {
+        CancellationTokenSource? cancellation;
+        Task? task;
+        lock (hostWorldPreparationSync)
+        {
+            cancellation = hostWorldPreparationCancellation;
+            task = hostWorldPreparationTask;
+            hostWorldPreparationCancellation = null;
+            hostWorldPreparationTask = null;
+        }
+
+        try
+        {
+            cancellation?.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+
+        return task ?? Task.CompletedTask;
+    }
+
+    private static async Task ObserveCanceledPreparationAsync(Task task)
+    {
+        try
+        {
+            await task.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch
+        {
+            _ = task.Exception;
+        }
+    }
+
     private RacePanelDraftState CreateCurrentDraftState()
     {
         RacePanelDraftState current = draftState;
@@ -1637,10 +1856,59 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
             return;
         }
 
+        string displayName = string.IsNullOrWhiteSpace(split.DisplayName) ? split.Id : split.DisplayName;
+        bool chinese = LanguageNames.IsChinese(getSettings().General.Language);
         speechCoordinator.Enqueue(new RaceSpeechQueueItem(
             update,
-            string.IsNullOrWhiteSpace(split.DisplayName) ? split.Id : split.DisplayName,
-            LanguageNames.IsChinese(getSettings().General.Language)));
+            displayName,
+            chinese));
+        ShowRaceGameMessage(
+            RaceSpeechTextFormatter.FormatGameMessage(
+                update.Nickname,
+                displayName,
+                update.ElapsedMilliseconds,
+                chinese),
+            TerrariaRaceMessageKind.SplitCompleted);
+    }
+
+    private void HandlePlayerDied(object? sender, RacePlayerDied update)
+    {
+        if (!IsRaceEnabled ||
+            string.Equals(update.Nickname, session.Nickname, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        string deathMessage = RaceDeathMessageRules.Normalize(update.DeathMessage);
+        bool chinese = LanguageNames.IsChinese(getSettings().General.Language);
+        ShowRaceGameMessage(
+            string.IsNullOrWhiteSpace(deathMessage)
+                ? chinese ? $"{update.Nickname} 死亡了" : $"{update.Nickname} died"
+                : deathMessage,
+            TerrariaRaceMessageKind.PlayerDied);
+    }
+
+    private void ShowRaceGameMessage(string message, TerrariaRaceMessageKind kind)
+    {
+        _ = ShowRaceGameMessageAsync(message, kind);
+    }
+
+    private async Task ShowRaceGameMessageAsync(string message, TerrariaRaceMessageKind kind)
+    {
+        try
+        {
+            TerrariaRaceWorldLockResult result = await worldLock.ShowInGameMessageAsync(
+                message,
+                kind).ConfigureAwait(false);
+            if (!result.Succeeded)
+            {
+                logger.Info("Race in-game message was not shown: " + result.Message);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.Error(ex, "Race in-game message failed.");
+        }
     }
 
     private void HandlePlayerProgressReset(object? sender, RacePlayerProgressReset update)
@@ -1982,9 +2250,11 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
 
         worldGenerationCancellation?.Cancel();
         CancelMemberWorldDownload();
+        Task hostWorldPreparation = CancelHostWorldPreparation();
         _ = Task.Run(async () =>
         {
             await CancelRestartAndWaitAsync().ConfigureAwait(false);
+            await ObserveCanceledPreparationAsync(hostWorldPreparation).ConfigureAwait(false);
             try
             {
                 await session.LeaveLocalAsync(DisposeRaceSessionTimeout).ConfigureAwait(false);
@@ -2111,15 +2381,16 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
             return TerrariaRaceWorldLockResult.Failure(error);
         }
 
+        TerrariaPlanteraBulbPlan planteraBulbPlan = await GetPlanteraBulbPlanAsync(
+            worldPath,
+            identity,
+            determinism,
+            cancellationToken).ConfigureAwait(false);
+
         await worldLockLifecycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         TerrariaRaceWorldLockResult result;
         try
         {
-            TerrariaPlanteraBulbPlan planteraBulbPlan = await GetPlanteraBulbPlanAsync(
-                worldPath,
-                identity,
-                determinism,
-                cancellationToken).ConfigureAwait(false);
             result = await worldLock.LockAsync(
                 new TerrariaRaceWorldLockTarget(
                     Path.GetFullPath(worldPath),
@@ -2138,8 +2409,9 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
                 new TerrariaRaceInitialPlayerConfiguration(
                     session.Nickname ?? draftState.Nickname,
                     draftState.PlayerTemplateCode,
-                    RaceWorldSettingsFactory.ToPlayerDifficulty(
-                        session.State?.WorldSettings?.PlayerDifficultyCode ?? RacePlayerDifficultyCodes.Softcore)),
+                    session.State?.WorldSettings is RaceWorldSettings roomWorldSettings
+                        ? RaceWorldSettingsFactory.ToPlayerDifficultyForWorld(roomWorldSettings)
+                        : AutoCreatePlayerDifficulty.Softcore),
                 Localize("Only the assigned Race world and player can be used until the run is completed."),
                 cancellationToken).ConfigureAwait(false);
         }
@@ -2205,14 +2477,27 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
         }
 
         byte[] entropySeed = determinism.GetEntropySeed();
-        TerrariaPlanteraBulbPlan plan = await Task.Run(
+        Task<TerrariaPlanteraBulbPlan> planning = Task.Run(
             () => new TerrariaPlanteraBulbPlanner().Create(
                 fullPath,
                 identity.WorldId,
                 identity.UniqueId,
                 entropySeed,
-                determinism.ProtocolVersion),
-            cancellationToken).ConfigureAwait(false);
+                determinism.ProtocolVersion));
+        TerrariaPlanteraBulbPlan plan;
+        try
+        {
+            plan = await planning.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            _ = planning.ContinueWith(
+                static task => _ = task.Exception,
+                CancellationToken.None,
+                TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
+            throw;
+        }
         planteraBulbPlanCacheKey = cacheKey;
         planteraBulbPlanCache = plan;
         return plan;
@@ -2278,9 +2563,18 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
                         return;
                     }
 
+                    state = session.State;
+                    if (state is null ||
+                        state.PackageRevision != packageRevision ||
+                        !string.Equals(localWorldPath, worldPath, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return;
+                    }
+
                     RaceOperationResult<RaceRoomState> ready = await MarkWorldLockResultAsync(
                         retry,
-                        cancellation.Token).ConfigureAwait(false);
+                        cancellation.Token,
+                        packageRevision).ConfigureAwait(false);
                     ApplyOperationState(ready);
                     LogRaceOperationFailure(ready, "mark world ready after Terraria started");
                     CancelWorldLockRetry();
@@ -2310,7 +2604,12 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
     {
         return message.Contains("Terraria.exe must be running", StringComparison.OrdinalIgnoreCase) ||
             message.Contains("Race hook is not active", StringComparison.OrdinalIgnoreCase) ||
+            message.Contains("Race menu is not attached", StringComparison.OrdinalIgnoreCase) ||
             message.Contains("Terraria process running the Race hook exited", StringComparison.OrdinalIgnoreCase) ||
+            message.Contains("pipe", StringComparison.OrdinalIgnoreCase) ||
+            message.Contains("管道", StringComparison.OrdinalIgnoreCase) ||
+            message.Contains("connection reset", StringComparison.OrdinalIgnoreCase) ||
+            message.Contains("not connected", StringComparison.OrdinalIgnoreCase) ||
             message.Contains("Terraria is still starting", StringComparison.OrdinalIgnoreCase) ||
             message.Contains("bootstrap=0x80070015", StringComparison.OrdinalIgnoreCase) ||
             message.Contains("payload=10", StringComparison.OrdinalIgnoreCase);
@@ -2392,18 +2691,38 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
     {
         if (leaderboardForm is { IsDisposed: false })
         {
+            if (leaderboardForm.InvokeRequired)
+            {
+                try
+                {
+                    leaderboardForm.BeginInvoke(new Action(EnsureLeaderboardForm));
+                }
+                catch (ObjectDisposedException)
+                {
+                }
+                catch (InvalidOperationException)
+                {
+                }
+
+                return;
+            }
+
             leaderboardForm.Show();
             ApplyLeaderboardTopMost();
             leaderboardForm.ApplyMouseClickThrough(mouseClickThrough);
             return;
         }
 
-        leaderboardForm = new RaceLeaderboardForm(getSettings, Localize, GetLeaderboardLocalNickname);
+        leaderboardForm = new RaceLeaderboardForm(
+            getSettings,
+            Localize,
+            GetLeaderboardLocalNickname,
+            SaveLeaderboardPosition);
         leaderboardForm.FormClosed += (_, _) =>
         {
             leaderboardForm = null;
         };
-        leaderboardForm.Show(owner);
+        leaderboardForm.Show();
         ApplyLeaderboardTopMost();
         leaderboardForm.ApplyMouseClickThrough(mouseClickThrough);
     }
@@ -2456,12 +2775,35 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
 
     private void ApplyLeaderboardTopMost()
     {
-        if (leaderboardForm is not { IsDisposed: false } || !leaderboardForm.IsHandleCreated)
+        RaceLeaderboardForm? target = leaderboardForm;
+        if (target is not { IsDisposed: false } || !target.IsHandleCreated)
         {
             return;
         }
 
-        WindowTopMostSync.Apply(getSettings().General.AlwaysOnTop, leaderboardForm.Handle);
+        if (target.InvokeRequired)
+        {
+            try
+            {
+                target.BeginInvoke(new Action(() =>
+                {
+                    if (ReferenceEquals(leaderboardForm, target))
+                    {
+                        ApplyLeaderboardTopMost();
+                    }
+                }));
+            }
+            catch (ObjectDisposedException)
+            {
+            }
+            catch (InvalidOperationException)
+            {
+            }
+
+            return;
+        }
+
+        WindowTopMostSync.Apply(getSettings().General.AlwaysOnTop, target.Handle);
     }
 
     private void PersistRacePreferences(RacePanelDraftState state)
@@ -2526,6 +2868,8 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
         return new RaceLeaderboardSettings
         {
             UseRankColorForMainTimer = source.UseRankColorForMainTimer,
+            WindowPositionX = source.WindowPositionX,
+            WindowPositionY = source.WindowPositionY,
             RankPlayerGap = source.RankPlayerGap,
             PlayerIconGap = source.PlayerIconGap,
             IconTimeGap = source.IconTimeGap,
@@ -2869,6 +3213,13 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
             public override string RunId => Report.RunId;
         }
 
+        public sealed record Death(RaceDeathReport Report) : RaceProgressUpload
+        {
+            public override long PackageRevision => Report.PackageRevision;
+
+            public override string RunId => Report.RunId;
+        }
+
         public static RaceProgressUpload ForReset(RaceProgressResetRequest request)
         {
             return new Reset(request);
@@ -2882,6 +3233,11 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
         public static RaceProgressUpload ForSplit(RaceSplitReport report)
         {
             return new Split(report);
+        }
+
+        public static RaceProgressUpload ForDeath(RaceDeathReport report)
+        {
+            return new Death(report);
         }
     }
 
@@ -2911,18 +3267,21 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
     }
 
     private Task<RaceOperationResult<RaceRoomState>> MarkWorldLockStartingAsync(
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        long? packageRevision = null)
     {
         return session.UpdatePreparationStatusAsync(
             RacePlayerFileStatus.Creating,
             RaceWorldFileStatus.Ready,
             GetRngControlStartingStatus(session.State),
-            cancellationToken: cancellationToken);
+            cancellationToken: cancellationToken,
+            packageRevision: packageRevision);
     }
 
     private Task<RaceOperationResult<RaceRoomState>> MarkWorldLockResultAsync(
         TerrariaRaceWorldLockResult result,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        long? packageRevision = null)
     {
         if (result.Succeeded)
         {
@@ -2930,7 +3289,8 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
                 RacePlayerFileStatus.Ready,
                 RaceWorldFileStatus.Ready,
                 GetRngControlReadyStatus(session.State),
-                cancellationToken: cancellationToken);
+                cancellationToken: cancellationToken,
+                packageRevision: packageRevision);
         }
 
         bool waitingForTerraria = IsTerrariaProcessUnavailable(result.Message);
@@ -2941,7 +3301,8 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
                 ? GetRngControlIdleStatus(session.State)
                 : GetRngControlFailureStatus(session.State),
             waitingForTerraria ? null : result.Message,
-            cancellationToken);
+            cancellationToken,
+            packageRevision);
     }
 
     private static bool IsRngControlEnabled(RaceRoomState? state)

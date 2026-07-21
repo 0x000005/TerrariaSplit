@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Globalization;
 using System.Security.Cryptography;
 using Microsoft.Extensions.Logging;
 using TerrariaSplit.Race.Contracts;
@@ -8,7 +9,6 @@ namespace TerrariaSplit.Race.Server;
 
 public sealed class RaceRoomManager
 {
-    private const string RoomCodeChars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     private const int MaximumActiveRooms = 10_000;
     private const int MaximumNicknameLength = RacePlayerNameRules.MaximumLength;
     private const int MaximumRouteSplits = 512;
@@ -46,9 +46,10 @@ public sealed class RaceRoomManager
         }
 
         string nickname = NormalizeNickname(request.Nickname);
-        for (int attempt = 0; attempt < 256; attempt++)
+        int firstRoomNumber = RandomNumberGenerator.GetInt32(MaximumActiveRooms);
+        for (int attempt = 0; attempt < MaximumActiveRooms; attempt++)
         {
-            string code = CreateRoomCode();
+            string code = CreateRoomCode(firstRoomNumber, attempt);
             DateTimeOffset now = DateTimeOffset.UtcNow;
             var room = new RaceRoom(code, nickname, now);
             room.Players[nickname] = RacePlayer.Create(nickname, isHost: true, now);
@@ -87,6 +88,13 @@ public sealed class RaceRoomManager
                 return Failure(RaceErrors.NicknameTaken, "Nickname already exists in this room.");
             }
 
+            if (activeRoom.ScheduledStartUtc is not null)
+            {
+                return Failure(
+                    RaceErrors.RaceAlreadyStarted,
+                    "New players cannot join after the Race has started.");
+            }
+
             bool returningHost = string.Equals(nickname, activeRoom.HostNickname, StringComparison.OrdinalIgnoreCase) &&
                 activeRoom.Players.Values.All(static player => !player.IsHost);
             RacePlayer joinedPlayer = RacePlayer.Create(nickname, isHost: returningHost, DateTimeOffset.UtcNow);
@@ -95,6 +103,7 @@ public sealed class RaceRoomManager
                 joinedPlayer.RngControlStatus = RaceRngControlStatus.NotEnabled;
             }
             activeRoom.Players[nickname] = joinedPlayer;
+            activeRoom.Status = ResolveRaceStatus(activeRoom);
             activeRoom.Touch();
             return RaceOperationResult<RaceRoomState>.Success(activeRoom.ToState());
         }
@@ -140,22 +149,28 @@ public sealed class RaceRoomManager
                 return Failure(RaceErrors.RoomClosed, "Room is closed.");
             }
 
+            RaceWorldSettings worldSettings = request.WorldSettings with
+            {
+                PlayerDifficultyCode =
+                    RacePlayerDifficultyCodes.ForWorldDifficulty(request.WorldSettings.DifficultyCode)
+            };
             activeRoom.Route = request.Route;
-            activeRoom.WorldSettings = request.WorldSettings;
+            activeRoom.WorldSettings = worldSettings;
             activeRoom.Seed = request.Seed;
             replacedWorldFile = activeRoom.WorldFile;
             activeRoom.WorldFile = request.WorldFile;
-            activeRoom.Determinism = CreateDeterminismPackage(request.WorldSettings.RngControlEnabled);
+            activeRoom.Determinism = CreateDeterminismPackage(worldSettings.RngControlEnabled);
             activeRoom.PackageRevision++;
             activeRoom.ScheduledStartUtc = null;
             foreach (RacePlayer player in activeRoom.Players.Values)
             {
                 player.ClearProgress();
+                player.IsReady = false;
                 player.PlayerFileStatus = RacePlayerFileStatus.Waiting;
                 player.WorldFileStatus = player.IsHost
                     ? RaceWorldFileStatus.Ready
                     : RaceWorldFileStatus.Waiting;
-                player.RngControlStatus = request.WorldSettings.RngControlEnabled
+                player.RngControlStatus = worldSettings.RngControlEnabled
                     ? RaceRngControlStatus.Closed
                     : RaceRngControlStatus.NotEnabled;
                 player.LastError = null;
@@ -225,6 +240,11 @@ public sealed class RaceRoomManager
                 return Failure(RaceErrors.RoomClosed, "Room is closed.");
             }
 
+            if (request.PackageRevision != activeRoom.PackageRevision)
+            {
+                return Failure(RaceErrors.StalePackage, "Race package revision is no longer current.");
+            }
+
             RaceRngControlStatus rngControlStatus = IsRngControlEnabled(activeRoom)
                 ? request.RngControlStatus
                 : RaceRngControlStatus.NotEnabled;
@@ -239,6 +259,10 @@ public sealed class RaceRoomManager
             activePlayer.PlayerFileStatus = request.PlayerFileStatus;
             activePlayer.WorldFileStatus = request.WorldFileStatus;
             activePlayer.RngControlStatus = rngControlStatus;
+            if (!ready)
+            {
+                activePlayer.IsReady = false;
+            }
             activePlayer.LastError = string.IsNullOrWhiteSpace(request.Error)
                 ? null
                 : request.Error.Trim()[..Math.Min(request.Error.Trim().Length, 512)];
@@ -248,6 +272,52 @@ public sealed class RaceRoomManager
                     : ready
                         ? RacePlayerStatus.WorldReady
                         : RacePlayerStatus.Joined;
+            activePlayer.Touch();
+            activeRoom.Status = ResolveRaceStatus(activeRoom);
+            activeRoom.Touch();
+            return RaceOperationResult<RaceRoomState>.Success(activeRoom.ToState());
+        }
+    }
+
+    public RaceOperationResult<RaceRoomState> SetPlayerReady(RacePlayerReadyRequest request)
+    {
+        if (!TryGetPlayerRoom(request.RoomCode, request.Nickname, out RaceRoom? room, out RacePlayer? player, out RaceOperationResult<RaceRoomState> failure))
+        {
+            return failure;
+        }
+
+        RaceRoom activeRoom = room!;
+        RacePlayer activePlayer = player!;
+        lock (activeRoom.Sync)
+        {
+            if (activeRoom.Status == RaceRoomStatus.Closed)
+            {
+                return Failure(RaceErrors.RoomClosed, "Room is closed.");
+            }
+
+            if (activePlayer.IsHost)
+            {
+                return Failure(RaceErrors.InvalidRequest, "The room host does not use the Ready control.");
+            }
+
+            if (request.PackageRevision != activeRoom.PackageRevision)
+            {
+                return Failure(RaceErrors.StalePackage, "Race package revision is no longer current.");
+            }
+
+            if (activeRoom.ScheduledStartUtc is not null)
+            {
+                return Failure(RaceErrors.RaceAlreadyStarted, "The Race has already been started.");
+            }
+
+            if (request.IsReady &&
+                (activePlayer.ServerConnectionStatus != RaceServerConnectionStatus.Connected ||
+                 !activePlayer.IsTechnicallyReady(IsRngControlEnabled(activeRoom))))
+            {
+                return Failure(RaceErrors.PlayersNotReady, "The player package must be prepared before becoming ready.");
+            }
+
+            activePlayer.IsReady = request.IsReady;
             activePlayer.Touch();
             activeRoom.Status = ResolveRaceStatus(activeRoom);
             activeRoom.Touch();
@@ -299,6 +369,66 @@ public sealed class RaceRoomManager
             activePlayer.Touch();
             activeRoom.Status = ResolveRaceStatus(activeRoom);
             activeRoom.Touch();
+            return RaceOperationResult<RaceRoomState>.Success(activeRoom.ToState());
+        }
+    }
+
+    public RaceOperationResult<RaceRoomState> ReportDeath(
+        RaceDeathReport report,
+        out RacePlayerDied? playerDied)
+    {
+        playerDied = null;
+        string deathMessage = RaceDeathMessageRules.Normalize(report.DeathMessage);
+        if (!RaceDeathMessageRules.IsValid(deathMessage))
+        {
+            return Failure(RaceErrors.InvalidRequest, "The death message is too long.");
+        }
+
+        if (!TryGetPlayerRoom(
+                report.RoomCode,
+                report.Nickname,
+                out RaceRoom? room,
+                out RacePlayer? player,
+                out RaceOperationResult<RaceRoomState> failure))
+        {
+            return failure;
+        }
+
+        RaceRoom activeRoom = room!;
+        RacePlayer activePlayer = player!;
+        lock (activeRoom.Sync)
+        {
+            if (activeRoom.Status == RaceRoomStatus.Closed)
+            {
+                return Failure(RaceErrors.RoomClosed, "Room is closed.");
+            }
+
+            if (activeRoom.ScheduledStartUtc is not DateTimeOffset scheduledStartUtc ||
+                timeProvider.GetUtcNow() < scheduledStartUtc)
+            {
+                return Failure(RaceErrors.RaceNotStarted, "The room host has not started the Race yet.");
+            }
+
+            if (!TryValidateProgressIdentity(
+                    activeRoom,
+                    activePlayer,
+                    report.PackageRevision,
+                    report.RunId,
+                    allowRunInitialization: true,
+                    out RaceOperationResult<RaceRoomState> identityFailure))
+            {
+                return identityFailure;
+            }
+
+            activePlayer.Touch();
+            activeRoom.Touch();
+            playerDied = new RacePlayerDied(
+                activeRoom.RoomCode,
+                activeRoom.PackageRevision,
+                report.RunId,
+                activePlayer.Nickname,
+                activeRoom.NextCompletionSequence(),
+                deathMessage);
             return RaceOperationResult<RaceRoomState>.Success(activeRoom.ToState());
         }
     }
@@ -426,7 +556,7 @@ public sealed class RaceRoomManager
             activePlayer.ClearProgress();
             activePlayer.RunId = runId;
             activePlayer.LastError = null;
-            activePlayer.Status = activePlayer.IsReady(IsRngControlEnabled(activeRoom))
+            activePlayer.Status = activePlayer.IsTechnicallyReady(IsRngControlEnabled(activeRoom))
                 ? RacePlayerStatus.WorldReady
                 : RacePlayerStatus.Joined;
             activePlayer.Touch();
@@ -486,6 +616,7 @@ public sealed class RaceRoomManager
         lock (activeRoom.Sync)
         {
             activePlayer.ServerConnectionStatus = RaceServerConnectionStatus.Disconnected;
+            activePlayer.IsReady = false;
             activePlayer.Touch();
             activeRoom.Status = ResolveRaceStatus(activeRoom);
             activeRoom.Touch();
@@ -567,6 +698,7 @@ public sealed class RaceRoomManager
             foreach (RacePlayer player in activeRoom.Players.Values)
             {
                 player.ClearProgress();
+                player.IsReady = false;
                 player.PlayerFileStatus = RacePlayerFileStatus.Waiting;
                 player.WorldFileStatus = RaceWorldFileStatus.Waiting;
                 player.RngControlStatus = activeRoom.WorldSettings.RngControlEnabled
@@ -637,7 +769,15 @@ public sealed class RaceRoomManager
                 return Failure(RaceErrors.RoomClosed, "Room is closed.");
             }
 
+            if (activePlayer.ServerConnectionStatus != RaceServerConnectionStatus.Disconnected)
+            {
+                return Failure(
+                    RaceErrors.NicknameTaken,
+                    "This player is already connected to the room.");
+            }
+
             activePlayer.ServerConnectionStatus = RaceServerConnectionStatus.Connected;
+            activePlayer.IsReady = false;
             activePlayer.Touch();
             activeRoom.Status = ResolveRaceStatus(activeRoom);
             activeRoom.Touch();
@@ -899,15 +1039,10 @@ public sealed class RaceRoomManager
         return true;
     }
 
-    private static string CreateRoomCode()
+    private static string CreateRoomCode(int firstRoomNumber, int offset)
     {
-        Span<char> chars = stackalloc char[6];
-        for (int i = 0; i < chars.Length; i++)
-        {
-            chars[i] = RoomCodeChars[Random.Shared.Next(RoomCodeChars.Length)];
-        }
-
-        return new string(chars);
+        int roomNumber = (firstRoomNumber + offset) % MaximumActiveRooms;
+        return roomNumber.ToString($"D{RaceRoomCodeRules.Length}", CultureInfo.InvariantCulture);
     }
 
     private static string NormalizeRoomCode(string? value)
@@ -975,7 +1110,8 @@ public sealed class RaceRoomManager
         bool rngControlEnabled = IsRngControlEnabled(room);
         return room.Players.Count > 0 && room.Players.Values.All(player =>
             player.ServerConnectionStatus == RaceServerConnectionStatus.Connected &&
-            player.IsReady(rngControlEnabled));
+            player.IsTechnicallyReady(rngControlEnabled) &&
+            (player.IsHost || player.IsReady));
     }
 
     private static bool IsRngControlEnabled(RaceRoom room)
@@ -1230,7 +1366,9 @@ public sealed class RaceRoomManager
 
         public RaceServerConnectionStatus ServerConnectionStatus { get; set; } = RaceServerConnectionStatus.Connected;
 
-        public bool IsReady(bool rngControlEnabled) =>
+        public bool IsReady { get; set; }
+
+        public bool IsTechnicallyReady(bool rngControlEnabled) =>
             PlayerFileStatus == RacePlayerFileStatus.Ready &&
             WorldFileStatus == RaceWorldFileStatus.Ready &&
             RngControlStatus == (rngControlEnabled
@@ -1372,7 +1510,8 @@ public sealed class RaceRoomManager
                 PlayerFileStatus = PlayerFileStatus,
                 WorldFileStatus = WorldFileStatus,
                 RngControlStatus = RngControlStatus,
-                ServerConnectionStatus = ServerConnectionStatus
+                ServerConnectionStatus = ServerConnectionStatus,
+                IsReady = IsReady
             };
         }
     }

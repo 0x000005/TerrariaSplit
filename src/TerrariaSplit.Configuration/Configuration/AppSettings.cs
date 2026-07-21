@@ -307,6 +307,10 @@ public sealed class RaceLeaderboardSettings
 {
     public bool UseRankColorForMainTimer { get; set; }
 
+    public int? WindowPositionX { get; set; }
+
+    public int? WindowPositionY { get; set; }
+
     public int RankPlayerGap { get; set; }
 
     public int PlayerIconGap { get; set; }
