@@ -81,7 +81,27 @@ namespace TerrariaSplit.WorldGuard.Payload
 
                 MethodInfo shakeTree = worldGenType.GetMethod("ShakeTree", BindingFlags.Static | BindingFlags.NonPublic, null, new[] { typeof(int), typeof(int) }, null);
                 MethodInfo potDrops = worldGenType.GetMethod("SpawnThingsFromPot", BindingFlags.Static | BindingFlags.NonPublic, null, new[] { typeof(int), typeof(int), typeof(int), typeof(int), typeof(int) }, null);
+                MethodInfo potFruit = worldGenType.GetMethod("GetFruitForPot", BindingFlags.Static | BindingFlags.Public, null, new[] { typeof(int), typeof(int), typeof(int) }, null);
                 MethodInfo tileDrops = worldGenType.GetMethod("KillTile_DropItems", BindingFlags.Static | BindingFlags.Public, null, new[] { typeof(int), typeof(int), tileType, typeof(bool) }, null);
+                MethodInfo tileDropResolver = worldGenType.GetMethods(BindingFlags.Static | BindingFlags.Public)
+                    .SingleOrDefault(method => method.Name == "KillTile_GetItemDrops");
+                MethodInfo treeDropResolver = worldGenType.GetMethod(
+                    "KillTile_GetTreeDrops",
+                    BindingFlags.Static | BindingFlags.NonPublic,
+                    null,
+                    new[]
+                    {
+                        typeof(int),
+                        typeof(int),
+                        tileType,
+                        typeof(bool).MakeByRefType(),
+                        typeof(bool).MakeByRefType(),
+                        typeof(int).MakeByRefType(),
+                        typeof(int).MakeByRefType()
+                    },
+                    null);
+                MethodInfo tileBaitDrops = worldGenType.GetMethod("KillTile_DropBait", BindingFlags.Static | BindingFlags.NonPublic, null, new[] { typeof(int), typeof(int), tileType }, null);
+                MethodInfo check2x1 = worldGenType.GetMethod("Check2x1", BindingFlags.Static | BindingFlags.Public, null, new[] { typeof(int), typeof(int), typeof(ushort) }, null);
                 MethodInfo checkOrb = worldGenType.GetMethod("CheckOrb", BindingFlags.Static | BindingFlags.Public, null, new[] { typeof(int), typeof(int), typeof(int) }, null);
                 MethodInfo openBossBag = playerType.GetMethod("OpenBossBag", BindingFlags.Instance | BindingFlags.Public, null, new[] { typeof(int) }, null);
                 MethodInfo openFishingCrate = playerType.GetMethod("OpenFishingCrate", BindingFlags.Instance | BindingFlags.Public, null, new[] { typeof(int) }, null);
@@ -89,12 +109,17 @@ namespace TerrariaSplit.WorldGuard.Payload
                 MethodInfo openCanOfWorms = playerType.GetMethod("OpenCanofWorms", BindingFlags.Instance | BindingFlags.Public, null, new[] { typeof(int) }, null);
                 MethodInfo teleport = playerType.GetMethod("TeleportationPotion", BindingFlags.Instance | BindingFlags.Public, null, Type.EmptyTypes, null);
                 MethodInfo prefix = itemType.GetMethod("Prefix", BindingFlags.Instance | BindingFlags.Public, null, new[] { typeof(int), typeof(bool).MakeByRefType() }, null);
-                MethodInfo[] methods = { shakeTree, potDrops, tileDrops, checkOrb, openBossBag, openFishingCrate, openHerbBag, openCanOfWorms, teleport, prefix };
+                MethodInfo[] methods = { shakeTree, potDrops, potFruit, tileDrops, tileDropResolver, treeDropResolver, tileBaitDrops, check2x1, checkOrb, openBossBag, openFishingCrate, openHerbBag, openCanOfWorms, teleport, prefix };
                 string[] hashes =
                 {
                     "38572D7517F7A766C7EF1E65D2208A6150F0742F1E09562562DE4DB1001C437C",
                     "FCF872E6CBFC05C0ABD51404992117F872B0271A6418D2A666F90585305A7665",
+                    "5D2D18019AE5C63210E809373F4FE3E02A41821F72DED2BE156AFE3D6EE1F3DC",
                     "3BBF69B00C905C498D2F6CA6807410FDE9EBED143004FF200B94EE5AF4C9B2D3",
+                    "4797EE7883238B0811443A5FA96A72BD34047304EDD80A93B610A89F077DB85E",
+                    "751D1EEFCF18663D505ED4D1DDFE9FEBB6097876CCA384B2D728F42A4C829C0A",
+                    "BA42FDD777B927BF6687AAB3472FAB098DC6C59C3361C0DDAD0377E93F5019CB",
+                    "E9AE78A553CC6F97E11EFB6FBF265AE3E2C10E6E7B899950B96FE105CE230008",
                     "4AC10FB7CD0D2580D12C49C0670383C651565D0A25822EFF8E2E80B80A67EC46",
                     "34293F2593AC246433B1AE0EBDE0BB112CA74A3782B0A181C2E42D94E6A2F6B0",
                     "1D08FD5A482E8A93F0FDBC1C37EF6814C58FAEC08B0DA0DB419B4461800A1DA8",
@@ -128,11 +153,15 @@ namespace TerrariaSplit.WorldGuard.Payload
                 MethodInfo treePrefix = GetPrivateMethod("TreeScopePrefix");
                 MethodInfo potPrefix = GetPrivateMethod("PotScopePrefix");
                 MethodInfo tilePrefix = GetPrivateMethod("TileDropScopePrefix");
+                MethodInfo tileBaitPrefix = GetPrivateMethod("TileBaitDropScopePrefix");
+                MethodInfo smallPilePrefix = GetPrivateMethod("SmallPileScopePrefix");
                 MethodInfo orbPrefix = GetPrivateMethod("OrbScopePrefix");
                 MethodInfo playerPrefix = GetPrivateMethod("PlayerActionScopePrefix");
                 MethodInfo itemPrefix = GetPrivateMethod("ItemPrefixScopePrefix");
+                MethodInfo worldGenProviderTranspiler = GetPrivateMethod("WorldGenProviderTranspiler");
                 MethodInfo finalizer = GetPrivateMethod("AdvancedScopeFinalizer");
-                if (treePrefix == null || potPrefix == null || tilePrefix == null || orbPrefix == null || playerPrefix == null || itemPrefix == null || finalizer == null)
+                if (treePrefix == null || potPrefix == null || tilePrefix == null || tileBaitPrefix == null || smallPilePrefix == null || orbPrefix == null ||
+                    playerPrefix == null || itemPrefix == null || worldGenProviderTranspiler == null || finalizer == null)
                 {
                     return 33;
                 }
@@ -143,17 +172,24 @@ namespace TerrariaSplit.WorldGuard.Payload
                     methods,
                     () =>
                     {
-                        harmony.Patch(shakeTree, prefix: new HarmonyMethod(treePrefix), finalizer: new HarmonyMethod(finalizer));
-                        harmony.Patch(potDrops, prefix: new HarmonyMethod(potPrefix), finalizer: new HarmonyMethod(finalizer));
-                        harmony.Patch(tileDrops, prefix: new HarmonyMethod(tilePrefix), finalizer: new HarmonyMethod(finalizer));
-                        harmony.Patch(checkOrb, prefix: new HarmonyMethod(orbPrefix), finalizer: new HarmonyMethod(finalizer));
+                        harmony.Patch(shakeTree, prefix: new HarmonyMethod(treePrefix), transpiler: new HarmonyMethod(worldGenProviderTranspiler), finalizer: new HarmonyMethod(finalizer));
+                        harmony.Patch(potDrops, prefix: new HarmonyMethod(potPrefix), transpiler: new HarmonyMethod(worldGenProviderTranspiler), finalizer: new HarmonyMethod(finalizer));
+                        harmony.Patch(potFruit, transpiler: new HarmonyMethod(worldGenProviderTranspiler));
+                        harmony.Patch(tileDrops, prefix: new HarmonyMethod(tilePrefix), transpiler: new HarmonyMethod(worldGenProviderTranspiler), finalizer: new HarmonyMethod(finalizer));
+                        harmony.Patch(tileDropResolver, transpiler: new HarmonyMethod(worldGenProviderTranspiler));
+                        harmony.Patch(treeDropResolver, transpiler: new HarmonyMethod(worldGenProviderTranspiler));
+                        harmony.Patch(tileBaitDrops, prefix: new HarmonyMethod(tileBaitPrefix), transpiler: new HarmonyMethod(worldGenProviderTranspiler), finalizer: new HarmonyMethod(finalizer));
+                        harmony.Patch(check2x1, prefix: new HarmonyMethod(smallPilePrefix), transpiler: new HarmonyMethod(worldGenProviderTranspiler), finalizer: new HarmonyMethod(finalizer));
+                        harmony.Patch(checkOrb, prefix: new HarmonyMethod(orbPrefix), transpiler: new HarmonyMethod(worldGenProviderTranspiler), finalizer: new HarmonyMethod(finalizer));
                         foreach (MethodInfo method in new[] { openBossBag, openFishingCrate, openHerbBag, openCanOfWorms, teleport })
                         {
                             harmony.Patch(method, prefix: new HarmonyMethod(playerPrefix), finalizer: new HarmonyMethod(finalizer));
                         }
                         harmony.Patch(prefix, prefix: new HarmonyMethod(itemPrefix), finalizer: new HarmonyMethod(finalizer));
                     },
-                    () => methods.All(method => HasOwnedPrefix(method) && HasOwnedFinalizer(method)),
+                    () => new[] { shakeTree, potDrops, tileDrops, tileBaitDrops, check2x1, checkOrb, openBossBag, openFishingCrate, openHerbBag, openCanOfWorms, teleport, prefix }
+                            .All(method => HasOwnedPrefix(method) && HasOwnedFinalizer(method)) &&
+                        new[] { shakeTree, potDrops, potFruit, tileDrops, tileDropResolver, treeDropResolver, tileBaitDrops, check2x1, checkOrb }.All(HasOwnedTranspiler),
                     34);
                 if (installResult != 0)
                 {
@@ -611,7 +647,7 @@ namespace TerrariaSplit.WorldGuard.Payload
             }
         }
 
-        private static bool PotScopePrefix(int i, int j, int style, ref AdvancedScopeState __state)
+        private static bool PotScopePrefix(int x2, int y2, int style, ref AdvancedScopeState __state)
         {
             WorldLockConfiguration current = configuration;
             if (current == null || !current.HasCapability(PlayerTriggeredCapability))
@@ -621,13 +657,64 @@ namespace TerrariaSplit.WorldGuard.Payload
 
             try
             {
-                string source = WorldKey(current) + "|" + i + "|" + j + "|28|" + style;
+                string source = WorldKey(current) + "|" + x2 + "|" + y2 + "|28|" + style;
                 long occurrence = current.State.EventCounters.Next("pot-drop", source);
                 return TryBeginAdvancedScope(current, "pot-drop", source + "|" + occurrence, ref __state);
             }
             catch (Exception ex)
             {
                 return FailScope("pot-drop", ex);
+            }
+        }
+
+        private static bool SmallPileScopePrefix(int i, int y, ushort type, ref AdvancedScopeState __state)
+        {
+            WorldLockConfiguration current = configuration;
+            if (current == null || !current.HasCapability(PlayerTriggeredCapability) || type != 185)
+            {
+                return true;
+            }
+
+            try
+            {
+                object selectedTile = GetTile(i, y);
+                int selectedFrameX = Convert.ToInt32(tileFrameXField.GetValue(selectedTile), CultureInfo.InvariantCulture);
+                int horizontalSegment = selectedFrameX / 18 & 1;
+                int left = i - horizontalSegment;
+                int objectFrameX = selectedFrameX - horizontalSegment * 18;
+                string source = string.Join(
+                    "|",
+                    WorldKey(current),
+                    left,
+                    y,
+                    type,
+                    objectFrameX,
+                    tileFrameYField.GetValue(selectedTile));
+                return TryBeginAdvancedScope(current, "small-pile-drop", source, ref __state);
+            }
+            catch (Exception ex)
+            {
+                return FailScope("small-pile-drop", ex);
+            }
+        }
+
+        private static bool TileBaitDropScopePrefix(int i, int j, object tileCache, ref AdvancedScopeState __state)
+        {
+            WorldLockConfiguration current = configuration;
+            if (current == null || !current.HasCapability(PlayerTriggeredCapability))
+            {
+                return true;
+            }
+
+            try
+            {
+                string source = string.Join("|", WorldKey(current), i, j, tileTypeField.GetValue(tileCache), tileFrameXField.GetValue(tileCache), tileFrameYField.GetValue(tileCache));
+                long occurrence = current.State.EventCounters.Next("tile-bait-drop", source);
+                return TryBeginAdvancedScope(current, "tile-bait-drop", source + "|" + occurrence, ref __state);
+            }
+            catch (Exception ex)
+            {
+                return FailScope("tile-bait-drop", ex);
             }
         }
 
@@ -641,9 +728,16 @@ namespace TerrariaSplit.WorldGuard.Payload
 
             try
             {
-                string evil = ((int)tileFrameXField.GetValue(GetTile(i, j)) >= 36) ? "crimson" : "corruption";
-                long occurrence = current.State.EventCounters.Next("evil-orb", WorldKey(current) + "|" + evil);
-                return TryBeginAdvancedScope(current, "evil-orb", WorldKey(current) + "|" + evil + "|" + occurrence, ref __state);
+                object selectedTile = GetTile(i, j);
+                int selectedFrameX = Convert.ToInt32(tileFrameXField.GetValue(selectedTile), CultureInfo.InvariantCulture);
+                int selectedFrameY = Convert.ToInt32(tileFrameYField.GetValue(selectedTile), CultureInfo.InvariantCulture);
+                int horizontalSegment = selectedFrameX / 18 & 1;
+                int verticalSegment = selectedFrameY / 18 & 1;
+                int left = i - horizontalSegment;
+                int top = j - verticalSegment;
+                int objectFrameX = selectedFrameX - horizontalSegment * 18;
+                string source = string.Join("|", WorldKey(current), left, top, type, objectFrameX);
+                return TryBeginAdvancedScope(current, "evil-orb", source, ref __state);
             }
             catch (Exception ex)
             {
@@ -1090,7 +1184,17 @@ namespace TerrariaSplit.WorldGuard.Payload
 
         private static object GetWorldGenRandomForCurrentThread()
         {
-            return threadWorldGenRandom ?? mainRandomField.GetValue(null);
+            if (threadWorldGenRandom != null)
+            {
+                return threadWorldGenRandom;
+            }
+
+            if (activeScopeConfiguration != null)
+            {
+                return mainRandomField.GetValue(null);
+            }
+
+            return worldGenRandomGetter.Invoke(null, null);
         }
 
         private static object CreateRandom(WorldLockConfiguration current, string domain, string eventKey)

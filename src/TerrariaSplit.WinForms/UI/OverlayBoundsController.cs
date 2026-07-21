@@ -11,7 +11,11 @@ internal sealed class OverlayBoundsController
     private Rectangle compositeBounds;
     private OverlayCompositeLayout currentLayout;
 
-    public OverlayBoundsController(int baseRowGap, AppSettings settings, int statusCount, int visibleStatusCount)
+    public OverlayBoundsController(
+        int baseRowGap,
+        AppSettings settings,
+        int statusCount,
+        int visibleStatusCount)
     {
         this.baseRowGap = baseRowGap;
         this.settings = settings;
@@ -29,7 +33,7 @@ internal sealed class OverlayBoundsController
 
     public void Initialize(Rectangle initialCompositeBounds)
     {
-        ApplyCompositeBounds(initialCompositeBounds);
+        ApplyCompositeBounds(initialCompositeBounds, preserveTimerLocation: false);
     }
 
     public void UpdateContext(AppSettings settings, int statusCount, int visibleStatusCount)
@@ -39,7 +43,7 @@ internal sealed class OverlayBoundsController
         this.visibleStatusCount = visibleStatusCount;
         if (IsInitialized)
         {
-            ApplyCompositeBounds(compositeBounds);
+            ApplyCompositeBounds(compositeBounds, preserveTimerLocation: true);
         }
     }
 
@@ -50,14 +54,18 @@ internal sealed class OverlayBoundsController
             return;
         }
 
-        ApplyCompositeBounds(new Rectangle(
-            compositeBounds.X + delta.X,
-            compositeBounds.Y + delta.Y,
-            compositeBounds.Width,
-            compositeBounds.Height));
+        ApplyCompositeBounds(
+            new Rectangle(
+                compositeBounds.X + delta.X,
+                compositeBounds.Y + delta.Y,
+                compositeBounds.Width,
+                compositeBounds.Height),
+            preserveTimerLocation: false);
     }
 
-    public void ApplyCompositeBounds(Rectangle bounds)
+    public void ApplyCompositeBounds(
+        Rectangle bounds,
+        bool preserveTimerLocation = true)
     {
         Rectangle normalizedBounds = Normalize(bounds);
         if (!OverlayCompositeLayoutCalculator.TryCreate(
@@ -69,6 +77,26 @@ internal sealed class OverlayBoundsController
                 out OverlayCompositeLayout layout))
         {
             return;
+        }
+
+        if (preserveTimerLocation &&
+            IsInitialized &&
+            layout.TimerScreenBounds.Location != currentLayout.TimerScreenBounds.Location)
+        {
+            Point correction = new(
+                currentLayout.TimerScreenBounds.Left - layout.TimerScreenBounds.Left,
+                currentLayout.TimerScreenBounds.Top - layout.TimerScreenBounds.Top);
+            normalizedBounds.Offset(correction);
+            if (!OverlayCompositeLayoutCalculator.TryCreate(
+                    normalizedBounds,
+                    settings,
+                    statusCount,
+                    visibleStatusCount,
+                    baseRowGap,
+                    out layout))
+            {
+                return;
+            }
         }
 
         compositeBounds = normalizedBounds;
@@ -94,7 +122,9 @@ internal sealed class OverlayBoundsController
             return;
         }
 
-        ApplyCompositeBounds(ToCompositeBounds(timerScreenBounds, currentLayout.TimerScreenBounds));
+        ApplyCompositeBounds(
+            ToCompositeBounds(timerScreenBounds, currentLayout.TimerScreenBounds),
+            preserveTimerLocation: false);
     }
 
     private Rectangle Normalize(Rectangle bounds)

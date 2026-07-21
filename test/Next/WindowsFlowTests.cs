@@ -408,6 +408,22 @@ internal static class WindowsFlowTests
                 5000,
                 primaryWorkingArea,
                 [primaryWorkingArea, secondaryWorkingArea]));
+
+        var controller = new OverlayBoundsController(
+            9,
+            settings,
+            statusCount: 12,
+            visibleStatusCount: 12);
+        controller.Initialize(new System.Drawing.Rectangle(100, 100, 900, 700));
+        System.Drawing.Point timerLocation = controller.CurrentLayout.TimerScreenBounds.Location;
+        controller.ApplyCompositeBounds(new System.Drawing.Rectangle(100, 100, 1000, 800));
+        Check.Equal(timerLocation, controller.CurrentLayout.TimerScreenBounds.Location);
+
+        controller.MoveBy(new System.Drawing.Point(-100, -timerLocation.Y));
+        System.Drawing.Point topEdgeTimerLocation = controller.CurrentLayout.TimerScreenBounds.Location;
+        Check.Equal(0, topEdgeTimerLocation.Y);
+        controller.UpdateContext(settings, statusCount: 7, visibleStatusCount: 7);
+        Check.Equal(topEdgeTimerLocation, controller.CurrentLayout.TimerScreenBounds.Location);
     }
 
     private static void HotkeyJourney()
