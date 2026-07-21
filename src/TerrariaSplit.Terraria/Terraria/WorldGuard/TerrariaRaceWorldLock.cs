@@ -204,7 +204,12 @@ internal sealed class TerrariaRaceWorldLockService : ITerrariaRaceWorldLockServi
             StartHeartbeat();
             return TerrariaRaceMenuExchangeResult.Success(processId, actions);
         }
-        catch (Exception ex) when (ex is IOException or InvalidDataException or InvalidOperationException or UnauthorizedAccessException)
+        catch (Exception ex) when (
+            ex is IOException or
+            InvalidDataException or
+            InvalidOperationException or
+            UnauthorizedAccessException or
+            System.ComponentModel.Win32Exception)
         {
             return TerrariaRaceMenuExchangeResult.Failure(ex.Message, Volatile.Read(ref lockedProcessId));
         }
@@ -1648,6 +1653,9 @@ internal sealed class TerrariaRaceWorldLockService : ITerrariaRaceWorldLockServi
             catch (InvalidOperationException)
             {
             }
+            catch (System.ComponentModel.Win32Exception)
+            {
+            }
 
             TryDeleteDirectory(directory);
         });
@@ -1670,9 +1678,18 @@ internal sealed class TerrariaRaceWorldLockService : ITerrariaRaceWorldLockServi
                 continue;
             }
 
-            if (TryGetLiveProcess(processId, out Process? process))
+            Process? process = null;
+            try
             {
-                process!.Dispose();
+                if (TryGetLiveProcess(processId, out process))
+                {
+                    process!.Dispose();
+                    continue;
+                }
+            }
+            catch (System.ComponentModel.Win32Exception)
+            {
+                process?.Dispose();
                 continue;
             }
 

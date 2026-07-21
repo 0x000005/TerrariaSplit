@@ -173,7 +173,10 @@ internal sealed partial class RaceShell
                     }
                 }
                 catch (Exception ex) when (
-                    ex is IOException or InvalidOperationException or ObjectDisposedException)
+                    ex is IOException or
+                    InvalidOperationException or
+                    ObjectDisposedException or
+                    System.ComponentModel.Win32Exception)
                 {
                     if (!ShouldRecoverInGameMenu(ex.Message))
                     {
