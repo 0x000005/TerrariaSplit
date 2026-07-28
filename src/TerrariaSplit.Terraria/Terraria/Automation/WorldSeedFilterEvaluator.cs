@@ -158,11 +158,17 @@ internal sealed class WorldSeedFilterEvaluator : IDisposable
 
         if (!judge.Complete)
         {
-            return WorldSeedFilterPrediction.Unavailable(
-                $"seed judge status {judge.Status}: {judge.Detail}",
-                canContinueWithoutPrediction: false,
-                pyramid,
-                judge);
+            string detail = $"seed judge status {judge.Status}: {judge.Detail}";
+            return IsCandidateRejection(judge.Status)
+                ? WorldSeedFilterPrediction.Rejected(
+                    "seed judge skipped candidate; " + detail,
+                    pyramid,
+                    judge)
+                : WorldSeedFilterPrediction.Unavailable(
+                    detail,
+                    canContinueWithoutPrediction: false,
+                    pyramid,
+                    judge);
         }
 
         JungleSeedFilterMatch match = JungleSeedFilterMatcher.Match(settings, judge);
@@ -203,6 +209,13 @@ internal sealed class WorldSeedFilterEvaluator : IDisposable
             return "seed judge does not support special or secret seeds";
         }
         return null;
+    }
+
+    internal static bool IsCandidateRejection(JungleSeedJudgeStatus status)
+    {
+        return status is JungleSeedJudgeStatus.InvalidSeed or
+            JungleSeedJudgeStatus.SpecialSeedUnsupported or
+            JungleSeedJudgeStatus.GenerationFailed;
     }
 
     private static JungleSeedJudgeGameMode ResolveGameMode(string? difficulty)

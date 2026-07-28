@@ -14,6 +14,7 @@ internal static class TerrariaIntegrationTests
         yield return TestCase.Sync("pyramid pre-screen evaluates known positive, item mismatch and no-pyramid seeds", TestSuite.Flow, PyramidPredictionJourney, timeoutSeconds: 30);
         yield return TestCase.Async("native jungle seed judge preserves protocol and returns seed-only analysis", TestSuite.Flow, JungleSeedJudgeNativeJourney, timeoutSeconds: 30);
         yield return TestCase.Async("world seed filter skips a seed when the native call times out", TestSuite.Flow, WorldSeedFilterTimeoutJourney, timeoutSeconds: 10);
+        yield return TestCase.Sync("world seed filter skips candidate-local native failures", TestSuite.Core, WorldSeedFilterCandidateFailureClassification);
         yield return TestCase.Async("world seed filter skips a seed when the jungle route is partial", TestSuite.Flow, WorldSeedFilterPartialRouteJourney, timeoutSeconds: 10);
         yield return TestCase.Sync("race seed filter concurrency uses eighty percent of processors", TestSuite.Core, RaceSeedFilterConcurrency);
         yield return TestCase.Async("race seed filter evaluates candidate seeds as one parallel batch", TestSuite.Flow, RaceSeedFilterBatchJourney, timeoutSeconds: 15);
@@ -170,6 +171,20 @@ internal static class TerrariaIntegrationTests
         Check.True(prediction.Detail.Contains(
             "transient failure; skip seed",
             StringComparison.Ordinal));
+    }
+
+    private static void WorldSeedFilterCandidateFailureClassification()
+    {
+        Check.True(WorldSeedFilterEvaluator.IsCandidateRejection(
+            JungleSeedJudgeStatus.InvalidSeed));
+        Check.True(WorldSeedFilterEvaluator.IsCandidateRejection(
+            JungleSeedJudgeStatus.SpecialSeedUnsupported));
+        Check.True(WorldSeedFilterEvaluator.IsCandidateRejection(
+            JungleSeedJudgeStatus.GenerationFailed));
+        Check.False(WorldSeedFilterEvaluator.IsCandidateRejection(
+            JungleSeedJudgeStatus.InvalidRequest));
+        Check.False(WorldSeedFilterEvaluator.IsCandidateRejection(
+            JungleSeedJudgeStatus.Complete));
     }
 
     private static async Task WorldSeedFilterPartialRouteJourney(CancellationToken cancellationToken)
