@@ -3,7 +3,10 @@ using TerrariaSplit.Race.Contracts;
 
 namespace TerrariaSplit.Race.Server;
 
-public sealed record RaceStoredWorldFile(RaceWorldFileInfo Info, string Path);
+public sealed record RaceStoredWorldFile(
+    RaceWorldFileInfo Info,
+    string Path,
+    bool WasCreated);
 
 public sealed class RaceWorldFileStore
 {
@@ -64,13 +67,21 @@ public sealed class RaceWorldFileStore
 
             string hashText = Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
             string path = Path.Combine(roomDirectory, $"world-{hashText}.wld");
-            if (File.Exists(path))
-            {
-                File.Delete(tempPath);
-            }
-            else
+            bool wasCreated;
+            try
             {
                 File.Move(tempPath, path);
+                wasCreated = true;
+            }
+            catch (IOException) when (File.Exists(path))
+            {
+                if (new FileInfo(path).Length != length)
+                {
+                    throw new IOException("The stored world file has an unexpected length.");
+                }
+
+                File.Delete(tempPath);
+                wasCreated = false;
             }
 
             var worldFile = new RaceWorldFileInfo(
@@ -79,7 +90,7 @@ public sealed class RaceWorldFileStore
                 hashText,
                 DateTimeOffset.UtcNow,
                 nickname.Trim());
-            return new RaceStoredWorldFile(worldFile, path);
+            return new RaceStoredWorldFile(worldFile, path, wasCreated);
         }
         finally
         {

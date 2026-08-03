@@ -12,6 +12,7 @@ public static class RaceErrors
     public const string SeedRequired = "seed_required";
     public const string WorldRequired = "world_required";
     public const string WorldUploadRequired = "world_upload_required";
+    public const string UploadOperationConflict = "upload_operation_conflict";
     public const string RouteRequired = "route_required";
     public const string InvalidSplit = "invalid_split";
     public const string StalePackage = "stale_package";

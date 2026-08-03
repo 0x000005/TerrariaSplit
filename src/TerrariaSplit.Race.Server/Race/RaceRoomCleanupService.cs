@@ -10,18 +10,18 @@ public sealed class RaceRoomCleanupService : BackgroundService
     private static readonly TimeSpan ScanInterval = TimeSpan.FromMinutes(10);
     private static readonly TimeSpan MaximumIdleTime = TimeSpan.FromHours(24);
     private readonly RaceRoomManager rooms;
-    private readonly RaceWorldFileStore worldFiles;
+    private readonly RaceWorldUploadCoordinator worldUploads;
     private readonly IHubContext<RaceHub> hubContext;
     private readonly ILogger<RaceRoomCleanupService> logger;
 
     public RaceRoomCleanupService(
         RaceRoomManager rooms,
-        RaceWorldFileStore worldFiles,
+        RaceWorldUploadCoordinator worldUploads,
         IHubContext<RaceHub> hubContext,
         ILogger<RaceRoomCleanupService> logger)
     {
         this.rooms = rooms;
-        this.worldFiles = worldFiles;
+        this.worldUploads = worldUploads;
         this.hubContext = hubContext;
         this.logger = logger;
     }
@@ -52,7 +52,7 @@ public sealed class RaceRoomCleanupService : BackgroundService
                 }
                 finally
                 {
-                    worldFiles.DeleteRoom(state.RoomCode);
+                    await worldUploads.DeleteRoomAsync(state.RoomCode, CancellationToken.None);
                 }
             }
         }

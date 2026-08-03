@@ -10,13 +10,16 @@ public sealed class RaceHub : Hub
     private static readonly ConcurrentDictionary<string, RaceConnectionIdentity> Connections = new();
     private static readonly ConcurrentDictionary<string, string> PlayerConnections = new(StringComparer.OrdinalIgnoreCase);
     private readonly RaceRoomManager rooms;
-    private readonly RaceWorldFileStore worldFiles;
+    private readonly RaceWorldUploadCoordinator worldUploads;
     private readonly ILogger<RaceHub> logger;
 
-    public RaceHub(RaceRoomManager rooms, RaceWorldFileStore worldFiles, ILogger<RaceHub> logger)
+    public RaceHub(
+        RaceRoomManager rooms,
+        RaceWorldUploadCoordinator worldUploads,
+        ILogger<RaceHub> logger)
     {
         this.rooms = rooms;
-        this.worldFiles = worldFiles;
+        this.worldUploads = worldUploads;
         this.logger = logger;
     }
 
@@ -169,7 +172,7 @@ public sealed class RaceHub : Hub
         if (result.Succeeded && result.Value is RaceRoomState state)
         {
             await DetachRoomConnectionsAsync(state.RoomCode);
-            worldFiles.DeleteRoom(state.RoomCode);
+            await worldUploads.DeleteRoomAsync(state.RoomCode);
         }
 
         LogResult("close-room", result, roomCode, nickname);
@@ -188,7 +191,7 @@ public sealed class RaceHub : Hub
         if (result.Succeeded && result.Value is RaceRoomState { Status: RaceRoomStatus.Closed } state)
         {
             await DetachRoomConnectionsAsync(state.RoomCode);
-            worldFiles.DeleteRoom(state.RoomCode);
+            await worldUploads.DeleteRoomAsync(state.RoomCode);
         }
 
         LogResult("leave-room", result, roomCode, nickname);

@@ -23,6 +23,7 @@ var raceWorldFiles = new RaceWorldFileStore(Path.Combine(AppContext.BaseDirector
 raceWorldFiles.DeleteAllRooms();
 builder.Services.AddSingleton(raceWorldFiles);
 builder.Services.AddSingleton<RaceRoomManager>();
+builder.Services.AddSingleton<RaceWorldUploadCoordinator>();
 builder.Services.AddHostedService<RaceRoomCleanupService>();
 
 WebApplication app = builder.Build();
@@ -33,7 +34,7 @@ app.MapPost(
         string roomCode,
         HttpRequest request,
         RaceRoomManager rooms,
-        RaceWorldFileStore worldFiles,
+        RaceWorldUploadCoordinator worldUploads,
         IHubContext<RaceHub> hubContext,
         CancellationToken cancellationToken) =>
     {
@@ -81,33 +82,34 @@ app.MapPost(
             }
 
             RaceSeedAssignment? seed = DeserializeFormJson<RaceSeedAssignment>(form["seed"]);
-            await using Stream stream = file.OpenReadStream();
-            RaceStoredWorldFile stored = await worldFiles.SaveAsync(
-                roomCode,
-                nickname,
-                file.FileName,
-                stream,
-                cancellationToken);
-            RaceOperationResult<RaceRoomState> result = rooms.PublishWorldFile(
-                new RaceWorldFilePublishRequest(
-                    roomCode,
-                    nickname,
-                    route,
-                    worldSettings,
-                    seed,
-                    stored.Info),
-                out RaceWorldFileInfo? replacedWorldFile);
-            if (!result.Succeeded)
+            if (!Guid.TryParseExact(
+                    form[RaceWorldUploadProtocol.OperationIdFormField].ToString(),
+                    RaceWorldUploadProtocol.OperationIdFormat,
+                    out Guid uploadOperationId) ||
+                uploadOperationId == Guid.Empty)
             {
-                worldFiles.DeleteStoredFile(stored);
-            }
-            else if (replacedWorldFile is not null &&
-                     !string.Equals(replacedWorldFile.Sha256, stored.Info.Sha256, StringComparison.OrdinalIgnoreCase))
-            {
-                worldFiles.DeleteStoredFile(roomCode, replacedWorldFile);
+                return Results.Json(
+                    RaceOperationResult<RaceRoomState>.Failure(
+                        RaceErrors.InvalidRequest,
+                        "Upload operation id is required."),
+                    statusCode: StatusCodes.Status400BadRequest);
             }
 
-            if (result.Succeeded && result.Value is RaceRoomState state)
+            await using Stream stream = file.OpenReadStream();
+            RaceWorldUploadOutcome upload = await worldUploads.PublishAsync(
+                new RaceWorldUploadRequest(
+                    uploadOperationId,
+                    roomCode,
+                    nickname,
+                    file.FileName,
+                    route,
+                    worldSettings,
+                    seed),
+                stream,
+                cancellationToken);
+            RaceOperationResult<RaceRoomState> result = upload.Result;
+
+            if (upload.PackageChanged && result.Value is RaceRoomState state)
             {
                 _ = BroadcastPackageChangedBestEffortAsync(
                     hubContext,

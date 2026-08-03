@@ -24,11 +24,30 @@ public sealed class RaceClientSession : IAsyncDisposable
         TimeSpan.FromSeconds(2),
         TimeSpan.FromSeconds(8)
     ];
-    private readonly HttpClient httpClient = new();
+    private readonly HttpClient httpClient;
+    private readonly Func<TimeSpan, CancellationToken, Task> uploadDelayAsync;
     private HubConnection? connection;
     private RaceRoomState? state;
     private string serverUrl = string.Empty;
     private string lastPackageRevision = string.Empty;
+
+    public RaceClientSession()
+        : this(
+            new HttpClient(),
+            string.Empty,
+            static (delay, cancellationToken) => Task.Delay(delay, cancellationToken))
+    {
+    }
+
+    internal RaceClientSession(
+        HttpClient httpClient,
+        string serverUrl,
+        Func<TimeSpan, CancellationToken, Task> uploadDelayAsync)
+    {
+        this.httpClient = httpClient;
+        this.serverUrl = serverUrl.TrimEnd('/');
+        this.uploadDelayAsync = uploadDelayAsync;
+    }
 
     public event EventHandler? ConnectionStatusChanged;
 
@@ -217,7 +236,7 @@ public sealed class RaceClientSession : IAsyncDisposable
             cancellationToken);
     }
 
-    private async Task<RaceOperationResult<RaceRoomState>> UploadWorldFileWithRetriesAsync(
+    internal async Task<RaceOperationResult<RaceRoomState>> UploadWorldFileWithRetriesAsync(
         string roomCode,
         string nickname,
         string worldPath,
@@ -234,6 +253,7 @@ public sealed class RaceClientSession : IAsyncDisposable
                 "A valid world file is required.");
         }
 
+        string uploadOperationId = Guid.NewGuid().ToString(RaceWorldUploadProtocol.OperationIdFormat);
         RaceOperationResult<RaceRoomState>? lastResult = null;
         for (int attempt = 0; attempt <= UploadRetryDelays.Length; attempt++)
         {
@@ -247,6 +267,7 @@ public sealed class RaceClientSession : IAsyncDisposable
                     route,
                     worldSettings,
                     seed,
+                    uploadOperationId,
                     progress,
                     cancellationToken);
                 if (result.Succeeded || !ShouldRetryUploadResult(result) || attempt == UploadRetryDelays.Length)
@@ -287,7 +308,7 @@ public sealed class RaceClientSession : IAsyncDisposable
             }
 
             progress?.Report(0);
-            await Task.Delay(UploadRetryDelays[attempt], cancellationToken);
+            await uploadDelayAsync(UploadRetryDelays[attempt], cancellationToken);
         }
 
         return lastResult ?? RaceOperationResult<RaceRoomState>.Failure(
@@ -302,6 +323,7 @@ public sealed class RaceClientSession : IAsyncDisposable
         RaceRoutePayload route,
         RaceWorldSettings worldSettings,
         RaceSeedAssignment? seed,
+        string uploadOperationId,
         IProgress<int>? progress,
         CancellationToken cancellationToken)
     {
@@ -310,6 +332,9 @@ public sealed class RaceClientSession : IAsyncDisposable
         FileStream fileStream = File.OpenRead(worldPath);
         using var fileContent = new ProgressStreamContent(fileStream, fileInfo.Length, progress);
         form.Add(fileContent, "world", Path.GetFileName(worldPath));
+        form.Add(
+            new StringContent(uploadOperationId, Encoding.UTF8),
+            RaceWorldUploadProtocol.OperationIdFormField);
         form.Add(CreateJsonContent(route), "route");
         form.Add(CreateJsonContent(worldSettings), "worldSettings");
         if (seed is not null)
