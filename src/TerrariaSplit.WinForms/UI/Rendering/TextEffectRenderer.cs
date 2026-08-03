@@ -201,7 +201,7 @@ internal static class TextEffectRenderer
         RectangleF bounds = path.GetBounds();
         RectangleF gradientBounds = TextEffectGeometry.InflateBounds(bounds, Math.Max(4f, font.Size * 0.35f));
         using var outlineBrush = new LinearGradientBrush(gradientBounds, Color.White, Color.White, LinearGradientMode.Horizontal);
-        Color[] colors = SplitCompletionOutlineStyles.GetColors(style, elapsed.TotalSeconds)
+        Color[] colors = SplitCompletionOutlineColorPalette.GetColors(style, elapsed.TotalSeconds)
             .Select(color => WithOpacity(color, opacity))
             .ToArray();
         var blend = new ColorBlend

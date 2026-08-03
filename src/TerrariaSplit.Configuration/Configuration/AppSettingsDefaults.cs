@@ -6,15 +6,16 @@ public static class AppSettingsDefaults
 {
     private static readonly Lazy<AppSettings> Template = new(LoadTemplate);
 
-    public static AppSettings TemplateSettings => Template.Value;
-
     public static string TemplateJson => EmbeddedDefaults.SettingsJson;
 
-    public static AdvancedSettings Advanced => Template.Value.Advanced;
+    public static AdvancedSettings Advanced =>
+        AppSettingsCloner.CloneAdvancedSettings(Template.Value.Advanced);
 
-    public static AutomationSettings Automation => Template.Value.Automation;
+    public static AutomationSettings Automation =>
+        AppSettingsCloner.CloneAutomationSettings(Template.Value.Automation);
 
-    public static AutoCreateWorldSettings AutoCreate => Template.Value.Automation.AutoCreate;
+    public static AutoCreateWorldSettings AutoCreate =>
+        AppSettingsCloner.CloneAutoCreateWorldSettings(Template.Value.Automation.AutoCreate);
 
     public static AppSettings Create()
     {

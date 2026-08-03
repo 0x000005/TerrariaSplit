@@ -12,6 +12,7 @@ internal sealed record StartupCore(
     OverlayRenderResources RenderResources,
     Task StatusIconPreloadTask,
     OverlayAnimationController OverlayAnimations,
+    RunFinalizationPersistence RunFinalization,
     ApplicationController ApplicationController);
 
 internal sealed record RuntimeServicePreparation(

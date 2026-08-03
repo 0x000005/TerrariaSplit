@@ -90,7 +90,7 @@ internal sealed partial class MainForm : Form
                 () => runtimeShell.CurrentWatcherDiagnostics.ProcessVersion,
                 ApplyRouteOverride,
                 ClearRouteOverride,
-                startupCore.SaveSettings,
+                UpdateRaceSettings,
                 PublishExternalSystemEvent,
                 this,
                 RefreshRaceMainTimerColor,
@@ -111,7 +111,9 @@ internal sealed partial class MainForm : Form
                 startupCore.SaveSettings,
                 nextAutomationShell,
                 nextRaceShell.ResetReportedProgress,
-                nextRaceShell.QueueProgressReports);
+                nextRaceShell.QueueProgressReports,
+                startupCore.RunFinalization,
+                PublishExternalSystemEvent);
             HighPrecisionScheduler controlScheduler = MainShellCompositionRoot.CreateControlScheduler(QueueControlTick);
             HighPrecisionScheduler statusPaintScheduler = MainShellCompositionRoot.CreateStatusPaintScheduler(QueueStatusPaintTick);
 

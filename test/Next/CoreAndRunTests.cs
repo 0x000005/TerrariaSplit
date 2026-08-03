@@ -1,3 +1,5 @@
+using TerrariaSplit.Statistics;
+
 namespace TerrariaSplit.Tests;
 
 internal static class CoreAndRunTests
@@ -6,6 +8,7 @@ internal static class CoreAndRunTests
     {
         yield return TestCase.Sync("timer lifecycle preserves elapsed time across pause, resume, edit and reset", TestSuite.Core, TimerLifecycle);
         yield return TestCase.Sync("route progression handles initial state, attached splits, skipping and practice edits", TestSuite.Core, RouteProgression);
+        yield return TestCase.Sync("statistics preserve an unknown segment boundary after a missing cumulative split", TestSuite.Core, StatisticsMissingSplitBoundary);
         yield return TestCase.Sync("fact conditions evaluate boolean, integer, all, any and threshold semantics", TestSuite.Core, FactConditionMatrix);
         yield return TestCase.Sync("timer and tracker state round-trip without sharing live state", TestSuite.Core, StateRoundTrip);
     }
@@ -55,8 +58,61 @@ internal static class CoreAndRunTests
 
         tracker.SetPracticeTime(2, TimeSpan.FromSeconds(1));
         Check.Equal(TimeSpan.FromSeconds(1), tracker.Statuses[0].Time);
-        Check.Equal(TimeSpan.FromSeconds(1), tracker.Statuses[1].Time);
-        Check.Equal(TimeSpan.FromSeconds(1), tracker.Statuses[2].Time);
+        Check.Equal(TimeSpan.FromSeconds(2), tracker.Statuses[1].Time);
+        Check.Equal(TimeSpan.FromSeconds(2), tracker.Statuses[2].Time);
+
+        tracker.SetPracticeTime(0, TimeSpan.FromSeconds(3));
+        Check.Equal(TimeSpan.FromSeconds(3), tracker.Statuses[0].Time);
+        Check.Equal(TimeSpan.FromSeconds(3), tracker.Statuses[1].Time);
+        Check.Equal(TimeSpan.FromSeconds(3), tracker.Statuses[2].Time);
+
+        var forwardRepair = new SplitTracker();
+        forwardRepair.SetDefinitions(route);
+        forwardRepair.SetPracticeTime(0, TimeSpan.FromSeconds(10));
+        forwardRepair.SetPracticeTime(1, TimeSpan.FromSeconds(20));
+        forwardRepair.SetPracticeTime(2, TimeSpan.FromSeconds(45));
+        forwardRepair.SetPracticeTime(0, TimeSpan.FromSeconds(30));
+        Check.Equal(TimeSpan.FromSeconds(30), forwardRepair.Statuses[0].Time);
+        Check.Equal(TimeSpan.FromSeconds(30), forwardRepair.Statuses[1].Time);
+        Check.Equal(TimeSpan.FromSeconds(45), forwardRepair.Statuses[2].Time);
+    }
+
+    private static void StatisticsMissingSplitBoundary()
+    {
+        AppSettings settings = AppSettingsDefaults.Create();
+        settings.Route.SplitRoute =
+        [
+            DefinitionEntry("first"),
+            DefinitionEntry("missing"),
+            DefinitionEntry("third"),
+            DefinitionEntry("fourth")
+        ];
+        SettingsNormalizer.Normalize(settings);
+        var reference = new ReferenceSplitSet
+        {
+            Name = "Reference",
+            Splits = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["first"] = "00:10",
+                ["third"] = "00:30",
+                ["fourth"] = "00:45"
+            }
+        };
+        var personal = new Dictionary<string, string>(
+            reference.Splits,
+            StringComparer.OrdinalIgnoreCase);
+
+        List<StatisticsTableRow> rows =
+            StatisticsTableBuilder.Build(settings, reference, personal);
+        string tenSeconds = TimeText.FormatRecord(TimeSpan.FromSeconds(10));
+        string fifteenSeconds = TimeText.FormatRecord(TimeSpan.FromSeconds(15));
+
+        Check.Sequence(
+            [tenSeconds, "--", "--", fifteenSeconds],
+            rows.Select(row => row.ReferenceSegmentText));
+        Check.Sequence(
+            [tenSeconds, "--", "--", fifteenSeconds],
+            rows.Select(row => row.PersonalSegmentText));
     }
 
     private static void FactConditionMatrix()
@@ -97,6 +153,14 @@ internal static class CoreAndRunTests
 
     private static SplitDefinition Definition(string name, string fact, bool attached = false) =>
         new(name, name, SplitCondition.Fact(fact), [], [], [], attached);
+
+    private static SplitRouteEntry DefinitionEntry(string id) =>
+        new()
+        {
+            Id = id,
+            DisplayName = id,
+            Condition = SplitCondition.Fact("fact:" + id)
+        };
 
     internal static TerrariaGameFacts Facts(params (string Key, object? Value)[] values)
     {

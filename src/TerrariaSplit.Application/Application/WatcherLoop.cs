@@ -126,7 +126,6 @@ internal sealed class WatcherLoop : IDisposable
 
     private void Run(CancellationToken cancellationToken)
     {
-        using HighResolutionTimerPeriod? timerPeriod = HighResolutionTimerPeriod.TryBegin(1);
         WaitHandle[] waitHandles = [cancellationToken.WaitHandle, signal];
         var publishState = WatcherPublishState.Empty;
         while (!cancellationToken.IsCancellationRequested)

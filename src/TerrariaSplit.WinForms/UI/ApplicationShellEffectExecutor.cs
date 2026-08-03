@@ -2,27 +2,63 @@ namespace TerrariaSplit.UI;
 
 internal sealed class ApplicationShellEffectExecutor
 {
-    private readonly IRuntimeCommandPort runtimeCommands;
-    private readonly ISoundPort sounds;
-    private readonly IOverlayPort overlay;
-    private readonly ISettingsPort settings;
-    private readonly IAutomationPort automation;
-    private readonly IRaceProgressPort raceProgress;
+    private readonly Action<RuntimeCommand> submitRuntimeCommand;
+    private readonly SoundPlayerService soundPlayer;
+    private readonly OverlayAnimationController overlayAnimations;
+    private readonly Action toggleMouseClickThrough;
+    private readonly Action clearSplitCompletionAnimation;
+    private readonly Action<int> trackSegmentBestDeltaHighlight;
+    private readonly Action<int> startSplitCompletionAnimation;
+    private readonly Action resetUiScalePatchState;
+    private readonly Action refreshTimerOverlaySettings;
+    private readonly Action refreshRuntimeUi;
+    private readonly Func<AppSettings, OperationResult> saveSettings;
+    private readonly Action<OperationResult> showSettingsSaveFailure;
+    private readonly Action<AppSettings, int> applySettingsToShell;
+    private readonly AutomationShell automationShell;
+    private readonly Action resetRaceProgressReports;
+    private readonly Action<bool, bool> queueRaceProgressReports;
+    private readonly RunFinalizationPersistence runFinalization;
+    private readonly Action<SystemEvent> publishSystemEvent;
 
     public ApplicationShellEffectExecutor(
-        IRuntimeCommandPort runtimeCommands,
-        ISoundPort sounds,
-        IOverlayPort overlay,
-        ISettingsPort settings,
-        IAutomationPort automation,
-        IRaceProgressPort raceProgress)
+        Action<RuntimeCommand> submitRuntimeCommand,
+        SoundPlayerService soundPlayer,
+        OverlayAnimationController overlayAnimations,
+        Action toggleMouseClickThrough,
+        Action clearSplitCompletionAnimation,
+        Action<int> trackSegmentBestDeltaHighlight,
+        Action<int> startSplitCompletionAnimation,
+        Action resetUiScalePatchState,
+        Action refreshTimerOverlaySettings,
+        Action refreshRuntimeUi,
+        Func<AppSettings, OperationResult> saveSettings,
+        Action<OperationResult> showSettingsSaveFailure,
+        Action<AppSettings, int> applySettingsToShell,
+        AutomationShell automationShell,
+        Action resetRaceProgressReports,
+        Action<bool, bool> queueRaceProgressReports,
+        RunFinalizationPersistence runFinalization,
+        Action<SystemEvent> publishSystemEvent)
     {
-        this.runtimeCommands = runtimeCommands;
-        this.sounds = sounds;
-        this.overlay = overlay;
-        this.settings = settings;
-        this.automation = automation;
-        this.raceProgress = raceProgress;
+        this.submitRuntimeCommand = submitRuntimeCommand;
+        this.soundPlayer = soundPlayer;
+        this.overlayAnimations = overlayAnimations;
+        this.toggleMouseClickThrough = toggleMouseClickThrough;
+        this.clearSplitCompletionAnimation = clearSplitCompletionAnimation;
+        this.trackSegmentBestDeltaHighlight = trackSegmentBestDeltaHighlight;
+        this.startSplitCompletionAnimation = startSplitCompletionAnimation;
+        this.resetUiScalePatchState = resetUiScalePatchState;
+        this.refreshTimerOverlaySettings = refreshTimerOverlaySettings;
+        this.refreshRuntimeUi = refreshRuntimeUi;
+        this.saveSettings = saveSettings;
+        this.showSettingsSaveFailure = showSettingsSaveFailure;
+        this.applySettingsToShell = applySettingsToShell;
+        this.automationShell = automationShell;
+        this.resetRaceProgressReports = resetRaceProgressReports;
+        this.queueRaceProgressReports = queueRaceProgressReports;
+        this.runFinalization = runFinalization;
+        this.publishSystemEvent = publishSystemEvent;
     }
 
     public void Apply(IReadOnlyList<ApplicationEffect> effects)
@@ -38,71 +74,83 @@ internal sealed class ApplicationShellEffectExecutor
         switch (effect)
         {
             case SubmitRuntimeCommandEffect submit:
-                runtimeCommands.Submit(submit.Command);
+                submitRuntimeCommand(submit.Command);
                 break;
             case StopAllSoundsEffect:
-                sounds.StopAll();
+                soundPlayer.StopAll();
                 break;
             case PlaySoundEffect play:
                 if (!string.IsNullOrWhiteSpace(play.Path))
                 {
-                    sounds.Play(play.Path);
+                    soundPlayer.Play(play.Path);
                 }
                 break;
             case ToggleMouseClickThroughEffect:
-                overlay.ToggleMouseClickThrough();
+                toggleMouseClickThrough();
                 break;
             case ClearOverlayAnimationEffect:
-                overlay.ClearOverlayAnimation();
+                overlayAnimations.Clear();
                 break;
             case ClearSplitCompletionAnimationEffect:
-                overlay.ClearSplitCompletionAnimation();
+                clearSplitCompletionAnimation();
                 break;
             case TrackSegmentBestDeltaHighlightEffect track:
-                overlay.TrackSegmentBestDeltaHighlight(track.SplitIndex);
+                trackSegmentBestDeltaHighlight(track.SplitIndex);
                 break;
             case StartSplitCompletionAnimationEffect startSplit:
-                overlay.StartSplitCompletionAnimation(startSplit.SplitIndex);
+                startSplitCompletionAnimation(startSplit.SplitIndex);
                 break;
             case SaveSettingsEffect save:
-                OperationResult saveResult = settings.Save(save.Settings);
+                OperationResult saveResult = saveSettings(save.Settings);
                 if (saveResult.Failed)
                 {
-                    settings.ShowSaveFailure(saveResult);
+                    showSettingsSaveFailure(saveResult);
                 }
                 break;
             case ShowPersistenceFailureEffect failure:
-                settings.ShowSaveFailure(failure.Result);
+                showSettingsSaveFailure(failure.Result);
                 break;
             case StartCreateWorldAutomationEffect:
-                automation.StartCreateWorld();
+                automationShell.StartCreateWorld();
                 break;
             case ShowPracticeWorldSelectorEffect:
-                automation.ShowPracticeWorldSelector();
+                automationShell.ShowPracticeWorldSelector();
                 break;
             case CancelCreateWorldAutomationEffect:
-                automation.CancelCreateWorld();
+                automationShell.CancelCreateWorld();
                 break;
             case CancelEnterWorldAutomationEffect:
-                automation.CancelEnterWorld();
+                automationShell.CancelEnterWorld();
                 break;
             case ResetUiScalePatchStateEffect:
-                overlay.ResetUiScalePatchState();
+                resetUiScalePatchState();
                 break;
             case ApplySettingsToShellEffect applySettings:
-                settings.ApplyToShell(applySettings.PreviousSettings, applySettings.SplitCount);
+                applySettingsToShell(applySettings.PreviousSettings, applySettings.SplitCount);
                 break;
             case RefreshTimerOverlaySettingsEffect:
-                overlay.RefreshTimerOverlaySettings();
+                refreshTimerOverlaySettings();
                 break;
             case RefreshRuntimeUiEffect:
-                overlay.RefreshRuntimeUi();
+                refreshRuntimeUi();
                 break;
             case ResetRaceProgressReportsEffect:
-                raceProgress.ResetReportedProgress();
+                resetRaceProgressReports();
                 break;
             case QueueRaceProgressReportsEffect queueRaceProgress:
-                raceProgress.QueueProgressReports(queueRaceProgress.RunStarted, queueRaceProgress.RunCompleted);
+                queueRaceProgressReports(queueRaceProgress.RunStarted, queueRaceProgress.RunCompleted);
+                break;
+            case RecordRunStatisticsEffect recordRun:
+                OperationResult recordResult = runFinalization.RecordStatistics(recordRun.Statuses);
+                if (recordResult.Failed)
+                {
+                    showSettingsSaveFailure(recordResult);
+                }
+                break;
+            case FinalizePersonalBestEffect finalizePersonalBest:
+                PersonalBestFinalizationResult finalizationResult =
+                    runFinalization.FinalizePersonalBest(finalizePersonalBest.Plan);
+                publishSystemEvent(new PersonalBestFinalizationSystemEvent(finalizationResult));
                 break;
             default:
                 throw new NotSupportedException($"Unsupported application effect {effect.GetType().Name}.");

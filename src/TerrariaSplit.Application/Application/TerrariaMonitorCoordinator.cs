@@ -28,11 +28,11 @@ public sealed class TerrariaMonitorCoordinator : IDisposable
         ITerrariaWorldWatcher watcher,
         ITerrariaUiScalePatchApplier uiScalePatchApplier,
         Action<Action> dispatch,
+        Func<int, bool> isProcessStillRunning,
         IAppLogger? logger = null,
         Action<string>? logInfo = null,
         Action<Exception, string>? logError = null,
         Func<DateTime>? utcNowProvider = null,
-        Func<int, bool>? isProcessStillRunning = null,
         Func<bool>? shouldYieldDispatch = null)
     {
         this.watcher = watcher;
@@ -40,7 +40,6 @@ public sealed class TerrariaMonitorCoordinator : IDisposable
         Action<string> infoLogger = logInfo ?? logger.Info;
         this.logError = logError ?? logger.Error;
         Func<DateTime> nowProvider = utcNowProvider ?? (() => DateTime.UtcNow);
-        Func<int, bool> processRunning = isProcessStillRunning ?? IsProcessStillRunning;
         runtimeProcessor = new WatcherRuntimeProcessor(RuntimePendingMenuGraceDuration);
         runtimeCommands = new RuntimeCommandSequencer(runtimeProcessor);
         watcherCompletions = new WatcherCompletionDispatcher(
@@ -52,7 +51,7 @@ public sealed class TerrariaMonitorCoordinator : IDisposable
             uiScalePatchApplier,
             dispatch,
             nowProvider,
-            processRunning,
+            isProcessStillRunning,
             infoLogger,
             UiScalePatchRetryInterval);
         watcherLoop = new WatcherLoop(
@@ -311,23 +310,6 @@ public sealed class TerrariaMonitorCoordinator : IDisposable
             completion.RuntimeCommandSequence,
             completion.CompletedTimestamp,
             completion.Error));
-    }
-
-    private static bool IsProcessStillRunning(int processId)
-    {
-        try
-        {
-            using Process process = Process.GetProcessById(processId);
-            return !process.HasExited;
-        }
-        catch (ArgumentException)
-        {
-            return false;
-        }
-        catch (InvalidOperationException)
-        {
-            return false;
-        }
     }
 
 }

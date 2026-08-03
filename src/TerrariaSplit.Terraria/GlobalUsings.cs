@@ -8,7 +8,6 @@ global using TerrariaSplit.Infrastructure;
 global using TerrariaSplit.Infrastructure.Windows;
 global using TerrariaSplit.Localization;
 global using TerrariaSplit.Models;
-global using TerrariaSplit.Storage;
 global using TerrariaSplit.Terraria;
 global using TerrariaSplit.Terraria.Automation;
 global using TerrariaSplit.Terraria.Memory;

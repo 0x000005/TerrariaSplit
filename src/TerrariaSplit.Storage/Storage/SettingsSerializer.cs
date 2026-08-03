@@ -87,7 +87,6 @@ internal static class SettingsSerializer
                 return DeserializeSettings(merged);
             }
 
-            SettingsJsonSectionMigrator.Migrate(overrides);
             MergeJsonObject(merged, GetSettingsPayload(overrides));
             AppSettings? settings = DeserializeSettings(merged);
             if (settings is null)
@@ -138,7 +137,6 @@ internal static class SettingsSerializer
                 return AppSettingsCloner.Clone(defaults);
             }
 
-            SettingsJsonSectionMigrator.Migrate(overrides);
             JsonObject overrideSettings = GetSettingsPayload(overrides);
             MergeJsonObject(merged, overrideSettings);
             AppSettings? settings = DeserializeSettings(merged);
@@ -156,11 +154,6 @@ internal static class SettingsSerializer
             shouldWriteDefaults = true;
             return AppSettingsCloner.Clone(defaults);
         }
-    }
-
-    public static AppSettings Clone(AppSettings settings)
-    {
-        return AppSettingsCloner.Clone(settings);
     }
 
     public static bool IsValidSettingsFile(string path)
@@ -228,8 +221,9 @@ internal static class SettingsSerializer
 
     private static AppSettings? DeserializeSettings(JsonObject root)
     {
-        SettingsJsonSectionMigrator.Migrate(root);
-        return root.Deserialize(SettingsJsonContext.Default.SettingsDocument)?.Settings;
+        return root[nameof(SettingsDocument.Settings)] is JsonObject
+            ? root.Deserialize(SettingsJsonContext.Default.SettingsDocument)?.Settings
+            : root.Deserialize(SettingsJsonContext.Default.AppSettings);
     }
 
     private static JsonObject CreateEmbeddedDefaultsNode()

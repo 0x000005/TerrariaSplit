@@ -44,6 +44,19 @@ public sealed record RuntimeRunSnapshot(
             ComputeStatusHash(statusCopies));
     }
 
+    public static RuntimeRunSnapshot FromDefinitions(IReadOnlyList<SplitDefinition> definitions)
+    {
+        SplitStatusSnapshot[] statuses = definitions
+            .Select(SplitStatusSnapshot.FromDefinition)
+            .ToArray();
+        return new RuntimeRunSnapshot(
+            new SplitTimerState(SplitTimerPhase.NotStarted, TimeSpan.Zero, 0),
+            statuses,
+            0,
+            0,
+            ComputeStatusHash(statuses));
+    }
+
     private static int ComputeStatusHash(IReadOnlyList<SplitStatusSnapshot> statuses)
     {
         var hash = new HashCode();

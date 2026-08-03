@@ -34,9 +34,12 @@ public sealed class SplitTimeSetRepository
             : sets;
     }
 
-    public void SaveReferenceSets(IEnumerable<ReferenceSplitSet> sets)
+    public OperationResult SaveReferenceSets(IEnumerable<ReferenceSplitSet> sets)
     {
-        SaveNamedSets(ReferenceDirectory, sets);
+        return SaveNamedSets(
+            ReferenceDirectory,
+            sets,
+            "reference split time set");
     }
 
     public List<ReferenceSplitSet> LoadPersonalBestTimeSets()
@@ -49,26 +52,20 @@ public sealed class SplitTimeSetRepository
         return LoadSets(PersonalBestSegmentDirectory, newestFirst: true, maxCount: null);
     }
 
-    public void SavePersonalBestTimeSets(IEnumerable<ReferenceSplitSet> sets)
+    public OperationResult SavePersonalBestTimeSets(IEnumerable<ReferenceSplitSet> sets)
     {
-        SaveSets(PersonalBestTimeDirectory, sets);
+        return SaveSets(
+            PersonalBestTimeDirectory,
+            sets,
+            "personal best time set");
     }
 
-    public void SavePersonalBestSegmentSets(IEnumerable<ReferenceSplitSet> sets)
+    public OperationResult SavePersonalBestSegmentSets(IEnumerable<ReferenceSplitSet> sets)
     {
-        SaveSets(PersonalBestSegmentDirectory, sets);
-    }
-
-    public ReferenceSplitSet SavePersonalBestTimeSnapshot(
-        Dictionary<string, string> splits,
-        string bossName,
-        string? previousTime,
-        string newTime)
-    {
-        OperationResult result = TrySavePersonalBestTimeSnapshot(splits, bossName, previousTime, newTime, out ReferenceSplitSet? snapshot);
-        return result.Succeeded && snapshot is not null
-            ? snapshot
-            : throw new InvalidOperationException(result.Message, result.Exception);
+        return SaveSets(
+            PersonalBestSegmentDirectory,
+            sets,
+            "personal best segment set");
     }
 
     public OperationResult TrySavePersonalBestTimeSnapshot(
@@ -86,18 +83,6 @@ public sealed class SplitTimeSetRepository
             previousTime,
             newTime,
             out snapshot);
-    }
-
-    public ReferenceSplitSet SavePersonalBestSegmentSnapshot(
-        Dictionary<string, string> splits,
-        string bossName,
-        string? previousTime,
-        string newTime)
-    {
-        OperationResult result = TrySavePersonalBestSegmentSnapshot(splits, bossName, previousTime, newTime, out ReferenceSplitSet? snapshot);
-        return result.Succeeded && snapshot is not null
-            ? snapshot
-            : throw new InvalidOperationException(result.Message, result.Exception);
     }
 
     public OperationResult TrySavePersonalBestSegmentSnapshot(
@@ -146,7 +131,11 @@ public sealed class SplitTimeSetRepository
     private List<ReferenceSplitSet> LoadAndSaveDefaultReferenceSets()
     {
         ReferenceSplitSet set = LoadEmbeddedDefaultReferenceSet();
-        SaveSet(ReferenceDirectory, $"{SanitizeFileName(set.Name)}.json", set);
+        _ = TrySaveSet(
+            ReferenceDirectory,
+            $"{SanitizeFileName(set.Name)}.json",
+            set,
+            "default reference split time set");
         return new List<ReferenceSplitSet> { set };
     }
 
@@ -244,22 +233,40 @@ public sealed class SplitTimeSetRepository
         }
     }
 
-    private static void SaveNamedSets(string directory, IEnumerable<ReferenceSplitSet> sets)
+    private static OperationResult SaveNamedSets(
+        string directory,
+        IEnumerable<ReferenceSplitSet> sets,
+        string description)
     {
-        Directory.CreateDirectory(directory);
-        HashSet<string> expectedFiles = new(StringComparer.OrdinalIgnoreCase);
-
-        foreach (ReferenceSplitSet set in sets)
+        try
         {
-            string fileName = $"{SanitizeFileName(set.Name)}.json";
-            expectedFiles.Add(Path.Combine(directory, fileName));
-            SaveSet(directory, fileName, set);
-        }
+            Directory.CreateDirectory(directory);
+            HashSet<string> expectedFiles = new(StringComparer.OrdinalIgnoreCase);
 
-        foreach (string path in Directory.EnumerateFiles(directory, "*.json"))
-        {
-            if (!expectedFiles.Contains(path))
+            foreach (ReferenceSplitSet set in sets)
             {
+                string fileName = $"{SanitizeFileName(set.Name)}.json";
+                expectedFiles.Add(Path.Combine(directory, fileName));
+                OperationResult saveResult = TrySaveSet(
+                    directory,
+                    fileName,
+                    set,
+                    description);
+                if (saveResult.Failed)
+                {
+                    return OperationResult.Failure(
+                        $"Failed to save {description} '{set.Name}' in '{directory}'.",
+                        saveResult.Exception);
+                }
+            }
+
+            foreach (string path in Directory.EnumerateFiles(directory, "*.json"))
+            {
+                if (expectedFiles.Contains(path))
+                {
+                    continue;
+                }
+
                 try
                 {
                     File.Delete(path);
@@ -267,18 +274,55 @@ public sealed class SplitTimeSetRepository
                 catch (Exception ex)
                 {
                     StaticAppLogger.Instance.Error(ex, $"Failed to delete old split time set: {path}");
+                    return OperationResult.Failure(
+                        $"Failed to remove obsolete {description} '{path}'.",
+                        ex);
                 }
             }
+
+            return OperationResult.Success();
+        }
+        catch (Exception ex)
+        {
+            StaticAppLogger.Instance.Error(ex, $"Failed to save {description} collection: {directory}");
+            return OperationResult.Failure(
+                $"Failed to save {description} collection in '{directory}'.",
+                ex);
         }
     }
 
-    private static void SaveSets(string directory, IEnumerable<ReferenceSplitSet> sets)
+    private static OperationResult SaveSets(
+        string directory,
+        IEnumerable<ReferenceSplitSet> sets,
+        string description)
     {
-        Directory.CreateDirectory(directory);
-        foreach (ReferenceSplitSet set in sets)
+        try
         {
-            string fileName = $"{SanitizeFileName(set.Name)}.json";
-            SaveSet(directory, fileName, set);
+            Directory.CreateDirectory(directory);
+            foreach (ReferenceSplitSet set in sets)
+            {
+                string fileName = $"{SanitizeFileName(set.Name)}.json";
+                OperationResult saveResult = TrySaveSet(
+                    directory,
+                    fileName,
+                    set,
+                    description);
+                if (saveResult.Failed)
+                {
+                    return OperationResult.Failure(
+                        $"Failed to save {description} '{set.Name}' in '{directory}'.",
+                        saveResult.Exception);
+                }
+            }
+
+            return OperationResult.Success();
+        }
+        catch (Exception ex)
+        {
+            StaticAppLogger.Instance.Error(ex, $"Failed to save {description} collection: {directory}");
+            return OperationResult.Failure(
+                $"Failed to save {description} collection in '{directory}'.",
+                ex);
         }
     }
 
@@ -331,7 +375,15 @@ public sealed class SplitTimeSetRepository
 
     private static void SaveSet(string directory, string fileName, ReferenceSplitSet set)
     {
-        JsonFileStore.Write(Path.Combine(directory, fileName), set, "split time set");
+        OperationResult result = TrySaveSet(
+            directory,
+            fileName,
+            set,
+            "split time set");
+        if (result.Failed)
+        {
+            throw new InvalidOperationException(result.Message, result.Exception);
+        }
     }
 
     private static OperationResult TrySaveSet(
@@ -378,106 +430,5 @@ public sealed class SplitTimeSetRepository
         }
 
         return trimmed.Length == 0 ? "Reference" : trimmed;
-    }
-}
-
-public static class SplitTimeSetStore
-{
-    private static readonly SplitTimeSetRepository Repository = new();
-
-    public static string ReferenceDirectory => Repository.ReferenceDirectory;
-
-    public static string LastRunDirectory => Repository.LastRunDirectory;
-
-    public static string PersonalBestTimeDirectory => Repository.PersonalBestTimeDirectory;
-
-    public static string PersonalBestSegmentDirectory => Repository.PersonalBestSegmentDirectory;
-
-    public static void EnsureDirectories()
-    {
-        Repository.EnsureDirectories();
-    }
-
-    public static List<ReferenceSplitSet> LoadReferenceSets()
-    {
-        return Repository.LoadReferenceSets();
-    }
-
-    public static void SaveReferenceSets(IEnumerable<ReferenceSplitSet> sets)
-    {
-        Repository.SaveReferenceSets(sets);
-    }
-
-    public static List<ReferenceSplitSet> LoadPersonalBestTimeSets()
-    {
-        return Repository.LoadPersonalBestTimeSets();
-    }
-
-    public static List<ReferenceSplitSet> LoadPersonalBestSegmentSets()
-    {
-        return Repository.LoadPersonalBestSegmentSets();
-    }
-
-    public static void SavePersonalBestTimeSets(IEnumerable<ReferenceSplitSet> sets)
-    {
-        Repository.SavePersonalBestTimeSets(sets);
-    }
-
-    public static void SavePersonalBestSegmentSets(IEnumerable<ReferenceSplitSet> sets)
-    {
-        Repository.SavePersonalBestSegmentSets(sets);
-    }
-
-    public static ReferenceSplitSet SavePersonalBestTimeSnapshot(
-        Dictionary<string, string> splits,
-        string bossName,
-        string? previousTime,
-        string newTime)
-    {
-        return Repository.SavePersonalBestTimeSnapshot(splits, bossName, previousTime, newTime);
-    }
-
-    public static OperationResult TrySavePersonalBestTimeSnapshot(
-        Dictionary<string, string> splits,
-        string bossName,
-        string? previousTime,
-        string newTime,
-        out ReferenceSplitSet? snapshot)
-    {
-        return Repository.TrySavePersonalBestTimeSnapshot(splits, bossName, previousTime, newTime, out snapshot);
-    }
-
-    public static ReferenceSplitSet SavePersonalBestSegmentSnapshot(
-        Dictionary<string, string> splits,
-        string bossName,
-        string? previousTime,
-        string newTime)
-    {
-        return Repository.SavePersonalBestSegmentSnapshot(splits, bossName, previousTime, newTime);
-    }
-
-    public static OperationResult TrySavePersonalBestSegmentSnapshot(
-        Dictionary<string, string> splits,
-        string bossName,
-        string? previousTime,
-        string newTime,
-        out ReferenceSplitSet? snapshot)
-    {
-        return Repository.TrySavePersonalBestSegmentSnapshot(splits, bossName, previousTime, newTime, out snapshot);
-    }
-
-    public static Dictionary<string, string> LoadLatestLastRun()
-    {
-        return Repository.LoadLatestLastRun();
-    }
-
-    public static List<ReferenceSplitSet> LoadLastRunSets()
-    {
-        return Repository.LoadLastRunSets();
-    }
-
-    public static void SaveLastRun(Dictionary<string, string> splits, string? lastBossName = null, TimeSpan? runDuration = null)
-    {
-        Repository.SaveLastRun(splits, lastBossName, runDuration);
     }
 }

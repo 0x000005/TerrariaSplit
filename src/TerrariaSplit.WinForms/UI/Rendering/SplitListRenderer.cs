@@ -369,7 +369,7 @@ internal static class SplitListRenderer
             if (TryGetSegmentBestDeltaHighlight(context, statusIndex, out SegmentBestDeltaHighlight highlight))
             {
                 double seconds = (context.NowUtc - highlight.StartedAtUtc).TotalSeconds;
-                deltaColor = SegmentBestDeltaHighlightStyles.Apply(deltaColor, highlight.Style, seconds);
+                deltaColor = SegmentBestDeltaHighlightColorMath.Apply(deltaColor, highlight.Style, seconds);
             }
 
             TextEffectRenderer.DrawStyledText(

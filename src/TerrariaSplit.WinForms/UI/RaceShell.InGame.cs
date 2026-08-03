@@ -268,26 +268,10 @@ internal sealed partial class RaceShell
 
     private void QueueLocalDeathReport(string deathMessage)
     {
-        long packageRevision = Volatile.Read(ref activePackageRevision);
-        string runId = Volatile.Read(ref activeRunId);
-        if (!session.IsInRoom ||
-            packageRevision <= 0 ||
-            string.IsNullOrWhiteSpace(runId) ||
-            string.IsNullOrWhiteSpace(session.RoomCode) ||
-            string.IsNullOrWhiteSpace(session.Nickname))
-        {
-            return;
-        }
-
-        progressUploads.Writer.TryWrite(RaceProgressUpload.ForDeath(new RaceDeathReport(
-            session.RoomCode,
-            session.Nickname,
-            DateTimeOffset.UtcNow,
-            RaceDeathMessageRules.Normalize(deathMessage))
-        {
-            PackageRevision = packageRevision,
-            RunId = runId
-        }));
+        progressTransport.QueueDeath(
+            session.RoomCode ?? string.Empty,
+            session.Nickname ?? string.Empty,
+            RaceDeathMessageRules.Normalize(deathMessage));
     }
 
     private void RecordSentInGameSnapshot(RaceInGameSnapshot snapshot)

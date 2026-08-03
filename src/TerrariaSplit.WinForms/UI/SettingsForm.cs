@@ -35,7 +35,7 @@ internal sealed partial class SettingsForm : Form
         IApplicationUpdateService? applicationUpdateService = null,
         Func<bool>? canSaveSettings = null)
     {
-        this.settingsSnapshots = settingsSnapshots ?? new StoredSettingsSnapshotFactory();
+        this.settingsSnapshots = settingsSnapshots ?? new SettingsSnapshotFactory();
         settings = this.settingsSnapshots.CreateSnapshot(currentSettings);
         this.applicationUpdateService = applicationUpdateService ?? new GitHubApplicationUpdateService();
         this.canSaveSettings = canSaveSettings ?? (() => true);

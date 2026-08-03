@@ -14,7 +14,9 @@ internal static class TerrariaIntegrationTests
         yield return TestCase.Sync("pyramid pre-screen evaluates known positive, item mismatch and no-pyramid seeds", TestSuite.Flow, PyramidPredictionJourney, timeoutSeconds: 30);
         yield return TestCase.Async("native jungle seed judge preserves protocol and returns seed-only analysis", TestSuite.Flow, JungleSeedJudgeNativeJourney, timeoutSeconds: 30);
         yield return TestCase.Async("world seed filter skips a seed when the native call times out", TestSuite.Flow, WorldSeedFilterTimeoutJourney, timeoutSeconds: 10);
+        yield return TestCase.Async("native jungle seed judge applies its timeout while waiting for a call slot", TestSuite.Core, JungleSeedJudgeGateTimeoutJourney, timeoutSeconds: 10);
         yield return TestCase.Sync("world seed filter skips candidate-local native failures", TestSuite.Core, WorldSeedFilterCandidateFailureClassification);
+        yield return TestCase.Async("world seed filter stops when native world generation fails", TestSuite.Core, WorldSeedFilterGenerationFailureJourney);
         yield return TestCase.Async("world seed filter skips a seed when the jungle route is partial", TestSuite.Flow, WorldSeedFilterPartialRouteJourney, timeoutSeconds: 10);
         yield return TestCase.Sync("race seed filter concurrency uses eighty percent of processors", TestSuite.Core, RaceSeedFilterConcurrency);
         yield return TestCase.Async("race seed filter evaluates candidate seeds as one parallel batch", TestSuite.Flow, RaceSeedFilterBatchJourney, timeoutSeconds: 15);
@@ -179,12 +181,99 @@ internal static class TerrariaIntegrationTests
             JungleSeedJudgeStatus.InvalidSeed));
         Check.True(WorldSeedFilterEvaluator.IsCandidateRejection(
             JungleSeedJudgeStatus.SpecialSeedUnsupported));
-        Check.True(WorldSeedFilterEvaluator.IsCandidateRejection(
+        Check.False(WorldSeedFilterEvaluator.IsCandidateRejection(
             JungleSeedJudgeStatus.GenerationFailed));
         Check.False(WorldSeedFilterEvaluator.IsCandidateRejection(
             JungleSeedJudgeStatus.InvalidRequest));
         Check.False(WorldSeedFilterEvaluator.IsCandidateRejection(
             JungleSeedJudgeStatus.Complete));
+    }
+
+    private static async Task JungleSeedJudgeGateTimeoutJourney(
+        CancellationToken cancellationToken)
+    {
+        var nativeCallStarted = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        using var releaseNativeCall = new ManualResetEventSlim(false);
+        var gate = new SemaphoreSlim(1, 1);
+        var client = new JungleSeedJudgeNativeClient(
+            (_, _, _) =>
+            {
+                nativeCallStarted.TrySetResult();
+                releaseNativeCall.Wait();
+                return null!;
+            },
+            TimeSpan.FromMilliseconds(50),
+            gate);
+
+        Task<JungleSeedJudgeResult> firstCall = client.AnalyzeAsync(
+            "first",
+            JungleSeedJudgeGameMode.Classic,
+            cancellationToken);
+        await nativeCallStarted.Task.WaitAsync(cancellationToken);
+        await Check.ThrowsAsync<TimeoutException>(() => firstCall);
+
+        try
+        {
+            await Check.ThrowsAsync<TimeoutException>(() => client.AnalyzeAsync(
+                "second",
+                JungleSeedJudgeGameMode.Classic,
+                cancellationToken));
+        }
+        finally
+        {
+            releaseNativeCall.Set();
+        }
+    }
+
+    private static async Task WorldSeedFilterGenerationFailureJourney(
+        CancellationToken cancellationToken)
+    {
+        var gate = new SemaphoreSlim(1, 1);
+        var nativeClient = new JungleSeedJudgeNativeClient(
+            (seedText, _, requestId) => new JungleSeedJudgeResult(
+                JungleSeedJudgeProtocol.Version,
+                requestId,
+                JungleSeedJudgeProtocol.CompatibilityId,
+                JungleSeedJudgeStatus.GenerationFailed,
+                seedText,
+                0,
+                0,
+                0,
+                Jungle: null,
+                CrimsonVertices: null,
+                Detail: "native generation failed"),
+            TimeSpan.FromSeconds(1),
+            gate);
+        using var evaluator = new WorldSeedFilterEvaluator(
+            nativeClient: nativeClient);
+        var settings = new AutoCreateWorldSettings
+        {
+            EnableCheats = true,
+            EnablePyramidFilter = false,
+            WorldSize = AutoCreateWorldSize.Small,
+            WorldDifficulty = AutoCreateWorldDifficulty.Classic,
+            WorldEvil = AutoCreateWorldEvil.Crimson,
+            JungleRouteDepth = AutoCreateJungleRouteDepth.Medium
+        };
+
+        WorldSeedFilterPrediction prediction = await evaluator.EvaluateAsync(
+            settings,
+            "12345",
+            TerrariaWorldGenerationVersion.Modern1456,
+            cancellationToken);
+
+        if (prediction.CanUsePrediction)
+        {
+            throw new InvalidOperationException(
+                "GenerationFailed must make seed prediction unavailable: " +
+                prediction.Detail);
+        }
+        Check.False(prediction.CanContinueWithoutPrediction);
+        Check.False(prediction.AcceptSeed);
+        Check.True(prediction.Detail.Contains(
+            nameof(JungleSeedJudgeStatus.GenerationFailed),
+            StringComparison.Ordinal));
     }
 
     private static async Task WorldSeedFilterPartialRouteJourney(CancellationToken cancellationToken)

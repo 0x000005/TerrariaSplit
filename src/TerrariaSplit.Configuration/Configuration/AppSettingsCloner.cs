@@ -5,18 +5,52 @@ public static class AppSettingsCloner
     public static AppSettings Clone(AppSettings source)
     {
         ArgumentNullException.ThrowIfNull(source);
-        return new AppSettings
-        {
-            General = Clone(source.General),
-            Hotkeys = Clone(source.Hotkeys),
-            Route = Clone(source.Route),
-            Comparison = Clone(source.Comparison),
-            Overlay = Clone(source.Overlay),
-            Automation = Clone(source.Automation),
-            Race = Clone(source.Race),
-            PracticeWorlds = Clone(source.PracticeWorlds),
-            Advanced = Clone(source.Advanced)
-        };
+        return new AppSettings(
+            Clone(source.General),
+            Clone(source.Hotkeys),
+            Clone(source.Route),
+            Clone(source.Comparison),
+            Clone(source.Overlay),
+            Clone(source.Automation),
+            Clone(source.Race),
+            Clone(source.PracticeWorlds),
+            Clone(source.Advanced));
+    }
+
+    public static RaceSettings CloneRaceSettings(RaceSettings source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        return Clone(source);
+    }
+
+    public static RaceLeaderboardSettings CloneLeaderboardSettings(RaceLeaderboardSettings source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        return Clone(source);
+    }
+
+    public static RaceVoiceSettings CloneVoiceSettings(RaceVoiceSettings source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        return Clone(source);
+    }
+
+    internal static AdvancedSettings CloneAdvancedSettings(AdvancedSettings source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        return Clone(source);
+    }
+
+    internal static AutomationSettings CloneAutomationSettings(AutomationSettings source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        return Clone(source);
+    }
+
+    internal static AutoCreateWorldSettings CloneAutoCreateWorldSettings(AutoCreateWorldSettings source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        return Clone(source);
     }
 
     private static GeneralSettings Clone(GeneralSettings? source)

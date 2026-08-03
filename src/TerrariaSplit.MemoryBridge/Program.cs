@@ -52,12 +52,6 @@ internal static class Program
         }
 
         if (args.Length > 0 &&
-            string.Equals(args[0], "random-seed-candidates", StringComparison.OrdinalIgnoreCase))
-        {
-            return RunRandomSeedCandidates(args);
-        }
-
-        if (args.Length > 0 &&
             string.Equals(args[0], "visible-seed", StringComparison.OrdinalIgnoreCase))
         {
             return RunVisibleSeed(args);
@@ -176,125 +170,6 @@ internal static class Program
             WriteResponse(new RandomSeedBatchProbeResponse(false, ex.Message, null, null));
             return 1;
         }
-    }
-
-    private static int RunRandomSeedCandidates(string[] args)
-    {
-        if (args.Length != 3 ||
-            !int.TryParse(args[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out int processId) ||
-            !int.TryParse(args[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out int count) ||
-            count is < 1 or > 32)
-        {
-            WriteResponse(new RandomSeedCandidatesProbeResponse(
-                false,
-                "usage: random-seed-candidates <pid> <count:1..32>",
-                null,
-                null));
-            return 2;
-        }
-
-        try
-        {
-            IReadOnlyList<RandomSeedCandidateDto> candidates =
-                ReadRandomSeedCandidates(processId, count, out uint windowThreadId);
-            WriteResponse(new RandomSeedCandidatesProbeResponse(
-                candidates.Count > 0,
-                candidates.Count > 0 ? null : "No initialized Terraria.Main.rand thread statics were found.",
-                windowThreadId,
-                candidates));
-            return candidates.Count > 0 ? 0 : 1;
-        }
-        catch (Exception ex)
-            when (ex is InvalidOperationException or UnauthorizedAccessException or
-                ClrDiagnosticsException or Win32Exception)
-        {
-            WriteResponse(new RandomSeedCandidatesProbeResponse(false, ex.Message, null, null));
-            return 1;
-        }
-    }
-
-    private static IReadOnlyList<RandomSeedCandidateDto> ReadRandomSeedCandidates(
-        int targetProcessId,
-        int count,
-        out uint windowThreadId)
-    {
-        var candidates = new List<RandomSeedCandidateDto>();
-        using DataTarget target = DataTarget.CreateSnapshotAndAttach(targetProcessId);
-        ClrInfo? clrInfo = target.ClrVersions.FirstOrDefault();
-        if (clrInfo is null)
-        {
-            windowThreadId = 0;
-            return candidates;
-        }
-
-        using ClrRuntime runtime = clrInfo.CreateRuntime();
-        ClrType? mainType = FindType(runtime, "Terraria.Main");
-        ClrThreadStaticField? randomField = mainType?.ThreadStaticFields
-            .FirstOrDefault(field => string.Equals(field.Name, "rand", StringComparison.Ordinal));
-        windowThreadId = GetTerrariaWindowThreadId(targetProcessId);
-        if (randomField is null)
-        {
-            return candidates;
-        }
-
-        foreach (ClrThread thread in runtime.Threads)
-        {
-            if (!thread.IsAlive || !randomField.IsInitialized(thread))
-            {
-                continue;
-            }
-
-            ClrObject random = randomField.ReadObject(thread);
-            if (!TryReadUnifiedRandom(random, out UnifiedRandomState? state) || state is null)
-            {
-                continue;
-            }
-
-            int lastValue = state.Inext <= 55
-                ? state.SeedArray[state.Inext]
-                : 0;
-            int[] recentValues = ReadRecentValues(state);
-            string[] seeds = new string[count];
-            for (int index = 0; index < seeds.Length; index++)
-            {
-                seeds[index] = Next(state).ToString(CultureInfo.InvariantCulture);
-            }
-
-            string[] frames = thread
-                .EnumerateStackTrace(includeContext: false, maxFrames: 32)
-                .Select(frame => frame.Method is null
-                    ? frame.FrameName ?? string.Empty
-                    : $"{frame.Method.Type?.Name}.{frame.Method.Name}")
-                .Where(frame => !string.IsNullOrWhiteSpace(frame))
-                .Take(12)
-                .ToArray();
-            candidates.Add(new RandomSeedCandidateDto(
-                thread.OSThreadId,
-                thread.OSThreadId == windowThreadId,
-                ScoreRandomThread(thread, windowThreadId),
-                lastValue,
-                recentValues,
-                seeds,
-                frames));
-        }
-
-        return candidates
-            .OrderByDescending(candidate => candidate.Score)
-            .ThenBy(candidate => candidate.OsThreadId)
-            .ToArray();
-    }
-
-    private static int[] ReadRecentValues(UnifiedRandomState state)
-    {
-        var values = new int[55];
-        uint index = state.Inext is >= 1 and <= 55 ? state.Inext : 55;
-        for (int offset = 0; offset < values.Length; offset++)
-        {
-            values[offset] = state.SeedArray[index];
-            index = index <= 1 ? 55 : index - 1;
-        }
-
-        return values;
     }
 
     private static int RunVisibleSeed(string[] args)
@@ -1038,21 +913,6 @@ internal sealed record VisibleSeedProbeResponse(
 internal sealed record RandomSeedBatchDto(
     IReadOnlyList<string> Seeds,
     uint OsThreadId);
-
-internal sealed record RandomSeedCandidatesProbeResponse(
-    bool Success,
-    string? Error,
-    uint? WindowThreadId,
-    IReadOnlyList<RandomSeedCandidateDto>? Candidates);
-
-internal sealed record RandomSeedCandidateDto(
-    uint OsThreadId,
-    bool IsWindowThread,
-    int Score,
-    int LastValue,
-    IReadOnlyList<int> RecentValues,
-    IReadOnlyList<string> Seeds,
-    IReadOnlyList<string> Frames);
 
 internal sealed record RandomStateCandidate(
     uint OsThreadId,

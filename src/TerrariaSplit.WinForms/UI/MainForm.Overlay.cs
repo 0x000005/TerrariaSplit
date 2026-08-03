@@ -16,6 +16,11 @@ internal sealed partial class MainForm : Form
         ExecuteAppCommand(AppCommand.ApplyTemporarySettings(appliedSettings));
     }
 
+    private void UpdateRaceSettings(RaceSettings raceSettings)
+    {
+        ExecuteAppCommand(AppCommand.UpdateRaceSettings(raceSettings));
+    }
+
     private void ApplyRouteOverride(SettingsRouteOverridePackage package)
     {
         ExecuteAppCommand(AppCommand.ApplyRouteOverride(package));
@@ -49,6 +54,10 @@ internal sealed partial class MainForm : Form
         ApplyLayeredOverlayWindowStyle();
         ApplyLayoutBounds(useDefaultSize: false, previousSettings, referenceCompositeBounds, resolvedRowCount);
         UpdateContextMenu();
+        BossIconAssetLoader.LoadDefinitions(
+            BossIconAssetRegistry.Shared,
+            splitStatuses.Select(status => status.Definition),
+            appLogger);
         ClearIconCache();
         UpdateConfiguredRefreshIntervals();
         UpdateTimerOverlayRefreshInterval();

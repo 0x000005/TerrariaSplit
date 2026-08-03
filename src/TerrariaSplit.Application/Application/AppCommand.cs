@@ -33,6 +33,8 @@ public abstract record AppCommand
 
     public static AppCommand ApplyTemporarySettings(AppSettings settings) => new ApplyTemporarySettingsCommand(settings);
 
+    public static AppCommand UpdateRaceSettings(RaceSettings settings) => new UpdateRaceSettingsCommand(settings);
+
     public static AppCommand ApplyRouteOverride(SettingsRouteOverridePackage package) =>
         new ApplyRouteOverrideCommand(package);
 
@@ -65,6 +67,8 @@ public sealed record CompleteNextSplitManuallyCommand : AppCommand;
 public sealed record ApplySettingsCommand(AppSettings Settings) : AppCommand;
 
 public sealed record ApplyTemporarySettingsCommand(AppSettings Settings) : AppCommand;
+
+public sealed record UpdateRaceSettingsCommand(RaceSettings Settings) : AppCommand;
 
 public sealed record ApplyRouteOverrideCommand(SettingsRouteOverridePackage Package) : AppCommand;
 

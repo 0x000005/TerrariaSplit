@@ -10,7 +10,7 @@ public sealed class WorldPoolFillService : IDisposable
 {
     private static readonly TimeSpan IdleInterval = TimeSpan.FromSeconds(8);
 
-    private readonly WorldPoolStore store;
+    private readonly IWorldPoolStore store;
     private readonly HeadlessWorldGenerator generator;
     private readonly ISettingsSnapshotFactory settingsSnapshots;
     private readonly IAppLogger logger;
@@ -22,7 +22,7 @@ public sealed class WorldPoolFillService : IDisposable
     private bool loggedMissingServer;
 
     public WorldPoolFillService(
-        WorldPoolStore store,
+        IWorldPoolStore store,
         ISettingsSnapshotFactory settingsSnapshots,
         IAppLogger? logger = null,
         IRuntimeDataPaths? paths = null)
@@ -154,10 +154,10 @@ public sealed class WorldPoolFillService : IDisposable
         {
             if (result.Keep &&
                 IsGenerationStillCurrent(signature) &&
-                store.TryAdd(signature, result.WorldPath, result.Metadata, out WorldPoolEntry entry))
+                store.TryAdd(signature, result.WorldPath, result.Metadata, out WorldPoolItem item))
             {
                 logger.Info(
-                    $"World pool banked world {entry.WorldFileName}; pool now holds " +
+                    $"World pool banked world {item.WorldFileName}; pool now holds " +
                     $"{store.Count(signature)}/{autoCreate.WorldPoolTargetCount}.");
             }
         }

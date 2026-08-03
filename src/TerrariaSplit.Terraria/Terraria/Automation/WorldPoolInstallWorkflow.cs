@@ -2,11 +2,11 @@ namespace TerrariaSplit.Terraria.Automation;
 
 internal sealed class WorldPoolInstallWorkflow
 {
-    private readonly WorldPoolStore? worldPool;
+    private readonly IWorldPoolStore? worldPool;
     private readonly TerrariaWorldFilePyramidScanner worldFileScanner;
 
     public WorldPoolInstallWorkflow(
-        WorldPoolStore? worldPool,
+        IWorldPoolStore? worldPool,
         TerrariaWorldFilePyramidScanner? worldFileScanner = null)
     {
         this.worldPool = worldPool;
@@ -21,23 +21,23 @@ internal sealed class WorldPoolInstallWorkflow
             return WorldPoolInstallResult.NotInstalled();
         }
 
-        while (worldPool.TryPeekFirst(signature, out WorldPoolEntry entry))
+        while (worldPool.TryPeekFirst(signature, out WorldPoolItem item))
         {
-            TerrariaWorldSeedMetadata storedMetadata = entry.ToMetadata();
+            TerrariaWorldSeedMetadata storedMetadata = item.Metadata;
             if (!storedMetadata.MatchesWorldOptions(settings))
             {
                 StaticAppLogger.Instance.Info(
-                    $"World pool discarded world {entry.WorldFileName}: stored metadata " +
+                    $"World pool discarded world {item.WorldFileName}: stored metadata " +
                     $"({storedMetadata.FormatWorldOptions()}) does not match current settings " +
                     $"({TerrariaWorldSeedMetadata.FormatExpectedWorldOptions(settings)}).");
-                worldPool.RemoveFirst(signature, entry);
+                worldPool.RemoveFirst(signature, item);
                 continue;
             }
 
-            if (!worldPool.TryGetWorldPath(entry, out string pooledWorldPath))
+            if (!worldPool.TryGetWorldPath(item, out string pooledWorldPath))
             {
-                StaticAppLogger.Instance.Info($"World pool discarded world {entry.WorldFileName}: pooled world file is missing.");
-                worldPool.RemoveFirst(signature, entry);
+                StaticAppLogger.Instance.Info($"World pool discarded world {item.WorldFileName}: pooled world file is missing.");
+                worldPool.RemoveFirst(signature, item);
                 continue;
             }
 
@@ -46,32 +46,32 @@ internal sealed class WorldPoolInstallWorkflow
                 !actualMetadata.MatchesWorldOptions(settings))
             {
                 StaticAppLogger.Instance.Info(
-                    $"World pool discarded world {entry.WorldFileName}: actual metadata " +
+                    $"World pool discarded world {item.WorldFileName}: actual metadata " +
                     $"({(detail.Length > 0 ? detail : actualMetadata.FormatWorldOptions())}) does not match stored/current settings " +
                     $"({TerrariaWorldSeedMetadata.FormatExpectedWorldOptions(settings)}).");
-                worldPool.RemoveFirst(signature, entry);
+                worldPool.RemoveFirst(signature, item);
                 continue;
             }
 
             string worldsPath = Path.Combine(TerrariaSavePaths.SaveRoot(), "Worlds");
-            if (worldPool.TryInstallWorld(entry, worldsPath, out string installedPath, out string message))
+            if (worldPool.TryInstallWorld(item, worldsPath, out string installedPath, out string message))
             {
                 StaticAppLogger.Instance.Info(
-                    $"Create world automation installed pooled world {entry.WorldFileName} " +
+                    $"Create world automation installed pooled world {item.WorldFileName} " +
                     $"to '{Path.GetFileName(installedPath)}' ({actualMetadata.FormatWorldOptions()}).");
-                return WorldPoolInstallResult.Installed(entry);
+                return WorldPoolInstallResult.Installed(item);
             }
 
-            StaticAppLogger.Instance.Info($"Create world automation could not install pooled world {entry.WorldFileName}: {message}");
+            StaticAppLogger.Instance.Info($"Create world automation could not install pooled world {item.WorldFileName}: {message}");
             return WorldPoolInstallResult.Failed(
                 "Could not install a pooled Terraria world.",
-                $"Create world automation could not install pooled world {entry.WorldFileName}: {message}");
+                $"Create world automation could not install pooled world {item.WorldFileName}: {message}");
         }
 
         return WorldPoolInstallResult.NotInstalled();
     }
 
-    public void RemoveInstalled(string signature, WorldPoolEntry installedWorld)
+    public void RemoveInstalled(string signature, WorldPoolItem installedWorld)
     {
         worldPool?.RemoveFirst(signature, installedWorld);
     }
@@ -79,7 +79,7 @@ internal sealed class WorldPoolInstallWorkflow
 
 internal readonly record struct WorldPoolInstallResult(
     bool Succeeded,
-    WorldPoolEntry? InstalledWorld,
+    WorldPoolItem? InstalledWorld,
     string UserMessage,
     string DiagnosticMessage)
 {
@@ -88,7 +88,7 @@ internal readonly record struct WorldPoolInstallResult(
         return new WorldPoolInstallResult(true, null, string.Empty, string.Empty);
     }
 
-    public static WorldPoolInstallResult Installed(WorldPoolEntry installedWorld)
+    public static WorldPoolInstallResult Installed(WorldPoolItem installedWorld)
     {
         return new WorldPoolInstallResult(true, installedWorld, string.Empty, string.Empty);
     }

@@ -2,63 +2,65 @@ namespace TerrariaSplit.Application;
 
 internal sealed class RunLifecycleController
 {
-    private readonly IRunStatisticsRecorder runStatisticsRecorder;
-    private readonly RunFinalizer runFinalizer;
+    private readonly RunFinalizer runFinalizer = new();
     private bool runStatsRecorded;
-
-    public RunLifecycleController(
-        IRunStatisticsRecorder? runStatisticsRecorder = null,
-        IPersonalBestSnapshotStore? personalBestSnapshotStore = null)
-    {
-        this.runStatisticsRecorder = runStatisticsRecorder ?? NullRunStatisticsRecorder.Instance;
-        runFinalizer = new RunFinalizer(this.runStatisticsRecorder, personalBestSnapshotStore);
-    }
+    private long nextPersonalBestPlanId;
 
     public void MarkRunStarted()
     {
         runStatsRecorded = false;
     }
 
-    public RunFinalizationResult Reset(
+    public RunFinalizationRequest Reset(
         AppSettings settings,
         IReadOnlyList<SplitStatusSnapshot> statuses,
-        bool recordStats,
-        Func<string, bool> confirmPersonalBestUpdate)
+        bool recordStats)
     {
-        return Reset(settings, settings, statuses, recordStats, confirmPersonalBestUpdate);
+        return Reset(settings, settings, statuses, recordStats);
     }
 
-    public RunFinalizationResult Reset(
+    public RunFinalizationRequest Reset(
         AppSettings routeSettings,
         AppSettings updateTargetSettings,
         IReadOnlyList<SplitStatusSnapshot> statuses,
-        bool recordStats,
-        Func<string, bool> confirmPersonalBestUpdate)
+        bool recordStats)
     {
-        RunFinalizationResult result = RunFinalizationResult.NoChanges;
-        if (recordStats)
+        if (!recordStats)
         {
-            result = runFinalizer.Finalize(
-                routeSettings,
-                updateTargetSettings,
-                statuses,
-                runStatsRecorded,
-                confirmPersonalBestUpdate);
-            runStatsRecorded = true;
+            runStatsRecorded = false;
+            return RunFinalizationRequest.None;
         }
 
+        bool shouldRecordStatistics = !runStatsRecorded;
+        runStatsRecorded = true;
+        PersonalBestFinalizationPlan? personalBestPlan = runFinalizer.CreatePersonalBestPlan(
+            ++nextPersonalBestPlanId,
+            routeSettings,
+            updateTargetSettings,
+            statuses);
+
         runStatsRecorded = false;
-        return result;
+        return new RunFinalizationRequest(
+            shouldRecordStatistics ? [.. statuses] : [],
+            personalBestPlan);
     }
 
-    public void RecordRunStatsOnce(IReadOnlyList<SplitStatusSnapshot> statuses)
+    public IReadOnlyList<SplitStatusSnapshot>? CaptureRunStatisticsOnce(
+        IReadOnlyList<SplitStatusSnapshot> statuses)
     {
         if (runStatsRecorded)
         {
-            return;
+            return null;
         }
 
-        runStatisticsRecorder.RecordRun(statuses);
         runStatsRecorded = true;
+        return [.. statuses];
     }
+}
+
+internal sealed record RunFinalizationRequest(
+    IReadOnlyList<SplitStatusSnapshot> Statistics,
+    PersonalBestFinalizationPlan? PersonalBestPlan)
+{
+    public static RunFinalizationRequest None { get; } = new([], null);
 }

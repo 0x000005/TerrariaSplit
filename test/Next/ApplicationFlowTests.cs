@@ -5,18 +5,18 @@ internal static class ApplicationFlowTests
     public static IEnumerable<TestCase> All()
     {
         yield return TestCase.Sync("application commands coordinate settings, runtime effects and full display invalidation", TestSuite.Flow, CommandJourney);
-        yield return TestCase.Sync("race, job and display events update system state and target only relevant views", TestSuite.Flow, SystemEventJourney);
+        yield return TestCase.Sync("race events update system state and target only relevant views", TestSuite.Flow, SystemEventJourney);
         yield return TestCase.Sync("world-entry transition facts cannot skip or complete a split", TestSuite.Flow, WorldEntryTransitionFacts);
         yield return TestCase.Sync("manual split starts an idle run without completing a split", TestSuite.Flow, ManualSplitStartsIdleRun);
         yield return TestCase.Sync("manual split completes exactly one advanced split at the timer time without inventing conditions", TestSuite.Flow, ManualSplitJourney);
+        yield return TestCase.Sync("run finalization emits persistence effects and commits personal best settings only after every snapshot succeeds", TestSuite.Flow, RunFinalizationJourney);
     }
 
     private static void CommandJourney()
     {
-        using var directory = new TestDirectory();
-        var repository = new AppSettingsRepository(new AppContextRuntimeDataPaths(directory.Path));
         AppSettings settings = AppSettingsDefaults.Create();
-        var controller = new ApplicationController(settings, _ => true, new StoredSettingsSnapshotFactory(repository));
+        var settingsSnapshots = new SettingsSnapshotFactory();
+        var controller = new ApplicationController(settings, settingsSnapshots);
         Check.False(controller.SystemState.Race.IsModeEnabled);
 
         ApplicationUpdate idlePause = controller.HandleSystemEvent(new ControlCommandSystemEvent(AppCommand.TogglePause()));
@@ -34,21 +34,38 @@ internal static class ApplicationFlowTests
         Check.True(cheats.Effects.OfType<SaveSettingsEffect>().Any());
         Check.True(cheats.Effects.OfType<ApplySettingsToShellEffect>().Any());
 
-        AppSettings changed = repository.Clone(controller.Settings);
+        AppSettings changed = settingsSnapshots.CreateSnapshot(controller.Settings);
         changed.General.AlwaysOnTop = !changed.General.AlwaysOnTop;
         ApplicationUpdate applied = controller.HandleSystemEvent(new ControlCommandSystemEvent(AppCommand.ApplySettings(changed)));
         Check.Equal(changed.General.AlwaysOnTop, controller.Settings.General.AlwaysOnTop);
         Check.True(applied.Effects.OfType<SaveSettingsEffect>().Any());
         Check.True(applied.Effects.OfType<SubmitRuntimeCommandEffect>().Count() >= 2);
         Check.True(applied.DisplayInvalidations.Any(item => item.Level == DisplayRefreshLevel.FullRebuild));
+
+        RuntimeRunSnapshot runtimeBeforeRaceUpdate = controller.ViewState.RuntimeSnapshot;
+        RaceSettings raceSettings = AppSettingsCloner.CloneRaceSettings(controller.BaseSettings.Race);
+        raceSettings.Nickname = "command-owned-race-settings";
+        ApplicationUpdate raceUpdate = controller.HandleSystemEvent(new ControlCommandSystemEvent(
+            AppCommand.UpdateRaceSettings(raceSettings)));
+        raceSettings.Nickname = "mutated-after-dispatch";
+
+        Check.Equal("command-owned-race-settings", controller.BaseSettings.Race.Nickname);
+        Check.Equal("command-owned-race-settings", controller.Settings.Race.Nickname);
+        Check.True(ReferenceEquals(runtimeBeforeRaceUpdate, controller.ViewState.RuntimeSnapshot));
+        Check.Equal(1, raceUpdate.Effects.OfType<SaveSettingsEffect>().Count());
+        Check.Equal(0, raceUpdate.Effects.OfType<SubmitRuntimeCommandEffect>().Count());
+        DisplayInvalidation raceInvalidation = raceUpdate.DisplayInvalidations.Single();
+        Check.Equal(DisplayRefreshLevel.DisplaySettings, raceInvalidation.Level);
+        Check.Equal(
+            DisplayInvalidationTarget.RaceLeaderboard | DisplayInvalidationTarget.TimerOverlay,
+            raceInvalidation.Targets);
     }
 
     private static void SystemEventJourney()
     {
-        using var directory = new TestDirectory();
-        var repository = new AppSettingsRepository(new AppContextRuntimeDataPaths(directory.Path));
         AppSettings settings = AppSettingsDefaults.Create();
-        var controller = new ApplicationController(settings, _ => true, new StoredSettingsSnapshotFactory(repository));
+        var settingsSnapshots = new SettingsSnapshotFactory();
+        var controller = new ApplicationController(settings, settingsSnapshots);
         Check.False(controller.SystemState.Race.IsModeEnabled);
 
         ApplicationUpdate createBeforeRace = controller.HandleSystemEvent(new ControlCommandSystemEvent(
@@ -63,7 +80,7 @@ internal static class ApplicationFlowTests
             .OfType<SubmitRuntimeCommandEffect>()
             .Any(effect => effect.Command.Kind == RuntimeCommandKind.ClearPendingMenuActions));
 
-        AppSettings changedRaceSettings = repository.Clone(controller.Settings);
+        AppSettings changedRaceSettings = settingsSnapshots.CreateSnapshot(controller.Settings);
         changedRaceSettings.General.AlwaysOnTop = !changedRaceSettings.General.AlwaysOnTop;
         bool raceAlwaysOnTop = controller.Settings.General.AlwaysOnTop;
         AppCommand[] modeRestrictedCommands =
@@ -115,8 +132,6 @@ internal static class ApplicationFlowTests
         ApplicationUpdate progress = controller.HandleSystemEvent(new RaceProgressSystemEvent("room"));
         Check.Equal(DisplayInvalidationTarget.RaceLeaderboard, progress.DisplayInvalidations.Single().Targets);
 
-        controller.HandleSystemEvent(new JobProgressSystemEvent("world", 140));
-        Check.Equal(100, controller.SystemState.Jobs.ProgressPercent);
         controller.HandleSystemEvent(new RaceRosterSystemEvent("ROOM", IsInRoom: false));
         Check.False(controller.SystemState.Race.IsInRoom);
         Check.True(controller.SystemState.Race.IsModeEnabled);
@@ -129,8 +144,6 @@ internal static class ApplicationFlowTests
         ApplicationUpdate createWorld = controller.HandleSystemEvent(new ControlCommandSystemEvent(
             AppCommand.QueueMenuAction(MenuActionKind.CreateWorld, DateTime.UtcNow)));
         Check.True(createWorld.Effects.OfType<SubmitRuntimeCommandEffect>().Any());
-        controller.HandleSystemEvent(new DisplaySystemEvent(DisplayInvalidation.For(DisplayRefreshLevel.Frame, DisplayInvalidationTarget.TimerOverlay)));
-        Check.Equal(DisplayInvalidationTarget.TimerOverlay, controller.SystemState.Display.ActiveTargets);
     }
 
     private static void WorldEntryTransitionFacts()
@@ -314,6 +327,103 @@ internal static class ApplicationFlowTests
         Check.Equal(TimeSpan.FromSeconds(2), splitTick.Snapshot.Statuses[0].Time);
         Check.True(splitTick.Snapshot.Statuses[0].IsManuallyCompleted);
         Check.Equal(1, splitTick.Snapshot.CurrentSplitIndex);
+    }
+
+    private static void RunFinalizationJourney()
+    {
+        AppSettings settings = AppSettingsDefaults.Create();
+        settings.Route.SplitRoute =
+        [
+            new SplitRouteEntry
+            {
+                Id = "finalization-test",
+                DisplayName = "Finalization Test",
+                Condition = SplitCondition.Fact("event:finalization-test")
+            }
+        ];
+        settings.Comparison.AutoUpdatePersonalBestData = true;
+        settings.Comparison.AskBeforeUpdatingPersonalBestData = true;
+        SettingsNormalizer.Normalize(settings);
+
+        var controller = new ApplicationController(settings, new SettingsSnapshotFactory());
+        SplitDefinition definition = controller.Definitions.Single();
+        var completedStatus = new SplitStatusSnapshot(
+            definition,
+            TimeSpan.FromSeconds(5),
+            IsSkipped: false,
+            CompletedFactKeys: ["event:finalization-test"]);
+        PublishRuntimeStatuses(controller, [completedStatus]);
+
+        ApplicationUpdate reset = controller.HandleSystemEvent(new ControlCommandSystemEvent(
+            AppCommand.ResetRun(recordStats: true, playResetSound: false)));
+        Check.Equal(1, reset.Effects.OfType<RecordRunStatisticsEffect>().Count());
+        FinalizePersonalBestEffect failedPersistence = reset.Effects.OfType<FinalizePersonalBestEffect>().Single();
+        Check.True(failedPersistence.Plan.RequiresConfirmation);
+        Check.True(failedPersistence.Plan.SegmentSnapshot is not null);
+        string segmentKey = failedPersistence.Plan.SegmentBestValues!.Keys.Single();
+        string originalSegmentValue = controller.BaseSettings.Comparison.PersonalBestSegmentTimes[segmentKey];
+
+        OperationResult snapshotFailure = OperationResult.Failure("Injected personal best snapshot failure.");
+        ApplicationUpdate failed = controller.HandleSystemEvent(new PersonalBestFinalizationSystemEvent(
+            new PersonalBestFinalizationResult(
+                failedPersistence.Plan.PlanId,
+                Approved: true,
+                SegmentSnapshot: null,
+                TimeSnapshot: null,
+                Failures: [snapshotFailure])));
+        Check.Equal(originalSegmentValue, controller.BaseSettings.Comparison.PersonalBestSegmentTimes[segmentKey]);
+        Check.Equal(0, failed.Effects.OfType<SaveSettingsEffect>().Count());
+        Check.Equal(1, failed.Effects.OfType<ShowPersistenceFailureEffect>().Count());
+
+        PublishRuntimeStatuses(controller, [completedStatus]);
+        ApplicationUpdate retryReset = controller.HandleSystemEvent(new ControlCommandSystemEvent(
+            AppCommand.ResetRun(recordStats: true, playResetSound: false)));
+        FinalizePersonalBestEffect successfulPersistence =
+            retryReset.Effects.OfType<FinalizePersonalBestEffect>().Single();
+        PersonalBestSnapshotRequest request = successfulPersistence.Plan.SegmentSnapshot!;
+        var snapshot = new ReferenceSplitSet
+        {
+            Name = "Finalization_Test_Snapshot",
+            Splits = new Dictionary<string, string>(
+                request.Splits,
+                StringComparer.OrdinalIgnoreCase)
+        };
+        ApplicationUpdate succeeded = controller.HandleSystemEvent(new PersonalBestFinalizationSystemEvent(
+            new PersonalBestFinalizationResult(
+                successfulPersistence.Plan.PlanId,
+                Approved: true,
+                snapshot,
+                TimeSnapshot: null,
+                Failures: [])));
+
+        Check.Equal(
+            successfulPersistence.Plan.SegmentBestValues![segmentKey],
+            controller.BaseSettings.Comparison.PersonalBestSegmentTimes[segmentKey]);
+        Check.Equal(snapshot.Name, controller.BaseSettings.Comparison.ActivePersonalBestSegmentSet);
+        Check.Equal(1, succeeded.Effects.OfType<SaveSettingsEffect>().Count());
+        Check.True(succeeded.DisplayInvalidations.Any(
+            item => item.Level == DisplayRefreshLevel.SplitProgress));
+    }
+
+    private static void PublishRuntimeStatuses(
+        ApplicationController controller,
+        IReadOnlyList<SplitStatusSnapshot> statuses)
+    {
+        var runtimeSnapshot = new RuntimeRunSnapshot(
+            new SplitTimerState(SplitTimerPhase.Paused, TimeSpan.FromSeconds(5), 0),
+            statuses,
+            statuses.Count,
+            ObservedTimestamp: 0,
+            StatusHash: 1);
+        controller.HandleSystemEvent(new RuntimeWatcherSystemEvent(new WatcherPollNotification(
+            Snapshot(CoreAndRunTests.Facts(("event:finalization-test", true))),
+            Snapshot(CoreAndRunTests.Facts(("event:finalization-test", false))),
+            TerrariaSplit.Application.Diagnostics.TerrariaWatcherDiagnosticsDefaults.Empty,
+            runtimeSnapshot,
+            RunEvents: [],
+            RuntimeCommandSequence: controller.MinimumAcceptedRuntimeCommandSequence,
+            CompletedTimestamp: 0,
+            Error: null)));
     }
 
     private static TerrariaWatchSnapshot Snapshot(

@@ -50,30 +50,15 @@ public sealed record RaceRosterSystemEvent(string RoomCode, bool IsInRoom = true
 
 public sealed record RaceModeSystemEvent(bool Enabled) : SystemEvent;
 
-public sealed record JobProgressSystemEvent(string JobKey, int ProgressPercent) : SystemEvent;
+public sealed record PersonalBestFinalizationSystemEvent(PersonalBestFinalizationResult Result) : SystemEvent;
 
-public sealed record DisplaySystemEvent(DisplayInvalidation Invalidation) : SystemEvent;
-
-public sealed record SystemState(
-    AppSettings Settings,
-    IReadOnlyList<SplitDefinition> Definitions,
-    ApplicationViewState ViewState,
-    RaceSystemState Race,
-    JobSystemState Jobs,
-    DisplaySystemState Display);
+public sealed record SystemState(RaceSystemState Race);
 
 public sealed record RaceSystemState(
     bool IsInRoom = false,
     string RoomCode = "",
     string PackageRevision = "",
     bool IsModeEnabled = false);
-
-public sealed record JobSystemState(
-    string ActiveJobKey = "",
-    int ProgressPercent = 0);
-
-public sealed record DisplaySystemState(
-    DisplayInvalidationTarget ActiveTargets = DisplayInvalidationTarget.All);
 
 public sealed record ApplicationUpdate(
     IReadOnlyList<ApplicationEffect> Effects,

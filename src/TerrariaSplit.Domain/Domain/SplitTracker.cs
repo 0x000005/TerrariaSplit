@@ -72,14 +72,37 @@ public sealed class SplitTracker
         {
             for (int i = index - 1; i >= 0; i--)
             {
-                if (statuses[i].Time is TimeSpan previousTime && value < previousTime)
+                if (statuses[i].Time is not TimeSpan previousTime)
                 {
-                    statuses[i].SetTime(value);
+                    continue;
                 }
+
+                adjustedTime = value < previousTime ? previousTime : value;
+                break;
             }
         }
 
         statuses[index].SetTime(adjustedTime);
+        if (adjustedTime is TimeSpan minimumTime)
+        {
+            for (int i = index + 1; i < statuses.Count; i++)
+            {
+                if (statuses[i].Time is not TimeSpan laterTime)
+                {
+                    continue;
+                }
+
+                if (laterTime < minimumTime)
+                {
+                    statuses[i].SetTime(minimumTime);
+                }
+                else
+                {
+                    minimumTime = laterTime;
+                }
+            }
+        }
+
         currentIndex = FindNextActiveIndex();
 
         return adjustedTime;

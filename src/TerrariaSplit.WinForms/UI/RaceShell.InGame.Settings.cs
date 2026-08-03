@@ -62,27 +62,12 @@ internal sealed partial class RaceShell
                     : RacePanelWorldSource.Random
         });
 
-        try
-        {
-            AppSettings next = settingsSnapshots.CreateSnapshot(getBaseSettings());
-            next.Race ??= new RaceSettings();
-            next.Race.WorldSetup = CloneWorldSetup(normalized);
-            OperationResult result = saveSettings(next);
-            if (!result.Succeeded)
+        settingsCoordinator.Update(
+            "Race world settings update",
+            next =>
             {
-                logger.Info("Race world settings save failed: " + result.Message);
-                return;
-            }
-
-            getBaseSettings().Race ??= new RaceSettings();
-            getBaseSettings().Race.WorldSetup = CloneWorldSetup(normalized);
-            getSettings().Race ??= new RaceSettings();
-            getSettings().Race.WorldSetup = CloneWorldSetup(normalized);
-        }
-        catch (Exception ex)
-        {
-            logger.Error(ex, "Race world settings save failed.");
-        }
+                next.WorldSetup = CloneWorldSetup(normalized);
+            });
     }
 
     private void ToggleSpecialSeed(string seed)

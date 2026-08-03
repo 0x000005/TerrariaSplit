@@ -11,6 +11,7 @@ internal static class WindowsFlowTests
         yield return TestCase.Async("all-icons mode exposes per-target optional files and preserves them across mode changes", TestSuite.Windows, AllIconFilesJourney);
         yield return TestCase.Sync("overlay restores a visible multi-monitor position and keeps dense layouts inside composite bounds", TestSuite.Windows, OverlayLayoutJourney);
         yield return TestCase.Sync("timer reserves stable proportional-font slots for milliseconds and indicators", TestSuite.Windows, TimerProportionalFontLayoutJourney);
+        yield return TestCase.Sync("rendering color effects and icons use deterministic render resources", TestSuite.Windows, RenderingResourceJourney);
         yield return TestCase.Sync("expanded current condition follows early delta timing after a prior condition completes", TestSuite.Windows, ExpandedConditionEarlyDeltaJourney);
         yield return TestCase.Sync("cheat filter indicator uses yellow orange and red priority", TestSuite.Core, CheatFilterIndicatorPriority);
         yield return TestCase.Sync("hotkey settings normalize modifiers and fall back when keys are unsafe", TestSuite.Windows, HotkeyJourney);
@@ -564,6 +565,50 @@ internal static class WindowsFlowTests
 
         Check.Equal(narrowDigits.Milliseconds.Bounds.X, wideDigits.Milliseconds.Bounds.X);
         Check.Equal(narrowDigits.Indicator.Bounds.X, wideDigits.Indicator.Bounds.X);
+    }
+
+    private static void RenderingResourceJourney()
+    {
+        Color baseColor = Color.FromArgb(40, 80, 120);
+        Check.Equal(
+            baseColor.ToArgb(),
+            SegmentBestDeltaHighlightColorMath.Apply(
+                baseColor,
+                SegmentBestDeltaHighlightStyles.None,
+                seconds: 12.5).ToArgb());
+        Check.True(
+            SegmentBestDeltaHighlightColorMath.Apply(
+                baseColor,
+                SegmentBestDeltaHighlightStyles.Rainbow,
+                seconds: 1.25).ToArgb() != baseColor.ToArgb());
+        Check.True(
+            SplitCompletionOutlineColorPalette.GetColors(
+                    SplitCompletionOutlineStyles.Aurora,
+                    seconds: 2.5)
+                .All(color => color.A > 0));
+
+        byte[] iconData;
+        using (var source = new Bitmap(3, 2))
+        using (var stream = new MemoryStream())
+        {
+            source.SetPixel(1, 1, Color.CornflowerBlue);
+            source.Save(stream, System.Drawing.Imaging.ImageFormat.Png);
+            iconData = stream.ToArray();
+        }
+
+        var definition = new SplitDefinition(
+            "split:memory-icon",
+            "Memory icon",
+            SplitCondition.All([]),
+            ["not-on-disk.png"],
+            ["memory-icon"],
+            ["memory-icon"]);
+        var assets = new BossIconAssetRegistry();
+        assets.RegisterOverride(definition, 0, "memory:test-icon", iconData);
+        using var cache = new BossIconCache(assets);
+        IconPair icon = cache.Load(definition, 0, AppSettingsDefaults.Create());
+        Check.Equal(3, icon.Lit.Width);
+        Check.Equal(2, icon.Lit.Height);
     }
 
     private static void ExpandedConditionEarlyDeltaJourney()

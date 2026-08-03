@@ -345,7 +345,7 @@ internal sealed partial class AnimationSettingsPage : SettingsPageBase
         for (int i = 0; i < columns; i++)
         {
             var rect = new Rectangle(bounds.Left + i * bounds.Width / columns, bounds.Top, bounds.Width / columns, bounds.Height);
-            Color color = SegmentBestDeltaHighlightStyles.Apply(baseColors[i], previewSegmentBestDeltaHighlightStyle, seconds);
+            Color color = SegmentBestDeltaHighlightColorMath.Apply(baseColors[i], previewSegmentBestDeltaHighlightStyle, seconds);
             using var brush = new SolidBrush(color);
             graphics.DrawString(texts[i], font, brush, rect, format);
         }
@@ -403,7 +403,7 @@ internal sealed partial class AnimationSettingsPage : SettingsPageBase
         RectangleF pathBounds = path.GetBounds();
         RectangleF gradientBounds = TextEffectGeometry.InflateBounds(pathBounds, Math.Max(4f, font.Size * 0.35f));
         using var outlineBrush = new LinearGradientBrush(gradientBounds, Color.White, Color.White, LinearGradientMode.Horizontal);
-        Color[] colors = SplitCompletionOutlineStyles.GetColors(normalized, Environment.TickCount64 / 1000.0);
+        Color[] colors = SplitCompletionOutlineColorPalette.GetColors(normalized, Environment.TickCount64 / 1000.0);
         outlineBrush.InterpolationColors = new ColorBlend
         {
             Positions = TextEffectGeometry.CreateColorPositions(colors.Length),

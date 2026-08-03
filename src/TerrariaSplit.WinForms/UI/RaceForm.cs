@@ -60,6 +60,7 @@ internal sealed class RaceForm : Form
     }
 
     private readonly IRacePanelShell shell;
+    private readonly RaceHostWorldActionCoordinator hostWorldActions;
     private readonly SettingsUiFactory uiFactory;
     private readonly SettingsDialogService dialogs;
     private readonly Button raceModeButton;
@@ -126,7 +127,6 @@ internal sealed class RaceForm : Form
     private TableLayoutPanel? statusPlayerList;
     private CancellationTokenSource? hostWorldActionCancellation;
     private RacePanelWorldSource hostWorldActionSource;
-    private string? hostWorldActionWorldPath;
     private bool hostWorldActionCancelRequested;
     private bool hostWorldUploaded;
     private bool startRaceRunning;
@@ -146,6 +146,7 @@ internal sealed class RaceForm : Form
     public RaceForm(IRacePanelShell shell)
     {
         this.shell = shell;
+        hostWorldActions = new RaceHostWorldActionCoordinator(shell);
         RacePanelDraftState draftState = shell.DraftState;
         leaderboardSettings = CloneLeaderboardSettings(shell.LeaderboardSettings);
         voiceSettings = CloneVoiceSettings(shell.VoiceSettings);
@@ -362,7 +363,7 @@ internal sealed class RaceForm : Form
         if (disposing)
         {
             hostWorldActionCancellation?.Cancel();
-            _ = shell.CancelWorldGenerationAsync();
+            _ = hostWorldActions.CancelAsync();
             hostWorldActionCancellation?.Dispose();
             titleBarToolTip.Dispose();
         }
@@ -2149,35 +2150,72 @@ internal sealed class RaceForm : Form
     {
         RacePanelWorldSource worldSource = selectedWorldSource;
         RaceWorldSettings worldSettings = BuildUploadWorldSettings(worldSource);
-        if (worldSource != RacePanelWorldSource.ExistingFile &&
-            !RaceWorldSettingsFactory.HasCompatibleJourneyDifficulties(worldSettings))
-        {
-            ShowWorldUploadFailure(RaceOperationResult<RaceRoomState>.Failure(
-                "invalid_world_settings",
-                Localize("Journey player difficulty and Journey world difficulty must be selected together.")));
-            return;
-        }
+        var request = new RaceHostWorldActionRequest(
+            worldSource,
+            worldSettings,
+            serverBox.Text,
+            nicknameBox.Text,
+            seedBox.Text,
+            worldPathBox.Text);
 
         using var cancellation = new CancellationTokenSource();
         hostWorldActionCancellation = cancellation;
         hostWorldActionCancelRequested = false;
         hostWorldActionSource = worldSource;
-        hostWorldActionWorldPath = null;
         ApplyHostWorldActionButtonState(HostWorldActionButtonState.Running);
         UpdateConnectionInputLockState();
         try
         {
             PersistDraftState();
-            await HandleHostWorldActionAsync(cancellation.Token, hostWorldActionSource, worldSettings);
+            int progressVersion = StartHostWorldProgress();
+            var progress = new Progress<int>(value => HandleHostWorldProgressReport(progressVersion, value));
+            RaceHostWorldActionResult result = await hostWorldActions.ExecuteAsync(
+                request,
+                progress,
+                cancellation.Token);
+            cancellation.Token.ThrowIfCancellationRequested();
+            if (result.Succeeded)
+            {
+                worldPathBox.Text = result.WorldPath;
+                hostWorldUploaded = true;
+                CompleteHostWorldProgress(100);
+            }
+            else
+            {
+                if (worldSource != RacePanelWorldSource.ExistingFile)
+                {
+                    worldPathBox.Text = string.Empty;
+                }
+
+                ResetHostWorldProgress();
+                ShowHostWorldActionFailure(result);
+            }
+
             PersistDraftState();
         }
         catch (OperationCanceledException)
         {
-            await CleanupCancelledHostWorldActionAsync();
+            if (hostWorldActionSource != RacePanelWorldSource.ExistingFile)
+            {
+                worldPathBox.Text = string.Empty;
+            }
+
+            ResetHostWorldProgress();
         }
         catch (Exception ex)
         {
-            await CleanupFailedHostWorldActionAsync(ex);
+            if (hostWorldActionSource != RacePanelWorldSource.ExistingFile)
+            {
+                worldPathBox.Text = string.Empty;
+            }
+
+            ResetHostWorldProgress();
+            string detail = string.IsNullOrWhiteSpace(ex.Message)
+                ? ex.GetType().Name
+                : ex.Message;
+            ShowWorldUploadFailure(RaceOperationResult<RaceRoomState>.Failure(
+                "world_upload_failed",
+                detail));
         }
         finally
         {
@@ -2187,7 +2225,6 @@ internal sealed class RaceForm : Form
             }
 
             hostWorldActionCancelRequested = false;
-            hostWorldActionWorldPath = null;
             ApplyHostWorldActionButtonState(HostWorldActionButtonState.Idle);
             UpdateConnectionInputLockState();
         }
@@ -2204,144 +2241,22 @@ internal sealed class RaceForm : Form
         hostWorldActionCancellation.Cancel();
         ApplyHostWorldActionButtonState(HostWorldActionButtonState.Cancelling);
         UpdateConnectionInputLockState();
-        await shell.CancelWorldGenerationAsync();
+        await hostWorldActions.CancelAsync();
     }
 
-    private async Task CleanupCancelledHostWorldActionAsync()
+    private void ShowHostWorldActionFailure(RaceHostWorldActionResult result)
     {
-        if (hostWorldActionSource != RacePanelWorldSource.ExistingFile)
+        if (result.FailureKind == RaceHostWorldActionFailureKind.Generation)
         {
-            string worldPath = !string.IsNullOrWhiteSpace(hostWorldActionWorldPath)
-                ? hostWorldActionWorldPath
-                : shell.LocalWorldPath ?? worldPathBox.Text;
-            if (!string.IsNullOrWhiteSpace(worldPath))
-            {
-                await shell.DiscardLocalWorldAsync(worldPath);
-                worldPathBox.Text = string.Empty;
-            }
+            ShowWorldGenerationFailure(RacePanelWorldGenerationResult.Failure(result.Message));
+            return;
         }
 
-        ResetHostWorldProgress();
-    }
-
-    private async Task CleanupFailedHostWorldActionAsync(Exception exception)
-    {
-        if (hostWorldActionSource != RacePanelWorldSource.ExistingFile)
-        {
-            string worldPath = !string.IsNullOrWhiteSpace(hostWorldActionWorldPath)
-                ? hostWorldActionWorldPath
-                : shell.LocalWorldPath ?? worldPathBox.Text;
-            if (!string.IsNullOrWhiteSpace(worldPath))
-            {
-                await shell.DiscardLocalWorldAsync(worldPath);
-                worldPathBox.Text = string.Empty;
-            }
-        }
-
-        ResetHostWorldProgress();
-        string detail = string.IsNullOrWhiteSpace(exception.Message)
-            ? exception.GetType().Name
-            : exception.Message;
         ShowWorldUploadFailure(RaceOperationResult<RaceRoomState>.Failure(
-            "world_upload_failed",
-            detail));
-    }
-
-    private async Task HandleHostWorldActionAsync(
-        CancellationToken cancellationToken,
-        RacePanelWorldSource worldSource,
-        RaceWorldSettings worldSettings)
-    {
-        int progressVersion = StartHostWorldProgress();
-        var generationProgress = new Progress<int>(value => HandleHostWorldProgressReport(progressVersion, value));
-        if (worldSource == RacePanelWorldSource.Random)
-        {
-            worldPathBox.Text = string.Empty;
-            RacePanelWorldGenerationResult generation =
-                await shell.GenerateRandomWorldAsync(worldSettings, generationProgress);
-            cancellationToken.ThrowIfCancellationRequested();
-            SyncLocalWorldPath();
-            if (!generation.Succeeded)
-            {
-                ResetHostWorldProgress();
-                ShowWorldGenerationFailure(generation);
-                return;
-            }
-
-            if (string.IsNullOrWhiteSpace(shell.LocalWorldPath))
-            {
-                ResetHostWorldProgress();
-                ShowWorldGenerationFailure(RacePanelWorldGenerationResult.Failure(
-                    Localize("World generation completed without a world file.")));
-                return;
-            }
-
-            hostWorldActionWorldPath = shell.LocalWorldPath;
-            SetHostWorldProgress(progressVersion, 90);
-        }
-        else if (worldSource == RacePanelWorldSource.CustomSeed)
-        {
-            worldPathBox.Text = string.Empty;
-            RacePanelWorldGenerationResult generation =
-                await shell.GenerateCustomSeedWorldAsync(worldSettings, seedBox.Text, generationProgress);
-            cancellationToken.ThrowIfCancellationRequested();
-            SyncLocalWorldPath();
-            if (!generation.Succeeded)
-            {
-                ResetHostWorldProgress();
-                ShowWorldGenerationFailure(generation);
-                return;
-            }
-
-            if (string.IsNullOrWhiteSpace(shell.LocalWorldPath))
-            {
-                ResetHostWorldProgress();
-                ShowWorldGenerationFailure(RacePanelWorldGenerationResult.Failure(
-                    Localize("World generation completed without a world file.")));
-                return;
-            }
-
-            hostWorldActionWorldPath = shell.LocalWorldPath;
-            SetHostWorldProgress(progressVersion, 90);
-        }
-
-        string uploadWorldPath = worldPathBox.Text;
-        if (!RaceWorldFileValidator.IsValidWorldFilePath(uploadWorldPath))
-        {
-            ResetHostWorldProgress();
-            ShowWorldUploadFailure(RaceOperationResult<RaceRoomState>.Failure(
-                "world_upload_required",
-                "A valid world file is required."));
-            return;
-        }
-
-        IProgress<int> uploadProgress = CreateHostUploadProgress(worldSource, progressVersion);
-        RaceOperationResult<RaceRoomState> upload = await shell.UploadWorldAsync(
-            serverBox.Text,
-            nicknameBox.Text,
-            uploadWorldPath,
-            worldSettings,
-            seedBox.Text,
-            uploadProgress,
-            cancellationToken);
-        if (upload.Succeeded)
-        {
-            hostWorldActionWorldPath = null;
-            hostWorldUploaded = true;
-            CompleteHostWorldProgress(100);
-            return;
-        }
-
-        cancellationToken.ThrowIfCancellationRequested();
-
-        if (worldSource != RacePanelWorldSource.ExistingFile)
-        {
-            await shell.DiscardLocalWorldAsync(uploadWorldPath);
-            worldPathBox.Text = string.Empty;
-        }
-
-        ResetHostWorldProgress();
-        ShowWorldUploadFailure(upload);
+            result.ErrorCode,
+            result.FailureKind == RaceHostWorldActionFailureKind.InvalidSettings
+                ? Localize(result.Message)
+                : result.Message));
     }
 
     private void HandleHostWorldProgressReport(int progressVersion, int value)
@@ -2358,48 +2273,7 @@ internal sealed class RaceForm : Form
         }
 
         int clamped = Math.Clamp(value, 0, 100);
-        if (clamped == 0)
-        {
-            SetHostWorldProgress(progressVersion, 0);
-            return;
-        }
-
-        if (clamped >= 90)
-        {
-            SetHostWorldProgress(progressVersion, 90);
-            return;
-        }
-
         SetHostWorldProgress(progressVersion, clamped);
-    }
-
-    private IProgress<int> CreateHostUploadProgress(RacePanelWorldSource worldSource, int progressVersion)
-    {
-        return new Progress<int>(value => HandleHostUploadProgressReport(worldSource, progressVersion, value));
-    }
-
-    private void HandleHostUploadProgressReport(RacePanelWorldSource worldSource, int progressVersion, int value)
-    {
-        if (InvokeRequired)
-        {
-            BeginInvoke(new Action(() => HandleHostUploadProgressReport(worldSource, progressVersion, value)));
-            return;
-        }
-
-        if (progressVersion != hostWorldProgressVersion)
-        {
-            return;
-        }
-
-        int clamped = Math.Clamp(value, 0, 100);
-        if (worldSource == RacePanelWorldSource.ExistingFile)
-        {
-            SetHostWorldProgress(progressVersion, clamped);
-            return;
-        }
-
-        int mapped = 90 + (int)Math.Round(clamped * 0.1d, MidpointRounding.AwayFromZero);
-        SetHostWorldProgress(progressVersion, Math.Clamp(mapped, 90, 100));
     }
 
     private int StartHostWorldProgress()

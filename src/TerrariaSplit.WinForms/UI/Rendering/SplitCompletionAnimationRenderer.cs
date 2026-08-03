@@ -719,7 +719,7 @@ internal static class SplitCompletionAnimationRenderer
                 comparison.Delta is TimeSpan deltaValue &&
                 deltaValue < TimeSpan.Zero)
             {
-                deltaColor = SegmentBestDeltaHighlightStyles.Apply(deltaColor, deltaHighlightStyle, elapsed.TotalSeconds);
+                deltaColor = SegmentBestDeltaHighlightColorMath.Apply(deltaColor, deltaHighlightStyle, elapsed.TotalSeconds);
             }
 
             SplitCompletionDeltaMotion deltaMotion = GetDeltaMotion(

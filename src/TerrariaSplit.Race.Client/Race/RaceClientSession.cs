@@ -44,6 +44,8 @@ public sealed class RaceClientSession : IAsyncDisposable
 
     public event EventHandler<RacePlayerProgressReset>? PlayerProgressReset;
 
+    public event EventHandler<RaceRoomResumeFailed>? RoomResumeFailed;
+
     public RaceRoomState? State => state;
 
     public RaceServerConnectionStatus ConnectionStatus { get; private set; } = RaceServerConnectionStatus.Disconnected;
@@ -1164,6 +1166,24 @@ public sealed class RaceClientSession : IAsyncDisposable
             {
                 ApplyStateAfterJoin(next, nickname, RaceRoomStateUpdateKind.RoomResumed);
             }
+            else if (ReferenceEquals(connection, source) &&
+                     ShouldClearRoomAfterResumeFailure(
+                         state,
+                         Nickname,
+                         roomCode,
+                         nickname,
+                         result))
+            {
+                state = null;
+                Nickname = null;
+                lastPackageRevision = string.Empty;
+                RoomResumeFailed?.Invoke(
+                    this,
+                    new RaceRoomResumeFailed(
+                        roomCode,
+                        result.ErrorCode,
+                        result.Message));
+            }
         }
         catch (Exception ex) when (ex is InvalidOperationException or HttpRequestException or OperationCanceledException or TimeoutException)
         {
@@ -1202,6 +1222,25 @@ public sealed class RaceClientSession : IAsyncDisposable
 
         ConnectionStatus = next;
         ConnectionStatusChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    internal static bool ShouldClearRoomAfterResumeFailure(
+        RaceRoomState? currentState,
+        string? currentNickname,
+        string expectedRoomCode,
+        string expectedNickname,
+        RaceOperationResult<RaceRoomState> result)
+    {
+        return !result.Succeeded &&
+            currentState is not null &&
+            string.Equals(
+                currentState.RoomCode,
+                expectedRoomCode,
+                StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(
+                currentNickname,
+                expectedNickname,
+                StringComparison.OrdinalIgnoreCase);
     }
 
     private bool IsCurrentUserHost()

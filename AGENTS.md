@@ -22,7 +22,7 @@
 - `WorldGeneration`：对外 façade；核心模拟仍位于 `Terraria/Terraria/WorldGeneration/`。
 - `Race.Contracts` / `Race.Client` / `Race.Server`：联机协议、客户端会话与服务器状态。
 - `WinForms`：组合根、交互、overlay、设置和程序更新；页面事件保持薄，副作用走 shell、host 或专用执行器。
-- `MemoryBridge`：独立 x86 CLRMD 桥接进程；参数、JSON 或位数变化要同步消费方和构建目标。
+- `MemoryBridge`：独立 x86 内存控制单元；负责 CLRMD 运行时探测、受控内存读取与 WorldGuard 注入启动，参数、协议、权限、JSON 或位数变化要同步消费方、测试和构建目标。
 - `test`：自定义测试宿主；`docs`：用户与维护者文档。
 
 ## 工作原则
@@ -37,6 +37,6 @@
 - 测试：`dotnet run --project test\TerrariaSplit.Tests.csproj --no-restore -p:BuildInParallel=false -p:UseSharedCompilation=false`
 - 运行：`dotnet run --project src\TerrariaSplit.WinForms\TerrariaSplit.WinForms.csproj --no-restore -p:BuildInParallel=false -p:UseSharedCompilation=false`
 - 发布前先执行 `dotnet restore src\TerrariaSplit.WinForms\TerrariaSplit.WinForms.csproj -r win-x64 -m:1`，再单节点 `publish --no-restore`。
-- 跳过桥接进程构建：追加 `-p:TerrariaSplitSkipMemoryBridge=true`。
+- 跳过内存控制单元构建：追加 `-p:TerrariaSplitSkipMemoryBridge=true`。
 - 金字塔聚焦测试：设置 `$env:TERRARIA_SPLIT_TEST_FILTER='Pyramid seed pre-screen'` 后运行测试命令。
 - metrics/trace：`dotnet run --project test\TerrariaSplit.Diagnostics.csproj -- <命令及参数>`。

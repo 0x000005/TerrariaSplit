@@ -5,7 +5,7 @@ namespace TerrariaSplit.Storage;
 // Persisted, thread-safe pool of generated world files for one WorldPoolSignature.
 // The foreground workflow installs the first matching .wld into
 // Terraria's Worlds folder instead of replaying a seed through the UI.
-public sealed class WorldPoolStore
+public sealed class WorldPoolStore : IWorldPoolStore
 {
     private readonly object sync = new();
     private readonly string filePath;
@@ -19,7 +19,7 @@ public sealed class WorldPoolStore
         worldDirectory = Path.Combine(paths.WorldPoolDirectory, "worlds");
         data = JsonFileStore.Read<WorldPoolData>(filePath, "world pool") ?? new WorldPoolData();
         data.Signature ??= string.Empty;
-        data.Worlds ??= new List<WorldPoolEntry>();
+        data.Worlds ??= new List<PersistedWorldPoolEntry>();
         PruneMissingFiles(persist: true);
     }
 
@@ -49,9 +49,9 @@ public sealed class WorldPoolStore
         string signature,
         string sourceWorldPath,
         TerrariaWorldSeedMetadata metadata,
-        out WorldPoolEntry entry)
+        out WorldPoolItem item)
     {
-        entry = new WorldPoolEntry();
+        item = default;
         if (string.IsNullOrWhiteSpace(sourceWorldPath) || !File.Exists(sourceWorldPath))
         {
             return false;
@@ -72,9 +72,10 @@ public sealed class WorldPoolStore
                 File.Copy(sourceWorldPath, targetPath, overwrite: false);
                 CopyBackupIfPresent(sourceWorldPath, targetPath);
 
-                entry = WorldPoolEntry.From(fileName, metadata);
+                PersistedWorldPoolEntry entry = PersistedWorldPoolEntry.From(fileName, metadata);
                 data.Worlds.Add(entry);
                 Persist();
+                item = entry.ToItem();
                 return true;
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -85,29 +86,29 @@ public sealed class WorldPoolStore
         }
     }
 
-    public bool TryPeekFirst(string signature, out WorldPoolEntry entry)
+    public bool TryPeekFirst(string signature, out WorldPoolItem item)
     {
         lock (sync)
         {
             PruneMissingFiles(persist: true);
             if (SignatureMatches(signature) && data.Worlds.Count > 0)
             {
-                entry = data.Worlds[0];
+                item = data.Worlds[0].ToItem();
                 return true;
             }
         }
 
-        entry = new WorldPoolEntry();
+        item = default;
         return false;
     }
 
-    public void RemoveFirst(string signature, WorldPoolEntry entry)
+    public void RemoveFirst(string signature, WorldPoolItem item)
     {
         lock (sync)
         {
             if (SignatureMatches(signature) &&
                 data.Worlds.Count > 0 &&
-                string.Equals(data.Worlds[0].WorldFileName, entry.WorldFileName, StringComparison.OrdinalIgnoreCase))
+                string.Equals(data.Worlds[0].WorldFileName, item.WorldFileName, StringComparison.OrdinalIgnoreCase))
             {
                 DeleteEntryFiles(data.Worlds[0]);
                 data.Worlds.RemoveAt(0);
@@ -117,7 +118,7 @@ public sealed class WorldPoolStore
     }
 
     public bool TryInstallWorld(
-        WorldPoolEntry entry,
+        WorldPoolItem item,
         string worldsPath,
         out string installedPath,
         out string message)
@@ -127,7 +128,7 @@ public sealed class WorldPoolStore
 
         lock (sync)
         {
-            string? sourcePath = TryGetEntryPath(entry);
+            string? sourcePath = TryGetEntryPath(item.WorldFileName);
             if (sourcePath is null)
             {
                 message = "pooled world file is missing";
@@ -152,23 +153,23 @@ public sealed class WorldPoolStore
         }
     }
 
-    public bool TryGetWorldPath(WorldPoolEntry entry, out string worldPath)
+    public bool TryGetWorldPath(WorldPoolItem item, out string worldPath)
     {
         lock (sync)
         {
-            worldPath = TryGetEntryPath(entry) ?? string.Empty;
+            worldPath = TryGetEntryPath(item.WorldFileName) ?? string.Empty;
             return worldPath.Length > 0;
         }
     }
 
-    private string? TryGetEntryPath(WorldPoolEntry entry)
+    private string? TryGetEntryPath(string? worldFileName)
     {
-        if (string.IsNullOrWhiteSpace(entry.WorldFileName))
+        if (string.IsNullOrWhiteSpace(worldFileName))
         {
             return null;
         }
 
-        string fileName = Path.GetFileName(entry.WorldFileName);
+        string fileName = Path.GetFileName(worldFileName);
         string path = Path.Combine(worldDirectory, fileName);
         return File.Exists(path) ? path : null;
     }
@@ -201,7 +202,7 @@ public sealed class WorldPoolStore
 
     private void PruneMissingFiles(bool persist)
     {
-        int removed = data.Worlds.RemoveAll(entry => TryGetEntryPath(entry) is null);
+        int removed = data.Worlds.RemoveAll(entry => TryGetEntryPath(entry.WorldFileName) is null);
         if (removed > 0 && persist)
         {
             Persist();
@@ -237,9 +238,9 @@ public sealed class WorldPoolStore
         }
     }
 
-    private void DeleteEntryFiles(WorldPoolEntry entry)
+    private void DeleteEntryFiles(PersistedWorldPoolEntry entry)
     {
-        if (TryGetEntryPath(entry) is string worldPath)
+        if (TryGetEntryPath(entry.WorldFileName) is string worldPath)
         {
             TryDeleteFile(worldPath);
             TryDeleteFile(worldPath + ".bak");
@@ -270,41 +271,48 @@ public sealed class WorldPoolStore
     {
         public string? Signature { get; set; } = string.Empty;
 
-        public List<WorldPoolEntry> Worlds { get; set; } = new();
+        public List<PersistedWorldPoolEntry> Worlds { get; set; } = new();
     }
-}
 
-public sealed class WorldPoolEntry
-{
-    public string WorldFileName { get; set; } = string.Empty;
-
-    public string SeedText { get; set; } = string.Empty;
-
-    public int SizeCode { get; set; }
-
-    public int DifficultyCode { get; set; }
-
-    public bool HasCrimson { get; set; }
-
-    public int SpecialSeedMask { get; set; }
-
-    public static WorldPoolEntry From(
-        string worldFileName,
-        TerrariaWorldSeedMetadata metadata)
+    internal sealed class PersistedWorldPoolEntry
     {
-        return new WorldPoolEntry
+        public string WorldFileName { get; set; } = string.Empty;
+
+        public string SeedText { get; set; } = string.Empty;
+
+        public int SizeCode { get; set; }
+
+        public int DifficultyCode { get; set; }
+
+        public bool HasCrimson { get; set; }
+
+        public int SpecialSeedMask { get; set; }
+
+        public static PersistedWorldPoolEntry From(
+            string worldFileName,
+            TerrariaWorldSeedMetadata metadata)
         {
-            WorldFileName = worldFileName,
-            SeedText = metadata.SeedText,
-            SizeCode = metadata.SizeCode,
-            DifficultyCode = metadata.DifficultyCode,
-            HasCrimson = metadata.HasCrimson,
-            SpecialSeedMask = metadata.SpecialSeedMask
-        };
-    }
+            return new PersistedWorldPoolEntry
+            {
+                WorldFileName = worldFileName,
+                SeedText = metadata.SeedText,
+                SizeCode = metadata.SizeCode,
+                DifficultyCode = metadata.DifficultyCode,
+                HasCrimson = metadata.HasCrimson,
+                SpecialSeedMask = metadata.SpecialSeedMask
+            };
+        }
 
-    public TerrariaWorldSeedMetadata ToMetadata()
-    {
-        return new TerrariaWorldSeedMetadata(SeedText, SizeCode, DifficultyCode, HasCrimson, SpecialSeedMask);
+        public WorldPoolItem ToItem()
+        {
+            return new WorldPoolItem(
+                WorldFileName,
+                new TerrariaWorldSeedMetadata(
+                    SeedText,
+                    SizeCode,
+                    DifficultyCode,
+                    HasCrimson,
+                    SpecialSeedMask));
+        }
     }
 }

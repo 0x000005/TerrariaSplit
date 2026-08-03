@@ -4,117 +4,52 @@ namespace TerrariaSplit.Configuration;
 
 public sealed class AppSettings
 {
-    [Obsolete("Use ReferenceSplitSetService.PersonalBestReferenceSetName instead.")]
-    public const string PersonalBestReferenceSetName = ReferenceSplitSetService.PersonalBestReferenceSetName;
-
-    public GeneralSettings General { get; set; } = new();
-    public HotkeySettings Hotkeys { get; set; } = new();
-    public RouteSettings Route { get; set; } = new();
-    public ComparisonSettings Comparison { get; set; } = new();
-    public OverlaySettings Overlay { get; set; } = new();
-    public AutomationSettings Automation { get; set; } = new();
-    public RaceSettings Race { get; set; } = new();
-    public PracticeWorldSettings PracticeWorlds { get; set; } = new();
-    public AdvancedSettings Advanced { get; set; } = new();
-
-    [Obsolete("Use ReferenceSplitSetService.TryGetReferenceSplit instead.")]
-    public bool TryGetReferenceSplit(SplitDefinition definition, out TimeSpan split)
+    public AppSettings()
     {
-        return ReferenceSplitSetService.TryGetReferenceSplit(this, definition, out split);
+        AppSettings defaults = AppSettingsDefaults.Create();
+        General = defaults.General;
+        Hotkeys = defaults.Hotkeys;
+        Route = defaults.Route;
+        Comparison = defaults.Comparison;
+        Overlay = defaults.Overlay;
+        Automation = defaults.Automation;
+        Race = defaults.Race;
+        PracticeWorlds = defaults.PracticeWorlds;
+        Advanced = defaults.Advanced;
     }
 
-    [Obsolete("Use ReferenceSplitSetService.GetReferenceText instead.")]
-    public string GetReferenceText(string name)
+    [JsonConstructor]
+    public AppSettings(
+        GeneralSettings? general,
+        HotkeySettings? hotkeys,
+        RouteSettings? route,
+        ComparisonSettings? comparison,
+        OverlaySettings? overlay,
+        AutomationSettings? automation,
+        RaceSettings? race,
+        PracticeWorldSettings? practiceWorlds,
+        AdvancedSettings? advanced)
     {
-        return ReferenceSplitSetService.GetReferenceText(this, name);
+        General = general!;
+        Hotkeys = hotkeys!;
+        Route = route!;
+        Comparison = comparison!;
+        Overlay = overlay!;
+        Automation = automation!;
+        Race = race!;
+        PracticeWorlds = practiceWorlds!;
+        Advanced = advanced!;
     }
 
-    [Obsolete("Use PersonalBestSetService.GetPersonalBestTimeText instead.")]
-    public string GetPersonalBestTimeText(string name)
-    {
-        return PersonalBestSetService.GetPersonalBestTimeText(this, name);
-    }
-
-    [Obsolete("Use PersonalBestSetService.GetPersonalBestSegmentText instead.")]
-    public string GetPersonalBestSegmentText(string name)
-    {
-        return PersonalBestSetService.GetPersonalBestSegmentText(this, name);
-    }
-
-    [Obsolete("Use ReferenceSplitSetService.SetReferenceText instead.")]
-    public void SetReferenceText(string name, string value)
-    {
-        ReferenceSplitSetService.SetReferenceText(this, name, value);
-    }
-
-    [Obsolete("Use PersonalBestSetService.SetPersonalBestTimeText instead.")]
-    public void SetPersonalBestTimeText(string name, string value)
-    {
-        PersonalBestSetService.SetPersonalBestTimeText(this, name, value);
-    }
-
-    [Obsolete("Use PersonalBestSetService.SetPersonalBestSegmentText instead.")]
-    public void SetPersonalBestSegmentText(string name, string value)
-    {
-        PersonalBestSetService.SetPersonalBestSegmentText(this, name, value);
-    }
-
-    [Obsolete("Use ReferenceSplitSetService.GetActiveReferenceSet instead.")]
-    public ReferenceSplitSet GetActiveReferenceSet()
-    {
-        return ReferenceSplitSetService.GetActiveReferenceSet(this);
-    }
-
-    [Obsolete("Use ReferenceSplitSetService.CreatePersonalBestReferenceSet instead.")]
-    public ReferenceSplitSet CreatePersonalBestReferenceSet()
-    {
-        return ReferenceSplitSetService.CreatePersonalBestReferenceSet(this);
-    }
-
-    [Obsolete("Use PersonalBestSetService.GetActivePersonalBestTimeSet instead.")]
-    public ReferenceSplitSet GetActivePersonalBestTimeSet()
-    {
-        return PersonalBestSetService.GetActivePersonalBestTimeSet(this);
-    }
-
-    [Obsolete("Use PersonalBestSetService.GetActivePersonalBestSegmentSet instead.")]
-    public ReferenceSplitSet GetActivePersonalBestSegmentSet()
-    {
-        return PersonalBestSetService.GetActivePersonalBestSegmentSet(this);
-    }
-
-    [Obsolete("Use PersonalBestSetService.SyncPersonalBestTimesFromActiveSet instead.")]
-    public void SyncPersonalBestTimesFromActiveSet()
-    {
-        PersonalBestSetService.SyncPersonalBestTimesFromActiveSet(this);
-    }
-
-    [Obsolete("Use PersonalBestSetService.SyncPersonalBestSegmentsFromActiveSet instead.")]
-    public void SyncPersonalBestSegmentsFromActiveSet()
-    {
-        PersonalBestSetService.SyncPersonalBestSegmentsFromActiveSet(this);
-    }
-
-    [Obsolete("Use PersonalBestSetService.SyncActivePersonalBestTimeSetFromDictionary instead.")]
-    public void SyncActivePersonalBestTimeSetFromDictionary()
-    {
-        PersonalBestSetService.SyncActivePersonalBestTimeSetFromDictionary(this);
-    }
-
-    [Obsolete("Use PersonalBestSetService.SyncActivePersonalBestSegmentSetFromDictionary instead.")]
-    public void SyncActivePersonalBestSegmentSetFromDictionary()
-    {
-        PersonalBestSetService.SyncActivePersonalBestSegmentSetFromDictionary(this);
-    }
-
-    [Obsolete("Use ReferenceSplitSetService.CreateReferenceSet instead.")]
-    public static ReferenceSplitSet CreateReferenceSet(
-        string name,
-        Dictionary<string, string>? values = null,
-        IEnumerable<string>? keys = null)
-    {
-        return ReferenceSplitSetService.CreateReferenceSet(name, values, keys);
-    }
+    public GeneralSettings General { get; set; }
+    public HotkeySettings Hotkeys { get; set; }
+    public RouteSettings Route { get; set; }
+    public ComparisonSettings Comparison { get; set; }
+    public OverlaySettings Overlay { get; set; }
+    public AutomationSettings Automation { get; set; }
+    public RaceSettings Race { get; set; }
+    public PracticeWorldSettings PracticeWorlds { get; set; }
+    public AdvancedSettings Advanced { get; set; }
 }
 
 public sealed class GeneralSettings

@@ -4,7 +4,14 @@ internal static class InfrastructureFlowTests
 {
     public static IEnumerable<TestCase> All()
     {
-        yield return TestCase.Async("high precision scheduler starts, retimes, stops and disposes without callbacks after shutdown", TestSuite.Core, SchedulerLifecycle);
+        yield return TestCase.Sync("Windows process liveness probe reports current and missing processes", TestSuite.Windows, ProcessLiveness);
+        yield return TestCase.Async("high precision scheduler starts, retimes, stops and disposes without callbacks after shutdown", TestSuite.Windows, SchedulerLifecycle);
+    }
+
+    private static void ProcessLiveness()
+    {
+        Check.True(ProcessLivenessProbe.IsRunning(Environment.ProcessId));
+        Check.False(ProcessLivenessProbe.IsRunning(int.MaxValue));
     }
 
     private static async Task SchedulerLifecycle(CancellationToken cancellationToken)

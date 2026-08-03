@@ -109,6 +109,31 @@ internal static class RaceFlowTests
         Check.True(RaceClientSession.IsRoomUpdateForCurrentRoom(null, "OLD1"));
         Check.True(RaceClientSession.IsRoomUpdateForCurrentRoom("NEW2", "new2"));
         Check.False(RaceClientSession.IsRoomUpdateForCurrentRoom("NEW2", "OLD1"));
+
+        var manager = new RaceRoomManager(new InMemoryRaceRecordStore());
+        RaceRoomState room = Success(manager.CreateRoom(new RaceRoomCreateRequest("host")));
+        RaceOperationResult<RaceRoomState> missingRoom =
+            RaceOperationResult<RaceRoomState>.Failure(
+                "room_not_found",
+                "Room no longer exists.");
+        Check.True(RaceClientSession.ShouldClearRoomAfterResumeFailure(
+            room,
+            "host",
+            room.RoomCode,
+            "host",
+            missingRoom));
+        Check.False(RaceClientSession.ShouldClearRoomAfterResumeFailure(
+            room,
+            "host",
+            "OTHER",
+            "host",
+            missingRoom));
+        Check.False(RaceClientSession.ShouldClearRoomAfterResumeFailure(
+            room,
+            "host",
+            room.RoomCode,
+            "host",
+            RaceOperationResult<RaceRoomState>.Success(room)));
     }
 
     private static void HostAllIconsReachMember()

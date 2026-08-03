@@ -1,8 +1,8 @@
 using System.Runtime.InteropServices;
 
-namespace TerrariaSplit.Infrastructure;
+namespace TerrariaSplit.Infrastructure.Windows;
 
-public sealed class HighResolutionTimerPeriod : IDisposable
+internal sealed class HighResolutionTimerPeriod : IDisposable
 {
     private readonly uint milliseconds;
 

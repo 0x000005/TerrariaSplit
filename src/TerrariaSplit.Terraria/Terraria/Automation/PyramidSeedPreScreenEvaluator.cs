@@ -2,15 +2,7 @@ using TerrariaSplit.Terraria.WorldGeneration;
 
 namespace TerrariaSplit.Terraria.Automation;
 
-internal interface IPyramidSeedPreScreenEvaluator
-{
-    PyramidSeedPreScreenPrediction Evaluate(
-        AutoCreateWorldSettings settings,
-        string seedText,
-        TerrariaWorldGenerationVersion worldGenerationVersion);
-}
-
-internal sealed class PyramidSeedPreScreenEvaluator : IPyramidSeedPreScreenEvaluator
+internal sealed class PyramidSeedPreScreenEvaluator
 {
     public static bool IsEnabledFor(AutoCreateWorldSettings settings)
     {

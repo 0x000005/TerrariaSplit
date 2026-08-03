@@ -1,122 +1,135 @@
+using System.Collections.ObjectModel;
+
 namespace TerrariaSplit.Application;
 
 internal sealed class RunFinalizer
 {
-    private readonly IRunStatisticsRecorder runStatisticsRecorder;
-    private readonly IPersonalBestSnapshotStore personalBestSnapshotStore;
-
-    public RunFinalizer(
-        IRunStatisticsRecorder? runStatisticsRecorder = null,
-        IPersonalBestSnapshotStore? personalBestSnapshotStore = null)
-    {
-        this.runStatisticsRecorder = runStatisticsRecorder ?? NullRunStatisticsRecorder.Instance;
-        this.personalBestSnapshotStore = personalBestSnapshotStore ?? InMemoryPersonalBestSnapshotStore.Instance;
-    }
-
-    public RunFinalizationResult Finalize(
-        AppSettings settings,
-        IReadOnlyList<SplitStatusSnapshot> statuses,
-        bool runStatsRecorded,
-        Func<string, bool> confirmPersonalBestUpdates)
-    {
-        return Finalize(settings, settings, statuses, runStatsRecorded, confirmPersonalBestUpdates);
-    }
-
-    public RunFinalizationResult Finalize(
+    public PersonalBestFinalizationPlan? CreatePersonalBestPlan(
+        long planId,
         AppSettings routeSettings,
-        AppSettings updateTargetSettings,
-        IReadOnlyList<SplitStatusSnapshot> statuses,
-        bool runStatsRecorded,
-        Func<string, bool> confirmPersonalBestUpdates)
+        AppSettings baselineSettings,
+        IReadOnlyList<SplitStatusSnapshot> statuses)
     {
         PendingPersonalBestUpdates updates = BuildPendingPersonalBestUpdates(
             routeSettings,
-            updateTargetSettings,
+            baselineSettings,
             statuses);
-        bool settingsUpdated = false;
-        if (updates.HasUpdates && updateTargetSettings.Comparison.AutoUpdatePersonalBestData)
+        if (!updates.HasUpdates || !baselineSettings.Comparison.AutoUpdatePersonalBestData)
         {
-            bool shouldUpdate = !updateTargetSettings.Comparison.AskBeforeUpdatingPersonalBestData ||
-                confirmPersonalBestUpdates(BuildPersonalBestUpdatePromptText(updates, updateTargetSettings));
-            if (shouldUpdate)
-            {
-                IReadOnlyList<OperationResult> failures = ApplyPendingPersonalBestUpdates(updateTargetSettings, updates);
-                if (failures.Count > 0)
-                {
-                    if (!runStatsRecorded)
-                    {
-                        runStatisticsRecorder.RecordRun(statuses);
-                    }
-
-                    return new RunFinalizationResult(true, failures);
-                }
-
-                settingsUpdated = true;
-            }
+            return null;
         }
 
-        if (!runStatsRecorded)
-        {
-            runStatisticsRecorder.RecordRun(statuses);
-        }
-
-        return new RunFinalizationResult(settingsUpdated, []);
-    }
-
-    private IReadOnlyList<OperationResult> ApplyPendingPersonalBestUpdates(
-        AppSettings settings,
-        PendingPersonalBestUpdates updates)
-    {
-        var failures = new List<OperationResult>();
+        PersonalBestSnapshotRequest? segmentSnapshot = null;
+        IReadOnlyDictionary<string, string>? segmentBestValues = null;
         List<PendingPersonalBestSegmentUpdate> segmentUpdates = updates.SegmentUpdates.Values.ToList();
-        foreach (PendingPersonalBestSegmentUpdate update in segmentUpdates)
-        {
-            PersonalBestSetService.SetPersonalBestSegmentText(settings, update.GroupKey, update.NewTimeText);
-        }
-
         if (segmentUpdates.Count > 0)
         {
+            var values = new Dictionary<string, string>(
+                baselineSettings.Comparison.PersonalBestSegmentTimes,
+                StringComparer.OrdinalIgnoreCase);
+            foreach (PendingPersonalBestSegmentUpdate update in segmentUpdates)
+            {
+                values[update.GroupKey] = update.NewTimeText;
+            }
+
             (string bossName, string previousTimeText, string newTimeText) = BuildSnapshotLabel(segmentUpdates);
-            PersonalBestSnapshotSaveResult saveResult = personalBestSnapshotStore.SavePersonalBestSegmentSnapshot(
-                settings.Comparison.PersonalBestSegmentTimes,
+            segmentBestValues = Freeze(values);
+            segmentSnapshot = new PersonalBestSnapshotRequest(
+                segmentBestValues,
                 bossName,
                 previousTimeText,
                 newTimeText);
-            if (saveResult.Succeeded)
-            {
-                ReferenceSplitSet snapshot = saveResult.Snapshot!;
-                AddPersonalBestSnapshot(settings.Comparison.PersonalBestSegmentSets, snapshot);
-                settings.Comparison.ActivePersonalBestSegmentSet = snapshot.Name;
-            }
-            else
-            {
-                failures.Add(saveResult.Failure);
-            }
         }
 
+        PersonalBestSnapshotRequest? timeSnapshot = null;
+        IReadOnlyDictionary<string, string>? personalBestTimes = null;
         if (updates.TimeUpdate is PendingPersonalBestTimeUpdate timeUpdate)
         {
-            settings.Comparison.PersonalBestTimes = new Dictionary<string, string>(
-                timeUpdate.Splits,
-                StringComparer.OrdinalIgnoreCase);
-            PersonalBestSnapshotSaveResult saveResult = personalBestSnapshotStore.SavePersonalBestTimeSnapshot(
-                settings.Comparison.PersonalBestTimes,
+            personalBestTimes = Freeze(timeUpdate.Splits);
+            timeSnapshot = new PersonalBestSnapshotRequest(
+                personalBestTimes,
                 timeUpdate.BossName,
                 timeUpdate.PreviousTimeText,
                 timeUpdate.NewTimeText);
-            if (saveResult.Succeeded)
-            {
-                ReferenceSplitSet snapshot = saveResult.Snapshot!;
-                AddPersonalBestSnapshot(settings.Comparison.PersonalBestTimeSets, snapshot);
-                settings.Comparison.ActivePersonalBestTimeSet = snapshot.Name;
-            }
-            else
-            {
-                failures.Add(saveResult.Failure);
-            }
         }
 
-        return failures;
+        return new PersonalBestFinalizationPlan(
+            planId,
+            baselineSettings.Comparison.AskBeforeUpdatingPersonalBestData,
+            BuildPersonalBestUpdatePromptText(updates, baselineSettings),
+            segmentBestValues,
+            segmentSnapshot,
+            personalBestTimes,
+            timeSnapshot);
+    }
+
+    public static bool TryApplySuccessfulPlan(
+        AppSettings settings,
+        PersonalBestFinalizationPlan plan,
+        PersonalBestFinalizationResult result,
+        out IReadOnlyList<OperationResult> failures)
+    {
+        if (result.PlanId != plan.PlanId)
+        {
+            failures =
+            [
+                OperationResult.Failure(
+                    $"Ignored mismatched personal best finalization result {result.PlanId}; expected {plan.PlanId}.")
+            ];
+            return false;
+        }
+
+        if (!result.Approved)
+        {
+            failures = [];
+            return false;
+        }
+
+        var validationFailures = new List<OperationResult>(result.Failures);
+        if (validationFailures.Count == 0 &&
+            plan.SegmentSnapshot is not null &&
+            result.SegmentSnapshot is null)
+        {
+            validationFailures.Add(OperationResult.Failure(
+                "Personal best segment snapshot was not returned after persistence."));
+        }
+
+        if (validationFailures.Count == 0 &&
+            plan.TimeSnapshot is not null &&
+            result.TimeSnapshot is null)
+        {
+            validationFailures.Add(OperationResult.Failure(
+                "Personal best time snapshot was not returned after persistence."));
+        }
+
+        if (validationFailures.Count > 0)
+        {
+            failures = validationFailures;
+            return false;
+        }
+
+        if (plan.SegmentBestValues is not null)
+        {
+            settings.Comparison.PersonalBestSegmentTimes = new Dictionary<string, string>(
+                plan.SegmentBestValues,
+                StringComparer.OrdinalIgnoreCase);
+            ReferenceSplitSet snapshot = CloneSnapshot(result.SegmentSnapshot!);
+            AddPersonalBestSnapshot(settings.Comparison.PersonalBestSegmentSets, snapshot);
+            settings.Comparison.ActivePersonalBestSegmentSet = snapshot.Name;
+        }
+
+        if (plan.PersonalBestTimes is not null)
+        {
+            settings.Comparison.PersonalBestTimes = new Dictionary<string, string>(
+                plan.PersonalBestTimes,
+                StringComparer.OrdinalIgnoreCase);
+            ReferenceSplitSet snapshot = CloneSnapshot(result.TimeSnapshot!);
+            AddPersonalBestSnapshot(settings.Comparison.PersonalBestTimeSets, snapshot);
+            settings.Comparison.ActivePersonalBestTimeSet = snapshot.Name;
+        }
+
+        failures = [];
+        return true;
     }
 
     private static PendingPersonalBestUpdates BuildPendingPersonalBestUpdates(
@@ -175,8 +188,7 @@ internal sealed class RunFinalizer
                 group.Key,
                 SplitRouteGroups.GetGroupDisplayName(group, routeSettings),
                 existingText ?? string.Empty,
-                TimeText.FormatRecord(segmentTime),
-                segmentTime);
+                TimeText.FormatRecord(segmentTime));
         }
     }
 
@@ -277,7 +289,6 @@ internal sealed class RunFinalizer
             moonLordStatus.Definition.DisplayName,
             existingMoonLordText,
             TimeText.FormatRecord(moonLordTime),
-            moonLordTime,
             BuildCompletedSplitValues(routeSettings, statuses));
     }
 
@@ -320,7 +331,7 @@ internal sealed class RunFinalizer
 
             if (status.Definition.IsAttached)
             {
-                if (TryGetAttachedCompletedSplitRow(status, rows, out SplitConditionDataRow attachedRow))
+                if (TryGetAttachedCompletedSplitRow(rows, out SplitConditionDataRow attachedRow))
                 {
                     values[attachedRow.Key] = formatted;
                 }
@@ -348,7 +359,6 @@ internal sealed class RunFinalizer
     }
 
     private static bool TryGetAttachedCompletedSplitRow(
-        SplitStatusSnapshot status,
         IReadOnlyList<SplitConditionDataRow> rows,
         out SplitConditionDataRow row)
     {
@@ -362,25 +372,36 @@ internal sealed class RunFinalizer
         return true;
     }
 
-    private static string BuildPersonalBestUpdatePromptText(PendingPersonalBestUpdates updates, AppSettings settings)
+    private static string BuildPersonalBestUpdatePromptText(
+        PendingPersonalBestUpdates updates,
+        AppSettings settings)
     {
         var lines = new List<string>();
         if (updates.TimeUpdate is PendingPersonalBestTimeUpdate timeUpdate)
         {
-            lines.Add($"{Localizer.Get("Cumulative", settings)}: {timeUpdate.BossName} {FormatPromptChange(timeUpdate.PreviousTimeText, timeUpdate.NewTimeText, settings)}");
+            lines.Add(
+                $"{Localizer.Get("Cumulative", settings)}: {timeUpdate.BossName} " +
+                FormatPromptChange(timeUpdate.PreviousTimeText, timeUpdate.NewTimeText, settings));
         }
 
         foreach (PendingPersonalBestSegmentUpdate update in updates.SegmentUpdates.Values)
         {
-            lines.Add($"{Localizer.Get("Segment", settings)}: {update.BossName} {FormatPromptChange(update.PreviousTimeText, update.NewTimeText, settings)}");
+            lines.Add(
+                $"{Localizer.Get("Segment", settings)}: {update.BossName} " +
+                FormatPromptChange(update.PreviousTimeText, update.NewTimeText, settings));
         }
 
         return string.Join(Environment.NewLine, lines);
     }
 
-    private static string FormatPromptChange(string previousTimeText, string newTimeText, AppSettings settings)
+    private static string FormatPromptChange(
+        string previousTimeText,
+        string newTimeText,
+        AppSettings settings)
     {
-        string oldText = string.IsNullOrWhiteSpace(previousTimeText) ? Localizer.Get("None", settings) : previousTimeText;
+        string oldText = string.IsNullOrWhiteSpace(previousTimeText)
+            ? Localizer.Get("None", settings)
+            : previousTimeText;
         return $"{oldText} -> {newTimeText}";
     }
 
@@ -397,7 +418,27 @@ internal sealed class RunFinalizer
         return ($"{lastUpdate.BossName}-Segments", "Multiple", "Multiple");
     }
 
-    private static void AddPersonalBestSnapshot(List<ReferenceSplitSet> sets, ReferenceSplitSet snapshot)
+    private static IReadOnlyDictionary<string, string> Freeze(
+        IReadOnlyDictionary<string, string> values)
+    {
+        return new ReadOnlyDictionary<string, string>(
+            new Dictionary<string, string>(values, StringComparer.OrdinalIgnoreCase));
+    }
+
+    private static ReferenceSplitSet CloneSnapshot(ReferenceSplitSet source)
+    {
+        return new ReferenceSplitSet
+        {
+            Name = source.Name,
+            Splits = new Dictionary<string, string>(
+                source.Splits ?? [],
+                StringComparer.OrdinalIgnoreCase)
+        };
+    }
+
+    private static void AddPersonalBestSnapshot(
+        List<ReferenceSplitSet> sets,
+        ReferenceSplitSet snapshot)
     {
         sets.RemoveAll(set => string.Equals(set.Name, snapshot.Name, StringComparison.OrdinalIgnoreCase));
         sets.Insert(0, snapshot);
@@ -414,20 +455,11 @@ internal sealed class RunFinalizer
         string BossName,
         string PreviousTimeText,
         string NewTimeText,
-        TimeSpan NewTime,
         Dictionary<string, string> Splits);
 
     private sealed record PendingPersonalBestSegmentUpdate(
         string GroupKey,
         string BossName,
         string PreviousTimeText,
-        string NewTimeText,
-        TimeSpan NewTime);
-}
-
-internal sealed record RunFinalizationResult(
-    bool SettingsUpdated,
-    IReadOnlyList<OperationResult> PersistenceFailures)
-{
-    public static RunFinalizationResult NoChanges { get; } = new(false, []);
+        string NewTimeText);
 }

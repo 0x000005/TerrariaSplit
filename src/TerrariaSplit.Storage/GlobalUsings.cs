@@ -1,3 +1,4 @@
+global using TerrariaSplit.Application.Ports;
 global using TerrariaSplit.Configuration;
 global using TerrariaSplit.Domain;
 global using TerrariaSplit.Domain.Formatting;

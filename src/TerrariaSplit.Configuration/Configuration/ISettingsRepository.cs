@@ -13,8 +13,4 @@ public interface ISettingsRepository
     AppSettings Load(string path);
 
     IReadOnlyList<string> GetSettingsFiles();
-
-    AppSettings Clone(AppSettings settings);
-
-    void Normalize(AppSettings settings);
 }

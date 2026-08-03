@@ -19,6 +19,8 @@ public static class StatisticsTableBuilder
         var rows = new List<StatisticsTableRow>();
         TimeSpan previousReferenceSplit = TimeSpan.Zero;
         TimeSpan previousPersonalSplit = TimeSpan.Zero;
+        bool hasReferenceBaseline = true;
+        bool hasPersonalBaseline = true;
         Dictionary<string, RouteGroup> mainGroupsByEntryId = SplitRouteGroups.Build(settings)
             .SelectMany(group => group.Entries.Select(entry => (entry.Id, group)))
             .ToDictionary(item => item.Id, item => item.group, StringComparer.OrdinalIgnoreCase);
@@ -51,12 +53,14 @@ public static class StatisticsTableBuilder
                 settings,
                 referenceTimeSet.Splits,
                 group,
-                ref previousReferenceSplit);
+                ref previousReferenceSplit,
+                ref hasReferenceBaseline);
             string personalSegmentText = FormatSegment(
                 settings,
                 personalSplits,
                 group,
-                ref previousPersonalSplit);
+                ref previousPersonalSplit,
+                ref hasPersonalBaseline);
 
             List<SplitConditionDataRow> groupConditionRows = group.Entries
                 .SelectMany(entry => conditionRows.Where(row =>
@@ -112,10 +116,19 @@ public static class StatisticsTableBuilder
         AppSettings settings,
         Dictionary<string, string> values,
         RouteGroup group,
-        ref TimeSpan previousSplit)
+        ref TimeSpan previousSplit,
+        ref bool hasBaseline)
     {
         if (!TryGetGroupTime(settings, values, group, out TimeSpan split))
         {
+            hasBaseline = false;
+            return "--";
+        }
+
+        if (!hasBaseline)
+        {
+            previousSplit = split;
+            hasBaseline = true;
             return "--";
         }
 

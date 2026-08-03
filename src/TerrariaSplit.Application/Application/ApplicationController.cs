@@ -62,28 +62,27 @@ public sealed record ResetRaceProgressReportsEffect()
 public sealed record QueueRaceProgressReportsEffect(bool RunStarted, bool RunCompleted)
     : ApplicationEffect;
 
+public sealed record RecordRunStatisticsEffect(IReadOnlyList<SplitStatusSnapshot> Statuses)
+    : ApplicationEffect;
+
+public sealed record FinalizePersonalBestEffect(PersonalBestFinalizationPlan Plan)
+    : ApplicationEffect;
+
 public sealed class ApplicationController
 {
-    private readonly RunLifecycleController runLifecycle;
-    private readonly Func<string, bool> confirmPersonalBestUpdate;
+    private readonly RunLifecycleController runLifecycle = new();
     private readonly ISettingsSnapshotFactory settingsSnapshots;
+    private readonly Dictionary<long, PendingPersonalBestCommit> pendingPersonalBestCommits = [];
     private AppSettings baseSettings;
     private SettingsRouteOverridePackage? activeRouteOverride;
     private long minimumAcceptedRuntimeCommandSequence;
     private RaceSystemState raceState = new();
-    private JobSystemState jobState = new();
-    private DisplaySystemState displayState = new();
 
     public ApplicationController(
         AppSettings settings,
-        Func<string, bool> confirmPersonalBestUpdate,
-        ISettingsSnapshotFactory settingsSnapshots,
-        IRunStatisticsRecorder? runStatisticsRecorder = null,
-        IPersonalBestSnapshotStore? personalBestSnapshotStore = null)
+        ISettingsSnapshotFactory settingsSnapshots)
     {
-        this.confirmPersonalBestUpdate = confirmPersonalBestUpdate;
         this.settingsSnapshots = settingsSnapshots;
-        runLifecycle = new RunLifecycleController(runStatisticsRecorder, personalBestSnapshotStore);
         baseSettings = settingsSnapshots.CreateSnapshot(settings);
         SettingsNormalizer.Normalize(baseSettings);
         Settings = settingsSnapshots.CreateSnapshot(baseSettings);
@@ -101,13 +100,7 @@ public sealed class ApplicationController
 
     public long MinimumAcceptedRuntimeCommandSequence => minimumAcceptedRuntimeCommandSequence;
 
-    public SystemState SystemState => new(
-        Settings,
-        Definitions,
-        ViewState,
-        raceState,
-        jobState,
-        displayState);
+    public SystemState SystemState => new(raceState);
 
     public void AcceptRuntimeCommandSequence(long sequence)
     {
@@ -120,20 +113,13 @@ public sealed class ApplicationController
         {
             ControlCommandSystemEvent control => HandleCommand(control.Command),
             RuntimeWatcherSystemEvent runtime => HandleWatcherNotification(runtime.Notification),
-            DisplaySystemEvent display => HandleDisplayEvent(display),
             RacePackageSystemEvent racePackage => HandleRacePackageEvent(racePackage),
             RaceProgressSystemEvent raceProgress => HandleRaceProgressEvent(raceProgress),
             RaceRosterSystemEvent raceRoster => HandleRaceRosterEvent(raceRoster),
             RaceModeSystemEvent raceMode => HandleRaceModeEvent(raceMode),
-            JobProgressSystemEvent jobProgress => HandleJobProgressEvent(jobProgress),
+            PersonalBestFinalizationSystemEvent finalization => HandlePersonalBestFinalization(finalization.Result),
             _ => throw new NotSupportedException($"Unsupported system event {systemEvent.GetType().Name}.")
         };
-    }
-
-    private ApplicationUpdate HandleDisplayEvent(DisplaySystemEvent display)
-    {
-        displayState = displayState with { ActiveTargets = display.Invalidation.Targets };
-        return new ApplicationUpdate([], [display.Invalidation]);
     }
 
     private ApplicationUpdate HandleRacePackageEvent(RacePackageSystemEvent racePackage)
@@ -182,10 +168,53 @@ public sealed class ApplicationController
             [DisplayInvalidation.For(DisplayRefreshLevel.RuntimeFacts, DisplayInvalidationTarget.All)]);
     }
 
-    private ApplicationUpdate HandleJobProgressEvent(JobProgressSystemEvent jobProgress)
+    private ApplicationUpdate HandlePersonalBestFinalization(PersonalBestFinalizationResult result)
     {
-        jobState = new JobSystemState(jobProgress.JobKey, Math.Clamp(jobProgress.ProgressPercent, 0, 100));
-        return ApplicationUpdate.Empty;
+        if (!pendingPersonalBestCommits.Remove(result.PlanId, out PendingPersonalBestCommit? pending))
+        {
+            return ApplicationUpdate.Empty;
+        }
+
+        if (!result.Approved)
+        {
+            return ApplicationUpdate.Empty;
+        }
+
+        if (result.Failures.Count > 0)
+        {
+            var failureEffects = new List<ApplicationEffect>();
+            AddPersistenceFailureEffects(failureEffects, result.Failures);
+            return new ApplicationUpdate(failureEffects, []);
+        }
+
+        AppSettings nextBaseSettings = settingsSnapshots.CreateSnapshot(pending.TargetBaseSettings);
+        if (!RunFinalizer.TryApplySuccessfulPlan(
+                nextBaseSettings,
+                pending.Plan,
+                result,
+                out IReadOnlyList<OperationResult> failures))
+        {
+            var failureEffects = new List<ApplicationEffect>();
+            AddPersistenceFailureEffects(failureEffects, failures);
+            return new ApplicationUpdate(failureEffects, []);
+        }
+
+        if (!ReferenceEquals(baseSettings, pending.TargetBaseSettings))
+        {
+            return new ApplicationUpdate(
+                [
+                    new ShowPersistenceFailureEffect(OperationResult.Failure(
+                        "Personal best snapshots were saved, but settings changed before they could be applied."))
+                ],
+                []);
+        }
+
+        baseSettings = nextBaseSettings;
+        Settings = CreateEffectiveSettings(baseSettings);
+        ViewState = ViewState.WithSettings(Settings);
+        return new ApplicationUpdate(
+            [CreateSaveSettingsEffect(baseSettings)],
+            [DisplayInvalidation.For(DisplayRefreshLevel.SplitProgress, DisplayInvalidationTarget.All)]);
     }
 
     private ApplicationUpdate HandleCommand(AppCommand command)
@@ -245,6 +274,12 @@ public sealed class ApplicationController
             case ApplyTemporarySettingsCommand applySettings:
                 ApplySettings(applySettings.Settings, effects, saveSettings: false);
                 invalidations.Add(DisplayInvalidation.For(DisplayRefreshLevel.RoutePackage, DisplayInvalidationTarget.All));
+                break;
+            case UpdateRaceSettingsCommand updateRaceSettings:
+                UpdateRaceSettings(updateRaceSettings.Settings, effects);
+                invalidations.Add(DisplayInvalidation.For(
+                    DisplayRefreshLevel.DisplaySettings,
+                    DisplayInvalidationTarget.RaceLeaderboard | DisplayInvalidationTarget.TimerOverlay));
                 break;
             case ApplyRouteOverrideCommand applyOverride:
                 ApplyRouteOverride(applyOverride.Package, effects);
@@ -322,25 +357,15 @@ public sealed class ApplicationController
 
     private void AddResetEffects(List<ApplicationEffect> effects, bool recordStats, bool playResetSound)
     {
-        RunFinalizationResult finalization = runLifecycle.Reset(
+        RunFinalizationRequest finalization = runLifecycle.Reset(
             Settings,
             baseSettings,
             ViewState.DisplayStatuses,
-            recordStats,
-            confirmPersonalBestUpdate);
-        if (finalization.SettingsUpdated)
-        {
-            Settings = CreateEffectiveSettings(baseSettings);
-            Definitions = SplitCatalog.Build(Settings);
-        }
-
+            recordStats);
+        AddRunStatisticsEffect(effects, finalization);
+        AddPersonalBestEffect(effects, finalization, baseSettings);
         ViewState = ApplicationViewState.FromDefinitions(Settings, Definitions);
-        if (finalization.SettingsUpdated)
-        {
-            effects.Add(CreateSaveSettingsEffect(baseSettings));
-        }
 
-        AddPersistenceFailureEffects(effects, finalization.PersistenceFailures);
         effects.Add(new ClearOverlayAnimationEffect());
         effects.Add(new RefreshTimerOverlaySettingsEffect());
         if (playResetSound)
@@ -423,12 +448,12 @@ public sealed class ApplicationController
         AppSettings previousSettings = settingsSnapshots.CreateSnapshot(Settings);
         AppSettings nextBaseSettings = settingsSnapshots.CreateSnapshot(appliedSettings);
         SettingsNormalizer.Normalize(nextBaseSettings);
-        RunFinalizationResult finalization = runLifecycle.Reset(
+        RunFinalizationRequest finalization = runLifecycle.Reset(
             Settings,
             nextBaseSettings,
             ViewState.DisplayStatuses,
-            recordStats: true,
-            confirmPersonalBestUpdate);
+            recordStats: true);
+        AddRunStatisticsEffect(effects, finalization);
         baseSettings = nextBaseSettings;
         Settings = CreateEffectiveSettings(baseSettings);
         Definitions = SplitCatalog.Build(Settings);
@@ -439,7 +464,7 @@ public sealed class ApplicationController
             effects.Add(CreateSaveSettingsEffect(baseSettings));
         }
 
-        AddPersistenceFailureEffects(effects, finalization.PersistenceFailures);
+        AddPersonalBestEffect(effects, finalization, baseSettings);
         effects.Add(new ClearOverlayAnimationEffect());
         effects.Add(new RefreshTimerOverlaySettingsEffect());
         effects.Add(new SubmitRuntimeCommandEffect(RuntimeCommand.Reset()));
@@ -471,17 +496,17 @@ public sealed class ApplicationController
     private void RebuildEffectiveSettings(List<ApplicationEffect> effects, bool resetRaceProgress)
     {
         AppSettings previousSettings = settingsSnapshots.CreateSnapshot(Settings);
-        RunFinalizationResult finalization = runLifecycle.Reset(
+        RunFinalizationRequest finalization = runLifecycle.Reset(
             Settings,
             baseSettings,
             ViewState.DisplayStatuses,
-            recordStats: true,
-            confirmPersonalBestUpdate);
+            recordStats: true);
+        AddRunStatisticsEffect(effects, finalization);
+        AddPersonalBestEffect(effects, finalization, baseSettings);
         Settings = CreateEffectiveSettings(baseSettings);
         Definitions = SplitCatalog.Build(Settings);
         ViewState = ApplicationViewState.FromDefinitions(Settings, Definitions);
 
-        AddPersistenceFailureEffects(effects, finalization.PersistenceFailures);
         effects.Add(new ClearOverlayAnimationEffect());
         effects.Add(new RefreshTimerOverlaySettingsEffect());
         effects.Add(new SubmitRuntimeCommandEffect(RuntimeCommand.Reset()));
@@ -509,6 +534,45 @@ public sealed class ApplicationController
         return new SaveSettingsEffect(settingsSnapshots.CreateSnapshot(settings));
     }
 
+    private void UpdateRaceSettings(
+        RaceSettings raceSettings,
+        List<ApplicationEffect> effects)
+    {
+        AppSettings nextBaseSettings = settingsSnapshots.CreateSnapshot(baseSettings);
+        nextBaseSettings.Race = AppSettingsCloner.CloneRaceSettings(raceSettings);
+        SettingsNormalizer.Normalize(nextBaseSettings);
+        baseSettings = nextBaseSettings;
+        Settings = CreateEffectiveSettings(baseSettings);
+        ViewState = ViewState.WithSettings(Settings);
+
+        effects.Add(CreateSaveSettingsEffect(baseSettings));
+        effects.Add(new RefreshTimerOverlaySettingsEffect());
+    }
+
+    private static void AddRunStatisticsEffect(
+        List<ApplicationEffect> effects,
+        RunFinalizationRequest finalization)
+    {
+        if (finalization.Statistics.Count > 0)
+        {
+            effects.Add(new RecordRunStatisticsEffect(finalization.Statistics));
+        }
+    }
+
+    private void AddPersonalBestEffect(
+        List<ApplicationEffect> effects,
+        RunFinalizationRequest finalization,
+        AppSettings targetBaseSettings)
+    {
+        if (finalization.PersonalBestPlan is not PersonalBestFinalizationPlan plan)
+        {
+            return;
+        }
+
+        pendingPersonalBestCommits[plan.PlanId] = new PendingPersonalBestCommit(plan, targetBaseSettings);
+        effects.Add(new FinalizePersonalBestEffect(plan));
+    }
+
     private static void AddPersistenceFailureEffects(
         List<ApplicationEffect> effects,
         IReadOnlyList<OperationResult> failures)
@@ -518,6 +582,10 @@ public sealed class ApplicationController
             effects.Add(new ShowPersistenceFailureEffect(failure));
         }
     }
+
+    private sealed record PendingPersonalBestCommit(
+        PersonalBestFinalizationPlan Plan,
+        AppSettings TargetBaseSettings);
 }
 
 internal static class RunEventProcessor
@@ -578,7 +646,12 @@ internal static class RunEventProcessor
                     queueRaceProgress = true;
                     break;
                 case RunEventKind.RunCompleted:
-                    runLifecycle.RecordRunStatsOnce(viewState.DisplayStatuses);
+                    IReadOnlyList<SplitStatusSnapshot>? runStatistics =
+                        runLifecycle.CaptureRunStatisticsOnce(viewState.DisplayStatuses);
+                    if (runStatistics is not null)
+                    {
+                        effects.Add(new RecordRunStatisticsEffect(runStatistics));
+                    }
                     queueRaceProgress = true;
                     raceRunCompleted = true;
                     break;

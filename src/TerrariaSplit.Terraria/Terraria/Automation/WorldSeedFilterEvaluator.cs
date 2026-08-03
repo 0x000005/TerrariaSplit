@@ -214,8 +214,7 @@ internal sealed class WorldSeedFilterEvaluator : IDisposable
     internal static bool IsCandidateRejection(JungleSeedJudgeStatus status)
     {
         return status is JungleSeedJudgeStatus.InvalidSeed or
-            JungleSeedJudgeStatus.SpecialSeedUnsupported or
-            JungleSeedJudgeStatus.GenerationFailed;
+            JungleSeedJudgeStatus.SpecialSeedUnsupported;
     }
 
     private static JungleSeedJudgeGameMode ResolveGameMode(string? difficulty)

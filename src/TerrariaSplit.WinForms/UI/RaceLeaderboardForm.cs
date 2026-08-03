@@ -102,6 +102,7 @@ internal sealed class RaceLeaderboardForm : Form
             return;
         }
 
+        iconCache.Clear();
         ApplyPreferredClientSize();
         QueueRender();
     }

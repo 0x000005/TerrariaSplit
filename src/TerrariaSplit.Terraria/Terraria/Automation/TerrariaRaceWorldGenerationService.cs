@@ -169,6 +169,17 @@ public sealed class TerrariaRaceWorldGenerationService : IDisposable
         }
 
         SeedFilterEvaluation[] evaluations = await Task.WhenAll(tasks);
+        foreach (SeedFilterEvaluation evaluation in evaluations.OrderBy(item => item.BatchIndex))
+        {
+            if (!evaluation.Prediction.CanUsePrediction &&
+                !evaluation.Prediction.CanContinueWithoutPrediction)
+            {
+                return TerrariaRaceSeedFilterBatchResult.Fatal(
+                    evaluations.Length,
+                    evaluation.Prediction.Detail);
+            }
+        }
+
         var accepted = new List<TerrariaRaceSeedFilterCandidate>();
         string lastDetail = string.Empty;
         foreach (SeedFilterEvaluation evaluation in evaluations.OrderBy(item => item.BatchIndex))
@@ -185,18 +196,6 @@ public sealed class TerrariaRaceWorldGenerationService : IDisposable
                 continue;
             }
 
-            if (!prediction.CanUsePrediction &&
-                !prediction.CanContinueWithoutPrediction)
-            {
-                if (accepted.Count == 0)
-                {
-                    return TerrariaRaceSeedFilterBatchResult.Fatal(
-                        evaluations.Length,
-                        prediction.Detail);
-                }
-
-                break;
-            }
         }
 
         return TerrariaRaceSeedFilterBatchResult.Complete(

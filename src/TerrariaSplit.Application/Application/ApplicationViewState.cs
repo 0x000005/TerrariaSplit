@@ -4,18 +4,21 @@ namespace TerrariaSplit.Application;
 
 public sealed record ApplicationViewState(
     AppSettings Settings,
-    RuntimeRunSnapshot RuntimeSnapshot,
-    IReadOnlyList<SplitStatusSnapshot> DisplayStatuses,
-    int CurrentSplitIndex,
-    SplitTimerState TimerState,
-    int StatusHash,
-    bool HasRuntimeSnapshot)
+    RuntimeRunSnapshot RuntimeSnapshot)
 {
-    public SplitTimerPhase TimerPhase => TimerState.Phase;
+    public IReadOnlyList<SplitStatusSnapshot> DisplayStatuses => RuntimeSnapshot.Statuses;
+
+    public int CurrentSplitIndex => RuntimeSnapshot.CurrentSplitIndex;
+
+    public SplitTimerState TimerState => RuntimeSnapshot.TimerState;
+
+    public int StatusHash => RuntimeSnapshot.StatusHash;
+
+    public SplitTimerPhase TimerPhase => RuntimeSnapshot.TimerPhase;
 
     public TimeSpan ElapsedAt(long timestamp)
     {
-        return SplitTimer.ElapsedAt(TimerState, timestamp);
+        return RuntimeSnapshot.ElapsedAt(timestamp);
     }
 
     public TimeSpan ElapsedNow()
@@ -32,58 +35,20 @@ public sealed record ApplicationViewState(
         AppSettings settings,
         IReadOnlyList<SplitDefinition> definitions)
     {
-        SplitStatusSnapshot[] statuses = definitions
-            .Select(SplitStatusSnapshot.FromDefinition)
-            .ToArray();
         return new ApplicationViewState(
             settings,
-            RuntimeRunSnapshot.Empty,
-            statuses,
-            statuses.Length == 0 ? 0 : 0,
-            new SplitTimerState(SplitTimerPhase.NotStarted, TimeSpan.Zero, 0),
-            ComputeStatusHash(statuses),
-            HasRuntimeSnapshot: false);
+            RuntimeRunSnapshot.FromDefinitions(definitions));
     }
 
     public static ApplicationViewState FromRuntimeSnapshot(
         AppSettings settings,
         RuntimeRunSnapshot snapshot)
     {
-        return new ApplicationViewState(
-            settings,
-            snapshot,
-            snapshot.Statuses,
-            snapshot.CurrentSplitIndex,
-            snapshot.TimerState,
-            snapshot.StatusHash,
-            HasRuntimeSnapshot: true);
+        return new ApplicationViewState(settings, snapshot);
     }
 
     public ApplicationViewState WithSettings(AppSettings nextSettings)
     {
         return this with { Settings = nextSettings };
-    }
-
-    private static int ComputeStatusHash(IReadOnlyList<SplitStatusSnapshot> statuses)
-    {
-        var hash = new HashCode();
-        foreach (SplitStatusSnapshot status in statuses)
-        {
-            hash.Add(status.Time);
-            hash.Add(status.IsSkipped);
-            hash.Add(status.IsManuallyCompleted);
-            foreach (string factKey in status.CompletedFactKeys)
-            {
-                hash.Add(factKey, StringComparer.OrdinalIgnoreCase);
-            }
-
-            foreach ((string factKey, TimeSpan time) in status.FactCompletionTimes ?? new Dictionary<string, TimeSpan>())
-            {
-                hash.Add(factKey, StringComparer.OrdinalIgnoreCase);
-                hash.Add(time);
-            }
-        }
-
-        return hash.ToHashCode();
     }
 }

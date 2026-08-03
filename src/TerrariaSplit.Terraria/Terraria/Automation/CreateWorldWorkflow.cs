@@ -13,7 +13,7 @@ internal sealed class CreateWorldWorkflow : IDisposable
     private readonly WorldPoolInstallWorkflow worldPoolInstallWorkflow;
     private readonly WorldCreationMenuDriver menuDriver;
 
-    public CreateWorldWorkflow(WorldPoolStore? worldPool = null)
+    public CreateWorldWorkflow(IWorldPoolStore? worldPool = null)
     {
         windowActivation = new WindowActivationService(automation, "Create world");
         zenithStarCatchAutomation = new ZenithStarCatchAutomation(automation);
@@ -76,14 +76,14 @@ internal sealed class CreateWorldWorkflow : IDisposable
                         "Create world automation failed before world selection.");
                 }
 
-                if (poolInstall.InstalledWorld is not null)
+                if (poolInstall.InstalledWorld is WorldPoolItem installedWorld)
                 {
-                    worldPoolInstallWorkflow.RemoveInstalled(worldGenSignature, poolInstall.InstalledWorld);
+                    worldPoolInstallWorkflow.RemoveInstalled(worldGenSignature, installedWorld);
                     StaticAppLogger.Instance.Info(
-                        $"Create world automation installed pooled world {poolInstall.InstalledWorld.WorldFileName}; " +
+                        $"Create world automation installed pooled world {installedWorld.WorldFileName}; " +
                         "stopped at world select.");
                     return AutomationResult.Success(
-                        $"Create world automation installed pooled world {poolInstall.InstalledWorld.WorldFileName}.");
+                        $"Create world automation installed pooled world {installedWorld.WorldFileName}.");
                 }
 
                 CreateWorldLoopResult loopResult = await RunWorldCreationLoopAsync(autoCreate, geometry, cancellationToken);

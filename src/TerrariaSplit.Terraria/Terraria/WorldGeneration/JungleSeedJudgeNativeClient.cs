@@ -18,7 +18,8 @@ internal sealed class JungleSeedJudgeNativeClient
     private static readonly ConcurrentDictionary<string, Lazy<NativeApi>>
         LoadedLibraries = new(StringComparer.OrdinalIgnoreCase);
 
-    private readonly NativeApi api;
+    private readonly Func<string, JungleSeedJudgeGameMode, string, JungleSeedJudgeResult> analyze;
+    private readonly SemaphoreSlim nativeCallGate;
     private readonly TimeSpan requestTimeout;
     private long nextRequestId;
 
@@ -36,20 +37,27 @@ internal sealed class JungleSeedJudgeNativeClient
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(libraryPath);
         string fullPath = Path.GetFullPath(libraryPath);
-        this.requestTimeout = requestTimeout ?? TimeSpan.FromSeconds(5);
-        if (this.requestTimeout <= TimeSpan.Zero)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(requestTimeout),
-                "The native world-filter timeout must be positive.");
-        }
-
-        api = LoadedLibraries.GetOrAdd(
+        this.requestTimeout = ValidateRequestTimeout(requestTimeout);
+        NativeApi api = LoadedLibraries.GetOrAdd(
                 fullPath,
                 static path => new Lazy<NativeApi>(
                     () => NativeApi.Load(path),
                     LazyThreadSafetyMode.ExecutionAndPublication))
             .Value;
+        analyze = api.Analyze;
+        nativeCallGate = NativeCallGate;
+    }
+
+    internal JungleSeedJudgeNativeClient(
+        Func<string, JungleSeedJudgeGameMode, string, JungleSeedJudgeResult> analyze,
+        TimeSpan requestTimeout,
+        SemaphoreSlim nativeCallGate)
+    {
+        ArgumentNullException.ThrowIfNull(analyze);
+        ArgumentNullException.ThrowIfNull(nativeCallGate);
+        this.analyze = analyze;
+        this.requestTimeout = ValidateRequestTimeout(requestTimeout);
+        this.nativeCallGate = nativeCallGate;
     }
 
     public async Task<JungleSeedJudgeResult> AnalyzeAsync(
@@ -58,30 +66,36 @@ internal sealed class JungleSeedJudgeNativeClient
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(seedText);
-        await NativeCallGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken);
+        deadline.CancelAfter(requestTimeout);
+        try
+        {
+            await nativeCallGate.WaitAsync(deadline.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+            when (!cancellationToken.IsCancellationRequested)
+        {
+            throw CreateTimeoutException();
+        }
 
         string requestId = Interlocked.Increment(ref nextRequestId)
             .ToString(CultureInfo.InvariantCulture);
         Task<JungleSeedJudgeResult> nativeCall = Task.Run(
-            () => api.Analyze(seedText, gameMode, requestId),
+            () => analyze(seedText, gameMode, requestId),
             CancellationToken.None);
         bool releaseWhenNativeCallCompletes = false;
         try
         {
-            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(
-                cancellationToken);
-            timeout.CancelAfter(requestTimeout);
             try
             {
-                return await nativeCall.WaitAsync(timeout.Token)
+                return await nativeCall.WaitAsync(deadline.Token)
                     .ConfigureAwait(false);
             }
             catch (OperationCanceledException)
                 when (!cancellationToken.IsCancellationRequested)
             {
-                throw new TimeoutException(
-                    $"Native world-filter call exceeded " +
-                    $"{requestTimeout.TotalSeconds:F1} seconds.");
+                throw CreateTimeoutException();
             }
         }
         catch
@@ -89,11 +103,12 @@ internal sealed class JungleSeedJudgeNativeClient
             if (!nativeCall.IsCompleted)
             {
                 releaseWhenNativeCallCompletes = true;
+                SemaphoreSlim gate = nativeCallGate;
                 _ = nativeCall.ContinueWith(
-                    static completed =>
+                    completed =>
                     {
                         _ = completed.Exception;
-                        NativeCallGate.Release();
+                        gate.Release();
                     },
                     CancellationToken.None,
                     TaskContinuationOptions.ExecuteSynchronously,
@@ -109,9 +124,29 @@ internal sealed class JungleSeedJudgeNativeClient
         {
             if (!releaseWhenNativeCallCompletes)
             {
-                NativeCallGate.Release();
+                nativeCallGate.Release();
             }
         }
+    }
+
+    private static TimeSpan ValidateRequestTimeout(TimeSpan? requestTimeout)
+    {
+        TimeSpan timeout = requestTimeout ?? TimeSpan.FromSeconds(5);
+        if (timeout <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(requestTimeout),
+                "The native world-filter timeout must be positive.");
+        }
+
+        return timeout;
+    }
+
+    private TimeoutException CreateTimeoutException()
+    {
+        return new TimeoutException(
+            $"Native world-filter request exceeded " +
+            $"{requestTimeout.TotalSeconds:F1} seconds.");
     }
 
     private sealed class NativeApi

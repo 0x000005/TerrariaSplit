@@ -12,46 +12,25 @@ internal static class MainShellCompositionRoot
         var runStatsRepository = new RunStatsRepository(splitTimeSets);
         var settingsRepository = new AppSettingsRepository(runtimeDataPaths, splitTimeSets);
         StartupDiagnostics.RecordTrace("StartupRepositoriesCreated");
-        ISettingsSnapshotFactory settingsSnapshots = new StoredSettingsSnapshotFactory(settingsRepository);
+        ISettingsSnapshotFactory settingsSnapshots = new SettingsSnapshotFactory();
         IAppLogger logger = StaticAppLogger.Instance;
-        var runStatisticsRecorder = new DelegateRunStatisticsRecorder(runStatsRepository.RecordRun);
-        var personalBestSnapshotStore = new DelegatePersonalBestSnapshotStore(
-            (splits, bossName, previousTime, newTime) =>
-            {
-                OperationResult result = splitTimeSets.TrySavePersonalBestTimeSnapshot(
-                    splits,
-                    bossName,
-                    previousTime,
-                    newTime,
-                    out ReferenceSplitSet? snapshot);
-                return PersonalBestSnapshotSaveResult.FromResult(result, snapshot);
-            },
-            (splits, bossName, previousTime, newTime) =>
-            {
-                OperationResult result = splitTimeSets.TrySavePersonalBestSegmentSnapshot(
-                    splits,
-                    bossName,
-                    previousTime,
-                    newTime,
-                    out ReferenceSplitSet? snapshot);
-                return PersonalBestSnapshotSaveResult.FromResult(result, snapshot);
-            });
+        var runFinalization = new RunFinalizationPersistence(
+            runStatsRepository,
+            splitTimeSets,
+            confirmPersonalBestUpdate);
         AppSettings settings = settingsRepository.Load();
         StartupDiagnostics.RecordTrace("StartupSettingsLoaded");
         var applicationController = new ApplicationController(
             settings,
-            confirmPersonalBestUpdate,
-            settingsSnapshots,
-            runStatisticsRecorder,
-            personalBestSnapshotStore);
+            settingsSnapshots);
         StartupDiagnostics.RecordTrace("StartupApplicationCreated");
         var renderResources = new OverlayRenderResources();
         StartupDiagnostics.RecordTrace("StartupRenderResourcesCreated");
         Task statusIconPreloadTask = Task.Run(() =>
-            renderResources.BossIcons.PreloadInitialFrame(
+            BossIconAssetLoader.LoadInitialAssets(
+                BossIconAssetRegistry.Shared,
                 applicationController.ViewState.DisplayStatuses,
-                applicationController.ViewState.CurrentSplitIndex,
-                applicationController.Settings));
+                logger));
         StartupDiagnostics.RecordTrace("StartupIconPreloadQueued");
 
         return new StartupCore(
@@ -64,6 +43,7 @@ internal static class MainShellCompositionRoot
             renderResources,
             statusIconPreloadTask,
             new OverlayAnimationController(),
+            runFinalization,
             applicationController);
     }
 
@@ -103,6 +83,7 @@ internal static class MainShellCompositionRoot
             new TerrariaWorldWatcher(),
             new TerrariaUiScalePatchApplierAdapter(),
             dispatch,
+            ProcessLivenessProbe.IsRunning,
             logger,
             shouldYieldDispatch: UiInputMessageProbe.HasPendingInputMessage);
     }
@@ -202,27 +183,29 @@ internal static class MainShellCompositionRoot
         Func<AppSettings, OperationResult> saveSettings,
         AutomationShell automationShell,
         Action resetRaceProgressReports,
-        Action<bool, bool> queueRaceProgressReports)
+        Action<bool, bool> queueRaceProgressReports,
+        RunFinalizationPersistence runFinalization,
+        Action<SystemEvent> publishSystemEvent)
     {
         return new ApplicationShellEffectExecutor(
-            new DelegateRuntimeCommandPort(submitRuntimeCommand),
-            new DelegateSoundPort(soundPlayer.StopAll, soundPlayer.Play),
-            new DelegateOverlayPort(
-                toggleMouseClickThrough,
-                overlayAnimations.Clear,
-                clearSplitCompletionAnimation,
-                trackSegmentBestDeltaHighlight,
-                startSplitCompletionAnimation,
-                resetUiScalePatchState,
-                refreshTimerOverlaySettings,
-                refreshRuntimeUi),
-            new DelegateSettingsPort(saveSettings, showSettingsSaveFailure, applyLoadedSettings),
-            new DelegateAutomationPort(
-                automationShell.StartCreateWorld,
-                automationShell.ShowPracticeWorldSelector,
-                () => automationShell.CancelCreateWorld(),
-                () => automationShell.CancelEnterWorld()),
-            new DelegateRaceProgressPort(resetRaceProgressReports, queueRaceProgressReports));
+            submitRuntimeCommand,
+            soundPlayer,
+            overlayAnimations,
+            toggleMouseClickThrough,
+            clearSplitCompletionAnimation,
+            trackSegmentBestDeltaHighlight,
+            startSplitCompletionAnimation,
+            resetUiScalePatchState,
+            refreshTimerOverlaySettings,
+            refreshRuntimeUi,
+            saveSettings,
+            showSettingsSaveFailure,
+            applyLoadedSettings,
+            automationShell,
+            resetRaceProgressReports,
+            queueRaceProgressReports,
+            runFinalization,
+            publishSystemEvent);
     }
 
     public static HighPrecisionScheduler CreateControlScheduler(Action queueControlTick)

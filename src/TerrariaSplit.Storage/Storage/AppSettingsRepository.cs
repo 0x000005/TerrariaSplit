@@ -67,7 +67,7 @@ public sealed class AppSettingsRepository : ISettingsRepository
         string activePersonalBestTimeSet = settings.Comparison.ActivePersonalBestTimeSet;
         string activePersonalBestSegmentSet = settings.Comparison.ActivePersonalBestSegmentSet;
 
-        Normalize(settings);
+        SettingsNormalizer.Normalize(settings);
         RestoreActiveSplitSetNames(
             settings,
             activeReferenceSplitSet,
@@ -94,18 +94,33 @@ public sealed class AppSettingsRepository : ISettingsRepository
 
     public OperationResult Save(AppSettings settings)
     {
-        AppSettings snapshot = Clone(settings);
+        AppSettings snapshot = AppSettingsCloner.Clone(settings);
+        SettingsNormalizer.Normalize(snapshot);
         try
         {
-            if (!snapshot.Comparison.UsePersonalBestAsReferenceTime)
+            OperationResult referenceResult = splitTimeSets.SaveReferenceSets(
+                snapshot.Comparison.ReferenceSplitSets);
+            if (referenceResult.Failed)
             {
-                splitTimeSets.SaveReferenceSets(snapshot.Comparison.ReferenceSplitSets);
+                return referenceResult;
             }
 
             PersonalBestSetService.SyncActivePersonalBestTimeSetFromDictionary(snapshot);
             PersonalBestSetService.SyncActivePersonalBestSegmentSetFromDictionary(snapshot);
-            splitTimeSets.SavePersonalBestTimeSets(snapshot.Comparison.PersonalBestTimeSets);
-            splitTimeSets.SavePersonalBestSegmentSets(snapshot.Comparison.PersonalBestSegmentSets);
+            OperationResult personalBestTimeResult = splitTimeSets.SavePersonalBestTimeSets(
+                snapshot.Comparison.PersonalBestTimeSets);
+            if (personalBestTimeResult.Failed)
+            {
+                return personalBestTimeResult;
+            }
+
+            OperationResult personalBestSegmentResult = splitTimeSets.SavePersonalBestSegmentSets(
+                snapshot.Comparison.PersonalBestSegmentSets);
+            if (personalBestSegmentResult.Failed)
+            {
+                return personalBestSegmentResult;
+            }
+
             string directory = Path.GetDirectoryName(SettingsPath)!;
             Directory.CreateDirectory(directory);
             return SettingsSerializer.WriteSettings(SettingsPath, AppSettingsPersistenceProjection.Create(snapshot));
@@ -115,23 +130,6 @@ public sealed class AppSettingsRepository : ISettingsRepository
             StaticAppLogger.Instance.Error(ex, $"Failed to save settings: {SettingsPath}");
             return OperationResult.Failure("Failed to save settings.", ex);
         }
-    }
-
-    public OperationResult TrySave(AppSettings settings)
-    {
-        return Save(settings);
-    }
-
-    public AppSettings Clone(AppSettings settings)
-    {
-        AppSettings clone = SettingsSerializer.Clone(settings);
-        Normalize(clone);
-        return clone;
-    }
-
-    public void Normalize(AppSettings settings)
-    {
-        SettingsNormalizer.Normalize(settings);
     }
 
     private LoadedSettingsDocument ReadSettingsDocument(string path)

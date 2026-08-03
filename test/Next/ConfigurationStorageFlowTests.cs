@@ -5,6 +5,9 @@ internal static class ConfigurationStorageFlowTests
     public static IEnumerable<TestCase> All()
     {
         yield return TestCase.Sync("settings save, profile selection and reload preserve normalized user choices", TestSuite.Flow, SettingsRoundTrip);
+        yield return TestCase.Sync("settings save persists edited reference data while PB reference mode is active", TestSuite.Flow, PersonalBestModePreservesReferenceEdits);
+        yield return TestCase.Sync("settings save reports split-set write failures before writing the settings document", TestSuite.Flow, SplitSetWriteFailureIsReported);
+        yield return TestCase.Sync("new settings are deep clones of the single embedded default template", TestSuite.Flow, CanonicalSettingsDefaults);
         yield return TestCase.Sync("switching routes preserves reference data owned by another profile", TestSuite.Flow, SwitchingRoutesPreservesInactiveReferenceData);
         yield return TestCase.Sync("advanced world filters require a plain small Crimson world while pyramid remains available", TestSuite.Flow, AdvancedFilterEligibility);
         yield return TestCase.Sync("split time and run statistics persist through injected runtime paths", TestSuite.Flow, SplitAndRunStorageFlow);
@@ -105,6 +108,25 @@ internal static class ConfigurationStorageFlowTests
         Check.True(File.Exists(Path.Combine(paths.SettingsDirectory, "active-profile.txt")));
     }
 
+    private static void CanonicalSettingsDefaults()
+    {
+        AppSettings constructed = new();
+        AppSettings templateClone = AppSettingsDefaults.Create();
+        string constructedJson = System.Text.Json.JsonSerializer.Serialize(
+            constructed,
+            AppSettingsJsonContext.Default.AppSettings);
+        string templateJson = System.Text.Json.JsonSerializer.Serialize(
+            templateClone,
+            AppSettingsJsonContext.Default.AppSettings);
+        Check.Equal(templateJson, constructedJson);
+
+        constructed.General.Language = "Changed";
+        constructed.Route.SplitRoute.Clear();
+        AppSettings freshDefaults = AppSettingsDefaults.Create();
+        Check.Equal("English", freshDefaults.General.Language);
+        Check.True(freshDefaults.Route.SplitRoute.Count > 0);
+    }
+
     private static void SwitchingRoutesPreservesInactiveReferenceData()
     {
         using var directory = new TestDirectory();
@@ -170,6 +192,52 @@ internal static class ConfigurationStorageFlowTests
         Check.Equal(
             "00:10",
             splitSets.LoadReferenceSets().Single(set => set.Name == routeAReference.Name).Splits[routeAKey]);
+    }
+
+    private static void PersonalBestModePreservesReferenceEdits()
+    {
+        using var directory = new TestDirectory();
+        var paths = new AppContextRuntimeDataPaths(directory.Path);
+        var repository = new AppSettingsRepository(paths);
+        AppSettings settings = AppSettingsDefaults.Create();
+        settings.Comparison.UsePersonalBestAsReferenceTime = true;
+        settings.Comparison.ReferenceSplitSets =
+        [
+            new ReferenceSplitSet
+            {
+                Name = "Edited WR",
+                Splits = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["split:edited"] = "00:30"
+                }
+            }
+        ];
+        settings.Comparison.ActiveReferenceSplitSet = "Edited WR";
+
+        Check.True(repository.Save(settings).Succeeded);
+
+        AppSettings loaded = new AppSettingsRepository(paths).Load();
+        ReferenceSplitSet edited = loaded.Comparison.ReferenceSplitSets
+            .Single(set => set.Name == "Edited WR");
+        Check.Equal("00:30", edited.Splits["split:edited"]);
+        Check.True(loaded.Comparison.UsePersonalBestAsReferenceTime);
+    }
+
+    private static void SplitSetWriteFailureIsReported()
+    {
+        using var directory = new TestDirectory();
+        var paths = new AppContextRuntimeDataPaths(directory.Path);
+        Directory.CreateDirectory(paths.DataDirectory);
+        File.WriteAllText(paths.ReferenceTimesDirectory, "blocks directory creation");
+        var repository = new AppSettingsRepository(paths);
+
+        OperationResult result = repository.Save(AppSettingsDefaults.Create());
+
+        Check.True(result.Failed);
+        Check.True(result.Message.Contains(
+            "reference split time set",
+            StringComparison.OrdinalIgnoreCase));
+        Check.False(File.Exists(Path.Combine(paths.SettingsDirectory, "settings.json")));
     }
 
     private static void AdvancedFilterEligibility()

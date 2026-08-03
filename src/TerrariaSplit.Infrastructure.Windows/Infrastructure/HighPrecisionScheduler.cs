@@ -1,6 +1,6 @@
 using System.Diagnostics;
 
-namespace TerrariaSplit.Infrastructure;
+namespace TerrariaSplit.Infrastructure.Windows;
 
 public readonly record struct HighPrecisionSchedulerTick(
     long ScheduledTimestamp,

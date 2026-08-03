@@ -41,18 +41,3 @@ public sealed class RunStatsRepository
         splitTimeSets.SaveLastRun(lastRunSplits, lastCompleted?.Definition.DisplayName, lastCompleted?.Time);
     }
 }
-
-public static class RunStatsStore
-{
-    private static readonly RunStatsRepository Repository = new();
-
-    public static RunStats Load()
-    {
-        return Repository.Load();
-    }
-
-    public static void RecordRun(IReadOnlyList<SplitStatusSnapshot> statuses)
-    {
-        Repository.RecordRun(statuses);
-    }
-}

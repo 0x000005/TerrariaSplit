@@ -2,12 +2,12 @@ namespace TerrariaSplit.Terraria.Automation;
 
 public sealed class TerrariaWorldAutomation : IDisposable
 {
-    private readonly WorldPoolStore? worldPool;
+    private readonly IWorldPoolStore? worldPool;
     private readonly EnterWorldWorkflow enterWorldWorkflow = new();
     private readonly AutomationRunner<AppSettings> createWorldRunner;
     private readonly AutomationRunner<EnterWorldAutomationRequest> enterWorldRunner;
 
-    public TerrariaWorldAutomation(WorldPoolStore? worldPool = null, IAppLogger? logger = null)
+    public TerrariaWorldAutomation(IWorldPoolStore? worldPool = null, IAppLogger? logger = null)
     {
         logger ??= NullAppLogger.Instance;
         this.worldPool = worldPool;

@@ -50,12 +50,6 @@ internal enum JungleResourceSource
     Chest
 }
 
-internal sealed record JungleSeedJudgeRequest(
-    int ProtocolVersion,
-    string RequestId,
-    string SeedText,
-    JungleSeedJudgeGameMode GameMode);
-
 internal sealed record JungleSeedJudgeResult(
     int ProtocolVersion,
     string RequestId,
