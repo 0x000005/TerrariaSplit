@@ -1,3 +1,4 @@
+using System.Globalization;
 using TerrariaSplit.Race.Contracts;
 using TerrariaSplit.Race.InGame;
 using TerrariaSplit.Terraria.Automation;
@@ -10,6 +11,18 @@ internal sealed partial class RaceShell
     {
         RaceRoomState? state = State;
         bool busy = Volatile.Read(ref inGameMenuBusy) != 0;
+        if (Volatile.Read(ref localRoomExitActive) != 0)
+        {
+            var exiting = new List<RaceInGameControl>();
+            AddProgressControls(exiting);
+            return Snapshot(
+                revision,
+                RaceInGamePageKind.Progress,
+                string.Empty,
+                state,
+                exiting);
+        }
+
         if (busy && Volatile.Read(ref inGameMenuDedicatedProgress) != 0)
         {
             var progress = new List<RaceInGameControl>();
@@ -288,20 +301,31 @@ internal sealed partial class RaceShell
         bool busy)
     {
         bool advancedFiltersEligible = AutoCreateAdvancedFilterEligibility.IsEligible(setup);
+        const string pyramidGroup = "primary-choice:pyramid";
+        const string crimsonGroup = "primary-choice:crimson";
+        const string jungleGroup = "primary-choice:jungle-route";
+        const string lifeCrystalGroup = "primary-choice:life-crystal";
+        AddToggle(
+            controls,
+            "boss-failure-penalty",
+            Localize("Enable boss failure penalty"),
+            setup.BossFailurePenaltyEnabled,
+            !busy,
+            "race-rules-row");
         AddToggle(
             controls,
             "rng",
             Localize("Shared key RNG"),
             setup.RngControlEnabled,
             !busy,
-            "rng-row");
+            "race-rules-row");
         AddToggle(
             controls,
             "pyramid",
             Localize("Pyramid"),
             setup.PyramidEnabled,
             !busy,
-            "pyramid-row");
+            pyramidGroup);
         foreach (string item in AutoCreatePyramidFilterItem.All)
         {
             AddToggle(
@@ -310,7 +334,7 @@ internal sealed partial class RaceShell
                 Localize(item),
                 (setup.PyramidItemMask & AutoCreatePyramidFilterItem.Mask(item)) != 0,
                 !busy && setup.PyramidEnabled,
-                "pyramid-row");
+                pyramidGroup);
         }
 
         AddToggle(
@@ -319,14 +343,14 @@ internal sealed partial class RaceShell
             Localize("Dungeon-side Crimson"),
             advancedFiltersEligible && setup.CrimsonEnabled,
             !busy && advancedFiltersEligible,
-            "crimson-row");
+            crimsonGroup);
         AddChoiceControls(
             controls,
             "crimson-distance:",
             AutoCreateCrimsonDistance.All,
             setup.CrimsonDistance,
             !busy && advancedFiltersEligible && setup.CrimsonEnabled,
-            "crimson-row",
+            crimsonGroup,
             isSelected: value =>
                 advancedFiltersEligible && setup.CrimsonEnabled &&
                 AutoCreateCrimsonDistance.Includes(setup.CrimsonDistance, value));
@@ -340,17 +364,39 @@ internal sealed partial class RaceShell
             Localize("Jungle main route"),
             jungleEnabled,
             !busy && advancedFiltersEligible,
-            "jungle-depth");
+            jungleGroup);
         AddChoiceControls(
             controls,
             "jungle-depth:",
             AutoCreateJungleRouteDepth.All,
             setup.JungleRouteDepth,
             !busy && jungleEnabled,
-            "jungle-depth",
+            jungleGroup,
             isSelected: value =>
                 jungleEnabled &&
                 AutoCreateJungleRouteDepth.Includes(setup.JungleRouteDepth, value));
+        int lifeCrystalMinimum = AutoCreateResourceMinimum.NormalizeLifeCrystals(
+            setup.LifeCrystalMinimum);
+        AddToggle(
+            controls,
+            "life-crystal",
+            Localize("Life Crystal"),
+            lifeCrystalMinimum > 0,
+            !busy && advancedFiltersEligible,
+            lifeCrystalGroup);
+        foreach (int minimum in AutoCreateResourceMinimum.LifeCrystals.Where(value => value > 0))
+        {
+            AddToggle(
+                controls,
+                "life-crystal-min:" + minimum.ToString(CultureInfo.InvariantCulture),
+                minimum == AutoCreateResourceMinimum.LifeCrystals[^1]
+                    ? minimum.ToString(CultureInfo.InvariantCulture) + "+"
+                    : minimum.ToString(CultureInfo.InvariantCulture),
+                lifeCrystalMinimum > 0 && minimum >= lifeCrystalMinimum,
+                !busy && advancedFiltersEligible && lifeCrystalMinimum > 0,
+                lifeCrystalGroup);
+        }
+
         AddButton(controls, "nav-host-world", Localize("Back"), !busy, "footer");
         AddButton(controls, "host-generate", Localize("Generate and upload"), !busy, "footer");
     }
@@ -383,6 +429,17 @@ internal sealed partial class RaceShell
                 label,
                 Localize(readiness),
                 "members");
+        }
+
+        RaceLocalPreparationStage localPreparation = ResolveLocalPreparationStage(state);
+        if (localPreparation != RaceLocalPreparationStage.None)
+        {
+            AddLabel(
+                controls,
+                "local-preparation",
+                FormatLocalPreparationStage(localPreparation),
+                string.Empty,
+                "local-preparation");
         }
 
         if (IsHostInCurrentRoom)
@@ -420,6 +477,48 @@ internal sealed partial class RaceShell
                 !busy && technicallyReady && state.ScheduledStartUtc is null,
                 "footer");
         }
+    }
+
+    private RaceLocalPreparationStage ResolveLocalPreparationStage(RaceRoomState state)
+    {
+        RaceLocalPreparationStage stage = LocalPreparationStage;
+        if (stage != RaceLocalPreparationStage.None)
+        {
+            return stage;
+        }
+
+        RacePlayerState? localPlayer = state.Players.FirstOrDefault(player =>
+            string.Equals(player.Nickname, session.Nickname, StringComparison.OrdinalIgnoreCase));
+        if (localPlayer is null || !IsPreparationReady(state, localPlayer))
+        {
+            return RaceLocalPreparationStage.None;
+        }
+
+        return localPlayer.IsHost || localPlayer.IsReady
+            ? RaceLocalPreparationStage.Ready
+            : RaceLocalPreparationStage.WaitForManualReady;
+    }
+
+    private string FormatLocalPreparationStage(RaceLocalPreparationStage stage)
+    {
+        string stageText = Localize(stage switch
+        {
+            RaceLocalPreparationStage.DownloadWorld => "Download world",
+            RaceLocalPreparationStage.ValidateWorld => "Validate world",
+            RaceLocalPreparationStage.AnalyzeWorld => "Analyze world",
+            RaceLocalPreparationStage.WaitForGame => "Wait for game",
+            RaceLocalPreparationStage.PrepareMemoryControl => "Prepare memory control",
+            RaceLocalPreparationStage.CreateRacePlayer => "Create Race player",
+            RaceLocalPreparationStage.AlmostReady => "Almost ready",
+            RaceLocalPreparationStage.ConnectToServer => "Connect to server",
+            RaceLocalPreparationStage.WaitForManualReady => "Wait for manual ready",
+            RaceLocalPreparationStage.Ready => "Preparation ready",
+            _ => string.Empty
+        });
+        return string.Format(
+            CultureInfo.CurrentCulture,
+            Localize("Local preparation: {0}"),
+            stageText);
     }
 
     private void BuildRoomManagementControls(

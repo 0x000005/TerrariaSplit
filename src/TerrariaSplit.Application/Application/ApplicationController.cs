@@ -117,6 +117,7 @@ public sealed class ApplicationController
             RaceProgressSystemEvent raceProgress => HandleRaceProgressEvent(raceProgress),
             RaceRosterSystemEvent raceRoster => HandleRaceRosterEvent(raceRoster),
             RaceModeSystemEvent raceMode => HandleRaceModeEvent(raceMode),
+            RaceTimePenaltySystemEvent racePenalty => HandleRaceTimePenaltyEvent(racePenalty),
             PersonalBestFinalizationSystemEvent finalization => HandlePersonalBestFinalization(finalization.Result),
             _ => throw new NotSupportedException($"Unsupported system event {systemEvent.GetType().Name}.")
         };
@@ -166,6 +167,21 @@ public sealed class ApplicationController
         return new ApplicationUpdate(
             enteredMode ? CreateRaceRoomEntryEffects() : [],
             [DisplayInvalidation.For(DisplayRefreshLevel.RuntimeFacts, DisplayInvalidationTarget.All)]);
+    }
+
+    private ApplicationUpdate HandleRaceTimePenaltyEvent(RaceTimePenaltySystemEvent racePenalty)
+    {
+        if (!raceState.IsModeEnabled ||
+            !raceState.IsInRoom ||
+            racePenalty.Penalty <= TimeSpan.Zero ||
+            racePenalty.Penalty > TimeSpan.FromMinutes(7.5))
+        {
+            return ApplicationUpdate.Empty;
+        }
+
+        return new ApplicationUpdate(
+            [new SubmitRuntimeCommandEffect(RuntimeCommand.AddElapsedPenalty(racePenalty.Penalty))],
+            []);
     }
 
     private ApplicationUpdate HandlePersonalBestFinalization(PersonalBestFinalizationResult result)

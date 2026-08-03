@@ -381,6 +381,7 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
         { "Specified seed", "指定种子" },
         { "Secret seeds", "秘密种子" },
         { "Shared key RNG", "共享关键 RNG" },
+        { "Enable boss failure penalty", "启用 BOSS 战失败罚时" },
         { "Advanced settings", "高级设置" },
         { "Manual split", "手动分段" },
         { "Hotkey", "快捷键" },
@@ -829,6 +830,17 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Watcher resolved all current pointers.", "\u76D1\u6D4B\u5668\u5DF2\u89E3\u6790\u5F53\u524D\u6240\u6709\u6307\u9488\u3002" }
       , { "Only the assigned Race world can be entered until the run is completed.", "Race \u5B8C\u6210\u524D\u53EA\u80FD\u8FDB\u5165\u6307\u5B9A\u4E16\u754C\u3002" }
       , { "Only the assigned Race world and player can be used until the run is completed.", "Race \u5B8C\u6210\u524D\u53EA\u80FD\u4F7F\u7528\u6307\u5B9A\u4EBA\u7269\u5E76\u8FDB\u5165\u6307\u5B9A\u4E16\u754C\u3002" }
+      , { "Local preparation: {0}", "本地准备：{0}" }
+      , { "Download world", "下载世界" }
+      , { "Validate world", "校验世界" }
+      , { "Analyze world", "分析世界" }
+      , { "Wait for game", "等待游戏" }
+      , { "Prepare memory control", "准备内存控制" }
+      , { "Create Race player", "创建联机角色" }
+      , { "Almost ready", "即将完成" }
+      , { "Connect to server", "连接到服务器" }
+      , { "Wait for manual ready", "等待手动就绪" }
+      , { "Preparation ready", "已就绪" }
     };
 
     public bool TryGet(string key, out string value)

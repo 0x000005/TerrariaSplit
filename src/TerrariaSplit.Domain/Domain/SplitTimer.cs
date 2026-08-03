@@ -77,6 +77,17 @@ public sealed class SplitTimer
         runningSinceTimestamp = Phase == SplitTimerPhase.Running ? Stopwatch.GetTimestamp() : 0;
     }
 
+    public bool AddElapsedPenalty(TimeSpan penalty)
+    {
+        if (Phase != SplitTimerPhase.Running || penalty <= TimeSpan.Zero)
+        {
+            return false;
+        }
+
+        elapsedBeforePause += penalty;
+        return true;
+    }
+
     public void Stop()
     {
         StopAt(Stopwatch.GetTimestamp());

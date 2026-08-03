@@ -65,6 +65,13 @@ internal sealed class WatcherRuntimeProcessor
                 return [];
             case RuntimeCommandKind.CompleteNextSplitManually:
                 return timerController.CompleteNextSplitManually(observedTimestamp);
+            case RuntimeCommandKind.AddElapsedPenalty:
+                if (command.Time is TimeSpan penalty)
+                {
+                    timer.AddElapsedPenalty(penalty);
+                }
+
+                return [];
             case RuntimeCommandKind.ClearPendingMenuActions:
                 ClearPendingMenuActions();
                 return [];

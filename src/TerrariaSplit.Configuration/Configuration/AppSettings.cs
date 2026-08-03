@@ -179,6 +179,8 @@ public sealed class RaceWorldSetupSettings
 
     public bool RngControlEnabled { get; set; } = true;
 
+    public bool BossFailurePenaltyEnabled { get; set; } = true;
+
     public bool CheatsEnabled { get; set; } = true;
 
     public bool PyramidEnabled { get; set; } = true;
@@ -620,7 +622,7 @@ public static class AutoCreateResourceFilter
 
 public static class AutoCreateResourceMinimum
 {
-    public static readonly int[] LifeCrystals = [0, 1, 2, 3, 4, 5];
+    public static readonly int[] LifeCrystals = [0, 1, 2, 3, 4, 5, 6];
     public static readonly int[] Potions = [0, 1, 2, 3];
 
     public static int NormalizeLifeCrystals(int value) =>

@@ -189,7 +189,8 @@ public sealed record RaceWorldSettings(
     string WorldName = "",
     string SecretSeeds = "",
     int PlayerDifficultyCode = RacePlayerDifficultyCodes.Softcore,
-    bool RngControlEnabled = true)
+    bool RngControlEnabled = true,
+    bool BossFailurePenaltyEnabled = true)
 {
     public RaceCheatSettings EffectiveCheats => Cheats ?? RaceCheatSettings.Disabled;
 }

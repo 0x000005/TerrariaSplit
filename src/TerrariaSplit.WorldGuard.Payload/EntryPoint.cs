@@ -162,6 +162,12 @@ namespace TerrariaSplit.WorldGuard.Payload
 
         private static PayloadCommandResult HandleCommand(string command)
         {
+            PayloadCommandResult bossPenaltyResult;
+            if (TryHandleRaceBossPenaltyCommand(command, out bossPenaltyResult))
+            {
+                return bossPenaltyResult;
+            }
+
             PayloadCommandResult raceUiResult;
             if (TryHandleRaceUiCommand(command, out raceUiResult))
             {
@@ -726,6 +732,7 @@ namespace TerrariaSplit.WorldGuard.Payload
 
                 Type mainType = terraria.GetType("Terraria.Main", false);
                 Type playerType = terraria.GetType("Terraria.Player", false);
+                Type npcType = terraria.GetType("Terraria.NPC", false);
                 Type playerDeathReasonType = terraria.GetType(
                     "Terraria.DataStructures.PlayerDeathReason",
                     false);
@@ -737,7 +744,7 @@ namespace TerrariaSplit.WorldGuard.Payload
                 Type uiListType = terraria.GetType("Terraria.GameContent.UI.Elements.UIList", false);
                 Type uiElementType = terraria.GetType("Terraria.UI.UIElement", false);
                 Type snapPointType = terraria.GetType("Terraria.UI.SnapPoint", false);
-                if (mainType == null || playerType == null || playerDeathReasonType == null ||
+                if (mainType == null || playerType == null || npcType == null || playerDeathReasonType == null ||
                     playerFileDataType == null || worldFileDataType == null ||
                     characterListItemType == null || worldListItemType == null || panelType == null ||
                     uiListType == null || uiElementType == null || snapPointType == null)
@@ -776,6 +783,19 @@ namespace TerrariaSplit.WorldGuard.Payload
                     null,
                     new[] { playerDeathReasonType, typeof(double), typeof(int), typeof(bool) },
                     null);
+                MethodInfo npcCheckActiveMethod;
+                MethodInfo npcCheckDeadMethod;
+                MethodInfo npcAiMethod;
+                if (!TryResolveRaceBossPenaltyMembers(
+                        mainType,
+                        playerType,
+                        npcType,
+                        out npcCheckActiveMethod,
+                        out npcCheckDeadMethod,
+                        out npcAiMethod))
+                {
+                    return 14;
+                }
                 MethodInfo characterListCompareMethod = characterListItemType.GetMethod(
                     "CompareTo",
                     BindingFlags.Instance | BindingFlags.Public,
@@ -804,6 +824,7 @@ namespace TerrariaSplit.WorldGuard.Payload
                         method.GetParameters()[0].ParameterType.FullName == "Microsoft.Xna.Framework.Graphics.SpriteBatch");
                 if (worldRejectionMethod == null || selectPlayerMethod == null ||
                     playerKillMeMethod == null ||
+                    npcCheckActiveMethod == null || npcCheckDeadMethod == null ||
                     characterListCompareMethod == null || worldListCompareMethod == null ||
                     characterListDrawMethod == null || worldListDrawMethod == null ||
                     characterListCompareMethod.DeclaringType != characterListItemType ||
@@ -895,10 +916,22 @@ namespace TerrariaSplit.WorldGuard.Payload
                 MethodInfo playerKillMePostfix = typeof(EntryPoint).GetMethod(
                     "PlayerKillMePostfix",
                     BindingFlags.Static | BindingFlags.NonPublic);
+                MethodInfo skeletronCheckActivePrefix = typeof(EntryPoint).GetMethod(
+                    "SkeletronCheckActivePrefix",
+                    BindingFlags.Static | BindingFlags.NonPublic);
+                MethodInfo wallOfFleshAiPrefix = typeof(EntryPoint).GetMethod(
+                    "WallOfFleshAiPrefix",
+                    BindingFlags.Static | BindingFlags.NonPublic);
+                MethodInfo raceBossCheckDeadPostfix = typeof(EntryPoint).GetMethod(
+                    "RaceBossCheckDeadPostfix",
+                    BindingFlags.Static | BindingFlags.NonPublic);
                 if (worldPrefix == null || multiplayerPrefix == null ||
                     characterListComparePrefix == null || worldListComparePrefix == null ||
                     characterListDrawPrefix == null || worldListDrawPrefix == null ||
-                    playerKillMePostfix == null)
+                    playerKillMePostfix == null ||
+                    skeletronCheckActivePrefix == null ||
+                    wallOfFleshAiPrefix == null ||
+                    raceBossCheckDeadPostfix == null)
                 {
                     return 17;
                 }
@@ -912,7 +945,10 @@ namespace TerrariaSplit.WorldGuard.Payload
                     worldListCompareMethod,
                     characterListDrawMethod,
                     worldListDrawMethod,
-                    playerKillMeMethod
+                    playerKillMeMethod,
+                    npcCheckActiveMethod,
+                    npcAiMethod,
+                    npcCheckDeadMethod
                 };
                 int installResult = InstallPatchSet(
                     harmony,
@@ -928,11 +964,26 @@ namespace TerrariaSplit.WorldGuard.Payload
                         harmony.Patch(
                             playerKillMeMethod,
                             postfix: new HarmonyMethod(playerKillMePostfix));
+                        harmony.Patch(
+                            npcCheckActiveMethod,
+                            prefix: new HarmonyMethod(skeletronCheckActivePrefix));
+                        harmony.Patch(
+                            npcAiMethod,
+                            prefix: new HarmonyMethod(wallOfFleshAiPrefix));
+                        harmony.Patch(
+                            npcCheckDeadMethod,
+                            postfix: new HarmonyMethod(raceBossCheckDeadPostfix));
                     },
-                    () => patchedMethods
-                            .Where(method => method != playerKillMeMethod)
-                            .All(HasOwnedPrefix) &&
-                        HasOwnedPostfix(playerKillMeMethod),
+                    () => HasOwnedPrefix(worldRejectionMethod) &&
+                        HasOwnedPrefix(selectPlayerMethod) &&
+                        HasOwnedPrefix(characterListCompareMethod) &&
+                        HasOwnedPrefix(worldListCompareMethod) &&
+                        HasOwnedPrefix(characterListDrawMethod) &&
+                        HasOwnedPrefix(worldListDrawMethod) &&
+                        HasOwnedPostfix(playerKillMeMethod) &&
+                        HasOwnedPrefix(npcCheckActiveMethod) &&
+                        HasOwnedPrefix(npcAiMethod) &&
+                        HasOwnedPostfix(npcCheckDeadMethod),
                     18);
                 if (installResult != 0)
                 {
@@ -948,6 +999,7 @@ namespace TerrariaSplit.WorldGuard.Payload
         {
             try
             {
+                TryArmRaceBossPenalty(__instance);
                 if (configuration == null ||
                     __instance == null ||
                     __0 == null ||
@@ -1288,6 +1340,7 @@ namespace TerrariaSplit.WorldGuard.Payload
                 int chancePolicyVersion,
                 PlanteraBulbConfiguration planteraBulb,
                 bool entryAllowed,
+                bool bossFailurePenaltyEnabled,
                 string packageDigest)
             {
                 Path = NormalizePath(path);
@@ -1303,6 +1356,7 @@ namespace TerrariaSplit.WorldGuard.Payload
                 ChancePolicyVersion = chancePolicyVersion;
                 PlanteraBulb = planteraBulb;
                 this.entryAllowed = entryAllowed;
+                BossFailurePenaltyEnabled = bossFailurePenaltyEnabled;
                 PackageDigest = packageDigest;
                 EntropySeed = Convert.FromBase64String(entropySeedBase64);
                 State = new DeterminismGenerationState();
@@ -1334,6 +1388,8 @@ namespace TerrariaSplit.WorldGuard.Payload
 
             public bool EntryAllowed { get { return entryAllowed; } }
 
+            public bool BossFailurePenaltyEnabled { get; private set; }
+
             public string PackageDigest { get; private set; }
 
             public byte[] EntropySeed { get; private set; }
@@ -1361,6 +1417,7 @@ namespace TerrariaSplit.WorldGuard.Payload
                     ChancePolicyVersion,
                     PlanteraBulb,
                     EntryAllowed,
+                    BossFailurePenaltyEnabled,
                     PackageDigest);
             }
 
@@ -1393,14 +1450,16 @@ namespace TerrariaSplit.WorldGuard.Payload
                 int chancePolicyVersion;
                 Guid epochId;
                 bool entryAllowed;
-                if (parts.Length != 15 || !string.Equals(parts[0], "configure", StringComparison.Ordinal) ||
+                bool bossFailurePenaltyEnabled;
+                if (parts.Length != 16 || !string.Equals(parts[0], "configure", StringComparison.Ordinal) ||
                     !int.TryParse(parts[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out worldId) ||
                     !Guid.TryParse(parts[3], out uniqueId) ||
                     !int.TryParse(parts[6], NumberStyles.Integer, CultureInfo.InvariantCulture, out protocolVersion) ||
                     !Guid.TryParseExact(parts[7], "N", out epochId) ||
                     !int.TryParse(parts[10], NumberStyles.Integer, CultureInfo.InvariantCulture, out enabledCapabilities) ||
                     !int.TryParse(parts[11], NumberStyles.Integer, CultureInfo.InvariantCulture, out chancePolicyVersion) ||
-                    !TryParseFlag(parts[13], out entryAllowed))
+                    !TryParseFlag(parts[13], out entryAllowed) ||
+                    !TryParseFlag(parts[14], out bossFailurePenaltyEnabled))
                 {
                     return false;
                 }
@@ -1437,7 +1496,7 @@ namespace TerrariaSplit.WorldGuard.Payload
                             compatibilityId,
                             RaceDeterminismProtocol.TerrariaCompatibilityId,
                             StringComparison.Ordinal) ||
-                        !string.Equals(expectedDigest, parts[14], StringComparison.Ordinal))
+                        !string.Equals(expectedDigest, parts[15], StringComparison.Ordinal))
                     {
                         return false;
                     }
@@ -1456,7 +1515,8 @@ namespace TerrariaSplit.WorldGuard.Payload
                         chancePolicyVersion,
                         planteraBulb,
                         entryAllowed,
-                        parts[14]);
+                        bossFailurePenaltyEnabled,
+                        parts[15]);
                     return true;
                 }
                 catch (FormatException)

@@ -50,6 +50,8 @@ public sealed record RaceRosterSystemEvent(string RoomCode, bool IsInRoom = true
 
 public sealed record RaceModeSystemEvent(bool Enabled) : SystemEvent;
 
+public sealed record RaceTimePenaltySystemEvent(TimeSpan Penalty) : SystemEvent;
+
 public sealed record PersonalBestFinalizationSystemEvent(PersonalBestFinalizationResult Result) : SystemEvent;
 
 public sealed record SystemState(RaceSystemState Race);

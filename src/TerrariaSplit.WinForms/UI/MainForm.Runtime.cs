@@ -269,6 +269,7 @@ internal sealed partial class MainForm : Form
 
     private void HandleWatcherPollCompleted(WatcherPollNotification notification)
     {
+        AcceptAppliedRuntimeCommandSequence(notification.RuntimeCommandSequence);
         runtimeShell.ApplyWatcherNotification(notification);
         UpdateConfiguredRefreshIntervals();
         ApplicationUpdate update = applicationController.HandleSystemEvent(new RuntimeWatcherSystemEvent(notification));
@@ -428,7 +429,88 @@ internal sealed partial class MainForm : Form
 
     private void SubmitRuntimeCommand(RuntimeCommand command)
     {
-        AcceptRuntimeCommandSequence(runtimeShell.MonitorCoordinator.SubmitRuntimeCommand(command));
+        long sequence = runtimeShell.MonitorCoordinator.SubmitRuntimeCommand(command);
+        Volatile.Write(ref lastSubmittedRuntimeCommandSequence, sequence);
+        AcceptRuntimeCommandSequence(sequence);
+    }
+
+    private async Task<bool> ApplyRacePenaltyBeforeBossDefeatAsync(
+        TimeSpan penalty,
+        CancellationToken cancellationToken)
+    {
+        if (penalty <= TimeSpan.Zero || !CanDispatchToUiThread())
+        {
+            return false;
+        }
+
+        long sequence;
+        if (InvokeRequired)
+        {
+            var queued = new TaskCompletionSource<long>(TaskCreationOptions.RunContinuationsAsynchronously);
+            try
+            {
+                BeginInvoke(new Action(() =>
+                {
+                    try
+                    {
+                        queued.TrySetResult(QueueRacePenaltyOnUiThread(penalty));
+                    }
+                    catch (Exception ex)
+                    {
+                        queued.TrySetException(ex);
+                    }
+                }));
+            }
+            catch (InvalidOperationException)
+            {
+                return false;
+            }
+
+            sequence = await queued.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        else
+        {
+            sequence = QueueRacePenaltyOnUiThread(penalty);
+        }
+
+        if (sequence <= 0L)
+        {
+            return false;
+        }
+
+        while (Volatile.Read(ref lastAppliedRuntimeCommandSequence) < sequence)
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(5), cancellationToken).ConfigureAwait(false);
+        }
+
+        return true;
+    }
+
+    private long QueueRacePenaltyOnUiThread(TimeSpan penalty)
+    {
+        long previousSequence = Volatile.Read(ref lastSubmittedRuntimeCommandSequence);
+        ApplyApplicationUpdate(applicationController.HandleSystemEvent(
+            new RaceTimePenaltySystemEvent(penalty)));
+        long sequence = Volatile.Read(ref lastSubmittedRuntimeCommandSequence);
+        return sequence > previousSequence ? sequence : 0L;
+    }
+
+    private void AcceptAppliedRuntimeCommandSequence(long sequence)
+    {
+        long current = Volatile.Read(ref lastAppliedRuntimeCommandSequence);
+        while (sequence > current)
+        {
+            long observed = Interlocked.CompareExchange(
+                ref lastAppliedRuntimeCommandSequence,
+                sequence,
+                current);
+            if (observed == current)
+            {
+                return;
+            }
+
+            current = observed;
+        }
     }
 
     private void AcceptRuntimeCommandSequence(long sequence)

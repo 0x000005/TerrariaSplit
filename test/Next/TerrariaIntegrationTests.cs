@@ -16,9 +16,11 @@ internal static class TerrariaIntegrationTests
         yield return TestCase.Async("world seed filter skips a seed when the native call times out", TestSuite.Flow, WorldSeedFilterTimeoutJourney, timeoutSeconds: 10);
         yield return TestCase.Async("native jungle seed judge applies its timeout while waiting for a call slot", TestSuite.Core, JungleSeedJudgeGateTimeoutJourney, timeoutSeconds: 10);
         yield return TestCase.Sync("world seed filter skips candidate-local native failures", TestSuite.Core, WorldSeedFilterCandidateFailureClassification);
-        yield return TestCase.Async("world seed filter stops when native world generation fails", TestSuite.Core, WorldSeedFilterGenerationFailureJourney);
+        yield return TestCase.Async("world seed filter classifies native generation failures as candidate failures", TestSuite.Core, WorldSeedFilterGenerationFailureJourney);
+        yield return TestCase.Async("UI seed filtering skips candidate failures and stops after three consecutive failures", TestSuite.Core, UiSeedCandidateFailureJourney, timeoutSeconds: 10);
         yield return TestCase.Async("world seed filter skips a seed when the jungle route is partial", TestSuite.Flow, WorldSeedFilterPartialRouteJourney, timeoutSeconds: 10);
         yield return TestCase.Sync("race seed filter concurrency uses eighty percent of processors", TestSuite.Core, RaceSeedFilterConcurrency);
+        yield return TestCase.Sync("race seed filtering skips isolated candidate failures and preserves the failure circuit", TestSuite.Core, RaceSeedCandidateFailureBatch);
         yield return TestCase.Async("race seed filter evaluates candidate seeds as one parallel batch", TestSuite.Flow, RaceSeedFilterBatchJourney, timeoutSeconds: 15);
         yield return TestCase.Async("UI seed pre-screen restarts after an empty batch or RNG drift without seed writeback", TestSuite.Flow, UiSeedBatchReplanJourney, timeoutSeconds: 30);
         yield return TestCase.Async("race world upload validates, hashes, deduplicates, locates and deletes a Terraria world", TestSuite.Flow, WorldFileTransferJourney);
@@ -183,6 +185,10 @@ internal static class TerrariaIntegrationTests
             JungleSeedJudgeStatus.SpecialSeedUnsupported));
         Check.False(WorldSeedFilterEvaluator.IsCandidateRejection(
             JungleSeedJudgeStatus.GenerationFailed));
+        Check.True(WorldSeedFilterEvaluator.IsCandidateFailure(
+            JungleSeedJudgeStatus.GenerationFailed));
+        Check.False(WorldSeedFilterEvaluator.IsCandidateFailure(
+            JungleSeedJudgeStatus.InvalidRequest));
         Check.False(WorldSeedFilterEvaluator.IsCandidateRejection(
             JungleSeedJudgeStatus.InvalidRequest));
         Check.False(WorldSeedFilterEvaluator.IsCandidateRejection(
@@ -263,16 +269,85 @@ internal static class TerrariaIntegrationTests
             TerrariaWorldGenerationVersion.Modern1456,
             cancellationToken);
 
-        if (prediction.CanUsePrediction)
-        {
-            throw new InvalidOperationException(
-                "GenerationFailed must make seed prediction unavailable: " +
-                prediction.Detail);
-        }
+        Check.True(prediction.CanUsePrediction);
         Check.False(prediction.CanContinueWithoutPrediction);
         Check.False(prediction.AcceptSeed);
+        Check.True(prediction.IsCandidateFailure);
+        Check.Equal(
+            WorldSeedFilterPredictionKind.CandidateFailure,
+            prediction.Kind);
         Check.True(prediction.Detail.Contains(
             nameof(JungleSeedJudgeStatus.GenerationFailed),
+            StringComparison.Ordinal));
+        Check.True(prediction.Detail.Contains(
+            "seed=12345, mode=Classic",
+            StringComparison.Ordinal));
+    }
+
+    private static async Task UiSeedCandidateFailureJourney(
+        CancellationToken cancellationToken)
+    {
+        var gate = new SemaphoreSlim(1, 1);
+        var nativeClient = new JungleSeedJudgeNativeClient(
+            (seedText, _, requestId) => CreateFilterJudgeResult(
+                seedText,
+                requestId,
+                string.Equals(seedText, "300", StringComparison.Ordinal)
+                    ? JungleSeedJudgeStatus.Complete
+                    : JungleSeedJudgeStatus.GenerationFailed),
+            TimeSpan.FromSeconds(1),
+            gate);
+        using var evaluator = new WorldSeedFilterEvaluator(
+            nativeClient: nativeClient);
+        var settings = CandidateFailureSettings();
+        var continuingUi = new FakePredictedSeedUi(
+            [new FakeSeedPlan(Array.Empty<string>(), ["100", "200", "300"])]);
+        var continuingLoop = new PyramidSeedPreScreenLoop(
+            evaluator,
+            _ => { });
+
+        PyramidSeedPreScreenLoopResult accepted = await continuingLoop.RunAsync(
+            settings,
+            TerrariaMenuProfile.Modern1456,
+            continuingUi,
+            continuingUi,
+            cancellationToken);
+
+        Check.True(accepted.Accepted);
+        Check.Equal("300", accepted.AcceptedSeed);
+        Check.Equal(3, accepted.Attempts);
+
+        var failingClient = new JungleSeedJudgeNativeClient(
+            (seedText, _, requestId) => CreateFilterJudgeResult(
+                seedText,
+                requestId,
+                JungleSeedJudgeStatus.GenerationFailed),
+            TimeSpan.FromSeconds(1),
+            new SemaphoreSlim(1, 1));
+        using var failingEvaluator = new WorldSeedFilterEvaluator(
+            nativeClient: failingClient);
+        var failingUi = new FakePredictedSeedUi(
+            [new FakeSeedPlan(Array.Empty<string>(), ["400", "500", "600"])]);
+        var failingLoop = new PyramidSeedPreScreenLoop(
+            failingEvaluator,
+            _ => { });
+
+        PyramidSeedPreScreenLoopResult failed = await failingLoop.RunAsync(
+            settings,
+            TerrariaMenuProfile.Modern1456,
+            failingUi,
+            failingUi,
+            cancellationToken);
+
+        Check.Equal(
+            PyramidSeedPreScreenLoopStatus.CandidateFailuresExceeded,
+            failed.Status);
+        Check.Equal(3, failed.Attempts);
+        Check.True(failed.Detail.Contains(
+            "3 consecutive candidate generation failures",
+            StringComparison.Ordinal));
+        Check.True(failed.Detail.Contains(
+            "seed=600",
             StringComparison.Ordinal));
     }
 
@@ -467,11 +542,12 @@ internal static class TerrariaIntegrationTests
                     determinism.ChancePolicyVersion,
                     determinism.CreateDigest()),
                 TerrariaPlanteraBulbPlan.Empty,
-                EntryAllowed: false),
+                EntryAllowed: false,
+                BossFailurePenaltyEnabled: false),
             Path.Combine(directory.Path, "Race_Player.plr"),
             rejectionMessage);
         string[] lockParts = lockCommand.Split('\n');
-        Check.Equal(15, lockParts.Length);
+        Check.Equal(16, lockParts.Length);
         Check.Equal("configure", lockParts[0]);
         Check.Equal(Path.GetFullPath(path), Encoding.UTF8.GetString(Convert.FromBase64String(lockParts[1])));
         Check.Equal(identity.WorldId.ToString(System.Globalization.CultureInfo.InvariantCulture), lockParts[2]);
@@ -482,7 +558,8 @@ internal static class TerrariaIntegrationTests
         Check.Equal(determinism.EntropySeedBase64, lockParts[8]);
         Check.Equal(Convert.ToBase64String(Encoding.UTF8.GetBytes("0")), lockParts[12]);
         Check.Equal("0", lockParts[13]);
-        Check.Equal(determinism.CreateDigest(), lockParts[14]);
+        Check.Equal("0", lockParts[14]);
+        Check.Equal(determinism.CreateDigest(), lockParts[15]);
         string[] startParts = TerrariaRaceWorldLockService.BuildStartRaceCommand(
             TimeSpan.FromSeconds(7),
             "将在 {0} 秒后开始").Split('\n');
@@ -515,11 +592,13 @@ internal static class TerrariaIntegrationTests
         {
             first = await store.SaveAsync("a-b-12", " host ", "../race.wld", stream, cancellationToken);
         }
+        Check.True(first.WasCreated);
         await using (var stream = new MemoryStream(world))
         {
             RaceStoredWorldFile second = await store.SaveAsync("a-b-12", "host", "race.wld", stream, cancellationToken);
             Check.Equal(first.Path, second.Path);
             Check.Equal(first.Info.Sha256, second.Info.Sha256);
+            Check.False(second.WasCreated);
         }
         Check.True(store.TryGetPath("AB12", first.Info, out string storedPath));
         Check.Equal(first.Path, storedPath);
@@ -563,6 +642,72 @@ internal static class TerrariaIntegrationTests
         Check.Equal(0, settings.ResourceFilterSpelunkerPotionMinimum);
         Check.Equal(0, settings.ResourceFilterFeatherfallPotionMinimum);
         Check.Equal(2, AutoCreateSeedList.Parse(settings.SecretSeeds).Count);
+    }
+
+    private static AutoCreateWorldSettings CandidateFailureSettings()
+    {
+        return new AutoCreateWorldSettings
+        {
+            EnableCheats = true,
+            EnablePyramidFilter = false,
+            WorldSize = AutoCreateWorldSize.Small,
+            WorldDifficulty = AutoCreateWorldDifficulty.Classic,
+            WorldEvil = AutoCreateWorldEvil.Crimson,
+            JungleRouteDepth = AutoCreateJungleRouteDepth.Medium
+        };
+    }
+
+    private static JungleSeedJudgeResult CreateFilterJudgeResult(
+        string seedText,
+        string requestId,
+        JungleSeedJudgeStatus status)
+    {
+        if (status != JungleSeedJudgeStatus.Complete)
+        {
+            return new JungleSeedJudgeResult(
+                JungleSeedJudgeProtocol.Version,
+                requestId,
+                JungleSeedJudgeProtocol.CompatibilityId,
+                status,
+                seedText,
+                0,
+                0,
+                0,
+                Jungle: null,
+                CrimsonVertices: null,
+                Detail: "pass 34 (Beaches): candidate generation failed");
+        }
+
+        return new JungleSeedJudgeResult(
+            JungleSeedJudgeProtocol.Version,
+            requestId,
+            JungleSeedJudgeProtocol.CompatibilityId,
+            JungleSeedJudgeStatus.Complete,
+            seedText,
+            62,
+            1,
+            1,
+            new JungleSeedAnalysis(
+                JungleSeedAnalysisStatus.Complete,
+                "Left",
+                1000,
+                800,
+                1400,
+                new JungleRouteSummary(
+                    JungleRouteStatus.Complete,
+                    1,
+                    48,
+                    100,
+                    1000,
+                    900),
+                1,
+                100,
+                Array.Empty<JungleResourceLocation>()),
+            [
+                new CrimsonCorridorVertex(1, 2300, 300),
+                new CrimsonCorridorVertex(2, 2600, 300)
+            ],
+            "accepted");
     }
 
     private sealed record FakeSeedPlan(
@@ -642,6 +787,53 @@ internal static class TerrariaIntegrationTests
         }
     }
 
+    private static void RaceSeedCandidateFailureBatch()
+    {
+        WorldSeedFilterPrediction failed =
+            WorldSeedFilterPrediction.CandidateFailure(
+                "seed judge status GenerationFailed; seed=100, mode=Classic: pass 34 (Beaches): failed",
+                pyramid: null,
+                judge: null);
+        WorldSeedFilterPrediction accepted =
+            WorldSeedFilterPrediction.Accepted(
+                "accepted",
+                pyramid: null,
+                judge: null);
+        TerrariaRaceSeedFilterBatchResult mixed =
+            TerrariaRaceWorldGenerationService.ClassifySeedFilterBatch(
+                [
+                    new TerrariaRaceWorldGenerationService.SeedFilterEvaluation(
+                        "100",
+                        0,
+                        failed),
+                    new TerrariaRaceWorldGenerationService.SeedFilterEvaluation(
+                        "200",
+                        1,
+                        accepted)
+                ]);
+
+        Check.False(mixed.HasFatalError);
+        Check.Equal(1, mixed.AcceptedCandidates.Count);
+        Check.Equal("200", mixed.AcceptedCandidates[0].SeedText);
+        Check.Equal(0, mixed.ConsecutiveCandidateFailures);
+
+        TerrariaRaceSeedFilterBatchResult threshold =
+            TerrariaRaceWorldGenerationService.ClassifySeedFilterBatch(
+                [
+                    new TerrariaRaceWorldGenerationService.SeedFilterEvaluation(
+                        "300",
+                        0,
+                        failed)
+                ],
+                initialConsecutiveCandidateFailures: 2);
+
+        Check.True(threshold.HasFatalError);
+        Check.Equal(3, threshold.ConsecutiveCandidateFailures);
+        Check.True(threshold.FatalError.Contains(
+            "3 consecutive candidate generation failures",
+            StringComparison.Ordinal));
+    }
+
     private class RaceUiElement
     {
         public float Left = 0f;
@@ -658,7 +850,7 @@ internal static class TerrariaIntegrationTests
         public bool Enabled = false;
     }
 
-    private static byte[] CreateMinimalWorld(string worldName = "test-world", int worldId = 24680)
+    internal static byte[] CreateMinimalWorld(string worldName = "test-world", int worldId = 24680)
     {
         using var stream = new MemoryStream();
         using var writer = new BinaryWriter(stream, Encoding.UTF8, leaveOpen: true);

@@ -92,6 +92,7 @@ internal sealed partial class MainForm : Form
                 ClearRouteOverride,
                 UpdateRaceSettings,
                 PublishExternalSystemEvent,
+                ApplyRacePenaltyBeforeBossDefeatAsync,
                 this,
                 RefreshRaceMainTimerColor,
                 () => ResetRun(recordStats: false, allowDuringRace: true));

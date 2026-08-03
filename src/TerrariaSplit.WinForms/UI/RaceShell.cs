@@ -38,6 +38,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
     private readonly Action raceTimerColorChanged;
     private readonly Action resetRaceTimer;
     private readonly Action<SystemEvent> publishSystemEvent;
+    private readonly Func<TimeSpan, CancellationToken, Task<bool>> applyRacePenalty;
     private readonly Form owner;
     private readonly RaceProgressTransport progressTransport;
     private Task? completedRunUnlockTask;
@@ -66,6 +67,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
     private bool mouseClickThrough;
     private bool closingWindows;
     private int raceEnabled;
+    private int localPreparationStage;
     private int worldLockReleasedForCompletedRun;
     private int restartActive;
     private long handledStartPackageRevision;
@@ -83,6 +85,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
         Action clearRouteOverride,
         Action<RaceSettings> updateRaceSettings,
         Action<SystemEvent> publishSystemEvent,
+        Func<TimeSpan, CancellationToken, Task<bool>> applyRacePenalty,
         Form owner,
         Action raceTimerColorChanged,
         Action resetRaceTimer,
@@ -101,6 +104,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
             updateRaceSettings,
             logger);
         this.publishSystemEvent = publishSystemEvent;
+        this.applyRacePenalty = applyRacePenalty;
         this.owner = owner;
         this.raceTimerColorChanged = raceTimerColorChanged;
         this.resetRaceTimer = resetRaceTimer;
@@ -147,6 +151,9 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
             : CheatFilterIndicatorLevel.None;
 
     public string? LocalWorldPath => localWorldPath;
+
+    private RaceLocalPreparationStage LocalPreparationStage =>
+        (RaceLocalPreparationStage)Volatile.Read(ref localPreparationStage);
 
     public RacePanelDraftState DraftState => CreateCurrentDraftState();
 
@@ -845,6 +852,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
         }
 
         string destinationPath = GetUniqueRaceWorldPath(state);
+        ReportLocalPreparationStage(state, RaceLocalPreparationStage.DownloadWorld);
         _ = await session.UpdatePreparationStatusAsync(
             RacePlayerFileStatus.Waiting,
             RaceWorldFileStatus.Downloading,
@@ -886,8 +894,15 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
         SaveDraftState(draftState with { LocalWorldPath = download.WorldPath });
         RememberObtainedWorldFile(state.RoomCode, download.WorldFile, resetTimer: true);
         _ = await MarkWorldLockStartingAsync(cancellationToken);
-        TerrariaRaceWorldLockResult worldLockResult = await LockRaceWorldAsync(download.WorldPath, state.Determinism, cancellationToken);
-        RaceOperationResult<RaceRoomState> ready = await MarkWorldLockResultAsync(worldLockResult, cancellationToken);
+        TerrariaRaceWorldLockResult worldLockResult = await LockRaceWorldAsync(
+            download.WorldPath,
+            state.Determinism,
+            cancellationToken,
+            preparationState: state);
+        RaceOperationResult<RaceRoomState> ready = await MarkWorldLockResultAsync(
+            worldLockResult,
+            cancellationToken,
+            preparationState: state);
         ApplyOperationState(ready);
         LogRaceOperationFailure(ready, "mark world ready");
     }
@@ -933,6 +948,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
             $"Race seed pre-filter starting with {concurrency} workers " +
             $"({Environment.ProcessorCount} logical processors, 80% policy).");
         int evaluatedSeeds = 0;
+        int consecutiveCandidateFailures = 0;
         string lastFailure = string.Empty;
         while (evaluatedSeeds < attempts)
         {
@@ -946,7 +962,10 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
                 await worldGeneration.FilterSeedBatchAsync(
                     filterSettings,
                     seedTexts,
-                    cancellationToken);
+                    cancellationToken,
+                    consecutiveCandidateFailures);
+            consecutiveCandidateFailures =
+                batch.ConsecutiveCandidateFailures;
             int batchStartAttempt = evaluatedSeeds + 1;
             evaluatedSeeds += batch.EvaluatedCount;
             if (batch.HasFatalError)
@@ -1158,6 +1177,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
         activeWorldRevisionKey = null;
         Volatile.Write(ref worldLockReleasedForCompletedRun, 0);
         progressTransport.Clear();
+        SetLocalPreparationStage(RaceLocalPreparationStage.None);
         SaveDraftState(draftState with
         {
             RoomCode = string.Empty,
@@ -1448,7 +1468,8 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
             TerrariaRaceWorldLockResult worldLockResult = await LockRaceWorldAsync(
                 worldPath,
                 state.Determinism,
-                timeout.Token).ConfigureAwait(false);
+                timeout.Token,
+                preparationState: state).ConfigureAwait(false);
             if (!IsCurrentPackage(state))
             {
                 return;
@@ -1457,7 +1478,8 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
             RaceOperationResult<RaceRoomState> preparation = await MarkWorldLockResultAsync(
                 worldLockResult,
                 timeout.Token,
-                state.PackageRevision).ConfigureAwait(false);
+                state.PackageRevision,
+                state).ConfigureAwait(false);
             LogRaceOperationFailure(preparation, "prepare host Race world");
             if (!worldLockResult.Succeeded && IsTerrariaProcessUnavailable(worldLockResult.Message))
             {
@@ -1524,6 +1546,54 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
             current.Status != RaceRoomStatus.Closed &&
             current.PackageRevision == state.PackageRevision &&
             string.Equals(current.RoomCode, state.RoomCode, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void ReportLocalPreparationStage(
+        RaceRoomState? state,
+        RaceLocalPreparationStage stage)
+    {
+        if (state is not null && IsCurrentPackage(state))
+        {
+            SetLocalPreparationStage(stage);
+        }
+    }
+
+    private void SetLocalPreparationStage(RaceLocalPreparationStage stage)
+    {
+        if (Interlocked.Exchange(ref localPreparationStage, (int)stage) == (int)stage)
+        {
+            return;
+        }
+
+        MarkInGameMenuDirty();
+    }
+
+    private void SyncLocalPreparationCompletion(RaceRoomState state)
+    {
+        string localNickname = session.Nickname ?? draftState.Nickname;
+        RacePlayerState? localPlayer = state.Players.FirstOrDefault(player =>
+            string.Equals(player.Nickname, localNickname, StringComparison.OrdinalIgnoreCase));
+        if (localPlayer is null || !IsPreparationReady(state, localPlayer))
+        {
+            return;
+        }
+
+        SetLocalPreparationStage(localPlayer.IsHost || localPlayer.IsReady
+            ? RaceLocalPreparationStage.Ready
+            : RaceLocalPreparationStage.WaitForManualReady);
+    }
+
+    private static RaceLocalPreparationStage MapLocalPreparationStage(
+        TerrariaRaceWorldLockPreparationStage stage)
+    {
+        return stage switch
+        {
+            TerrariaRaceWorldLockPreparationStage.WaitForGame => RaceLocalPreparationStage.WaitForGame,
+            TerrariaRaceWorldLockPreparationStage.PrepareMemoryControl => RaceLocalPreparationStage.PrepareMemoryControl,
+            TerrariaRaceWorldLockPreparationStage.CreateRacePlayer => RaceLocalPreparationStage.CreateRacePlayer,
+            TerrariaRaceWorldLockPreparationStage.AlmostReady => RaceLocalPreparationStage.AlmostReady,
+            _ => RaceLocalPreparationStage.AlmostReady
+        };
     }
 
     private Task CancelHostWorldPreparation()
@@ -1843,6 +1913,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
         }
 
         SyncDraftFromRoomState(state);
+        SyncLocalPreparationCompletion(state);
         ApplyScheduledRaceStart(update);
         publishSystemEvent(new RaceRosterSystemEvent(state.RoomCode, session.IsInRoom));
     }
@@ -2015,8 +2086,13 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
                 }
 
                 _ = await MarkWorldLockStartingAsync();
-                TerrariaRaceWorldLockResult worldLockResult = await LockRaceWorldAsync(localWorldPath, state.Determinism);
-                RaceOperationResult<RaceRoomState> ready = await MarkWorldLockResultAsync(worldLockResult);
+                TerrariaRaceWorldLockResult worldLockResult = await LockRaceWorldAsync(
+                    localWorldPath,
+                    state.Determinism,
+                    preparationState: state);
+                RaceOperationResult<RaceRoomState> ready = await MarkWorldLockResultAsync(
+                    worldLockResult,
+                    preparationState: state);
                 LogRaceOperationFailure(ready, "mark world ready for existing world");
             }
             catch (Exception ex) when (IsRaceConnectionExitException(ex))
@@ -2164,7 +2240,8 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
         string worldPath,
         RaceDeterminismPackage? determinism,
         CancellationToken cancellationToken = default,
-        bool scheduleRetry = true)
+        bool scheduleRetry = true,
+        RaceRoomState? preparationState = null)
     {
         if (determinism is null)
         {
@@ -2179,6 +2256,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
                     : determinismError);
         }
 
+        ReportLocalPreparationStage(preparationState, RaceLocalPreparationStage.ValidateWorld);
         if (!RaceWorldFileValidator.TryReadWorldIdentity(
                 worldPath,
                 out RaceWorldIdentity? identity,
@@ -2192,6 +2270,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
             return TerrariaRaceWorldLockResult.Failure(error);
         }
 
+        ReportLocalPreparationStage(preparationState, RaceLocalPreparationStage.AnalyzeWorld);
         TerrariaPlanteraBulbPlan planteraBulbPlan = await GetPlanteraBulbPlanAsync(
             worldPath,
             identity,
@@ -2216,7 +2295,8 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
                         determinism.ChancePolicyVersion,
                         determinism.CreateDigest()),
                     planteraBulbPlan,
-                    IsRaceEntryAllowed(session.State)),
+                    IsRaceEntryAllowed(session.State),
+                    session.State?.WorldSettings?.BossFailurePenaltyEnabled != false),
                 new TerrariaRaceInitialPlayerConfiguration(
                     session.Nickname ?? draftState.Nickname,
                     draftState.PlayerTemplateCode,
@@ -2224,7 +2304,10 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
                         ? RaceWorldSettingsFactory.ToPlayerDifficultyForWorld(roomWorldSettings)
                         : AutoCreatePlayerDifficulty.Softcore),
                 Localize("Only the assigned Race world and player can be used until the run is completed."),
-                cancellationToken).ConfigureAwait(false);
+                cancellationToken,
+                stage => ReportLocalPreparationStage(
+                    preparationState,
+                    MapLocalPreparationStage(stage))).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
         {
@@ -2362,7 +2445,8 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
                         worldPath,
                         determinism,
                         cancellation.Token,
-                        scheduleRetry: false).ConfigureAwait(false);
+                        scheduleRetry: false,
+                        preparationState: state).ConfigureAwait(false);
                     if (!retry.Succeeded)
                     {
                         if (IsTerrariaProcessUnavailable(retry.Message))
@@ -2385,7 +2469,8 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
                     RaceOperationResult<RaceRoomState> ready = await MarkWorldLockResultAsync(
                         retry,
                         cancellation.Token,
-                        packageRevision).ConfigureAwait(false);
+                        packageRevision,
+                        state).ConfigureAwait(false);
                     ApplyOperationState(ready);
                     LogRaceOperationFailure(ready, "mark world ready after Terraria started");
                     CancelWorldLockRetry();
@@ -2429,14 +2514,21 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
     private async Task UnlockRaceWorldBestEffortAsync()
     {
         CancelWorldLockRetry();
-        await worldLockLifecycleGate.WaitAsync().ConfigureAwait(false);
+        bool gateAcquired = false;
+        using var timeout = new CancellationTokenSource(DisposeWorldLockTimeout);
         try
         {
+            await worldLockLifecycleGate.WaitAsync(timeout.Token).ConfigureAwait(false);
+            gateAcquired = true;
             TerrariaRaceWorldLockResult result = await worldLock.UnlockAsync().ConfigureAwait(false);
             if (!result.Succeeded)
             {
                 logger.Info("Race world unlock failed: " + result.Message);
             }
+        }
+        catch (OperationCanceledException) when (timeout.IsCancellationRequested)
+        {
+            logger.Info("Race world unlock timed out; local room cleanup will continue.");
         }
         catch (Exception ex) when (ex is IOException or InvalidOperationException or OperationCanceledException or ObjectDisposedException)
         {
@@ -2444,7 +2536,10 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
         }
         finally
         {
-            worldLockLifecycleGate.Release();
+            if (gateAcquired)
+            {
+                worldLockLifecycleGate.Release();
+            }
         }
     }
 
@@ -2815,37 +2910,6 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
         }
     }
 
-    private bool DispatchOwnerThreadIfRequired(Action action)
-    {
-        if (owner.IsDisposed || !owner.InvokeRequired)
-        {
-            return false;
-        }
-
-        _ = PostOwnerThread(action);
-        return true;
-    }
-
-    private bool PostOwnerThread(Action action)
-    {
-        try
-        {
-            if (owner.IsHandleCreated)
-            {
-                owner.BeginInvoke(action);
-                return true;
-            }
-        }
-        catch (ObjectDisposedException)
-        {
-        }
-        catch (InvalidOperationException)
-        {
-        }
-
-        return false;
-    }
-
     private static IProgress<int> CreateClampedProgress(IProgress<int>? inner)
     {
         return new Progress<int>(value =>
@@ -3016,31 +3080,44 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
             packageRevision: packageRevision);
     }
 
-    private Task<RaceOperationResult<RaceRoomState>> MarkWorldLockResultAsync(
+    private async Task<RaceOperationResult<RaceRoomState>> MarkWorldLockResultAsync(
         TerrariaRaceWorldLockResult result,
         CancellationToken cancellationToken = default,
-        long? packageRevision = null)
+        long? packageRevision = null,
+        RaceRoomState? preparationState = null)
     {
+        Task<RaceOperationResult<RaceRoomState>> update;
         if (result.Succeeded)
         {
-            return session.UpdatePreparationStatusAsync(
+            ReportLocalPreparationStage(preparationState, RaceLocalPreparationStage.ConnectToServer);
+            update = session.UpdatePreparationStatusAsync(
                 RacePlayerFileStatus.Ready,
                 RaceWorldFileStatus.Ready,
                 GetRngControlReadyStatus(session.State),
                 cancellationToken: cancellationToken,
                 packageRevision: packageRevision);
         }
+        else
+        {
+            bool waitingForTerraria = IsTerrariaProcessUnavailable(result.Message);
+            update = session.UpdatePreparationStatusAsync(
+                waitingForTerraria ? RacePlayerFileStatus.Waiting : RacePlayerFileStatus.Failed,
+                RaceWorldFileStatus.Ready,
+                waitingForTerraria
+                    ? GetRngControlIdleStatus(session.State)
+                    : GetRngControlFailureStatus(session.State),
+                waitingForTerraria ? null : result.Message,
+                cancellationToken,
+                packageRevision);
+        }
 
-        bool waitingForTerraria = IsTerrariaProcessUnavailable(result.Message);
-        return session.UpdatePreparationStatusAsync(
-            waitingForTerraria ? RacePlayerFileStatus.Waiting : RacePlayerFileStatus.Failed,
-            RaceWorldFileStatus.Ready,
-            waitingForTerraria
-                ? GetRngControlIdleStatus(session.State)
-                : GetRngControlFailureStatus(session.State),
-            waitingForTerraria ? null : result.Message,
-            cancellationToken,
-            packageRevision);
+        RaceOperationResult<RaceRoomState> updated = await update.ConfigureAwait(false);
+        if (result.Succeeded && updated.Succeeded && updated.Value is RaceRoomState state)
+        {
+            SyncLocalPreparationCompletion(state);
+        }
+
+        return updated;
     }
 
     private static bool IsRngControlEnabled(RaceRoomState? state)

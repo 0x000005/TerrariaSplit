@@ -52,6 +52,7 @@ namespace TerrariaSplit.WorldGuard.Payload
 
         private static void ResetAdvancedDeterminismState()
         {
+            ResetRaceBossPenalty();
             threadWorldGenRandom = null;
             activeChanceContext = null;
             activeLuckCallIndex = 0;

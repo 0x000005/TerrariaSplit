@@ -637,7 +637,7 @@ namespace TerrariaSplit.WorldGuard.Payload
         private static object BuildOptionGridPage(RaceInGameSnapshot snapshot)
         {
             object state = Activator.CreateInstance(raceUiStateType);
-            object root = CreateRoot(500f, 150f, -130f);
+            object root = CreateRoot(750f, 150f, -130f);
             SetDimension(root, "MaxHeight", 470f, 0f);
             raceUiAppendMethod.Invoke(state, new[] { root });
 
@@ -726,19 +726,37 @@ namespace TerrariaSplit.WorldGuard.Payload
             SetDimension(root, "Width", 0f, 0.8f);
             raceUiAppendMethod.Invoke(state, new[] { root });
 
+            RaceInGameControl room = FindControl(snapshot, "room-code-label");
+            RaceInGameControl localPreparation = FindControlOrNull(snapshot, "local-preparation");
+            object roomPanel = CreateTextPanel(ControlText(room), 0.8f, true);
+            SetDimension(roomPanel, "Top", -40f, 0f);
+            SetDimension(roomPanel, "Width", -5f, 0.5f);
+            SetDimension(roomPanel, "Height", 50f, 0f);
+            raceUiSetPaddingMethod.Invoke(roomPanel, new object[] { 10f });
+            raceUiAppendMethod.Invoke(root, new[] { roomPanel });
+            BindText(room.Id, roomPanel, ControlText, true);
+
+            object preparationPanel = CreateTextPanel(
+                localPreparation == null ? string.Empty : ControlText(localPreparation),
+                0.8f,
+                true);
+            SetDimension(preparationPanel, "Top", -40f, 0f);
+            SetDimension(preparationPanel, "Left", 5f, 0.5f);
+            SetDimension(preparationPanel, "Width", -5f, 0.5f);
+            SetDimension(preparationPanel, "Height", 50f, 0f);
+            raceUiSetPaddingMethod.Invoke(preparationPanel, new object[] { 10f });
+            raceUiAppendMethod.Invoke(root, new[] { preparationPanel });
+            if (localPreparation != null)
+            {
+                BindText(localPreparation.Id, preparationPanel, ControlText, true);
+            }
+
             object panel = Activator.CreateInstance(raceUiPanelType);
+            SetDimension(panel, "Top", 20f, 0f);
             SetDimension(panel, "Width", 0f, 1f);
-            SetDimension(panel, "Height", -110f, 1f);
+            SetDimension(panel, "Height", -125f, 1f);
             SetPanelColor(panel, 33, 43, 79, 204);
             raceUiAppendMethod.Invoke(root, new[] { panel });
-
-            RaceInGameControl room = FindControl(snapshot, "room-code-label");
-            object title = CreateTextPanel(room.Label + ": " + room.Value, 0.8f, true);
-            SetDimension(title, "Top", -40f, 0f);
-            SetFloatField(title, "HAlign", 0.5f);
-            raceUiSetPaddingMethod.Invoke(title, new object[] { 15f });
-            raceUiAppendMethod.Invoke(root, new[] { title });
-            BindText(room.Id, title, ControlText, true);
 
             object list = CreateList(panel, 0f, 0f);
             RaceInGameControl[] controls = snapshot.Controls ?? new RaceInGameControl[0];
@@ -756,7 +774,7 @@ namespace TerrariaSplit.WorldGuard.Payload
                 raceUiListAddMethod.Invoke(list, new[] { row });
             }
 
-            AppendFooter(root, snapshot);
+            AppendLobbyFooter(root, snapshot);
             return state;
         }
 
@@ -871,6 +889,18 @@ namespace TerrariaSplit.WorldGuard.Payload
 
                 string group = control.LayoutGroup;
                 RaceInGameControl[] grouped = FindControlsByGroup(snapshot, group);
+                if (group.StartsWith("primary-choice:", StringComparison.Ordinal) &&
+                    grouped.Length >= 2)
+                {
+                    AppendPrimaryChoiceRow(list, grouped);
+                    for (int groupedIndex = 0; groupedIndex < grouped.Length; groupedIndex++)
+                    {
+                        handled.Add(grouped[groupedIndex].Id);
+                    }
+
+                    continue;
+                }
+
                 for (int offset = 0; offset < grouped.Length; offset += 6)
                 {
                     int count = Math.Min(6, grouped.Length - offset);
@@ -891,6 +921,42 @@ namespace TerrariaSplit.WorldGuard.Payload
                     raceUiListAddMethod.Invoke(list, new[] { row });
                 }
             }
+        }
+
+        private static void AppendPrimaryChoiceRow(
+            object list,
+            RaceInGameControl[] controls)
+        {
+            const float primaryWidth = 0.25f;
+            const float optionStart = primaryWidth;
+            const float optionWidth = 0.75f;
+            int optionCount = controls.Length - 1;
+            object row = Activator.CreateInstance(raceUiElementType);
+            SetDimension(row, "Width", 0f, 1f);
+            SetDimension(row, "Height", 62f, 0f);
+            for (int index = 0; index < controls.Length; index++)
+            {
+                object option = CreateOptionButton(controls[index], false);
+                if (index == 0)
+                {
+                    SetDimension(option, "Left", 0f, 0f);
+                    SetDimension(option, "Width", 0f, primaryWidth);
+                }
+                else
+                {
+                    SetDimension(
+                        option,
+                        "Left",
+                        0f,
+                        optionStart + (index - 1) * optionWidth / optionCount);
+                    SetDimension(option, "Width", -6f, optionWidth / optionCount);
+                }
+
+                SetDimension(option, "Height", 58f, 0f);
+                raceUiAppendMethod.Invoke(row, new[] { option });
+            }
+
+            raceUiListAddMethod.Invoke(list, new[] { row });
         }
 
         private static object CreateCharacterNameButton(RaceInGameControl control)
@@ -1154,23 +1220,26 @@ namespace TerrariaSplit.WorldGuard.Payload
             SetDimension(row, "Width", 0f, 1f);
             SetDimension(row, "Height", 58f, 0f);
             SetPanelColor(row, 63, 82, 151, 178);
-            raceUiSetPaddingMethod.Invoke(row, new object[] { 8f });
+            raceUiSetPaddingMethod.Invoke(row, new object[] { 10f });
 
-            object name = CreateText(member.Label, 0.78f, false);
-            SetDimension(name, "Width", kick == null ? 0f : -85f, 1f);
-            SetDimension(name, "Height", 22f, 0f);
+            object name = CreateText(member.Label, 0.92f, false);
+            SetDimension(name, "Width", -12f, 0.55f);
+            SetDimension(name, "Height", 48f, 0f);
             SetFloatField(name, "HAlign", 0f);
+            SetFloatField(name, "VAlign", 0.5f);
             raceUiAppendMethod.Invoke(row, new[] { name });
-            object status = CreateText(member.Value, 0.64f, false);
-            SetDimension(status, "Top", 22f, 0f);
-            SetDimension(status, "Width", kick == null ? 0f : -85f, 1f);
-            SetDimension(status, "Height", 22f, 0f);
+
+            object status = CreateText(member.Value, 0.9f, false);
+            SetDimension(status, "Width", kick == null ? -12f : -95f, 1f);
+            SetDimension(status, "Height", 48f, 0f);
             SetFloatField(status, "HAlign", 0f);
+            SetFloatField(status, "VAlign", 0.5f);
+            SetFloatMember(status, "TextOriginX", 1f);
             raceUiAppendMethod.Invoke(row, new[] { status });
             Bind(member.Id, delegate(RaceInGameControl next)
             {
-                SetTextValue(name, next.Label, 0.78f, false);
-                SetTextValue(status, next.Value, 0.64f, false);
+                SetTextValue(name, next.Label, 0.92f, false);
+                SetTextValue(status, next.Value, 0.9f, false);
             });
 
             if (kick != null)
@@ -1226,6 +1295,32 @@ namespace TerrariaSplit.WorldGuard.Payload
                 SetDimension(button, "Top", -45f, 0f);
                 SetDimension(button, "Left", 0f, index / (float)count);
                 SetDimension(button, "Width", -10f, 1f / count);
+                SetDimension(button, "Height", 50f, 0f);
+                SetFloatField(button, "VAlign", 1f);
+                AddFadedPanelHover(button, control.Id);
+                AddControlClick(button, control.Id);
+                SetSnapPoint(button, index);
+                raceUiAppendMethod.Invoke(root, new[] { button });
+                BindText(control.Id, button, ControlText, true);
+            }
+        }
+
+        private static void AppendLobbyFooter(object root, RaceInGameSnapshot snapshot)
+        {
+            RaceInGameControl[] footer = FindControlsByGroup(snapshot, "footer");
+            if (footer.Length != 2)
+            {
+                AppendFooter(root, snapshot);
+                return;
+            }
+
+            for (int index = 0; index < footer.Length; index++)
+            {
+                RaceInGameControl control = footer[index];
+                object button = CreateTextPanel(control.Label, 0.7f, true);
+                SetDimension(button, "Top", -45f, 0f);
+                SetDimension(button, "Left", index == 0 ? 0f : 5f, index * 0.5f);
+                SetDimension(button, "Width", -5f, 0.5f);
                 SetDimension(button, "Height", 50f, 0f);
                 SetFloatField(button, "VAlign", 1f);
                 AddFadedPanelHover(button, control.Id);

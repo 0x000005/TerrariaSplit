@@ -231,9 +231,9 @@ internal static class WindowsFlowTests
         Check.False(string.Equals(source.Overlay.Colors.NameText, draft.Overlay.Colors.NameText, StringComparison.Ordinal));
         Check.Equal("English", source.General.Language);
         AutomationSettingsPage automation = form.PageHost.GetOrCreatePage<AutomationSettingsPage>(SettingsPageId.Automation);
-        Check.Equal(6, automation.AutoCreateLifeCrystalMinimumBoxes.Count);
-        Check.Equal("5+", automation.AutoCreateLifeCrystalMinimumBoxes[5].Text);
-        Check.False(automation.AutoCreateLifeCrystalMinimumBoxes[5].AutoEllipsis);
+        Check.Equal(7, automation.AutoCreateLifeCrystalMinimumBoxes.Count);
+        Check.Equal("6+", automation.AutoCreateLifeCrystalMinimumBoxes[6].Text);
+        Check.False(automation.AutoCreateLifeCrystalMinimumBoxes[6].AutoEllipsis);
         Check.True(automation.AutoCreatePyramidFilterBox.Enabled);
         Check.False(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Enabled);
         Check.False(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Checked);

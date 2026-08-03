@@ -146,11 +146,17 @@ internal sealed partial class RaceShell
 
         if (transition is RaceInGameTransition.RoomExited)
         {
-            // Local room cleanup is complete when these transitions are
-            // published. Do not expose an entry page that still carries the
-            // closing operation's disabled state.
+            // Room exit is the operation boundary. Invalidate the closing
+            // operation and every snapshot from the old room before the entry
+            // page becomes interactive.
+            Interlocked.Increment(ref inGameOperationId);
+            CancellationTokenSource? operation = Interlocked.Exchange(
+                ref inGameOperationCancellation,
+                null);
+            operation?.Dispose();
             Interlocked.Exchange(ref inGameMenuBusy, 0);
             Interlocked.Exchange(ref inGameMenuDedicatedProgress, 0);
+            ResetInGameActionSnapshots();
         }
 
         inGameMenuStatus = string.Empty;

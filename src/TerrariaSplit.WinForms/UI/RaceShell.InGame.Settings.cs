@@ -26,7 +26,9 @@ internal sealed partial class RaceShell
             advancedFiltersEligible && setup.CrimsonEnabled,
             setup.CrimsonDistance,
             0,
-            0,
+            advancedFiltersEligible
+                ? setup.LifeCrystalMinimum
+                : 0,
             0,
             0,
             advancedFiltersEligible
@@ -44,7 +46,8 @@ internal sealed partial class RaceShell
             SecretSeeds: setup.SecretSeeds,
             PlayerDifficultyCode:
                 RacePlayerDifficultyCodes.ForWorldDifficulty(worldDifficultyCode),
-            RngControlEnabled: setup.RngControlEnabled);
+            RngControlEnabled: setup.RngControlEnabled,
+            BossFailurePenaltyEnabled: setup.BossFailurePenaltyEnabled);
     }
 
     private void PersistInGameWorldSetup()
@@ -121,7 +124,8 @@ internal sealed partial class RaceShell
         setup.CrimsonDistance = AutoCreateCrimsonDistance.Normalize(setup.CrimsonDistance);
         setup.JungleRouteDepth = AutoCreateJungleRouteDepth.Normalize(setup.JungleRouteDepth);
         setup.ResourceItemMask = 0;
-        setup.LifeCrystalMinimum = 0;
+        setup.LifeCrystalMinimum = AutoCreateResourceMinimum.NormalizeLifeCrystals(
+            setup.LifeCrystalMinimum);
         setup.SpelunkerPotionMinimum = 0;
         setup.FeatherfallPotionMinimum = 0;
         AutoCreateAdvancedFilterEligibility.ClearUnsupportedFilters(setup);
@@ -141,6 +145,7 @@ internal sealed partial class RaceShell
             SpecialSeeds = source.SpecialSeeds ?? string.Empty,
             SecretSeeds = source.SecretSeeds ?? string.Empty,
             RngControlEnabled = source.RngControlEnabled,
+            BossFailurePenaltyEnabled = source.BossFailurePenaltyEnabled,
             CheatsEnabled = source.CheatsEnabled,
             PyramidEnabled = source.PyramidEnabled,
             PyramidItemMask = source.PyramidItemMask,

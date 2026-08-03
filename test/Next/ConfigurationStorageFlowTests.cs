@@ -35,6 +35,7 @@ internal static class ConfigurationStorageFlowTests
         settings.Race.WorldSetup.WorldEvil = AutoCreateWorldEvil.Corruption;
         settings.Race.WorldSetup.SpecialSeeds = "not the bees | no traps";
         settings.Race.WorldSetup.RngControlEnabled = false;
+        settings.Race.WorldSetup.BossFailurePenaltyEnabled = false;
         settings.Race.WorldSetup.LifeCrystalMinimum = 5;
         settings.Race.Voice.Enabled = true;
         settings.Race.Voice.VoiceName = "  Test Voice  ";
@@ -78,6 +79,7 @@ internal static class ConfigurationStorageFlowTests
             [AutoCreateSpecialWorldSeed.NotTheBees, AutoCreateSpecialWorldSeed.NoTraps],
             AutoCreateSpecialWorldSeed.ParseList(loaded.Race.WorldSetup.SpecialSeeds));
         Check.False(loaded.Race.WorldSetup.RngControlEnabled);
+        Check.False(loaded.Race.WorldSetup.BossFailurePenaltyEnabled);
         Check.False(loaded.Race.WorldSetup.CrimsonEnabled);
         Check.Equal(AutoCreateJungleRouteDepth.None, loaded.Race.WorldSetup.JungleRouteDepth);
         Check.Equal(0, loaded.Race.WorldSetup.LifeCrystalMinimum);
@@ -94,7 +96,7 @@ internal static class ConfigurationStorageFlowTests
         Check.Equal(AutoCreateCrimsonDistance.Near, loaded.Automation.AutoCreate.CrimsonDistance);
         Check.Equal(AutoCreateJungleRouteDepth.Deep, loaded.Automation.AutoCreate.JungleRouteDepth);
         Check.Equal(AutoCreateResourceFilterItem.BoomstickMask, loaded.Automation.AutoCreate.ResourceFilterItemMask);
-        Check.Equal(5, loaded.Automation.AutoCreate.ResourceFilterLifeCrystalMinimum);
+        Check.Equal(6, loaded.Automation.AutoCreate.ResourceFilterLifeCrystalMinimum);
         Check.Equal(2, loaded.Automation.AutoCreate.ResourceFilterSpelunkerPotionMinimum);
         Check.Equal(1, loaded.Automation.AutoCreate.ResourceFilterFeatherfallPotionMinimum);
         SplitRouteEntry loadedMultiIconEntry = loaded.Route.SplitRoute.Single(entry => entry.Id == multiIconEntry.Id);

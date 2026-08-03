@@ -15,7 +15,8 @@ internal sealed record TerrariaRaceWorldLockTarget(
     Guid UniqueId,
     TerrariaRaceDeterminismConfiguration Determinism,
     TerrariaPlanteraBulbPlan PlanteraBulbPlan,
-    bool EntryAllowed);
+    bool EntryAllowed,
+    bool BossFailurePenaltyEnabled);
 
 internal sealed record TerrariaRaceInitialPlayerConfiguration(
     string PlayerName,
@@ -71,6 +72,14 @@ internal enum TerrariaRaceWorldLockState
     Faulted
 }
 
+internal enum TerrariaRaceWorldLockPreparationStage
+{
+    WaitForGame,
+    PrepareMemoryControl,
+    CreateRacePlayer,
+    AlmostReady
+}
+
 internal enum TerrariaRaceMessageKind
 {
     SplitCompleted,
@@ -87,7 +96,8 @@ internal interface ITerrariaRaceWorldLockService
         TerrariaRaceWorldLockTarget target,
         TerrariaRaceInitialPlayerConfiguration player,
         string rejectionMessage,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        Action<TerrariaRaceWorldLockPreparationStage>? reportStage = null);
 
     Task<TerrariaRaceMenuExchangeResult> OpenRaceMenuAsync(
         RaceInGameSnapshot snapshot,
@@ -101,6 +111,12 @@ internal interface ITerrariaRaceWorldLockService
     Task<TerrariaRaceWorldLockResult> ShowInGameMessageAsync(
         string message,
         TerrariaRaceMessageKind kind,
+        CancellationToken cancellationToken = default);
+
+    Task<TerrariaRaceWorldLockResult> SettleBossPenaltyAsync(
+        RaceBossPenaltyKind kind,
+        string packageDigest,
+        long settlementId,
         CancellationToken cancellationToken = default);
 
     Task<TerrariaRaceWorldLockResult> CloseRaceMenuAsync(
@@ -308,6 +324,46 @@ internal sealed class TerrariaRaceWorldLockService : ITerrariaRaceWorldLockServi
         }
     }
 
+    public async Task<TerrariaRaceWorldLockResult> SettleBossPenaltyAsync(
+        RaceBossPenaltyKind kind,
+        string packageDigest,
+        long settlementId,
+        CancellationToken cancellationToken = default)
+    {
+        if (!RaceBossPenalty.IsSupportedKind(kind) ||
+            string.IsNullOrWhiteSpace(packageDigest) ||
+            settlementId <= 0L)
+        {
+            return TerrariaRaceWorldLockResult.Failure("The Race boss settlement is invalid.");
+        }
+
+        await commandGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            int processId = Volatile.Read(ref lockedProcessId);
+            if (processId <= 0 || string.IsNullOrWhiteSpace(activePipeName))
+            {
+                return TerrariaRaceWorldLockResult.Failure("The Terraria Race hook is not attached.");
+            }
+
+            string command = string.Join(
+                '\n',
+                "settle-race-boss",
+                ((int)kind).ToString(CultureInfo.InvariantCulture),
+                packageDigest,
+                settlementId.ToString(CultureInfo.InvariantCulture));
+            return await SendPipeCommandAsync(
+                processId,
+                activePipeName,
+                command,
+                cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            commandGate.Release();
+        }
+    }
+
     public async Task<TerrariaRaceWorldLockResult> CloseRaceMenuAsync(
         CancellationToken cancellationToken = default)
     {
@@ -476,7 +532,8 @@ internal sealed class TerrariaRaceWorldLockService : ITerrariaRaceWorldLockServi
         TerrariaRaceWorldLockTarget target,
         TerrariaRaceInitialPlayerConfiguration player,
         string rejectionMessage,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        Action<TerrariaRaceWorldLockPreparationStage>? reportStage = null)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
         ArgumentNullException.ThrowIfNull(target);
@@ -503,6 +560,7 @@ internal sealed class TerrariaRaceWorldLockService : ITerrariaRaceWorldLockServi
                 TryGetLiveProcess(currentProcessId, out Process? currentProcess))
             {
                 currentProcess!.Dispose();
+                reportStage?.Invoke(TerrariaRaceWorldLockPreparationStage.AlmostReady);
                 TerrariaRaceWorldLockResult currentStatus = await SendPipeCommandAsync(
                     currentProcessId,
                     activePipeName!,
@@ -531,7 +589,8 @@ internal sealed class TerrariaRaceWorldLockService : ITerrariaRaceWorldLockServi
                     target,
                     player,
                     rejectionMessage,
-                    cancellationToken).ConfigureAwait(false);
+                    cancellationToken,
+                    reportStage).ConfigureAwait(false);
             }
 
             StopHeartbeat();
@@ -544,6 +603,7 @@ internal sealed class TerrariaRaceWorldLockService : ITerrariaRaceWorldLockServi
                 StartHeartbeat();
                 return shutdown;
             }
+            reportStage?.Invoke(TerrariaRaceWorldLockPreparationStage.WaitForGame);
             using Process? terraria = TerrariaProcessFinder.FindNewest();
             if (terraria is null)
             {
@@ -561,6 +621,7 @@ internal sealed class TerrariaRaceWorldLockService : ITerrariaRaceWorldLockServi
                 return startupReady;
             }
 
+            reportStage?.Invoke(TerrariaRaceWorldLockPreparationStage.PrepareMemoryControl);
             string pipeName = CreatePipeName(terraria.Id);
             string startCommand = BuildStartCommand(pipeName, Environment.ProcessId);
             string stagingDirectory;
@@ -621,6 +682,7 @@ internal sealed class TerrariaRaceWorldLockService : ITerrariaRaceWorldLockServi
                     "A different Race hook payload is already loaded. Restart Terraria before continuing.").ConfigureAwait(false);
             }
 
+            reportStage?.Invoke(TerrariaRaceWorldLockPreparationStage.CreateRacePlayer);
             TerrariaRaceWorldLockResult createdPlayer;
             if (string.Equals(lastProvisionedLockKey, lockKey, StringComparison.Ordinal) &&
                 !string.IsNullOrWhiteSpace(lastProvisionedPlayerPath) &&
@@ -649,6 +711,7 @@ internal sealed class TerrariaRaceWorldLockService : ITerrariaRaceWorldLockServi
                 return await FailLockTransitionAsync(terraria.Id, failure.Message).ConfigureAwait(false);
             }
 
+            reportStage?.Invoke(TerrariaRaceWorldLockPreparationStage.AlmostReady);
             TerrariaRaceWorldLockResult configured = await SendPipeCommandAsync(
                 terraria.Id,
                 pipeName,
@@ -1009,8 +1072,10 @@ internal sealed class TerrariaRaceWorldLockService : ITerrariaRaceWorldLockServi
         TerrariaRaceWorldLockTarget target,
         TerrariaRaceInitialPlayerConfiguration player,
         string rejectionMessage,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Action<TerrariaRaceWorldLockPreparationStage>? reportStage)
     {
+        reportStage?.Invoke(TerrariaRaceWorldLockPreparationStage.PrepareMemoryControl);
         SetState(TerrariaRaceWorldLockState.Configuring);
         activePackageDigest = target.Determinism.PackageDigest;
         TerrariaRaceWorldLockResult version = await SendPipeCommandAsync(
@@ -1027,6 +1092,7 @@ internal sealed class TerrariaRaceWorldLockService : ITerrariaRaceWorldLockServi
                 .ConfigureAwait(false);
         }
 
+        reportStage?.Invoke(TerrariaRaceWorldLockPreparationStage.CreateRacePlayer);
         TerrariaRaceWorldLockResult createdPlayer;
         if (string.Equals(lastProvisionedLockKey, lockKey, StringComparison.Ordinal) &&
             !string.IsNullOrWhiteSpace(lastProvisionedPlayerPath) &&
@@ -1056,6 +1122,7 @@ internal sealed class TerrariaRaceWorldLockService : ITerrariaRaceWorldLockServi
             return await FailLockTransitionAsync(processId, message).ConfigureAwait(false);
         }
 
+        reportStage?.Invoke(TerrariaRaceWorldLockPreparationStage.AlmostReady);
         TerrariaRaceWorldLockResult configured = await SendPipeCommandAsync(
             processId,
             pipeName,
@@ -1127,6 +1194,7 @@ internal sealed class TerrariaRaceWorldLockService : ITerrariaRaceWorldLockServi
             target.Determinism.ChancePolicyVersion.ToString(CultureInfo.InvariantCulture),
             target.PlanteraBulbPlan.Encode(),
             target.EntryAllowed ? "1" : "0",
+            target.BossFailurePenaltyEnabled ? "1" : "0",
             target.Determinism.PackageDigest);
     }
 
@@ -1313,6 +1381,7 @@ internal sealed class TerrariaRaceWorldLockService : ITerrariaRaceWorldLockServi
             target.Determinism.PackageDigest,
             target.PlanteraBulbPlan.CreateDigest(),
             target.EntryAllowed ? "1" : "0",
+            target.BossFailurePenaltyEnabled ? "1" : "0",
             player.PlayerName.Trim(),
             player.PlayerTemplateCode ?? string.Empty,
             AutoCreatePlayerDifficulty.Normalize(player.PlayerDifficulty),

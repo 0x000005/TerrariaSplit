@@ -66,6 +66,7 @@ internal static class TestCatalog
             .Concat(ApplicationFlowTests.All())
             .Concat(ConfigurationStorageFlowTests.All())
             .Concat(TerrariaIntegrationTests.All())
+            .Concat(RaceWorldUploadFlowTests.All())
             .Concat(RaceFlowTests.All())
             .Concat(WindowsFlowTests.All())
             .Concat(UpdateFlowTests.All())

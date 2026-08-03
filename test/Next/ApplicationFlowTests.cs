@@ -19,6 +19,10 @@ internal static class ApplicationFlowTests
         var controller = new ApplicationController(settings, settingsSnapshots);
         Check.False(controller.SystemState.Race.IsModeEnabled);
 
+        ApplicationUpdate penaltyOutsideRace = controller.HandleSystemEvent(
+            new RaceTimePenaltySystemEvent(TimeSpan.FromMinutes(1)));
+        Check.Equal(0, penaltyOutsideRace.Effects.Count);
+
         ApplicationUpdate idlePause = controller.HandleSystemEvent(new ControlCommandSystemEvent(AppCommand.TogglePause()));
         Check.Equal(0, idlePause.Effects.Count);
         ApplicationUpdate clickThrough = controller.HandleSystemEvent(new ControlCommandSystemEvent(AppCommand.ToggleMouseClickThrough()));
@@ -102,6 +106,9 @@ internal static class ApplicationFlowTests
             Check.Equal(0, blocked.DisplayInvalidations.Count);
         }
         Check.Equal(raceAlwaysOnTop, controller.Settings.General.AlwaysOnTop);
+        ApplicationUpdate penaltyOutsideRoom = controller.HandleSystemEvent(
+            new RaceTimePenaltySystemEvent(TimeSpan.FromMinutes(1)));
+        Check.Equal(0, penaltyOutsideRoom.Effects.Count);
 
         ApplicationUpdate settingsOutsideRoom = controller.HandleSystemEvent(new ControlCommandSystemEvent(
             AppCommand.ApplyTemporarySettings(changedRaceSettings)));
@@ -113,6 +120,13 @@ internal static class ApplicationFlowTests
         Check.Equal("ROOM", controller.SystemState.Race.RoomCode);
         Check.True(package.Effects.OfType<CancelCreateWorldAutomationEffect>().Any());
         Check.True(package.DisplayInvalidations.Single().Targets.HasFlag(DisplayInvalidationTarget.All));
+        ApplicationUpdate racePenalty = controller.HandleSystemEvent(
+            new RaceTimePenaltySystemEvent(TimeSpan.FromMinutes(1)));
+        Check.True(racePenalty.Effects
+            .OfType<SubmitRuntimeCommandEffect>()
+            .Any(effect =>
+                effect.Command.Kind == RuntimeCommandKind.AddElapsedPenalty &&
+                effect.Command.Time == TimeSpan.FromMinutes(1)));
         foreach (AppCommand command in new[]
         {
             AppCommand.ApplySettings(changedRaceSettings),
@@ -138,6 +152,9 @@ internal static class ApplicationFlowTests
         ApplicationUpdate blockedAfterLeavingRoom = controller.HandleSystemEvent(new ControlCommandSystemEvent(
             AppCommand.QueueMenuAction(MenuActionKind.CreateWorld, DateTime.UtcNow)));
         Check.Equal(0, blockedAfterLeavingRoom.Effects.Count);
+        Check.Equal(
+            0,
+            controller.HandleSystemEvent(new RaceTimePenaltySystemEvent(TimeSpan.FromMinutes(1))).Effects.Count);
 
         controller.HandleSystemEvent(new RaceModeSystemEvent(Enabled: false));
         Check.False(controller.SystemState.Race.IsModeEnabled);
@@ -259,6 +276,11 @@ internal static class ApplicationFlowTests
         Check.False(manuallyCompleted.CompletedFactKeys.Contains(thirdFact, StringComparer.OrdinalIgnoreCase));
         Check.False(manualTick.Snapshot.Statuses[1].IsCompleted);
 
+        IReadOnlyList<RunEvent> penaltyEvents = processor.ApplyCommand(
+            RuntimeCommand.AddElapsedPenalty(TimeSpan.FromSeconds(30)),
+            manualTimestamp + TestTiming.Timestamp(TimeSpan.FromMilliseconds(250)));
+        Check.Equal(0, penaltyEvents.Count);
+
         RuntimeProcessorTickResult nextReadyTick = processor.Tick(
             Snapshot(CoreAndRunTests.Facts((nextFact, false))),
             manualTimestamp + TestTiming.Timestamp(TimeSpan.FromMilliseconds(500)),
@@ -270,7 +292,9 @@ internal static class ApplicationFlowTests
             manualTimestamp + TestTiming.Timestamp(TimeSpan.FromSeconds(1)),
             []);
         Check.True(nextTick.Snapshot.Statuses[1].IsCompleted);
+        Check.Equal(TimeSpan.FromSeconds(33), nextTick.Snapshot.Statuses[1].Time);
         Check.True(nextTick.Events.Any(static item => item.Kind == RunEventKind.RunCompleted));
+
     }
 
     private static void ManualSplitStartsIdleRun()

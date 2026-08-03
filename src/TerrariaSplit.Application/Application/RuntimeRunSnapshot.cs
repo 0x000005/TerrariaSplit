@@ -90,6 +90,7 @@ public enum RuntimeCommandKind
     SetPracticeSplitTime,
     SetPracticeTotalTime,
     CompleteNextSplitManually,
+    AddElapsedPenalty,
     ClearPendingMenuActions
 }
 
@@ -159,6 +160,14 @@ public sealed record RuntimeCommand
     public static RuntimeCommand CompleteNextSplitManually()
     {
         return new RuntimeCommand(RuntimeCommandKind.CompleteNextSplitManually);
+    }
+
+    public static RuntimeCommand AddElapsedPenalty(TimeSpan penalty)
+    {
+        return new RuntimeCommand(RuntimeCommandKind.AddElapsedPenalty)
+        {
+            Time = penalty
+        };
     }
 
     public static RuntimeCommand ClearPendingMenuActions()

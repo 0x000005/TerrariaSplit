@@ -37,6 +37,8 @@ internal sealed partial class MainForm : Form
     private Task? runtimeInitializationTask;
     private int firstFrameComponentCount;
     private int statusRenderCount;
+    private long lastSubmittedRuntimeCommandSequence;
+    private long lastAppliedRuntimeCommandSequence;
     private StatisticsForm? statisticsForm;
     private int rtssOverlayDispatchPending;
     private bool runtimeResourcesDisposed;

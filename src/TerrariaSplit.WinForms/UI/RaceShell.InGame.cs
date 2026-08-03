@@ -246,7 +246,7 @@ internal sealed partial class RaceShell
             Volatile.Write(ref inGameMenuLastActionId, action.ActionId);
             if (action.Kind == RaceInGameActionKind.Close)
             {
-                SaveRaceEnabled(false);
+                await InvokeOwnerThreadAsync(() => SaveRaceEnabled(false)).ConfigureAwait(false);
                 return;
             }
 
@@ -257,12 +257,19 @@ internal sealed partial class RaceShell
                 continue;
             }
 
+            if (action.Kind == RaceInGameActionKind.Activate &&
+                string.Equals(action.ControlId, RaceBossPenalty.ActionControlId, StringComparison.Ordinal))
+            {
+                await ApplyBossPenaltyAsync(action.Value, cancellationToken).ConfigureAwait(false);
+                continue;
+            }
+
             if (!IsActionValidForCurrentSnapshot(action))
             {
                 continue;
             }
 
-            await HandleInGameActionAsync(action, cancellationToken).ConfigureAwait(false);
+            await InvokeOwnerThreadAsync(() => HandleInGameAction(action)).ConfigureAwait(false);
         }
     }
 
@@ -272,6 +279,46 @@ internal sealed partial class RaceShell
             session.RoomCode ?? string.Empty,
             session.Nickname ?? string.Empty,
             RaceDeathMessageRules.Normalize(deathMessage));
+    }
+
+    private async Task ApplyBossPenaltyAsync(
+        string value,
+        CancellationToken cancellationToken)
+    {
+        RaceRoomState? state = session.State;
+        string packageDigest = state?.Determinism?.CreateDigest() ?? string.Empty;
+        if (!IsRaceEnabled ||
+            state is null ||
+            state.WorldSettings?.BossFailurePenaltyEnabled == false ||
+            !RaceBossPenalty.TryParseActionValue(
+                value,
+                packageDigest,
+                out RaceBossPenaltyKind kind,
+                out long penaltyMilliseconds,
+                out long settlementId))
+        {
+            return;
+        }
+
+        bool applied = await applyRacePenalty(
+            TimeSpan.FromMilliseconds(penaltyMilliseconds),
+            cancellationToken).ConfigureAwait(false);
+        if (!applied)
+        {
+            return;
+        }
+
+        TerrariaRaceWorldLockResult settled = await worldLock.SettleBossPenaltyAsync(
+            kind,
+            packageDigest,
+            settlementId,
+            cancellationToken).ConfigureAwait(false);
+        if (!settled.Succeeded)
+        {
+            logger.Error(
+                new InvalidOperationException(settled.Message),
+                "Race boss settlement failed after applying the time penalty.");
+        }
     }
 
     private void RecordSentInGameSnapshot(RaceInGameSnapshot snapshot)
@@ -349,9 +396,7 @@ internal sealed partial class RaceShell
         }
     }
 
-    private async Task HandleInGameActionAsync(
-        RaceInGameAction action,
-        CancellationToken cancellationToken)
+    private void HandleInGameAction(RaceInGameAction action)
     {
         if (action.Kind == RaceInGameActionKind.TextSubmitted)
         {
@@ -439,6 +484,12 @@ internal sealed partial class RaceShell
             setup.RngControlEnabled = !setup.RngControlEnabled;
             PersistInGameWorldSetup();
         }
+        else if (id == "boss-failure-penalty")
+        {
+            RaceWorldSetupSettings setup = EnsureInGameWorldSetup();
+            setup.BossFailurePenaltyEnabled = !setup.BossFailurePenaltyEnabled;
+            PersistInGameWorldSetup();
+        }
         else if (id == "pyramid")
         {
             RaceWorldSetupSettings setup = EnsureInGameWorldSetup();
@@ -492,6 +543,36 @@ internal sealed partial class RaceShell
             }
             PersistInGameWorldSetup();
         }
+        else if (id == "life-crystal")
+        {
+            RaceWorldSetupSettings setup = EnsureInGameWorldSetup();
+            if (AutoCreateAdvancedFilterEligibility.IsEligible(setup))
+            {
+                setup.LifeCrystalMinimum =
+                    AutoCreateResourceMinimum.NormalizeLifeCrystals(setup.LifeCrystalMinimum) > 0
+                        ? 0
+                        : AutoCreateResourceMinimum.LifeCrystals.First(value => value > 0);
+            }
+
+            PersistInGameWorldSetup();
+        }
+        else if (id.StartsWith("life-crystal-min:", StringComparison.Ordinal) &&
+            int.TryParse(
+                id["life-crystal-min:".Length..],
+                NumberStyles.None,
+                CultureInfo.InvariantCulture,
+                out int lifeCrystalMinimum) &&
+            AutoCreateResourceMinimum.LifeCrystals.Contains(lifeCrystalMinimum) &&
+            lifeCrystalMinimum > 0)
+        {
+            RaceWorldSetupSettings setup = EnsureInGameWorldSetup();
+            if (AutoCreateAdvancedFilterEligibility.IsEligible(setup))
+            {
+                setup.LifeCrystalMinimum = lifeCrystalMinimum;
+            }
+
+            PersistInGameWorldSetup();
+        }
         else if (id == "host-generate")
         {
             _ = RunHostWorldOperationAsync();
@@ -503,7 +584,7 @@ internal sealed partial class RaceShell
         else if (id == "cancel")
         {
             CancelInGameOperation();
-            await CancelWorldGenerationAsync().ConfigureAwait(false);
+            CancelWorldGeneration();
         }
         else if (id.StartsWith("kick:", StringComparison.Ordinal))
         {
@@ -557,7 +638,6 @@ internal sealed partial class RaceShell
                 async () =>
                 {
                     await CloseRoomAsync().ConfigureAwait(false);
-                    _ = TransitionInGameMenu(RaceInGameTransition.RoomExited);
                     return null;
                 });
         }
@@ -575,8 +655,6 @@ internal sealed partial class RaceShell
                     {
                         await LeaveAsync().ConfigureAwait(false);
                     }
-
-                    _ = TransitionInGameMenu(RaceInGameTransition.RoomExited);
                     return null;
                 });
         }

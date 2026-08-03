@@ -102,6 +102,52 @@ internal static class RaceFlowTests
                         true,
                         string.Empty)
                 ])));
+
+        (RaceBossPenaltyKind Kind, int Life, int MaximumLife, int GameMode, long Expected)[] cases =
+        [
+            (RaceBossPenaltyKind.Skeletron, 50, 100, 0, 150_000L),
+            (RaceBossPenaltyKind.Skeletron, 50, 100, 1, 180_000L),
+            (RaceBossPenaltyKind.Skeletron, 50, 100, 2, 225_000L),
+            (RaceBossPenaltyKind.Skeletron, 50, 100, 3, 150_000L),
+            (RaceBossPenaltyKind.Skeletron, 150, 100, 0, 300_000L),
+            (RaceBossPenaltyKind.WallOfFlesh, 50, 100, 0, 210_000L),
+            (RaceBossPenaltyKind.WallOfFlesh, 50, 100, 1, 252_000L),
+            (RaceBossPenaltyKind.WallOfFlesh, 50, 100, 2, 315_000L),
+            (RaceBossPenaltyKind.WallOfFlesh, 50, 100, 3, 210_000L),
+            (RaceBossPenaltyKind.WallOfFlesh, 150, 100, 0, 300_000L),
+            (RaceBossPenaltyKind.WallOfFlesh, 0, 100, 2, 0L)
+        ];
+        foreach ((RaceBossPenaltyKind kind, int life, int maximumLife, int gameMode, long expected) in cases)
+        {
+            Check.Equal(
+                expected,
+                RaceBossPenalty.CalculateMilliseconds(kind, life, maximumLife, gameMode));
+        }
+
+        Check.True(RaceBossPenalty.IsValidMilliseconds(RaceBossPenaltyKind.Skeletron, 450_000L));
+        Check.False(RaceBossPenalty.IsValidMilliseconds(RaceBossPenaltyKind.Skeletron, 450_001L));
+        Check.True(RaceBossPenalty.IsValidMilliseconds(RaceBossPenaltyKind.WallOfFlesh, 450_000L));
+        Check.False(RaceBossPenalty.IsValidMilliseconds(RaceBossPenaltyKind.WallOfFlesh, 450_001L));
+        string penaltyAction = RaceBossPenalty.CreateActionValue(
+            RaceBossPenaltyKind.WallOfFlesh,
+            "CURRENT",
+            315_000L,
+            17L);
+        Check.True(RaceBossPenalty.TryParseActionValue(
+            penaltyAction,
+            "CURRENT",
+            out RaceBossPenaltyKind parsedKind,
+            out long parsedPenalty,
+            out long parsedSettlementId));
+        Check.Equal(RaceBossPenaltyKind.WallOfFlesh, parsedKind);
+        Check.Equal(315_000L, parsedPenalty);
+        Check.Equal(17L, parsedSettlementId);
+        Check.False(RaceBossPenalty.TryParseActionValue(
+            penaltyAction,
+            "STALE",
+            out _,
+            out _,
+            out _));
     }
 
     private static void CrossRoomUpdateIsolation()
@@ -498,6 +544,7 @@ internal static class RaceFlowTests
         Check.Equal(8, restored.WorldSettings.Cheats.LifeCrystalMinimum);
         Check.Equal(AutoCreateJungleRouteDepth.VeryDeep, restored.WorldSettings.Cheats.JungleRouteDepth);
         Check.True(restored.WorldSettings.RngControlEnabled);
+        Check.False(restored.WorldSettings.BossFailurePenaltyEnabled);
         Check.True(RaceWorldSettingsFactory.HasCompatibleJourneyDifficulties(restored.WorldSettings));
         Check.False(RaceWorldSettingsFactory.HasCompatibleJourneyDifficulties(
             restored.WorldSettings with { PlayerDifficultyCode = RacePlayerDifficultyCodes.Journey }));
@@ -515,7 +562,7 @@ internal static class RaceFlowTests
         Check.Equal(AutoCreateCrimsonDistance.Near, generatedSettings.CrimsonDistance);
         Check.Equal(AutoCreateJungleRouteDepth.VeryDeep, generatedSettings.JungleRouteDepth);
         Check.Equal(AutoCreateResourceFilterItem.BoomstickMask, generatedSettings.ResourceFilterItemMask);
-        Check.Equal(5, generatedSettings.ResourceFilterLifeCrystalMinimum);
+        Check.Equal(6, generatedSettings.ResourceFilterLifeCrystalMinimum);
         Check.Equal(2, generatedSettings.ResourceFilterSpelunkerPotionMinimum);
         Check.Equal(1, generatedSettings.ResourceFilterFeatherfallPotionMinimum);
         RaceWorldSettings unsupportedAdvancedFilters = restored.WorldSettings with
@@ -829,7 +876,8 @@ internal static class RaceFlowTests
                     1,
                     AutoCreateJungleRouteDepth.VeryDeep),
                 "race",
-                PlayerDifficultyCode: RacePlayerDifficultyCodes.Hardcore),
+                PlayerDifficultyCode: RacePlayerDifficultyCodes.Hardcore,
+                BossFailurePenaltyEnabled: false),
             new RaceSeedAssignment("1234", RaceSeedSource.Fixed),
             new RaceWorldFileInfo(revisionName + ".wld", 128, revisionName, DateTimeOffset.UnixEpoch, nickname));
 
