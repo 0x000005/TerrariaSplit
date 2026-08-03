@@ -28,31 +28,36 @@ public sealed record TerrariaRaceSeedFilterBatchResult(
     IReadOnlyList<TerrariaRaceSeedFilterCandidate> AcceptedCandidates,
     int EvaluatedCount,
     string FatalError,
-    string Detail)
+    string Detail,
+    int ConsecutiveCandidateFailures)
 {
     public bool HasFatalError => !string.IsNullOrWhiteSpace(FatalError);
 
     public static TerrariaRaceSeedFilterBatchResult Complete(
         IReadOnlyList<TerrariaRaceSeedFilterCandidate> acceptedCandidates,
         int evaluatedCount,
-        string detail)
+        string detail,
+        int consecutiveCandidateFailures)
     {
         return new TerrariaRaceSeedFilterBatchResult(
             acceptedCandidates,
             evaluatedCount,
             string.Empty,
-            detail);
+            detail,
+            consecutiveCandidateFailures);
     }
 
     public static TerrariaRaceSeedFilterBatchResult Fatal(
         int evaluatedCount,
-        string error)
+        string error,
+        int consecutiveCandidateFailures = 0)
     {
         return new TerrariaRaceSeedFilterBatchResult(
             Array.Empty<TerrariaRaceSeedFilterCandidate>(),
             evaluatedCount,
             error,
-            error);
+            error,
+            consecutiveCandidateFailures);
     }
 }
 
@@ -130,7 +135,8 @@ public sealed class TerrariaRaceWorldGenerationService : IDisposable
     public async Task<TerrariaRaceSeedFilterBatchResult> FilterSeedBatchAsync(
         AutoCreateWorldSettings settings,
         IReadOnlyList<string> seedTexts,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        int initialConsecutiveCandidateFailures = 0)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(seedTexts);
@@ -139,7 +145,8 @@ public sealed class TerrariaRaceWorldGenerationService : IDisposable
             return TerrariaRaceSeedFilterBatchResult.Complete(
                 Array.Empty<TerrariaRaceSeedFilterCandidate>(),
                 0,
-                "No seeds were supplied.");
+                "No seeds were supplied.",
+                Math.Max(0, initialConsecutiveCandidateFailures));
         }
 
         TerrariaServerTarget? serverTarget = TerrariaServerLocator.TryResolveTarget();
@@ -169,23 +176,53 @@ public sealed class TerrariaRaceWorldGenerationService : IDisposable
         }
 
         SeedFilterEvaluation[] evaluations = await Task.WhenAll(tasks);
-        foreach (SeedFilterEvaluation evaluation in evaluations.OrderBy(item => item.BatchIndex))
-        {
-            if (!evaluation.Prediction.CanUsePrediction &&
-                !evaluation.Prediction.CanContinueWithoutPrediction)
-            {
-                return TerrariaRaceSeedFilterBatchResult.Fatal(
-                    evaluations.Length,
-                    evaluation.Prediction.Detail);
-            }
-        }
+        return ClassifySeedFilterBatch(
+            evaluations,
+            initialConsecutiveCandidateFailures);
+    }
 
+    internal static TerrariaRaceSeedFilterBatchResult ClassifySeedFilterBatch(
+        IReadOnlyList<SeedFilterEvaluation> evaluations,
+        int initialConsecutiveCandidateFailures = 0)
+    {
+        ArgumentNullException.ThrowIfNull(evaluations);
         var accepted = new List<TerrariaRaceSeedFilterCandidate>();
         string lastDetail = string.Empty;
+        int consecutiveCandidateFailures = Math.Max(
+            0,
+            initialConsecutiveCandidateFailures);
         foreach (SeedFilterEvaluation evaluation in evaluations.OrderBy(item => item.BatchIndex))
         {
             WorldSeedFilterPrediction prediction = evaluation.Prediction;
             lastDetail = prediction.Detail;
+            consecutiveCandidateFailures =
+                WorldSeedFilterFailurePolicy.Advance(
+                    consecutiveCandidateFailures,
+                    prediction);
+            if (prediction.IsCandidateFailure)
+            {
+                if (WorldSeedFilterFailurePolicy.ShouldStop(
+                        consecutiveCandidateFailures))
+                {
+                    return TerrariaRaceSeedFilterBatchResult.Fatal(
+                        evaluations.Count,
+                        WorldSeedFilterFailurePolicy.FormatLimitReached(
+                            consecutiveCandidateFailures,
+                            prediction),
+                        consecutiveCandidateFailures);
+                }
+
+                continue;
+            }
+
+            if (prediction.IsFatal)
+            {
+                return TerrariaRaceSeedFilterBatchResult.Fatal(
+                    evaluations.Count,
+                    prediction.Detail,
+                    consecutiveCandidateFailures);
+            }
+
             if (prediction.CanUsePrediction && prediction.AcceptSeed ||
                 !prediction.CanUsePrediction && prediction.CanContinueWithoutPrediction)
             {
@@ -200,8 +237,9 @@ public sealed class TerrariaRaceWorldGenerationService : IDisposable
 
         return TerrariaRaceSeedFilterBatchResult.Complete(
             accepted,
-            evaluations.Length,
-            lastDetail);
+            evaluations.Count,
+            lastDetail,
+            consecutiveCandidateFailures);
     }
 
     public void Dispose()
@@ -327,7 +365,7 @@ public sealed class TerrariaRaceWorldGenerationService : IDisposable
         }
     }
 
-    private readonly record struct SeedFilterEvaluation(
+    internal readonly record struct SeedFilterEvaluation(
         string SeedText,
         int BatchIndex,
         WorldSeedFilterPrediction Prediction);

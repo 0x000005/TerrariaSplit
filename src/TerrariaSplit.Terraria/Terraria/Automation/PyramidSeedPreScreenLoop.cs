@@ -56,6 +56,7 @@ internal sealed class PyramidSeedPreScreenLoop
         int batchSize = WorldSeedFilterEvaluator.CalculateParallelism(
             Environment.ProcessorCount);
         int attempt = 0;
+        int consecutiveCandidateFailures = 0;
         int consecutiveSeedReadFailures = 0;
         string? lastVisibleSeed = seedReader.ReadCurrentSeed();
 
@@ -78,7 +79,8 @@ internal sealed class PyramidSeedPreScreenLoop
                     seedReader,
                     cancellationToken,
                     attempt,
-                    lastVisibleSeed);
+                    lastVisibleSeed,
+                    consecutiveCandidateFailures);
             }
 
             logInfo(
@@ -95,6 +97,29 @@ internal sealed class PyramidSeedPreScreenLoop
             for (int index = 0; index < predictions.Count; index++)
             {
                 WorldSeedFilterPrediction candidatePrediction = predictions[index];
+                consecutiveCandidateFailures =
+                    WorldSeedFilterFailurePolicy.Advance(
+                        consecutiveCandidateFailures,
+                        candidatePrediction);
+                if (candidatePrediction.IsCandidateFailure)
+                {
+                    logInfo(
+                        $"World seed pre-screen skipped predicted candidate " +
+                        $"{predictedSeeds[index]} after a generation failure: " +
+                        candidatePrediction.Detail);
+                    if (WorldSeedFilterFailurePolicy.ShouldStop(
+                            consecutiveCandidateFailures))
+                    {
+                        return new PyramidSeedPreScreenLoopResult(
+                            PyramidSeedPreScreenLoopStatus.CandidateFailuresExceeded,
+                            attempt,
+                            AcceptedSeed: null,
+                            WorldSeedFilterFailurePolicy.FormatLimitReached(
+                                consecutiveCandidateFailures,
+                                candidatePrediction));
+                    }
+                }
+
                 if (!candidatePrediction.CanUsePrediction || candidatePrediction.AcceptSeed)
                 {
                     decisionIndex = index;
@@ -222,9 +247,12 @@ internal sealed class PyramidSeedPreScreenLoop
         IPyramidVisibleSeedReader seedReader,
         CancellationToken cancellationToken,
         int initialAttempt = 0,
-        string? initialVisibleSeed = null)
+        string? initialVisibleSeed = null,
+        int initialConsecutiveCandidateFailures = 0)
     {
         int attempt = initialAttempt;
+        int consecutiveCandidateFailures =
+            initialConsecutiveCandidateFailures;
         int consecutiveSeedReadFailures = 0;
         string? lastVisibleSeed = initialVisibleSeed ?? seedReader.ReadCurrentSeed();
 
@@ -275,6 +303,30 @@ internal sealed class PyramidSeedPreScreenLoop
                 readResult.SeedText,
                 worldGenerationVersion,
                 cancellationToken);
+            consecutiveCandidateFailures =
+                WorldSeedFilterFailurePolicy.Advance(
+                    consecutiveCandidateFailures,
+                    prediction);
+            if (prediction.IsCandidateFailure)
+            {
+                logInfo(
+                    $"World seed pre-screen skipped seed {readResult.SeedText} " +
+                    $"after a generation failure: {prediction.Detail}");
+                if (WorldSeedFilterFailurePolicy.ShouldStop(
+                        consecutiveCandidateFailures))
+                {
+                    return new PyramidSeedPreScreenLoopResult(
+                        PyramidSeedPreScreenLoopStatus.CandidateFailuresExceeded,
+                        attempt,
+                        AcceptedSeed: null,
+                        WorldSeedFilterFailurePolicy.FormatLimitReached(
+                            consecutiveCandidateFailures,
+                            prediction));
+                }
+
+                continue;
+            }
+
             if (!prediction.CanUsePrediction)
             {
                 string detail =
@@ -320,6 +372,7 @@ internal enum PyramidSeedPreScreenLoopStatus
     SeedReadFailed,
     PredictionUnavailable,
     RequiredPredictionUnavailable,
+    CandidateFailuresExceeded,
 }
 
 internal readonly record struct PyramidSeedPreScreenLoopResult(

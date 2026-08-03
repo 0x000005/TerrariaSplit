@@ -122,14 +122,16 @@ internal sealed class WorldSeedFilterEvaluator : IDisposable
                 pyramid);
         }
 
+        JungleSeedJudgeGameMode gameMode = ResolveGameMode(settings.WorldDifficulty);
         JungleSeedJudgeResult judge;
         Stopwatch stopwatch = Stopwatch.StartNew();
-        StaticAppLogger.Instance.Info($"World seed judge starting seed {seedText}.");
+        StaticAppLogger.Instance.Info(
+            $"World seed judge starting seed {seedText}; mode={gameMode}.");
         try
         {
             judge = await nativeClient.Value.AnalyzeAsync(
                 seedText,
-                ResolveGameMode(settings.WorldDifficulty),
+                gameMode,
                 cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex)
@@ -137,7 +139,8 @@ internal sealed class WorldSeedFilterEvaluator : IDisposable
                 ex is IOException and not FileNotFoundException)
         {
             return WorldSeedFilterPrediction.Rejected(
-                "seed judge transient failure; skip seed: " + ex.Message,
+                $"seed judge transient failure; skip seed; seed={seedText}, " +
+                $"mode={gameMode}: {ex.Message}",
                 pyramid,
                 judge: null);
         }
@@ -146,19 +149,32 @@ internal sealed class WorldSeedFilterEvaluator : IDisposable
                 InvalidOperationException)
         {
             return WorldSeedFilterPrediction.Unavailable(
-                "seed judge unavailable: " + ex.Message,
+                $"seed judge unavailable; seed={seedText}, mode={gameMode}: " +
+                ex.Message,
                 canContinueWithoutPrediction: false,
                 pyramid);
         }
         finally
         {
             StaticAppLogger.Instance.Info(
-                $"World seed judge completed seed {seedText}; elapsedMs={stopwatch.Elapsed.TotalMilliseconds:F0}.");
+                $"World seed judge completed seed {seedText}; mode={gameMode}; " +
+                $"elapsedMs={stopwatch.Elapsed.TotalMilliseconds:F0}.");
         }
 
         if (!judge.Complete)
         {
-            string detail = $"seed judge status {judge.Status}: {judge.Detail}";
+            string detail =
+                $"seed judge status {judge.Status}; seed={seedText}, mode={gameMode}: " +
+                judge.Detail;
+            StaticAppLogger.Instance.Info(detail);
+            if (IsCandidateFailure(judge.Status))
+            {
+                return WorldSeedFilterPrediction.CandidateFailure(
+                    detail,
+                    pyramid,
+                    judge);
+            }
+
             return IsCandidateRejection(judge.Status)
                 ? WorldSeedFilterPrediction.Rejected(
                     "seed judge skipped candidate; " + detail,
@@ -217,6 +233,11 @@ internal sealed class WorldSeedFilterEvaluator : IDisposable
             JungleSeedJudgeStatus.SpecialSeedUnsupported;
     }
 
+    internal static bool IsCandidateFailure(JungleSeedJudgeStatus status)
+    {
+        return status == JungleSeedJudgeStatus.GenerationFailed;
+    }
+
     private static JungleSeedJudgeGameMode ResolveGameMode(string? difficulty)
     {
         return AutoCreateWorldDifficulty.Normalize(difficulty) switch
@@ -229,32 +250,107 @@ internal sealed class WorldSeedFilterEvaluator : IDisposable
     }
 }
 
+internal enum WorldSeedFilterPredictionKind
+{
+    Accepted,
+    Rejected,
+    CandidateFailure,
+    Unavailable
+}
+
 internal readonly record struct WorldSeedFilterPrediction(
-    bool CanUsePrediction,
+    WorldSeedFilterPredictionKind Kind,
     bool CanContinueWithoutPrediction,
-    bool AcceptSeed,
     string Detail,
     PyramidSeedPreScreenPrediction? Pyramid,
     JungleSeedJudgeResult? Judge)
 {
+    public bool CanUsePrediction =>
+        Kind != WorldSeedFilterPredictionKind.Unavailable;
+
+    public bool AcceptSeed => Kind == WorldSeedFilterPredictionKind.Accepted;
+
+    public bool IsCandidateFailure =>
+        Kind == WorldSeedFilterPredictionKind.CandidateFailure;
+
+    public bool IsFatal =>
+        Kind == WorldSeedFilterPredictionKind.Unavailable &&
+        !CanContinueWithoutPrediction;
+
     public static WorldSeedFilterPrediction Accepted(
         string detail,
         PyramidSeedPreScreenPrediction? pyramid,
         JungleSeedJudgeResult? judge) =>
-        new(true, false, true, detail, pyramid, judge);
+        new(
+            WorldSeedFilterPredictionKind.Accepted,
+            false,
+            detail,
+            pyramid,
+            judge);
 
     public static WorldSeedFilterPrediction Rejected(
         string detail,
         PyramidSeedPreScreenPrediction? pyramid,
         JungleSeedJudgeResult? judge) =>
-        new(true, false, false, detail, pyramid, judge);
+        new(
+            WorldSeedFilterPredictionKind.Rejected,
+            false,
+            detail,
+            pyramid,
+            judge);
+
+    public static WorldSeedFilterPrediction CandidateFailure(
+        string detail,
+        PyramidSeedPreScreenPrediction? pyramid,
+        JungleSeedJudgeResult? judge) =>
+        new(
+            WorldSeedFilterPredictionKind.CandidateFailure,
+            false,
+            detail,
+            pyramid,
+            judge);
 
     public static WorldSeedFilterPrediction Unavailable(
         string detail,
         bool canContinueWithoutPrediction,
         PyramidSeedPreScreenPrediction? pyramid,
         JungleSeedJudgeResult? judge = null) =>
-        new(false, canContinueWithoutPrediction, false, detail, pyramid, judge);
+        new(
+            WorldSeedFilterPredictionKind.Unavailable,
+            canContinueWithoutPrediction,
+            detail,
+            pyramid,
+            judge);
+}
+
+internal static class WorldSeedFilterFailurePolicy
+{
+    public const int MaximumConsecutiveCandidateFailures = 3;
+
+    public static int Advance(
+        int consecutiveCandidateFailures,
+        WorldSeedFilterPrediction prediction)
+    {
+        return prediction.IsCandidateFailure
+            ? consecutiveCandidateFailures + 1
+            : 0;
+    }
+
+    public static bool ShouldStop(int consecutiveCandidateFailures)
+    {
+        return consecutiveCandidateFailures >=
+            MaximumConsecutiveCandidateFailures;
+    }
+
+    public static string FormatLimitReached(
+        int consecutiveCandidateFailures,
+        WorldSeedFilterPrediction prediction)
+    {
+        return
+            $"World seed filtering stopped after {consecutiveCandidateFailures} " +
+            $"consecutive candidate generation failures. Last failure: " +
+            prediction.Detail;
+    }
 }
 
 internal readonly record struct JungleSeedFilterMatch(bool Matches, string Detail);
