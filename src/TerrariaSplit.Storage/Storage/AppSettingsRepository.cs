@@ -127,7 +127,7 @@ public sealed class AppSettingsRepository : ISettingsRepository
         }
         catch (Exception ex)
         {
-            StaticAppLogger.Instance.Error(ex, $"Failed to save settings: {SettingsPath}");
+            FileAppLogger.Instance.Error(ex, $"Failed to save settings: {SettingsPath}");
             return OperationResult.Failure("Failed to save settings.", ex);
         }
     }

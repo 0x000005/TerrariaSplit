@@ -63,7 +63,7 @@ public static class EnterWorldSaveInstaller
         }
         catch (Exception ex)
         {
-            StaticAppLogger.Instance.Error(ex, "Failed to install practice world save files.");
+            FileAppLogger.Instance.Error(ex, "Failed to install practice world save files.");
             return OperationResult.Failure(ex.Message, ex);
         }
     }

@@ -3,7 +3,7 @@ using TerrariaSplit.Race.Determinism;
 using TerrariaSplit.Terraria;
 using TerrariaSplit.Terraria.Automation;
 using TerrariaSplit.Terraria.WorldGeneration;
-using TerrariaSplit.WorldGuard.Payload;
+using TerrariaSplit.MemoryBridge.Payload;
 
 namespace TerrariaSplit.Tests;
 
@@ -12,16 +12,16 @@ internal static class TerrariaIntegrationTests
     public static IEnumerable<TestCase> All()
     {
         yield return TestCase.Sync("pyramid pre-screen evaluates known positive, item mismatch and no-pyramid seeds", TestSuite.Flow, PyramidPredictionJourney, timeoutSeconds: 30);
-        yield return TestCase.Async("native jungle seed judge preserves protocol and returns seed-only analysis", TestSuite.Flow, JungleSeedJudgeNativeJourney, timeoutSeconds: 30);
-        yield return TestCase.Async("world seed filter skips a seed when the native call times out", TestSuite.Flow, WorldSeedFilterTimeoutJourney, timeoutSeconds: 10);
+        yield return TestCase.Async("native jungle seed judge preserves protocol and returns seed-only analysis", TestSuite.Native, JungleSeedJudgeNativeJourney, timeoutSeconds: 30);
+        yield return TestCase.Async("world seed filter skips a seed when the native call times out", TestSuite.Native, WorldSeedFilterTimeoutJourney, timeoutSeconds: 10);
         yield return TestCase.Async("native jungle seed judge applies its timeout while waiting for a call slot", TestSuite.Core, JungleSeedJudgeGateTimeoutJourney, timeoutSeconds: 10);
         yield return TestCase.Sync("world seed filter skips candidate-local native failures", TestSuite.Core, WorldSeedFilterCandidateFailureClassification);
         yield return TestCase.Async("world seed filter classifies native generation failures as candidate failures", TestSuite.Core, WorldSeedFilterGenerationFailureJourney);
         yield return TestCase.Async("UI seed filtering skips candidate failures and stops after three consecutive failures", TestSuite.Core, UiSeedCandidateFailureJourney, timeoutSeconds: 10);
-        yield return TestCase.Async("world seed filter skips a seed when the jungle route is partial", TestSuite.Flow, WorldSeedFilterPartialRouteJourney, timeoutSeconds: 10);
+        yield return TestCase.Async("world seed filter skips a seed when the jungle route is partial", TestSuite.Native, WorldSeedFilterPartialRouteJourney, timeoutSeconds: 10);
         yield return TestCase.Sync("race seed filter concurrency uses eighty percent of processors", TestSuite.Core, RaceSeedFilterConcurrency);
         yield return TestCase.Sync("race seed filtering skips isolated candidate failures and preserves the failure circuit", TestSuite.Core, RaceSeedCandidateFailureBatch);
-        yield return TestCase.Async("race seed filter evaluates candidate seeds as one parallel batch", TestSuite.Flow, RaceSeedFilterBatchJourney, timeoutSeconds: 15);
+        yield return TestCase.Async("race seed filter evaluates candidate seeds as one parallel batch", TestSuite.Native, RaceSeedFilterBatchJourney, timeoutSeconds: 15);
         yield return TestCase.Async("UI seed pre-screen restarts after an empty batch or RNG drift without seed writeback", TestSuite.Flow, UiSeedBatchReplanJourney, timeoutSeconds: 30);
         yield return TestCase.Async("race world upload validates, hashes, deduplicates, locates and deletes a Terraria world", TestSuite.Flow, WorldFileTransferJourney);
         yield return TestCase.Sync("world automation settings normalize incompatible options and secret seed lists", TestSuite.Core, WorldSettingsNormalization);
@@ -62,12 +62,7 @@ internal static class TerrariaIntegrationTests
 
     private static async Task JungleSeedJudgeNativeJourney(CancellationToken cancellationToken)
     {
-        string? workerPath = Environment.GetEnvironmentVariable(
-            "TERRARIA_WORLD_FILTER");
-        if (string.IsNullOrWhiteSpace(workerPath))
-        {
-            return;
-        }
+        string workerPath = JungleSeedJudgeNativeLibraryLocator.ResolvePath();
 
         var client = new JungleSeedJudgeNativeClient(
             workerPath,
@@ -142,12 +137,7 @@ internal static class TerrariaIntegrationTests
 
     private static async Task WorldSeedFilterTimeoutJourney(CancellationToken cancellationToken)
     {
-        string? workerPath = Environment.GetEnvironmentVariable(
-            "TERRARIA_WORLD_FILTER");
-        if (string.IsNullOrWhiteSpace(workerPath))
-        {
-            return;
-        }
+        string workerPath = JungleSeedJudgeNativeLibraryLocator.ResolvePath();
 
         var nativeClient = new JungleSeedJudgeNativeClient(
             workerPath,
@@ -353,12 +343,7 @@ internal static class TerrariaIntegrationTests
 
     private static async Task WorldSeedFilterPartialRouteJourney(CancellationToken cancellationToken)
     {
-        string? workerPath = Environment.GetEnvironmentVariable(
-            "TERRARIA_WORLD_FILTER");
-        if (string.IsNullOrWhiteSpace(workerPath))
-        {
-            return;
-        }
+        string workerPath = JungleSeedJudgeNativeLibraryLocator.ResolvePath();
 
         var nativeClient = new JungleSeedJudgeNativeClient(
             workerPath,
@@ -399,12 +384,7 @@ internal static class TerrariaIntegrationTests
 
     private static async Task RaceSeedFilterBatchJourney(CancellationToken cancellationToken)
     {
-        string? workerPath = Environment.GetEnvironmentVariable(
-            "TERRARIA_WORLD_FILTER");
-        if (string.IsNullOrWhiteSpace(workerPath))
-        {
-            return;
-        }
+        _ = JungleSeedJudgeNativeLibraryLocator.ResolvePath();
 
         var settings = new AutoCreateWorldSettings
         {
@@ -456,10 +436,13 @@ internal static class TerrariaIntegrationTests
             WorldSize = AutoCreateWorldSize.Small,
             WorldDifficulty = AutoCreateWorldDifficulty.Classic,
             WorldEvil = AutoCreateWorldEvil.Crimson,
-            PyramidFilterItemMask = AutoCreatePyramidFilterItem.SandstormInABottleMask
+            PyramidFilterItemMask = AutoCreatePyramidFilterItem.SandstormInABottleMask,
+            RequireCrimsonBetweenDungeonAndSpawn = false,
+            JungleRouteDepth = AutoCreateJungleRouteDepth.None
         };
         using var evaluator = new WorldSeedFilterEvaluator();
-        var loop = new PyramidSeedPreScreenLoop(evaluator, _ => { });
+        var messages = new List<string>();
+        var loop = new PyramidSeedPreScreenLoop(evaluator, messages.Add);
 
         PyramidSeedPreScreenLoopResult result = await loop.RunAsync(
             settings,
@@ -468,7 +451,12 @@ internal static class TerrariaIntegrationTests
             ui,
             cancellationToken);
 
-        Check.True(result.Accepted);
+        if (!result.Accepted)
+        {
+            throw new InvalidOperationException(
+                $"Expected the replanned batch to be accepted, but got {result.Status}: " +
+                $"{result.Detail} Logs: {string.Join(" | ", messages)}");
+        }
         Check.Equal("540278984", result.AcceptedSeed);
         Check.Equal(batchSize + 3, result.Attempts);
         Check.Equal(batchSize + 3, ui.RandomizeClicks);

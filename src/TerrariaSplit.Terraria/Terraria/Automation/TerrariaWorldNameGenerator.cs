@@ -69,7 +69,7 @@ internal static class TerrariaWorldNameGenerator
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or NotSupportedException)
         {
-            StaticAppLogger.Instance.Error(ex, $"Failed to load Terraria world name data: {path}");
+            FileAppLogger.Instance.Error(ex, $"Failed to load Terraria world name data: {path}");
         }
 
         return LanguageNames.IsChinese(culture) || string.Equals(culture, TerrariaLanguageCodes.ChineseSimplified, StringComparison.OrdinalIgnoreCase)

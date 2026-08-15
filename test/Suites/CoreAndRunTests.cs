@@ -28,7 +28,7 @@ internal static class CoreAndRunTests
         timer.StopAt(start + TestTiming.Timestamp(TimeSpan.FromSeconds(11)));
         Check.Equal(TimeSpan.FromSeconds(7), timer.ElapsedAt(long.MaxValue));
 
-        timer.SetPracticeElapsed(TimeSpan.FromSeconds(-1));
+        timer.SetPracticeElapsed(TimeSpan.FromSeconds(-1), start);
         Check.Equal(TimeSpan.Zero, timer.ElapsedAt(long.MaxValue));
         timer.Reset();
         Check.Equal(SplitTimerPhase.NotStarted, timer.Phase);

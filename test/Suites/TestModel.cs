@@ -8,6 +8,7 @@ internal enum TestSuite
     Core,
     Flow,
     Windows,
+    Native,
     Release
 }
 
@@ -110,7 +111,7 @@ internal sealed class TestDirectory : IDisposable
             FindSourceRoot(),
             "test",
             "Temp",
-            "next",
+            "suites",
             safeName + "-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path);
     }

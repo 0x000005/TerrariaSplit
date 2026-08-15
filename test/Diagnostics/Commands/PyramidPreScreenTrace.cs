@@ -2,6 +2,8 @@ using System.Globalization;
 using TerrariaSplit.Terraria.WorldGeneration;
 using TerrariaSplit.Terraria.WorldGeneration.Simulation;
 
+namespace TerrariaSplit.Diagnostics;
+
 internal static class PyramidPreScreenTrace
 {
     private static readonly string[] DefaultStops =

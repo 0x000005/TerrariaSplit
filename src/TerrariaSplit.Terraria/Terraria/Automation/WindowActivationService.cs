@@ -22,7 +22,7 @@ internal sealed class WindowActivationService
             {
                 if (!automation.TryActivate(out Size activatedSize))
                 {
-                    StaticAppLogger.Instance.Info($"{workflowName} automation could not activate Terraria window.");
+                    FileAppLogger.Instance.Info($"{workflowName} automation could not activate Terraria window.");
                     return Task.FromResult(false);
                 }
 
@@ -44,7 +44,7 @@ internal sealed class WindowActivationService
             return true;
         }
 
-        StaticAppLogger.Instance.Info($"{workflowName} automation could not reactivate Terraria {detail}.");
+        FileAppLogger.Instance.Info($"{workflowName} automation could not reactivate Terraria {detail}.");
         return false;
     }
 }

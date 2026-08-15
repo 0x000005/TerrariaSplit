@@ -1,11 +1,7 @@
-<Project>
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <AssemblyName>TerrariaSplit.Tests</AssemblyName>
-    <BaseIntermediateOutputPath>Temp\diagnostics\obj\</BaseIntermediateOutputPath>
-    <BaseOutputPath>Temp\diagnostics\bin\</BaseOutputPath>
+    <AssemblyName>TerrariaSplit.Diagnostics</AssemblyName>
   </PropertyGroup>
-
-  <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -18,12 +14,9 @@
   <ItemGroup>
     <Compile Include="Diagnostics\Program.cs" />
     <Compile Include="Diagnostics\GlobalUsings.cs" />
-    <Compile Include="Code\Diagnostics\*.cs" />
+    <Compile Include="Diagnostics\Commands\*.cs" />
     <ProjectReference Include="..\src\TerrariaSplit.Configuration\TerrariaSplit.Configuration.csproj" />
     <ProjectReference Include="..\src\TerrariaSplit.Terraria\TerrariaSplit.Terraria.csproj" />
-    <ProjectReference Include="..\src\TerrariaSplit.WorldGeneration\TerrariaSplit.WorldGeneration.csproj" />
     <ProjectReference Include="..\src\TerrariaSplit.WinForms\TerrariaSplit.WinForms.csproj" />
   </ItemGroup>
-
-  <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
 </Project>

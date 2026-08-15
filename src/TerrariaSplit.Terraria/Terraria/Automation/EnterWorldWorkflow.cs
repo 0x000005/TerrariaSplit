@@ -20,7 +20,7 @@ internal sealed class EnterWorldWorkflow : IDisposable
             OperationResult validation = EnterWorldSaveInstaller.Validate(slot);
             if (validation.Failed)
             {
-                StaticAppLogger.Instance.Info(validation.Message);
+                FileAppLogger.Instance.Info(validation.Message);
                 return AutomationResult.Failure(
                     validation.Message,
                     $"Enter world automation validation failed: {validation.Message}",
@@ -35,7 +35,7 @@ internal sealed class EnterWorldWorkflow : IDisposable
 
             TerrariaMenuProfile menuProfile = TerrariaMenuProfile.ResolveRunningProcess();
             TerrariaMenuGeometry geometry = TerrariaMenuGeometry.From(activation.ClientSize, menuProfile);
-            StaticAppLogger.Instance.Info($"Enter world automation using menu profile: {menuProfile.Name}.");
+            FileAppLogger.Instance.Info($"Enter world automation using menu profile: {menuProfile.Name}.");
             OperationResult install = await InstallPracticeSaveFilesAsync(slot, cancellationToken);
             if (install.Failed)
             {
@@ -60,7 +60,7 @@ internal sealed class EnterWorldWorkflow : IDisposable
         }
         catch (Exception ex)
         {
-            StaticAppLogger.Instance.Error(ex, "Enter world automation failed.");
+            FileAppLogger.Instance.Error(ex, "Enter world automation failed.");
             return AutomationResult.Failure(
                 "Enter world automation failed.",
                 "Enter world automation threw an unhandled exception.",
@@ -80,7 +80,7 @@ internal sealed class EnterWorldWorkflow : IDisposable
                 result = EnterWorldSaveInstaller.Install(slot);
                 if (result.Failed)
                 {
-                    StaticAppLogger.Instance.Info($"Enter world automation could not install save files: {result.Message}");
+                    FileAppLogger.Instance.Info($"Enter world automation could not install save files: {result.Message}");
                     return Task.FromResult(false);
                 }
 

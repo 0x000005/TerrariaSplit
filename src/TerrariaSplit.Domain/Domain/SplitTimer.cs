@@ -16,13 +16,6 @@ public sealed class SplitTimer
 
     public SplitTimerPhase Phase { get; private set; } = SplitTimerPhase.NotStarted;
 
-    public TimeSpan Elapsed => Phase switch
-    {
-        SplitTimerPhase.Running => elapsedBeforePause + ElapsedSince(runningSinceTimestamp, Stopwatch.GetTimestamp()),
-        SplitTimerPhase.Paused => elapsedBeforePause,
-        _ => elapsedBeforePause
-    };
-
     public TimeSpan ElapsedAt(long timestamp) => Phase switch
     {
         SplitTimerPhase.Running => elapsedBeforePause + ElapsedSince(runningSinceTimestamp, timestamp),
@@ -52,11 +45,6 @@ public sealed class SplitTimer
         runningSinceTimestamp = state.RunningSinceTimestamp;
     }
 
-    public void Start()
-    {
-        StartAt(Stopwatch.GetTimestamp());
-    }
-
     public void StartAt(long timestamp)
     {
         elapsedBeforePause = TimeSpan.Zero;
@@ -71,10 +59,10 @@ public sealed class SplitTimer
         Phase = SplitTimerPhase.NotStarted;
     }
 
-    public void SetPracticeElapsed(TimeSpan elapsed)
+    public void SetPracticeElapsed(TimeSpan elapsed, long observedTimestamp)
     {
         elapsedBeforePause = elapsed < TimeSpan.Zero ? TimeSpan.Zero : elapsed;
-        runningSinceTimestamp = Phase == SplitTimerPhase.Running ? Stopwatch.GetTimestamp() : 0;
+        runningSinceTimestamp = Phase == SplitTimerPhase.Running ? observedTimestamp : 0;
     }
 
     public bool AddElapsedPenalty(TimeSpan penalty)
@@ -88,11 +76,6 @@ public sealed class SplitTimer
         return true;
     }
 
-    public void Stop()
-    {
-        StopAt(Stopwatch.GetTimestamp());
-    }
-
     public void StopAt(long timestamp)
     {
         if (Phase == SplitTimerPhase.Running)
@@ -102,11 +85,6 @@ public sealed class SplitTimer
 
         runningSinceTimestamp = 0;
         Phase = SplitTimerPhase.Paused;
-    }
-
-    public void TogglePause()
-    {
-        TogglePauseAt(Stopwatch.GetTimestamp());
     }
 
     public void TogglePauseAt(long timestamp)

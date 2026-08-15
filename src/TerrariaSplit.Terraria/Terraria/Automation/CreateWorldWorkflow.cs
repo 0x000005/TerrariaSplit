@@ -52,7 +52,7 @@ internal sealed class CreateWorldWorkflow : IDisposable
 
                 TerrariaMenuProfile menuProfile = TerrariaMenuProfile.ResolveRunningProcess();
                 TerrariaMenuGeometry geometry = TerrariaMenuGeometry.From(activation.ClientSize, menuProfile);
-                StaticAppLogger.Instance.Info($"Create world automation using menu profile: {menuProfile.Name}.");
+                FileAppLogger.Instance.Info($"Create world automation using menu profile: {menuProfile.Name}.");
 
                 CreateWorldCleanupStep cleanupStep = await RunSaveCleanupAsync(autoCreate, cancellationToken);
                 if (!cleanupStep.Succeeded)
@@ -79,7 +79,7 @@ internal sealed class CreateWorldWorkflow : IDisposable
                 if (poolInstall.InstalledWorld is WorldPoolItem installedWorld)
                 {
                     worldPoolInstallWorkflow.RemoveInstalled(worldGenSignature, installedWorld);
-                    StaticAppLogger.Instance.Info(
+                    FileAppLogger.Instance.Info(
                         $"Create world automation installed pooled world {installedWorld.WorldFileName}; " +
                         "stopped at world select.");
                     return AutomationResult.Success(
@@ -99,7 +99,7 @@ internal sealed class CreateWorldWorkflow : IDisposable
         }
         catch (Exception ex)
         {
-            StaticAppLogger.Instance.Error(ex, "Create world automation failed.");
+            FileAppLogger.Instance.Error(ex, "Create world automation failed.");
             return AutomationResult.Failure(
                 "Create world automation failed.",
                 "Create world automation threw an unhandled exception.",
@@ -169,7 +169,7 @@ internal sealed class CreateWorldWorkflow : IDisposable
                     "Create world automation failed while configuring or creating the world."));
             }
 
-            StaticAppLogger.Instance.Info(
+            FileAppLogger.Instance.Info(
                 $"Create world automation entered post-click stage; " +
                 $"zenith={settings.EnableZenithStarCatch}, cheats={settings.EnableCheats}.");
             long postClickTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
@@ -177,7 +177,7 @@ internal sealed class CreateWorldWorkflow : IDisposable
 
             PyramidFilterOutcome outcome = await pyramidFilterAutomation.RunAsync(settings, worldsBefore, cancellationToken);
             TimeSpan postClickElapsed = System.Diagnostics.Stopwatch.GetElapsedTime(postClickTimestamp);
-            StaticAppLogger.Instance.Info(
+            FileAppLogger.Instance.Info(
                 $"Create world automation post-click stage completed; outcome={outcome}, " +
                 $"elapsedMs={postClickElapsed.TotalMilliseconds:F0}.");
             if (outcome != PyramidFilterOutcome.Rejected)
@@ -205,7 +205,7 @@ internal sealed class CreateWorldWorkflow : IDisposable
     {
         TerrariaSaveInventorySnapshot inventory = savePreparation.ReadInventorySnapshot();
         string saveRoot = TerrariaSavePaths.SaveRoot();
-        StaticAppLogger.Instance.Info(
+        FileAppLogger.Instance.Info(
             $"Create world automation preserved existing save files; " +
             $"players={inventory.PlayerFiles}, worlds={inventory.WorldFiles}, " +
             $"favoritePlayers={inventory.FavoritePlayers}, favoriteWorlds={inventory.FavoriteWorlds}.");

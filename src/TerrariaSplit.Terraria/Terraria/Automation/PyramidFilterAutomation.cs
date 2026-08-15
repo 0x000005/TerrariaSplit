@@ -45,23 +45,23 @@ internal sealed class PyramidFilterAutomation
         string? worldPath = await WaitForStableCreatedWorldFileAsync(worldsBefore, cancellationToken);
         if (string.IsNullOrWhiteSpace(worldPath))
         {
-            StaticAppLogger.Instance.Info("World post-generation filter rejected the attempt because no completed world file was observed before timeout.");
+            FileAppLogger.Instance.Info("World post-generation filter rejected the attempt because no completed world file was observed before timeout.");
             return PyramidFilterOutcome.Rejected;
         }
 
-        StaticAppLogger.Instance.Info($"World post-generation filter will scan world file '{Path.GetFileName(worldPath)}'.");
+        FileAppLogger.Instance.Info($"World post-generation filter will scan world file '{Path.GetFileName(worldPath)}'.");
 
         PyramidFilterWorldFileResult result = worldFileEvaluator.Evaluate(worldPath, settings);
         if (!result.ScanSucceeded)
         {
-            StaticAppLogger.Instance.Info(
+            FileAppLogger.Instance.Info(
                 $"World post-generation filter rejected '{Path.GetFileName(worldPath)}' because the world file could not be scanned. " +
                 $"requiredItems={PyramidFilterItemMatcher.FormatRequiredItems(result.RequiredItemMask)}, detail={result.Detail}, " +
                 $"scanMs={result.ScanDuration.TotalMilliseconds:0}");
             return PyramidFilterOutcome.Rejected;
         }
 
-        StaticAppLogger.Instance.Info(
+        FileAppLogger.Instance.Info(
             $"World post-generation filter scan '{Path.GetFileName(worldPath)}': keep={result.Keep}, " +
             $"pyramidEnabled={result.PyramidFilterEnabled}, pyramidKeep={result.PyramidKeep}, " +
             $"requiredItems={PyramidFilterItemMatcher.FormatRequiredItems(result.RequiredItemMask)}, " +
@@ -113,7 +113,7 @@ internal sealed class PyramidFilterAutomation
                     bool fastOpenActive = IsFastOpenActive(nowUtc, fastOpenDeadline);
                     if (fastOpenActive && FileAccessProbe.CanOpenForExclusiveRead(candidatePath))
                     {
-                        StaticAppLogger.Instance.Info(
+                        FileAppLogger.Instance.Info(
                             $"Pyramid filter will scan '{Path.GetFileName(candidatePath)}' after world generation state ended.");
                         return candidatePath;
                     }
@@ -134,7 +134,7 @@ internal sealed class PyramidFilterAutomation
                 if (!fastOpenExpiredLogged && fastOpenDeadline != DateTime.MinValue && nowUtc > fastOpenDeadline)
                 {
                     fastOpenExpiredLogged = true;
-                    StaticAppLogger.Instance.Info("Pyramid filter fast world-file open window expired; falling back to stable file wait.");
+                    FileAppLogger.Instance.Info("Pyramid filter fast world-file open window expired; falling back to stable file wait.");
                 }
 
                 await automation.DelayAsync(NextWaitInterval(nowUtc, fastOpenDeadline), cancellationToken);
@@ -168,7 +168,7 @@ internal sealed class PyramidFilterAutomation
         }
         catch (Exception ex)
         {
-            StaticAppLogger.Instance.Error(ex, "Pyramid filter world generation watcher failed; falling back to stable file wait.");
+            FileAppLogger.Instance.Error(ex, "Pyramid filter world generation watcher failed; falling back to stable file wait.");
             generationWatcher.Dispose();
             generationWatcher = null;
             generationWasVisible = false;
@@ -182,7 +182,7 @@ internal sealed class PyramidFilterAutomation
             if (!observedGeneration)
             {
                 observedGeneration = true;
-                StaticAppLogger.Instance.Info("Pyramid filter observed active world generation state.");
+                FileAppLogger.Instance.Info("Pyramid filter observed active world generation state.");
             }
 
             return;
@@ -196,7 +196,7 @@ internal sealed class PyramidFilterAutomation
         generationWasVisible = false;
         fastOpenDeadline = nowUtc + waitTimings.FastOpenTimeout;
         fastOpenExpiredLogged = false;
-        StaticAppLogger.Instance.Info(
+        FileAppLogger.Instance.Info(
             $"Pyramid filter observed world generation state end; trying completed world file open for " +
             $"{(int)waitTimings.FastOpenTimeout.TotalMilliseconds}ms.");
     }
@@ -211,7 +211,7 @@ internal sealed class PyramidFilterAutomation
         }
         catch (Exception ex)
         {
-            StaticAppLogger.Instance.Error(ex, "Pyramid filter could not start world generation watcher; falling back to stable file wait.");
+            FileAppLogger.Instance.Error(ex, "Pyramid filter could not start world generation watcher; falling back to stable file wait.");
             return null;
         }
     }

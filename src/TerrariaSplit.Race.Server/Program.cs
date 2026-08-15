@@ -19,7 +19,10 @@ builder.Services.AddSignalR(options =>
 });
 builder.Services.AddSingleton<IRaceRecordStore>(_ =>
     new FileRaceRecordStore(Path.Combine(AppContext.BaseDirectory, "Data", "RaceRecords")));
-var raceWorldFiles = new RaceWorldFileStore(Path.Combine(AppContext.BaseDirectory, "Data", "RaceWorlds"));
+builder.Services.AddSingleton(TimeProvider.System);
+var raceWorldFiles = new RaceWorldFileStore(
+    Path.Combine(AppContext.BaseDirectory, "Data", "RaceWorlds"),
+    TimeProvider.System);
 raceWorldFiles.DeleteAllRooms();
 builder.Services.AddSingleton(raceWorldFiles);
 builder.Services.AddSingleton<RaceRoomManager>();

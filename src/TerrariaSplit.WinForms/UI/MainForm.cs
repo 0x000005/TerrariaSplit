@@ -184,7 +184,7 @@ internal sealed partial class MainForm : Form
 
     private static bool SilentPersonalBestUpdateConfirmation(string promptText)
     {
-        StaticAppLogger.Instance.Info(
+        FileAppLogger.Instance.Info(
             "Personal best update confirmation handled silently during runtime: " + promptText);
         return true;
     }

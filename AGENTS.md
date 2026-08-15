@@ -1,16 +1,9 @@
 # Agent 工作说明
 
-## 项目
-- 本文件适用于整个仓库；更近的 `AGENTS.md` 只补充目录特有约束。
-- 项目是 C# / .NET 10 的 Terraria 分段计时器，主程序为 WinForms。
-- 项目处于开发阶段；除非明确要求，不维护旧接口或旧配置兼容，及时删除无用代码。
-
-## PowerShell 与构建
-- 所有命令使用 `pwsh`，脚本首行设置 `$ErrorActionPreference = 'Stop'`；文件读写显式使用 `-Encoding UTF8`。
-- 使用 PowerShell 语法和对象管道，不混用 Bash、`cmd.exe` 或旧版 `powershell.exe` 规则。
-- `restore` 与后续阶段分开；已还原时使用 `--no-restore -m:1 -p:UseSharedCompilation=false`，测试另加 `-p:BuildInParallel=false`。
+## 构建
+- `restore` 与后续阶段分开；日常开发只构建目标项目并复用增量缓存，提交前或发布验证才使用 `-m:1 -p:UseSharedCompilation=false`。
 - 出现“0 错误但失败”或大量 `dotnet` 子进程时立即停止，只清理确认属于本次时间窗的残留进程，再以单节点重试。
-- 验证强度按风险决定；临时文件只放 `test/Temp/`，需保留的结果放 `test/Results/`。
+- SDK 中间输出统一位于仓库根 `.build/`；最终发布目录统一位于 `publish/产品名-v版本-平台/`；测试运行时临时文件只放 `test/Temp/`，需保留的结果放 `test/Results/`。
 
 ## 模块边界
 - `Domain`：纯计时、路线、条件、比较规则；不依赖 UI、文件系统、进程或调度。
@@ -19,10 +12,11 @@
 - `Infrastructure` / `Infrastructure.Windows`：通用基础设施与 Windows 平台封装。
 - `Storage` / `Statistics`：用户数据持久化与统计展示模型，不拥有计时状态机。
 - `Terraria`：进程、内存、窗口、存档、自动化及世界生成模拟；不依赖 UI shell。
-- `WorldGeneration`：对外 façade；核心模拟仍位于 `Terraria/Terraria/WorldGeneration/`。
-- `Race.Contracts` / `Race.Client` / `Race.Server`：联机协议、客户端会话与服务器状态。
+- `Race.Contracts` / `Race.Client` / `Race.Server`：联机协议、客户端会话与服务器状态；客户端不依赖 UI 或平台日志实现。
+- `Race.Determinism`：联机确定性算法与共享协议常量；保持可跨目标框架复用。
+- `Race.InGame`：游戏内联机消息与状态模型；不依赖 WinForms shell。
 - `WinForms`：组合根、交互、overlay、设置和程序更新；页面事件保持薄，副作用走 shell、host 或专用执行器。
-- `MemoryBridge`：独立 x86 内存控制单元；负责 CLRMD 运行时探测、受控内存读取与 WorldGuard 注入启动，参数、协议、权限、JSON 或位数变化要同步消费方、测试和构建目标。
+- `MemoryBridge`：统一的 x86 内存控制单元；控制进程负责 CLRMD 探测、受控内存读取与注入启动，内部 Payload/Bootstrap 负责 Terraria 进程内规则。参数、协议、权限、JSON、导出符号或位数变化要同步消费方、测试和构建目标。
 - `test`：自定义测试宿主；`docs`：用户与维护者文档。
 
 ## 工作原则
@@ -33,10 +27,11 @@
 
 ## 常用命令
 - 还原：`dotnet restore TerrariaSplit.slnx -m:1`
-- 构建：`dotnet build TerrariaSplit.slnx --no-restore -m:1 -p:UseSharedCompilation=false`
-- 测试：`dotnet run --project test\TerrariaSplit.Tests.csproj --no-restore -p:BuildInParallel=false -p:UseSharedCompilation=false`
-- 运行：`dotnet run --project src\TerrariaSplit.WinForms\TerrariaSplit.WinForms.csproj --no-restore -p:BuildInParallel=false -p:UseSharedCompilation=false`
-- 发布前先执行 `dotnet restore src\TerrariaSplit.WinForms\TerrariaSplit.WinForms.csproj -r win-x64 -m:1`，再单节点 `publish --no-restore`。
+- 日常构建：`dotnet build src\TerrariaSplit.WinForms\TerrariaSplit.WinForms.csproj --no-restore`
+- 全量构建：`dotnet build TerrariaSplit.slnx --no-restore -m:1 -p:UseSharedCompilation=false`
+- 测试：全量构建后运行 `dotnet run --project test\TerrariaSplit.Tests.csproj --no-build`
+- 运行：`dotnet run --project src\TerrariaSplit.WinForms\TerrariaSplit.WinForms.csproj --no-build`
+- 完整发布：`pwsh -NoProfile -File eng\Publish-Release.ps1`；客户端与 win-x64/linux-x64 Server 会写入带统一版本号的 `publish/` 子目录，只生成目录，不自动压缩。
 - 跳过内存控制单元构建：追加 `-p:TerrariaSplitSkipMemoryBridge=true`。
 - 金字塔聚焦测试：设置 `$env:TERRARIA_SPLIT_TEST_FILTER='Pyramid seed pre-screen'` 后运行测试命令。
-- metrics/trace：`dotnet run --project test\TerrariaSplit.Diagnostics.csproj -- <命令及参数>`。
+- metrics/trace：`dotnet run --project test\TerrariaSplit.Diagnostics.csproj --no-restore -- <命令及参数>`。

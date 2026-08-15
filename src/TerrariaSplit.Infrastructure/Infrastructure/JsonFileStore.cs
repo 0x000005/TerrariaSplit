@@ -19,7 +19,7 @@ public static class JsonFileStore
         }
         catch (Exception ex)
         {
-            StaticAppLogger.Instance.Error(ex, $"Failed to read {description}: {path}");
+            FileAppLogger.Instance.Error(ex, $"Failed to read {description}: {path}");
             return default;
         }
     }
@@ -38,7 +38,7 @@ public static class JsonFileStore
         }
         catch (Exception ex)
         {
-            StaticAppLogger.Instance.Error(ex, $"Failed to write {description}: {path}");
+            FileAppLogger.Instance.Error(ex, $"Failed to write {description}: {path}");
             return OperationResult.Failure($"Failed to save {description}.", ex);
         }
     }
@@ -57,7 +57,7 @@ public static class JsonFileStore
         }
         catch (Exception ex)
         {
-            StaticAppLogger.Instance.Error(ex, $"Failed to write {description}: {path}");
+            FileAppLogger.Instance.Error(ex, $"Failed to write {description}: {path}");
             return OperationResult.Failure($"Failed to save {description}.", ex);
         }
     }
@@ -116,7 +116,7 @@ public static class JsonFileStore
         }
         catch (Exception ex)
         {
-            StaticAppLogger.Instance.Error(ex, $"Failed to delete temporary file: {tempPath}");
+            FileAppLogger.Instance.Error(ex, $"Failed to delete temporary file: {tempPath}");
         }
     }
 }

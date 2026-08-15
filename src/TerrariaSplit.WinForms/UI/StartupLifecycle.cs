@@ -227,7 +227,7 @@ internal static class StartupDiagnostics
         }
         catch (Exception ex)
         {
-            StaticAppLogger.Instance.Error(ex, "Failed to write startup trace.");
+            FileAppLogger.Instance.Error(ex, "Failed to write startup trace.");
         }
     }
 
@@ -251,7 +251,7 @@ internal static class StartupDiagnostics
         }
         catch (Exception ex)
         {
-            StaticAppLogger.Instance.Error(ex, $"Failed to signal startup event from {environmentVariable}.");
+            FileAppLogger.Instance.Error(ex, $"Failed to signal startup event from {environmentVariable}.");
         }
     }
 

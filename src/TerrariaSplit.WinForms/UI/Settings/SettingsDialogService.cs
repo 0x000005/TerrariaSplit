@@ -154,7 +154,7 @@ internal sealed class SettingsDialogService
         }
         catch (Exception ex)
         {
-            StaticAppLogger.Instance.Error(ex, "Failed to open TerrariaSplit deleted backup folder.");
+            FileAppLogger.Instance.Error(ex, "Failed to open TerrariaSplit deleted backup folder.");
             ShowWarning(
                 localize("Could not open backup folder."),
                 localizeTitle("Create World"));
@@ -175,7 +175,7 @@ internal sealed class SettingsDialogService
         }
         catch (Exception ex)
         {
-            StaticAppLogger.Instance.Error(ex, "Failed to open Terraria save folder.");
+            FileAppLogger.Instance.Error(ex, "Failed to open Terraria save folder.");
             ShowWarning(
                 localize("Could not open save folder."),
                 localizeTitle("Create World"));

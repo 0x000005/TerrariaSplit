@@ -1,7 +1,7 @@
 # WorldGeneration
 
 ## 边界
-- 负责金字塔预筛模型、范围判断、结果整理和模拟入口；独立 `TerrariaSplit.WorldGeneration` 项目只提供外部 façade。
+- 负责金字塔预筛模型、范围判断、结果整理和模拟入口；实现由 `TerrariaSplit.Terraria` 直接拥有，不重复源码链接或另设 façade。
 - 不执行窗口点击、文件删除或 UI 展示。
 
 ## 约束

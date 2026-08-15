@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.Globalization;
 
+namespace TerrariaSplit.Diagnostics;
+
 internal static class WorldFilterStress
 {
     private const int DefaultCount = 32;

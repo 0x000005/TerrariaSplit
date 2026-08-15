@@ -1,9 +1,10 @@
 # Tests
 
 ## 结构
-- 自定义测试入口是 `Next/Program.cs`；每个顶层测试应覆盖一条完整行为链，而不是一个补丁或字段。
-- 临时文件放 `Temp/`，保留结果放 `Results/`；不要创建其他测试输出目录。
-- metrics/trace 使用独立的 `TerrariaSplit.Diagnostics.csproj`；`OfficialProbe/` 也不属于默认测试。
+- 自定义测试入口是 `Suites/Program.cs`；每个顶层测试应覆盖一条完整行为链，而不是一个补丁或字段。
+- 临时文件放 `Temp/`，生成结果放 `Results/`，小型且与机器无关的长期基准放 `Baselines/`；不要创建其他测试输出目录。
+- metrics/trace 使用独立的 `TerrariaSplit.Diagnostics.csproj`；`Probes/` 也不属于默认测试。
+- 依赖原生 WorldFilter 和 Terraria 安装的测试属于 `Native` 套件；通过 `TERRARIA_SPLIT_TEST_SUITE=Native` 显式运行，依赖缺失必须失败，不能静默通过。
 
 ## 约束
 - 测试保持 deterministic，使用 fake、显式 timestamp 和小 fixture；失败信息指出具体行为差异。

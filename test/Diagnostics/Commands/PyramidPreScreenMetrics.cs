@@ -5,10 +5,10 @@ using TerrariaSplit.Terraria.WorldGeneration;
 using TerrariaSplit.Terraria.WorldGeneration.Simulation;
 using ScannerPyramidChestItemNames = TerrariaSplit.Terraria.Automation.PyramidChestItemNames;
 
+namespace TerrariaSplit.Diagnostics;
+
 internal static class PyramidPreScreenMetrics
 {
-    private const string DefaultWorldRoot = @"D:\OneDrive - huzhaoran\Crimson";
-
     public static bool TryRun(string[] args)
     {
         if (args.Length == 0 ||
@@ -770,7 +770,8 @@ internal static class PyramidPreScreenMetrics
     {
         public static PyramidMetricsOptions Parse(string[] args)
         {
-            string worldRoot = DefaultWorldRoot;
+            string worldRoot = Environment.GetEnvironmentVariable(
+                "TERRARIA_SPLIT_WORLD_DATASET") ?? string.Empty;
             int? limit = null;
             int warmupCount = 3;
             string csvPath = string.Empty;
@@ -827,6 +828,13 @@ internal static class PyramidPreScreenMetrics
                         worldRoot = arg;
                         break;
                 }
+            }
+
+            if (string.IsNullOrWhiteSpace(worldRoot))
+            {
+                throw new ArgumentException(
+                    "pyramid-metrics requires a world root argument, --root, " +
+                    "or TERRARIA_SPLIT_WORLD_DATASET.");
             }
 
             return new PyramidMetricsOptions(

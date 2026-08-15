@@ -94,7 +94,7 @@ internal sealed class TerrariaWorldFilePyramidScanner
             detail = ex.Message;
             if (logErrors)
             {
-                StaticAppLogger.Instance.Error(ex, $"World pool failed to read world seed metadata from Terraria world file: {worldPath}");
+                FileAppLogger.Instance.Error(ex, $"World pool failed to read world seed metadata from Terraria world file: {worldPath}");
             }
 
             return false;
@@ -176,7 +176,7 @@ internal sealed class TerrariaWorldFilePyramidScanner
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or EndOfStreamException or ArgumentException or InvalidDataException)
         {
             detail = $"{phase}: {ex.Message}";
-            StaticAppLogger.Instance.Error(ex, $"Pyramid filter failed to scan Terraria candidate chest data: {worldPath}");
+            FileAppLogger.Instance.Error(ex, $"Pyramid filter failed to scan Terraria candidate chest data: {worldPath}");
             return false;
         }
     }
@@ -275,7 +275,7 @@ internal sealed class TerrariaWorldFilePyramidScanner
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or EndOfStreamException or ArgumentException or InvalidDataException or OverflowException)
         {
             detail = $"{phase}: {ex.Message}";
-            StaticAppLogger.Instance.Error(ex, $"World post-generation filter failed to scan Crimson corridor: {worldPath}");
+            FileAppLogger.Instance.Error(ex, $"World post-generation filter failed to scan Crimson corridor: {worldPath}");
             return false;
         }
     }

@@ -17,7 +17,7 @@ internal static class SettingsSerializer
         }
         catch (Exception ex)
         {
-            StaticAppLogger.Instance.Error(ex, $"Failed to read {description}: {path}");
+            FileAppLogger.Instance.Error(ex, $"Failed to read {description}: {path}");
             return default;
         }
     }
@@ -30,7 +30,7 @@ internal static class SettingsSerializer
         }
         catch (Exception ex)
         {
-            StaticAppLogger.Instance.Error(ex, $"Failed to read {description}.");
+            FileAppLogger.Instance.Error(ex, $"Failed to read {description}.");
             return default;
         }
     }
@@ -99,7 +99,7 @@ internal static class SettingsSerializer
         }
         catch (Exception ex)
         {
-            StaticAppLogger.Instance.Error(ex, $"Failed to read {description} with embedded defaults.");
+            FileAppLogger.Instance.Error(ex, $"Failed to read {description} with embedded defaults.");
             shouldWriteDefaults = true;
             return DeserializeSettings(CreateEmbeddedDefaultsNode());
         }
@@ -150,7 +150,7 @@ internal static class SettingsSerializer
         }
         catch (Exception ex)
         {
-            StaticAppLogger.Instance.Error(ex, $"Failed to read {description} with defaults.");
+            FileAppLogger.Instance.Error(ex, $"Failed to read {description} with defaults.");
             shouldWriteDefaults = true;
             return AppSettingsCloner.Clone(defaults);
         }
@@ -189,7 +189,7 @@ internal static class SettingsSerializer
         catch (Exception ex)
         {
             json = string.Empty;
-            StaticAppLogger.Instance.Error(ex, $"Ignored invalid settings file: {path}");
+            FileAppLogger.Instance.Error(ex, $"Ignored invalid settings file: {path}");
             return false;
         }
     }
@@ -207,7 +207,7 @@ internal static class SettingsSerializer
         }
         catch (Exception ex)
         {
-            StaticAppLogger.Instance.Error(ex, "Failed to read settings JSON object.");
+            FileAppLogger.Instance.Error(ex, "Failed to read settings JSON object.");
             return null;
         }
     }

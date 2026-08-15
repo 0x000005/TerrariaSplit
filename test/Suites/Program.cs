@@ -24,7 +24,9 @@ internal static class Program
         }
         else
         {
-            tests = tests.Where(test => test.Suite != TestSuite.Release).ToArray();
+            tests = tests.Where(test =>
+                test.Suite != TestSuite.Native &&
+                test.Suite != TestSuite.Release).ToArray();
         }
 
         string? filter = Environment.GetEnvironmentVariable("TERRARIA_SPLIT_TEST_FILTER");

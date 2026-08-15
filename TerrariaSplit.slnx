@@ -6,10 +6,9 @@
   <Project Path="src/TerrariaSplit.Race.Contracts/TerrariaSplit.Race.Contracts.csproj" />
   <Project Path="src/TerrariaSplit.Race.Determinism/TerrariaSplit.Race.Determinism.csproj" />
   <Project Path="src/TerrariaSplit.Race.InGame/TerrariaSplit.Race.InGame.csproj" />
-  <Project Path="src/TerrariaSplit.WorldGeneration/TerrariaSplit.WorldGeneration.csproj" />
   <Project Path="src/TerrariaSplit.Race.Server/TerrariaSplit.Race.Server.csproj" />
   <Project Path="src/TerrariaSplit.Race.Client/TerrariaSplit.Race.Client.csproj" />
-  <Project Path="src/TerrariaSplit.WorldGuard.Payload/TerrariaSplit.WorldGuard.Payload.csproj" />
+  <Project Path="src/TerrariaSplit.MemoryBridge.Payload/TerrariaSplit.MemoryBridge.Payload.csproj" />
   <Project Path="src/TerrariaSplit.Storage/TerrariaSplit.Storage.csproj" />
   <Project Path="src/TerrariaSplit.Statistics/TerrariaSplit.Statistics.csproj" />
   <Project Path="src/TerrariaSplit.Terraria/TerrariaSplit.Terraria.csproj" />

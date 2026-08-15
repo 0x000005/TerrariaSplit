@@ -226,7 +226,7 @@ public sealed class LayeredWindowRenderTarget : IDisposable
         }
         catch (Exception ex)
         {
-            StaticAppLogger.Instance.Error(ex, "Failed to create layered window render target.");
+            FileAppLogger.Instance.Error(ex, "Failed to create layered window render target.");
             return false;
         }
         finally

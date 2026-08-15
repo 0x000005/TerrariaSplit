@@ -1,4 +1,4 @@
-namespace TerrariaSplit.Tests;
+namespace TerrariaSplit.Diagnostics;
 
 internal static class Program
 {

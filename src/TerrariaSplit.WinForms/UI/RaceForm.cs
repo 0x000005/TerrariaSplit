@@ -21,8 +21,6 @@ internal sealed class RaceForm : Form
     private const float RaceSettingsCompactLabelColumnWidth = 220f;
     private const float RaceSettingsValueColumnWidth = 720f;
     private const float RaceWorldFileBrowseColumnWidth = 304f;
-    private const float StatusPlayerListHeaderHeight = 64f;
-    private const float StatusPlayerListRowHeight = 64f;
     private const float CheatActivationButtonPercent = 20f;
     private const float CheatActivationSpacerPercent = 10f;
     private const float CheatOptionButtonsPercent = 70f;
@@ -33,8 +31,6 @@ internal sealed class RaceForm : Form
     private static readonly Color SelectorButtonSelectedHover = Color.FromArgb(58, 93, 88);
     private static readonly Color SelectorButtonDown = Color.FromArgb(34, 41, 46);
     private static readonly Color SelectorButtonSelectedDown = Color.FromArgb(46, 76, 71);
-    private static readonly Color StatusSuccess = Color.FromArgb(91, 204, 139);
-    private static readonly Color StatusFailure = Color.FromArgb(235, 99, 99);
 
     private enum TitleBarButtonIcon
     {
@@ -124,7 +120,7 @@ internal sealed class RaceForm : Form
     private Button? voicePreviewButton;
     private RaceActionProgressBar? hostWorldProgressBar;
     private Label? statusRouteOverrideHint;
-    private TableLayoutPanel? statusPlayerList;
+    private RaceRosterView? statusPlayerList;
     private CancellationTokenSource? hostWorldActionCancellation;
     private RacePanelWorldSource hostWorldActionSource;
     private bool hostWorldActionCancelRequested;
@@ -1324,7 +1320,7 @@ internal sealed class RaceForm : Form
         statusRouteOverrideHint = uiFactory.CreateWrappedFieldLabel(string.Empty, UiTheme.MutedText);
         statusRouteOverrideHint.Margin = new Padding(0, 2, 0, 8);
         SettingsUiFactory.AddSectionControl(section, statusRouteOverrideHint);
-        statusPlayerList = CreateStatusPlayerList();
+        statusPlayerList = new RaceRosterView(shell.Localize, shell.KickPlayerAsync);
         SettingsUiFactory.AddSectionControl(section, statusPlayerList);
 
         FlowLayoutPanel roomActions = CreateButtonRow();
@@ -1355,19 +1351,6 @@ internal sealed class RaceForm : Form
             : routeHint + Environment.NewLine + restrictions;
     }
 
-    private TableLayoutPanel CreateStatusPlayerList()
-    {
-        var list = uiFactory.CreateGrid(
-            SettingsUiFactory.ColumnStylePercent(28f),
-            SettingsUiFactory.ColumnStylePercent(18f),
-            SettingsUiFactory.ColumnStylePercent(18f),
-            SettingsUiFactory.ColumnStylePercent(18f),
-            SettingsUiFactory.ColumnStylePercent(18f),
-            SettingsUiFactory.ColumnStyleAbsolute(132f));
-        list.Margin = new Padding(0, 10, 0, 0);
-        return list;
-    }
-
     private void RefreshStatusPlayerList(RaceRoomState? state)
     {
         if (statusPlayerList is null)
@@ -1375,175 +1358,13 @@ internal sealed class RaceForm : Form
             return;
         }
 
-        bool canKickPlayers = IsLocalHost(state);
-        statusPlayerList.SuspendLayout();
-        try
-        {
-            statusPlayerList.Controls.Clear();
-            statusPlayerList.RowStyles.Clear();
-            statusPlayerList.RowCount = 0;
-            AddStatusPlayerHeaderRow(statusPlayerList);
-
-            IReadOnlyList<RacePlayerState> players = state?.Players ?? Array.Empty<RacePlayerState>();
-            if (players.Count == 0)
-            {
-                int emptyRow = AddGridRow(statusPlayerList, StatusPlayerListRowHeight);
-                Label emptyLabel = uiFactory.CreateMutedLabel("No players");
-                statusPlayerList.Controls.Add(emptyLabel, 0, emptyRow);
-                statusPlayerList.SetColumnSpan(emptyLabel, 6);
-                return;
-            }
-
-            foreach (RacePlayerState player in players)
-            {
-                AddStatusPlayerRow(statusPlayerList, player, canKickPlayers);
-            }
-        }
-        finally
-        {
-            statusPlayerList.ResumeLayout(true);
-            statusPlayerList.PerformLayout();
-            raceStatusSection?.PerformLayout();
-            settingsScrollPanel?.PerformLayout();
-        }
-    }
-
-    private void AddStatusPlayerHeaderRow(TableLayoutPanel list)
-    {
-        int row = AddGridRow(list, StatusPlayerListHeaderHeight);
-        list.Controls.Add(uiFactory.CreateHeaderLabel("Player"), 0, row);
-        list.Controls.Add(uiFactory.CreateHeaderLabel("Player file", ContentAlignment.MiddleCenter), 1, row);
-        list.Controls.Add(uiFactory.CreateHeaderLabel("World file", ContentAlignment.MiddleCenter), 2, row);
-        list.Controls.Add(uiFactory.CreateHeaderLabel("RNG control", ContentAlignment.MiddleCenter), 3, row);
-        list.Controls.Add(uiFactory.CreateHeaderLabel("Server connection", ContentAlignment.MiddleCenter), 4, row);
-        list.Controls.Add(uiFactory.CreateHeaderLabel(string.Empty, ContentAlignment.MiddleCenter), 5, row);
-    }
-
-    private void AddStatusPlayerRow(TableLayoutPanel list, RacePlayerState player, bool canKickPlayers)
-    {
-        int row = AddGridRow(list, StatusPlayerListRowHeight);
-        Label nameLabel = uiFactory.CreateRawRowLabel(player.IsHost
-            ? player.Nickname + " (" + Localize("Host") + ")"
-            : player.Nickname);
-        Label playerFileLabel = CreateStatusLabel(
-            LocalizePlayerFileStatus(player.PlayerFileStatus),
-            player.PlayerFileStatus == RacePlayerFileStatus.Ready,
-            player.PlayerFileStatus == RacePlayerFileStatus.Failed);
-        Label worldFileLabel = CreateStatusLabel(
-            LocalizeWorldFileStatus(player.WorldFileStatus),
-            player.WorldFileStatus == RaceWorldFileStatus.Ready,
-            player.WorldFileStatus == RaceWorldFileStatus.Failed);
-        Label rngControlLabel = CreateStatusLabel(
-            LocalizeRngControlStatus(player.RngControlStatus),
-            player.RngControlStatus == RaceRngControlStatus.Enabled,
-            player.RngControlStatus == RaceRngControlStatus.EnableFailed);
-        RaceServerConnectionStatus connectionStatus = ResolveConnectionStatus(player);
-        Label connectionLabel = CreateStatusLabel(
-            LocalizeServerConnectionStatus(connectionStatus),
-            connectionStatus == RaceServerConnectionStatus.Connected,
-            connectionStatus is RaceServerConnectionStatus.ConnectionFailed);
-        Control actionControl = CreateStatusPlayerActionControl(player, canKickPlayers);
-
-        AddStatusPlayerCell(list, nameLabel, 0, row);
-        AddStatusPlayerCell(list, playerFileLabel, 1, row);
-        AddStatusPlayerCell(list, worldFileLabel, 2, row);
-        AddStatusPlayerCell(list, rngControlLabel, 3, row);
-        AddStatusPlayerCell(list, connectionLabel, 4, row);
-        AddStatusPlayerCell(list, actionControl, 5, row);
-    }
-
-    private Control CreateStatusPlayerActionControl(RacePlayerState player, bool canKickPlayers)
-    {
-        if (!canKickPlayers || player.IsHost)
-        {
-            return uiFactory.CreateMutedLabel(string.Empty);
-        }
-
-        Button button = uiFactory.CreateButton("Kick", accent: false, minimumWidth: 116);
-        button.Dock = DockStyle.Fill;
-        button.Margin = new Padding(6, 8, 6, 8);
-        button.Click += async (_, _) =>
-        {
-            await RunActionAsync(button, () => shell.KickPlayerAsync(player.Nickname));
-        };
-        return button;
-    }
-
-    private static void AddStatusPlayerCell(TableLayoutPanel list, Control control, int column, int row)
-    {
-        if (control is Label label)
-        {
-            label.AutoEllipsis = true;
-            label.Margin = new Padding(6, 0, 6, 0);
-            label.TextAlign = column == 0 ? ContentAlignment.MiddleLeft : ContentAlignment.MiddleCenter;
-        }
-
-        list.Controls.Add(control, column, row);
-    }
-
-    private Label CreateStatusLabel(string text, bool succeeded, bool failed)
-    {
-        Label label = uiFactory.CreateRawRowLabel(text);
-        label.ForeColor = succeeded
-            ? StatusSuccess
-            : failed
-                ? StatusFailure
-                : UiTheme.Text;
-        return label;
-    }
-
-    private RaceServerConnectionStatus ResolveConnectionStatus(RacePlayerState player)
-    {
-        return !string.IsNullOrWhiteSpace(shell.LocalNickname) &&
-            string.Equals(player.Nickname, shell.LocalNickname, StringComparison.OrdinalIgnoreCase)
-                ? shell.ServerConnectionStatus
-                : player.ServerConnectionStatus;
-    }
-
-    private string LocalizePlayerFileStatus(RacePlayerFileStatus status)
-    {
-        return status switch
-        {
-            RacePlayerFileStatus.Creating => Localize("Creating"),
-            RacePlayerFileStatus.Ready => Localize("Ready"),
-            RacePlayerFileStatus.Failed => Localize("Failed"),
-            _ => Localize("Waiting")
-        };
-    }
-
-    private string LocalizeWorldFileStatus(RaceWorldFileStatus status)
-    {
-        return status switch
-        {
-            RaceWorldFileStatus.Downloading => Localize("Downloading"),
-            RaceWorldFileStatus.Ready => Localize("Ready"),
-            RaceWorldFileStatus.Failed => Localize("Failed"),
-            _ => Localize("Waiting")
-        };
-    }
-
-    private string LocalizeRngControlStatus(RaceRngControlStatus status)
-    {
-        return status switch
-        {
-            RaceRngControlStatus.Enabling => Localize("Enabling"),
-            RaceRngControlStatus.Enabled => Localize("Enabled"),
-            RaceRngControlStatus.EnableFailed => Localize("Enable failed"),
-            RaceRngControlStatus.NotEnabled => Localize("Not enabled"),
-            _ => Localize("Closed")
-        };
-    }
-
-    private string LocalizeServerConnectionStatus(RaceServerConnectionStatus status)
-    {
-        return status switch
-        {
-            RaceServerConnectionStatus.Connecting => Localize("Connecting"),
-            RaceServerConnectionStatus.Connected => Localize("Connected"),
-            RaceServerConnectionStatus.Reconnecting => Localize("Reconnecting"),
-            RaceServerConnectionStatus.ConnectionFailed => Localize("Connection failed"),
-            _ => Localize("Disconnected")
-        };
+        statusPlayerList.UpdateRoster(
+            state,
+            shell.LocalNickname,
+            shell.ServerConnectionStatus,
+            IsLocalHost(state));
+        raceStatusSection?.PerformLayout();
+        settingsScrollPanel?.PerformLayout();
     }
 
     private Control CreateHostWorldActionRow()

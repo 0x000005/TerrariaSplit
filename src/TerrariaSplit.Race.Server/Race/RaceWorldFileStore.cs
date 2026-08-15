@@ -11,10 +11,12 @@ public sealed record RaceStoredWorldFile(
 public sealed class RaceWorldFileStore
 {
     private readonly string rootDirectory;
+    private readonly TimeProvider timeProvider;
 
-    public RaceWorldFileStore(string rootDirectory)
+    public RaceWorldFileStore(string rootDirectory, TimeProvider? timeProvider = null)
     {
         this.rootDirectory = rootDirectory;
+        this.timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     public async Task<RaceStoredWorldFile> SaveAsync(
@@ -88,7 +90,7 @@ public sealed class RaceWorldFileStore
                 fileName,
                 length,
                 hashText,
-                DateTimeOffset.UtcNow,
+                timeProvider.GetUtcNow(),
                 nickname.Trim());
             return new RaceStoredWorldFile(worldFile, path, wasCreated);
         }

@@ -13,7 +13,7 @@ internal static class MainShellCompositionRoot
         var settingsRepository = new AppSettingsRepository(runtimeDataPaths, splitTimeSets);
         StartupDiagnostics.RecordTrace("StartupRepositoriesCreated");
         ISettingsSnapshotFactory settingsSnapshots = new SettingsSnapshotFactory();
-        IAppLogger logger = StaticAppLogger.Instance;
+        IAppLogger logger = FileAppLogger.Instance;
         var runFinalization = new RunFinalizationPersistence(
             runStatsRepository,
             splitTimeSets,

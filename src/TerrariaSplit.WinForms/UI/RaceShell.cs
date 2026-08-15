@@ -28,6 +28,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
     private readonly SemaphoreSlim restartLifecycleGate = new(1, 1);
     private readonly object hostWorldPreparationSync = new();
     private readonly IAppLogger logger;
+    private readonly RaceWorldFileWorkspace worldFiles;
     private readonly Func<AppSettings> getSettings;
     private readonly Func<AppSettings> getBaseSettings;
     private readonly Func<ApplicationViewState> getViewState;
@@ -93,6 +94,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
     {
         routeOverride = new RaceRouteOverrideController(settingsSnapshots);
         this.logger = logger;
+        worldFiles = new RaceWorldFileWorkspace(logger);
         this.getSettings = getSettings;
         this.getBaseSettings = getBaseSettings;
         this.getViewState = getViewState;
@@ -109,7 +111,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
         this.raceTimerColorChanged = raceTimerColorChanged;
         this.resetRaceTimer = resetRaceTimer;
         this.worldLock = worldLock ?? new TerrariaRaceWorldLockService();
-        progressTransport = new RaceProgressTransport(session, logger);
+        progressTransport = new RaceProgressTransport(session, logger.Info, logger.Error);
         speechCoordinator = new RaceSpeechCoordinator(
             new WindowsRaceSpeechEngine(),
             ex => logger.Error(ex, "Race voice announcement failed."));
@@ -520,7 +522,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
                 }
 
                 createdRoomDuringUpload = true;
-                uploadWorldPath = PrepareRaceWorldFileForUpload(
+                uploadWorldPath = worldFiles.PrepareForUpload(
                     normalizedWorldPath,
                     DateTimeOffset.Now);
                 RaceWorldSettings uploadWorldSettings = worldSettings with
@@ -541,7 +543,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
             }
             else
             {
-                uploadWorldPath = PrepareRaceWorldFileForUpload(
+                uploadWorldPath = worldFiles.PrepareForUpload(
                     normalizedWorldPath,
                     DateTimeOffset.Now);
                 RaceWorldSettings uploadWorldSettings = worldSettings with
@@ -587,7 +589,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
         }
         else if (!string.Equals(uploadWorldPath, normalizedWorldPath, StringComparison.OrdinalIgnoreCase))
         {
-            DeleteRaceWorldFile(uploadWorldPath);
+            worldFiles.Delete(uploadWorldPath);
         }
 
         ApplyOperationState(result);
@@ -633,7 +635,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
             return Task.CompletedTask;
         }
 
-        DeleteRaceWorldFile(worldPath);
+        worldFiles.Delete(worldPath);
         if (string.Equals(localWorldPath, worldPath, StringComparison.OrdinalIgnoreCase))
         {
             localWorldPath = null;
@@ -774,7 +776,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
             if (!string.IsNullOrWhiteSpace(previousWorldPath) &&
                 !string.Equals(previousWorldPath, localWorldPath, StringComparison.OrdinalIgnoreCase))
             {
-                DeleteRaceWorldFile(previousWorldPath);
+                worldFiles.Delete(previousWorldPath);
             }
 
             return RaceOperationResult<RaceRoomState>.Success(current);
@@ -838,7 +840,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
             return;
         }
 
-        string serverFileName = NormalizeWorldFileName(worldFile.FileName);
+        string serverFileName = worldFiles.NormalizeFileName(worldFile.FileName);
         if (string.IsNullOrWhiteSpace(serverFileName))
         {
             logger.Info("Race room world file has an empty filename.");
@@ -851,7 +853,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
             return;
         }
 
-        string destinationPath = GetUniqueRaceWorldPath(state);
+        string destinationPath = worldFiles.CreateDownloadPath(state);
         ReportLocalPreparationStage(state, RaceLocalPreparationStage.DownloadWorld);
         _ = await session.UpdatePreparationStatusAsync(
             RacePlayerFileStatus.Waiting,
@@ -886,7 +888,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
 
         if (session.State?.PackageRevision != state.PackageRevision || cancellationToken.IsCancellationRequested)
         {
-            DeleteRaceWorldFile(download.WorldPath);
+            worldFiles.Delete(download.WorldPath);
             return;
         }
 
@@ -1039,7 +1041,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
                 throw new InvalidOperationException(
                     "Race world generation cancellation was not initialized.")
             : ResetWorldGenerationCancellation();
-        string worldName = CreateRaceWorldStem(DateTimeOffset.Now);
+        string worldName = worldFiles.CreateWorldStem(DateTimeOffset.Now);
         try
         {
             TerrariaRaceWorldGenerationResult result = await worldGeneration.GenerateAndInstallAsync(
@@ -1082,41 +1084,6 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
         worldGenerationCancellation?.Dispose();
         worldGenerationCancellation = new CancellationTokenSource();
         return worldGenerationCancellation.Token;
-    }
-
-    private void DeleteRaceWorldFile(string worldPath)
-    {
-        foreach (string path in EnumerateRaceWorldFiles(worldPath))
-        {
-            try
-            {
-                if (File.Exists(path))
-                {
-                    File.Delete(path);
-                }
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                logger.Error(ex, "Race generated world cleanup failed.");
-            }
-        }
-    }
-
-    private static IEnumerable<string> EnumerateRaceWorldFiles(string worldPath)
-    {
-        yield return worldPath;
-        yield return worldPath + ".bak";
-
-        string? directory = Path.GetDirectoryName(worldPath);
-        string stem = Path.GetFileNameWithoutExtension(worldPath);
-        if (string.IsNullOrWhiteSpace(directory) || string.IsNullOrWhiteSpace(stem))
-        {
-            yield break;
-        }
-
-        string twldPath = Path.Combine(directory, stem + ".twld");
-        yield return twldPath;
-        yield return twldPath + ".bak";
     }
 
     public async Task LeaveAsync()
@@ -2030,8 +1997,8 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
             return;
         }
 
-        string serverFileName = NormalizeWorldFileName(worldFile.FileName);
-        string worldFileKey = CreateWorldFileKey(state.RoomCode, worldFile);
+        string serverFileName = worldFiles.NormalizeFileName(worldFile.FileName);
+        string worldFileKey = worldFiles.CreateRevisionKey(state.RoomCode, worldFile);
         if (string.IsNullOrWhiteSpace(serverFileName))
         {
             return;
@@ -2204,24 +2171,24 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
 
     private bool HasCurrentLocalWorld(string roomCode, RaceWorldFileInfo worldFile)
     {
-        string serverFileName = NormalizeWorldFileName(worldFile.FileName);
-        string revisionKey = CreateWorldFileKey(roomCode, worldFile);
+        string serverFileName = worldFiles.NormalizeFileName(worldFile.FileName);
+        string revisionKey = worldFiles.CreateRevisionKey(roomCode, worldFile);
         return string.Equals(activeWorldRoomCode, roomCode, StringComparison.OrdinalIgnoreCase) &&
             string.Equals(activeWorldFileName, serverFileName, StringComparison.OrdinalIgnoreCase) &&
             string.Equals(activeWorldRevisionKey, revisionKey, StringComparison.OrdinalIgnoreCase) &&
             !string.IsNullOrWhiteSpace(localWorldPath) &&
-            File.Exists(localWorldPath);
+            worldFiles.Exists(localWorldPath);
     }
 
     private void RememberObtainedWorldFile(string roomCode, RaceWorldFileInfo? worldFile, bool resetTimer)
     {
-        string serverFileName = NormalizeWorldFileName(worldFile?.FileName);
+        string serverFileName = worldFiles.NormalizeFileName(worldFile?.FileName);
         if (worldFile is null || string.IsNullOrWhiteSpace(serverFileName))
         {
             return;
         }
 
-        string revisionKey = CreateWorldFileKey(roomCode, worldFile);
+        string revisionKey = worldFiles.CreateRevisionKey(roomCode, worldFile);
         if (string.Equals(activeWorldRevisionKey, revisionKey, StringComparison.OrdinalIgnoreCase))
         {
             return;
@@ -2924,110 +2891,6 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
         return state.Players.Any(player =>
             player.IsHost &&
             string.Equals(player.Nickname, session.Nickname, StringComparison.OrdinalIgnoreCase));
-    }
-
-    private static string GetUniqueRaceWorldPath(RaceRoomState state)
-    {
-        string worldsDirectory = Path.Combine(TerrariaSavePaths.SaveRoot(), "Worlds");
-        Directory.CreateDirectory(worldsDirectory);
-        string fileName = NormalizeWorldFileName(state.WorldFile?.FileName);
-        string stem = string.IsNullOrWhiteSpace(fileName)
-            ? CreateRaceWorldStem(state.WorldFile?.UploadedAtUtc ?? DateTimeOffset.Now)
-            : SanitizeFileStem(Path.GetFileNameWithoutExtension(fileName));
-        return GetUniqueWorldPath(worldsDirectory, stem);
-    }
-
-    private static string PrepareRaceWorldFileForUpload(
-        string sourcePath,
-        DateTimeOffset timestamp)
-    {
-        if (!RaceWorldFileValidator.IsValidWorldFilePath(sourcePath))
-        {
-            throw new InvalidOperationException("A valid world file is required.");
-        }
-
-        string sourceStem = Path.GetFileNameWithoutExtension(sourcePath);
-        if (IsRaceWorldStem(sourceStem))
-        {
-            return sourcePath;
-        }
-
-        string worldsDirectory = Path.Combine(TerrariaSavePaths.SaveRoot(), "Worlds");
-        Directory.CreateDirectory(worldsDirectory);
-        string stem = CreateRaceWorldStem(timestamp);
-        string targetPath = GetUniqueWorldPath(worldsDirectory, stem);
-        File.Copy(sourcePath, targetPath, overwrite: false);
-        CopyFileIfPresent(sourcePath + ".bak", targetPath + ".bak");
-        return targetPath;
-    }
-
-    private static string GetUniqueWorldPath(string directory, string stem)
-    {
-        string candidate = Path.Combine(directory, stem + ".wld");
-        if (!File.Exists(candidate))
-        {
-            return candidate;
-        }
-
-        for (int index = 1; index < 10_000; index++)
-        {
-            candidate = Path.Combine(directory, $"{stem}-{index}.wld");
-            if (!File.Exists(candidate))
-            {
-                return candidate;
-            }
-        }
-
-        return Path.Combine(directory, $"{stem}-{DateTime.UtcNow:yyyyMMddHHmmssfff}.wld");
-    }
-
-    private static string CreateRaceWorldStem(DateTimeOffset timestamp)
-    {
-        return SanitizeFileStem(
-            $"TerrariaRace-{timestamp.LocalDateTime:yyyyMMddHHmmss}");
-    }
-
-    private static bool IsRaceWorldStem(string? stem)
-    {
-        return !string.IsNullOrWhiteSpace(stem) &&
-            stem.Trim().StartsWith("TerrariaRace-", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static string CreateWorldFileKey(string roomCode, RaceWorldFileInfo worldFile)
-    {
-        return string.Join(
-            "|",
-            roomCode.Trim(),
-            NormalizeWorldFileName(worldFile.FileName),
-            (worldFile.Sha256 ?? string.Empty).Trim(),
-            worldFile.UploadedAtUtc.UtcDateTime.Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture))
-            .ToUpperInvariant();
-    }
-
-    private static string NormalizeWorldFileName(string? fileName)
-    {
-        string name = Path.GetFileName(fileName ?? string.Empty).Trim();
-        return string.Equals(Path.GetExtension(name), ".wld", StringComparison.OrdinalIgnoreCase)
-            ? name
-            : string.Empty;
-    }
-
-    private static string SanitizeFileStem(string value)
-    {
-        char[] invalid = Path.GetInvalidFileNameChars();
-        string stem = new(value
-            .Trim()
-            .Select(ch => invalid.Contains(ch) ? '_' : ch)
-            .ToArray());
-        return string.IsNullOrWhiteSpace(stem) ? "TerrariaRace" : stem;
-    }
-
-    private static void CopyFileIfPresent(string sourcePath, string targetPath)
-    {
-        if (File.Exists(sourcePath))
-        {
-            File.Copy(sourcePath, targetPath, overwrite: false);
-        }
     }
 
     private void LogRaceOperationFailure(RaceOperationResult<RaceRoomState> result, string operation)

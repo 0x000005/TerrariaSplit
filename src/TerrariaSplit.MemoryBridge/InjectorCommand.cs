@@ -39,7 +39,7 @@ internal static class InjectorCommand
             return 5;
         }
 
-        string prefix = "Local\\TerrariaSplit.WorldGuard";
+        string prefix = "Local\\TerrariaSplit.MemoryBridge";
         string eventName = $"{prefix}.Completed.{processId}";
         string commandMappingName = $"{prefix}.Command.{processId}";
         string resultMappingName = $"{prefix}.Result.{processId}";

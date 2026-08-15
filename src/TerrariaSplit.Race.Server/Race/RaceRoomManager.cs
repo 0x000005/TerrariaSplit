@@ -50,9 +50,9 @@ public sealed class RaceRoomManager
         for (int attempt = 0; attempt < MaximumActiveRooms; attempt++)
         {
             string code = CreateRoomCode(firstRoomNumber, attempt);
-            DateTimeOffset now = DateTimeOffset.UtcNow;
-            var room = new RaceRoom(code, nickname, now);
-            room.Players[nickname] = RacePlayer.Create(nickname, isHost: true, now);
+            DateTimeOffset now = timeProvider.GetUtcNow();
+            var room = new RaceRoom(code, nickname, now, timeProvider.GetUtcNow);
+            room.Players[nickname] = RacePlayer.Create(nickname, isHost: true, now, timeProvider.GetUtcNow);
             if (rooms.TryAdd(code, room))
             {
                 return RaceOperationResult<RaceRoomState>.Success(room.ToState());
@@ -97,7 +97,11 @@ public sealed class RaceRoomManager
 
             bool returningHost = string.Equals(nickname, activeRoom.HostNickname, StringComparison.OrdinalIgnoreCase) &&
                 activeRoom.Players.Values.All(static player => !player.IsHost);
-            RacePlayer joinedPlayer = RacePlayer.Create(nickname, isHost: returningHost, DateTimeOffset.UtcNow);
+            RacePlayer joinedPlayer = RacePlayer.Create(
+                nickname,
+                isHost: returningHost,
+                timeProvider.GetUtcNow(),
+                timeProvider.GetUtcNow);
             if (!IsRngControlEnabled(activeRoom))
             {
                 joinedPlayer.RngControlStatus = RaceRngControlStatus.NotEnabled;
@@ -820,7 +824,7 @@ public sealed class RaceRoomManager
         }
     }
 
-    private static RaceSplitReport NormalizeReport(
+    private RaceSplitReport NormalizeReport(
         RaceRoom room,
         RacePlayer player,
         RaceSplitDefinition routeSplit,
@@ -849,7 +853,7 @@ public sealed class RaceRoomManager
             TargetId = targetId,
             IconFileName = iconFileName,
             IconDisplayName = iconDisplayName,
-            ReportedAtUtc = report.ReportedAtUtc ?? DateTimeOffset.UtcNow
+            ReportedAtUtc = report.ReportedAtUtc ?? timeProvider.GetUtcNow()
         };
     }
 
@@ -1171,7 +1175,7 @@ public sealed class RaceRoomManager
             StringComparer.OrdinalIgnoreCase);
         try
         {
-            recordStore.Save(new RaceSavedRoomRecord(room.ToState(), splits, DateTimeOffset.UtcNow));
+            recordStore.Save(new RaceSavedRoomRecord(room.ToState(), splits, timeProvider.GetUtcNow()));
             room.RecordSaved = true;
         }
         catch (Exception ex)
@@ -1183,16 +1187,19 @@ public sealed class RaceRoomManager
     private sealed class RaceRoom
     {
         private long completionSequence;
+        private readonly Func<DateTimeOffset> getUtcNow;
 
         public RaceRoom(
             string roomCode,
             string hostNickname,
-            DateTimeOffset createdAtUtc)
+            DateTimeOffset createdAtUtc,
+            Func<DateTimeOffset> getUtcNow)
         {
             RoomCode = roomCode;
             HostNickname = hostNickname;
             CreatedAtUtc = createdAtUtc;
             LastUpdatedAtUtc = createdAtUtc;
+            this.getUtcNow = getUtcNow;
         }
 
         public object Sync { get; } = new();
@@ -1229,7 +1236,7 @@ public sealed class RaceRoomManager
 
         public void Touch()
         {
-            LastUpdatedAtUtc = DateTimeOffset.UtcNow;
+            LastUpdatedAtUtc = getUtcNow();
         }
 
         public long NextCompletionSequence()
@@ -1344,12 +1351,19 @@ public sealed class RaceRoomManager
 
     private sealed class RacePlayer
     {
-        private RacePlayer(string nickname, bool isHost, DateTimeOffset now)
+        private readonly Func<DateTimeOffset> getUtcNow;
+
+        private RacePlayer(
+            string nickname,
+            bool isHost,
+            DateTimeOffset now,
+            Func<DateTimeOffset> getUtcNow)
         {
             Nickname = nickname;
             IsHost = isHost;
             JoinedAtUtc = now;
             LastUpdatedAtUtc = now;
+            this.getUtcNow = getUtcNow;
         }
 
         public string Nickname { get; }
@@ -1389,14 +1403,18 @@ public sealed class RaceRoomManager
 
         public DateTimeOffset LastUpdatedAtUtc { get; private set; }
 
-        public static RacePlayer Create(string nickname, bool isHost, DateTimeOffset now)
+        public static RacePlayer Create(
+            string nickname,
+            bool isHost,
+            DateTimeOffset now,
+            Func<DateTimeOffset> getUtcNow)
         {
-            return new RacePlayer(nickname, isHost, now);
+            return new RacePlayer(nickname, isHost, now, getUtcNow);
         }
 
         public void Touch()
         {
-            LastUpdatedAtUtc = DateTimeOffset.UtcNow;
+            LastUpdatedAtUtc = getUtcNow();
         }
 
         public bool AddReport(RaceSplitReport report)

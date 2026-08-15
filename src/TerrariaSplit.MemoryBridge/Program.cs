@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text.Json;
+using TerrariaSplit.MemoryBridge.Protocol;
 
 namespace TerrariaSplit.MemoryBridge;
 
@@ -40,39 +41,33 @@ internal static class Program
 
     private static int Main(string[] args)
     {
-        if (args.Length > 0 && string.Equals(args[0], "inject", StringComparison.OrdinalIgnoreCase))
+        if (args.Length > 0 && string.Equals(args[0], MemoryBridgeCommands.Inject, StringComparison.OrdinalIgnoreCase))
         {
             return InjectorCommand.Run(args[1..]);
         }
 
         if (args.Length > 0 &&
-            string.Equals(args[0], "random-seed-batch", StringComparison.OrdinalIgnoreCase))
+            string.Equals(args[0], MemoryBridgeCommands.RandomSeedBatch, StringComparison.OrdinalIgnoreCase))
         {
             return RunRandomSeedBatch(args);
-        }
-
-        if (args.Length > 0 &&
-            string.Equals(args[0], "visible-seed", StringComparison.OrdinalIgnoreCase))
-        {
-            return RunVisibleSeed(args);
         }
 
         if (args.Length != 2 ||
             !int.TryParse(args[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out int processId))
         {
-            WriteResponse(new RuntimeLayoutProbeResponse(false, "usage: runtime-layout <pid>", null));
+            WriteResponse(new RuntimeLayoutResponse(false, "usage: runtime-layout <pid>", null));
             return 2;
         }
 
-        if (!string.Equals(args[0], "runtime-layout", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(args[0], MemoryBridgeCommands.RuntimeLayout, StringComparison.OrdinalIgnoreCase))
         {
-            WriteResponse(new RuntimeLayoutProbeResponse(false, "usage: runtime-layout <pid>", null));
+            WriteResponse(new RuntimeLayoutResponse(false, "usage: runtime-layout <pid>", null));
             return 2;
         }
 
         if (Environment.Is64BitProcess)
         {
-            WriteResponse(new RuntimeLayoutProbeResponse(false, "memory probe must run as x86", null));
+            WriteResponse(new RuntimeLayoutResponse(false, "MemoryBridge must run as x86", null));
             return 3;
         }
 
@@ -80,31 +75,31 @@ internal static class Program
         {
             if (!TryResolveRuntimeLayout(processId, out RuntimeLayoutDto? layout) || layout is null)
             {
-                WriteResponse(new RuntimeLayoutProbeResponse(false, "runtime layout unavailable", null));
+                WriteResponse(new RuntimeLayoutResponse(false, "runtime layout unavailable", null));
                 return 1;
             }
 
-            WriteResponse(new RuntimeLayoutProbeResponse(true, null, layout));
+            WriteResponse(new RuntimeLayoutResponse(true, null, layout));
             return 0;
         }
         catch (InvalidOperationException ex)
         {
-            WriteResponse(new RuntimeLayoutProbeResponse(false, ex.Message, null));
+            WriteResponse(new RuntimeLayoutResponse(false, ex.Message, null));
             return 1;
         }
         catch (UnauthorizedAccessException ex)
         {
-            WriteResponse(new RuntimeLayoutProbeResponse(false, ex.Message, null));
+            WriteResponse(new RuntimeLayoutResponse(false, ex.Message, null));
             return 1;
         }
         catch (ClrDiagnosticsException ex)
         {
-            WriteResponse(new RuntimeLayoutProbeResponse(false, ex.Message, null));
+            WriteResponse(new RuntimeLayoutResponse(false, ex.Message, null));
             return 1;
         }
         catch (Win32Exception ex)
         {
-            WriteResponse(new RuntimeLayoutProbeResponse(false, ex.Message, null));
+            WriteResponse(new RuntimeLayoutResponse(false, ex.Message, null));
             return 1;
         }
     }
@@ -116,7 +111,7 @@ internal static class Program
             !int.TryParse(args[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out int count) ||
             count is < 1 or > 256)
         {
-            WriteResponse(new RandomSeedBatchProbeResponse(
+            WriteResponse(new RandomSeedBatchResponse(
                 false,
                 "usage: random-seed-batch <pid> <count:1..256>",
                 null,
@@ -126,9 +121,9 @@ internal static class Program
 
         if (Environment.Is64BitProcess)
         {
-            WriteResponse(new RandomSeedBatchProbeResponse(
+            WriteResponse(new RandomSeedBatchResponse(
                 false,
-                "memory probe must run as x86",
+                "MemoryBridge must run as x86",
                 null,
                 null));
             return 3;
@@ -139,7 +134,7 @@ internal static class Program
             if (!TryPredictRandomSeedBatch(processId, count, out RandomSeedBatchDto? batch) ||
                 batch is null)
             {
-                WriteResponse(new RandomSeedBatchProbeResponse(
+                WriteResponse(new RandomSeedBatchResponse(
                     false,
                     "Terraria.Main.rand on the UI thread is unavailable",
                     null,
@@ -147,149 +142,29 @@ internal static class Program
                 return 1;
             }
 
-            WriteResponse(new RandomSeedBatchProbeResponse(true, null, batch.Seeds, batch.OsThreadId));
+            WriteResponse(new RandomSeedBatchResponse(true, null, batch.Seeds, batch.OsThreadId));
             return 0;
         }
         catch (InvalidOperationException ex)
         {
-            WriteResponse(new RandomSeedBatchProbeResponse(false, ex.Message, null, null));
+            WriteResponse(new RandomSeedBatchResponse(false, ex.Message, null, null));
             return 1;
         }
         catch (UnauthorizedAccessException ex)
         {
-            WriteResponse(new RandomSeedBatchProbeResponse(false, ex.Message, null, null));
+            WriteResponse(new RandomSeedBatchResponse(false, ex.Message, null, null));
             return 1;
         }
         catch (ClrDiagnosticsException ex)
         {
-            WriteResponse(new RandomSeedBatchProbeResponse(false, ex.Message, null, null));
+            WriteResponse(new RandomSeedBatchResponse(false, ex.Message, null, null));
             return 1;
         }
         catch (Win32Exception ex)
         {
-            WriteResponse(new RandomSeedBatchProbeResponse(false, ex.Message, null, null));
+            WriteResponse(new RandomSeedBatchResponse(false, ex.Message, null, null));
             return 1;
         }
-    }
-
-    private static int RunVisibleSeed(string[] args)
-    {
-        if (args.Length != 2 ||
-            !int.TryParse(args[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out int processId))
-        {
-            WriteResponse(new VisibleSeedProbeResponse(
-                false,
-                "usage: visible-seed <pid>",
-                null,
-                null));
-            return 2;
-        }
-
-        if (Environment.Is64BitProcess)
-        {
-            WriteResponse(new VisibleSeedProbeResponse(
-                false,
-                "memory probe must run as x86",
-                null,
-                null));
-            return 3;
-        }
-
-        try
-        {
-            if (!TryReadVisibleSeed(processId, out string? seedText, out string? stateType))
-            {
-                WriteResponse(new VisibleSeedProbeResponse(
-                    false,
-                    "Terraria is not displaying a readable world-creation seed",
-                    null,
-                    stateType));
-                return 1;
-            }
-
-            WriteResponse(new VisibleSeedProbeResponse(true, null, seedText, stateType));
-            return 0;
-        }
-        catch (InvalidOperationException ex)
-        {
-            WriteResponse(new VisibleSeedProbeResponse(false, ex.Message, null, null));
-            return 1;
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            WriteResponse(new VisibleSeedProbeResponse(false, ex.Message, null, null));
-            return 1;
-        }
-        catch (ClrDiagnosticsException ex)
-        {
-            WriteResponse(new VisibleSeedProbeResponse(false, ex.Message, null, null));
-            return 1;
-        }
-        catch (Win32Exception ex)
-        {
-            WriteResponse(new VisibleSeedProbeResponse(false, ex.Message, null, null));
-            return 1;
-        }
-    }
-
-    private static bool TryReadVisibleSeed(
-        int targetProcessId,
-        out string? seedText,
-        out string? stateType)
-    {
-        seedText = null;
-        stateType = null;
-        using DataTarget target = DataTarget.CreateSnapshotAndAttach(targetProcessId);
-        ClrInfo? clrInfo = target.ClrVersions.FirstOrDefault();
-        if (clrInfo is null)
-        {
-            return false;
-        }
-
-        using ClrRuntime runtime = clrInfo.CreateRuntime();
-        ClrType? mainType = FindType(runtime, "Terraria.Main");
-        ClrAppDomain? domain = FindDomain(runtime, mainType);
-        ClrStaticField? menuUiField = mainType?.GetStaticFieldByName("MenuUI");
-        if (domain is null ||
-            menuUiField is null ||
-            !menuUiField.IsInitialized(domain))
-        {
-            return false;
-        }
-
-        ClrObject menuUi = menuUiField.ReadObject(domain);
-        if (menuUi.IsNull ||
-            !menuUi.TryReadObjectField("_currentState", out ClrObject currentState) ||
-            currentState.IsNull)
-        {
-            return false;
-        }
-
-        stateType = currentState.Type?.Name;
-        ClrObject creationState = currentState;
-        if (string.Equals(
-                stateType,
-                "Terraria.GameContent.UI.States.UIWorldCreationAdvanced",
-                StringComparison.Ordinal))
-        {
-            if (!currentState.TryReadObjectField("_creationState", out creationState) ||
-                creationState.IsNull)
-            {
-                return false;
-            }
-        }
-
-        if (!string.Equals(
-                creationState.Type?.Name,
-                "Terraria.GameContent.UI.States.UIWorldCreation",
-                StringComparison.Ordinal) ||
-            !creationState.TryReadStringField("_optionSeed", 128, out seedText) ||
-            string.IsNullOrWhiteSpace(seedText))
-        {
-            return false;
-        }
-
-        return true;
     }
 
     private static bool TryPredictRandomSeedBatch(
@@ -896,20 +771,6 @@ internal static class Program
     }
 }
 
-internal sealed record RuntimeLayoutProbeResponse(bool Success, string? Error, RuntimeLayoutDto? Layout);
-
-internal sealed record RandomSeedBatchProbeResponse(
-    bool Success,
-    string? Error,
-    IReadOnlyList<string>? Seeds,
-    uint? OsThreadId);
-
-internal sealed record VisibleSeedProbeResponse(
-    bool Success,
-    string? Error,
-    string? SeedText,
-    string? StateType);
-
 internal sealed record RandomSeedBatchDto(
     IReadOnlyList<string> Seeds,
     uint OsThreadId);
@@ -925,89 +786,3 @@ internal sealed class UnifiedRandomState(uint inext, int[] seedArray)
 
     public int[] SeedArray { get; } = seedArray;
 }
-
-internal sealed record RuntimeLayoutDto(
-    string? TerrariaVersion,
-    CoreLayoutDto Core,
-    BossLayoutDto Boss,
-    PlayerItemLayoutDto? Item,
-    NpcLayoutDto? Npc,
-    BiomeLayoutDto? Biome,
-    SeedUiLayoutDto? SeedUi,
-    WorldGenerationLayoutDto WorldGeneration,
-    int ResolvedFieldCount);
-
-internal sealed record CoreLayoutDto(
-    long GameMenuStaticFieldAddress,
-    long StatusTextStaticFieldAddress,
-    long MenuUiStaticFieldAddress);
-
-internal sealed record BossLayoutDto(Dictionary<string, long> FactStaticFieldAddresses);
-
-internal sealed record PlayerItemLayoutDto(
-    long PlayerArrayStaticFieldAddress,
-    long MyPlayerStaticFieldAddress,
-    long MouseItemStaticFieldAddress,
-    int PlayerArmorFieldOffset,
-    int PlayerDyeFieldOffset,
-    int PlayerMiscEquipsFieldOffset,
-    int PlayerMiscDyesFieldOffset,
-    int PlayerTrashItemFieldOffset,
-    int PlayerInventoryFieldOffset,
-    int PlayerBankFieldOffset,
-    int PlayerBank2FieldOffset,
-    int PlayerBank3FieldOffset,
-    int PlayerBank4FieldOffset,
-    int ChestItemArrayFieldOffset,
-    int ItemTypeFieldOffset,
-    int ItemStackFieldOffset,
-    int ManagedArrayLengthOffset,
-    int ManagedArrayFirstElementOffset,
-    int ObjectReferenceSize);
-
-internal sealed record NpcLayoutDto(
-    long NpcArrayStaticFieldAddress,
-    int NpcTypeFieldOffset,
-    int NpcActiveFieldOffset,
-    int NpcTownNpcFieldOffset,
-    int NpcHomelessFieldOffset,
-    int NpcHomeTileXFieldOffset,
-    int NpcHomeTileYFieldOffset,
-    int ManagedArrayLengthOffset,
-    int ManagedArrayFirstElementOffset,
-    int ObjectReferenceSize);
-
-internal sealed record BiomeLayoutDto(
-    long PlayerArrayStaticFieldAddress,
-    long MyPlayerStaticFieldAddress,
-    Dictionary<string, int>? ZoneBitsByteFieldOffsets,
-    int ManagedArrayLengthOffset,
-    int ManagedArrayFirstElementOffset,
-    int ObjectReferenceSize);
-
-internal sealed record SeedUiLayoutDto(
-    long MenuUiStaticFieldAddress,
-    int UserInterfaceCurrentStateFieldOffset,
-    int UiStateNestedReferenceScanStart,
-    int UiStateNestedReferenceScanEnd,
-    int WorldCreationAdvancedCreationStateFieldOffset,
-    int WorldCreationAdvancedSeedPlateFieldOffset,
-    int WorldNameFieldOffset,
-    int SeedFieldOffset,
-    int NamePlateFieldOffset,
-    int SeedPlateFieldOffset,
-    int CharacterNameButtonActualContentsOffset,
-    int ObjectReferenceSize);
-
-internal sealed record WorldGenerationLayoutDto(
-    long StatusTextStaticFieldAddress,
-    long CurrentGenerationProgressStaticFieldAddress,
-    long CurrentControllerStaticFieldAddress,
-    int GenerationProgressMessageFieldOffset,
-    int GenerationProgressValueFieldOffset,
-    int GenerationProgressTotalWeightedProgressFieldOffset,
-    int GenerationProgressTotalWeightFieldOffset,
-    int GenerationProgressCurrentPassWeightFieldOffset,
-    int ControllerGeneratorFieldOffset,
-    int WorldGeneratorCurrentPassFieldOffset,
-    int GenPassNameFieldOffset);

@@ -1,0 +1,23 @@
+<Project>
+  <Target Name="TerrariaSplitCleanFinalPublishDirectory"
+          BeforeTargets="PrepareForPublish"
+          Condition="'$(Configuration)' == 'Release' and '$(PublishDir)' != ''">
+    <RemoveDir Directories="$(PublishDir)" />
+  </Target>
+
+  <Target Name="TerrariaSplitFinalizeReleaseLayout"
+          AfterTargets="Publish"
+          DependsOnTargets="TerrariaSplitCopyMemoryBridgeToPublishDirectory;TerrariaSplitCopyWorldFilterToPublishDirectory"
+          Condition="'$(Configuration)' == 'Release' and '$(PublishDir)' != ''">
+    <PropertyGroup>
+      <TerrariaSplitUpdateManifestPath>$(PublishDir)Runtime\terrariasplit-update-manifest.json</TerrariaSplitUpdateManifestPath>
+    </PropertyGroup>
+    <MakeDir Directories="$(PublishDir)Runtime" />
+    <WriteLinesToFile
+      File="$(TerrariaSplitUpdateManifestPath)"
+      Lines="{&quot;schemaVersion&quot;:1,&quot;managedRoots&quot;:[&quot;TerrariaSplit.exe&quot;,&quot;TerrariaSplit.MemoryBridge.exe&quot;,&quot;TerrariaSplit.WorldFilter.dll&quot;,&quot;Runtime&quot;,&quot;Assets&quot;]}"
+      Overwrite="true"
+      Encoding="UTF-8" />
+    <Message Importance="high" Text="Published TerrariaSplit directory: $(PublishDir)" />
+  </Target>
+</Project>

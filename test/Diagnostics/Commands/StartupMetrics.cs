@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 
-namespace TerrariaSplit.Tests;
+namespace TerrariaSplit.Diagnostics;
 
 internal static class StartupMetrics
 {

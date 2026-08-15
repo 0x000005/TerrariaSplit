@@ -125,7 +125,7 @@ internal sealed class WorldSeedFilterEvaluator : IDisposable
         JungleSeedJudgeGameMode gameMode = ResolveGameMode(settings.WorldDifficulty);
         JungleSeedJudgeResult judge;
         Stopwatch stopwatch = Stopwatch.StartNew();
-        StaticAppLogger.Instance.Info(
+        FileAppLogger.Instance.Info(
             $"World seed judge starting seed {seedText}; mode={gameMode}.");
         try
         {
@@ -156,7 +156,7 @@ internal sealed class WorldSeedFilterEvaluator : IDisposable
         }
         finally
         {
-            StaticAppLogger.Instance.Info(
+            FileAppLogger.Instance.Info(
                 $"World seed judge completed seed {seedText}; mode={gameMode}; " +
                 $"elapsedMs={stopwatch.Elapsed.TotalMilliseconds:F0}.");
         }
@@ -166,7 +166,7 @@ internal sealed class WorldSeedFilterEvaluator : IDisposable
             string detail =
                 $"seed judge status {judge.Status}; seed={seedText}, mode={gameMode}: " +
                 judge.Detail;
-            StaticAppLogger.Instance.Info(detail);
+            FileAppLogger.Instance.Info(detail);
             if (IsCandidateFailure(judge.Status))
             {
                 return WorldSeedFilterPrediction.CandidateFailure(

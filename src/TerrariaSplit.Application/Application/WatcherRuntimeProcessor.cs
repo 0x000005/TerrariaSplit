@@ -57,7 +57,7 @@ internal sealed class WatcherRuntimeProcessor
             case RuntimeCommandKind.SetPracticeTotalTime:
                 if (command.Time is TimeSpan time)
                 {
-                    timer.SetPracticeElapsed(time);
+                    timer.SetPracticeElapsed(time, observedTimestamp);
                     splitTracker.ClampCompletedTimes(time);
                     return [new RunEvent(RunEventKind.PracticeTotalTimeEdited)];
                 }

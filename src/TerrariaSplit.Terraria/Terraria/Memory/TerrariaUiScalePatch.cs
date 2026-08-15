@@ -391,7 +391,7 @@ internal sealed class TerrariaUiScalePatch
             }
             catch (Win32Exception ex)
             {
-                StaticAppLogger.Instance.Error(ex, "Failed to roll back Terraria UI scale patch bytes.");
+                FileAppLogger.Instance.Error(ex, "Failed to roll back Terraria UI scale patch bytes.");
             }
         }
     }

@@ -12,6 +12,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="..\TerrariaSplit.MemoryBridge\Protocol\MemoryBridgeProtocol.cs"
+             Link="Terraria\Memory\Protocol\MemoryBridgeProtocol.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\TerrariaSplit.Application\TerrariaSplit.Application.csproj" />
     <ProjectReference Include="..\TerrariaSplit.Configuration\TerrariaSplit.Configuration.csproj" />
     <ProjectReference Include="..\TerrariaSplit.Domain\TerrariaSplit.Domain.csproj" />

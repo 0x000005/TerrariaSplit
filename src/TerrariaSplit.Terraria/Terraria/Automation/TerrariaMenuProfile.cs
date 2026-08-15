@@ -109,7 +109,7 @@ public readonly record struct TerrariaMenuProfile(
         }
         catch (Exception ex)
         {
-            StaticAppLogger.Instance.Error(ex, "Failed to read Terraria main menu scale setting.");
+            FileAppLogger.Instance.Error(ex, "Failed to read Terraria main menu scale setting.");
             return false;
         }
     }

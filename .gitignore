@@ -10,6 +10,7 @@
 .nuget/
 
 # Build and publish outputs
+/.build/
 bin/
 obj/
 **/bin/
@@ -17,16 +18,22 @@ obj/
 publish-race-server/
 publish/
 **/publish/
-test/Results
+artifacts/
+publish-*/
+test/Results/
+
+# Runtime user data when the application is launched from the repository root
+/Settings/
+/Data/
+/Worlds/
+/terrariasplit.log
 # Local verification and temporary outputs
 .tmp/
 .check/
 .buildverify/
 .build-check/
 .verify/
-artifacts/
 **/test/Temp/
-!test/Temp/.gitkeep
 test-output/
 **/test-output/
 codex-build-check/

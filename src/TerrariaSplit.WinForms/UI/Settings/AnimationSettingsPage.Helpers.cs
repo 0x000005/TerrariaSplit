@@ -198,7 +198,7 @@ internal sealed partial class AnimationSettingsPage : SettingsPageBase
         {
             float normalized = bounds.Width <= 1 ? 0f : x / (float)(bounds.Width - 1);
             float signed = normalized * 2f - 1f;
-            float amount = DeltaGradientCurves.Evaluate(curve, Math.Abs(signed));
+            float amount = DeltaGradientCurveMath.Evaluate(curve, Math.Abs(signed));
             Color color = signed < 0f
                 ? BlendPreviewColor(palette.BaseColor, palette.AheadColor, amount)
                 : BlendPreviewColor(palette.BaseColor, palette.BehindColor, amount);

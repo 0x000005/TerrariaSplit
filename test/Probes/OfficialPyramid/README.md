@@ -2,7 +2,7 @@
 
 This is a standalone diagnostic tool. It loads the real Terraria 1.4.5.6 assembly and wraps selected official world-gen passes to emit pass-stop CSV rows.
 
-It is not part of `test/TerrariaSplit.Tests.csproj`; that project only compiles `test/Code/*.cs` and `test/Code/Diagnostics/*.cs`.
+It is not part of `test/TerrariaSplit.Tests.csproj` or `test/TerrariaSplit.Diagnostics.csproj`.
 
 ## Build
 
@@ -10,24 +10,26 @@ From the repository root:
 
 ```powershell
 $out = "test\Temp\OfficialProbe\bin"
+$terrariaPath = Join-Path ${env:ProgramFiles(x86)} "Steam\steamapps\common\Terraria\Terraria.exe"
+$referenceRoot = (Resolve-Path "..\reference\Terraria1456\pyramid-probe\exactgen\bin").Path
 New-Item -ItemType Directory -Force $out | Out-Null
 & "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe" `
   /nologo `
   /platform:x86 `
   /target:exe `
   /out:"$out\OfficialPyramidPassProbe.exe" `
-  /reference:"C:\Program Files (x86)\Steam\steamapps\common\Terraria\Terraria.exe" `
-  /reference:"D:\OneDrive - huzhaoran\Creative\Terraria\reference\Terraria1456\pyramid-probe\exactgen\bin\ReLogic.dll" `
-  /reference:"D:\OneDrive - huzhaoran\Creative\Terraria\reference\Terraria1456\pyramid-probe\exactgen\bin\Newtonsoft.Json.dll" `
+  /reference:"$terrariaPath" `
+  /reference:"$referenceRoot\ReLogic.dll" `
+  /reference:"$referenceRoot\Newtonsoft.Json.dll" `
   /reference:"C:\Windows\Microsoft.NET\assembly\GAC_32\Microsoft.Xna.Framework.Game\v4.0_4.0.0.0__842cf8be1de50553\Microsoft.Xna.Framework.Game.dll" `
-  test\Code\OfficialProbe\OfficialPyramidPassProbe.cs
+  test\Probes\OfficialPyramid\OfficialPyramidPassProbe.cs
 ```
 
 If runtime dependency loading fails, pass the copied dependency directory explicitly:
 
 ```powershell
 test\Temp\OfficialProbe\bin\OfficialPyramidPassProbe.exe `
-  --deps "D:\OneDrive - huzhaoran\Creative\Terraria\reference\Terraria1456\pyramid-probe\exactgen\bin" `
+  --deps "$referenceRoot" `
   --out test\Results\official-pyramid-pass-diagnostics-current.csv `
   747007926 627520318 901484636 1620309102 1602021351 103045530
 ```

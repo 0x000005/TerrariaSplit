@@ -275,7 +275,7 @@ public sealed class TerrariaWorldWatcher : ITerrariaWorldWatcher
         TimeSpan resolveElapsed = System.Diagnostics.Stopwatch.GetElapsedTime(resolveStartedTimestamp);
         if (resolveElapsed >= TimeSpan.FromMilliseconds(250))
         {
-            StaticAppLogger.Instance.Info(
+            FileAppLogger.Instance.Info(
                 $"Terraria watcher memory resolution took {resolveElapsed.TotalMilliseconds:F0} ms; " +
                 $"stage={result.Stage}, detail={result.StatusDetail}.");
         }

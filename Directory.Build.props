@@ -1,12 +1,15 @@
 <Project>
   <PropertyGroup>
+    <TerrariaSplitProductVersion>1.9.4.0</TerrariaSplitProductVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AnalysisLevel>latest</AnalysisLevel>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
-    <DisableFastUpToDateCheck>true</DisableFastUpToDateCheck>
+    <UseArtifactsOutput>true</UseArtifactsOutput>
+    <ArtifactsPath>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)', '.build'))</ArtifactsPath>
     <CopyOutputSymbolsToPublishDirectory>false</CopyOutputSymbolsToPublishDirectory>
+    <DefaultItemExcludes>$(DefaultItemExcludes);$(ArtifactsPath)**</DefaultItemExcludes>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">

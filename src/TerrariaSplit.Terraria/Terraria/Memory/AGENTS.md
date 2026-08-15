@@ -1,7 +1,7 @@
 # Memory
 
 ## 边界
-- 读取 Terraria 进程、MemoryProbe 布局、托管对象、世界生成状态和创图种子。
+- 读取 Terraria 进程、MemoryBridge 运行时布局、托管对象、世界生成状态和创图种子。
 - 输出外部状态快照或诊断，不决定自动化流程。
 
 ## 约束

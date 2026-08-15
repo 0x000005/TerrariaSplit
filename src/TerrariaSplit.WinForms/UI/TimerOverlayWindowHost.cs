@@ -253,7 +253,7 @@ internal sealed class TimerOverlayWindowHost : IDisposable
         {
             handleReady.TrySetException(ex);
             firstFramePresented.TrySetException(ex);
-            StaticAppLogger.Instance.Error(ex, "Timer overlay thread failed during startup.");
+            FileAppLogger.Instance.Error(ex, "Timer overlay thread failed during startup.");
         }
         finally
         {

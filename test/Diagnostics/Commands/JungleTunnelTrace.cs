@@ -6,6 +6,8 @@ using TerrariaSplit.Terraria.Automation;
 using TerrariaSplit.Terraria.WorldGeneration;
 using TerrariaSplit.Terraria.WorldGeneration.Simulation;
 
+namespace TerrariaSplit.Diagnostics;
+
 internal static class JungleTunnelTrace
 {
     public static bool TryRun(string[] args)

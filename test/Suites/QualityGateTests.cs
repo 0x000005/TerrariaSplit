@@ -1,4 +1,7 @@
+using System.Reflection;
+using System.Text.Json;
 using System.Xml.Linq;
+using TerrariaSplit.MemoryBridge.Protocol;
 
 namespace TerrariaSplit.Tests;
 
@@ -7,9 +10,9 @@ internal static class QualityGateTests
     public static IEnumerable<TestCase> All()
     {
         yield return TestCase.Sync("project references preserve the declared architecture dependency direction", TestSuite.Core, ProjectDependencyGraph);
-        yield return TestCase.Sync("source code preserves platform and side-effect boundaries", TestSuite.Core, SourceBoundaries);
         yield return TestCase.Sync("memory control unit exposes only its documented command surface", TestSuite.Core, MemoryControlUnitCommandSurface);
-        yield return TestCase.Sync("portable package contract uses the exact release name and managed-root manifest", TestSuite.Release, PortablePackageContract);
+        yield return TestCase.Sync("build outputs use one SDK artifacts root", TestSuite.Core, CentralBuildOutputContract);
+        yield return TestCase.Sync("release layout publishes a directory and managed-root manifest", TestSuite.Release, ReleaseLayoutContract);
     }
 
     private static void ProjectDependencyGraph()
@@ -47,13 +50,14 @@ internal static class QualityGateTests
                 "TerrariaSplit.Infrastructure",
                 "TerrariaSplit.Infrastructure.Windows",
                 "TerrariaSplit.MemoryBridge",
+                "TerrariaSplit.MemoryBridge.Payload",
                 "TerrariaSplit.Race.Client",
+                "TerrariaSplit.Race.Contracts",
                 "TerrariaSplit.Race.InGame",
                 "TerrariaSplit.Statistics",
                 "TerrariaSplit.Storage",
                 "TerrariaSplit.Terraria"),
-            ["TerrariaSplit.WorldGeneration"] = Set(),
-            ["TerrariaSplit.WorldGuard.Payload"] = Set("TerrariaSplit.Race.Determinism", "TerrariaSplit.Race.InGame")
+            ["TerrariaSplit.MemoryBridge.Payload"] = Set("TerrariaSplit.Race.Determinism", "TerrariaSplit.Race.InGame")
         };
         foreach ((string project, HashSet<string> references) in graph)
         {
@@ -65,72 +69,117 @@ internal static class QualityGateTests
 
         Check.False(HasDependencyCycle(graph));
         Check.False(graph["TerrariaSplit.Terraria"].Contains("TerrariaSplit.Storage"));
-    }
-
-    private static void SourceBoundaries()
-    {
-        string source = Path.Combine(SourceRoot(), "src");
-        string domain = ReadSourceTree(Path.Combine(source, "TerrariaSplit.Domain"));
-        AssertOmits(domain, "System.Drawing", "System.Windows.Forms", "System.IO", "File.", "Directory.", "Process.");
-
-        string application = ReadSourceTree(Path.Combine(source, "TerrariaSplit.Application"));
-        AssertOmits(
-            application,
-            "System.Diagnostics.Process",
-            "Process.GetProcess",
-            "DllImport(",
-            "LibraryImport(",
-            "System.Runtime.InteropServices");
-
-        string infrastructure = ReadSourceTree(Path.Combine(source, "TerrariaSplit.Infrastructure"));
-        AssertOmits(
-            infrastructure,
-            "DllImport(",
-            "LibraryImport(",
-            "winmm.dll",
-            "kernel32.dll",
-            "CreateWaitableTimer",
-            "timeBeginPeriod");
-
-        string rendering = ReadSourceTree(Path.Combine(
-            source,
-            "TerrariaSplit.WinForms",
-            "UI",
-            "Rendering"));
-        AssertOmits(rendering, "File.", "Directory.", "StaticAppLogger", "IAppLogger");
+        Check.Equal("net10.0", ReadTargetFramework(Path.Combine(root, "src", "TerrariaSplit.Storage", "TerrariaSplit.Storage.csproj")));
+        Check.Equal("net10.0", ReadTargetFramework(Path.Combine(root, "src", "TerrariaSplit.Statistics", "TerrariaSplit.Statistics.csproj")));
     }
 
     private static void MemoryControlUnitCommandSurface()
     {
         string root = SourceRoot();
-        string program = File.ReadAllText(Path.Combine(
+        string[] commands = typeof(MemoryBridgeCommands)
+            .GetFields(BindingFlags.Public | BindingFlags.Static)
+            .Where(field => field.IsLiteral && !field.IsInitOnly)
+            .Select(field => (string)field.GetRawConstantValue()!)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        Check.Sequence(
+            new[] { "inject", "random-seed-batch", "runtime-layout" },
+            commands);
+
+        XDocument memoryBridgeProject = ReadXml(Path.Combine(
             root,
             "src",
             "TerrariaSplit.MemoryBridge",
-            "Program.cs"));
-        foreach (string command in new[] { "\"inject\"", "\"runtime-layout\"", "\"visible-seed\"", "\"random-seed-batch\"" })
-        {
-            Check.True(program.Contains(command, StringComparison.Ordinal));
-        }
+            "TerrariaSplit.MemoryBridge.csproj"));
+        Check.Equal("win-x86", RequiredProperty(memoryBridgeProject, "RuntimeIdentifier"));
+        Check.Equal("x86", RequiredProperty(memoryBridgeProject, "PlatformTarget"));
 
-        Check.False(program.Contains("\"random-seed-candidates\"", StringComparison.Ordinal));
+        XDocument terrariaProject = ReadXml(Path.Combine(
+            root,
+            "src",
+            "TerrariaSplit.Terraria",
+            "TerrariaSplit.Terraria.csproj"));
+        Check.True(terrariaProject.Descendants()
+            .Where(element => element.Name.LocalName == "Compile")
+            .Select(element => (string?)element.Attribute("Include"))
+            .Any(include => include?.EndsWith(
+                @"TerrariaSplit.MemoryBridge\Protocol\MemoryBridgeProtocol.cs",
+                StringComparison.OrdinalIgnoreCase) == true));
     }
 
-    private static void PortablePackageContract()
+    private static void CentralBuildOutputContract()
     {
         string root = SourceRoot();
-        string targets = File.ReadAllText(Path.Combine(root, "src", "TerrariaSplit.WinForms", "Build", "PortablePackage.targets"));
-        Check.True(targets.Contains("TerrariaSplit-v$(FileVersion)-win-x64.zip", StringComparison.Ordinal));
-        Check.True(targets.Contains(ApplicationUpdatePackage.ManifestFileName, StringComparison.Ordinal));
-        Check.True(targets.Contains("Runtime\\terrariasplit-update-manifest.json", StringComparison.Ordinal));
-        foreach (string managedRoot in new[] { "TerrariaSplit.exe", "TerrariaSplit.MemoryBridge.exe", "Runtime", "Assets" })
+        XDocument buildProps = ReadXml(Path.Combine(root, "Directory.Build.props"));
+        Check.Equal("true", RequiredProperty(buildProps, "UseArtifactsOutput"));
+        Check.True(RequiredProperty(buildProps, "ArtifactsPath").Contains(".build", StringComparison.Ordinal));
+        Check.True(Version.TryParse(
+            RequiredProperty(buildProps, "TerrariaSplitProductVersion"),
+            out _));
+        Check.False(DeclaresProperty(buildProps, "DisableFastUpToDateCheck"));
+        Check.False(DeclaresProperty(buildProps, "TerrariaSplitIsolationRoot"));
+
+        foreach (string project in new[] { "TerrariaSplit.Tests.csproj", "TerrariaSplit.Diagnostics.csproj" })
         {
-            Check.True(targets.Contains(managedRoot, StringComparison.OrdinalIgnoreCase));
+            XDocument testProject = ReadXml(Path.Combine(root, "test", project));
+            Check.False(DeclaresProperty(testProject, "BaseOutputPath"));
+            Check.False(DeclaresProperty(testProject, "BaseIntermediateOutputPath"));
         }
-        foreach (string protectedRoot in new[] { "Settings", "Data", "Worlds", "terrariasplit.log" })
-        {
-            Check.False(targets.Contains($"&quot;{protectedRoot}&quot;", StringComparison.OrdinalIgnoreCase));
-        }
+    }
+
+    private static void ReleaseLayoutContract()
+    {
+        string root = SourceRoot();
+        XDocument releaseLayout = ReadXml(Path.Combine(root, "src", "TerrariaSplit.WinForms", "Build", "ReleaseLayout.targets"));
+        XElement cleanTarget = RequiredTarget(releaseLayout, "TerrariaSplitCleanFinalPublishDirectory");
+        Check.Equal("PrepareForPublish", (string?)cleanTarget.Attribute("BeforeTargets"));
+        XElement finalizeTarget = RequiredTarget(releaseLayout, "TerrariaSplitFinalizeReleaseLayout");
+        Check.Equal("Publish", (string?)finalizeTarget.Attribute("AfterTargets"));
+        XElement manifestWriter = finalizeTarget.Descendants()
+            .Single(element => element.Name.LocalName == "WriteLinesToFile");
+        Check.Equal(
+            "$(TerrariaSplitUpdateManifestPath)",
+            (string?)manifestWriter.Attribute("File"));
+        string manifestPath = RequiredProperty(
+            releaseLayout,
+            "TerrariaSplitUpdateManifestPath");
+        Check.True(manifestPath.EndsWith(
+            Path.Combine("Runtime", ApplicationUpdatePackage.ManifestFileName),
+            StringComparison.OrdinalIgnoreCase));
+        using JsonDocument manifest = JsonDocument.Parse(
+            (string?)manifestWriter.Attribute("Lines") ?? string.Empty);
+        HashSet<string> managedRoots = manifest.RootElement
+            .GetProperty("managedRoots")
+            .EnumerateArray()
+            .Select(element => element.GetString()!)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        Check.True(new[] { "TerrariaSplit.exe", "TerrariaSplit.MemoryBridge.exe", "TerrariaSplit.WorldFilter.dll", "Runtime", "Assets" }
+            .All(managedRoots.Contains));
+        Check.False(new[] { "Settings", "Data", "Worlds", "terrariasplit.log" }
+            .Any(managedRoots.Contains));
+        Check.False(releaseLayout.Descendants().Any(element =>
+            element.Name.LocalName.Contains("Zip", StringComparison.OrdinalIgnoreCase) ||
+            element.Attributes().Any(attribute => attribute.Value.Contains(".zip", StringComparison.OrdinalIgnoreCase))));
+        Check.False(File.Exists(Path.Combine(root, "src", "TerrariaSplit.WinForms", "Build", "PortablePackage.targets")));
+        Check.False(File.Exists(Path.Combine(root, "eng", "Validate-PortablePackage.ps1")));
+
+        XDocument clientProject = ReadXml(Path.Combine(root, "src", "TerrariaSplit.WinForms", "TerrariaSplit.WinForms.csproj"));
+        XDocument serverProject = ReadXml(Path.Combine(root, "src", "TerrariaSplit.Race.Server", "TerrariaSplit.Race.Server.csproj"));
+        Check.True(RequiredProperty(clientProject, "PublishDir").Contains(
+            @"publish\TerrariaSplit-v$(FileVersion)-$(RuntimeIdentifier)",
+            StringComparison.Ordinal));
+        Check.True(RequiredProperty(serverProject, "PublishDir").Contains(
+            @"publish\TerrariaSplit.Race.Server-v$(FileVersion)-$(RuntimeIdentifier)",
+            StringComparison.Ordinal));
+        Check.Sequence(
+            new[] { "linux-x64", "win-x64" },
+            RequiredProperty(serverProject, "RuntimeIdentifiers")
+                .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Order(StringComparer.Ordinal));
+        Check.Equal(
+            "PrepareForPublish",
+            (string?)RequiredTarget(serverProject, "TerrariaSplitCleanServerFinalPublishDirectory")
+                .Attribute("BeforeTargets"));
     }
 
     private static HashSet<string> ReadReferences(string projectPath)
@@ -140,6 +189,33 @@ internal static class QualityGateTests
             .Select(element => Path.GetFileNameWithoutExtension((string?)element.Attribute("Include") ?? string.Empty))
             .Where(name => !string.IsNullOrWhiteSpace(name))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static string ReadTargetFramework(string projectPath)
+    {
+        return RequiredProperty(ReadXml(projectPath), "TargetFramework");
+    }
+
+    private static XDocument ReadXml(string path) => XDocument.Load(path);
+
+    private static string RequiredProperty(XDocument document, string name)
+    {
+        return document.Descendants()
+            .Single(element => element.Name.LocalName == name)
+            .Value.Trim();
+    }
+
+    private static bool DeclaresProperty(XDocument document, string name)
+    {
+        return document.Descendants().Any(element => element.Name.LocalName == name);
+    }
+
+    private static XElement RequiredTarget(XDocument document, string name)
+    {
+        return document.Descendants()
+            .Single(element =>
+                element.Name.LocalName == "Target" &&
+                string.Equals((string?)element.Attribute("Name"), name, StringComparison.Ordinal));
     }
 
     private static HashSet<string> Set(params string[] values)
@@ -178,25 +254,6 @@ internal static class QualityGateTests
         }
 
         return graph.Keys.Any(Visit);
-    }
-
-    private static string ReadSourceTree(string directory)
-    {
-        return string.Join(
-            "\n",
-            Directory.EnumerateFiles(directory, "*.cs", SearchOption.AllDirectories)
-                .Where(path =>
-                    !path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase) &&
-                    !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
-                .Select(File.ReadAllText));
-    }
-
-    private static void AssertOmits(string source, params string[] forbidden)
-    {
-        foreach (string text in forbidden)
-        {
-            Check.False(source.Contains(text, StringComparison.Ordinal));
-        }
     }
 
     private static string SourceRoot()

@@ -567,7 +567,7 @@ internal static class OverlayColorMath
 
         float thresholdSeconds = Math.Max(1, settings.Overlay.DeltaGradientThresholdSeconds);
         float magnitude = Math.Min(1f, (float)(Math.Abs(delta.TotalSeconds) / thresholdSeconds));
-        float amount = DeltaGradientCurves.Evaluate(settings.Overlay.DeltaGradientCurve, magnitude);
+        float amount = DeltaGradientCurveMath.Evaluate(settings.Overlay.DeltaGradientCurve, magnitude);
         return delta < TimeSpan.Zero
             ? BlendColor(baseColor, aheadColor, amount)
             : BlendColor(baseColor, behindColor, amount);

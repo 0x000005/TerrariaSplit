@@ -2,30 +2,62 @@
   <PropertyGroup>
     <TerrariaSplitMemoryBridgeProject>$(MSBuildThisFileDirectory)..\..\TerrariaSplit.MemoryBridge\TerrariaSplit.MemoryBridge.csproj</TerrariaSplitMemoryBridgeProject>
     <TerrariaSplitMemoryBridgeProjectDirectory>$(MSBuildThisFileDirectory)..\..\TerrariaSplit.MemoryBridge\</TerrariaSplitMemoryBridgeProjectDirectory>
+    <TerrariaSplitMemoryBridgePayloadProject>$(MSBuildThisFileDirectory)..\..\TerrariaSplit.MemoryBridge.Payload\TerrariaSplit.MemoryBridge.Payload.csproj</TerrariaSplitMemoryBridgePayloadProject>
+    <TerrariaSplitMemoryBridgePayloadDirectory>$(MSBuildThisFileDirectory)..\..\TerrariaSplit.MemoryBridge.Payload\</TerrariaSplitMemoryBridgePayloadDirectory>
+    <TerrariaSplitMemoryBridgeBootstrapDirectory>$(MSBuildThisFileDirectory)..\..\TerrariaSplit.MemoryBridge.Bootstrap\</TerrariaSplitMemoryBridgeBootstrapDirectory>
     <TerrariaSplitMemoryBridgeTargetFramework>net10.0-windows</TerrariaSplitMemoryBridgeTargetFramework>
     <TerrariaSplitMemoryBridgeRuntimeIdentifier>win-x86</TerrariaSplitMemoryBridgeRuntimeIdentifier>
     <TerrariaSplitMemoryBridgePlatformTarget>x86</TerrariaSplitMemoryBridgePlatformTarget>
+    <_TerrariaSplitConfigurationLower>$([System.String]::Copy('$(Configuration)').ToLowerInvariant())</_TerrariaSplitConfigurationLower>
     <TerrariaSplitMemoryBridgeOutputSubdirectory>TerrariaSplit.MemoryBridge\</TerrariaSplitMemoryBridgeOutputSubdirectory>
-    <TerrariaSplitMemoryBridgeBuildOutputDirectory>$(TerrariaSplitMemoryBridgeProjectDirectory)bin\$(Configuration)\$(TerrariaSplitMemoryBridgeTargetFramework)\$(TerrariaSplitMemoryBridgeRuntimeIdentifier)\</TerrariaSplitMemoryBridgeBuildOutputDirectory>
-    <TerrariaSplitMemoryBridgePublishOutputDirectory>$(TerrariaSplitMemoryBridgeProjectDirectory)obj\TerrariaSplit.MemoryBridge\publish\$(Configuration)\$(TerrariaSplitMemoryBridgeRuntimeIdentifier)\</TerrariaSplitMemoryBridgePublishOutputDirectory>
-    <TerrariaSplitMemoryBridgeCommonProperties>Configuration=$(Configuration);TargetFramework=$(TerrariaSplitMemoryBridgeTargetFramework);RuntimeIdentifier=$(TerrariaSplitMemoryBridgeRuntimeIdentifier);PlatformTarget=$(TerrariaSplitMemoryBridgePlatformTarget)</TerrariaSplitMemoryBridgeCommonProperties>
+    <TerrariaSplitMemoryBridgeRuntimeSubdirectory>Runtime\MemoryBridge\</TerrariaSplitMemoryBridgeRuntimeSubdirectory>
+    <TerrariaSplitMemoryBridgeBuildOutputDirectory>$(ArtifactsPath)bin\TerrariaSplit.MemoryBridge\$(_TerrariaSplitConfigurationLower)_$(TerrariaSplitMemoryBridgeRuntimeIdentifier)\</TerrariaSplitMemoryBridgeBuildOutputDirectory>
+    <TerrariaSplitMemoryBridgePublishOutputDirectory>$(ArtifactsPath)obj\TerrariaSplit.MemoryBridge\publish\$(_TerrariaSplitConfigurationLower)_$(TerrariaSplitMemoryBridgeRuntimeIdentifier)\</TerrariaSplitMemoryBridgePublishOutputDirectory>
+    <TerrariaSplitMemoryBridgePayloadOutputDirectory>$(ArtifactsPath)bin\TerrariaSplit.MemoryBridge.Payload\$(_TerrariaSplitConfigurationLower)\</TerrariaSplitMemoryBridgePayloadOutputDirectory>
+    <TerrariaSplitMemoryBridgeCompatibilityManifest>$(TerrariaSplitMemoryBridgePayloadDirectory)terraria-compatibility.json</TerrariaSplitMemoryBridgeCompatibilityManifest>
+    <TerrariaSplitMemoryBridgeBootstrapOutputDirectory>$([System.IO.Path]::Combine('$(ArtifactsPath)', 'obj', 'TerrariaSplit.MemoryBridge.Bootstrap', '$(Configuration)'))</TerrariaSplitMemoryBridgeBootstrapOutputDirectory>
+    <TerrariaSplitMemoryBridgeBootstrapFile>$(TerrariaSplitMemoryBridgeBootstrapOutputDirectory)\TerrariaSplit.MemoryBridge.Bootstrap.dll</TerrariaSplitMemoryBridgeBootstrapFile>
+    <TerrariaSplitMemoryBridgeCommonProperties>Configuration=$(Configuration);TargetFramework=$(TerrariaSplitMemoryBridgeTargetFramework);RuntimeIdentifier=$(TerrariaSplitMemoryBridgeRuntimeIdentifier);PlatformTarget=$(TerrariaSplitMemoryBridgePlatformTarget);ArtifactsPath=$(ArtifactsPath)</TerrariaSplitMemoryBridgeCommonProperties>
     <TerrariaSplitMemoryBridgePublishProperties>$(TerrariaSplitMemoryBridgeCommonProperties);SelfContained=true;PublishSelfContained=true;PublishSingleFile=true;IncludeNativeLibrariesForSelfExtract=true;PublishTrimmed=false;DebugType=none;DebugSymbols=false</TerrariaSplitMemoryBridgePublishProperties>
   </PropertyGroup>
+
+  <ItemGroup>
+    <TerrariaSplitMemoryBridgeBootstrapInput Include="$(TerrariaSplitMemoryBridgeBootstrapDirectory)Bootstrap.cpp" />
+    <TerrariaSplitMemoryBridgeBootstrapInput Include="$(TerrariaSplitMemoryBridgeBootstrapDirectory)build-native.ps1" />
+  </ItemGroup>
+
+  <Target Name="TerrariaSplitBuildMemoryBridgeBootstrap"
+          BeforeTargets="Build"
+          Inputs="@(TerrariaSplitMemoryBridgeBootstrapInput)"
+          Outputs="$(TerrariaSplitMemoryBridgeBootstrapFile)"
+          Condition="'$(DesignTimeBuild)' != 'true' and '$(TerrariaSplitSkipMemoryBridge)' != 'true'">
+    <Exec Command="pwsh -NoProfile -File &quot;$(TerrariaSplitMemoryBridgeBootstrapDirectory)build-native.ps1&quot; -OutputDirectory &quot;$(TerrariaSplitMemoryBridgeBootstrapOutputDirectory)&quot; -Configuration $(Configuration)" />
+  </Target>
 
   <Target Name="TerrariaSplitCopyMemoryBridgeToOutput"
           AfterTargets="Build"
           Condition="'$(DesignTimeBuild)' != 'true' and '$(TerrariaSplitSkipMemoryBridge)' != 'true'">
     <ItemGroup>
       <TerrariaSplitMemoryBridgeBuiltFile Include="$(TerrariaSplitMemoryBridgeBuildOutputDirectory)**\*.*" />
+      <TerrariaSplitMemoryBridgeRuntimeFile Include="$(TerrariaSplitMemoryBridgePayloadOutputDirectory)TerrariaSplit.MemoryBridge.Payload.dll" />
+      <TerrariaSplitMemoryBridgeRuntimeFile Include="$(TerrariaSplitMemoryBridgePayloadOutputDirectory)0Harmony.dll" />
+      <TerrariaSplitMemoryBridgeRuntimeFile Include="$(TerrariaSplitMemoryBridgePayloadOutputDirectory)TerrariaSplit.Race.Determinism.dll" />
+      <TerrariaSplitMemoryBridgeRuntimeFile Include="$(TerrariaSplitMemoryBridgePayloadOutputDirectory)TerrariaSplit.Race.InGame.dll" />
+      <TerrariaSplitMemoryBridgeRuntimeFile Include="$(TerrariaSplitMemoryBridgeCompatibilityManifest)" />
+      <TerrariaSplitMemoryBridgeRuntimeFile Include="$(TerrariaSplitMemoryBridgeBootstrapFile)" />
     </ItemGroup>
 
     <Copy SourceFiles="@(TerrariaSplitMemoryBridgeBuiltFile)"
           DestinationFiles="@(TerrariaSplitMemoryBridgeBuiltFile->'$(TargetDir)$(TerrariaSplitMemoryBridgeOutputSubdirectory)%(RecursiveDir)%(Filename)%(Extension)')"
           SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(TerrariaSplitMemoryBridgeRuntimeFile)"
+          DestinationFiles="@(TerrariaSplitMemoryBridgeRuntimeFile->'$(TargetDir)$(TerrariaSplitMemoryBridgeRuntimeSubdirectory)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
   </Target>
 
   <Target Name="TerrariaSplitPublishMemoryBridge"
           BeforeTargets="ComputeFilesToPublish"
+          DependsOnTargets="TerrariaSplitBuildMemoryBridgeBootstrap"
           Condition="'$(DesignTimeBuild)' != 'true' and '$(TerrariaSplitSkipMemoryBridge)' != 'true'">
     <RemoveDir Directories="$(TerrariaSplitMemoryBridgePublishOutputDirectory)" />
 
@@ -39,6 +71,16 @@
         <RelativePath>%(Filename)%(Extension)</RelativePath>
         <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
       </ResolvedFileToPublish>
+      <TerrariaSplitMemoryBridgeRuntimeFile Include="$(TerrariaSplitMemoryBridgePayloadOutputDirectory)TerrariaSplit.MemoryBridge.Payload.dll" />
+      <TerrariaSplitMemoryBridgeRuntimeFile Include="$(TerrariaSplitMemoryBridgePayloadOutputDirectory)0Harmony.dll" />
+      <TerrariaSplitMemoryBridgeRuntimeFile Include="$(TerrariaSplitMemoryBridgePayloadOutputDirectory)TerrariaSplit.Race.Determinism.dll" />
+      <TerrariaSplitMemoryBridgeRuntimeFile Include="$(TerrariaSplitMemoryBridgePayloadOutputDirectory)TerrariaSplit.Race.InGame.dll" />
+      <TerrariaSplitMemoryBridgeRuntimeFile Include="$(TerrariaSplitMemoryBridgeCompatibilityManifest)" />
+      <TerrariaSplitMemoryBridgeRuntimeFile Include="$(TerrariaSplitMemoryBridgeBootstrapFile)" />
+      <ResolvedFileToPublish Include="@(TerrariaSplitMemoryBridgeRuntimeFile)">
+        <RelativePath>$(TerrariaSplitMemoryBridgeRuntimeSubdirectory)%(Filename)%(Extension)</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </ResolvedFileToPublish>
     </ItemGroup>
   </Target>
 
@@ -47,10 +89,19 @@
           Condition="'$(DesignTimeBuild)' != 'true' and '$(TerrariaSplitSkipMemoryBridge)' != 'true' and '$(PublishDir)' != ''">
     <ItemGroup>
       <TerrariaSplitMemoryBridgePublishedFile Include="$(TerrariaSplitMemoryBridgePublishOutputDirectory)TerrariaSplit.MemoryBridge.exe" />
+      <TerrariaSplitMemoryBridgeRuntimeFile Include="$(TerrariaSplitMemoryBridgePayloadOutputDirectory)TerrariaSplit.MemoryBridge.Payload.dll" />
+      <TerrariaSplitMemoryBridgeRuntimeFile Include="$(TerrariaSplitMemoryBridgePayloadOutputDirectory)0Harmony.dll" />
+      <TerrariaSplitMemoryBridgeRuntimeFile Include="$(TerrariaSplitMemoryBridgePayloadOutputDirectory)TerrariaSplit.Race.Determinism.dll" />
+      <TerrariaSplitMemoryBridgeRuntimeFile Include="$(TerrariaSplitMemoryBridgePayloadOutputDirectory)TerrariaSplit.Race.InGame.dll" />
+      <TerrariaSplitMemoryBridgeRuntimeFile Include="$(TerrariaSplitMemoryBridgeCompatibilityManifest)" />
+      <TerrariaSplitMemoryBridgeRuntimeFile Include="$(TerrariaSplitMemoryBridgeBootstrapFile)" />
     </ItemGroup>
 
     <Copy SourceFiles="@(TerrariaSplitMemoryBridgePublishedFile)"
           DestinationFiles="@(TerrariaSplitMemoryBridgePublishedFile->'$(PublishDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(TerrariaSplitMemoryBridgeRuntimeFile)"
+          DestinationFiles="@(TerrariaSplitMemoryBridgeRuntimeFile->'$(PublishDir)$(TerrariaSplitMemoryBridgeRuntimeSubdirectory)%(Filename)%(Extension)')"
           SkipUnchangedFiles="true" />
   </Target>
 </Project>

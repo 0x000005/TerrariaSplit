@@ -9,7 +9,8 @@ public static class RaceSplitReportFactory
     public static IReadOnlyList<RaceSplitReport> CreateProgressReports(
         string roomCode,
         string nickname,
-        IReadOnlyList<SplitStatusSnapshot> statuses)
+        IReadOnlyList<SplitStatusSnapshot> statuses,
+        DateTimeOffset reportedAtUtc)
     {
         var reports = new List<RaceSplitReport>();
         for (int splitIndex = 0; splitIndex < statuses.Count; splitIndex++)
@@ -25,48 +26,11 @@ public static class RaceSplitReportFactory
                 roomCode,
                 nickname,
                 splitIndex,
-                status);
+                status,
+                reportedAtUtc);
         }
 
         return reports;
-    }
-
-    public static bool TryCreate(
-        string roomCode,
-        string nickname,
-        int splitIndex,
-        IReadOnlyList<SplitStatusSnapshot> statuses,
-        out RaceSplitReport report)
-    {
-        report = default!;
-        if (splitIndex < 0 || splitIndex >= statuses.Count)
-        {
-            return false;
-        }
-
-        SplitStatusSnapshot status = statuses[splitIndex];
-        if (status.Time is not TimeSpan elapsed)
-        {
-            return false;
-        }
-
-        SplitTargetDefinition? completedTarget = ResolveCompletedTarget(status);
-        int conditionIndex = ResolveCompletedConditionIndex(status);
-        report = new RaceSplitReport(
-            roomCode,
-            nickname,
-            splitIndex,
-            status.Definition.Id,
-            (long)Math.Round(elapsed.TotalMilliseconds),
-            DateTimeOffset.UtcNow,
-            ConditionIndex: conditionIndex,
-            FactKey: ResolveCompletedFactKey(status),
-            TargetId: completedTarget?.Id,
-            IconFileName: ResolveConditionIconFileName(status.Definition, completedTarget, conditionIndex) ??
-                ResolveFallbackIconFileName(status),
-            IconDisplayName: completedTarget?.DisplayName,
-            IsSplitComplete: true);
-        return true;
     }
 
     public static string CreateProgressKey(RaceSplitReport report)
@@ -83,11 +47,12 @@ public static class RaceSplitReportFactory
         string roomCode,
         string nickname,
         int splitIndex,
-        SplitStatusSnapshot status)
+        SplitStatusSnapshot status,
+        DateTimeOffset reportedAtUtc)
     {
         if (!IsMultiIconProgressDefinition(status.Definition))
         {
-            AddCompletedSplitReport(reports, roomCode, nickname, splitIndex, status);
+            AddCompletedSplitReport(reports, roomCode, nickname, splitIndex, status, reportedAtUtc);
             return;
         }
 
@@ -114,7 +79,7 @@ public static class RaceSplitReportFactory
                 splitIndex,
                 status.Definition.Id,
                 (long)Math.Round(completion.TotalMilliseconds),
-                ReportedAtUtc: DateTimeOffset.UtcNow,
+                ReportedAtUtc: reportedAtUtc,
                 ConditionIndex: conditionIndex,
                 FactKey: fact.FactKey,
                 TargetId: target?.Id,
@@ -124,7 +89,7 @@ public static class RaceSplitReportFactory
                 IsSplitComplete: isSplitComplete));
         }
 
-        AddCompletedSplitReport(reports, roomCode, nickname, splitIndex, status);
+        AddCompletedSplitReport(reports, roomCode, nickname, splitIndex, status, reportedAtUtc);
     }
 
     private static void AddCompletedSplitReport(
@@ -132,7 +97,8 @@ public static class RaceSplitReportFactory
         string roomCode,
         string nickname,
         int splitIndex,
-        SplitStatusSnapshot status)
+        SplitStatusSnapshot status,
+        DateTimeOffset reportedAtUtc)
     {
         if (reports.Any(report =>
                 report.SplitIndex == splitIndex &&
@@ -150,7 +116,7 @@ public static class RaceSplitReportFactory
             splitIndex,
             status.Definition.Id,
             (long)Math.Round(elapsed.TotalMilliseconds),
-            ReportedAtUtc: DateTimeOffset.UtcNow,
+            ReportedAtUtc: reportedAtUtc,
             ConditionIndex: 0,
             FactKey: ResolveCompletedFactKey(status),
             TargetId: fallbackTarget?.Id,

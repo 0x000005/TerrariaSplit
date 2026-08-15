@@ -157,7 +157,7 @@ public sealed class SplitTimeSetRepository
         }
         catch (Exception ex)
         {
-            StaticAppLogger.Instance.Error(ex, "Failed to load embedded default WR reference times.");
+            FileAppLogger.Instance.Error(ex, "Failed to load embedded default WR reference times.");
         }
 
         return ReferenceSplitSetService.CreateReferenceSet("WR");
@@ -228,7 +228,7 @@ public sealed class SplitTimeSetRepository
         }
         catch (Exception ex)
         {
-            StaticAppLogger.Instance.Error(ex, $"Failed to load split time set: {path}");
+            FileAppLogger.Instance.Error(ex, $"Failed to load split time set: {path}");
             return null;
         }
     }
@@ -273,7 +273,7 @@ public sealed class SplitTimeSetRepository
                 }
                 catch (Exception ex)
                 {
-                    StaticAppLogger.Instance.Error(ex, $"Failed to delete old split time set: {path}");
+                    FileAppLogger.Instance.Error(ex, $"Failed to delete old split time set: {path}");
                     return OperationResult.Failure(
                         $"Failed to remove obsolete {description} '{path}'.",
                         ex);
@@ -284,7 +284,7 @@ public sealed class SplitTimeSetRepository
         }
         catch (Exception ex)
         {
-            StaticAppLogger.Instance.Error(ex, $"Failed to save {description} collection: {directory}");
+            FileAppLogger.Instance.Error(ex, $"Failed to save {description} collection: {directory}");
             return OperationResult.Failure(
                 $"Failed to save {description} collection in '{directory}'.",
                 ex);
@@ -319,7 +319,7 @@ public sealed class SplitTimeSetRepository
         }
         catch (Exception ex)
         {
-            StaticAppLogger.Instance.Error(ex, $"Failed to save {description} collection: {directory}");
+            FileAppLogger.Instance.Error(ex, $"Failed to save {description} collection: {directory}");
             return OperationResult.Failure(
                 $"Failed to save {description} collection in '{directory}'.",
                 ex);
@@ -367,7 +367,7 @@ public sealed class SplitTimeSetRepository
         }
         catch (Exception ex)
         {
-            StaticAppLogger.Instance.Error(ex, $"Failed to save {description}: {directory}");
+            FileAppLogger.Instance.Error(ex, $"Failed to save {description}: {directory}");
             snapshot = null;
             return OperationResult.Failure($"Failed to save {description}.", ex);
         }

@@ -186,7 +186,7 @@ internal sealed class WorldCreationMenuDriver
 
         if (preScreenResult.Status == PyramidSeedPreScreenAutomationStatus.ContinueWithoutPreScreen)
         {
-            StaticAppLogger.Instance.Info($"Create world automation will continue without 1.4.4.9 pyramid seed pre-screen result: {preScreenResult.Detail}");
+            FileAppLogger.Instance.Info($"Create world automation will continue without 1.4.4.9 pyramid seed pre-screen result: {preScreenResult.Detail}");
         }
 
         string worldSeed = BuildLegacy1449WorldSeed(settings);
@@ -206,14 +206,14 @@ internal sealed class WorldCreationMenuDriver
         CancellationToken cancellationToken)
     {
         long startedTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
-        StaticAppLogger.Instance.Info("Create world automation dispatching Terraria final create-world click.");
+        FileAppLogger.Instance.Info("Create world automation dispatching Terraria final create-world click.");
         bool clicked = await automation.ClickAsync(
             "create world",
             geometry.CreateWorldButton(),
             shortActionDelay,
             cancellationToken);
         TimeSpan elapsed = System.Diagnostics.Stopwatch.GetElapsedTime(startedTimestamp);
-        StaticAppLogger.Instance.Info(
+        FileAppLogger.Instance.Info(
             $"Create world automation final create-world click returned; clicked={clicked}, elapsedMs={elapsed.TotalMilliseconds:F0}.");
         return clicked;
     }
@@ -231,7 +231,7 @@ internal sealed class WorldCreationMenuDriver
 
         if (settings.PreserveExistingSaves)
         {
-            StaticAppLogger.Instance.Info(
+            FileAppLogger.Instance.Info(
                 "Create world automation preserved the rejected world before retrying from world select.");
             return true;
         }
@@ -249,7 +249,7 @@ internal sealed class WorldCreationMenuDriver
             return false;
         }
 
-        StaticAppLogger.Instance.Info(
+        FileAppLogger.Instance.Info(
             $"Create world automation removed {cleanup.MovedWorlds} non-favorite world(s) " +
             $"before retrying from world select; favoriteWorlds={cleanup.FavoriteWorlds}.");
         return true;
@@ -347,17 +347,17 @@ internal sealed class WorldCreationMenuDriver
     {
         if (!TerrariaLegacy1449SeedText.TryBuild(settings, out string seedText, out string detail))
         {
-            StaticAppLogger.Instance.Info($"Create world automation could not build 1.4.4.9 seed text: {detail}");
+            FileAppLogger.Instance.Info($"Create world automation could not build 1.4.4.9 seed text: {detail}");
             return string.Empty;
         }
 
         if (string.IsNullOrWhiteSpace(seedText))
         {
-            StaticAppLogger.Instance.Info("Create world automation will leave the 1.4.4.9 seed field unchanged so Terraria keeps its random seed.");
+            FileAppLogger.Instance.Info("Create world automation will leave the 1.4.4.9 seed field unchanged so Terraria keeps its random seed.");
             return string.Empty;
         }
 
-        StaticAppLogger.Instance.Info($"Create world automation will submit seed text through the 1.4.4.9 world seed field: {detail}");
+        FileAppLogger.Instance.Info($"Create world automation will submit seed text through the 1.4.4.9 world seed field: {detail}");
         return seedText;
     }
 
@@ -397,7 +397,7 @@ internal sealed class WorldCreationMenuDriver
 
         if (preScreenResult.Status == PyramidSeedPreScreenAutomationStatus.ContinueWithoutPreScreen)
         {
-            StaticAppLogger.Instance.Info($"Create world automation will continue without pyramid seed pre-screen result: {preScreenResult.Detail}");
+            FileAppLogger.Instance.Info($"Create world automation will continue without pyramid seed pre-screen result: {preScreenResult.Detail}");
         }
 
         if (!windowActivation.TryReactivate(
@@ -424,7 +424,7 @@ internal sealed class WorldCreationMenuDriver
         {
             if (!AutoCreateSpecialWorldSeed.TryNormalize(rawSeed, out string specialSeed))
             {
-                StaticAppLogger.Instance.Info($"Create world automation found an unknown special seed: {rawSeed}");
+                FileAppLogger.Instance.Info($"Create world automation found an unknown special seed: {rawSeed}");
                 RecordFailure(AutomationResult.Failure(
                     $"Unknown Terraria special seed: {rawSeed}",
                     $"Create world automation found an unknown special seed: {rawSeed}"));
@@ -510,7 +510,7 @@ internal sealed class WorldCreationMenuDriver
             players,
             createdPlayerFileName,
             fallbackIndex);
-        StaticAppLogger.Instance.Info(
+        FileAppLogger.Instance.Info(
             $"Create world automation selected player index {resolvedIndex}; " +
             $"profile={geometry.Profile.Kind}, createdFile={createdPlayerFileName ?? "<unknown>"}, " +
             $"playerCount={players.Count}, fallbackIndex={fallbackIndex}.");
@@ -620,7 +620,7 @@ internal sealed class WorldCreationMenuDriver
             await automation.DelayAsync(SavePollInterval, cancellationToken);
         }
 
-        StaticAppLogger.Instance.Info($"Create world automation {step} was not created or updated.");
+        FileAppLogger.Instance.Info($"Create world automation {step} was not created or updated.");
         return false;
     }
 }

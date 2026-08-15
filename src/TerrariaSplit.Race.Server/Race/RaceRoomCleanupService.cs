@@ -13,26 +13,29 @@ public sealed class RaceRoomCleanupService : BackgroundService
     private readonly RaceWorldUploadCoordinator worldUploads;
     private readonly IHubContext<RaceHub> hubContext;
     private readonly ILogger<RaceRoomCleanupService> logger;
+    private readonly TimeProvider timeProvider;
 
     public RaceRoomCleanupService(
         RaceRoomManager rooms,
         RaceWorldUploadCoordinator worldUploads,
         IHubContext<RaceHub> hubContext,
-        ILogger<RaceRoomCleanupService> logger)
+        ILogger<RaceRoomCleanupService> logger,
+        TimeProvider timeProvider)
     {
         this.rooms = rooms;
         this.worldUploads = worldUploads;
         this.hubContext = hubContext;
         this.logger = logger;
+        this.timeProvider = timeProvider;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        using var timer = new PeriodicTimer(ScanInterval);
+        using var timer = new PeriodicTimer(ScanInterval, timeProvider);
         while (await timer.WaitForNextTickAsync(stoppingToken))
         {
             IReadOnlyList<RaceRoomState> closed = rooms.CloseInactiveRooms(
-                DateTimeOffset.UtcNow - MaximumIdleTime);
+                timeProvider.GetUtcNow() - MaximumIdleTime);
             foreach (RaceRoomState state in closed)
             {
                 try
