@@ -105,17 +105,23 @@ internal static class RaceFlowTests
 
         (RaceBossPenaltyKind Kind, int Life, int MaximumLife, int GameMode, long Expected)[] cases =
         [
-            (RaceBossPenaltyKind.Skeletron, 50, 100, 0, 150_000L),
-            (RaceBossPenaltyKind.Skeletron, 50, 100, 1, 180_000L),
-            (RaceBossPenaltyKind.Skeletron, 50, 100, 2, 225_000L),
-            (RaceBossPenaltyKind.Skeletron, 50, 100, 3, 150_000L),
+            (RaceBossPenaltyKind.Skeletron, 50, 100, 0, 210_000L),
+            (RaceBossPenaltyKind.Skeletron, 50, 100, 1, 252_000L),
+            (RaceBossPenaltyKind.Skeletron, 50, 100, 2, 315_000L),
+            (RaceBossPenaltyKind.Skeletron, 50, 100, 3, 210_000L),
             (RaceBossPenaltyKind.Skeletron, 150, 100, 0, 300_000L),
-            (RaceBossPenaltyKind.WallOfFlesh, 50, 100, 0, 210_000L),
-            (RaceBossPenaltyKind.WallOfFlesh, 50, 100, 1, 252_000L),
-            (RaceBossPenaltyKind.WallOfFlesh, 50, 100, 2, 315_000L),
-            (RaceBossPenaltyKind.WallOfFlesh, 50, 100, 3, 210_000L),
-            (RaceBossPenaltyKind.WallOfFlesh, 150, 100, 0, 300_000L),
-            (RaceBossPenaltyKind.WallOfFlesh, 0, 100, 2, 0L)
+            (RaceBossPenaltyKind.WallOfFlesh, 50, 100, 0, 240_000L),
+            (RaceBossPenaltyKind.WallOfFlesh, 50, 100, 1, 288_000L),
+            (RaceBossPenaltyKind.WallOfFlesh, 50, 100, 2, 360_000L),
+            (RaceBossPenaltyKind.WallOfFlesh, 50, 100, 3, 240_000L),
+            (RaceBossPenaltyKind.WallOfFlesh, 150, 100, 0, 360_000L),
+            (RaceBossPenaltyKind.WallOfFlesh, 0, 100, 2, 0L),
+            (RaceBossPenaltyKind.SkeletronPrime, 50, 100, 0, 180_000L),
+            (RaceBossPenaltyKind.Twins, 50, 100, 0, 210_000L),
+            (RaceBossPenaltyKind.Destroyer, 50, 100, 0, 150_000L),
+            (RaceBossPenaltyKind.Plantera, 50, 100, 0, 300_000L),
+            (RaceBossPenaltyKind.Golem, 50, 100, 0, 300_000L),
+            (RaceBossPenaltyKind.LunaticCultist, 50, 100, 0, 300_000L)
         ];
         foreach ((RaceBossPenaltyKind kind, int life, int maximumLife, int gameMode, long expected) in cases)
         {
@@ -126,12 +132,19 @@ internal static class RaceFlowTests
 
         Check.True(RaceBossPenalty.IsValidMilliseconds(RaceBossPenaltyKind.Skeletron, 450_000L));
         Check.False(RaceBossPenalty.IsValidMilliseconds(RaceBossPenaltyKind.Skeletron, 450_001L));
-        Check.True(RaceBossPenalty.IsValidMilliseconds(RaceBossPenaltyKind.WallOfFlesh, 450_000L));
-        Check.False(RaceBossPenalty.IsValidMilliseconds(RaceBossPenaltyKind.WallOfFlesh, 450_001L));
+        Check.True(RaceBossPenalty.IsValidMilliseconds(RaceBossPenaltyKind.WallOfFlesh, 540_000L));
+        Check.False(RaceBossPenalty.IsValidMilliseconds(RaceBossPenaltyKind.WallOfFlesh, 540_001L));
+        Check.True(RaceBossPenalty.IsValidMilliseconds(RaceBossPenaltyKind.Plantera, 630_000L));
+        Check.False(RaceBossPenalty.IsValidMilliseconds(RaceBossPenaltyKind.Plantera, 630_001L));
+        RaceBossPenaltyKind penaltyKinds =
+            RaceBossPenaltyKind.WallOfFlesh |
+            RaceBossPenaltyKind.Twins;
+        Check.True(RaceBossPenalty.IsValidMilliseconds(penaltyKinds, 990_000L));
+        Check.False(RaceBossPenalty.IsValidMilliseconds(penaltyKinds, 990_001L));
         string penaltyAction = RaceBossPenalty.CreateActionValue(
-            RaceBossPenaltyKind.WallOfFlesh,
+            penaltyKinds,
             "CURRENT",
-            315_000L,
+            600_000L,
             17L);
         Check.True(RaceBossPenalty.TryParseActionValue(
             penaltyAction,
@@ -139,8 +152,8 @@ internal static class RaceFlowTests
             out RaceBossPenaltyKind parsedKind,
             out long parsedPenalty,
             out long parsedSettlementId));
-        Check.Equal(RaceBossPenaltyKind.WallOfFlesh, parsedKind);
-        Check.Equal(315_000L, parsedPenalty);
+        Check.Equal(penaltyKinds, parsedKind);
+        Check.Equal(600_000L, parsedPenalty);
         Check.Equal(17L, parsedSettlementId);
         Check.False(RaceBossPenalty.TryParseActionValue(
             penaltyAction,

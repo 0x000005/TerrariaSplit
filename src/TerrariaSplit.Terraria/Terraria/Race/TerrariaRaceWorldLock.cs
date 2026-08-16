@@ -115,7 +115,7 @@ internal interface ITerrariaRaceWorldLockService
         CancellationToken cancellationToken = default);
 
     Task<TerrariaRaceWorldLockResult> SettleBossPenaltyAsync(
-        RaceBossPenaltyKind kind,
+        RaceBossPenaltyKind kinds,
         string packageDigest,
         long settlementId,
         CancellationToken cancellationToken = default);
@@ -332,12 +332,12 @@ internal sealed class TerrariaRaceWorldLockService : ITerrariaRaceWorldLockServi
     }
 
     public async Task<TerrariaRaceWorldLockResult> SettleBossPenaltyAsync(
-        RaceBossPenaltyKind kind,
+        RaceBossPenaltyKind kinds,
         string packageDigest,
         long settlementId,
         CancellationToken cancellationToken = default)
     {
-        if (!RaceBossPenalty.IsSupportedKind(kind) ||
+        if (!RaceBossPenalty.AreSupportedKinds(kinds) ||
             string.IsNullOrWhiteSpace(packageDigest) ||
             settlementId <= 0L)
         {
@@ -356,7 +356,7 @@ internal sealed class TerrariaRaceWorldLockService : ITerrariaRaceWorldLockServi
             string command = string.Join(
                 '\n',
                 "settle-race-boss",
-                ((int)kind).ToString(CultureInfo.InvariantCulture),
+                ((int)kinds).ToString(CultureInfo.InvariantCulture),
                 packageDigest,
                 settlementId.ToString(CultureInfo.InvariantCulture));
             return await SendPipeCommandAsync(

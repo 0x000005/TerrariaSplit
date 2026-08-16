@@ -733,6 +733,10 @@ namespace TerrariaSplit.MemoryBridge.Payload
                 Type mainType = terraria.GetType("Terraria.Main", false);
                 Type playerType = terraria.GetType("Terraria.Player", false);
                 Type npcType = terraria.GetType("Terraria.NPC", false);
+                Type itemType = terraria.GetType("Terraria.Item", false);
+                Type entitySourceType = terraria.GetType("Terraria.DataStructures.IEntitySource", false);
+                Type playerSpawnContextType = terraria.GetType("Terraria.PlayerSpawnContext", false);
+                Type teleportHelpersType = terraria.GetType("Terraria.GameContent.TeleportHelpers", false);
                 Type playerDeathReasonType = terraria.GetType(
                     "Terraria.DataStructures.PlayerDeathReason",
                     false);
@@ -744,7 +748,9 @@ namespace TerrariaSplit.MemoryBridge.Payload
                 Type uiListType = terraria.GetType("Terraria.GameContent.UI.Elements.UIList", false);
                 Type uiElementType = terraria.GetType("Terraria.UI.UIElement", false);
                 Type snapPointType = terraria.GetType("Terraria.UI.SnapPoint", false);
-                if (mainType == null || playerType == null || npcType == null || playerDeathReasonType == null ||
+                if (mainType == null || playerType == null || npcType == null || itemType == null ||
+                    entitySourceType == null || playerSpawnContextType == null || teleportHelpersType == null ||
+                    playerDeathReasonType == null ||
                     playerFileDataType == null || worldFileDataType == null ||
                     characterListItemType == null || worldListItemType == null || panelType == null ||
                     uiListType == null || uiElementType == null || snapPointType == null)
@@ -784,15 +790,27 @@ namespace TerrariaSplit.MemoryBridge.Payload
                     new[] { playerDeathReasonType, typeof(double), typeof(int), typeof(bool) },
                     null);
                 MethodInfo npcCheckActiveMethod;
+                MethodInfo npcEncourageDespawnMethod;
+                MethodInfo deathInterfaceDrawMethod;
                 MethodInfo npcCheckDeadMethod;
                 MethodInfo npcAiMethod;
+                MethodInfo playerSpawnMethod;
+                MethodInfo itemNewItemMethod;
                 if (!TryResolveRaceBossPenaltyMembers(
                         mainType,
                         playerType,
                         npcType,
+                        itemType,
+                        entitySourceType,
+                        playerSpawnContextType,
+                        teleportHelpersType,
                         out npcCheckActiveMethod,
+                        out npcEncourageDespawnMethod,
+                        out deathInterfaceDrawMethod,
                         out npcCheckDeadMethod,
-                        out npcAiMethod))
+                        out npcAiMethod,
+                        out playerSpawnMethod,
+                        out itemNewItemMethod))
                 {
                     return 14;
                 }
@@ -823,8 +841,10 @@ namespace TerrariaSplit.MemoryBridge.Payload
                         method.GetParameters().Length == 1 &&
                         method.GetParameters()[0].ParameterType.FullName == "Microsoft.Xna.Framework.Graphics.SpriteBatch");
                 if (worldRejectionMethod == null || selectPlayerMethod == null ||
-                    playerKillMeMethod == null ||
+                    playerKillMeMethod == null || playerSpawnMethod == null || itemNewItemMethod == null ||
                     npcCheckActiveMethod == null || npcCheckDeadMethod == null ||
+                    npcEncourageDespawnMethod == null ||
+                    deathInterfaceDrawMethod == null ||
                     characterListCompareMethod == null || worldListCompareMethod == null ||
                     characterListDrawMethod == null || worldListDrawMethod == null ||
                     characterListCompareMethod.DeclaringType != characterListItemType ||
@@ -916,22 +936,46 @@ namespace TerrariaSplit.MemoryBridge.Payload
                 MethodInfo playerKillMePostfix = typeof(EntryPoint).GetMethod(
                     "PlayerKillMePostfix",
                     BindingFlags.Static | BindingFlags.NonPublic);
-                MethodInfo skeletronCheckActivePrefix = typeof(EntryPoint).GetMethod(
-                    "SkeletronCheckActivePrefix",
+                MethodInfo raceBossCheckActivePrefix = typeof(EntryPoint).GetMethod(
+                    "RaceBossCheckActivePrefix",
                     BindingFlags.Static | BindingFlags.NonPublic);
-                MethodInfo wallOfFleshAiPrefix = typeof(EntryPoint).GetMethod(
-                    "WallOfFleshAiPrefix",
+                MethodInfo racePlanteraCheckActivePrefix = typeof(EntryPoint).GetMethod(
+                    "RacePlanteraCheckActivePrefix",
+                    BindingFlags.Static | BindingFlags.NonPublic);
+                MethodInfo racePlanteraCheckActiveFinalizer = typeof(EntryPoint).GetMethod(
+                    "RacePlanteraCheckActiveFinalizer",
+                    BindingFlags.Static | BindingFlags.NonPublic);
+                MethodInfo raceBossEncourageDespawnPrefix = typeof(EntryPoint).GetMethod(
+                    "RaceBossEncourageDespawnPrefix",
+                    BindingFlags.Static | BindingFlags.NonPublic);
+                MethodInfo raceBossAiPrefix = typeof(EntryPoint).GetMethod(
+                    "RaceBossAiPrefix",
                     BindingFlags.Static | BindingFlags.NonPublic);
                 MethodInfo raceBossCheckDeadPostfix = typeof(EntryPoint).GetMethod(
                     "RaceBossCheckDeadPostfix",
+                    BindingFlags.Static | BindingFlags.NonPublic);
+                MethodInfo racePlayerSpawnPostfix = typeof(EntryPoint).GetMethod(
+                    "RacePlayerSpawnPostfix",
+                    BindingFlags.Static | BindingFlags.NonPublic);
+                MethodInfo raceBossLootPositionPrefix = typeof(EntryPoint).GetMethod(
+                    "RaceBossLootPositionPrefix",
+                    BindingFlags.Static | BindingFlags.NonPublic);
+                MethodInfo raceBossDeathInterfacePostfix = typeof(EntryPoint).GetMethod(
+                    "RaceBossDeathInterfacePostfix",
                     BindingFlags.Static | BindingFlags.NonPublic);
                 if (worldPrefix == null || multiplayerPrefix == null ||
                     characterListComparePrefix == null || worldListComparePrefix == null ||
                     characterListDrawPrefix == null || worldListDrawPrefix == null ||
                     playerKillMePostfix == null ||
-                    skeletronCheckActivePrefix == null ||
-                    wallOfFleshAiPrefix == null ||
-                    raceBossCheckDeadPostfix == null)
+                    raceBossCheckActivePrefix == null ||
+                    racePlanteraCheckActivePrefix == null ||
+                    racePlanteraCheckActiveFinalizer == null ||
+                    raceBossEncourageDespawnPrefix == null ||
+                    raceBossAiPrefix == null ||
+                    raceBossCheckDeadPostfix == null ||
+                    racePlayerSpawnPostfix == null ||
+                    raceBossLootPositionPrefix == null ||
+                    raceBossDeathInterfacePostfix == null)
                 {
                     return 17;
                 }
@@ -946,9 +990,13 @@ namespace TerrariaSplit.MemoryBridge.Payload
                     characterListDrawMethod,
                     worldListDrawMethod,
                     playerKillMeMethod,
+                    playerSpawnMethod,
                     npcCheckActiveMethod,
                     npcAiMethod,
-                    npcCheckDeadMethod
+                    npcEncourageDespawnMethod,
+                    npcCheckDeadMethod,
+                    itemNewItemMethod,
+                    deathInterfaceDrawMethod
                 };
                 int installResult = InstallPatchSet(
                     harmony,
@@ -965,14 +1013,30 @@ namespace TerrariaSplit.MemoryBridge.Payload
                             playerKillMeMethod,
                             postfix: new HarmonyMethod(playerKillMePostfix));
                         harmony.Patch(
+                            playerSpawnMethod,
+                            postfix: new HarmonyMethod(racePlayerSpawnPostfix));
+                        harmony.Patch(
                             npcCheckActiveMethod,
-                            prefix: new HarmonyMethod(skeletronCheckActivePrefix));
+                            prefix: new HarmonyMethod(raceBossCheckActivePrefix));
+                        harmony.Patch(
+                            npcCheckActiveMethod,
+                            prefix: new HarmonyMethod(racePlanteraCheckActivePrefix),
+                            finalizer: new HarmonyMethod(racePlanteraCheckActiveFinalizer));
+                        harmony.Patch(
+                            npcEncourageDespawnMethod,
+                            prefix: new HarmonyMethod(raceBossEncourageDespawnPrefix));
                         harmony.Patch(
                             npcAiMethod,
-                            prefix: new HarmonyMethod(wallOfFleshAiPrefix));
+                            prefix: new HarmonyMethod(raceBossAiPrefix));
                         harmony.Patch(
                             npcCheckDeadMethod,
                             postfix: new HarmonyMethod(raceBossCheckDeadPostfix));
+                        harmony.Patch(
+                            itemNewItemMethod,
+                            prefix: new HarmonyMethod(raceBossLootPositionPrefix));
+                        harmony.Patch(
+                            deathInterfaceDrawMethod,
+                            postfix: new HarmonyMethod(raceBossDeathInterfacePostfix));
                     },
                     () => HasOwnedPrefix(worldRejectionMethod) &&
                         HasOwnedPrefix(selectPlayerMethod) &&
@@ -981,9 +1045,14 @@ namespace TerrariaSplit.MemoryBridge.Payload
                         HasOwnedPrefix(characterListDrawMethod) &&
                         HasOwnedPrefix(worldListDrawMethod) &&
                         HasOwnedPostfix(playerKillMeMethod) &&
+                        HasOwnedPostfix(playerSpawnMethod) &&
                         HasOwnedPrefix(npcCheckActiveMethod) &&
                         HasOwnedPrefix(npcAiMethod) &&
-                        HasOwnedPostfix(npcCheckDeadMethod),
+                        HasOwnedFinalizer(npcCheckActiveMethod) &&
+                        HasOwnedPrefix(npcEncourageDespawnMethod) &&
+                        HasOwnedPostfix(npcCheckDeadMethod) &&
+                        HasOwnedPrefix(itemNewItemMethod) &&
+                        HasOwnedPostfix(deathInterfaceDrawMethod),
                     18);
                 if (installResult != 0)
                 {

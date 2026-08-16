@@ -293,7 +293,7 @@ internal sealed partial class RaceShell
             !RaceBossPenalty.TryParseActionValue(
                 value,
                 packageDigest,
-                out RaceBossPenaltyKind kind,
+                out RaceBossPenaltyKind kinds,
                 out long penaltyMilliseconds,
                 out long settlementId))
         {
@@ -309,7 +309,7 @@ internal sealed partial class RaceShell
         }
 
         TerrariaRaceWorldLockResult settled = await worldLock.SettleBossPenaltyAsync(
-            kind,
+            kinds,
             packageDigest,
             settlementId,
             cancellationToken).ConfigureAwait(false);

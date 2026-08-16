@@ -3,18 +3,32 @@ using System.Globalization;
 
 namespace TerrariaSplit.Race.InGame
 {
+    [Flags]
     internal enum RaceBossPenaltyKind
     {
         Skeletron = 1,
-        WallOfFlesh = 2
+        WallOfFlesh = 2,
+        SkeletronPrime = 4,
+        Twins = 8,
+        Destroyer = 16,
+        Plantera = 32,
+        Golem = 64,
+        LunaticCultist = 128
     }
 
     internal static class RaceBossPenalty
     {
         public const string ActionControlId = "race-boss-penalty";
-        public const long SkeletronProportionalPenaltyMilliseconds = 5L * 60L * 1000L;
-        public const long WallOfFleshBasePenaltyMilliseconds = 2L * 60L * 1000L;
-        public const long WallOfFleshProportionalPenaltyMilliseconds = 3L * 60L * 1000L;
+        private const long MinuteMilliseconds = 60L * 1000L;
+        private const RaceBossPenaltyKind AllKinds =
+            RaceBossPenaltyKind.Skeletron |
+            RaceBossPenaltyKind.WallOfFlesh |
+            RaceBossPenaltyKind.SkeletronPrime |
+            RaceBossPenaltyKind.Twins |
+            RaceBossPenaltyKind.Destroyer |
+            RaceBossPenaltyKind.Plantera |
+            RaceBossPenaltyKind.Golem |
+            RaceBossPenaltyKind.LunaticCultist;
 
         public static long CalculateMilliseconds(
             RaceBossPenaltyKind kind,
@@ -43,38 +57,51 @@ namespace TerrariaSplit.Race.InGame
             }
 
             double remainingRatio = Math.Min(1d, currentLife / (double)maximumLife);
-            long basePenalty = kind == RaceBossPenaltyKind.WallOfFlesh
-                ? WallOfFleshBasePenaltyMilliseconds
-                : 0L;
-            long proportionalPenalty = kind == RaceBossPenaltyKind.WallOfFlesh
-                ? WallOfFleshProportionalPenaltyMilliseconds
-                : SkeletronProportionalPenaltyMilliseconds;
+            GetPenaltyMinutes(kind, out int baseMinutes, out int proportionalMinutes);
             return (long)Math.Round(
-                (basePenalty + proportionalPenalty * remainingRatio) *
+                (baseMinutes * MinuteMilliseconds +
+                    proportionalMinutes * MinuteMilliseconds * remainingRatio) *
                 difficultyMultiplier,
                 MidpointRounding.AwayFromZero);
         }
 
         public static bool IsValidMilliseconds(RaceBossPenaltyKind kind, long milliseconds)
         {
-            if (!IsSupportedKind(kind) || milliseconds <= 0L)
+            if (!AreSupportedKinds(kind) || milliseconds <= 0L)
             {
                 return false;
             }
 
-            long maximum = kind == RaceBossPenaltyKind.WallOfFlesh
-                ? WallOfFleshBasePenaltyMilliseconds +
-                    WallOfFleshProportionalPenaltyMilliseconds
-                : SkeletronProportionalPenaltyMilliseconds;
+            long maximum = 0L;
+            int value = (int)kind;
+            for (int bit = 1; bit <= (int)RaceBossPenaltyKind.LunaticCultist; bit <<= 1)
+            {
+                if ((value & bit) == 0)
+                {
+                    continue;
+                }
 
-            maximum = maximum * 3L / 2L;
+                GetPenaltyMinutes(
+                    (RaceBossPenaltyKind)bit,
+                    out int baseMinutes,
+                    out int proportionalMinutes);
+                maximum = checked(
+                    maximum +
+                    (baseMinutes + proportionalMinutes) * MinuteMilliseconds * 3L / 2L);
+            }
+
             return milliseconds <= maximum;
         }
 
         public static bool IsSupportedKind(RaceBossPenaltyKind kind)
         {
-            return kind == RaceBossPenaltyKind.Skeletron ||
-                kind == RaceBossPenaltyKind.WallOfFlesh;
+            int value = (int)kind;
+            return AreSupportedKinds(kind) && (value & (value - 1)) == 0;
+        }
+
+        public static bool AreSupportedKinds(RaceBossPenaltyKind kinds)
+        {
+            return kinds != 0 && (kinds & ~AllKinds) == 0;
         }
 
         public static string CreateActionValue(
@@ -83,7 +110,7 @@ namespace TerrariaSplit.Race.InGame
             long milliseconds,
             long settlementId)
         {
-            if (!IsSupportedKind(kind) ||
+            if (!AreSupportedKinds(kind) ||
                 string.IsNullOrWhiteSpace(packageDigest) ||
                 !IsValidMilliseconds(kind, milliseconds) ||
                 settlementId <= 0L)
@@ -118,7 +145,7 @@ namespace TerrariaSplit.Race.InGame
                     NumberStyles.None,
                     CultureInfo.InvariantCulture,
                     out int parsedKind) ||
-                !IsSupportedKind((RaceBossPenaltyKind)parsedKind) ||
+                !AreSupportedKinds((RaceBossPenaltyKind)parsedKind) ||
                 !string.Equals(
                     parts[1],
                     expectedPackageDigest,
@@ -143,6 +170,44 @@ namespace TerrariaSplit.Race.InGame
             milliseconds = parsed;
             settlementId = parsedSettlementId;
             return true;
+        }
+
+        private static void GetPenaltyMinutes(
+            RaceBossPenaltyKind kind,
+            out int baseMinutes,
+            out int proportionalMinutes)
+        {
+            switch (kind)
+            {
+                case RaceBossPenaltyKind.Skeletron:
+                    baseMinutes = 2;
+                    proportionalMinutes = 3;
+                    return;
+                case RaceBossPenaltyKind.WallOfFlesh:
+                    baseMinutes = 2;
+                    proportionalMinutes = 4;
+                    return;
+                case RaceBossPenaltyKind.SkeletronPrime:
+                    baseMinutes = 1;
+                    proportionalMinutes = 4;
+                    return;
+                case RaceBossPenaltyKind.Twins:
+                    baseMinutes = 2;
+                    proportionalMinutes = 3;
+                    return;
+                case RaceBossPenaltyKind.Destroyer:
+                    baseMinutes = 2;
+                    proportionalMinutes = 1;
+                    return;
+                case RaceBossPenaltyKind.Plantera:
+                case RaceBossPenaltyKind.Golem:
+                case RaceBossPenaltyKind.LunaticCultist:
+                    baseMinutes = 3;
+                    proportionalMinutes = 4;
+                    return;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(kind));
+            }
         }
     }
 }
