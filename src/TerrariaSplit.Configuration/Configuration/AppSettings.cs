@@ -156,9 +156,71 @@ public sealed class RaceSettings
 
     public RaceWorldSetupSettings WorldSetup { get; set; } = new();
 
+    public RaceBossPenaltySettings BossPenalty { get; set; } = new();
+
     public RaceLeaderboardSettings Leaderboard { get; set; } = new();
 
     public RaceVoiceSettings Voice { get; set; } = new();
+}
+
+public sealed class RaceBossPenaltySettings
+{
+    public const int MaximumSeconds = 86400;
+
+    public RaceBossPenaltyBossSettings Skeletron { get; set; } = Create(120, 180);
+
+    public RaceBossPenaltyBossSettings WallOfFlesh { get; set; } = Create(120, 240);
+
+    public RaceBossPenaltyBossSettings Destroyer { get; set; } = Create(120, 60);
+
+    public RaceBossPenaltyBossSettings SkeletronPrime { get; set; } = Create(60, 240);
+
+    public RaceBossPenaltyBossSettings Twins { get; set; } = Create(120, 180);
+
+    public RaceBossPenaltyBossSettings Plantera { get; set; } = Create(180, 240);
+
+    public RaceBossPenaltyBossSettings Golem { get; set; } = Create(180, 240);
+
+    public RaceBossPenaltyBossSettings LunaticCultist { get; set; } = Create(180, 240);
+
+    private static RaceBossPenaltyBossSettings Create(int classicBaseSeconds, int classicProportionalSeconds)
+    {
+        return new RaceBossPenaltyBossSettings
+        {
+            JourneyBaseSeconds = Scale(classicBaseSeconds, 0.5d),
+            JourneyProportionalSeconds = Scale(classicProportionalSeconds, 0.5d),
+            ClassicBaseSeconds = classicBaseSeconds,
+            ClassicProportionalSeconds = classicProportionalSeconds,
+            ExpertBaseSeconds = Scale(classicBaseSeconds, 1.25d),
+            ExpertProportionalSeconds = Scale(classicProportionalSeconds, 1.25d),
+            MasterBaseSeconds = Scale(classicBaseSeconds, 1.5d),
+            MasterProportionalSeconds = Scale(classicProportionalSeconds, 1.5d)
+        };
+    }
+
+    private static int Scale(int seconds, double multiplier)
+    {
+        return (int)Math.Round(seconds * multiplier, MidpointRounding.AwayFromZero);
+    }
+}
+
+public sealed class RaceBossPenaltyBossSettings
+{
+    public int JourneyBaseSeconds { get; set; }
+
+    public int JourneyProportionalSeconds { get; set; }
+
+    public int ClassicBaseSeconds { get; set; }
+
+    public int ClassicProportionalSeconds { get; set; }
+
+    public int ExpertBaseSeconds { get; set; }
+
+    public int ExpertProportionalSeconds { get; set; }
+
+    public int MasterBaseSeconds { get; set; }
+
+    public int MasterProportionalSeconds { get; set; }
 }
 
 public sealed class RaceWorldSetupSettings

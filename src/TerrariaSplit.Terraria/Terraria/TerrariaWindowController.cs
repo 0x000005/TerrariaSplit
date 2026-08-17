@@ -82,10 +82,27 @@ public sealed class TerrariaWindowController
 
     public bool TryClickClient(int x, int y, out Size clientSize)
     {
+        return TryClickClient(x, y, out clientSize, out _);
+    }
+
+    public bool TryClickClient(
+        int x,
+        int y,
+        out Size clientSize,
+        out string failureDetail)
+    {
         Process? process = TerrariaProcessFinder.FindNewest();
-        if (process is null || process.MainWindowHandle == IntPtr.Zero)
+        if (process is null)
         {
             clientSize = Size.Empty;
+            failureDetail = "Terraria process was not found.";
+            return false;
+        }
+
+        if (process.MainWindowHandle == IntPtr.Zero)
+        {
+            clientSize = Size.Empty;
+            failureDetail = "Terraria main window handle was zero.";
             return false;
         }
 
@@ -101,13 +118,20 @@ public sealed class TerrariaWindowController
         var point = new PointStruct { X = x, Y = y };
         if (!ClientToScreen(handle, ref point))
         {
+            failureDetail = $"ClientToScreen failed with Win32 error {Marshal.GetLastWin32Error()}.";
             return false;
         }
 
-        SetCursorPos(point.X, point.Y);
+        if (!SetCursorPos(point.X, point.Y))
+        {
+            failureDetail = $"SetCursorPos failed with Win32 error {Marshal.GetLastWin32Error()}.";
+            return false;
+        }
+
         mouse_event(MouseEventLeftDown, 0, 0, 0, UIntPtr.Zero);
         Thread.Sleep(InputPressDurationMilliseconds);
         mouse_event(MouseEventLeftUp, 0, 0, 0, UIntPtr.Zero);
+        failureDetail = string.Empty;
         return true;
     }
 
@@ -183,7 +207,7 @@ public sealed class TerrariaWindowController
         public int Y;
     }
 
-    [DllImport("user32.dll")]
+    [DllImport("user32.dll", SetLastError = true)]
     private static extern bool ClientToScreen(IntPtr hWnd, ref PointStruct lpPoint);
 
     [DllImport("user32.dll")]
@@ -192,7 +216,7 @@ public sealed class TerrariaWindowController
     [DllImport("user32.dll")]
     private static extern bool IsIconic(IntPtr hWnd);
 
-    [DllImport("user32.dll")]
+    [DllImport("user32.dll", SetLastError = true)]
     private static extern bool SetCursorPos(int x, int y);
 
     [DllImport("user32.dll")]

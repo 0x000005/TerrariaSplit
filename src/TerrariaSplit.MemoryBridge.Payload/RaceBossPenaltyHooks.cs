@@ -928,6 +928,7 @@ namespace TerrariaSplit.MemoryBridge.Payload
 
             RaceBossPenaltyKind kind = encounter.Kind;
             long penaltyMilliseconds = RaceBossPenalty.CalculateMilliseconds(
+                current.BossPenaltySchedule,
                 kind,
                 currentLife,
                 encounter.MaximumLife,
@@ -935,7 +936,10 @@ namespace TerrariaSplit.MemoryBridge.Payload
             encounter.PenaltyMilliseconds = penaltyMilliseconds;
 
             if (!RaceBossPenalty.IsSupportedKind(kind) ||
-                !RaceBossPenalty.IsValidMilliseconds(kind, penaltyMilliseconds))
+                !RaceBossPenalty.IsValidMilliseconds(
+                    current.BossPenaltySchedule,
+                    kind,
+                    penaltyMilliseconds))
             {
                 return false;
             }
@@ -961,6 +965,7 @@ namespace TerrariaSplit.MemoryBridge.Payload
                     RaceBossPenalty.ActionControlId,
                     RaceInGameActionKind.Activate,
                     RaceBossPenalty.CreateActionValue(
+                        current.BossPenaltySchedule,
                         kind,
                         current.PackageDigest,
                         penaltyMilliseconds,

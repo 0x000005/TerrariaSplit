@@ -10,6 +10,8 @@ internal sealed class TerrariaAutomationContext
     private readonly string name;
     private bool escapeCancellationLogged;
 
+    public string LastFailureDiagnostic { get; private set; } = string.Empty;
+
     public TerrariaAutomationContext(string name)
     {
         this.name = name;
@@ -27,6 +29,7 @@ internal sealed class TerrariaAutomationContext
     public void BeginRun()
     {
         escapeCancellationLogged = false;
+        LastFailureDiagnostic = string.Empty;
         ClearEscapeKeyState();
     }
 
@@ -70,7 +73,7 @@ internal sealed class TerrariaAutomationContext
         catch (Exception ex)
         {
             FileAppLogger.Instance.Error(ex, $"{name} automation step '{step}' failed.");
-            return false;
+            throw;
         }
     }
 
@@ -93,13 +96,17 @@ internal sealed class TerrariaAutomationContext
         CancellationToken cancellationToken)
     {
         ThrowIfCancellationRequested(cancellationToken);
-        bool clicked = Window.TryClickClient(point.X, point.Y, out Size clientSize);
+        bool clicked = Window.TryClickClient(
+            point.X,
+            point.Y,
+            out Size clientSize,
+            out string failureDetail);
         Log(new AutomationStepResult(
             $"click {step}",
             clicked,
             point,
             clientSize,
-            Detail: clicked ? null : "window click failed"));
+            Detail: clicked ? null : failureDetail));
         if (!clicked)
         {
             return false;
@@ -161,8 +168,13 @@ internal sealed class TerrariaAutomationContext
         _ = NativeMethods.GetAsyncKeyState((int)Keys.Escape);
     }
 
-    private static void Log(AutomationStepResult result)
+    private void Log(AutomationStepResult result)
     {
+        if (!result.Success)
+        {
+            LastFailureDiagnostic = result.ToLogMessage();
+        }
+
         FileAppLogger.Instance.Info(result.ToLogMessage());
     }
 }

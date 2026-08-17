@@ -35,6 +35,12 @@ public static class AppSettingsCloner
         return Clone(source);
     }
 
+    public static RaceBossPenaltySettings CloneRaceBossPenaltySettings(RaceBossPenaltySettings source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        return Clone(source);
+    }
+
     internal static AdvancedSettings CloneAdvancedSettings(AdvancedSettings source)
     {
         ArgumentNullException.ThrowIfNull(source);
@@ -231,6 +237,9 @@ public static class AppSettingsCloner
             DeltaAheadText = source.DeltaAheadText,
             DeltaAheadTextOutline = source.DeltaAheadTextOutline,
             DeltaAheadTextShadow = source.DeltaAheadTextShadow,
+            DeltaEqualText = source.DeltaEqualText,
+            DeltaEqualTextOutline = source.DeltaEqualTextOutline,
+            DeltaEqualTextShadow = source.DeltaEqualTextShadow,
             DeltaBehindText = source.DeltaBehindText,
             DeltaBehindTextOutline = source.DeltaBehindTextOutline,
             DeltaBehindTextShadow = source.DeltaBehindTextShadow,
@@ -240,6 +249,9 @@ public static class AppSettingsCloner
             TimerAheadText = source.TimerAheadText,
             TimerAheadTextOutline = source.TimerAheadTextOutline,
             TimerAheadTextShadow = source.TimerAheadTextShadow,
+            TimerEqualText = source.TimerEqualText,
+            TimerEqualTextOutline = source.TimerEqualTextOutline,
+            TimerEqualTextShadow = source.TimerEqualTextShadow,
             TimerBehindText = source.TimerBehindText,
             TimerBehindTextOutline = source.TimerBehindTextOutline,
             TimerBehindTextShadow = source.TimerBehindTextShadow,
@@ -420,6 +432,7 @@ public static class AppSettingsCloner
             PreferredWorldSource = source.PreferredWorldSource,
             PlayerTemplateCode = source.PlayerTemplateCode,
             WorldSetup = Clone(source.WorldSetup),
+            BossPenalty = Clone(source.BossPenalty),
             Leaderboard = Clone(source.Leaderboard),
             Voice = Clone(source.Voice)
         };
@@ -449,6 +462,38 @@ public static class AppSettingsCloner
             LifeCrystalMinimum = source.LifeCrystalMinimum,
             SpelunkerPotionMinimum = source.SpelunkerPotionMinimum,
             FeatherfallPotionMinimum = source.FeatherfallPotionMinimum
+        };
+    }
+
+    private static RaceBossPenaltySettings Clone(RaceBossPenaltySettings? source)
+    {
+        source ??= new RaceBossPenaltySettings();
+        return new RaceBossPenaltySettings
+        {
+            Skeletron = Clone(source.Skeletron),
+            WallOfFlesh = Clone(source.WallOfFlesh),
+            Destroyer = Clone(source.Destroyer),
+            SkeletronPrime = Clone(source.SkeletronPrime),
+            Twins = Clone(source.Twins),
+            Plantera = Clone(source.Plantera),
+            Golem = Clone(source.Golem),
+            LunaticCultist = Clone(source.LunaticCultist)
+        };
+    }
+
+    private static RaceBossPenaltyBossSettings Clone(RaceBossPenaltyBossSettings? source)
+    {
+        source ??= new RaceBossPenaltyBossSettings();
+        return new RaceBossPenaltyBossSettings
+        {
+            JourneyBaseSeconds = source.JourneyBaseSeconds,
+            JourneyProportionalSeconds = source.JourneyProportionalSeconds,
+            ClassicBaseSeconds = source.ClassicBaseSeconds,
+            ClassicProportionalSeconds = source.ClassicProportionalSeconds,
+            ExpertBaseSeconds = source.ExpertBaseSeconds,
+            ExpertProportionalSeconds = source.ExpertProportionalSeconds,
+            MasterBaseSeconds = source.MasterBaseSeconds,
+            MasterProportionalSeconds = source.MasterProportionalSeconds
         };
     }
 

@@ -164,6 +164,10 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
     public RaceLeaderboardSettings LeaderboardSettings =>
         CloneLeaderboardSettings(getSettings().Race?.Leaderboard ?? new RaceLeaderboardSettings());
 
+    public RaceBossPenaltySettings BossPenaltySettings =>
+        AppSettingsCloner.CloneRaceBossPenaltySettings(
+            getSettings().Race?.BossPenalty ?? new RaceBossPenaltySettings());
+
     public RaceVoiceSettings VoiceSettings => CloneVoiceSettings(getSettings().Race?.Voice);
 
     public IReadOnlyList<RaceVoiceOption> InstalledVoices => speechCoordinator.InstalledVoices;
@@ -248,6 +252,16 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
         {
             speechCoordinator.ApplySettings(nextVoice);
         }
+    }
+
+    public void SaveBossPenaltySettings(RaceBossPenaltySettings bossPenaltySettings)
+    {
+        RaceBossPenaltySettings nextPenalty =
+            AppSettingsCloner.CloneRaceBossPenaltySettings(bossPenaltySettings);
+        settingsCoordinator.Update(
+            "Race boss penalty settings update",
+            next => next.BossPenalty =
+                AppSettingsCloner.CloneRaceBossPenaltySettings(nextPenalty));
     }
 
     public void PreviewVoice(RaceVoiceSettings voiceSettings)
@@ -2263,7 +2277,9 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
                         determinism.CreateDigest()),
                     planteraBulbPlan,
                     IsRaceEntryAllowed(session.State),
-                    session.State?.WorldSettings?.BossFailurePenaltyEnabled != false),
+                    session.State?.WorldSettings?.BossFailurePenaltyEnabled != false,
+                    RaceBossPenaltyConfiguration.NormalizeOrDefault(
+                        session.State?.WorldSettings?.BossPenaltySchedule)),
                 new TerrariaRaceInitialPlayerConfiguration(
                     session.Nickname ?? draftState.Nickname,
                     draftState.PlayerTemplateCode,

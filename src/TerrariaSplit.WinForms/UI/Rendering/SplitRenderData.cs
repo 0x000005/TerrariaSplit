@@ -251,8 +251,18 @@ internal static class OverlayTextStyles
         UiPalette palette,
         bool attached = false)
     {
-        bool ahead = comparison.Delta is TimeSpan delta && delta < TimeSpan.Zero;
-        return ahead
+        if (comparison.Delta is TimeSpan delta &&
+            TimeText.IsDeltaDisplayedAsZero(delta, settings.Overlay.EnableDynamicDeltaTimeUnits))
+        {
+            return CreateDeltaTextStyle(
+                settings,
+                palette.DeltaEqualText,
+                palette.DeltaEqualTextOutline,
+                palette.DeltaEqualTextShadow,
+                attached);
+        }
+
+        return comparison.Delta is TimeSpan signedDelta && signedDelta < TimeSpan.Zero
             ? CreateDeltaTextStyle(
                 settings,
                 palette.DeltaAheadText,
@@ -321,6 +331,16 @@ internal static class OverlayTextStyles
                 return GetTimerGradientTextStyle(settings, finalTime - finalReference, palette, milliseconds);
             }
 
+            if (hasFinalReference && finalTime == finalReference)
+            {
+                return CreateTimerTextStyle(
+                    settings,
+                    palette.TimerEqualText,
+                    palette.TimerEqualTextOutline,
+                    palette.TimerEqualTextShadow,
+                    milliseconds);
+            }
+
             return timerPhase == SplitTimerPhase.Paused
                 ? CreateTimerTextStyle(
                     settings,
@@ -353,7 +373,18 @@ internal static class OverlayTextStyles
                 return GetTimerGradientTextStyle(settings, timerElapsed - currentReference, palette, milliseconds);
             }
 
-            return timerElapsed <= currentReference
+            TimeSpan delta = timerElapsed - currentReference;
+            if (delta == TimeSpan.Zero)
+            {
+                return CreateTimerTextStyle(
+                    settings,
+                    palette.TimerEqualText,
+                    palette.TimerEqualTextOutline,
+                    palette.TimerEqualTextShadow,
+                    milliseconds);
+            }
+
+            return delta < TimeSpan.Zero
                 ? CreateTimerTextStyle(
                     settings,
                     palette.TimerAheadText,
@@ -418,9 +449,9 @@ internal static class OverlayTextStyles
                     milliseconds)
                 : CreateTimerTextStyle(
                     settings,
-                    palette.TimerText,
-                    palette.TimerTextOutline,
-                    palette.TimerTextShadow,
+                    palette.TimerEqualText,
+                    palette.TimerEqualTextOutline,
+                    palette.TimerEqualTextShadow,
                     milliseconds);
         return style with
         {
@@ -428,7 +459,7 @@ internal static class OverlayTextStyles
                 settings,
                 delta,
                 palette.TimerAheadText,
-                palette.TimerText,
+                palette.TimerEqualText,
                 palette.TimerBehindText)
         };
     }
@@ -531,13 +562,13 @@ internal static class OverlayColorMath
                 settings,
                 delta.Value,
                 palette.DeltaAheadText,
-                palette.TimerText,
+                palette.DeltaEqualText,
                 palette.DeltaBehindText);
         }
 
         if (TimeText.IsDeltaDisplayedAsZero(delta.Value, settings.Overlay.EnableDynamicDeltaTimeUnits))
         {
-            return palette.DeltaBehindText;
+            return palette.DeltaEqualText;
         }
 
         if (delta < TimeSpan.Zero)
@@ -550,7 +581,7 @@ internal static class OverlayColorMath
             return palette.DeltaBehindText;
         }
 
-        return palette.DeltaBehindText;
+        return palette.DeltaEqualText;
     }
 
     public static Color GetGradientDeltaColor(

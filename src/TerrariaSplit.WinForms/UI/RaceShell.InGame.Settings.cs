@@ -47,7 +47,9 @@ internal sealed partial class RaceShell
             PlayerDifficultyCode:
                 RacePlayerDifficultyCodes.ForWorldDifficulty(worldDifficultyCode),
             RngControlEnabled: setup.RngControlEnabled,
-            BossFailurePenaltyEnabled: setup.BossFailurePenaltyEnabled);
+            BossFailurePenaltyEnabled: setup.BossFailurePenaltyEnabled,
+            BossPenaltySchedule: RaceBossPenaltyConfiguration.Encode(
+                getSettings().Race?.BossPenalty));
     }
 
     private void PersistInGameWorldSetup()

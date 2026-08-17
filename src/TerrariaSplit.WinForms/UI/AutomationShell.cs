@@ -45,11 +45,13 @@ internal sealed class AutomationShell : IDisposable
         }
         catch (Exception ex)
         {
-            logger.Error(ex, "Unhandled create world automation error.");
-            ShowAutomationFailure(
+            HandleAutomationResult(
+                AutomationResult.Failure(
+                    "Create world automation failed unexpectedly.",
+                    "Unhandled create world automation error.",
+                    ex),
                 "Create World",
-                "World generation failed.",
-                ex.Message);
+                "World generation failed.");
         }
     }
 
@@ -114,8 +116,13 @@ internal sealed class AutomationShell : IDisposable
         }
         catch (Exception ex)
         {
-            logger.Error(ex, "Unhandled practice world automation error.");
-            ShowAutomationFailure("Practice world", "Failed", ex.Message);
+            HandleAutomationResult(
+                AutomationResult.Failure(
+                    "Practice world automation failed unexpectedly.",
+                    "Unhandled practice world automation error.",
+                    ex),
+                "Practice world",
+                "Failed");
         }
     }
 
@@ -143,16 +150,22 @@ internal sealed class AutomationShell : IDisposable
             logger.Info(result.DiagnosticMessage);
         }
 
-        string detail = !string.IsNullOrWhiteSpace(result.UserMessage)
-            ? result.UserMessage
-            : result.DiagnosticMessage;
-        ShowAutomationFailure(titleKey, failureMessageKey, detail);
+        bool hasDetailedFailureReport = AutomationFailureReport.TryBuild(result, out string detailedFailureReport);
+        string detail = hasDetailedFailureReport
+            ? detailedFailureReport
+            : AutomationFailureReport.BuildSummary(result);
+        ShowAutomationFailure(
+            titleKey,
+            failureMessageKey,
+            detail,
+            selectableDetail: hasDetailedFailureReport);
     }
 
     private void ShowAutomationFailure(
         string titleKey,
         string failureMessageKey,
-        string detail)
+        string detail,
+        bool selectableDetail = false)
     {
         AppSettings settings = getSettings();
         string title = Localizer.Get(titleKey, settings);
@@ -165,7 +178,8 @@ internal sealed class AutomationShell : IDisposable
             message,
             MessageBoxButtons.OK,
             MessageBoxIcon.Warning,
-            key => Localizer.Get(key, settings));
+            key => Localizer.Get(key, settings),
+            selectableDetail);
         modalWindows.ShowDialog(dialog, ModalWindowOptions.ForceTopMostForeground);
     }
 }

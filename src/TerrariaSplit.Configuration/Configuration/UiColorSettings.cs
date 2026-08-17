@@ -25,6 +25,9 @@ public sealed class UiColorSettings
     public string DeltaAheadText { get; set; } = "#72D572";
     public string DeltaAheadTextOutline { get; set; } = "#101010";
     public string DeltaAheadTextShadow { get; set; } = "#000000";
+    public string DeltaEqualText { get; set; } = "#FFFFFF";
+    public string DeltaEqualTextOutline { get; set; } = "#101010";
+    public string DeltaEqualTextShadow { get; set; } = "#000000";
     public string DeltaBehindText { get; set; } = "#F07070";
     public string DeltaBehindTextOutline { get; set; } = "#101010";
     public string DeltaBehindTextShadow { get; set; } = "#000000";
@@ -34,6 +37,9 @@ public sealed class UiColorSettings
     public string TimerAheadText { get; set; } = "#72D572";
     public string TimerAheadTextOutline { get; set; } = "#101010";
     public string TimerAheadTextShadow { get; set; } = "#000000";
+    public string TimerEqualText { get; set; } = "#FFFFFF";
+    public string TimerEqualTextOutline { get; set; } = "#101010";
+    public string TimerEqualTextShadow { get; set; } = "#000000";
     public string TimerBehindText { get; set; } = "#F07070";
     public string TimerBehindTextOutline { get; set; } = "#101010";
     public string TimerBehindTextShadow { get; set; } = "#000000";

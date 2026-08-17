@@ -80,6 +80,9 @@ public static class SettingsSectionNormalizer
         race.WorldSetup ??= defaults.WorldSetup ?? new RaceWorldSetupSettings();
         defaults.WorldSetup ??= new RaceWorldSetupSettings();
         NormalizeRaceWorldSetup(race.WorldSetup);
+        race.BossPenalty ??= defaults.BossPenalty ?? new RaceBossPenaltySettings();
+        defaults.BossPenalty ??= new RaceBossPenaltySettings();
+        NormalizeRaceBossPenalty(race.BossPenalty, defaults.BossPenalty);
         race.Voice ??= defaults.Voice ?? new RaceVoiceSettings();
         defaults.Voice ??= new RaceVoiceSettings();
         race.Voice.VoiceName = race.Voice.VoiceName?.Trim() ?? string.Empty;
@@ -148,6 +151,41 @@ public static class SettingsSectionNormalizer
         setup.SpelunkerPotionMinimum = AutoCreateResourceMinimum.NormalizePotions(setup.SpelunkerPotionMinimum);
         setup.FeatherfallPotionMinimum = AutoCreateResourceMinimum.NormalizePotions(setup.FeatherfallPotionMinimum);
         AutoCreateAdvancedFilterEligibility.ClearUnsupportedFilters(setup);
+    }
+
+    private static void NormalizeRaceBossPenalty(
+        RaceBossPenaltySettings settings,
+        RaceBossPenaltySettings defaults)
+    {
+        var fallback = new RaceBossPenaltySettings();
+        defaults.Skeletron ??= fallback.Skeletron;
+        defaults.WallOfFlesh ??= fallback.WallOfFlesh;
+        defaults.Destroyer ??= fallback.Destroyer;
+        defaults.SkeletronPrime ??= fallback.SkeletronPrime;
+        defaults.Twins ??= fallback.Twins;
+        defaults.Plantera ??= fallback.Plantera;
+        defaults.Golem ??= fallback.Golem;
+        defaults.LunaticCultist ??= fallback.LunaticCultist;
+        NormalizeRaceBossPenaltyBoss(settings.Skeletron ??= defaults.Skeletron);
+        NormalizeRaceBossPenaltyBoss(settings.WallOfFlesh ??= defaults.WallOfFlesh);
+        NormalizeRaceBossPenaltyBoss(settings.Destroyer ??= defaults.Destroyer);
+        NormalizeRaceBossPenaltyBoss(settings.SkeletronPrime ??= defaults.SkeletronPrime);
+        NormalizeRaceBossPenaltyBoss(settings.Twins ??= defaults.Twins);
+        NormalizeRaceBossPenaltyBoss(settings.Plantera ??= defaults.Plantera);
+        NormalizeRaceBossPenaltyBoss(settings.Golem ??= defaults.Golem);
+        NormalizeRaceBossPenaltyBoss(settings.LunaticCultist ??= defaults.LunaticCultist);
+    }
+
+    private static void NormalizeRaceBossPenaltyBoss(RaceBossPenaltyBossSettings settings)
+    {
+        settings.JourneyBaseSeconds = Math.Clamp(settings.JourneyBaseSeconds, 0, RaceBossPenaltySettings.MaximumSeconds);
+        settings.JourneyProportionalSeconds = Math.Clamp(settings.JourneyProportionalSeconds, 0, RaceBossPenaltySettings.MaximumSeconds);
+        settings.ClassicBaseSeconds = Math.Clamp(settings.ClassicBaseSeconds, 0, RaceBossPenaltySettings.MaximumSeconds);
+        settings.ClassicProportionalSeconds = Math.Clamp(settings.ClassicProportionalSeconds, 0, RaceBossPenaltySettings.MaximumSeconds);
+        settings.ExpertBaseSeconds = Math.Clamp(settings.ExpertBaseSeconds, 0, RaceBossPenaltySettings.MaximumSeconds);
+        settings.ExpertProportionalSeconds = Math.Clamp(settings.ExpertProportionalSeconds, 0, RaceBossPenaltySettings.MaximumSeconds);
+        settings.MasterBaseSeconds = Math.Clamp(settings.MasterBaseSeconds, 0, RaceBossPenaltySettings.MaximumSeconds);
+        settings.MasterProportionalSeconds = Math.Clamp(settings.MasterProportionalSeconds, 0, RaceBossPenaltySettings.MaximumSeconds);
     }
 
     public static void NormalizeColumnSettings(UiColumnLayoutSettings columns, UiColumnLayoutSettings defaults)

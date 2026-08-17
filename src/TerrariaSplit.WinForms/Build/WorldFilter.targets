@@ -1,6 +1,7 @@
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
-    <TerrariaWorldFilterSource Condition="'$(TerrariaWorldFilterSource)' == ''">$(MSBuildThisFileDirectory)..\..\..\..\TerrariaJungleJudge\out\build\x64-release\Release\TerrariaSplit.WorldFilter.dll</TerrariaWorldFilterSource>
+    <TerrariaWorldFilterRepositoryRoot Condition="'$(TerrariaWorldFilterRepositoryRoot)' == ''">$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..\..\..\TerrariaJungleJudge'))</TerrariaWorldFilterRepositoryRoot>
+    <TerrariaWorldFilterSource Condition="'$(TerrariaWorldFilterSource)' == ''">$(TerrariaWorldFilterRepositoryRoot)\out\build\x64-release\Release\TerrariaSplit.WorldFilter.dll</TerrariaWorldFilterSource>
     <TerrariaWorldFilterRequired Condition="'$(TerrariaWorldFilterRequired)' == '' and '$(Configuration)' == 'Release'">true</TerrariaWorldFilterRequired>
   </PropertyGroup>
 

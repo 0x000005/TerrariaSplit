@@ -1,3 +1,5 @@
+using System.Drawing;
+
 namespace TerrariaSplit.Terraria.Automation;
 
 internal sealed class PyramidSeedPreScreenAutomation : IDisposable
@@ -74,20 +76,13 @@ internal sealed class PyramidSeedPreScreenAutomation : IDisposable
         using (seedReader)
         {
             FileAppLogger.Instance.Info("World seed pre-screen active for small Crimson world; seedReadTimeout=1000ms.");
-            var loop = new PyramidSeedPreScreenLoop(evaluator, FileAppLogger.Instance.Info);
-            PyramidSeedPreScreenLoopResult result = await loop.RunAsync(
+            return await RunLoopAsync(
                 settings,
-                geometry.Profile,
+                geometry,
                 new TerrariaVisibleSeedRandomizer(automation, geometry, clickDelay),
+                geometry.AdvancedSeedRandomizeButton(),
                 seedReader,
                 cancellationToken);
-            return result.Status switch
-            {
-                PyramidSeedPreScreenLoopStatus.Accepted => PyramidSeedPreScreenAutomationResult.FromAccepted(),
-                PyramidSeedPreScreenLoopStatus.SeedReadFailed or PyramidSeedPreScreenLoopStatus.PredictionUnavailable =>
-                    PyramidSeedPreScreenAutomationResult.FromContinueWithoutPreScreen(result.Detail),
-                _ => PyramidSeedPreScreenAutomationResult.FromFailed(result.Detail)
-            };
         }
     }
 
@@ -113,11 +108,31 @@ internal sealed class PyramidSeedPreScreenAutomation : IDisposable
         using (seedReader)
         {
             FileAppLogger.Instance.Info("World seed pre-screen active for 1.4.4.9 small Crimson world; seedReadTimeout=1000ms.");
+            return await RunLoopAsync(
+                settings,
+                geometry,
+                new TerrariaLegacy1449SeedRandomizer(automation, geometry, clickDelay),
+                geometry.WorldAdvancedSeedButton(),
+                seedReader,
+                cancellationToken);
+        }
+    }
+
+    private async Task<PyramidSeedPreScreenAutomationResult> RunLoopAsync(
+        AutoCreateWorldSettings settings,
+        TerrariaMenuGeometry geometry,
+        IPyramidSeedRandomizer randomizer,
+        Point randomizeTarget,
+        TerrariaVisibleSeedReader seedReader,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
             var loop = new PyramidSeedPreScreenLoop(evaluator, FileAppLogger.Instance.Info);
             PyramidSeedPreScreenLoopResult result = await loop.RunAsync(
                 settings,
                 geometry.Profile,
-                new TerrariaLegacy1449SeedRandomizer(automation, geometry, clickDelay),
+                randomizer,
                 seedReader,
                 cancellationToken);
             return result.Status switch
@@ -125,9 +140,61 @@ internal sealed class PyramidSeedPreScreenAutomation : IDisposable
                 PyramidSeedPreScreenLoopStatus.Accepted => PyramidSeedPreScreenAutomationResult.FromAccepted(),
                 PyramidSeedPreScreenLoopStatus.SeedReadFailed or PyramidSeedPreScreenLoopStatus.PredictionUnavailable =>
                     PyramidSeedPreScreenAutomationResult.FromContinueWithoutPreScreen(result.Detail),
-                _ => PyramidSeedPreScreenAutomationResult.FromFailed(result.Detail)
+                _ => PyramidSeedPreScreenAutomationResult.FromFailed(
+                    BuildLoopFailureDetail(
+                        result.Status.ToString(),
+                        result.Attempts.ToString(),
+                        result.Detail,
+                        settings,
+                        geometry,
+                        randomizeTarget),
+                    detailedDiagnostics: true)
             };
         }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            FileAppLogger.Instance.Error(ex, "Advanced seed pre-screen loop failed unexpectedly.");
+            return PyramidSeedPreScreenAutomationResult.FromFailed(
+                BuildLoopFailureDetail(
+                    "InternalException",
+                    "unknown",
+                    $"{ex.GetType().FullName}: {ex.Message}",
+                    settings,
+                    geometry,
+                    randomizeTarget),
+                detailedDiagnostics: true,
+                exception: ex);
+        }
+    }
+
+    private string BuildLoopFailureDetail(
+        string status,
+        string attempts,
+        string detail,
+        AutoCreateWorldSettings settings,
+        TerrariaMenuGeometry geometry,
+        Point randomizeTarget)
+    {
+        int clientWidth = (int)Math.Round(geometry.LogicalWidth * geometry.Scale);
+        int clientHeight = (int)Math.Round(geometry.LogicalHeight * geometry.Scale);
+        string diagnostic =
+            $"status={status}; attempts={attempts}; menuProfile={geometry.Profile.Name}; " +
+            $"clientSize={clientWidth}x{clientHeight}; uiScale={geometry.Scale:0.###}; " +
+            $"randomizeTarget=({randomizeTarget.X}, {randomizeTarget.Y}); " +
+            $"world={settings.WorldSize}/{settings.WorldDifficulty}/{settings.WorldEvil}; " +
+            $"pyramidFilter={settings.EnablePyramidFilter}; pyramidItemMask={settings.PyramidFilterItemMask}; " +
+            $"crimsonFilter={settings.RequireCrimsonBetweenDungeonAndSpawn}; crimsonDistance={settings.CrimsonDistance}; " +
+            $"jungleDepth={settings.JungleRouteDepth}; resourceItemMask={settings.ResourceFilterItemMask}; " +
+            $"lifeCrystalMinimum={settings.ResourceFilterLifeCrystalMinimum}; " +
+            $"spelunkerMinimum={settings.ResourceFilterSpelunkerPotionMinimum}; " +
+            $"featherfallMinimum={settings.ResourceFilterFeatherfallPotionMinimum}; detail={detail}";
+        return string.IsNullOrWhiteSpace(automation.LastFailureDiagnostic)
+            ? diagnostic
+            : diagnostic + "; lastFailedStep=" + automation.LastFailureDiagnostic;
     }
 
     public void Dispose()
@@ -316,7 +383,9 @@ internal enum PyramidSeedPreScreenAutomationStatus
 
 internal readonly record struct PyramidSeedPreScreenAutomationResult(
     PyramidSeedPreScreenAutomationStatus Status,
-    string Detail)
+    string Detail,
+    bool DetailedDiagnostics = false,
+    Exception? Exception = null)
 {
     public bool CanCreateWorld => Status == PyramidSeedPreScreenAutomationStatus.Accepted ||
         Status == PyramidSeedPreScreenAutomationStatus.ContinueWithoutPreScreen;
@@ -327,6 +396,13 @@ internal readonly record struct PyramidSeedPreScreenAutomationResult(
     public static PyramidSeedPreScreenAutomationResult FromContinueWithoutPreScreen(string detail) =>
         new(PyramidSeedPreScreenAutomationStatus.ContinueWithoutPreScreen, detail);
 
-    public static PyramidSeedPreScreenAutomationResult FromFailed(string detail) =>
-        new(PyramidSeedPreScreenAutomationStatus.Failed, detail);
+    public static PyramidSeedPreScreenAutomationResult FromFailed(
+        string detail,
+        bool detailedDiagnostics = false,
+        Exception? exception = null) =>
+        new(
+            PyramidSeedPreScreenAutomationStatus.Failed,
+            detail,
+            detailedDiagnostics,
+            exception);
 }

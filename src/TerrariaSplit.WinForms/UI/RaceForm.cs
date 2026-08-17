@@ -43,6 +43,7 @@ internal sealed class RaceForm : Form
     private enum RaceSettingsPage
     {
         Connection,
+        Penalty,
         Interface,
         Colors,
         Voice
@@ -90,6 +91,7 @@ internal sealed class RaceForm : Form
     private readonly Dictionary<int, CheckBox> featherfallMinimumButtons = new();
     private readonly ToolTip titleBarToolTip = new();
     private readonly RaceLeaderboardSettings leaderboardSettings;
+    private RaceBossPenaltySettings bossPenaltySettings;
     private readonly RaceVoiceSettings voiceSettings;
     private readonly CheckBox voiceEnabledBox;
     private readonly ThemedDropDownList voiceNameBox;
@@ -100,6 +102,7 @@ internal sealed class RaceForm : Form
     private readonly Dictionary<string, LeaderboardColumnControls> leaderboardColumnControls = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, TextBox> leaderboardSpacingControls = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, LeaderboardColorControls> leaderboardColorControls = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, BossPenaltyControls> bossPenaltyControls = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<RaceSettingsPage, Button> raceSettingsNavButtons = new();
     private readonly Dictionary<RaceSettingsPage, Control> raceSettingsPages = new();
     private CheckBox? useRankColorForMainTimerBox;
@@ -118,6 +121,7 @@ internal sealed class RaceForm : Form
     private Button? restartRoomButton;
     private Button? roomLifecycleButton;
     private Button? voicePreviewButton;
+    private Button? penaltyApplyButton;
     private RaceActionProgressBar? hostWorldProgressBar;
     private Label? statusRouteOverrideHint;
     private RaceRosterView? statusPlayerList;
@@ -145,6 +149,7 @@ internal sealed class RaceForm : Form
         hostWorldActions = new RaceHostWorldActionCoordinator(shell);
         RacePanelDraftState draftState = shell.DraftState;
         leaderboardSettings = CloneLeaderboardSettings(shell.LeaderboardSettings);
+        bossPenaltySettings = AppSettingsCloner.CloneRaceBossPenaltySettings(shell.BossPenaltySettings);
         voiceSettings = CloneVoiceSettings(shell.VoiceSettings);
         uiFactory = new SettingsUiFactory(shell.Localize);
         dialogs = new SettingsDialogService(this, shell.Localize);
@@ -313,6 +318,7 @@ internal sealed class RaceForm : Form
             UpdateRoleVisibility(persist: false);
             UpdateRoomLifecycleButton();
             UpdateConnectionInputLockState();
+            UpdatePenaltySettingsAvailability();
             UpdateHostWorldActionButton();
         });
     }
@@ -631,6 +637,7 @@ internal sealed class RaceForm : Form
         UiTheme.EnableDoubleBuffering(raceSettingsPagePanel);
 
         AddRaceSettingsPage(nav, RaceSettingsPage.Connection, "Connection", CreateConnectionPage());
+        AddRaceSettingsPage(nav, RaceSettingsPage.Penalty, "Penalty", CreatePenaltyPage());
         AddRaceSettingsPage(nav, RaceSettingsPage.Interface, "UI", CreateInterfacePage());
         AddRaceSettingsPage(nav, RaceSettingsPage.Colors, "Colors", CreateColorsPage());
         AddRaceSettingsPage(nav, RaceSettingsPage.Voice, "Voice", CreateVoicePage());
@@ -661,6 +668,97 @@ internal sealed class RaceForm : Form
         {
             SettingsUiFactory.AddSection(content, CreateInterfaceSection());
         });
+    }
+
+    private Control CreatePenaltyPage()
+    {
+        return uiFactory.BuildScrollPage(content =>
+        {
+            SettingsUiFactory.AddSection(content, CreatePenaltySection());
+        });
+    }
+
+    private Control CreatePenaltySection()
+    {
+        TableLayoutPanel section = uiFactory.CreateSection("Penalty");
+        TableLayoutPanel grid = uiFactory.CreateGrid(
+            SettingsUiFactory.ColumnStyleAbsolute(230f),
+            SettingsUiFactory.ColumnStylePercent(12.5f),
+            SettingsUiFactory.ColumnStylePercent(12.5f),
+            SettingsUiFactory.ColumnStylePercent(12.5f),
+            SettingsUiFactory.ColumnStylePercent(12.5f),
+            SettingsUiFactory.ColumnStylePercent(12.5f),
+            SettingsUiFactory.ColumnStylePercent(12.5f),
+            SettingsUiFactory.ColumnStylePercent(12.5f),
+            SettingsUiFactory.ColumnStylePercent(12.5f));
+        uiFactory.AddHeaderRow(
+            grid,
+            "BOSS",
+            "Journey base",
+            "Journey proportional",
+            "Classic base",
+            "Classic proportional",
+            "Expert base",
+            "Expert proportional",
+            "Master base",
+            "Master proportional");
+        foreach (RaceBossPenaltyDescriptor descriptor in RaceBossPenaltyConfiguration.Bosses)
+        {
+            AddBossPenaltyRow(
+                grid,
+                descriptor,
+                descriptor.GetSettings(bossPenaltySettings));
+        }
+
+        SettingsUiFactory.AddSectionControl(section, grid);
+        FlowLayoutPanel actions = CreateButtonRow();
+        penaltyApplyButton = AddButton(actions, "Apply penalty settings", accent: false, () =>
+        {
+            SaveBossPenaltySettings();
+            return Task.CompletedTask;
+        });
+        SettingsUiFactory.AddSectionControl(section, actions);
+        UpdatePenaltySettingsAvailability();
+        return section;
+    }
+
+    private void AddBossPenaltyRow(
+        TableLayoutPanel grid,
+        RaceBossPenaltyDescriptor descriptor,
+        RaceBossPenaltyBossSettings settings)
+    {
+        var controls = new BossPenaltyControls(
+            uiFactory.CreateNumberBox(settings.JourneyBaseSeconds, 0, RaceBossPenaltySettings.MaximumSeconds),
+            uiFactory.CreateNumberBox(settings.JourneyProportionalSeconds, 0, RaceBossPenaltySettings.MaximumSeconds),
+            uiFactory.CreateNumberBox(settings.ClassicBaseSeconds, 0, RaceBossPenaltySettings.MaximumSeconds),
+            uiFactory.CreateNumberBox(settings.ClassicProportionalSeconds, 0, RaceBossPenaltySettings.MaximumSeconds),
+            uiFactory.CreateNumberBox(settings.ExpertBaseSeconds, 0, RaceBossPenaltySettings.MaximumSeconds),
+            uiFactory.CreateNumberBox(settings.ExpertProportionalSeconds, 0, RaceBossPenaltySettings.MaximumSeconds),
+            uiFactory.CreateNumberBox(settings.MasterBaseSeconds, 0, RaceBossPenaltySettings.MaximumSeconds),
+            uiFactory.CreateNumberBox(settings.MasterProportionalSeconds, 0, RaceBossPenaltySettings.MaximumSeconds));
+        bossPenaltyControls[descriptor.Key] = controls;
+
+        int row = uiFactory.AddGridRow(grid);
+        grid.Controls.Add(uiFactory.CreateRowLabel(descriptor.Label), 0, row);
+        TextBox[] values = controls.GetAll();
+        for (int index = 0; index < values.Length; index++)
+        {
+            grid.Controls.Add(uiFactory.CreateCenteredCell(values[index], 86), index + 1, row);
+        }
+    }
+
+    private void UpdatePenaltySettingsAvailability()
+    {
+        bool enabled = !HasOpenRaceRoom(shell.State);
+        foreach (BossPenaltyControls controls in bossPenaltyControls.Values)
+        {
+            foreach (TextBox box in controls.GetAll())
+            {
+                box.Enabled = enabled;
+            }
+        }
+
+        SetControlEnabled(penaltyApplyButton, enabled);
     }
 
     private Control CreateColorsPage()
@@ -1904,7 +2002,8 @@ internal sealed class RaceForm : Form
             SecretSeeds: randomSecretSeedsBox.Text.Trim(),
             PlayerDifficultyCode:
                 RacePlayerDifficultyCodes.ForWorldDifficulty(worldDifficultyCode),
-            RngControlEnabled: rngControlEnabledBox.Checked);
+            RngControlEnabled: rngControlEnabledBox.Checked,
+            BossPenaltySchedule: RaceBossPenaltyConfiguration.Encode(bossPenaltySettings));
     }
 
     private RaceWorldSettings BuildCustomSeedWorldSettings()
@@ -1920,7 +2019,8 @@ internal sealed class RaceForm : Form
             Cheats: RaceCheatSettings.Disabled,
             PlayerDifficultyCode:
                 RacePlayerDifficultyCodes.ForWorldDifficulty(worldDifficultyCode),
-            RngControlEnabled: rngControlEnabledBox.Checked);
+            RngControlEnabled: rngControlEnabledBox.Checked,
+            BossPenaltySchedule: RaceBossPenaltyConfiguration.Encode(bossPenaltySettings));
     }
 
     private RaceWorldSettings BuildUploadWorldSettings()
@@ -2301,6 +2401,44 @@ internal sealed class RaceForm : Form
         }
 
         shell.SaveLeaderboardSettings(BuildLeaderboardSettings());
+    }
+
+    private void SaveBossPenaltySettings()
+    {
+        if (IsProgrammaticUpdate || HasOpenRaceRoom(shell.State))
+        {
+            return;
+        }
+
+        RaceBossPenaltySettings next =
+            AppSettingsCloner.CloneRaceBossPenaltySettings(bossPenaltySettings);
+        foreach (RaceBossPenaltyDescriptor descriptor in RaceBossPenaltyConfiguration.Bosses)
+        {
+            if (!bossPenaltyControls.TryGetValue(descriptor.Key, out BossPenaltyControls? controls))
+            {
+                continue;
+            }
+
+            ApplyBossPenaltyControls(controls, descriptor.GetSettings(next));
+        }
+
+        bossPenaltySettings = next;
+        shell.SaveBossPenaltySettings(next);
+    }
+
+    private static void ApplyBossPenaltyControls(
+        BossPenaltyControls controls,
+        RaceBossPenaltyBossSettings settings)
+    {
+        int maximum = RaceBossPenaltySettings.MaximumSeconds;
+        settings.JourneyBaseSeconds = SettingsValueParser.ParseIntBox(controls.JourneyBase, settings.JourneyBaseSeconds, 0, maximum);
+        settings.JourneyProportionalSeconds = SettingsValueParser.ParseIntBox(controls.JourneyProportional, settings.JourneyProportionalSeconds, 0, maximum);
+        settings.ClassicBaseSeconds = SettingsValueParser.ParseIntBox(controls.ClassicBase, settings.ClassicBaseSeconds, 0, maximum);
+        settings.ClassicProportionalSeconds = SettingsValueParser.ParseIntBox(controls.ClassicProportional, settings.ClassicProportionalSeconds, 0, maximum);
+        settings.ExpertBaseSeconds = SettingsValueParser.ParseIntBox(controls.ExpertBase, settings.ExpertBaseSeconds, 0, maximum);
+        settings.ExpertProportionalSeconds = SettingsValueParser.ParseIntBox(controls.ExpertProportional, settings.ExpertProportionalSeconds, 0, maximum);
+        settings.MasterBaseSeconds = SettingsValueParser.ParseIntBox(controls.MasterBase, settings.MasterBaseSeconds, 0, maximum);
+        settings.MasterProportionalSeconds = SettingsValueParser.ParseIntBox(controls.MasterProportional, settings.MasterProportionalSeconds, 0, maximum);
     }
 
     private RaceVoiceSettings BuildVoiceSettings()
@@ -3481,6 +3619,32 @@ internal sealed class RaceForm : Form
         TextBox? Text,
         TextBox Outline,
         TextBox Shadow);
+
+    private sealed record BossPenaltyControls(
+        TextBox JourneyBase,
+        TextBox JourneyProportional,
+        TextBox ClassicBase,
+        TextBox ClassicProportional,
+        TextBox ExpertBase,
+        TextBox ExpertProportional,
+        TextBox MasterBase,
+        TextBox MasterProportional)
+    {
+        public TextBox[] GetAll()
+        {
+            return
+            [
+                JourneyBase,
+                JourneyProportional,
+                ClassicBase,
+                ClassicProportional,
+                ExpertBase,
+                ExpertProportional,
+                MasterBase,
+                MasterProportional
+            ];
+        }
+    }
 
     private static class RaceLeaderboardColumnKeys
     {

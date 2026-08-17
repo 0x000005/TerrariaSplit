@@ -7,6 +7,22 @@ $clientProject = Join-Path $repositoryRoot 'src/TerrariaSplit.WinForms/TerrariaS
 $serverProject = Join-Path $repositoryRoot 'src/TerrariaSplit.Race.Server/TerrariaSplit.Race.Server.csproj'
 $buildPropsPath = Join-Path $repositoryRoot 'Directory.Build.props'
 
+$physicalRepositoryRoot = [System.IO.Directory]::ResolveLinkTarget($repositoryRoot, $true)
+$worldFilterCandidates = @(
+    Join-Path (Split-Path -Parent $repositoryRoot) 'TerrariaJungleJudge/out/build/x64-release/Release/TerrariaSplit.WorldFilter.dll'
+)
+if ($null -ne $physicalRepositoryRoot) {
+    $worldFilterCandidates += Join-Path (Split-Path -Parent $physicalRepositoryRoot.FullName) 'TerrariaJungleJudge/out/build/x64-release/Release/TerrariaSplit.WorldFilter.dll'
+}
+
+$worldFilterSource = $worldFilterCandidates |
+    Select-Object -Unique |
+    Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } |
+    Select-Object -First 1
+if ([string]::IsNullOrWhiteSpace($worldFilterSource)) {
+    throw "Terraria World Filter was not found. Checked: $($worldFilterCandidates -join '; ')"
+}
+
 [xml]$buildProps = Get-Content -Raw -Encoding UTF8 $buildPropsPath
 $versionNode = $buildProps.SelectSingleNode('/Project/PropertyGroup/TerrariaSplitProductVersion')
 $productVersion = if ($null -eq $versionNode) { '' } else { $versionNode.InnerText.Trim() }
@@ -40,7 +56,8 @@ try {
     Invoke-DotNet @(
         'publish', $clientProject,
         '--no-restore', '-c', 'Release', '-r', 'win-x64',
-        '-m:1', '-p:UseSharedCompilation=false'
+        '-m:1', '-p:UseSharedCompilation=false',
+        "-p:TerrariaWorldFilterSource=$worldFilterSource"
     )
 
     foreach ($runtimeIdentifier in @('win-x64', 'linux-x64')) {

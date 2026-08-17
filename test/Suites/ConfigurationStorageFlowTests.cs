@@ -37,6 +37,8 @@ internal static class ConfigurationStorageFlowTests
         settings.Race.WorldSetup.RngControlEnabled = false;
         settings.Race.WorldSetup.BossFailurePenaltyEnabled = false;
         settings.Race.WorldSetup.LifeCrystalMinimum = 5;
+        settings.Race.BossPenalty.Skeletron.JourneyBaseSeconds = 37;
+        settings.Race.BossPenalty.Skeletron.ClassicProportionalSeconds = 999999;
         settings.Race.Voice.Enabled = true;
         settings.Race.Voice.VoiceName = "  Test Voice  ";
         settings.Race.Voice.SpeedPercent = 250;
@@ -45,6 +47,8 @@ internal static class ConfigurationStorageFlowTests
         settings.Race.Leaderboard.WindowPositionY = 240;
         settings.Overlay.WindowPositionX = -1200;
         settings.Overlay.WindowPositionY = 120;
+        settings.Overlay.Colors.DeltaEqualText = "#123456";
+        settings.Overlay.Colors.TimerEqualText = "#ABCDEF";
         settings.Automation.AutoCreate.EnableCheats = true;
         settings.Automation.AutoCreate.RequireCrimsonBetweenDungeonAndSpawn = true;
         settings.Automation.AutoCreate.CrimsonDistance = AutoCreateCrimsonDistance.Near;
@@ -63,6 +67,9 @@ internal static class ConfigurationStorageFlowTests
         Check.True(repository.Save(settings).Succeeded);
         AppSettings loaded = new AppSettingsRepository(paths).Load();
         Check.Equal("中文", loaded.General.Language);
+        Check.Equal("罚时", TerrariaSplit.Localization.Localizer.Get("Penalty", loaded));
+        Check.Equal("旅途基础时间", TerrariaSplit.Localization.Localizer.Get("Journey base", loaded));
+        Check.Equal("毁灭者", TerrariaSplit.Localization.Localizer.Get("Destroyer", loaded));
         Check.True(loaded.General.AlwaysOnTop);
         Check.True(loaded.Advanced.EnableManualSplit);
         Check.Equal("Control, F7", loaded.Hotkeys.ManualSplitKey);
@@ -80,6 +87,10 @@ internal static class ConfigurationStorageFlowTests
             AutoCreateSpecialWorldSeed.ParseList(loaded.Race.WorldSetup.SpecialSeeds));
         Check.False(loaded.Race.WorldSetup.RngControlEnabled);
         Check.False(loaded.Race.WorldSetup.BossFailurePenaltyEnabled);
+        Check.Equal(37, loaded.Race.BossPenalty.Skeletron.JourneyBaseSeconds);
+        Check.Equal(
+            RaceBossPenaltySettings.MaximumSeconds,
+            loaded.Race.BossPenalty.Skeletron.ClassicProportionalSeconds);
         Check.False(loaded.Race.WorldSetup.CrimsonEnabled);
         Check.Equal(AutoCreateJungleRouteDepth.None, loaded.Race.WorldSetup.JungleRouteDepth);
         Check.Equal(0, loaded.Race.WorldSetup.LifeCrystalMinimum);
@@ -91,6 +102,8 @@ internal static class ConfigurationStorageFlowTests
         Check.Equal(240, loaded.Race.Leaderboard.WindowPositionY);
         Check.Equal(-1200, loaded.Overlay.WindowPositionX);
         Check.Equal(120, loaded.Overlay.WindowPositionY);
+        Check.Equal("#123456", loaded.Overlay.Colors.DeltaEqualText);
+        Check.Equal("#ABCDEF", loaded.Overlay.Colors.TimerEqualText);
         Check.True(loaded.Automation.AutoCreate.EnableCheats);
         Check.True(loaded.Automation.AutoCreate.RequireCrimsonBetweenDungeonAndSpawn);
         Check.Equal(AutoCreateCrimsonDistance.Near, loaded.Automation.AutoCreate.CrimsonDistance);

@@ -1,4 +1,5 @@
 using TerrariaSplit.UI.Rendering;
+using TerrariaSplit.Terraria.Automation;
 
 namespace TerrariaSplit.Tests;
 
@@ -14,6 +15,8 @@ internal static class WindowsFlowTests
         yield return TestCase.Sync("rendering color effects and icons use deterministic render resources", TestSuite.Windows, RenderingResourceJourney);
         yield return TestCase.Sync("expanded current condition follows early delta timing after a prior condition completes", TestSuite.Windows, ExpandedConditionEarlyDeltaJourney);
         yield return TestCase.Sync("cheat filter indicator uses yellow orange and red priority", TestSuite.Core, CheatFilterIndicatorPriority);
+        yield return TestCase.Async("automation failures preserve diagnostics and expose copyable details", TestSuite.Windows, AutomationFailureDetailsJourney);
+        yield return TestCase.Async("automation step exceptions remain available to the owning workflow", TestSuite.Windows, AutomationStepExceptionJourney);
         yield return TestCase.Sync("hotkey settings normalize modifiers and fall back when keys are unsafe", TestSuite.Windows, HotkeyJourney);
         yield return TestCase.Async("hotkey restore returns to the main window thread after an external lifecycle event", TestSuite.Windows, HotkeyThreadAffinityJourney);
     }
@@ -193,9 +196,13 @@ internal static class WindowsFlowTests
         Check.True(colors.ColorTextBoxes.ContainsKey(nameof(UiColorSettings.NameText)));
         Check.True(colors.ColorTextBoxes.ContainsKey(nameof(UiColorSettings.ActiveNameText)));
         Check.True(colors.ColorTextBoxes.ContainsKey(nameof(UiColorSettings.CompletedNameText)));
+        Check.True(colors.ColorTextBoxes.ContainsKey(nameof(UiColorSettings.DeltaEqualText)));
+        Check.True(colors.ColorTextBoxes.ContainsKey(nameof(UiColorSettings.TimerEqualText)));
         colors.ColorTextBoxes[nameof(UiColorSettings.NameText)].Text = "#123456";
         colors.ColorTextBoxes[nameof(UiColorSettings.ActiveNameText)].Text = "#345678";
         colors.ColorTextBoxes[nameof(UiColorSettings.CompletedNameText)].Text = "#654321";
+        colors.ColorTextBoxes[nameof(UiColorSettings.DeltaEqualText)].Text = "#456789";
+        colors.ColorTextBoxes[nameof(UiColorSettings.TimerEqualText)].Text = "#ABCDEF";
         AdvancedSettingsPage advanced = form.PageHost.GetOrCreatePage<AdvancedSettingsPage>(SettingsPageId.Advanced);
         Check.False(advanced.EnableManualSplitBox.Checked);
         Check.False(advanced.ManualSplitKeyBox.Enabled);
@@ -224,6 +231,8 @@ internal static class WindowsFlowTests
         Check.Equal("#123456", draft.Overlay.Colors.NameText);
         Check.Equal("#345678", draft.Overlay.Colors.ActiveNameText);
         Check.Equal("#654321", draft.Overlay.Colors.CompletedNameText);
+        Check.Equal("#456789", draft.Overlay.Colors.DeltaEqualText);
+        Check.Equal("#ABCDEF", draft.Overlay.Colors.TimerEqualText);
         Check.True(draft.Advanced.EnableManualSplit);
         Check.Equal(
             (System.Windows.Forms.Keys.Control | System.Windows.Forms.Keys.F7).ToString(),
@@ -524,6 +533,82 @@ internal static class WindowsFlowTests
             TerrariaSplit.UI.Input.AppSettingsHotkeys.GetPauseResumeKeys(settings)));
     }
 
+    private static Task AutomationFailureDetailsJourney(
+        CancellationToken cancellationToken) => StaTestHost.RunAsync(() =>
+    {
+        var exception = new InvalidOperationException(
+            "outer failure",
+            new ArgumentOutOfRangeException("seed", "inner failure"));
+        AutomationResult result = AutomationResult.Failure(
+            "Could not choose an accepted world seed.",
+            "Seed 1320621295 could not be predicted: prediction status Error.",
+            exception,
+            useDetailedFailureReport: true);
+        Check.True(AutomationFailureReport.TryBuild(result, out string report));
+
+        Check.True(report.Contains(result.UserMessage, StringComparison.Ordinal));
+        Check.True(report.Contains(result.DiagnosticMessage, StringComparison.Ordinal));
+        Check.True(report.Contains("Advanced seed pre-screen internal exception", StringComparison.Ordinal));
+        Check.True(report.Contains("System.InvalidOperationException", StringComparison.Ordinal));
+        Check.True(report.Contains("inner failure", StringComparison.Ordinal));
+        Check.False(report.Contains("Occurred at", StringComparison.Ordinal));
+        Check.False(report.Contains("TerrariaSplit version", StringComparison.Ordinal));
+        Check.False(report.Contains("Log file", StringComparison.Ordinal));
+
+        AutomationResult ordinaryFailure = AutomationResult.Failure(
+            "Could not create or select the Terraria player.",
+            "Create world automation failed before world selection.");
+        Check.False(AutomationFailureReport.TryBuild(ordinaryFailure, out string ordinaryReport));
+        Check.Equal(string.Empty, ordinaryReport);
+        string ordinarySummary = AutomationFailureReport.BuildSummary(ordinaryFailure);
+        Check.True(ordinarySummary.Contains("Automation step failure", StringComparison.Ordinal));
+        Check.True(ordinarySummary.Contains(ordinaryFailure.UserMessage, StringComparison.Ordinal));
+        Check.True(ordinarySummary.Contains(ordinaryFailure.DiagnosticMessage, StringComparison.Ordinal));
+
+        AutomationResult filterFailure = AutomationResult.Failure(
+            "Could not choose an accepted world seed.",
+            "status=CandidateFailuresExceeded; attempts=18; detail=native generation failed",
+            useDetailedFailureReport: true);
+        Check.True(AutomationFailureReport.TryBuild(filterFailure, out string filterReport));
+        Check.True(filterReport.Contains("Advanced seed pre-screen failure", StringComparison.Ordinal));
+        Check.True(filterReport.Contains("CandidateFailuresExceeded", StringComparison.Ordinal));
+
+        AutomationResult unrelatedException = AutomationResult.Failure(
+            "Create world automation failed unexpectedly.",
+            "Unhandled create world automation error.",
+            new InvalidOperationException("outside advanced seed pre-screen"));
+        Check.False(AutomationFailureReport.TryBuild(unrelatedException, out _));
+
+        string longReport = report + Environment.NewLine +
+            string.Join(
+                Environment.NewLine,
+                Enumerable.Repeat("Long diagnostic detail line.", 200));
+        using var dialog = new SettingsMessageDialog(
+            "Create World",
+            longReport,
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Warning,
+            static value => value,
+            selectableMessage: true);
+        Check.Equal(longReport, dialog.DisplayedMessage);
+        Check.True(dialog.HasSelectableMessage);
+        Check.True(dialog.HasCopyDetailsButton);
+        Rectangle workingArea = Screen.PrimaryScreen!.WorkingArea;
+        Check.True(dialog.Width <= Math.Max(480, workingArea.Width - 96));
+        Check.True(dialog.Height <= Math.Max(360, workingArea.Height - 96));
+    }, cancellationToken);
+
+    private static async Task AutomationStepExceptionJourney(CancellationToken cancellationToken)
+    {
+        var context = new TerrariaAutomationContext("Test");
+        InvalidOperationException exception = await Check.ThrowsAsync<InvalidOperationException>(() =>
+            context.RunStepAsync(
+                "throwing step",
+                _ => Task.FromException<bool>(new InvalidOperationException("internal failure")),
+                cancellationToken));
+        Check.Equal("internal failure", exception.Message);
+    }
+
     private static void TimerProportionalFontLayoutJourney()
     {
         AppSettings settings = AppSettingsDefaults.Create();
@@ -569,6 +654,58 @@ internal static class WindowsFlowTests
 
     private static void RenderingResourceJourney()
     {
+        AppSettings colorSettings = AppSettingsDefaults.Create();
+        colorSettings.Overlay.Colors.DeltaEqualText = "#123456";
+        colorSettings.Overlay.Colors.DeltaEqualTextOutline = "#234567";
+        colorSettings.Overlay.Colors.DeltaEqualTextShadow = "#345678";
+        colorSettings.Overlay.Colors.TimerText = "#654321";
+        colorSettings.Overlay.Colors.TimerEqualText = "#ABCDEF";
+        colorSettings.Overlay.Colors.TimerEqualTextOutline = "#BCDEF0";
+        colorSettings.Overlay.Colors.TimerEqualTextShadow = "#CDEF01";
+        UiPalette palette = UiPalette.From(colorSettings.Overlay.Colors);
+
+        TextRenderStyle equalDeltaStyle = OverlayTextStyles.GetDeltaTextStyle(
+            colorSettings,
+            new SplitComparison(TimeSpan.Zero, ShowDelta: true),
+            palette);
+        Check.Equal(Color.FromArgb(0x12, 0x34, 0x56).ToArgb(), equalDeltaStyle.Fill.ToArgb());
+        Check.Equal(Color.FromArgb(0x23, 0x45, 0x67).ToArgb(), equalDeltaStyle.Outline.ToArgb());
+        Check.Equal(Color.FromArgb(0x34, 0x56, 0x78).ToArgb(), equalDeltaStyle.Shadow.ToArgb());
+        Check.Equal(
+            palette.DeltaEqualText.ToArgb(),
+            OverlayColorMath.GetDeltaComparisonColor(
+                colorSettings,
+                new SplitComparison(TimeSpan.Zero, ShowDelta: true),
+                palette,
+                enableGradient: true).ToArgb());
+        Check.Equal(
+            palette.TimerEqualText.ToArgb(),
+            OverlayColorMath.GetGradientDeltaColor(
+                colorSettings,
+                TimeSpan.Zero,
+                palette.TimerAheadText,
+                palette.TimerEqualText,
+                palette.TimerBehindText).ToArgb());
+        Check.True(palette.TimerText.ToArgb() != palette.TimerEqualText.ToArgb());
+
+        SplitDefinition timerDefinition = SplitCatalog.Build(colorSettings)[0];
+        ReferenceSplitSet timerReferenceSet = ReferenceSplitSetService.GetActiveReferenceSet(colorSettings);
+        foreach (string key in timerReferenceSet.Splits.Keys.ToArray())
+        {
+            timerReferenceSet.Splits[key] = "00:10";
+        }
+        TextRenderStyle equalTimerStyle = OverlayTextStyles.GetTimerTextStyle(
+            colorSettings,
+            [SplitStatusSnapshot.FromDefinition(timerDefinition)],
+            currentSplitIndex: 0,
+            SplitTimerPhase.Running,
+            TimeSpan.FromSeconds(10),
+            palette,
+            milliseconds: false);
+        Check.Equal(palette.TimerEqualText.ToArgb(), equalTimerStyle.Fill.ToArgb());
+        Check.Equal(palette.TimerEqualTextOutline.ToArgb(), equalTimerStyle.Outline.ToArgb());
+        Check.Equal(palette.TimerEqualTextShadow.ToArgb(), equalTimerStyle.Shadow.ToArgb());
+
         Color baseColor = Color.FromArgb(40, 80, 120);
         Check.Equal(
             baseColor.ToArgb(),

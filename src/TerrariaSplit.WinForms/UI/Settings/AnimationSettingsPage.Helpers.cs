@@ -230,7 +230,7 @@ internal sealed partial class AnimationSettingsPage : SettingsPageBase
     {
         return (
             ColorText.Parse(Draft.Overlay.Colors.DeltaAheadText, Color.FromArgb(114, 213, 114)),
-            ColorText.Parse(Draft.Overlay.Colors.TimerText, Color.FromArgb(242, 242, 242)),
+            ColorText.Parse(Draft.Overlay.Colors.DeltaEqualText, Color.White),
             ColorText.Parse(Draft.Overlay.Colors.DeltaBehindText, Color.FromArgb(240, 112, 112)),
             enableDeltaGradientColorBox.Checked || enableCurrentDeltaGradientColorBox.Checked);
     }
@@ -239,7 +239,7 @@ internal sealed partial class AnimationSettingsPage : SettingsPageBase
     {
         return (
             ColorText.Parse(Draft.Overlay.Colors.TimerAheadText, Color.LightGreen),
-            ColorText.Parse(Draft.Overlay.Colors.TimerText, Color.FromArgb(242, 242, 242)),
+            ColorText.Parse(Draft.Overlay.Colors.TimerEqualText, Color.White),
             ColorText.Parse(Draft.Overlay.Colors.TimerBehindText, Color.LightCoral),
             enableTimerGradientColorBox.Checked);
     }

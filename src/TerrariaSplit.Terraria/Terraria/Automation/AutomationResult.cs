@@ -9,6 +9,8 @@ public sealed record AutomationResult(
 {
     public bool Failed => !Succeeded && !Cancelled;
 
+    public bool UseDetailedFailureReport { get; init; }
+
     public static AutomationResult Success(string diagnostic = "")
     {
         return new AutomationResult(true, false, string.Empty, diagnostic);
@@ -22,8 +24,12 @@ public sealed record AutomationResult(
     public static AutomationResult Failure(
         string userMessage,
         string diagnostic,
-        Exception? exception = null)
+        Exception? exception = null,
+        bool useDetailedFailureReport = false)
     {
-        return new AutomationResult(false, false, userMessage, diagnostic, exception);
+        return new AutomationResult(false, false, userMessage, diagnostic, exception)
+        {
+            UseDetailedFailureReport = useDetailedFailureReport
+        };
     }
 }

@@ -20,6 +20,8 @@ internal interface IRacePanelShell
 
     RaceLeaderboardSettings LeaderboardSettings { get; }
 
+    RaceBossPenaltySettings BossPenaltySettings { get; }
+
     RaceVoiceSettings VoiceSettings { get; }
 
     IReadOnlyList<RaceVoiceOption> InstalledVoices { get; }
@@ -33,6 +35,8 @@ internal interface IRacePanelShell
     void OpenInGameMenu();
 
     void SaveLeaderboardSettings(RaceLeaderboardSettings leaderboardSettings);
+
+    void SaveBossPenaltySettings(RaceBossPenaltySettings bossPenaltySettings);
 
     void SaveVoiceSettings(RaceVoiceSettings voiceSettings);
 

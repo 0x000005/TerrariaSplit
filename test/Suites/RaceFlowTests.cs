@@ -106,14 +106,14 @@ internal static class RaceFlowTests
         (RaceBossPenaltyKind Kind, int Life, int MaximumLife, int GameMode, long Expected)[] cases =
         [
             (RaceBossPenaltyKind.Skeletron, 50, 100, 0, 210_000L),
-            (RaceBossPenaltyKind.Skeletron, 50, 100, 1, 252_000L),
+            (RaceBossPenaltyKind.Skeletron, 50, 100, 1, 262_500L),
             (RaceBossPenaltyKind.Skeletron, 50, 100, 2, 315_000L),
-            (RaceBossPenaltyKind.Skeletron, 50, 100, 3, 210_000L),
+            (RaceBossPenaltyKind.Skeletron, 50, 100, 3, 105_000L),
             (RaceBossPenaltyKind.Skeletron, 150, 100, 0, 300_000L),
             (RaceBossPenaltyKind.WallOfFlesh, 50, 100, 0, 240_000L),
-            (RaceBossPenaltyKind.WallOfFlesh, 50, 100, 1, 288_000L),
+            (RaceBossPenaltyKind.WallOfFlesh, 50, 100, 1, 300_000L),
             (RaceBossPenaltyKind.WallOfFlesh, 50, 100, 2, 360_000L),
-            (RaceBossPenaltyKind.WallOfFlesh, 50, 100, 3, 240_000L),
+            (RaceBossPenaltyKind.WallOfFlesh, 50, 100, 3, 120_000L),
             (RaceBossPenaltyKind.WallOfFlesh, 150, 100, 0, 360_000L),
             (RaceBossPenaltyKind.WallOfFlesh, 0, 100, 2, 0L),
             (RaceBossPenaltyKind.SkeletronPrime, 50, 100, 0, 180_000L),
@@ -129,6 +129,25 @@ internal static class RaceFlowTests
                 expected,
                 RaceBossPenalty.CalculateMilliseconds(kind, life, maximumLife, gameMode));
         }
+
+        string encodedSchedule = RaceBossPenalty.DefaultSchedule.Encode();
+        Check.Equal(
+            encodedSchedule,
+            RaceBossPenaltyConfiguration.Encode(new RaceBossPenaltySettings()));
+        Check.True(RaceBossPenalty.TryParseSchedule(encodedSchedule, out RaceBossPenaltySchedule? parsedSchedule));
+        Check.Equal(encodedSchedule, parsedSchedule.Encode());
+        Check.False(RaceBossPenalty.TryParseSchedule("1;1,2,3", out _));
+        Check.True(RaceBossPenalty.TryCreateSchedule(
+            Enumerable.Repeat(1, RaceBossPenalty.ScheduleValueCount).ToArray(),
+            out RaceBossPenaltySchedule? customSchedule));
+        Check.Equal(
+            1_500L,
+            RaceBossPenalty.CalculateMilliseconds(
+                customSchedule,
+                RaceBossPenaltyKind.Skeletron,
+                50,
+                100,
+                3));
 
         Check.True(RaceBossPenalty.IsValidMilliseconds(RaceBossPenaltyKind.Skeletron, 450_000L));
         Check.False(RaceBossPenalty.IsValidMilliseconds(RaceBossPenaltyKind.Skeletron, 450_001L));
@@ -558,6 +577,9 @@ internal static class RaceFlowTests
         Check.Equal(AutoCreateJungleRouteDepth.VeryDeep, restored.WorldSettings.Cheats.JungleRouteDepth);
         Check.True(restored.WorldSettings.RngControlEnabled);
         Check.False(restored.WorldSettings.BossFailurePenaltyEnabled);
+        Check.Equal(
+            RaceBossPenalty.DefaultSchedule.Encode(),
+            restored.WorldSettings.BossPenaltySchedule);
         Check.True(RaceWorldSettingsFactory.HasCompatibleJourneyDifficulties(restored.WorldSettings));
         Check.False(RaceWorldSettingsFactory.HasCompatibleJourneyDifficulties(
             restored.WorldSettings with { PlayerDifficultyCode = RacePlayerDifficultyCodes.Journey }));
@@ -890,7 +912,8 @@ internal static class RaceFlowTests
                     AutoCreateJungleRouteDepth.VeryDeep),
                 "race",
                 PlayerDifficultyCode: RacePlayerDifficultyCodes.Hardcore,
-                BossFailurePenaltyEnabled: false),
+                BossFailurePenaltyEnabled: false,
+                BossPenaltySchedule: RaceBossPenalty.DefaultSchedule.Encode()),
             new RaceSeedAssignment("1234", RaceSeedSource.Fixed),
             new RaceWorldFileInfo(revisionName + ".wld", 128, revisionName, DateTimeOffset.UnixEpoch, nickname));
 

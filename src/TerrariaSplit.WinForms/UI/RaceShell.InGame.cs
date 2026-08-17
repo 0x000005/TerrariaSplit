@@ -291,6 +291,8 @@ internal sealed partial class RaceShell
             state is null ||
             state.WorldSettings?.BossFailurePenaltyEnabled == false ||
             !RaceBossPenalty.TryParseActionValue(
+                RaceBossPenalty.ParseScheduleOrDefault(
+                    state.WorldSettings?.BossPenaltySchedule ?? string.Empty),
                 value,
                 packageDigest,
                 out RaceBossPenaltyKind kinds,

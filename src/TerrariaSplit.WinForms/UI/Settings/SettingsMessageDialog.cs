@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
 namespace TerrariaSplit.UI.Settings;
@@ -6,6 +7,8 @@ namespace TerrariaSplit.UI.Settings;
 internal sealed class SettingsMessageDialog : Form
 {
     private const int DialogWidth = 640;
+    private const int SelectableDialogWidth = 820;
+    private const int ScreenMargin = 96;
     private const int TitleBarHeight = 52;
     private const int FooterHeight = 76;
     private const int BodyHorizontalPadding = 48;
@@ -13,6 +16,8 @@ internal sealed class SettingsMessageDialog : Form
     private const int MessageHeightSafetyPadding = 12;
 
     private readonly Panel titleBar;
+    private readonly Control messageControl;
+    private Button? copyDetailsButton;
     private bool dragging;
     private Point dragStartCursor;
     private Point dragStartLocation;
@@ -23,14 +28,16 @@ internal sealed class SettingsMessageDialog : Form
         string message,
         MessageBoxButtons buttons,
         MessageBoxIcon icon,
-        Func<string, string> localize)
+        Func<string, string> localize,
+        bool selectableMessage = false)
     {
         using var dialog = new SettingsMessageDialog(
             title,
             message,
             buttons,
             icon,
-            localize);
+            localize,
+            selectableMessage);
         dialog.Shown += (_, _) =>
         {
             dialog.BringToFront();
@@ -45,7 +52,8 @@ internal sealed class SettingsMessageDialog : Form
         string message,
         MessageBoxButtons buttons,
         MessageBoxIcon icon,
-        Func<string, string> localize)
+        Func<string, string> localize,
+        bool selectableMessage = false)
     {
         Text = title;
         StartPosition = FormStartPosition.CenterParent;
@@ -53,9 +61,13 @@ internal sealed class SettingsMessageDialog : Form
         MinimizeBox = false;
         MaximizeBox = false;
         ShowInTaskbar = false;
-        ClientSize = CalculateClientSize(message);
+        ClientSize = CalculateClientSize(message, selectableMessage);
         Padding = new Padding(1);
-        UiTheme.ConfigureForm(this, new Size(480, 220));
+        UiTheme.ConfigureForm(
+            this,
+            selectableMessage
+                ? new Size(640, 360)
+                : new Size(480, 220));
 
         var root = new TableLayoutPanel
         {
@@ -71,11 +83,24 @@ internal sealed class SettingsMessageDialog : Form
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, FooterHeight));
 
         titleBar = CreateTitleBar(title);
+        messageControl = CreateMessageControl(message, selectableMessage);
         root.Controls.Add(titleBar, 0, 0);
-        root.Controls.Add(CreateBody(message), 0, 1);
-        root.Controls.Add(CreateFooter(buttons, localize), 0, 2);
+        root.Controls.Add(CreateBody(messageControl), 0, 1);
+        root.Controls.Add(
+            CreateFooter(
+                buttons,
+                localize,
+                selectableMessage),
+            0,
+            2);
         Controls.Add(root);
     }
+
+    internal string DisplayedMessage => messageControl.Text;
+
+    internal bool HasSelectableMessage => messageControl is TextBoxBase;
+
+    internal bool HasCopyDetailsButton => copyDetailsButton is not null;
 
     protected override void OnPaint(PaintEventArgs e)
     {
@@ -84,10 +109,26 @@ internal sealed class SettingsMessageDialog : Form
         e.Graphics.DrawRectangle(pen, 0, 0, ClientSize.Width - 1, ClientSize.Height - 1);
     }
 
-    private static Size CalculateClientSize(string message)
+    protected override void OnShown(EventArgs e)
+    {
+        base.OnShown(e);
+        FitToCurrentScreen();
+    }
+
+    private static Size CalculateClientSize(
+        string message,
+        bool selectableMessage)
     {
         using Font font = UiTheme.FormFont(10f);
-        int textWidth = DialogWidth - BodyHorizontalPadding;
+        Rectangle workingArea = Screen.PrimaryScreen?.WorkingArea ??
+            new Rectangle(0, 0, SelectableDialogWidth, 900);
+        int preferredWidth = selectableMessage
+            ? SelectableDialogWidth
+            : DialogWidth;
+        int width = Math.Min(
+            preferredWidth,
+            Math.Max(480, workingArea.Width - ScreenMargin));
+        int textWidth = width - BodyHorizontalPadding;
         int lineHeight = Math.Max(1, TextRenderer.MeasureText(
             "A",
             font,
@@ -100,7 +141,29 @@ internal sealed class SettingsMessageDialog : Form
             TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl | TextFormatFlags.NoPrefix);
         int messageHeight = Math.Max(lineHeight, measured.Height) + MessageHeightSafetyPadding;
         int height = TitleBarHeight + FooterHeight + BodyVerticalPadding + messageHeight;
-        return new Size(DialogWidth, height);
+        int maximumHeight = Math.Max(360, workingArea.Height - ScreenMargin);
+        if (selectableMessage)
+        {
+            height = Math.Max(520, height);
+        }
+
+        return new Size(width, Math.Min(height, maximumHeight));
+    }
+
+    private void FitToCurrentScreen()
+    {
+        Rectangle workingArea = Screen.FromControl(this).WorkingArea;
+        int maximumWidth = Math.Max(480, workingArea.Width - ScreenMargin);
+        int maximumHeight = Math.Max(360, workingArea.Height - ScreenMargin);
+        MinimumSize = new Size(
+            Math.Min(MinimumSize.Width, maximumWidth),
+            Math.Min(MinimumSize.Height, maximumHeight));
+        Size = new Size(
+            Math.Min(Width, maximumWidth),
+            Math.Min(Height, maximumHeight));
+        Location = new Point(
+            Math.Clamp(Left, workingArea.Left, Math.Max(workingArea.Left, workingArea.Right - Width)),
+            Math.Clamp(Top, workingArea.Top, Math.Max(workingArea.Top, workingArea.Bottom - Height)));
     }
 
     private Panel CreateTitleBar(string title)
@@ -152,7 +215,7 @@ internal sealed class SettingsMessageDialog : Form
         return panel;
     }
 
-    private static Control CreateBody(string message)
+    private static Control CreateBody(Control messageControl)
     {
         var body = new TableLayoutPanel
         {
@@ -165,7 +228,34 @@ internal sealed class SettingsMessageDialog : Form
         body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
         body.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
 
-        var bodyLabel = new Label
+        body.Controls.Add(messageControl, 0, 0);
+        return body;
+    }
+
+    private static Control CreateMessageControl(
+        string message,
+        bool selectableMessage)
+    {
+        if (selectableMessage)
+        {
+            return new RichTextBox
+            {
+                Dock = DockStyle.Fill,
+                BackColor = UiTheme.Field,
+                BorderStyle = BorderStyle.None,
+                DetectUrls = false,
+                ForeColor = UiTheme.Text,
+                Font = UiTheme.FormFont(10f),
+                Margin = Padding.Empty,
+                ReadOnly = true,
+                ScrollBars = RichTextBoxScrollBars.ForcedVertical,
+                ShortcutsEnabled = true,
+                Text = message,
+                WordWrap = true
+            };
+        }
+
+        return new Label
         {
             Dock = DockStyle.Fill,
             AutoEllipsis = false,
@@ -176,12 +266,12 @@ internal sealed class SettingsMessageDialog : Form
             TextAlign = ContentAlignment.TopLeft,
             UseMnemonic = false
         };
-
-        body.Controls.Add(bodyLabel, 0, 0);
-        return body;
     }
 
-    private Control CreateFooter(MessageBoxButtons buttons, Func<string, string> localize)
+    private Control CreateFooter(
+        MessageBoxButtons buttons,
+        Func<string, string> localize,
+        bool selectableMessage)
     {
         var footer = new FlowLayoutPanel
         {
@@ -218,6 +308,17 @@ internal sealed class SettingsMessageDialog : Form
             }
         }
 
+        if (selectableMessage)
+        {
+            copyDetailsButton = new Button
+            {
+                Text = localize("Copy details")
+            };
+            UiTheme.StyleButton(copyDetailsButton, minimumWidth: 140);
+            copyDetailsButton.Click += (_, _) => CopyDisplayedMessage();
+            footer.Controls.Add(copyDetailsButton);
+        }
+
         if (AcceptButton is null && footer.Controls.OfType<Button>().FirstOrDefault() is Button firstButton)
         {
             AcceptButton = firstButton;
@@ -225,6 +326,23 @@ internal sealed class SettingsMessageDialog : Form
 
         CancelButton ??= AcceptButton;
         return footer;
+    }
+
+    private void CopyDisplayedMessage()
+    {
+        if (string.IsNullOrEmpty(messageControl.Text))
+        {
+            return;
+        }
+
+        try
+        {
+            Clipboard.SetText(messageControl.Text);
+        }
+        catch (ExternalException)
+        {
+            // Keep the dialog usable when another process temporarily owns the clipboard.
+        }
     }
 
     private static IReadOnlyList<(string Text, DialogResult Result, bool Accent)> GetButtonDefinitions(MessageBoxButtons buttons)

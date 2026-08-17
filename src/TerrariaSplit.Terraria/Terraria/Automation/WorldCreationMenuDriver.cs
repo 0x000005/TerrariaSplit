@@ -180,7 +180,9 @@ internal sealed class WorldCreationMenuDriver
         {
             RecordFailure(AutomationResult.Failure(
                 "Could not choose an accepted world seed.",
-                $"Create world automation 1.4.4.9 pyramid seed pre-screen failed: {preScreenResult.Detail}"));
+                $"Create world automation 1.4.4.9 pyramid seed pre-screen failed: {preScreenResult.Detail}",
+                preScreenResult.Exception,
+                preScreenResult.DetailedDiagnostics));
             return CreateWorldAttemptResult.Failed;
         }
 
@@ -391,7 +393,9 @@ internal sealed class WorldCreationMenuDriver
         {
             RecordFailure(AutomationResult.Failure(
                 "Could not choose an accepted world seed.",
-                $"Create world automation pyramid seed pre-screen failed: {preScreenResult.Detail}"));
+                $"Create world automation pyramid seed pre-screen failed: {preScreenResult.Detail}",
+                preScreenResult.Exception,
+                preScreenResult.DetailedDiagnostics));
             return WorldSeedOptionsResult.Failed;
         }
 
