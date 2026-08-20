@@ -156,7 +156,9 @@ public sealed class RaceRoomManager
             RaceWorldSettings worldSettings = request.WorldSettings with
             {
                 PlayerDifficultyCode =
-                    RacePlayerDifficultyCodes.ForWorldDifficulty(request.WorldSettings.DifficultyCode)
+                    RacePlayerDifficultyCodes.ForWorldDifficulty(request.WorldSettings.DifficultyCode),
+                BossPenaltyEnabledKinds = RaceBossPenaltyKinds.Normalize(
+                    request.WorldSettings.BossPenaltyEnabledKinds)
             };
             activeRoom.Route = request.Route;
             activeRoom.WorldSettings = worldSettings;

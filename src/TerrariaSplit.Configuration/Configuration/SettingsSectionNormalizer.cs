@@ -143,6 +143,7 @@ public static class SettingsSectionNormalizer
         setup.WorldEvil = AutoCreateWorldEvil.Normalize(setup.WorldEvil);
         setup.SpecialSeeds = string.Join("|", AutoCreateSpecialWorldSeed.ParseList(setup.SpecialSeeds));
         setup.SecretSeeds = setup.SecretSeeds?.Trim() ?? string.Empty;
+        setup.BossPenaltyEnabledKinds &= RaceWorldSetupSettings.AllBossPenaltyKinds;
         setup.PyramidItemMask = AutoCreatePyramidFilterItem.NormalizeMask(setup.PyramidItemMask);
         setup.CrimsonDistance = AutoCreateCrimsonDistance.Normalize(setup.CrimsonDistance);
         setup.JungleRouteDepth = AutoCreateJungleRouteDepth.Normalize(setup.JungleRouteDepth);

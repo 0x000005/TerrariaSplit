@@ -191,9 +191,25 @@ public sealed record RaceWorldSettings(
     int PlayerDifficultyCode = RacePlayerDifficultyCodes.Softcore,
     bool RngControlEnabled = true,
     bool BossFailurePenaltyEnabled = true,
-    string BossPenaltySchedule = "")
+    string BossPenaltySchedule = "",
+    int BossPenaltyEnabledKinds = RaceBossPenaltyKinds.All)
 {
     public RaceCheatSettings EffectiveCheats => Cheats ?? RaceCheatSettings.Disabled;
+}
+
+public static class RaceBossPenaltyKinds
+{
+    public const int Skeletron = 1;
+    public const int WallOfFlesh = 2;
+    public const int SkeletronPrime = 4;
+    public const int Twins = 8;
+    public const int Destroyer = 16;
+    public const int Plantera = 32;
+    public const int Golem = 64;
+    public const int LunaticCultist = 128;
+    public const int All = 0xFF;
+
+    public static int Normalize(int kinds) => kinds & All;
 }
 
 public sealed record RaceSeedAssignment(

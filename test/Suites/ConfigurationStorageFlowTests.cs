@@ -36,6 +36,8 @@ internal static class ConfigurationStorageFlowTests
         settings.Race.WorldSetup.SpecialSeeds = "not the bees | no traps";
         settings.Race.WorldSetup.RngControlEnabled = false;
         settings.Race.WorldSetup.BossFailurePenaltyEnabled = false;
+        settings.Race.WorldSetup.BossPenaltyEnabledKinds =
+            RaceWorldSetupSettings.AllBossPenaltyKinds & ~RaceBossPenaltyKinds.Plantera;
         settings.Race.WorldSetup.LifeCrystalMinimum = 5;
         settings.Race.BossPenalty.Skeletron.JourneyBaseSeconds = 37;
         settings.Race.BossPenalty.Skeletron.ClassicProportionalSeconds = 999999;
@@ -87,6 +89,9 @@ internal static class ConfigurationStorageFlowTests
             AutoCreateSpecialWorldSeed.ParseList(loaded.Race.WorldSetup.SpecialSeeds));
         Check.False(loaded.Race.WorldSetup.RngControlEnabled);
         Check.False(loaded.Race.WorldSetup.BossFailurePenaltyEnabled);
+        Check.Equal(
+            RaceWorldSetupSettings.AllBossPenaltyKinds & ~RaceBossPenaltyKinds.Plantera,
+            loaded.Race.WorldSetup.BossPenaltyEnabledKinds);
         Check.Equal(37, loaded.Race.BossPenalty.Skeletron.JourneyBaseSeconds);
         Check.Equal(
             RaceBossPenaltySettings.MaximumSeconds,

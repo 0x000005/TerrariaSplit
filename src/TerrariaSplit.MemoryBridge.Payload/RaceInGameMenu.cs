@@ -644,7 +644,7 @@ namespace TerrariaSplit.MemoryBridge.Payload
             AppendPageTitle(root, snapshot.Title);
             object panel = CreateOptionPagePanel(root);
 
-            object list = CreateListWithoutScrollbar(panel, 0f, 0f);
+            object list = CreateList(panel, 0f, 0f);
             AppendGroupedControls(list, snapshot);
             AppendFooter(root, snapshot);
             return state;
@@ -901,9 +901,15 @@ namespace TerrariaSplit.MemoryBridge.Payload
                     continue;
                 }
 
-                for (int offset = 0; offset < grouped.Length; offset += 6)
+                int maximumItemsPerRow = string.Equals(
+                    group,
+                    "boss-penalty-kinds",
+                    StringComparison.Ordinal)
+                        ? 8
+                        : 6;
+                for (int offset = 0; offset < grouped.Length; offset += maximumItemsPerRow)
                 {
-                    int count = Math.Min(6, grouped.Length - offset);
+                    int count = Math.Min(maximumItemsPerRow, grouped.Length - offset);
                     object row = Activator.CreateInstance(raceUiElementType);
                     SetDimension(row, "Width", 0f, 1f);
                     SetDimension(row, "Height", 62f, 0f);

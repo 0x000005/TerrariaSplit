@@ -1411,6 +1411,7 @@ namespace TerrariaSplit.MemoryBridge.Payload
                 PlanteraBulbConfiguration planteraBulb,
                 bool entryAllowed,
                 bool bossFailurePenaltyEnabled,
+                int bossPenaltyEnabledKinds,
                 RaceBossPenaltySchedule bossPenaltySchedule,
                 string packageDigest)
             {
@@ -1428,6 +1429,7 @@ namespace TerrariaSplit.MemoryBridge.Payload
                 PlanteraBulb = planteraBulb;
                 this.entryAllowed = entryAllowed;
                 BossFailurePenaltyEnabled = bossFailurePenaltyEnabled;
+                BossPenaltyEnabledKinds = bossPenaltyEnabledKinds;
                 BossPenaltySchedule = bossPenaltySchedule;
                 PackageDigest = packageDigest;
                 EntropySeed = Convert.FromBase64String(entropySeedBase64);
@@ -1462,6 +1464,8 @@ namespace TerrariaSplit.MemoryBridge.Payload
 
             public bool BossFailurePenaltyEnabled { get; private set; }
 
+            public int BossPenaltyEnabledKinds { get; private set; }
+
             public RaceBossPenaltySchedule BossPenaltySchedule { get; private set; }
 
             public string PackageDigest { get; private set; }
@@ -1492,6 +1496,7 @@ namespace TerrariaSplit.MemoryBridge.Payload
                     PlanteraBulb,
                     EntryAllowed,
                     BossFailurePenaltyEnabled,
+                    BossPenaltyEnabledKinds,
                     BossPenaltySchedule,
                     PackageDigest);
             }
@@ -1526,7 +1531,8 @@ namespace TerrariaSplit.MemoryBridge.Payload
                 Guid epochId;
                 bool entryAllowed;
                 bool bossFailurePenaltyEnabled;
-                if (parts.Length != 17 || !string.Equals(parts[0], "configure", StringComparison.Ordinal) ||
+                int bossPenaltyEnabledKinds;
+                if (parts.Length != 18 || !string.Equals(parts[0], "configure", StringComparison.Ordinal) ||
                     !int.TryParse(parts[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out worldId) ||
                     !Guid.TryParse(parts[3], out uniqueId) ||
                     !int.TryParse(parts[6], NumberStyles.Integer, CultureInfo.InvariantCulture, out protocolVersion) ||
@@ -1534,7 +1540,9 @@ namespace TerrariaSplit.MemoryBridge.Payload
                     !int.TryParse(parts[10], NumberStyles.Integer, CultureInfo.InvariantCulture, out enabledCapabilities) ||
                     !int.TryParse(parts[11], NumberStyles.Integer, CultureInfo.InvariantCulture, out chancePolicyVersion) ||
                     !TryParseFlag(parts[13], out entryAllowed) ||
-                    !TryParseFlag(parts[14], out bossFailurePenaltyEnabled))
+                    !TryParseFlag(parts[14], out bossFailurePenaltyEnabled) ||
+                    !int.TryParse(parts[15], NumberStyles.Integer, CultureInfo.InvariantCulture, out bossPenaltyEnabledKinds) ||
+                    RaceBossPenalty.NormalizeEnabledKinds(bossPenaltyEnabledKinds) != bossPenaltyEnabledKinds)
                 {
                     return false;
                 }
@@ -1552,7 +1560,7 @@ namespace TerrariaSplit.MemoryBridge.Payload
                         return false;
                     }
                     RaceBossPenaltySchedule bossPenaltySchedule;
-                    if (!RaceBossPenalty.TryParseSchedule(parts[15], out bossPenaltySchedule))
+                    if (!RaceBossPenalty.TryParseSchedule(parts[16], out bossPenaltySchedule))
                     {
                         return false;
                     }
@@ -1576,7 +1584,7 @@ namespace TerrariaSplit.MemoryBridge.Payload
                             compatibilityId,
                             RaceDeterminismProtocol.TerrariaCompatibilityId,
                             StringComparison.Ordinal) ||
-                        !string.Equals(expectedDigest, parts[16], StringComparison.Ordinal))
+                        !string.Equals(expectedDigest, parts[17], StringComparison.Ordinal))
                     {
                         return false;
                     }
@@ -1596,8 +1604,9 @@ namespace TerrariaSplit.MemoryBridge.Payload
                         planteraBulb,
                         entryAllowed,
                         bossFailurePenaltyEnabled,
+                        bossPenaltyEnabledKinds,
                         bossPenaltySchedule,
-                        parts[16]);
+                        parts[17]);
                     return true;
                 }
                 catch (FormatException)

@@ -297,7 +297,10 @@ internal sealed partial class RaceShell
                 packageDigest,
                 out RaceBossPenaltyKind kinds,
                 out long penaltyMilliseconds,
-                out long settlementId))
+                out long settlementId) ||
+            !RaceBossPenalty.AreKindsEnabled(
+                state.WorldSettings?.BossPenaltyEnabledKinds ?? 0,
+                kinds))
         {
             return;
         }
@@ -490,6 +493,22 @@ internal sealed partial class RaceShell
         {
             RaceWorldSetupSettings setup = EnsureInGameWorldSetup();
             setup.BossFailurePenaltyEnabled = !setup.BossFailurePenaltyEnabled;
+            PersistInGameWorldSetup();
+        }
+        else if (id.StartsWith("boss-penalty-kind:", StringComparison.Ordinal))
+        {
+            RaceWorldSetupSettings setup = EnsureInGameWorldSetup();
+            if (setup.BossFailurePenaltyEnabled)
+            {
+                string key = id["boss-penalty-kind:".Length..];
+                RaceBossPenaltyDescriptor? boss = RaceBossPenaltyConfiguration.Bosses.FirstOrDefault(
+                    item => string.Equals(item.Key, key, StringComparison.Ordinal));
+                if (boss is not null)
+                {
+                    setup.BossPenaltyEnabledKinds = RaceBossPenalty.NormalizeEnabledKinds(
+                        setup.BossPenaltyEnabledKinds ^ (int)boss.Kind);
+                }
+            }
             PersistInGameWorldSetup();
         }
         else if (id == "pyramid")

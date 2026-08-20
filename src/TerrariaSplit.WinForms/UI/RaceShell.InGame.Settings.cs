@@ -1,4 +1,5 @@
 using TerrariaSplit.Race.Contracts;
+using TerrariaSplit.Race.InGame;
 using TerrariaSplit.Terraria.Automation;
 
 namespace TerrariaSplit.UI;
@@ -49,7 +50,9 @@ internal sealed partial class RaceShell
             RngControlEnabled: setup.RngControlEnabled,
             BossFailurePenaltyEnabled: setup.BossFailurePenaltyEnabled,
             BossPenaltySchedule: RaceBossPenaltyConfiguration.Encode(
-                getSettings().Race?.BossPenalty));
+                getSettings().Race?.BossPenalty),
+            BossPenaltyEnabledKinds: RaceBossPenalty.NormalizeEnabledKinds(
+                setup.BossPenaltyEnabledKinds));
     }
 
     private void PersistInGameWorldSetup()
@@ -121,6 +124,8 @@ internal sealed partial class RaceShell
         setup.WorldEvil = AutoCreateWorldEvil.Normalize(setup.WorldEvil);
         setup.SpecialSeeds = string.Join("|", AutoCreateSpecialWorldSeed.ParseList(setup.SpecialSeeds));
         setup.SecretSeeds = setup.SecretSeeds.Trim();
+        setup.BossPenaltyEnabledKinds = RaceBossPenalty.NormalizeEnabledKinds(
+            setup.BossPenaltyEnabledKinds);
         setup.PyramidItemMask = AutoCreatePyramidFilterItem.NormalizeMask(setup.PyramidItemMask);
         setup.CheatsEnabled = true;
         setup.CrimsonDistance = AutoCreateCrimsonDistance.Normalize(setup.CrimsonDistance);
@@ -148,6 +153,7 @@ internal sealed partial class RaceShell
             SecretSeeds = source.SecretSeeds ?? string.Empty,
             RngControlEnabled = source.RngControlEnabled,
             BossFailurePenaltyEnabled = source.BossFailurePenaltyEnabled,
+            BossPenaltyEnabledKinds = source.BossPenaltyEnabledKinds,
             CheatsEnabled = source.CheatsEnabled,
             PyramidEnabled = source.PyramidEnabled,
             PyramidItemMask = source.PyramidItemMask,

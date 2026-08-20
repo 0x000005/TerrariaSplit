@@ -319,6 +319,18 @@ internal sealed partial class RaceShell
             setup.RngControlEnabled,
             !busy,
             "race-rules-row");
+        for (int index = 0; index < RaceBossPenaltyConfiguration.Bosses.Count; index++)
+        {
+            RaceBossPenaltyDescriptor boss = RaceBossPenaltyConfiguration.Bosses[index];
+            AddToggle(
+                controls,
+                "boss-penalty-kind:" + boss.Key,
+                Localize(boss.Label),
+                RaceBossPenalty.AreKindsEnabled(setup.BossPenaltyEnabledKinds, boss.Kind),
+                !busy && setup.BossFailurePenaltyEnabled,
+                "boss-penalty-kinds");
+        }
+
         AddToggle(
             controls,
             "pyramid",

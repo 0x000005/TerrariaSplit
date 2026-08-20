@@ -3,6 +3,7 @@ using System.Globalization;
 using TerrariaSplit.Localization;
 using TerrariaSplit.Race.Client;
 using TerrariaSplit.Race.Contracts;
+using TerrariaSplit.Race.InGame;
 using TerrariaSplit.Terraria;
 using TerrariaSplit.Terraria.Automation;
 using TerrariaSplit.UI.Rendering;
@@ -2278,6 +2279,8 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
                     planteraBulbPlan,
                     IsRaceEntryAllowed(session.State),
                     session.State?.WorldSettings?.BossFailurePenaltyEnabled != false,
+                    RaceBossPenalty.NormalizeEnabledKinds(
+                        session.State?.WorldSettings?.BossPenaltyEnabledKinds ?? 0),
                     RaceBossPenaltyConfiguration.NormalizeOrDefault(
                         session.State?.WorldSettings?.BossPenaltySchedule)),
                 new TerrariaRaceInitialPlayerConfiguration(

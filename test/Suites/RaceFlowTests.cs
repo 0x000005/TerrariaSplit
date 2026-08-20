@@ -140,6 +140,13 @@ internal static class RaceFlowTests
         Check.True(RaceBossPenalty.TryCreateSchedule(
             Enumerable.Repeat(1, RaceBossPenalty.ScheduleValueCount).ToArray(),
             out RaceBossPenaltySchedule? customSchedule));
+        Check.Equal(RaceBossPenalty.AllKindsMask, RaceBossPenalty.NormalizeEnabledKinds(-1));
+        Check.True(RaceBossPenalty.AreKindsEnabled(
+            RaceBossPenalty.AllKindsMask & ~(int)RaceBossPenaltyKind.Plantera,
+            RaceBossPenaltyKind.Skeletron));
+        Check.False(RaceBossPenalty.AreKindsEnabled(
+            RaceBossPenalty.AllKindsMask & ~(int)RaceBossPenaltyKind.Plantera,
+            RaceBossPenaltyKind.Plantera));
         Check.Equal(
             1_500L,
             RaceBossPenalty.CalculateMilliseconds(
@@ -580,6 +587,9 @@ internal static class RaceFlowTests
         Check.Equal(
             RaceBossPenalty.DefaultSchedule.Encode(),
             restored.WorldSettings.BossPenaltySchedule);
+        Check.Equal(
+            RaceBossPenaltyKinds.All & ~RaceBossPenaltyKinds.Plantera,
+            restored.WorldSettings.BossPenaltyEnabledKinds);
         Check.True(RaceWorldSettingsFactory.HasCompatibleJourneyDifficulties(restored.WorldSettings));
         Check.False(RaceWorldSettingsFactory.HasCompatibleJourneyDifficulties(
             restored.WorldSettings with { PlayerDifficultyCode = RacePlayerDifficultyCodes.Journey }));
@@ -913,7 +923,9 @@ internal static class RaceFlowTests
                 "race",
                 PlayerDifficultyCode: RacePlayerDifficultyCodes.Hardcore,
                 BossFailurePenaltyEnabled: false,
-                BossPenaltySchedule: RaceBossPenalty.DefaultSchedule.Encode()),
+                BossPenaltySchedule: RaceBossPenalty.DefaultSchedule.Encode(),
+                BossPenaltyEnabledKinds:
+                    RaceBossPenaltyKinds.All & ~RaceBossPenaltyKinds.Plantera),
             new RaceSeedAssignment("1234", RaceSeedSource.Fixed),
             new RaceWorldFileInfo(revisionName + ".wld", 128, revisionName, DateTimeOffset.UnixEpoch, nickname));
 

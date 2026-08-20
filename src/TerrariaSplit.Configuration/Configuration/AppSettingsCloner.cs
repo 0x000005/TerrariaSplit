@@ -452,6 +452,7 @@ public static class AppSettingsCloner
             SecretSeeds = source.SecretSeeds,
             RngControlEnabled = source.RngControlEnabled,
             BossFailurePenaltyEnabled = source.BossFailurePenaltyEnabled,
+            BossPenaltyEnabledKinds = source.BossPenaltyEnabledKinds,
             CheatsEnabled = source.CheatsEnabled,
             PyramidEnabled = source.PyramidEnabled,
             PyramidItemMask = source.PyramidItemMask,

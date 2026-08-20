@@ -225,6 +225,8 @@ public sealed class RaceBossPenaltyBossSettings
 
 public sealed class RaceWorldSetupSettings
 {
+    public const int AllBossPenaltyKinds = 0xFF;
+
     public string Source { get; set; } = RacePreferredWorldSource.Random;
 
     public string SeedText { get; set; } = string.Empty;
@@ -242,6 +244,8 @@ public sealed class RaceWorldSetupSettings
     public bool RngControlEnabled { get; set; } = true;
 
     public bool BossFailurePenaltyEnabled { get; set; } = true;
+
+    public int BossPenaltyEnabledKinds { get; set; } = AllBossPenaltyKinds;
 
     public bool CheatsEnabled { get; set; } = true;
 

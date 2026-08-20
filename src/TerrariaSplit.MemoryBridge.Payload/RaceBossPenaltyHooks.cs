@@ -396,7 +396,7 @@ namespace TerrariaSplit.MemoryBridge.Payload
                     return;
                 }
 
-                List<PendingBossEncounter> encounters = FindActivePenaltyBosses();
+                List<PendingBossEncounter> encounters = FindActivePenaltyBosses(current);
                 if (encounters.Count == 0)
                 {
                     return;
@@ -416,7 +416,8 @@ namespace TerrariaSplit.MemoryBridge.Payload
             }
         }
 
-        private static List<PendingBossEncounter> FindActivePenaltyBosses()
+        private static List<PendingBossEncounter> FindActivePenaltyBosses(
+            WorldLockConfiguration current)
         {
             var encounters = new List<PendingBossEncounter>();
             IEnumerable npcs = bossPenaltyMainNpcField == null
@@ -438,7 +439,7 @@ namespace TerrariaSplit.MemoryBridge.Payload
 
                 int npcType = (int)bossPenaltyNpcTypeField.GetValue(npc);
                 RaceBossPenaltyKind kind = GetPenaltyKind(npcType);
-                if (!RaceBossPenalty.IsSupportedKind(kind))
+                if (!RaceBossPenalty.AreKindsEnabled(current.BossPenaltyEnabledKinds, kind))
                 {
                     continue;
                 }
@@ -494,7 +495,7 @@ namespace TerrariaSplit.MemoryBridge.Payload
             __state = -1;
             try
             {
-                if (!IsRaceBossDisengageOverrideEnabled() ||
+                if (!IsRaceBossDisengageOverrideEnabled(RaceBossPenaltyKind.Plantera) ||
                     (int)bossPenaltyNpcTypeField.GetValue(__instance) != PlanteraNpcType)
                 {
                     return;
@@ -541,7 +542,7 @@ namespace TerrariaSplit.MemoryBridge.Payload
             try
             {
                 if (__0 == VanillaSkeletronPrimeDisengageTicks &&
-                    IsRaceBossDisengageOverrideEnabled() &&
+                    IsRaceBossDisengageOverrideEnabled(RaceBossPenaltyKind.SkeletronPrime) &&
                     (int)bossPenaltyNpcTypeField.GetValue(__instance) == SkeletronPrimeNpcType)
                 {
                     __0 = RaceSkeletronPrimeDisengageTicks;
@@ -552,12 +553,13 @@ namespace TerrariaSplit.MemoryBridge.Payload
             }
         }
 
-        private static bool IsRaceBossDisengageOverrideEnabled()
+        private static bool IsRaceBossDisengageOverrideEnabled(RaceBossPenaltyKind kind)
         {
             WorldLockConfiguration current = configuration;
             return current != null &&
                 current.EntryAllowed &&
                 current.BossFailurePenaltyEnabled &&
+                RaceBossPenalty.AreKindsEnabled(current.BossPenaltyEnabledKinds, kind) &&
                 (int)bossPenaltyMainNetModeField.GetValue(null) == 0 &&
                 !(bool)bossPenaltyMainGameMenuField.GetValue(null);
         }
@@ -727,6 +729,7 @@ namespace TerrariaSplit.MemoryBridge.Payload
             if (current == null ||
                 !current.EntryAllowed ||
                 !current.BossFailurePenaltyEnabled ||
+                !RaceBossPenalty.AreKindsEnabled(current.BossPenaltyEnabledKinds, triggerKind) ||
                 triggerBoss == null ||
                 (int)bossPenaltyMainNetModeField.GetValue(null) != 0 ||
                 (bool)bossPenaltyMainGameMenuField.GetValue(null))
@@ -760,7 +763,7 @@ namespace TerrariaSplit.MemoryBridge.Payload
                 }
             }
 
-            List<PendingBossEncounter> activeEncounters = FindActivePenaltyBosses();
+            List<PendingBossEncounter> activeEncounters = FindActivePenaltyBosses(current);
             PendingBossEncounter automaticEncounter = FindEncounter(activeEncounters, triggerKind);
             if (automaticEncounter == null ||
                 !ContainsBoss(automaticEncounter, triggerBoss) ||
@@ -908,6 +911,9 @@ namespace TerrariaSplit.MemoryBridge.Payload
                 !current.EntryAllowed ||
                 !current.BossFailurePenaltyEnabled ||
                 !ReferenceEquals(current, batch.Configuration) ||
+                !RaceBossPenalty.AreKindsEnabled(
+                    current.BossPenaltyEnabledKinds,
+                    batch.Encounter.Kind) ||
                 (int)bossPenaltyMainNetModeField.GetValue(null) != 0 ||
                 (bool)bossPenaltyMainGameMenuField.GetValue(null))
             {
@@ -1022,6 +1028,7 @@ namespace TerrariaSplit.MemoryBridge.Payload
                     !current.EntryAllowed ||
                     batch == null ||
                     !ReferenceEquals(current, batch.Configuration) ||
+                    !RaceBossPenalty.AreKindsEnabled(current.BossPenaltyEnabledKinds, kind) ||
                     batch.SettlementKind != kind ||
                     batch.SettlementId != settlementId ||
                     !string.Equals(current.PackageDigest, parts[2], StringComparison.Ordinal))
@@ -1058,6 +1065,7 @@ namespace TerrariaSplit.MemoryBridge.Payload
                 if (current == null ||
                     !current.EntryAllowed ||
                     !ReferenceEquals(current, batch.Configuration) ||
+                    !RaceBossPenalty.AreKindsEnabled(current.BossPenaltyEnabledKinds, kind) ||
                     (int)bossPenaltyMainNetModeField.GetValue(null) != 0 ||
                     (bool)bossPenaltyMainGameMenuField.GetValue(null))
                 {

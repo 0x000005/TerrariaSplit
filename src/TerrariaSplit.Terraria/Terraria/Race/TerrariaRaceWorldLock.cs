@@ -18,6 +18,7 @@ internal sealed record TerrariaRaceWorldLockTarget(
     TerrariaPlanteraBulbPlan PlanteraBulbPlan,
     bool EntryAllowed,
     bool BossFailurePenaltyEnabled,
+    int BossPenaltyEnabledKinds,
     string BossPenaltySchedule);
 
 internal sealed record TerrariaRaceInitialPlayerConfiguration(
@@ -1203,6 +1204,8 @@ internal sealed class TerrariaRaceWorldLockService : ITerrariaRaceWorldLockServi
             target.PlanteraBulbPlan.Encode(),
             target.EntryAllowed ? "1" : "0",
             target.BossFailurePenaltyEnabled ? "1" : "0",
+            RaceBossPenalty.NormalizeEnabledKinds(target.BossPenaltyEnabledKinds)
+                .ToString(CultureInfo.InvariantCulture),
             target.BossPenaltySchedule,
             target.Determinism.PackageDigest);
     }
@@ -1391,6 +1394,8 @@ internal sealed class TerrariaRaceWorldLockService : ITerrariaRaceWorldLockServi
             target.PlanteraBulbPlan.CreateDigest(),
             target.EntryAllowed ? "1" : "0",
             target.BossFailurePenaltyEnabled ? "1" : "0",
+            RaceBossPenalty.NormalizeEnabledKinds(target.BossPenaltyEnabledKinds)
+                .ToString(CultureInfo.InvariantCulture),
             target.BossPenaltySchedule,
             player.PlayerName.Trim(),
             player.PlayerTemplateCode ?? string.Empty,

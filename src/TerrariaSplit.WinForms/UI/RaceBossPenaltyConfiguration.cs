@@ -6,20 +6,21 @@ namespace TerrariaSplit.UI;
 internal sealed record RaceBossPenaltyDescriptor(
     string Key,
     string Label,
+    RaceBossPenaltyKind Kind,
     Func<RaceBossPenaltySettings, RaceBossPenaltyBossSettings> GetSettings);
 
 internal static class RaceBossPenaltyConfiguration
 {
     public static IReadOnlyList<RaceBossPenaltyDescriptor> Bosses { get; } =
     [
-        new("Skeletron", "Skeletron", settings => settings.Skeletron),
-        new("WallOfFlesh", "Wall of Flesh", settings => settings.WallOfFlesh),
-        new("SkeletronPrime", "Skeletron Prime", settings => settings.SkeletronPrime),
-        new("Twins", "The Twins", settings => settings.Twins),
-        new("Destroyer", "Destroyer", settings => settings.Destroyer),
-        new("Plantera", "Plantera", settings => settings.Plantera),
-        new("Golem", "Golem", settings => settings.Golem),
-        new("LunaticCultist", "Lunatic Cultist", settings => settings.LunaticCultist)
+        new("Skeletron", "Skeletron", RaceBossPenaltyKind.Skeletron, settings => settings.Skeletron),
+        new("WallOfFlesh", "Wall of Flesh", RaceBossPenaltyKind.WallOfFlesh, settings => settings.WallOfFlesh),
+        new("SkeletronPrime", "Skeletron Prime", RaceBossPenaltyKind.SkeletronPrime, settings => settings.SkeletronPrime),
+        new("Twins", "The Twins", RaceBossPenaltyKind.Twins, settings => settings.Twins),
+        new("Destroyer", "Destroyer", RaceBossPenaltyKind.Destroyer, settings => settings.Destroyer),
+        new("Plantera", "Plantera", RaceBossPenaltyKind.Plantera, settings => settings.Plantera),
+        new("Golem", "Golem", RaceBossPenaltyKind.Golem, settings => settings.Golem),
+        new("LunaticCultist", "Lunatic Cultist", RaceBossPenaltyKind.LunaticCultist, settings => settings.LunaticCultist)
     ];
 
     public static string Encode(RaceBossPenaltySettings? settings)

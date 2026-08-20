@@ -145,11 +145,24 @@ namespace TerrariaSplit.Race.InGame
             RaceBossPenaltyKind.Plantera |
             RaceBossPenaltyKind.Golem |
             RaceBossPenaltyKind.LunaticCultist;
+        public const int AllKindsMask = (int)AllKinds;
         private static readonly RaceBossPenaltySchedule Default = CreateDefaultSchedule();
 
         public static RaceBossPenaltySchedule DefaultSchedule
         {
             get { return Default; }
+        }
+
+        public static int NormalizeEnabledKinds(int kinds)
+        {
+            return kinds & AllKindsMask;
+        }
+
+        public static bool AreKindsEnabled(int enabledKinds, RaceBossPenaltyKind kinds)
+        {
+            int requested = (int)kinds;
+            return IsSupportedKind(kinds) &&
+                (NormalizeEnabledKinds(enabledKinds) & requested) == requested;
         }
 
         public static long CalculateMilliseconds(

@@ -533,11 +533,13 @@ internal static class TerrariaIntegrationTests
                 TerrariaPlanteraBulbPlan.Empty,
                 EntryAllowed: false,
                 BossFailurePenaltyEnabled: false,
+                BossPenaltyEnabledKinds:
+                    RaceBossPenaltyKinds.All & ~RaceBossPenaltyKinds.Plantera,
                 BossPenaltySchedule: RaceBossPenalty.DefaultSchedule.Encode()),
             Path.Combine(directory.Path, "Race_Player.plr"),
             rejectionMessage);
         string[] lockParts = lockCommand.Split('\n');
-        Check.Equal(17, lockParts.Length);
+        Check.Equal(18, lockParts.Length);
         Check.Equal("configure", lockParts[0]);
         Check.Equal(Path.GetFullPath(path), Encoding.UTF8.GetString(Convert.FromBase64String(lockParts[1])));
         Check.Equal(identity.WorldId.ToString(System.Globalization.CultureInfo.InvariantCulture), lockParts[2]);
@@ -549,8 +551,12 @@ internal static class TerrariaIntegrationTests
         Check.Equal(Convert.ToBase64String(Encoding.UTF8.GetBytes("0")), lockParts[12]);
         Check.Equal("0", lockParts[13]);
         Check.Equal("0", lockParts[14]);
-        Check.Equal(RaceBossPenalty.DefaultSchedule.Encode(), lockParts[15]);
-        Check.Equal(determinism.CreateDigest(), lockParts[16]);
+        Check.Equal(
+            (RaceBossPenaltyKinds.All & ~RaceBossPenaltyKinds.Plantera)
+                .ToString(System.Globalization.CultureInfo.InvariantCulture),
+            lockParts[15]);
+        Check.Equal(RaceBossPenalty.DefaultSchedule.Encode(), lockParts[16]);
+        Check.Equal(determinism.CreateDigest(), lockParts[17]);
         string[] startParts = TerrariaRaceWorldLockService.BuildStartRaceCommand(
             TimeSpan.FromSeconds(7),
             "将在 {0} 秒后开始").Split('\n');
