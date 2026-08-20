@@ -19,6 +19,7 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
     private readonly ThemedDropDownList autoCreateWorldDifficultyBox = new();
     private readonly ThemedDropDownList autoCreateWorldEvilBox = new();
     private readonly TextBox autoCreateSecretSeedsBox = new();
+    private readonly TextBox autoCreateFixedSeedBox = new();
     private readonly CheckBox autoCreateZenithStarCatchBox = new();
     private readonly ThemedSlider autoCreateZenithStarCatchSpeedBar = new();
     private readonly Label autoCreateZenithStarCatchSpeedValueLabel = new();
@@ -72,6 +73,7 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
     internal CheckBox AutoCreateWorldPoolBox => autoCreateWorldPoolBox;
     internal TextBox AutoCreateWorldPoolTargetBox => autoCreateWorldPoolTargetBox;
     internal TextBox AutoCreateSecretSeedsBox => autoCreateSecretSeedsBox;
+    internal TextBox AutoCreateFixedSeedBox => autoCreateFixedSeedBox;
     internal ThemedDropDownList AutoCreateWorldSizeBox => autoCreateWorldSizeBox;
 
     protected override Control BuildPage(SettingsPageContext context)
@@ -98,6 +100,7 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
                 autoCreateSpecialSeedBoxes.TryGetValue(seed, out CheckBox? box) && box.Checked));
         settings.Automation.AutoCreate.SpecialSeeds = string.Join("|", AutoCreateSpecialWorldSeed.ParseList(selectedSpecialSeeds));
         settings.Automation.AutoCreate.SecretSeeds = autoCreateSecretSeedsBox.Text.Trim();
+        settings.Automation.AutoCreate.FixedSeed = autoCreateFixedSeedBox.Text.Trim();
         settings.Automation.AutoCreate.EnableZenithStarCatch = autoCreateZenithStarCatchBox.Checked;
         settings.Automation.AutoCreate.ZenithStarCatchStopStage = GetSelectedZenithStarCatchStopStage();
         settings.Automation.AutoCreate.ZenithStarCatchSpeedSliderValue = AutoCreateZenithStarCatchSpeed.NormalizeSliderValue(autoCreateZenithStarCatchSpeedBar.Value);
@@ -196,6 +199,9 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
         autoCreateWorldEvilBox.SelectedIndexChanged += (_, _) => UpdatePostGenerationFilterAvailability();
         ConfigureSeedListBox(autoCreateSecretSeedsBox, Draft.Automation.AutoCreate.SecretSeeds);
         autoCreateSecretSeedsBox.TextChanged += (_, _) => UpdatePostGenerationFilterAvailability();
+        ConfigureSeedListBox(autoCreateFixedSeedBox, Draft.Automation.AutoCreate.FixedSeed);
+        autoCreateFixedSeedBox.PlaceholderText = Context.Localize("Empty = random visible seed");
+        autoCreateFixedSeedBox.TextChanged += (_, _) => UpdatePostGenerationFilterAvailability();
         ConfigureCheckBox(autoCreateZenithStarCatchBox, Draft.Automation.AutoCreate.EnableZenithStarCatch);
         autoCreateZenithStarCatchBox.CheckedChanged += (_, _) => UpdateZenithStarCatchAvailability();
         ConfigureZenithStarCatchSpeedBar(autoCreateZenithStarCatchSpeedBar, Draft.Automation.AutoCreate.ZenithStarCatchSpeedSliderValue);
@@ -326,7 +332,8 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
         TableLayoutPanel seedGrid = Factory.CreateGrid(
             SettingsUiFactory.ColumnStylePercent(100f),
             SettingsUiFactory.ColumnStyleAbsolute(360f));
-        Factory.AddSettingRow(seedGrid, "Secret seed / fixed seed", autoCreateSecretSeedsBox);
+        Factory.AddSettingRow(seedGrid, "Secret seeds", autoCreateSecretSeedsBox);
+        Factory.AddSettingRow(seedGrid, "Fixed seed", autoCreateFixedSeedBox);
         SettingsUiFactory.AddSectionControl(createSection, seedGrid);
 
         SettingsUiFactory.AddSectionControl(createSection, Factory.CreateSubsectionLabel("Zenith star catch"));

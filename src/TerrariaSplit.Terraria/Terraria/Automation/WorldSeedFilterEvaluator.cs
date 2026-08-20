@@ -207,9 +207,9 @@ internal sealed class WorldSeedFilterEvaluator : IDisposable
         AutoCreateWorldSettings settings,
         TerrariaWorldGenerationVersion worldGenerationVersion)
     {
-        if (worldGenerationVersion != TerrariaWorldGenerationVersion.Modern1456)
+        if (worldGenerationVersion != TerrariaWorldGenerationVersion.Modern1457)
         {
-            return "seed judge supports Terraria 1.4.5.6 only";
+            return "seed judge supports Terraria 1.4.5.7 only";
         }
         if (AutoCreateWorldSize.Normalize(settings.WorldSize) != AutoCreateWorldSize.Small)
         {

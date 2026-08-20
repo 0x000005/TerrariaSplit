@@ -9,7 +9,7 @@ src/TerrariaSplit.Terraria/Terraria/WorldGeneration/Simulation
 
 ## 当前目标范围
 
-- Terraria `1.4.5.6` 普通世界生成。
+- Terraria `1.4.5.7` 普通世界生成。
 - 小世界：`4200 x 1200`。
 - 猩红世界。
 - 无特殊/彩蛋种子。
@@ -256,12 +256,12 @@ test/Probes/OfficialPyramid/OfficialPyramidPassProbe.cs
 test/Probes/OfficialPyramid/README.md
 ```
 
-它加载真实 Terraria `1.4.5.6` assembly，记录官方 pass-stop CSV。用于证明某个规则是否来自官方机制，而不是数据集特化。
+它加载真实 Terraria `1.4.5.7` assembly，记录官方 pass-stop CSV。用于证明某个规则是否来自官方机制，而不是数据集特化。
 
 典型运行：
 
 ```powershell
-$referenceRoot = (Resolve-Path "..\reference\Terraria1456\pyramid-probe\exactgen\bin").Path
+$referenceRoot = (Resolve-Path "..\reference\Terraria1457").Path
 test\Temp\OfficialProbe\bin\OfficialPyramidPassProbe.exe `
   --deps "$referenceRoot" `
   --out test\Results\official-pyramid-pass-diagnostics-current.csv `

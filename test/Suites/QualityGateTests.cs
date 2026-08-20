@@ -105,6 +105,21 @@ internal static class QualityGateTests
             .Any(include => include?.EndsWith(
                 @"TerrariaSplit.MemoryBridge\Protocol\MemoryBridgeProtocol.cs",
                 StringComparison.OrdinalIgnoreCase) == true));
+
+        using JsonDocument compatibilityManifest = JsonDocument.Parse(File.ReadAllText(Path.Combine(
+            root,
+            "src",
+            "TerrariaSplit.MemoryBridge.Payload",
+            "terraria-compatibility.json")));
+        JsonElement supportedClient = compatibilityManifest.RootElement
+            .GetProperty("supportedClients")[0];
+        Check.Equal("1.4.5.7", supportedClient.GetProperty("terrariaVersion").GetString());
+        Check.Equal(
+            "83FE844F67068ED43A8BBE57AF41D946EA3E6153BB75F21F3F4CF3F81F226E01",
+            supportedClient
+                .GetProperty("methods")
+                .GetProperty("Terraria.GameContent.ItemDropRules.ItemDropResolver.ResolveRule(Terraria.GameContent.ItemDropRules.IItemDropRule,Terraria.GameContent.ItemDropRules.DropAttemptInfo)")
+                .GetString());
     }
 
     private static void CentralBuildOutputContract()

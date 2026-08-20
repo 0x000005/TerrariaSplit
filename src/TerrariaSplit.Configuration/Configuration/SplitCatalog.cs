@@ -75,7 +75,7 @@ public static class SplitCatalog
                 yield return boss;
             }
 
-            foreach (TerrariaItemDefinition item in TerrariaItemCatalog.Items)
+            foreach (TerrariaItemDefinition item in TerrariaItemCatalog.Items.Where(item => !TerrariaItemCatalog.IsDeprecated(item.Id)))
             {
                 yield return CreateItemTarget(item.Id);
             }
@@ -288,7 +288,7 @@ public static class SplitCatalog
         }
 
         string suffix = id["item:".Length..];
-        return int.TryParse(suffix, out itemId) && itemId is >= 1 and <= MaxItemId;
+        return int.TryParse(suffix, out itemId) && SplitFactKeys.IsSupportedItemId(itemId);
     }
 
     public static bool TryParseNpcTargetId(string id, out int npcId)

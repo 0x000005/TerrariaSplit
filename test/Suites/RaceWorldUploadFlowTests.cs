@@ -26,7 +26,7 @@ internal static class RaceWorldUploadFlowTests
         var manager = new RaceRoomManager(new InMemoryRaceRecordStore());
         var store = new RaceWorldFileStore(worldRoot);
         var uploads = new RaceWorldUploadCoordinator(manager, store);
-        RaceRoomState created = Success(manager.CreateRoom(new RaceRoomCreateRequest("host")));
+        RaceRoomState created = Success(manager.CreateRoom(new RaceRoomCreateRequest("host", RaceTerrariaCompatibility.Id)));
         string roomCode = created.RoomCode;
         byte[] firstWorld = TerrariaIntegrationTests.CreateMinimalWorld("first-world", 1001);
         byte[] secondWorld = TerrariaIntegrationTests.CreateMinimalWorld("second-world", 1002);
@@ -154,7 +154,7 @@ internal static class RaceWorldUploadFlowTests
             cancellationToken);
 
         var manager = new RaceRoomManager(new InMemoryRaceRecordStore());
-        RaceRoomState responseState = Success(manager.CreateRoom(new RaceRoomCreateRequest("host")));
+        RaceRoomState responseState = Success(manager.CreateRoom(new RaceRoomCreateRequest("host", RaceTerrariaCompatibility.Id)));
         var handler = new RetryRecordingHandler(responseState);
         using var httpClient = new HttpClient(handler);
         int delayCount = 0;
@@ -226,7 +226,7 @@ internal static class RaceWorldUploadFlowTests
         [new RaceSplitDefinition(0, "split-0", "Final")]);
 
     private static RaceWorldSettings WorldSettings() => new(
-        "1.4.4.9",
+        RaceTerrariaCompatibility.TerrariaVersion,
         1,
         1,
         true,

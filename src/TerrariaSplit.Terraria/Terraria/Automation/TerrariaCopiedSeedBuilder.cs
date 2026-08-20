@@ -8,9 +8,11 @@ internal static class TerrariaCopiedSeedBuilder
 {
     public static TerrariaCopiedSeed Create(AutoCreateWorldSettings settings)
     {
-        int visibleSeed = TerrariaSeedRandom.NextShared();
+        string visibleSeed = string.IsNullOrWhiteSpace(settings.FixedSeed)
+            ? TerrariaSeedRandom.NextShared().ToString(CultureInfo.InvariantCulture)
+            : settings.FixedSeed.Trim();
         int evilCode = TerrariaWorldSeedOptions.EvilCode(settings.WorldEvil, () => TerrariaSeedRandom.NextShared(2) + 1);
-        return Create(settings, visibleSeed.ToString(CultureInfo.InvariantCulture), evilCode);
+        return Create(settings, visibleSeed, evilCode);
     }
 
     internal static TerrariaCopiedSeed Create(AutoCreateWorldSettings settings, string visibleSeed, int evilCode)
@@ -46,6 +48,14 @@ internal static class TerrariaCopiedSeedBuilder
         }
 
         return string.Join("|", secretSeedList.Concat([visibleSeed]));
+    }
+
+    internal static string BuildSecretSeedBootstrapText(string? secretSeeds)
+    {
+        IReadOnlyList<string> secretSeedList = AutoCreateSeedList.Parse(secretSeeds);
+        return secretSeedList.Count == 0
+            ? string.Empty
+            : "1.1.1.0." + string.Join("|", secretSeedList) + "|";
     }
 }
 

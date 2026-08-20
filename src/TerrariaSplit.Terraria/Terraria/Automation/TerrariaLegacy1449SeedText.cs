@@ -50,6 +50,10 @@ public static class TerrariaLegacy1449SeedText
         // Keep the user-provided secret seed text as raw seed prompt tokens and join it
         // with converted special seed tokens.
         seedTokens.AddRange(AutoCreateSeedList.Parse(settings.SecretSeeds));
+        if (!string.IsNullOrWhiteSpace(settings.FixedSeed))
+        {
+            seedTokens.Add(settings.FixedSeed.Trim());
+        }
         seedText = string.Join("|", seedTokens);
         detail = seedTokens.Count == 0
             ? "Terraria will choose a random 1.4.4.9 seed."

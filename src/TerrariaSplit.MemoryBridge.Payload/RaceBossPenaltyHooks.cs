@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Reflection;
 using System.Threading;
 using TerrariaSplit.Race.InGame;
@@ -137,24 +138,27 @@ namespace TerrariaSplit.MemoryBridge.Payload
                 null,
                 new[] { playerSpawnContextType },
                 null);
-            itemNewItemMethod = itemType.GetMethod(
-                "NewItem",
-                BindingFlags.Static | BindingFlags.Public,
-                null,
-                new[]
+            itemNewItemMethod = itemType
+                .GetMethods(BindingFlags.Static | BindingFlags.Public)
+                .SingleOrDefault(method =>
                 {
-                    entitySourceType,
-                    typeof(int),
-                    typeof(int),
-                    typeof(int),
-                    typeof(int),
-                    typeof(int),
-                    typeof(int),
-                    typeof(bool),
-                    typeof(int),
-                    typeof(bool)
-                },
-                null);
+                    if (!string.Equals(method.Name, "NewItem", StringComparison.Ordinal))
+                    {
+                        return false;
+                    }
+
+                    ParameterInfo[] parameters = method.GetParameters();
+                    return parameters.Length == 12 &&
+                        parameters[0].ParameterType == entitySourceType &&
+                        parameters.Skip(1).Take(6).All(parameter => parameter.ParameterType == typeof(int)) &&
+                        parameters[7].ParameterType == typeof(bool) &&
+                        parameters[8].ParameterType == typeof(int) &&
+                        string.Equals(parameters[9].ParameterType.FullName, "Terraria.NewItemOwnership", StringComparison.Ordinal) &&
+                        parameters[10].ParameterType.IsGenericType &&
+                        parameters[10].ParameterType.GetGenericTypeDefinition() == typeof(Nullable<>) &&
+                        string.Equals(parameters[10].ParameterType.GetGenericArguments()[0].FullName, "Microsoft.Xna.Framework.Vector2", StringComparison.Ordinal) &&
+                        string.Equals(parameters[11].ParameterType.FullName, "Terraria.Item+NewItemModifier", StringComparison.Ordinal);
+                });
             bossPenaltyLocalPlayerProperty = mainType.GetProperty(
                 "LocalPlayer",
                 BindingFlags.Static | BindingFlags.Public);

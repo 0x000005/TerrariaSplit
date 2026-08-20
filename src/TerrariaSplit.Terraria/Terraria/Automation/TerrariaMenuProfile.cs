@@ -7,7 +7,7 @@ namespace TerrariaSplit.Terraria.Automation;
 
 public enum TerrariaMenuProfileKind
 {
-    Modern1456,
+    Modern1457,
     Legacy1449
 }
 
@@ -23,9 +23,9 @@ public readonly record struct TerrariaMenuProfile(
     bool SupportsPyramidSeedPreScreen,
     bool SupportsJourneyWorldDifficulty)
 {
-    public static TerrariaMenuProfile Modern1456 { get; } = new(
-        TerrariaMenuProfileKind.Modern1456,
-        "Terraria 1.4.5.x menu",
+    public static TerrariaMenuProfile Modern1457 { get; } = new(
+        TerrariaMenuProfileKind.Modern1457,
+        "Terraria 1.4.5.7 menu",
         UsesLegacyCharacterCreationWizard: false,
         UsesLegacyWorldCreationWizard: false,
         SupportsPlayerTemplatePaste: true,
@@ -51,7 +51,7 @@ public readonly record struct TerrariaMenuProfile(
     {
         return IsLegacy1449Version(fileVersion)
             ? Legacy1449
-            : Modern1456;
+            : Modern1457;
     }
 
     internal static TerrariaMenuProfile ResolveRunningProcess()

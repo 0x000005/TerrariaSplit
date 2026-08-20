@@ -2,6 +2,8 @@ namespace TerrariaSplit.Domain;
 
 public sealed class SplitStatus
 {
+    private static readonly TimeSpan BiomeConfirmationDuration = TimeSpan.FromMilliseconds(20);
+
     public SplitStatus(SplitDefinition definition)
     {
         Definition = definition;
@@ -24,6 +26,8 @@ public sealed class SplitStatus
     private readonly Dictionary<string, TimeSpan> factCompletionTimes = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<string> completedFactKeys = [];
     private readonly HashSet<string> completedFactKeySet = new(StringComparer.OrdinalIgnoreCase);
+    private TimeSpan? biomeConditionBecameTrueAt;
+    private string[]? pendingBiomeFactKeys;
 
     public void Reset()
     {
@@ -32,6 +36,7 @@ public sealed class SplitStatus
         IsManuallyCompleted = false;
         ClearCompletedFactKeys();
         factCompletionTimes.Clear();
+        ResetBiomeConfirmation();
     }
 
     public void Skip()
@@ -50,6 +55,7 @@ public sealed class SplitStatus
         IsManuallyCompleted = false;
         ReplaceCompletedFactKeys(completedFactKeys);
         factCompletionTimes.Clear();
+        ResetBiomeConfirmation();
     }
 
     public void SetTime(TimeSpan? time)
@@ -59,6 +65,7 @@ public sealed class SplitStatus
         IsManuallyCompleted = false;
         ClearCompletedFactKeys();
         factCompletionTimes.Clear();
+        ResetBiomeConfirmation();
     }
 
     public void CompleteManually(TimeSpan time)
@@ -67,6 +74,7 @@ public sealed class SplitStatus
         IsSkipped = false;
         IsManuallyCompleted = true;
         MergeCompletedFactKeys(factCompletionTimes.Keys);
+        ResetBiomeConfirmation();
     }
 
     public SplitStatusState CaptureState()
@@ -100,6 +108,8 @@ public sealed class SplitStatus
                 factCompletionTimes[factKey] = time;
             }
         }
+
+        ResetBiomeConfirmation();
     }
 
     public void AddSatisfiedFactKeys(TerrariaGameFacts facts, TimeSpan elapsed)
@@ -136,13 +146,63 @@ public sealed class SplitStatus
         TrackSatisfiedFactTimes(facts, elapsed);
         if (!Definition.IsComplete(facts))
         {
+            ResetBiomeConfirmation();
             return null;
         }
 
-        Time = elapsed;
+        IReadOnlyList<string> matchedFactKeys = Definition.GetMatchedFactKeys(facts);
+        string[] matchedBiomeFactKeys = matchedFactKeys
+            .Where(IsBiomeFactKey)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(static key => key, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        TimeSpan completionTime = elapsed;
+        if (matchedBiomeFactKeys.Length > 0)
+        {
+            if (!BiomeEvidenceMatches(matchedBiomeFactKeys) ||
+                biomeConditionBecameTrueAt is not TimeSpan firstMatchedAt ||
+                elapsed < firstMatchedAt)
+            {
+                biomeConditionBecameTrueAt = elapsed;
+                pendingBiomeFactKeys = matchedBiomeFactKeys;
+                return null;
+            }
+
+            if (elapsed - firstMatchedAt < BiomeConfirmationDuration)
+            {
+                return null;
+            }
+
+            completionTime = firstMatchedAt;
+            foreach (string factKey in matchedBiomeFactKeys)
+            {
+                factCompletionTimes[factKey] = completionTime;
+            }
+        }
+
+        Time = completionTime;
         IsManuallyCompleted = false;
-        MergeCompletedFactKeys(factCompletionTimes.Keys.Concat(Definition.GetMatchedFactKeys(facts)));
-        return new SplitRecord(index, Definition.Id, elapsed);
+        MergeCompletedFactKeys(factCompletionTimes.Keys.Concat(matchedFactKeys));
+        ResetBiomeConfirmation();
+        return new SplitRecord(index, Definition.Id, completionTime);
+    }
+
+    private bool BiomeEvidenceMatches(IReadOnlyList<string> matchedBiomeFactKeys)
+    {
+        return pendingBiomeFactKeys is not null &&
+            pendingBiomeFactKeys.SequenceEqual(matchedBiomeFactKeys, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static bool IsBiomeFactKey(string factKey)
+    {
+        return factKey.StartsWith("biome:", StringComparison.OrdinalIgnoreCase) &&
+            factKey.EndsWith(":active", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void ResetBiomeConfirmation()
+    {
+        biomeConditionBecameTrueAt = null;
+        pendingBiomeFactKeys = null;
     }
 
     private void TrackSatisfiedFactTimes(TerrariaGameFacts facts, TimeSpan elapsed)

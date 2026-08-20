@@ -8,17 +8,46 @@ public readonly record struct TerrariaMenuGeometry(
     float LogicalHeight,
     TerrariaMenuProfile Profile)
 {
+    // These values mirror Terraria 1.4.5.7's UIElement tree. They are deliberately
+    // expressed as layout inputs instead of measured click coordinates.
+    private const float CharacterOuterTop = 220f;
+    private const float CharacterOuterWidth = 500f;
+    private const float CharacterPanelTop = 50f;
+    private const float CharacterTopPadding = 4f;
+    private const float CharacterCategoryLeft = -240f;
+    private const float CharacterCategorySpacing = 48f;
+    private const float CharacterCategorySize = 44f;
+    private const float CharacterMiddleTop = 56f;
+    private const float CharacterMiddleHeight = 160f;
+    private const float CharacterMiddlePaddingTop = 3f;
+    private const float CharacterInfoBottomSectionOffset = 50f;
+    private const float WorldOuterTop = 152f;
+    private const float WorldPanelTop = 50f;
+    private const float WorldContentPaddingTop = 8f;
+    private const float WorldInfoHorizontalPadding = 10f;
+    private const float WorldOptionHeight = 34f;
+    private const float WorldOptionFirstTop = 94f;
+    private const float WorldOptionRowSpacing = 48f;
+
     public static TerrariaMenuGeometry From(Size clientSize)
     {
-        return From(clientSize, TerrariaMenuProfile.Modern1456);
+        return From(clientSize, TerrariaMenuProfile.Modern1457);
     }
 
     public static TerrariaMenuGeometry From(Size clientSize, TerrariaMenuProfile profile)
     {
+        return From(clientSize, profile, TerrariaMenuProfile.IsMainMenuUpscaleDisabled());
+    }
+
+    internal static TerrariaMenuGeometry From(
+        Size clientSize,
+        TerrariaMenuProfile profile,
+        bool mainMenuUpscaleDisabled)
+    {
         // Terraria's PreDrawMenu scales menu UI up to a logical 900px height unless disabled in config.
-        float scale = GetMainMenuScale(clientSize.Height);
+        float scale = GetMainMenuScale(clientSize.Height, mainMenuUpscaleDisabled);
         TerrariaMenuProfile selectedProfile = string.IsNullOrWhiteSpace(profile.Name)
-            ? TerrariaMenuProfile.Modern1456
+            ? TerrariaMenuProfile.Modern1457
             : profile;
         return new TerrariaMenuGeometry(scale, clientSize.Width / scale, clientSize.Height / scale, selectedProfile);
     }
@@ -57,7 +86,7 @@ public readonly record struct TerrariaMenuGeometry(
 
     public Point CharacterClothingCategoryButton()
     {
-        return ToClient(LogicalWidth / 2f - 176f, 294f);
+        return CharacterCategoryButton(categoryId: 1);
     }
 
     public Point CharacterTemplateCategoryButton()
@@ -74,7 +103,7 @@ public readonly record struct TerrariaMenuGeometry(
 
     public Point CharacterInfoCategoryButton()
     {
-        return ToClient(LogicalWidth / 2f - 224f, 294f);
+        return CharacterCategoryButton(categoryId: 0);
     }
 
     public Point CharacterTemplatePasteButton()
@@ -100,13 +129,20 @@ public readonly record struct TerrariaMenuGeometry(
             return LegacyMenuButton(top: 250f, spacing: 50f, index: legacyIndex, offset: 25f, itemScale: 1f);
         }
 
-        float y = AutoCreatePlayerDifficulty.Normalize(playerDifficulty) switch
+        int difficultyIndex = AutoCreatePlayerDifficulty.Normalize(playerDifficulty) switch
         {
-            AutoCreatePlayerDifficulty.Journey => 403f,
-            AutoCreatePlayerDifficulty.Mediumcore => 458f,
-            AutoCreatePlayerDifficulty.Hardcore => 485f,
-            _ => 430f
+            AutoCreatePlayerDifficulty.Journey => 0,
+            AutoCreatePlayerDifficulty.Mediumcore => 2,
+            AutoCreatePlayerDifficulty.Hardcore => 3,
+            _ => 1
         };
+
+        float middleInnerTop = CharacterOuterTop + CharacterPanelTop + CharacterMiddleTop + CharacterMiddlePaddingTop;
+        float middleInnerHeight = CharacterMiddleHeight - CharacterMiddlePaddingTop;
+        float difficultyContainerHeight = middleInnerHeight - CharacterInfoBottomSectionOffset;
+        float difficultyTop = middleInnerTop + CharacterInfoBottomSectionOffset;
+        float buttonHeight = difficultyContainerHeight / 4f;
+        float y = difficultyTop + buttonHeight * (difficultyIndex + 0.5f);
         return ToClient(LogicalWidth / 2f - 146f, y);
     }
 
@@ -132,36 +168,36 @@ public readonly record struct TerrariaMenuGeometry(
 
     public Point WorldSizeButton(string worldSize)
     {
-        float x = AutoCreateWorldSize.Normalize(worldSize) switch
+        int index = AutoCreateWorldSize.Normalize(worldSize) switch
         {
-            AutoCreateWorldSize.Small => -164f,
-            AutoCreateWorldSize.Large => 164f,
-            _ => 0f
+            AutoCreateWorldSize.Small => 0,
+            AutoCreateWorldSize.Large => 2,
+            _ => 1
         };
-        return ToClient(LogicalWidth / 2f + x, 331f);
+        return WorldOptionButton(index, optionCount: 3, pixelWidthReduction: 8f, row: 0);
     }
 
     public Point WorldDifficultyButton(string worldDifficulty)
     {
-        float x = AutoCreateWorldDifficulty.Normalize(worldDifficulty) switch
+        int index = AutoCreateWorldDifficulty.Normalize(worldDifficulty) switch
         {
-            AutoCreateWorldDifficulty.Journey => -182f,
-            AutoCreateWorldDifficulty.Expert => 61f,
-            AutoCreateWorldDifficulty.Master => 182f,
-            _ => -61f
+            AutoCreateWorldDifficulty.Journey => 0,
+            AutoCreateWorldDifficulty.Expert => 2,
+            AutoCreateWorldDifficulty.Master => 3,
+            _ => 1
         };
-        return ToClient(LogicalWidth / 2f + x, 379f);
+        return WorldOptionButton(index, optionCount: 4, pixelWidthReduction: 3f, row: 1);
     }
 
     public Point WorldEvilButton(string worldEvil)
     {
-        float x = AutoCreateWorldEvil.Normalize(worldEvil) switch
+        int index = AutoCreateWorldEvil.Normalize(worldEvil) switch
         {
-            AutoCreateWorldEvil.Corruption => 0f,
-            AutoCreateWorldEvil.Crimson => 164f,
-            _ => -164f
+            AutoCreateWorldEvil.Corruption => 1,
+            AutoCreateWorldEvil.Crimson => 2,
+            _ => 0
         };
-        return ToClient(LogicalWidth / 2f + x, 427f);
+        return WorldOptionButton(index, optionCount: 3, pixelWidthReduction: 8f, row: 2);
     }
 
     public Point WorldAdvancedSeedButton()
@@ -171,7 +207,9 @@ public readonly record struct TerrariaMenuGeometry(
 
     public Point WorldSeedFieldButton()
     {
-        return ToClient(LogicalWidth / 2f, 274f);
+        // UIWorldCreation: the 40px advanced button is followed by a 348px seed
+        // field, while the 84px preview occupies the right side.
+        return ToClient(LogicalWidth / 2f - 22f, 274f);
     }
 
     public Point AdvancedSeedRandomizeButton()
@@ -181,7 +219,8 @@ public readonly record struct TerrariaMenuGeometry(
 
     public Point AdvancedSeedTextButton()
     {
-        return ToClient(LogicalWidth / 2f, 230f);
+        // UIWorldCreationAdvanced: the seed field fills the remaining 436px.
+        return ToClient(LogicalWidth / 2f + 22f, 230f);
     }
 
     public Point AdvancedSpecialSeedButton(string specialSeed)
@@ -189,12 +228,15 @@ public readonly record struct TerrariaMenuGeometry(
         int index = AutoCreateSpecialWorldSeed.MenuIndex(specialSeed);
         int column = index % 6;
         int row = index / 6;
-        return ToClient(LogicalWidth / 2f - 186f + 78.4f * column, 287f + 67f * row);
+        // The list is 432px wide. Six 60px buttons are aligned from 0 to 1,
+        // leaving 372px between their centers: 372 / 5 = 74.4.
+        return ToClient(LogicalWidth / 2f - 186f + 74.4f * column, 287f + 67f * row);
     }
 
     public Point WorldAdvancedApplyButton()
     {
-        return ToClient(LogicalWidth / 2f, 534f);
+        float outerHeight = Math.Clamp(LogicalHeight - 200f, 0f, 400f);
+        return ToClient(LogicalWidth / 2f, 134f + outerHeight);
     }
 
     public Point PlayerPlayButton(int listIndex)
@@ -220,6 +262,32 @@ public readonly record struct TerrariaMenuGeometry(
         return ToClient(LogicalWidth / 2f, top + spacing * index + offset + 25f * itemScale);
     }
 
+    private Point WorldOptionButton(int index, int optionCount, float pixelWidthReduction, int row)
+    {
+        float infoWidth = 500f - WorldInfoHorizontalPadding * 2f;
+        float buttonWidth = infoWidth / optionCount - pixelWidthReduction;
+        float hAlign = optionCount == 1 ? 0f : (float)index / (optionCount - 1);
+        float infoLeft = LogicalWidth / 2f - infoWidth / 2f;
+        float buttonLeft = infoLeft + infoWidth * hAlign - buttonWidth * hAlign;
+        float x = buttonLeft + buttonWidth / 2f;
+        float infoTop = WorldOuterTop + WorldPanelTop + WorldContentPaddingTop;
+        float y = infoTop + WorldOptionFirstTop + WorldOptionRowSpacing * row + WorldOptionHeight / 2f;
+        return ToClient(x, y);
+    }
+
+    private Point CharacterCategoryButton(int categoryId)
+    {
+        // UICharacterCreation.MakeCategoriesBar sets a 44px UIColoredImageButton's
+        // left edge to (-240 + id * 48, 50%) inside the 500px top container.
+        float topContainerLeft = LogicalWidth / 2f - CharacterOuterWidth / 2f;
+        float buttonLeft = topContainerLeft + CharacterOuterWidth / 2f +
+            CharacterCategoryLeft + categoryId * CharacterCategorySpacing;
+        float buttonTop = CharacterOuterTop + CharacterPanelTop + CharacterTopPadding;
+        return ToClient(
+            buttonLeft + CharacterCategorySize / 2f,
+            buttonTop + CharacterCategorySize / 2f);
+    }
+
     private Point ToClient(float logicalX, float logicalY)
     {
         return new Point(
@@ -232,9 +300,9 @@ public readonly record struct TerrariaMenuGeometry(
         return Math.Min(LogicalWidth * 0.8f, 650f);
     }
 
-    private static float GetMainMenuScale(int clientHeight)
+    private static float GetMainMenuScale(int clientHeight, bool mainMenuUpscaleDisabled)
     {
-        if (TerrariaMenuProfile.IsMainMenuUpscaleDisabled())
+        if (mainMenuUpscaleDisabled)
         {
             return 1f;
         }

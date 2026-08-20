@@ -57,13 +57,13 @@ internal sealed class WorldCreationMenuDriver
         CancellationToken cancellationToken)
     {
         string normalizedPlayerName = NormalizePlayerName(settings.PlayerName);
-        if (!await automation.ClickAsync("Single Player", geometry.MainMenuSinglePlayer(), menuActionDelay, cancellationToken))
+        if (!await automation.ClickAsync("Single Player", geometry, static current => current.MainMenuSinglePlayer(), menuActionDelay, cancellationToken))
         {
             return false;
         }
 
         Dictionary<string, DateTime> playersBefore = savePreparation.SnapshotSaveFiles("Players", "*.plr");
-        if (!await automation.ClickAsync("new player", geometry.SelectMenuNewButton(), menuActionDelay, cancellationToken))
+        if (!await automation.ClickAsync("new player", geometry, static current => current.SelectMenuNewButton(), menuActionDelay, cancellationToken))
         {
             return false;
         }
@@ -78,7 +78,7 @@ internal sealed class WorldCreationMenuDriver
             return false;
         }
 
-        if (!await automation.ClickAsync("create player", geometry.CreatePlayerButton(), menuActionDelay, cancellationToken))
+        if (!await automation.ClickAsync("create player", geometry, static current => current.CreatePlayerButton(), menuActionDelay, cancellationToken))
         {
             return false;
         }
@@ -114,7 +114,7 @@ internal sealed class WorldCreationMenuDriver
         TerrariaMenuGeometry geometry,
         CancellationToken cancellationToken)
     {
-        if (!await automation.ClickAsync("new world", geometry.SelectMenuNewButton(), menuActionDelay, cancellationToken))
+        if (!await automation.ClickAsync("new world", geometry, static current => current.SelectMenuNewButton(), menuActionDelay, cancellationToken))
         {
             return CreateWorldAttemptResult.Failed;
         }
@@ -132,6 +132,11 @@ internal sealed class WorldCreationMenuDriver
         TerrariaMenuGeometry geometry,
         CancellationToken cancellationToken)
     {
+        if (!await ApplySecretSeedBootstrapAsync(settings.SecretSeeds, geometry, cancellationToken))
+        {
+            return CreateWorldAttemptResult.Failed;
+        }
+
         if (!await ApplyWorldOptionsAsync(settings, geometry, cancellationToken))
         {
             return CreateWorldAttemptResult.Failed;
@@ -158,17 +163,17 @@ internal sealed class WorldCreationMenuDriver
             return CreateWorldAttemptResult.Failed;
         }
 
-        if (!await automation.ClickAsync($"world size {settings.WorldSize}", geometry.WorldSizeButton(settings.WorldSize), menuActionDelay, cancellationToken))
+        if (!await automation.ClickAsync($"world size {settings.WorldSize}", geometry, current => current.WorldSizeButton(settings.WorldSize), menuActionDelay, cancellationToken))
         {
             return CreateWorldAttemptResult.Failed;
         }
 
-        if (!await automation.ClickAsync($"world difficulty {settings.WorldDifficulty}", geometry.WorldDifficultyButton(settings.WorldDifficulty), menuActionDelay, cancellationToken))
+        if (!await automation.ClickAsync($"world difficulty {settings.WorldDifficulty}", geometry, current => current.WorldDifficultyButton(settings.WorldDifficulty), menuActionDelay, cancellationToken))
         {
             return CreateWorldAttemptResult.Failed;
         }
 
-        if (!await automation.ClickAsync($"world evil {settings.WorldEvil}", geometry.WorldEvilButton(settings.WorldEvil), shortActionDelay, cancellationToken))
+        if (!await automation.ClickAsync($"world evil {settings.WorldEvil}", geometry, current => current.WorldEvilButton(settings.WorldEvil), shortActionDelay, cancellationToken))
         {
             return CreateWorldAttemptResult.Failed;
         }
@@ -211,7 +216,8 @@ internal sealed class WorldCreationMenuDriver
         FileAppLogger.Instance.Info("Create world automation dispatching Terraria final create-world click.");
         bool clicked = await automation.ClickAsync(
             "create world",
-            geometry.CreateWorldButton(),
+            geometry,
+            static current => current.CreateWorldButton(),
             shortActionDelay,
             cancellationToken);
         TimeSpan elapsed = System.Diagnostics.Stopwatch.GetElapsedTime(startedTimestamp);
@@ -284,8 +290,8 @@ internal sealed class WorldCreationMenuDriver
         string templateCategoryStep = geometry.Profile.Kind == TerrariaMenuProfileKind.Legacy1449
             ? "character gender tab"
             : "character clothing tab";
-        return await automation.ClickAsync(templateCategoryStep, geometry.CharacterTemplateCategoryButton(), shortActionDelay, cancellationToken) &&
-            await automation.ClickAsync("paste player template", geometry.CharacterTemplatePasteButton(), menuActionDelay, cancellationToken);
+        return await automation.ClickAsync(templateCategoryStep, geometry, static current => current.CharacterTemplateCategoryButton(), shortActionDelay, cancellationToken) &&
+            await automation.ClickAsync("paste player template", geometry, static current => current.CharacterTemplatePasteButton(), menuActionDelay, cancellationToken);
     }
 
     private async Task<bool> ApplyPlayerDifficultyAsync(
@@ -301,12 +307,12 @@ internal sealed class WorldCreationMenuDriver
 
         if (geometry.Profile.UsesLegacyCharacterCreationWizard)
         {
-            return await automation.ClickAsync("player difficulty menu", geometry.PlayerDifficultyMenuButton(), menuActionDelay, cancellationToken) &&
-                await automation.ClickAsync($"player difficulty {difficulty}", geometry.PlayerDifficultyButton(difficulty), menuActionDelay, cancellationToken);
+            return await automation.ClickAsync("player difficulty menu", geometry, static current => current.PlayerDifficultyMenuButton(), menuActionDelay, cancellationToken) &&
+                await automation.ClickAsync($"player difficulty {difficulty}", geometry, current => current.PlayerDifficultyButton(difficulty), menuActionDelay, cancellationToken);
         }
 
-        return await automation.ClickAsync("character info tab", geometry.PlayerDifficultyMenuButton(), shortActionDelay, cancellationToken) &&
-            await automation.ClickAsync($"player difficulty {difficulty}", geometry.PlayerDifficultyButton(difficulty), shortActionDelay, cancellationToken);
+        return await automation.ClickAsync("character info tab", geometry, static current => current.PlayerDifficultyMenuButton(), shortActionDelay, cancellationToken) &&
+            await automation.ClickAsync($"player difficulty {difficulty}", geometry, current => current.PlayerDifficultyButton(difficulty), shortActionDelay, cancellationToken);
     }
 
     private async Task<bool> ApplyWorldOptionsAsync(
@@ -314,9 +320,9 @@ internal sealed class WorldCreationMenuDriver
         TerrariaMenuGeometry geometry,
         CancellationToken cancellationToken)
     {
-        return await automation.ClickAsync($"world size {settings.WorldSize}", geometry.WorldSizeButton(settings.WorldSize), shortActionDelay, cancellationToken) &&
-            await automation.ClickAsync($"world difficulty {settings.WorldDifficulty}", geometry.WorldDifficultyButton(settings.WorldDifficulty), shortActionDelay, cancellationToken) &&
-            await automation.ClickAsync($"world evil {settings.WorldEvil}", geometry.WorldEvilButton(settings.WorldEvil), shortActionDelay, cancellationToken);
+        return await automation.ClickAsync($"world size {settings.WorldSize}", geometry, current => current.WorldSizeButton(settings.WorldSize), shortActionDelay, cancellationToken) &&
+            await automation.ClickAsync($"world difficulty {settings.WorldDifficulty}", geometry, current => current.WorldDifficultyButton(settings.WorldDifficulty), shortActionDelay, cancellationToken) &&
+            await automation.ClickAsync($"world evil {settings.WorldEvil}", geometry, current => current.WorldEvilButton(settings.WorldEvil), shortActionDelay, cancellationToken);
     }
 
     private bool ValidateLegacy1449WorldOptions(
@@ -368,53 +374,59 @@ internal sealed class WorldCreationMenuDriver
         TerrariaMenuGeometry geometry,
         CancellationToken cancellationToken)
     {
-        if (!await automation.ClickAsync("advanced seed menu", geometry.WorldAdvancedSeedButton(), menuActionDelay, cancellationToken))
+        if (!await automation.ClickAsync("advanced seed menu", geometry, static current => current.WorldAdvancedSeedButton(), menuActionDelay, cancellationToken))
         {
             return WorldSeedOptionsResult.Failed;
         }
 
-        pyramidSeedPreScreenAutomation.BeginVisibleSeedReaderPreparation(settings);
         if (!await ApplySpecialSeedsAsync(settings.SpecialSeeds, geometry, cancellationToken))
         {
             return WorldSeedOptionsResult.Failed;
         }
 
-        if (!await ApplySecretSeedsAsync(settings.SecretSeeds, geometry, cancellationToken))
+        string fixedSeed = settings.FixedSeed?.Trim() ?? string.Empty;
+        if (fixedSeed.Length > 0)
         {
-            return WorldSeedOptionsResult.Failed;
+            if (!await EnterWorldSeedAsync(fixedSeed, geometry, useWorldCreationPageSeedField: false, cancellationToken))
+            {
+                return WorldSeedOptionsResult.Failed;
+            }
         }
-
-        PyramidSeedPreScreenAutomationResult preScreenResult = await pyramidSeedPreScreenAutomation.RandomizeUntilAcceptedAsync(
+        else
+        {
+            pyramidSeedPreScreenAutomation.BeginVisibleSeedReaderPreparation(settings);
+            PyramidSeedPreScreenAutomationResult preScreenResult = await pyramidSeedPreScreenAutomation.RandomizeUntilAcceptedAsync(
                 settings,
                 geometry,
                 shortActionDelay,
                 cancellationToken);
-        if (!preScreenResult.CanCreateWorld)
-        {
-            RecordFailure(AutomationResult.Failure(
-                "Could not choose an accepted world seed.",
-                $"Create world automation pyramid seed pre-screen failed: {preScreenResult.Detail}",
-                preScreenResult.Exception,
-                preScreenResult.DetailedDiagnostics));
-            return WorldSeedOptionsResult.Failed;
+            if (!preScreenResult.CanCreateWorld)
+            {
+                RecordFailure(AutomationResult.Failure(
+                    "Could not choose an accepted world seed.",
+                    $"Create world automation pyramid seed pre-screen failed: {preScreenResult.Detail}",
+                    preScreenResult.Exception,
+                    preScreenResult.DetailedDiagnostics));
+                return WorldSeedOptionsResult.Failed;
+            }
+
+            if (preScreenResult.Status == PyramidSeedPreScreenAutomationStatus.ContinueWithoutPreScreen)
+            {
+                FileAppLogger.Instance.Info($"Create world automation will continue without pyramid seed pre-screen result: {preScreenResult.Detail}");
+            }
+
+            if (!windowActivation.TryReactivate(
+                    "after world seed pre-screen",
+                    settings.WindowActivationDelayMilliseconds))
+            {
+                RecordFailure(AutomationResult.Failure(
+                    "Could not reactivate Terraria after screening the world seed.",
+                    "Create world automation could not reactivate Terraria after the world seed pre-screen worker round was released."));
+                return WorldSeedOptionsResult.Failed;
+            }
         }
 
-        if (preScreenResult.Status == PyramidSeedPreScreenAutomationStatus.ContinueWithoutPreScreen)
-        {
-            FileAppLogger.Instance.Info($"Create world automation will continue without pyramid seed pre-screen result: {preScreenResult.Detail}");
-        }
-
-        if (!windowActivation.TryReactivate(
-                "after world seed pre-screen",
-                settings.WindowActivationDelayMilliseconds))
-        {
-            RecordFailure(AutomationResult.Failure(
-                "Could not reactivate Terraria after screening the world seed.",
-                "Create world automation could not reactivate Terraria after the world seed pre-screen worker round was released."));
-            return WorldSeedOptionsResult.Failed;
-        }
-
-        return await automation.ClickAsync("apply visible seed", geometry.WorldAdvancedApplyButton(), menuActionDelay, cancellationToken)
+        return await automation.ClickAsync("apply visible seed", geometry, static current => current.WorldAdvancedApplyButton(), menuActionDelay, cancellationToken)
             ? WorldSeedOptionsResult.Applied
             : WorldSeedOptionsResult.Failed;
     }
@@ -438,7 +450,7 @@ internal sealed class WorldCreationMenuDriver
 
         foreach (string specialSeed in AutoCreateSpecialWorldSeed.ParseList(specialSeeds))
         {
-            if (!await automation.ClickAsync($"special seed {specialSeed}", geometry.AdvancedSpecialSeedButton(specialSeed), shortActionDelay, cancellationToken))
+            if (!await automation.ClickAsync($"special seed {specialSeed}", geometry, current => current.AdvancedSpecialSeedButton(specialSeed), shortActionDelay, cancellationToken))
             {
                 return false;
             }
@@ -447,18 +459,22 @@ internal sealed class WorldCreationMenuDriver
         return true;
     }
 
-    private async Task<bool> ApplySecretSeedsAsync(
+    private async Task<bool> ApplySecretSeedBootstrapAsync(
         string? secretSeeds,
         TerrariaMenuGeometry geometry,
         CancellationToken cancellationToken)
     {
-        string seedText = secretSeeds?.Trim() ?? string.Empty;
-        if (string.IsNullOrWhiteSpace(seedText))
+        string copiedSeedText = TerrariaCopiedSeedBuilder.BuildSecretSeedBootstrapText(secretSeeds);
+        if (copiedSeedText.Length == 0)
         {
             return true;
         }
 
-        return await EnterWorldSeedAsync(seedText, geometry, useWorldCreationPageSeedField: false, cancellationToken);
+        return await EnterWorldSeedAsync(
+            copiedSeedText,
+            geometry,
+            useWorldCreationPageSeedField: true,
+            cancellationToken);
     }
 
     private async Task<bool> EnterWorldSeedAsync(
@@ -467,10 +483,14 @@ internal sealed class WorldCreationMenuDriver
         bool useWorldCreationPageSeedField,
         CancellationToken cancellationToken)
     {
-        Point seedField = useWorldCreationPageSeedField
-            ? geometry.WorldSeedFieldButton()
-            : geometry.AdvancedSeedTextButton();
-        if (!await automation.ClickAsync("world seed field", seedField, menuActionDelay, cancellationToken))
+        if (!await automation.ClickAsync(
+                "world seed field",
+                geometry,
+                current => useWorldCreationPageSeedField
+                    ? current.WorldSeedFieldButton()
+                    : current.AdvancedSeedTextButton(),
+                menuActionDelay,
+                cancellationToken))
         {
             return false;
         }
@@ -484,11 +504,15 @@ internal sealed class WorldCreationMenuDriver
         string? createdPlayerFileName,
         CancellationToken cancellationToken)
     {
-        Point point = geometry.PlayerPlayButton(playerListIndex);
         string step = string.IsNullOrWhiteSpace(createdPlayerFileName)
             ? "created player play button"
             : $"created player play button ({createdPlayerFileName})";
-        return await automation.ClickOnceAsync(step, point, menuActionDelay, cancellationToken);
+        return await automation.ClickOnceAsync(
+            step,
+            geometry,
+            current => current.PlayerPlayButton(playerListIndex),
+            menuActionDelay,
+            cancellationToken);
     }
 
     private async Task<bool> ConfirmPlayerNameAsync(
@@ -567,7 +591,7 @@ internal sealed class WorldCreationMenuDriver
         TerrariaMenuGeometry geometry,
         CancellationToken cancellationToken)
     {
-        return automation.ClickAsync(step, geometry.VirtualKeyboardSubmitButton(), menuActionDelay, cancellationToken);
+        return automation.ClickAsync(step, geometry, static current => current.VirtualKeyboardSubmitButton(), menuActionDelay, cancellationToken);
     }
 
     private ClipboardBackupScope? TrySetClipboardText(string text)

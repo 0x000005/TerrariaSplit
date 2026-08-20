@@ -9,8 +9,9 @@ internal sealed class PyramidSeedPreScreenEvaluator
         return settings.EnableCheats && settings.EnablePyramidFilter &&
             AutoCreateWorldSize.Normalize(settings.WorldSize) == AutoCreateWorldSize.Small &&
             AutoCreateWorldEvil.Normalize(settings.WorldEvil) == AutoCreateWorldEvil.Crimson &&
-            !AutoCreateSpecialWorldSeed.ParseList(settings.SpecialSeeds).Any() &&
-            !AutoCreateSeedList.Parse(settings.SecretSeeds).Any();
+            // Special and secret seeds may use the fast pyramid pre-screen; the
+            // generated world-file check remains the authoritative second pass.
+            string.IsNullOrWhiteSpace(settings.FixedSeed);
     }
 
     public static bool IsSupportedTerrariaVersion(string? fileVersion)
@@ -28,7 +29,7 @@ internal sealed class PyramidSeedPreScreenEvaluator
     {
         return profile.Kind == TerrariaMenuProfileKind.Legacy1449
             ? TerrariaWorldGenerationVersion.Legacy1449
-            : TerrariaWorldGenerationVersion.Modern1456;
+            : TerrariaWorldGenerationVersion.Modern1457;
     }
 
     public PyramidSeedPreScreenPrediction Evaluate(

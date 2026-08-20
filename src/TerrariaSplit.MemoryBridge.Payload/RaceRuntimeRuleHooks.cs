@@ -19,6 +19,7 @@ namespace TerrariaSplit.MemoryBridge.Payload
         private static FieldInfo stardustZoneField;
         private static FieldInfo spawnEyeField;
         private static FieldInfo spawnHardBossField;
+        private static MethodInfo worldUpdateRateMethod;
         private static MethodInfo startRainMethod;
         private static MethodInfo startSlimeRainMethod;
         private static MethodInfo spawnOnPlayerMethod;
@@ -54,9 +55,9 @@ namespace TerrariaSplit.MemoryBridge.Payload
                 MethodInfo updateTime = mainType.GetMethod("UpdateTime", BindingFlags.Static | BindingFlags.NonPublic, null, Type.EmptyTypes, null);
                 MethodInfo startNight = mainType.GetMethod("UpdateTime_StartNight", BindingFlags.Static | BindingFlags.Public, null, new[] { typeof(bool).MakeByRefType() }, null);
                 MethodInfo startDay = mainType.GetMethod("UpdateTime_StartDay", BindingFlags.Static | BindingFlags.Public, null, new[] { typeof(bool).MakeByRefType() }, null);
-                MethodInfo townCheck = mainType.GetMethod("UpdateTime_SpawnTownNPCs", BindingFlags.Static | BindingFlags.NonPublic, null, new[] { typeof(bool) }, null);
+                MethodInfo townCheck = mainType.GetMethod("UpdateTime_SpawnTownNPCs", BindingFlags.Static | BindingFlags.NonPublic, null, Type.EmptyTypes, null);
                 MethodInfo playWorldCallback = worldGenType.GetMethod("playWorldCallBack", BindingFlags.Static | BindingFlags.Public, null, new[] { typeof(object) }, null);
-                MethodInfo spawnAnNpc = spawnerType.GetMethod("SpawnAnNPC", BindingFlags.Instance | BindingFlags.Public, null, new[] { typeof(int), typeof(int), typeof(int), typeof(bool), typeof(int) }, null);
+                MethodInfo spawnAnNpc = spawnerType.GetMethod("SpawnAnNPC", BindingFlags.Instance | BindingFlags.Public, null, new[] { typeof(int), typeof(int), typeof(int), typeof(int), typeof(bool), typeof(int) }, null);
                 MethodInfo stardustTower = npcType.GetMethod("SpawnStardustMark_StardustTower", BindingFlags.Instance | BindingFlags.NonPublic, null, Type.EmptyTypes, null);
                 MethodInfo stardustWorm = npcType.GetMethod("SpawnStardustMark_StardustWorm", BindingFlags.Instance | BindingFlags.NonPublic, null, Type.EmptyTypes, null);
                 MethodInfo naturalParty = birthdayPartyType.GetMethod("NaturalAttempt", BindingFlags.Static | BindingFlags.NonPublic, null, Type.EmptyTypes, null);
@@ -75,15 +76,15 @@ namespace TerrariaSplit.MemoryBridge.Payload
                 };
                 string[] auditedHashes =
                 {
-                    "C8DA2AAA41D3CBAEDCACE039534462FD71D71ED8A8D05F1DB771A93F2AD5F85B",
-                    "7DDBCC6CE6FFCF8873CFE049DFE36BFAC654DEBDBB3A1139CE5A53441A5B9F34",
-                    "F26C6C5C80950CAD1BC2E594E4DBF61A1B0AE6624B2EB434315DB9268861DF93",
-                    "D43DB2A7D85D511C599C78065A2C2FABD1503C47CC78EA7E4D343E7B45C7A68A",
-                    "0EC95917ADC2980DE9EA8999035E768DFA10C6FBB25F0F8021F31558C7ACBE7F",
-                    "30364C2288CEA0342E3EF7110D72CAEA002CE4DDA901BC085729634AE7C3A4C6",
-                    "DAE38E5AE32469E350FD5F2867A09605DBE135443C428A2437624B11C64CBA76",
-                    "EA62F42ABE466B57D36576BC4076582BDC500AF45FBE926DE1949181B5862644",
-                    "08B88B59637A5EC6C38B107171CF44C3D85C85D5AD73ED8B394CE87C1A72AA07"
+                    "806084DCC15105ACF8B955B35E5EBB6A4D3ADD80F2098E03434CBCADCB2E6761",
+                    "8AEB6854BC3EE5C2AC4497F80F32197371FE690C3501E68916B93CBF0133914E",
+                    "BAA535EBD2B6D8EBA07001F8B4F172E19B2BDEC0684F93A4CB50E5C63CB319D6",
+                    "CB7B3708FF247EA6F9154199C1BF4F48217D3B3592B7EEC4F9012EB6166FEE07",
+                    "D55D76BC019EBC95FB8AECC479FEA756410AD3E46531DFEAE0673DBEEB9C249B",
+                    "FDEFDC2A96B5DAA0CFE1C4D8F0D24ED1D76520C71EB61CCBF137BCDDF1184BC5",
+                    "D454B4DB13C70AB6B795F044EEF680FAEFBEB4B342B0B0F3BA52375BDE447EE2",
+                    "FCB08558A691506D103F767042778DCBB92E09CC37B1B19E3C816A7FE4DF4A2B",
+                    "BFCE6DD3B7CB471540181FC01D4581F1AEC5E738451D608E6E7BF8FF22586D8A"
                 };
                 if (!MethodsMatch(auditedMethods, auditedHashes))
                 {
@@ -96,11 +97,12 @@ namespace TerrariaSplit.MemoryBridge.Payload
                 stardustZoneField = spawnerType.GetField("ZoneTowerStardust", BindingFlags.Instance | BindingFlags.Public);
                 spawnEyeField = worldGenType.GetField("spawnEye", BindingFlags.Static | BindingFlags.Public);
                 spawnHardBossField = worldGenType.GetField("spawnHardBoss", BindingFlags.Static | BindingFlags.Public);
+                worldUpdateRateMethod = worldGenType.GetMethod("GetWorldUpdateRate", BindingFlags.Static | BindingFlags.Public, null, Type.EmptyTypes, null);
                 startRainMethod = mainType.GetMethod("StartRain", BindingFlags.Static | BindingFlags.Public, null, new[] { typeof(bool), typeof(float?), typeof(bool) }, null);
                 startSlimeRainMethod = mainType.GetMethod("StartSlimeRain", BindingFlags.Static | BindingFlags.Public, null, new[] { typeof(bool) }, null);
                 spawnOnPlayerMethod = npcType.GetMethod("SpawnOnPlayer", BindingFlags.Static | BindingFlags.Public, null, new[] { typeof(int), typeof(int), typeof(float), typeof(float), typeof(float), typeof(float) }, null);
                 if (checkForSpawnsField == null || mainNetModeField == null || gameUpdateCountProperty == null ||
-                    stardustZoneField == null || spawnEyeField == null || spawnHardBossField == null ||
+                    stardustZoneField == null || spawnEyeField == null || spawnHardBossField == null || worldUpdateRateMethod == null ||
                     startRainMethod == null || startSlimeRainMethod == null || spawnOnPlayerMethod == null)
                 {
                     return 63;
@@ -196,7 +198,7 @@ namespace TerrariaSplit.MemoryBridge.Payload
             }
         }
 
-        private static bool TownNpcCheckPrefix(ref bool forceUpdate, ref AdvancedScopeState __state)
+        private static bool TownNpcCheckPrefix(ref AdvancedScopeState __state)
         {
             WorldLockConfiguration current = configuration;
             if (current == null || !current.HasCapability(StardustTownAndNaturalEventsCapability) ||
@@ -219,8 +221,12 @@ namespace TerrariaSplit.MemoryBridge.Payload
                     return false;
                 }
 
-                checkForSpawnsField.SetValue(null, 0);
-                forceUpdate = true;
+                int worldUpdateRate = (int)worldUpdateRateMethod.Invoke(null, null);
+                if (worldUpdateRate <= 0)
+                {
+                    return false;
+                }
+                checkForSpawnsField.SetValue(null, Math.Max(0, 7200 / worldUpdateRate - 1));
                 string source = WorldKey(current);
                 long occurrence = current.State.EventCounters.Next("town-npc-check", source);
                 return TryBeginAdvancedScope(current, "town-npc-check", source + "|" + occurrence, ref __state);

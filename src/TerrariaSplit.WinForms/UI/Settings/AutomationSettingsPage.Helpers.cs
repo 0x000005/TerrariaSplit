@@ -466,12 +466,18 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
 
     private void UpdatePyramidItemAvailability()
     {
-        bool cheatsEnabled = autoCreateCheatsBox.Checked;
-        autoCreatePyramidFilterBox.Enabled = cheatsEnabled;
+        bool filtersEnabled = autoCreateCheatsBox.Checked &&
+            string.IsNullOrWhiteSpace(autoCreateFixedSeedBox.Text);
+        if (!filtersEnabled)
+        {
+            autoCreatePyramidFilterBox.Checked = false;
+        }
+
+        autoCreatePyramidFilterBox.Enabled = filtersEnabled;
         UpdateSpecialSeedButtonState(autoCreatePyramidFilterBox);
         foreach (CheckBox button in autoCreatePyramidItemBoxes.Values)
         {
-            button.Enabled = cheatsEnabled && autoCreatePyramidFilterBox.Checked;
+            button.Enabled = filtersEnabled && autoCreatePyramidFilterBox.Checked;
             UpdateSpecialSeedButtonState(button);
         }
     }
@@ -494,6 +500,7 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
                     autoCreateSpecialSeedBoxes.TryGetValue(seed, out CheckBox? button) && button.Checked));
             bool cheatsEnabled = autoCreateCheatsBox.Checked;
             bool supportsAdvancedFilters = cheatsEnabled &&
+                string.IsNullOrWhiteSpace(autoCreateFixedSeedBox.Text) &&
                 AutoCreateAdvancedFilterEligibility.IsEligible(
                     selectedWorldSize,
                     selectedWorldEvil,

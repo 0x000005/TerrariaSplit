@@ -383,7 +383,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
         {
             RaceOperationResult<RaceRoomState> result = await session.JoinRoomAsync(
                 serverUrl,
-                new RaceRoomJoinRequest(roomCode, nickname));
+                new RaceRoomJoinRequest(roomCode, nickname, RaceTerrariaCompatibility.Id));
             LogRaceOperationFailure(result, "join room");
             return result;
         }
@@ -527,7 +527,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
             {
                 result = await session.CreateRoomAsync(
                     serverUrl,
-                    new RaceRoomCreateRequest(nickname),
+                    new RaceRoomCreateRequest(nickname, RaceTerrariaCompatibility.Id),
                     cancellationToken);
                 if (!result.Succeeded || result.Value is not RaceRoomState)
                 {

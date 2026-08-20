@@ -9,7 +9,7 @@
 
 TerrariaSplit is a Windows split timer for Terraria. It is built around boss-route timing, and also supports item, NPC, biome, and other conditions. It provides a visual settings UI, real-time overlay, statistics, and automation tools for practice and world generation.
 
-Currently supports Terraria `1.4.5.6` and `1.4.4.9`.
+Currently supports Terraria `1.4.5.7` and `1.4.4.9`.
 
 ## Core Features
 

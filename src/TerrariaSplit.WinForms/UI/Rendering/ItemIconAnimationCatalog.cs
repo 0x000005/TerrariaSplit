@@ -24,7 +24,7 @@ internal static class ItemIconAnimationCatalog
 
     private static Dictionary<int, ItemIconAnimation> CreateAnimations()
     {
-        // Mirrors Terraria 1.4.5.6 Main.InitializeItemAnimations. Item textures are
+        // Mirrors Terraria 1.4.5.7 Main.InitializeItemAnimations. Item textures are
         // vertical sprite sheets; Terraria draws one frame without its 2px separator.
         var animations = new Dictionary<int, ItemIconAnimation>
         {

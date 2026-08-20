@@ -776,7 +776,7 @@ internal static class PyramidPreScreenMetrics
             int warmupCount = 3;
             string csvPath = string.Empty;
             string diagnosticsCsvPath = string.Empty;
-            TerrariaWorldGenerationVersion worldGenerationVersion = TerrariaWorldGenerationVersion.Modern1456;
+            TerrariaWorldGenerationVersion worldGenerationVersion = TerrariaWorldGenerationVersion.Modern1457;
             bool diagnoseErrors = false;
             bool diagnoseAll = false;
             var diagnoseSeeds = new HashSet<string>(StringComparer.Ordinal);
@@ -878,12 +878,12 @@ internal static class PyramidPreScreenMetrics
                 return TerrariaWorldGenerationVersion.Legacy1449;
             }
 
-            if (normalized.Equals("1456", StringComparison.OrdinalIgnoreCase) ||
-                normalized.StartsWith("1.4.5", StringComparison.OrdinalIgnoreCase) ||
-                normalized.StartsWith("v1.4.5", StringComparison.OrdinalIgnoreCase) ||
-                normalized.Equals("modern1456", StringComparison.OrdinalIgnoreCase))
+            if (normalized.Equals("1457", StringComparison.OrdinalIgnoreCase) ||
+                normalized.Equals("1.4.5.7", StringComparison.OrdinalIgnoreCase) ||
+                normalized.Equals("v1.4.5.7", StringComparison.OrdinalIgnoreCase) ||
+                normalized.Equals("modern1457", StringComparison.OrdinalIgnoreCase))
             {
-                return TerrariaWorldGenerationVersion.Modern1456;
+                return TerrariaWorldGenerationVersion.Modern1457;
             }
 
             throw new ArgumentException("Unknown Terraria worldgen version: " + value);

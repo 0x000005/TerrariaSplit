@@ -45,7 +45,7 @@ internal sealed class EnterWorldWorkflow : IDisposable
                     install.Exception);
             }
 
-            if (!await automation.ClickAsync("Single Player", geometry.MainMenuSinglePlayer(), menuActionDelay, cancellationToken))
+            if (!await automation.ClickAsync("Single Player", geometry, static current => current.MainMenuSinglePlayer(), menuActionDelay, cancellationToken))
             {
                 return AutomationResult.Failure(
                     "Could not open Terraria single player menu.",

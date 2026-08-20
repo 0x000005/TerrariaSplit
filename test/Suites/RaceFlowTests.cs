@@ -19,6 +19,24 @@ internal static class RaceFlowTests
         yield return TestCase.Sync("race client rejects late updates from a room left before joining another room", TestSuite.Flow, CrossRoomUpdateIsolation);
         yield return TestCase.Sync("race deterministic core derives stable domains, counts events, rolls independent chances and accumulates fixed chances", TestSuite.Core, DeterministicCore);
         yield return TestCase.Async("race voice announces main and attached groups once, queues players in order and clears obsolete work", TestSuite.Flow, VoiceAnnouncementJourney);
+        yield return TestCase.Sync("race rooms reject clients outside the Terraria 1.4.5.7 compatibility profile", TestSuite.Core, TerrariaCompatibilityBoundary);
+    }
+
+    private static void TerrariaCompatibilityBoundary()
+    {
+        var manager = new RaceRoomManager(new InMemoryRaceRecordStore());
+        RaceOperationResult<RaceRoomState> obsoleteCreate = manager.CreateRoom(
+            new RaceRoomCreateRequest("obsolete", "terraria-1.4.5.6-win-x86-mvid-obsolete"));
+        Check.Equal(RaceErrors.IncompatibleTerraria, obsoleteCreate.ErrorCode);
+
+        RaceRoomState created = Success(manager.CreateRoom(
+            new RaceRoomCreateRequest("host", RaceTerrariaCompatibility.Id)));
+        RaceOperationResult<RaceRoomState> obsoleteJoin = manager.JoinRoom(
+            new RaceRoomJoinRequest(created.RoomCode, "obsolete", "terraria-1.4.5.6-win-x86-mvid-obsolete"));
+        Check.Equal(RaceErrors.IncompatibleTerraria, obsoleteJoin.ErrorCode);
+        Check.True(RaceTerrariaCompatibility.IsSupportedVersion(" 1.4.5.7 "));
+        Check.False(RaceTerrariaCompatibility.IsSupportedVersion("1.4.5.6"));
+        Check.Equal(RaceTerrariaCompatibility.Id, RaceDeterminismProtocol.TerrariaCompatibilityId);
     }
 
     private static void InGameProtocolRoundTrip()
@@ -196,7 +214,7 @@ internal static class RaceFlowTests
         Check.False(RaceClientSession.IsRoomUpdateForCurrentRoom("NEW2", "OLD1"));
 
         var manager = new RaceRoomManager(new InMemoryRaceRecordStore());
-        RaceRoomState room = Success(manager.CreateRoom(new RaceRoomCreateRequest("host")));
+        RaceRoomState room = Success(manager.CreateRoom(new RaceRoomCreateRequest("host", RaceTerrariaCompatibility.Id)));
         RaceOperationResult<RaceRoomState> missingRoom =
             RaceOperationResult<RaceRoomState>.Failure(
                 "room_not_found",
@@ -348,11 +366,11 @@ internal static class RaceFlowTests
         var store = new InMemoryRaceRecordStore();
         var clock = new MutableTimeProvider(new DateTimeOffset(2026, 7, 15, 12, 0, 0, TimeSpan.Zero));
         var manager = new RaceRoomManager(store, timeProvider: clock);
-        RaceRoomState created = Success(manager.CreateRoom(new RaceRoomCreateRequest("host")));
+        RaceRoomState created = Success(manager.CreateRoom(new RaceRoomCreateRequest("host", RaceTerrariaCompatibility.Id)));
         string room = created.RoomCode;
         Check.Equal(RaceRoomCodeRules.Length, room.Length);
         Check.True(room.All(character => character is >= '0' and <= '9'));
-        Success(manager.JoinRoom(new RaceRoomJoinRequest(room, "guest")));
+        Success(manager.JoinRoom(new RaceRoomJoinRequest(room, "guest", RaceTerrariaCompatibility.Id)));
         RaceRoomState uploaded = Success(manager.PublishWorldFile(Publish(room, "host", revisionName: "first")));
         Check.Equal(RaceRoomStatus.WorldUploaded, uploaded.Status);
         Check.True(uploaded.Determinism!.TryValidate(out _));
@@ -405,7 +423,7 @@ internal static class RaceFlowTests
         Check.Equal(1L, starting.StartSequence);
         Check.Equal(
             RaceErrors.RaceAlreadyStarted,
-            manager.JoinRoom(new RaceRoomJoinRequest(room, "late-during-race")).ErrorCode);
+            manager.JoinRoom(new RaceRoomJoinRequest(room, "late-during-race", RaceTerrariaCompatibility.Id)).ErrorCode);
         Check.Equal(
             RaceErrors.RaceNotStarted,
             manager.ReportStart(new RaceRunStartReport(room, "guest") { PackageRevision = 1, RunId = "guest-run" }).ErrorCode);
@@ -450,7 +468,7 @@ internal static class RaceFlowTests
         RacePlayerState disconnectedGuest = disconnected.Players.Single(player => player.Nickname == "guest");
         Check.Equal(RaceServerConnectionStatus.Disconnected, disconnectedGuest.ServerConnectionStatus);
         Check.Equal(2, disconnectedGuest.CompletedSplitCount);
-        Check.Equal(RaceErrors.NicknameTaken, manager.JoinRoom(new RaceRoomJoinRequest(room, "guest")).ErrorCode);
+        Check.Equal(RaceErrors.NicknameTaken, manager.JoinRoom(new RaceRoomJoinRequest(room, "guest", RaceTerrariaCompatibility.Id)).ErrorCode);
         RaceRoomState resumed = Success(manager.ResumeRoom(room, "guest"));
         RacePlayerState resumedGuest = resumed.Players.Single(player => player.Nickname == "guest");
         Check.Equal(RaceServerConnectionStatus.Connected, resumedGuest.ServerConnectionStatus);
@@ -467,7 +485,7 @@ internal static class RaceFlowTests
         Check.True(restarted.Players.All(player => player.CompletedSplitCount == 0));
         Check.True(restarted.Players.All(player => player.PlayerFileStatus == RacePlayerFileStatus.Waiting));
         Check.True(restarted.Players.All(player => player.WorldFileStatus == RaceWorldFileStatus.Waiting));
-        Success(manager.JoinRoom(new RaceRoomJoinRequest(room, "post-restart")));
+        Success(manager.JoinRoom(new RaceRoomJoinRequest(room, "post-restart", RaceTerrariaCompatibility.Id)));
         Success(manager.KickPlayer(new RacePlayerKickRequest(room, "host", "post-restart")));
 
         Success(manager.UpdatePreparationStatus(Ready(room, "host", 2)));
@@ -493,7 +511,7 @@ internal static class RaceFlowTests
         RaceRoomState rngDisabled = Success(manager.PublishWorldFile(rngDisabledRequest));
         Check.Equal(RaceDeterminismCapability.WorldLock, rngDisabled.Determinism!.EnabledCapabilities);
         Check.Equal(RaceRngControlStatus.NotEnabled, rngDisabled.Players.Single().RngControlStatus);
-        RaceRoomState lateJoin = Success(manager.JoinRoom(new RaceRoomJoinRequest(room, "late")));
+        RaceRoomState lateJoin = Success(manager.JoinRoom(new RaceRoomJoinRequest(room, "late", RaceTerrariaCompatibility.Id)));
         Check.Equal(
             RaceRngControlStatus.NotEnabled,
             lateJoin.Players.Single(player => player.Nickname == "late").RngControlStatus);
@@ -512,13 +530,13 @@ internal static class RaceFlowTests
     {
         var clock = new MutableTimeProvider(new DateTimeOffset(2026, 7, 15, 12, 0, 0, TimeSpan.Zero));
         var manager = new RaceRoomManager(new InMemoryRaceRecordStore(), timeProvider: clock);
-        RaceRoomState created = Success(manager.CreateRoom(new RaceRoomCreateRequest("host")));
+        RaceRoomState created = Success(manager.CreateRoom(new RaceRoomCreateRequest("host", RaceTerrariaCompatibility.Id)));
         string room = created.RoomCode;
-        Success(manager.JoinRoom(new RaceRoomJoinRequest(room, "guest")));
-        Check.Equal(RaceErrors.NicknameTaken, manager.JoinRoom(new RaceRoomJoinRequest(room, "guest")).ErrorCode);
+        Success(manager.JoinRoom(new RaceRoomJoinRequest(room, "guest", RaceTerrariaCompatibility.Id)));
+        Check.Equal(RaceErrors.NicknameTaken, manager.JoinRoom(new RaceRoomJoinRequest(room, "guest", RaceTerrariaCompatibility.Id)).ErrorCode);
         Check.Equal(RaceErrors.NicknameTaken, manager.ResumeRoom(room, "guest").ErrorCode);
         Success(manager.LeaveRoom(room, "guest"));
-        Success(manager.JoinRoom(new RaceRoomJoinRequest(room, "guest")));
+        Success(manager.JoinRoom(new RaceRoomJoinRequest(room, "guest", RaceTerrariaCompatibility.Id)));
         Check.False(manager.PublishWorldFile(Publish(room, "guest", "forbidden")).Succeeded);
         RaceWorldFilePublishRequest invalidDifficulty = Publish(room, "host", "invalid-difficulty") with
         {
@@ -553,7 +571,7 @@ internal static class RaceFlowTests
         Check.False(manager.CloseRoom(room, "guest").Succeeded);
 
         Success(manager.DisconnectPlayer(room, "guest"));
-        Check.Equal(RaceErrors.NicknameTaken, manager.JoinRoom(new RaceRoomJoinRequest(room, "guest")).ErrorCode);
+        Check.Equal(RaceErrors.NicknameTaken, manager.JoinRoom(new RaceRoomJoinRequest(room, "guest", RaceTerrariaCompatibility.Id)).ErrorCode);
         RaceRoomState rejoined = Success(manager.ResumeRoom(room, "guest"));
         RacePlayerState rejoinedGuest = rejoined.Players.Single(player => player.Nickname == "guest");
         Check.Equal(0, rejoinedGuest.CompletedSplitCount);
@@ -568,7 +586,7 @@ internal static class RaceFlowTests
     private static void TransportRoundTrip()
     {
         var manager = new RaceRoomManager(new InMemoryRaceRecordStore());
-        RaceRoomState created = Success(manager.CreateRoom(new RaceRoomCreateRequest("host")));
+        RaceRoomState created = Success(manager.CreateRoom(new RaceRoomCreateRequest("host", RaceTerrariaCompatibility.Id)));
         RaceRoomState uploaded = Success(manager.PublishWorldFile(Publish(created.RoomCode, "host", "transport")));
         string json = JsonSerializer.Serialize(uploaded);
         RaceRoomState restored = JsonSerializer.Deserialize<RaceRoomState>(json)!;
@@ -904,7 +922,7 @@ internal static class RaceFlowTests
 
     private static RaceWorldFilePublishRequest Publish(string room, string nickname, string revisionName) =>
         new(room, nickname, Route(), new RaceWorldSettings(
-                "1.4.4.9",
+                RaceTerrariaCompatibility.TerrariaVersion,
                 1,
                 1,
                 true,

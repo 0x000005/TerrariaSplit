@@ -61,7 +61,7 @@ internal sealed class ItemFactProvider
 
         TerrariaGameFacts.Builder builder = TerrariaGameFacts.CreateBuilder();
         IEnumerable<int> itemIds = readPlan.ReadsAll
-            ? Enumerable.Range(1, SplitCatalog.MaxItemId)
+            ? Enumerable.Range(1, SplitCatalog.MaxItemId).Where(SplitFactKeys.IsSupportedItemId)
             : selectedItemIds;
         foreach (int itemId in itemIds)
         {
@@ -224,8 +224,7 @@ internal sealed class ItemFactProvider
             return false;
         }
 
-        if (itemType <= 0 ||
-            itemType > SplitCatalog.MaxItemId ||
+        if (!SplitFactKeys.IsSupportedItemId(itemType) ||
             !readPlan.IncludesItemId(itemType))
         {
             seenItemAddresses.Add(itemAddress);

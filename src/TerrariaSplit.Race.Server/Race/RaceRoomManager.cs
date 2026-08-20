@@ -35,6 +35,11 @@ public sealed class RaceRoomManager
 
     public RaceOperationResult<RaceRoomState> CreateRoom(RaceRoomCreateRequest request)
     {
+        if (!RaceTerrariaCompatibility.IsSupported(request.TerrariaCompatibilityId))
+        {
+            return IncompatibleTerrariaFailure();
+        }
+
         if (!IsValidNickname(request.Nickname))
         {
             return Failure(RaceErrors.InvalidRequest, $"Nickname must contain 1-{MaximumNicknameLength} characters.");
@@ -64,6 +69,11 @@ public sealed class RaceRoomManager
 
     public RaceOperationResult<RaceRoomState> JoinRoom(RaceRoomJoinRequest request)
     {
+        if (!RaceTerrariaCompatibility.IsSupported(request.TerrariaCompatibilityId))
+        {
+            return IncompatibleTerrariaFailure();
+        }
+
         if (!TryGetRoom(request.RoomCode, out RaceRoom? room, out RaceOperationResult<RaceRoomState> failure))
         {
             return failure;
@@ -136,6 +146,11 @@ public sealed class RaceRoomManager
         if (!RacePlayerDifficultyCodes.IsValid(request.WorldSettings.PlayerDifficultyCode))
         {
             return Failure(RaceErrors.InvalidRequest, "Player difficulty is invalid.");
+        }
+
+        if (!RaceTerrariaCompatibility.IsSupportedVersion(request.WorldSettings.TerrariaVersion))
+        {
+            return IncompatibleTerrariaFailure();
         }
 
         if (request.WorldFile.Length <= 0 || request.WorldFile.Length > MaximumWorldFileLength ||
@@ -979,6 +994,13 @@ public sealed class RaceRoomManager
     private static RaceOperationResult<RaceRoomState> Failure(string errorCode, string message)
     {
         return RaceOperationResult<RaceRoomState>.Failure(errorCode, message);
+    }
+
+    private static RaceOperationResult<RaceRoomState> IncompatibleTerrariaFailure()
+    {
+        return Failure(
+            RaceErrors.IncompatibleTerraria,
+            $"Race mode requires Terraria {RaceTerrariaCompatibility.TerrariaVersion}.");
     }
 
     private bool TryGetRoom(

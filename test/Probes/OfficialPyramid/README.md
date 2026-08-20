@@ -1,6 +1,6 @@
 # Official Pyramid Pass Probe
 
-This is a standalone diagnostic tool. It loads the real Terraria 1.4.5.6 assembly and wraps selected official world-gen passes to emit pass-stop CSV rows.
+This is a standalone diagnostic tool. It loads the real Terraria 1.4.5.7 assembly and wraps selected official world-gen passes to emit pass-stop CSV rows.
 
 It is not part of `test/TerrariaSplit.Tests.csproj` or `test/TerrariaSplit.Diagnostics.csproj`.
 
@@ -11,7 +11,7 @@ From the repository root:
 ```powershell
 $out = "test\Temp\OfficialProbe\bin"
 $terrariaPath = Join-Path ${env:ProgramFiles(x86)} "Steam\steamapps\common\Terraria\Terraria.exe"
-$referenceRoot = (Resolve-Path "..\reference\Terraria1456\pyramid-probe\exactgen\bin").Path
+$referenceRoot = (Resolve-Path "..\reference\Terraria1457").Path
 New-Item -ItemType Directory -Force $out | Out-Null
 & "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe" `
   /nologo `
@@ -19,8 +19,9 @@ New-Item -ItemType Directory -Force $out | Out-Null
   /target:exe `
   /out:"$out\OfficialPyramidPassProbe.exe" `
   /reference:"$terrariaPath" `
-  /reference:"$referenceRoot\ReLogic.dll" `
-  /reference:"$referenceRoot\Newtonsoft.Json.dll" `
+  /reference:"$referenceRoot\Terraria.Libraries.ReLogic.ReLogic.dll" `
+  /reference:"$referenceRoot\Terraria.Libraries.JSON.NET.Newtonsoft.Json.dll" `
+  /reference:"C:\Windows\Microsoft.NET\assembly\GAC_32\Microsoft.Xna.Framework\v4.0_4.0.0.0__842cf8be1de50553\Microsoft.Xna.Framework.dll" `
   /reference:"C:\Windows\Microsoft.NET\assembly\GAC_32\Microsoft.Xna.Framework.Game\v4.0_4.0.0.0__842cf8be1de50553\Microsoft.Xna.Framework.Game.dll" `
   test\Probes\OfficialPyramid\OfficialPyramidPassProbe.cs
 ```

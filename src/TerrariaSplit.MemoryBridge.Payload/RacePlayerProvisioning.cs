@@ -62,7 +62,7 @@ namespace TerrariaSplit.MemoryBridge.Payload
                 }
             }
 
-            if (terraria == null || terraria.GetName().Version != new Version(1, 4, 5, 6) ||
+            if (terraria == null || terraria.GetName().Version != new Version(1, 4, 5, 7) ||
                 terraria.ManifestModule.ModuleVersionId != SupportedMvid)
             {
                 return new PayloadCommandResult(41, "The Terraria player creator is not compatible with this client.", false);

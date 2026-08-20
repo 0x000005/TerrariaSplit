@@ -292,7 +292,8 @@ internal sealed class PyramidSeedPreScreenAutomation : IDisposable
     {
         bool randomized = await automation.ClickAsync(
             "randomize 1.4.4.9 visible seed without pre-screen",
-            geometry.WorldAdvancedSeedButton(),
+            geometry,
+            static current => current.WorldAdvancedSeedButton(),
             clickDelay,
             cancellationToken);
         return randomized
@@ -318,7 +319,7 @@ internal sealed class PyramidSeedPreScreenAutomation : IDisposable
         TimeSpan clickDelay,
         CancellationToken cancellationToken)
     {
-        return automation.ClickAsync(step, geometry.AdvancedSeedRandomizeButton(), clickDelay, cancellationToken);
+        return automation.ClickAsync(step, geometry, static current => current.AdvancedSeedRandomizeButton(), clickDelay, cancellationToken);
     }
 
     private sealed class TerrariaVisibleSeedRandomizer : IPyramidSeedRandomizer
@@ -341,7 +342,8 @@ internal sealed class PyramidSeedPreScreenAutomation : IDisposable
         {
             return automation.ClickAsync(
                 $"randomize visible seed pre-screen attempt {attempt}",
-                geometry.AdvancedSeedRandomizeButton(),
+                geometry,
+                static current => current.AdvancedSeedRandomizeButton(),
                 clickDelay,
                 cancellationToken);
         }
@@ -367,7 +369,8 @@ internal sealed class PyramidSeedPreScreenAutomation : IDisposable
         {
             return automation.ClickAsync(
                 $"randomize 1.4.4.9 visible seed pre-screen attempt {attempt}",
-                geometry.WorldAdvancedSeedButton(),
+                geometry,
+                static current => current.WorldAdvancedSeedButton(),
                 clickDelay,
                 cancellationToken);
         }

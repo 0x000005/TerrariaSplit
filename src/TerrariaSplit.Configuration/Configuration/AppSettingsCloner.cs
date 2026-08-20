@@ -396,6 +396,7 @@ public static class AppSettingsCloner
             WorldEvil = source.WorldEvil,
             SpecialSeeds = source.SpecialSeeds,
             SecretSeeds = source.SecretSeeds,
+            FixedSeed = source.FixedSeed,
             EnableZenithStarCatch = source.EnableZenithStarCatch,
             ZenithStarCatchStopStage = source.ZenithStarCatchStopStage,
             ZenithStarCatchSpeedSliderValue = source.ZenithStarCatchSpeedSliderValue,

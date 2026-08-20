@@ -9,7 +9,7 @@ internal static class ConfigurationStorageFlowTests
         yield return TestCase.Sync("settings save reports split-set write failures before writing the settings document", TestSuite.Flow, SplitSetWriteFailureIsReported);
         yield return TestCase.Sync("new settings are deep clones of the single embedded default template", TestSuite.Flow, CanonicalSettingsDefaults);
         yield return TestCase.Sync("switching routes preserves reference data owned by another profile", TestSuite.Flow, SwitchingRoutesPreservesInactiveReferenceData);
-        yield return TestCase.Sync("advanced world filters require a plain small Crimson world while pyramid remains available", TestSuite.Flow, AdvancedFilterEligibility);
+        yield return TestCase.Sync("advanced world filters require a plain small Crimson world and fixed seeds disable every filter", TestSuite.Flow, AdvancedFilterEligibility);
         yield return TestCase.Sync("split time and run statistics persist through injected runtime paths", TestSuite.Flow, SplitAndRunStorageFlow);
         yield return TestCase.Sync("corrupt settings recover to usable defaults without escaping the data root", TestSuite.Flow, CorruptSettingsRecovery);
     }
@@ -278,12 +278,13 @@ internal static class ConfigurationStorageFlowTests
         Check.True(valid.RequireCrimsonBetweenDungeonAndSpawn);
         Check.Equal(AutoCreateJungleRouteDepth.Deep, valid.JungleRouteDepth);
 
-        foreach (Action<AutoCreateWorldSettings> makeUnsupported in new Action<AutoCreateWorldSettings>[]
+        foreach ((Action<AutoCreateWorldSettings> makeUnsupported, bool pyramidRemainsEnabled) in new (Action<AutoCreateWorldSettings>, bool)[]
         {
-            settings => settings.WorldSize = AutoCreateWorldSize.Medium,
-            settings => settings.WorldEvil = AutoCreateWorldEvil.Corruption,
-            settings => settings.SpecialSeeds = AutoCreateSpecialWorldSeed.NotTheBees,
-            settings => settings.SecretSeeds = "secret"
+            (settings => settings.WorldSize = AutoCreateWorldSize.Medium, true),
+            (settings => settings.WorldEvil = AutoCreateWorldEvil.Corruption, true),
+            (settings => settings.SpecialSeeds = AutoCreateSpecialWorldSeed.NotTheBees, true),
+            (settings => settings.SecretSeeds = "secret", true),
+            (settings => settings.FixedSeed = "  12345  ", false)
         })
         {
             var unsupported = new AutoCreateWorldSettings
@@ -302,7 +303,11 @@ internal static class ConfigurationStorageFlowTests
             makeUnsupported(unsupported);
             SettingsSectionNormalizer.NormalizeAutoCreate(unsupported);
             Check.False(AutoCreateAdvancedFilterEligibility.IsEligible(unsupported));
-            Check.True(unsupported.EnablePyramidFilter);
+            Check.Equal(pyramidRemainsEnabled, unsupported.EnablePyramidFilter);
+            if (!pyramidRemainsEnabled)
+            {
+                Check.Equal("12345", unsupported.FixedSeed);
+            }
             Check.False(unsupported.RequireCrimsonBetweenDungeonAndSpawn);
             Check.Equal(AutoCreateJungleRouteDepth.None, unsupported.JungleRouteDepth);
             Check.Equal(0, unsupported.ResourceFilterItemMask);

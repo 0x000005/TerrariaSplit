@@ -10,6 +10,7 @@ internal static class CoreAndRunTests
         yield return TestCase.Sync("route progression handles initial state, attached splits, skipping and practice edits", TestSuite.Core, RouteProgression);
         yield return TestCase.Sync("statistics preserve an unknown segment boundary after a missing cumulative split", TestSuite.Core, StatisticsMissingSplitBoundary);
         yield return TestCase.Sync("fact conditions evaluate boolean, integer, all, any and threshold semantics", TestSuite.Core, FactConditionMatrix);
+        yield return TestCase.Sync("biome splits reject transient facts and preserve first stable detection time", TestSuite.Core, BiomeSplitConfirmation);
         yield return TestCase.Sync("timer and tracker state round-trip without sharing live state", TestSuite.Core, StateRoundTrip);
     }
 
@@ -125,6 +126,39 @@ internal static class CoreAndRunTests
         Check.Equal(SplitConditionResult.True, SplitCondition.Any([SplitCondition.Fact("boss:a"), SplitCondition.Fact("boss:b")]).Evaluate(facts));
         Check.Equal(SplitConditionResult.True, SplitCondition.AtLeast([SplitCondition.Fact("boss:a"), SplitCondition.Fact("boss:b")], 1).Evaluate(facts));
         Check.Equal(SplitConditionResult.Unknown, SplitCondition.Fact("missing").Evaluate(facts));
+    }
+
+    private static void BiomeSplitConfirmation()
+    {
+        const string biomeFact = "biome:jungle:active";
+        var tracker = new SplitTracker();
+        tracker.SetDefinitions([Definition("jungle", biomeFact)]);
+        tracker.OnRunStarted(Facts((biomeFact, false)));
+
+        Check.True(tracker.Update(Facts((biomeFact, true)), false, TimeSpan.FromSeconds(5)) is null);
+        Check.True(tracker.Update(Facts((biomeFact, false)), false, TimeSpan.FromMilliseconds(5_010)) is null);
+        Check.True(tracker.Update(Facts((biomeFact, true)), false, TimeSpan.FromSeconds(6)) is null);
+        Check.True(tracker.Update(Facts((biomeFact, true)), false, TimeSpan.FromMilliseconds(6_019)) is null);
+
+        SplitRecord? split = tracker.Update(
+            Facts((biomeFact, true)),
+            false,
+            TimeSpan.FromMilliseconds(6_020));
+
+        Check.Equal("jungle", split?.Name);
+        Check.Equal(TimeSpan.FromSeconds(6), split?.Time);
+        Check.Equal(TimeSpan.FromSeconds(6), tracker.Statuses[0].Time);
+        Check.True(tracker.Statuses[0].FactCompletionTimes.TryGetValue(biomeFact, out TimeSpan factTime));
+        Check.Equal(TimeSpan.FromSeconds(6), factTime);
+
+        var ordinaryTracker = new SplitTracker();
+        ordinaryTracker.SetDefinitions([Definition("boss", "boss:defeated")]);
+        ordinaryTracker.OnRunStarted(Facts(("boss:defeated", false)));
+        SplitRecord? ordinarySplit = ordinaryTracker.Update(
+            Facts(("boss:defeated", true)),
+            false,
+            TimeSpan.FromSeconds(7));
+        Check.Equal(TimeSpan.FromSeconds(7), ordinarySplit?.Time);
     }
 
     private static void StateRoundTrip()

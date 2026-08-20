@@ -381,7 +381,7 @@ internal static class Program
             CountWorldGenerationFields(worldGeneration);
 
         layout = new RuntimeLayoutDto(
-            TerrariaVersion: null,
+            TerrariaVersion: ReadTerrariaVersion(targetProcessId),
             core,
             new BossLayoutDto(bossFacts),
             item,
@@ -391,6 +391,19 @@ internal static class Program
             worldGeneration,
             resolvedFieldCount);
         return core.GameMenuStaticFieldAddress != 0 || resolvedFieldCount > 0;
+    }
+
+    private static string? ReadTerrariaVersion(int processId)
+    {
+        try
+        {
+            using Process process = Process.GetProcessById(processId);
+            return process.MainModule?.FileVersionInfo.FileVersion;
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or Win32Exception)
+        {
+            return null;
+        }
     }
 
     private static CoreLayoutDto ResolveCoreLayout(ClrType mainType, ClrAppDomain domain)

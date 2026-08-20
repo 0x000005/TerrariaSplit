@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 
 namespace TerrariaSplit.Configuration;
 
@@ -8,7 +9,7 @@ public static class WorldPoolSignature
 {
     // Terraria's world generator is version-sensitive. Keep this as a visible pool
     // signature component instead of an opaque "v1" format marker.
-    private const string DefaultTerrariaVersion = "1.4.5.6";
+    private const string DefaultTerrariaVersion = "1.4.5.7";
 
     public static string From(AppSettings settings)
     {
@@ -37,6 +38,8 @@ public static class WorldPoolSignature
         string evil = AutoCreateWorldEvil.Normalize(autoCreate.WorldEvil);
         string specialSeeds = string.Join(",", AutoCreateSpecialWorldSeed.ParseList(autoCreate.SpecialSeeds));
         string secretSeeds = string.Join(",", AutoCreateSeedList.Parse(autoCreate.SecretSeeds));
+        string fixedSeed = "fixedSeed=" + Convert.ToBase64String(
+            Encoding.UTF8.GetBytes(autoCreate.FixedSeed?.Trim() ?? string.Empty));
         bool cheatsEnabled = autoCreate.EnableCheats;
         string cheats = cheatsEnabled ? "cheats=1" : "cheats=0";
         bool pyramidEnabled = cheatsEnabled && autoCreate.EnablePyramidFilter;
@@ -64,7 +67,7 @@ public static class WorldPoolSignature
                 "featherfall=" + AutoCreateResourceMinimum.NormalizePotions(autoCreate.ResourceFilterFeatherfallPotionMinimum).ToString(CultureInfo.InvariantCulture))
             : "resource=0";
         string nameLanguage = "name=" + TerrariaLanguageCodes.FromAppLanguage(appLanguage);
-        return string.Join("|", NormalizeTerrariaVersion(terrariaVersion), size, difficulty, evil, specialSeeds, secretSeeds, cheats, pyramid, pyramidItems, crimsonCorridor, resourceFilter, nameLanguage);
+        return string.Join("|", NormalizeTerrariaVersion(terrariaVersion), size, difficulty, evil, specialSeeds, secretSeeds, fixedSeed, cheats, pyramid, pyramidItems, crimsonCorridor, resourceFilter, nameLanguage);
     }
 
     public static string NormalizeTerrariaVersion(string? terrariaVersion)

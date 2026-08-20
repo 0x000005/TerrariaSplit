@@ -4,6 +4,13 @@ public readonly record struct TerrariaItemDefinition(int Id, string InternalName
 
 public static class TerrariaItemCatalog
 {
+    public static readonly IReadOnlySet<int> DeprecatedIds = new HashSet<int>
+    {
+        2772, 2773, 2775, 2777, 2778, 2780, 2782, 2783, 2785, 2881,
+        3462, 3463, 3465, 3847, 3848, 3849, 3850, 3851, 3861, 3862,
+        3978, 4010, 4058, 4722, 6143, 6160, 6170, 6171
+    };
+
     public static readonly IReadOnlyList<TerrariaItemDefinition> Items =
     [
         new(1, "IronPickaxe", "Iron Pickaxe", "铁镐"),
@@ -6148,11 +6155,62 @@ public static class TerrariaItemCatalog
         new(6140, "LunasWings", "Luna's Runic Pixie Wings", "露娜的符文妖精翅膀"),
         new(6141, "LunasCloak", "Luna's Runic Pixie Cloak", "露娜的符文妖精斗篷"),
         new(6142, "PalworldChilletEgg", "Huge Dragon Egg", "巨型龙蛋"),
-        new(6143, "FoxparksTagEffect", "Foxparks Tag Effect", ""),
+        new(6143, "Deprecated6143", "Deprecated Item 6143", "已弃用物品 6143"),
         new(6144, "MusicBoxSkeletron", "Music Box (Skeletron)", "八音盒（骷髅王）"),
-        new(6145, "MusicBoxRainbowBoulder", "Music Box (Rainbow Boulder)", ""),
-        new(6146, "MusicBoxSilence", "Music Box (Silence)", ""),
+        new(6145, "MusicBoxRainbowBoulder", "Music Box (Rainbow Boulder)", "八音盒（彩虹巨石）"),
+        new(6146, "MusicBoxSilence", "Music Box (Silence)", "八音盒（寂静）"),
+        new(6147, "GiantTiki", "Giant Tiki", "巨型提基"),
+        new(6148, "PalworldMinionTrustyCattiva", "Trusty Cattiva", "可靠的捣蛋猫"),
+        new(6149, "PalworldMinionTrustyFoxsparks", "Trusty Foxparks", "可靠的火绒狐"),
+        new(6150, "PalworldMountTrustyChillet", "Trusty Chillet", "可靠的疾旋鼬"),
+        new(6151, "PalworldMountTrustyChilletIgnis", "Trusty Chillet Ignis", "可靠的疾旋火鼬"),
+        new(6152, "DaybloomStaff", "Daybloom Staff", "太阳花法杖"),
+        new(6153, "GlacierFang", "Glacier Fang", "冰川之牙"),
+        new(6154, "Petalstorm", "Mystic Bloom", "神秘绽放"),
+        new(6155, "LightningStrike", "Lightning Strike", "闪电之击"),
+        new(6156, "SilverBracer", "Silver Bracer", "银护腕"),
+        new(6157, "SnakeBand", "Snake Band", "蛇形手环"),
+        new(6158, "MobiusStrip", "Mobius Strip", "莫比乌斯带"),
+        new(6159, "WickedArmlet", "Wicked Armlet", "邪恶臂环"),
+        new(6160, "SharpBarb", "Razortip", "锐刺"),
+        new(6161, "ClayPotMinion", "Clay Bud Staff", "黏土蓓蕾法杖"),
+        new(6162, "OuroborosRing", "Ouroboros Ring", "衔尾蛇指环"),
+        new(6163, "TwilightGrasp", "Twilight Grasp", "暮光之握"),
+        new(6164, "ForbiddenMinion", "Ruinous Staff", "毁灭法杖"),
+        new(6165, "PoisonBarb", "Poison Barb", "淬毒刺"),
+        new(6166, "HarpyCharm", "Harpy Charm", "鹰身女妖护符"),
+        new(6167, "SnappingStone", "Snapping Stone", "碎裂之石"),
+        new(6168, "AmmoCycler4", "Chaos Cylinder", "混沌弹筒"),
+        new(6169, "AmmoCyclerFullInv", "Chaos Cylinder (Full)", "混沌弹筒（满载）"),
+        new(6170, "TimerCrit", "Enchanted Timer", "附魔计时器"),
+        new(6171, "BejeweledStaff", "Bejeweled Staff", "宝石法杖"),
+        new(6172, "HeavySling", "Heavy Sling", "重型投石索"),
+        new(6173, "ArcSurge", "Arc Surge", "电弧涌动"),
+        new(6174, "PalworldTrustyDigtoise", "Trusty Digtoise", "可靠的碎岩龟"),
+        new(6175, "ScoutSling", "Scout's Sling", "斥候投石索"),
+        new(6176, "TemplarSling", "Templar's Sling", "圣殿骑士投石索"),
+        new(6177, "RoyalGuardHarness", "Royal Guard's Harness", "皇家卫队护具"),
+        new(6178, "Pyroclast", "Pyroclastic Stone", "火山碎屑石"),
+        new(6179, "ArmletOfRuin", "Armlet Of Ruin", "毁灭臂环"),
+        new(6180, "SeraphNecklace", "Seraph Necklace", "炽天使项链"),
+        new(6181, "PhoenixQuiver", "Phoenix Quiver", "凤凰箭袋"),
+        new(6182, "WickedClaws", "Wicked Claws", "邪恶之爪"),
+        new(6183, "SilverShield", "Silver Shield", "银盾"),
+        new(6184, "SweetBarb", "Sweet Barb", "甜蜜倒刺"),
+        new(6185, "CatalystBand", "Catalyst Band", "催化手环"),
+        new(6186, "DruidicSerpentCloak", "Druidic Serpent Cloak", "德鲁伊蛇纹斗篷"),
+        new(6187, "CrossedHeartNecklace", "Crossed Heart Necklace", "交错心形项链"),
+        new(6188, "RestorationShield", "Restoration Shield", "恢复之盾"),
+        new(6189, "MysticArtsSash", "Mystic Arts Sash", "秘术腰带"),
+        new(6190, "OldStyleParkourBook", "Guide to Old World Parkour", "旧世界跑酷指南"),
+        new(6191, "PalworldLittleKinshipPeach", "Little Kinship Peach", "小亲情桃"),
+        new(6192, "PalworldKinshipPeach", "Kinship Peach", "亲情桃"),
+        new(6193, "AmmoCyclerRandom", "Chaos Cylinder (Random)", "混沌弹筒（随机）"),
+        new(6194, "AmmoCyclerNoCycle", "Chaos Cylinder (Simple)", "混沌弹筒（简易）"),
+        new(6195, "OldStyleParkourBookInactive", "Guide to Old World Parkour (Inactive)", "旧世界跑酷指南（未激活）"),
     ];
 
     public static readonly IReadOnlyDictionary<int, TerrariaItemDefinition> ById = Items.ToDictionary(item => item.Id);
+
+    public static bool IsDeprecated(int itemId) => DeprecatedIds.Contains(itemId);
 }

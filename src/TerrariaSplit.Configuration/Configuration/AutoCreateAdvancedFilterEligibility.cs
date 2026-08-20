@@ -19,6 +19,7 @@ public static class AutoCreateAdvancedFilterEligibility
         AutoCreateSeedList.Parse(secretSeeds).Count == 0;
 
     public static bool IsEligible(AutoCreateWorldSettings settings) =>
+        string.IsNullOrWhiteSpace(settings.FixedSeed) &&
         IsEligible(
             settings.WorldSize,
             settings.WorldEvil,

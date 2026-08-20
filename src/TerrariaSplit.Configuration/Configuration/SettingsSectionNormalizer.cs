@@ -12,6 +12,7 @@ public static class SettingsSectionNormalizer
         autoCreate.WorldEvil = AutoCreateWorldEvil.Normalize(autoCreate.WorldEvil);
         autoCreate.SpecialSeeds = string.Join("|", AutoCreateSpecialWorldSeed.ParseList(autoCreate.SpecialSeeds));
         autoCreate.SecretSeeds = autoCreate.SecretSeeds?.Trim() ?? string.Empty;
+        autoCreate.FixedSeed = autoCreate.FixedSeed?.Trim() ?? string.Empty;
         autoCreate.ZenithStarCatchStopStage = AutoCreateZenithStarCatchStage.Normalize(autoCreate.ZenithStarCatchStopStage);
         autoCreate.ZenithStarCatchSpeedSliderValue = AutoCreateZenithStarCatchSpeed.NormalizeSliderValue(autoCreate.ZenithStarCatchSpeedSliderValue);
         autoCreate.PyramidFilterItemMask = AutoCreatePyramidFilterItem.NormalizeMask(autoCreate.PyramidFilterItemMask);
@@ -21,6 +22,10 @@ public static class SettingsSectionNormalizer
         autoCreate.ResourceFilterLifeCrystalMinimum = AutoCreateResourceMinimum.NormalizeLifeCrystals(autoCreate.ResourceFilterLifeCrystalMinimum);
         autoCreate.ResourceFilterSpelunkerPotionMinimum = AutoCreateResourceMinimum.NormalizePotions(autoCreate.ResourceFilterSpelunkerPotionMinimum);
         autoCreate.ResourceFilterFeatherfallPotionMinimum = AutoCreateResourceMinimum.NormalizePotions(autoCreate.ResourceFilterFeatherfallPotionMinimum);
+        if (autoCreate.FixedSeed.Length > 0)
+        {
+            autoCreate.EnablePyramidFilter = false;
+        }
         AutoCreateAdvancedFilterEligibility.ClearUnsupportedFilters(autoCreate);
         autoCreate.ShortActionDelayMilliseconds = Math.Clamp(autoCreate.ShortActionDelayMilliseconds, 0, 5000);
         autoCreate.MenuActionDelayMilliseconds = Math.Clamp(autoCreate.MenuActionDelayMilliseconds, 0, 5000);

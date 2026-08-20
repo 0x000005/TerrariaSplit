@@ -161,7 +161,7 @@ public sealed class TerrariaRaceWorldGenerationService : IDisposable
         TerrariaWorldGenerationVersion worldGenerationVersion =
             serverTarget.Value.IsLegacy1449
                 ? TerrariaWorldGenerationVersion.Legacy1449
-                : TerrariaWorldGenerationVersion.Modern1456;
+                : TerrariaWorldGenerationVersion.Modern1457;
         var tasks = new Task<SeedFilterEvaluation>[seedTexts.Count];
         EnsureSeedFilterEvaluatorCount(seedTexts.Count);
         for (int index = 0; index < seedTexts.Count; index++)

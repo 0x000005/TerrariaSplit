@@ -1015,6 +1015,7 @@
             "WorldEvil": "Crimson",
             "SpecialSeeds": "",
             "SecretSeeds": "",
+            "FixedSeed": "",
             "EnableZenithStarCatch": false,
             "ZenithStarCatchStopStage": "Pots",
             "ZenithStarCatchSpeedSliderValue": 411,

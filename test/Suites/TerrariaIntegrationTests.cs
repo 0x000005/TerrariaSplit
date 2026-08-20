@@ -1,8 +1,12 @@
+using System.Drawing;
+using System.Diagnostics.CodeAnalysis;
+using System.Runtime.InteropServices;
 using System.Text;
 using TerrariaSplit.Race.Determinism;
 using TerrariaSplit.Race.InGame;
 using TerrariaSplit.Terraria;
 using TerrariaSplit.Terraria.Automation;
+using TerrariaSplit.Terraria.Memory;
 using TerrariaSplit.Terraria.WorldGeneration;
 using TerrariaSplit.MemoryBridge.Payload;
 
@@ -26,8 +30,264 @@ internal static class TerrariaIntegrationTests
         yield return TestCase.Async("UI seed pre-screen restarts after an empty batch or RNG drift without seed writeback", TestSuite.Flow, UiSeedBatchReplanJourney, timeoutSeconds: 30);
         yield return TestCase.Async("race world upload validates, hashes, deduplicates, locates and deletes a Terraria world", TestSuite.Flow, WorldFileTransferJourney);
         yield return TestCase.Sync("world automation settings normalize incompatible options and secret seed lists", TestSuite.Core, WorldSettingsNormalization);
+        yield return TestCase.Sync("Terraria 1.4.5.7 created-player selection follows favorite and LastPlayed ordering", TestSuite.Core, CreatedPlayerSelectionOrdering);
+        yield return TestCase.Sync("Terraria 1.4.5.7 menu geometry mirrors source layout at multiple client sizes", TestSuite.Core, Terraria1457MenuGeometry);
+        yield return TestCase.Sync("Terraria 1.4.5.7 seed inputs separate secret bootstrap text from fixed seed", TestSuite.Core, Terraria1457SeedInputs);
+        yield return TestCase.Sync("biome facts read all required zone bytes in one memory operation", TestSuite.Core, BiomeZoneBatchRead);
+        yield return TestCase.Sync("window coordinate transform round-trips logical and physical client centers", TestSuite.Core, WindowCoordinateTransform);
         yield return TestCase.Sync("race UI reflection targets compatible runtime fields and preserves deferred failures", TestSuite.Core, RaceUiRuntimeSafety);
+        yield return TestCase.Sync("Terraria 1.4.5.7 catalogs and world files reject obsolete identifiers and versions", TestSuite.Core, Terraria1457CompatibilityCatalog);
     }
+
+    private static void Terraria1457CompatibilityCatalog()
+    {
+        Check.Equal(6195, SplitFactKeys.MaxItemId);
+        Check.Equal("八音盒（彩虹巨石）", TerrariaItemCatalog.ById[6145].ChineseName);
+        Check.Equal("八音盒（寂静）", TerrariaItemCatalog.ById[6146].ChineseName);
+        Check.Equal("Trusty Foxparks", TerrariaItemCatalog.ById[6149].DisplayName);
+        Check.Equal("GiantTiki", TerrariaItemCatalog.ById[6147].InternalName);
+        Check.Equal("OldStyleParkourBookInactive", TerrariaItemCatalog.ById[6195].InternalName);
+        Check.True(TerrariaItemCatalog.IsDeprecated(6143));
+        Check.True(TerrariaItemCatalog.IsDeprecated(6160));
+        Check.True(TerrariaItemCatalog.IsDeprecated(6170));
+        Check.True(TerrariaItemCatalog.IsDeprecated(6171));
+        Check.False(SplitCatalog.TryGetTarget("item:6143", out _));
+        Check.False(SplitCatalog.TryGetTarget("item:6160", out _));
+        Check.True(SplitCatalog.TryGetTarget("item:6195", out SplitTargetDefinition newestItem));
+        Check.Equal("Guide to Old World Parkour (Inactive)", newestItem.DisplayName);
+        Check.False(SplitCatalog.TryGetTarget("item:6196", out _));
+
+        byte[] currentWorld = CreateMinimalWorld();
+        using var currentStream = new MemoryStream(currentWorld, writable: false);
+        Check.True(RaceWorldFileValidator.TryValidateWorldStream(currentStream, out _));
+
+        byte[] obsoleteWorld = (byte[])currentWorld.Clone();
+        BitConverter.GetBytes(319).CopyTo(obsoleteWorld, 0);
+        using var obsoleteStream = new MemoryStream(obsoleteWorld, writable: false);
+        Check.False(RaceWorldFileValidator.TryValidateWorldStream(obsoleteStream, out string detail));
+        Check.True(detail.Contains("319", StringComparison.Ordinal));
+    }
+
+    private static void BiomeZoneBatchRead()
+    {
+        const string jungleFact = "biome:jungle:active";
+        IntPtr playerAddress = new(1_000);
+        var layout = new TerrariaBiomeMemoryLayout(
+            IntPtr.Zero,
+            IntPtr.Zero,
+            new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["zone1"] = 10,
+                ["zone2"] = 11,
+                ["zone3"] = 12,
+                ["zone4"] = 13,
+                ["zone5"] = 14
+            },
+            ManagedArrayLengthOffset: 0,
+            ManagedArrayFirstElementOffset: 0,
+            ObjectReferenceSize: 4);
+        var context = new TerrariaMemoryContext(
+            BossLayout: null,
+            playerAddress,
+            ItemLayout: null,
+            NpcLayout: null,
+            layout,
+            Is64Bit: false);
+        var memory = new RecordingMemoryReader(
+            IntPtr.Add(playerAddress, 10),
+            [(byte)(1 << 4), 0, (byte)(1 << 1)]);
+
+        TerrariaFactReadPlan readPlan = TerrariaFactReadPlan.FromObservedFactKeys([jungleFact]);
+        TerrariaGameFacts facts = new BiomeFactProvider().Read(memory, context, readPlan);
+
+        Check.Equal(true, facts.Get(jungleFact).AsBoolean());
+        Check.Equal(1, memory.ReadBytesCallCount);
+        Check.Equal(IntPtr.Add(playerAddress, 10), memory.LastReadAddress);
+        Check.Equal(3, memory.LastReadCount);
+    }
+
+    private static void CreatedPlayerSelectionOrdering()
+    {
+        DateTime now = DateTime.UtcNow;
+        TerrariaPlayerSelectionEntry[] players =
+        [
+            new("favorite-old.plr", "Favorite Old", true, now.AddDays(-10)),
+            new("existing-newer-file.plr", "Existing", false, now.AddMinutes(1)),
+            new("created.plr", "Created", false, now),
+            new("favorite-new.plr", "Favorite New", true, now)
+        ];
+
+        int index = TerrariaPlayerSelectionIndexResolver.ResolveCreatedPlayerIndex(
+            TerrariaMenuProfile.Modern1457,
+            players,
+            "created.plr",
+            fallbackIndex: 0);
+
+        Check.Equal(2, index);
+    }
+
+    private static void Terraria1457MenuGeometry()
+    {
+        TerrariaMenuGeometry compact = TerrariaMenuGeometry.From(
+            new Size(800, 626),
+            TerrariaMenuProfile.Modern1457,
+            mainMenuUpscaleDisabled: false);
+
+        Check.Equal(1f, compact.Scale);
+        Check.Equal(new Point(182, 296), compact.CharacterInfoCategoryButton());
+        Check.Equal(new Point(230, 296), compact.CharacterClothingCategoryButton());
+        Check.Equal(new Point(254, 392), compact.PlayerDifficultyButton(AutoCreatePlayerDifficulty.Journey));
+        Check.Equal(new Point(254, 419), compact.PlayerDifficultyButton(AutoCreatePlayerDifficulty.Softcore));
+        Check.Equal(new Point(254, 446), compact.PlayerDifficultyButton(AutoCreatePlayerDifficulty.Mediumcore));
+        Check.Equal(new Point(254, 473), compact.PlayerDifficultyButton(AutoCreatePlayerDifficulty.Hardcore));
+
+        Check.Equal(new Point(236, 321), compact.WorldSizeButton(AutoCreateWorldSize.Small));
+        Check.Equal(new Point(400, 321), compact.WorldSizeButton(AutoCreateWorldSize.Medium));
+        Check.Equal(new Point(564, 321), compact.WorldSizeButton(AutoCreateWorldSize.Large));
+        Check.Equal(new Point(218, 369), compact.WorldDifficultyButton(AutoCreateWorldDifficulty.Journey));
+        Check.Equal(new Point(340, 369), compact.WorldDifficultyButton(AutoCreateWorldDifficulty.Classic));
+        Check.Equal(new Point(460, 369), compact.WorldDifficultyButton(AutoCreateWorldDifficulty.Expert));
+        Check.Equal(new Point(582, 369), compact.WorldDifficultyButton(AutoCreateWorldDifficulty.Master));
+        Check.Equal(new Point(236, 417), compact.WorldEvilButton(AutoCreateWorldEvil.Random));
+        Check.Equal(new Point(400, 417), compact.WorldEvilButton(AutoCreateWorldEvil.Corruption));
+        Check.Equal(new Point(564, 417), compact.WorldEvilButton(AutoCreateWorldEvil.Crimson));
+
+        Check.Equal(new Point(378, 274), compact.WorldSeedFieldButton());
+        Check.Equal(new Point(422, 230), compact.AdvancedSeedTextButton());
+        Check.Equal(new Point(586, 287), compact.AdvancedSpecialSeedButton(AutoCreateSpecialWorldSeed.ForTheWorthy));
+        Check.Equal(new Point(214, 354), compact.AdvancedSpecialSeedButton(AutoCreateSpecialWorldSeed.NoTraps));
+        Check.Equal(new Point(113, 311), compact.PlayerPlayButton(0));
+        Check.Equal(new Point(530, 534), compact.CreatePlayerButton());
+        Check.Equal(new Point(400, 534), compact.WorldAdvancedApplyButton());
+
+        TerrariaMenuGeometry shortWindow = TerrariaMenuGeometry.From(
+            new Size(800, 500),
+            TerrariaMenuProfile.Modern1457,
+            mainMenuUpscaleDisabled: false);
+        Check.Equal(new Point(400, 434), shortWindow.WorldAdvancedApplyButton());
+
+        TerrariaMenuGeometry highResolution = TerrariaMenuGeometry.From(
+            new Size(1920, 1080),
+            TerrariaMenuProfile.Modern1457,
+            mainMenuUpscaleDisabled: false);
+        Check.Equal(1.2f, highResolution.Scale);
+        Check.Equal(new Point(960, 294), highResolution.MainMenuSinglePlayer());
+        Check.Equal(new Point(1116, 641), highResolution.CreatePlayerButton());
+        Check.Equal(new Point(763, 385), highResolution.WorldSizeButton(AutoCreateWorldSize.Small));
+        Check.Equal(new Point(1161, 996), highResolution.SelectMenuNewButton());
+
+        TerrariaMenuGeometry unscaledHighResolution = TerrariaMenuGeometry.From(
+            new Size(1920, 1080),
+            TerrariaMenuProfile.Modern1457,
+            mainMenuUpscaleDisabled: true);
+        Check.Equal(1f, unscaledHighResolution.Scale);
+        Check.Equal(new Point(1090, 534), unscaledHighResolution.CreatePlayerButton());
+    }
+
+    private static void WindowCoordinateTransform()
+    {
+        IntPtr[] dpiContexts = [new(-1), new(-2), new(-4), new(-5)];
+        foreach (System.Windows.Forms.Screen screen in System.Windows.Forms.Screen.AllScreens)
+        {
+            foreach (IntPtr dpiContext in dpiContexts)
+            {
+                VerifyWindowCoordinateTransform(screen.WorkingArea, dpiContext);
+            }
+        }
+    }
+
+    private static void Terraria1457SeedInputs()
+    {
+        const string secretSeeds = "abandoned manors|arachnophobia|beam me up|bring a towel|double daring dangers|fish mox|hocus pocus|how did i get here|i am error|invisible plane|jagged rocks|jingle all the way|mole people|monochrome|more traps please|negative infinity|night of the living dead|planetoids|pumpkin season|purify this|rainbow road|royale with cheese|does that sparkle|too easy|water park|what a horrible night to have a curse|winter is coming|x-ray vision|truck stop|sandy britches|save the rainforest|such great heights|the care bears movie|toadstool|we don't even test for that";
+        Check.Equal(
+            "1.1.1.0." + secretSeeds + "|",
+            TerrariaCopiedSeedBuilder.BuildSecretSeedBootstrapText(secretSeeds));
+        Check.Equal(string.Empty, TerrariaCopiedSeedBuilder.BuildSecretSeedBootstrapText("  "));
+
+        var settings = new AutoCreateWorldSettings
+        {
+            SecretSeeds = "abandoned manors|arachnophobia",
+            FixedSeed = "  123456789  "
+        };
+        TerrariaCopiedSeed copiedSeed = TerrariaCopiedSeedBuilder.Create(settings);
+        Check.Equal("abandoned manors|arachnophobia|123456789", copiedSeed.Metadata.SeedText);
+
+        var specialSeed = new AutoCreateWorldSettings
+        {
+            WorldSize = AutoCreateWorldSize.Small,
+            WorldEvil = AutoCreateWorldEvil.Crimson,
+            SpecialSeeds = AutoCreateSpecialWorldSeed.NotTheBees,
+            EnableCheats = true,
+            EnablePyramidFilter = true
+        };
+        Check.True(PyramidSeedPreScreenEvaluator.IsEnabledFor(specialSeed));
+        Check.True(WorldSeedFilterEvaluator.IsEnabledFor(specialSeed));
+
+        specialSeed.SpecialSeeds = string.Empty;
+        specialSeed.SecretSeeds = "abandoned manors";
+        Check.True(PyramidSeedPreScreenEvaluator.IsEnabledFor(specialSeed));
+        Check.True(WorldSeedFilterEvaluator.IsEnabledFor(specialSeed));
+
+        var fixedOnly = new AutoCreateWorldSettings
+        {
+            WorldSize = AutoCreateWorldSize.Small,
+            WorldEvil = AutoCreateWorldEvil.Crimson,
+            FixedSeed = "123456789",
+            EnableCheats = true,
+            EnablePyramidFilter = true,
+            RequireCrimsonBetweenDungeonAndSpawn = true
+        };
+        Check.False(PyramidSeedPreScreenEvaluator.IsEnabledFor(fixedOnly));
+        Check.False(WorldSeedFilterEvaluator.IsEnabledFor(fixedOnly));
+    }
+
+    private static void VerifyWindowCoordinateTransform(Rectangle workingArea, IntPtr dpiContext)
+    {
+        System.Windows.Forms.Form? form = null;
+        IntPtr previousDpiContext = SetThreadDpiAwarenessContext(dpiContext);
+        Check.True(previousDpiContext != IntPtr.Zero);
+        try
+        {
+            form = new System.Windows.Forms.Form
+            {
+                ClientSize = new Size(800, 600),
+                StartPosition = System.Windows.Forms.FormStartPosition.Manual,
+                Location = new Point(workingArea.Left + 40, workingArea.Top + 40),
+                ShowInTaskbar = false
+            };
+            _ = form.Handle;
+        }
+        finally
+        {
+            _ = SetThreadDpiAwarenessContext(previousDpiContext);
+        }
+
+        using (form)
+        {
+            Check.True(form is not null);
+            bool resolved = TerrariaWindowController.TryInspectCoordinateTransform(
+                form!.Handle,
+                out Size logicalClientSize,
+                out Rectangle physicalClientBounds,
+                out Point logicalCenter,
+                out Point physicalCenter,
+                out string detail);
+
+            if (!resolved)
+            {
+                throw new InvalidOperationException(
+                    $"Coordinate transform failed for DPI context {dpiContext} at {workingArea}: {detail}");
+            }
+            Check.True(logicalClientSize.Width > 0 && logicalClientSize.Height > 0);
+            Check.True(physicalClientBounds.Width > 0 && physicalClientBounds.Height > 0);
+            Check.True(logicalCenter.X > 0 && logicalCenter.Y > 0);
+            Check.True(Math.Abs(physicalCenter.X - (physicalClientBounds.Left + physicalClientBounds.Width / 2)) <= 2);
+            Check.True(Math.Abs(physicalCenter.Y - (physicalClientBounds.Top + physicalClientBounds.Height / 2)) <= 2);
+        }
+    }
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern IntPtr SetThreadDpiAwarenessContext(IntPtr dpiContext);
 
     private static void RaceUiRuntimeSafety()
     {
@@ -158,7 +418,7 @@ internal static class TerrariaIntegrationTests
         WorldSeedFilterPrediction prediction = await evaluator.EvaluateAsync(
             settings,
             "1083872473",
-            TerrariaWorldGenerationVersion.Modern1456,
+            TerrariaWorldGenerationVersion.Modern1457,
             cancellationToken);
 
         Check.True(prediction.CanUsePrediction);
@@ -257,7 +517,7 @@ internal static class TerrariaIntegrationTests
         WorldSeedFilterPrediction prediction = await evaluator.EvaluateAsync(
             settings,
             "12345",
-            TerrariaWorldGenerationVersion.Modern1456,
+            TerrariaWorldGenerationVersion.Modern1457,
             cancellationToken);
 
         Check.True(prediction.CanUsePrediction);
@@ -299,7 +559,7 @@ internal static class TerrariaIntegrationTests
 
         PyramidSeedPreScreenLoopResult accepted = await continuingLoop.RunAsync(
             settings,
-            TerrariaMenuProfile.Modern1456,
+            TerrariaMenuProfile.Modern1457,
             continuingUi,
             continuingUi,
             cancellationToken);
@@ -325,7 +585,7 @@ internal static class TerrariaIntegrationTests
 
         PyramidSeedPreScreenLoopResult failed = await failingLoop.RunAsync(
             settings,
-            TerrariaMenuProfile.Modern1456,
+            TerrariaMenuProfile.Modern1457,
             failingUi,
             failingUi,
             cancellationToken);
@@ -364,7 +624,7 @@ internal static class TerrariaIntegrationTests
         WorldSeedFilterPrediction prediction = await evaluator.EvaluateAsync(
             settings,
             "1160429121",
-            TerrariaWorldGenerationVersion.Modern1456,
+            TerrariaWorldGenerationVersion.Modern1457,
             cancellationToken);
 
         Check.True(prediction.CanUsePrediction);
@@ -447,7 +707,7 @@ internal static class TerrariaIntegrationTests
 
         PyramidSeedPreScreenLoopResult result = await loop.RunAsync(
             settings,
-            TerrariaMenuProfile.Modern1456,
+            TerrariaMenuProfile.Modern1457,
             ui,
             ui,
             cancellationToken);
@@ -477,7 +737,7 @@ internal static class TerrariaIntegrationTests
             WorldEvil = AutoCreateWorldEvil.Crimson,
             PyramidFilterItemMask = AutoCreatePyramidFilterItem.SandstormInABottleMask
         };
-        PyramidSeedPreScreenPrediction accepted = evaluator.Evaluate(settings, "540278984", TerrariaWorldGenerationVersion.Modern1456);
+        PyramidSeedPreScreenPrediction accepted = evaluator.Evaluate(settings, "540278984", TerrariaWorldGenerationVersion.Modern1457);
         Check.True(accepted.CanUsePrediction);
         Check.True(accepted.AcceptSeed);
         Check.True(accepted.Result.LootSummary.Contains("Sandstorm in a Bottle", StringComparison.Ordinal));
@@ -487,10 +747,10 @@ internal static class TerrariaIntegrationTests
         settings.EnableCheats = true;
 
         settings.PyramidFilterItemMask = AutoCreatePyramidFilterItem.FlyingCarpetMask;
-        PyramidSeedPreScreenPrediction mismatch = evaluator.Evaluate(settings, "540278984", TerrariaWorldGenerationVersion.Modern1456);
+        PyramidSeedPreScreenPrediction mismatch = evaluator.Evaluate(settings, "540278984", TerrariaWorldGenerationVersion.Modern1457);
         Check.False(mismatch.AcceptSeed);
         Check.Equal("item mismatch", mismatch.RejectReason);
-        PyramidSeedPreScreenPrediction absent = evaluator.Evaluate(settings, "702683177", TerrariaWorldGenerationVersion.Modern1456);
+        PyramidSeedPreScreenPrediction absent = evaluator.Evaluate(settings, "702683177", TerrariaWorldGenerationVersion.Modern1457);
         Check.False(absent.AcceptSeed);
         Check.Equal("no pyramid", absent.RejectReason);
     }
@@ -621,6 +881,8 @@ internal static class TerrariaIntegrationTests
             WorldEvil = "invalid",
             SpecialSeeds = "for the worthy, FOR THE WORTHY, not the bees",
             SecretSeeds = "  first ; second\nfirst  ",
+            FixedSeed = "  12345  ",
+            EnablePyramidFilter = true,
             PyramidFilterItemMask = int.MaxValue,
             CrimsonDistance = "invalid",
             ResourceFilterItemMask = int.MaxValue,
@@ -639,6 +901,8 @@ internal static class TerrariaIntegrationTests
         Check.Equal(0, settings.ResourceFilterSpelunkerPotionMinimum);
         Check.Equal(0, settings.ResourceFilterFeatherfallPotionMinimum);
         Check.Equal(2, AutoCreateSeedList.Parse(settings.SecretSeeds).Count);
+        Check.Equal("12345", settings.FixedSeed);
+        Check.False(settings.EnablePyramidFilter);
     }
 
     private static AutoCreateWorldSettings CandidateFailureSettings()
@@ -847,22 +1111,89 @@ internal static class TerrariaIntegrationTests
         public bool Enabled = false;
     }
 
+    private sealed class RecordingMemoryReader(IntPtr expectedAddress, byte[] expectedBytes) : IProcessMemoryReader
+    {
+        public bool Is64Bit => false;
+
+        public int ReadBytesCallCount { get; private set; }
+
+        public IntPtr LastReadAddress { get; private set; }
+
+        public int LastReadCount { get; private set; }
+
+        public bool TryReadBytes(IntPtr address, int count, [NotNullWhen(true)] out byte[]? bytes)
+        {
+            ReadBytesCallCount++;
+            LastReadAddress = address;
+            LastReadCount = count;
+            if (address == expectedAddress && count == expectedBytes.Length)
+            {
+                bytes = (byte[])expectedBytes.Clone();
+                return true;
+            }
+
+            bytes = null;
+            return false;
+        }
+
+        public bool TryReadBool(IntPtr address, out bool value)
+        {
+            _ = address;
+            value = false;
+            return false;
+        }
+
+        public bool TryReadInt32(IntPtr address, out int value)
+        {
+            _ = address;
+            value = 0;
+            return false;
+        }
+
+        public bool TryReadDouble(IntPtr address, out double value)
+        {
+            _ = address;
+            value = 0;
+            return false;
+        }
+
+        public bool TryReadPointer(IntPtr address, out IntPtr value)
+        {
+            _ = address;
+            value = IntPtr.Zero;
+            return false;
+        }
+
+        public bool TryReadPointerValue(IntPtr address, out IntPtr value)
+        {
+            _ = address;
+            value = IntPtr.Zero;
+            return false;
+        }
+
+        public IEnumerable<MemoryPage> ExecutablePages() => [];
+
+        public IEnumerable<MemoryPage> ExecutablePrivatePages() => [];
+    }
+
     internal static byte[] CreateMinimalWorld(string worldName = "test-world", int worldId = 24680)
     {
         using var stream = new MemoryStream();
         using var writer = new BinaryWriter(stream, Encoding.UTF8, leaveOpen: true);
-        writer.Write(279);
+        writer.Write(RaceTerrariaCompatibility.WorldFileVersion);
         writer.Write(0x026369676F6C6572UL);
         writer.Write((uint)0);
         writer.Write((ulong)0);
         writer.Write((short)1);
         long pointerPosition = stream.Position;
         writer.Write(0);
-        writer.Write((short)0);
+        const short importanceCount = 754;
+        writer.Write(importanceCount);
+        writer.Write(new byte[(importanceCount + 7) / 8]);
         int headerPosition = checked((int)stream.Position);
         writer.Write(worldName);
         writer.Write("test-seed");
-        writer.Write((ulong)279);
+        writer.Write(1_395_864_371_201UL);
         writer.Write(new Guid("5c52f5aa-80ee-40e7-a6de-afb84ff79025").ToByteArray());
         writer.Write(worldId);
         long end = stream.Position;

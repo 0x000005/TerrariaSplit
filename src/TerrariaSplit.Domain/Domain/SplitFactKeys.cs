@@ -2,7 +2,12 @@ namespace TerrariaSplit.Domain;
 
 public static class SplitFactKeys
 {
-    public const int MaxItemId = 6146;
+    public const int MaxItemId = 6195;
+
+    public static bool IsSupportedItemId(int itemId)
+    {
+        return itemId is >= 1 and <= MaxItemId && !TerrariaItemCatalog.IsDeprecated(itemId);
+    }
 
     public static string CreateItemFactKey(int itemId)
     {
@@ -30,7 +35,7 @@ public static class SplitFactKeys
         }
 
         string id = factKey["item:".Length..^":owned-count".Length];
-        return int.TryParse(id, out itemId) && itemId is >= 1 and <= MaxItemId;
+        return int.TryParse(id, out itemId) && IsSupportedItemId(itemId);
     }
 
     public static bool TryParseItemEverOwnedFactKey(string factKey, out int itemId)
@@ -43,6 +48,6 @@ public static class SplitFactKeys
         }
 
         string id = factKey["item:".Length..^":ever-owned-count".Length];
-        return int.TryParse(id, out itemId) && itemId is >= 1 and <= MaxItemId;
+        return int.TryParse(id, out itemId) && IsSupportedItemId(itemId);
     }
 }

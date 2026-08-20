@@ -197,6 +197,25 @@ public sealed record RaceWorldSettings(
     public RaceCheatSettings EffectiveCheats => Cheats ?? RaceCheatSettings.Disabled;
 }
 
+public static class RaceTerrariaCompatibility
+{
+    public const string TerrariaVersion =
+        TerrariaSplit.Race.Determinism.RaceDeterminismProtocol.TerrariaVersion;
+    public const int WorldFileVersion = 325;
+    public const string Id =
+        TerrariaSplit.Race.Determinism.RaceDeterminismProtocol.TerrariaCompatibilityId;
+
+    public static bool IsSupported(string? compatibilityId)
+    {
+        return string.Equals(compatibilityId, Id, StringComparison.Ordinal);
+    }
+
+    public static bool IsSupportedVersion(string? terrariaVersion)
+    {
+        return string.Equals(terrariaVersion?.Trim(), TerrariaVersion, StringComparison.Ordinal);
+    }
+}
+
 public static class RaceBossPenaltyKinds
 {
     public const int Skeletron = 1;
@@ -412,11 +431,14 @@ public static class RacePackageRevisionCalculator
     }
 }
 
-public sealed record RaceRoomCreateRequest(string Nickname);
+public sealed record RaceRoomCreateRequest(
+    string Nickname,
+    string TerrariaCompatibilityId);
 
 public sealed record RaceRoomJoinRequest(
     string RoomCode,
-    string Nickname);
+    string Nickname,
+    string TerrariaCompatibilityId);
 
 public sealed record RaceHostActionRequest(
     string RoomCode,

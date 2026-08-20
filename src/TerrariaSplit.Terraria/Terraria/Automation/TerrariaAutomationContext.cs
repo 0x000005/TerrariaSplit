@@ -53,7 +53,7 @@ internal sealed class TerrariaAutomationContext
             "activate Terraria window",
             success,
             ClientSize: clientSize,
-            Detail: success ? null : "window activation failed"));
+            Detail: success ? Window.LastCoordinateDiagnostic : "window activation failed"));
     }
 
     public async Task<bool> RunStepAsync(
@@ -89,6 +89,19 @@ internal sealed class TerrariaAutomationContext
             cancellationToken);
     }
 
+    public Task<bool> ClickAsync(
+        string step,
+        TerrariaMenuGeometry geometry,
+        Func<TerrariaMenuGeometry, Point> resolvePoint,
+        TimeSpan delay,
+        CancellationToken cancellationToken)
+    {
+        return RunStepAsync(
+            $"click {step}",
+            ct => ClickOnceAsync(step, geometry, resolvePoint, delay, ct),
+            cancellationToken);
+    }
+
     public async Task<bool> ClickOnceAsync(
         string step,
         Point point,
@@ -106,7 +119,36 @@ internal sealed class TerrariaAutomationContext
             clicked,
             point,
             clientSize,
-            Detail: clicked ? null : failureDetail));
+            Detail: clicked ? Window.LastCoordinateDiagnostic : failureDetail));
+        if (!clicked)
+        {
+            return false;
+        }
+
+        await DelayAsync(delay, cancellationToken);
+        ThrowIfCancellationRequested(cancellationToken);
+        return true;
+    }
+
+    public async Task<bool> ClickOnceAsync(
+        string step,
+        TerrariaMenuGeometry geometry,
+        Func<TerrariaMenuGeometry, Point> resolvePoint,
+        TimeSpan delay,
+        CancellationToken cancellationToken)
+    {
+        ThrowIfCancellationRequested(cancellationToken);
+        bool clicked = Window.TryClickClient(
+            currentClientSize => resolvePoint(TerrariaMenuGeometry.From(currentClientSize, geometry.Profile)),
+            out Point point,
+            out Size clientSize,
+            out string failureDetail);
+        Log(new AutomationStepResult(
+            $"click {step}",
+            clicked,
+            point,
+            clientSize,
+            Detail: clicked ? Window.LastCoordinateDiagnostic : failureDetail));
         if (!clicked)
         {
             return false;

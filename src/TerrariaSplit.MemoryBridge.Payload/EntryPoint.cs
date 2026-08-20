@@ -17,13 +17,13 @@ namespace TerrariaSplit.MemoryBridge.Payload
 {
     public static partial class EntryPoint
     {
-        private static readonly Guid SupportedMvid = new Guid("1d67a5fe-40eb-4168-b76e-f327a912128e");
-        private const string SupportedWorldRejectionHash = "C40DE3E7739559AA2554B63D2A03764EAAD21CD5C893465EB8A2E4C2DF58D342";
-        private const string SupportedSelectPlayerHash = "A68F7018C74D66AF03DF4F164BAA154F6D0D10AF13F674EA2CD331FDD5DFD40D";
-        private const string SupportedCharacterListCompareHash = "86F89C1D4DB9DA06EC7160CF3C0A199874C6BD87298219793E892FEF6B9939F3";
-        private const string SupportedWorldListCompareHash = "A9FC5EEE08819461D0D3A08F695F2A499D7C2D8C33821D7087B3A296AD775989";
-        private const string SupportedCharacterListDrawHash = "D9E0C9967542359F4D0806B959AA9619318A2FD30779A26AE30E49F74FFA5DCC";
-        private const string SupportedWorldListDrawHash = "F0A5F533B6E02755DAFBECEAD6A1E4A6C94A5945720D8CC48D2F0089F1DC4A9E";
+        private static readonly Guid SupportedMvid = new Guid("b8023c31-d856-47ed-9755-a6aab09ee184");
+        private const string SupportedWorldRejectionHash = "F9F68C2AF0CF8BC2E18ACE87027A23D186C7D38E880ADD8C53E0DF3C53481C75";
+        private const string SupportedSelectPlayerHash = "D2E7805580814841486EC202D0A1182538E391683021D7F6FF14C05F8502522E";
+        private const string SupportedCharacterListCompareHash = "E4AE432CC4DB42183D869B4B92C6F890D2B16D1491CA76CC33ACED72719B8D50";
+        private const string SupportedWorldListCompareHash = "EF2E21AB084A25EB5C9CD4D1D5514801227281CD8622A355209834F90C8193B9";
+        private const string SupportedCharacterListDrawHash = "37D2E439034A6ACEE2DBA67B8E0974F764B32C04DFF6EDB1E6F9CB916812BF7D";
+        private const string SupportedWorldListDrawHash = "20474CD8892ED9B64F52803B390C737411E0885BBD38F06E456913CCFDC73582";
         private const string HarmonyId = "TerrariaSplit.MemoryBridge";
 
         private static readonly object PatchSync = new object();
@@ -374,7 +374,7 @@ namespace TerrariaSplit.MemoryBridge.Payload
                 Assembly terraria = AppDomain.CurrentDomain.GetAssemblies()
                     .FirstOrDefault(candidate => string.Equals(candidate.GetName().Name, "Terraria", StringComparison.Ordinal));
                 if (terraria == null ||
-                    terraria.GetName().Version != new Version(1, 4, 5, 6) ||
+                    terraria.GetName().Version != new Version(1, 4, 5, 7) ||
                     terraria.ManifestModule.ModuleVersionId != SupportedMvid)
                 {
                     return 20;
@@ -455,11 +455,11 @@ namespace TerrariaSplit.MemoryBridge.Payload
                     return 22;
                 }
 
-                if (!HasExpectedBody(dropItemsMethod, "6EEB394A63213EBEB2178BA17F88ECBB7FB44BCD386D40E6E033F6DD59C01DE1") ||
-                    !HasExpectedBody(bossSuppliesMethod, "4D5C6D44F79DB3E9C17A21EB8F2D5A065054485316AF1B55AB9302419D8F2F39") ||
-                    !HasExpectedBody(dropMoneyMethod, "29D0E15157E723D3EA5FAE9E4053B2B2064A46C0D3350ECB46B3CA2E24AEEA96") ||
-                    !HasExpectedBody(dropHealsMethod, "4E5EEE106A25D3ECA7DA186B600DC2ACA7DED24C30089C7558FAAF51DAB34154") ||
-                    !HasExpectedBody(resolveRuleMethod, "EFD6B7E9EBF1B107B8A126ACF181708504C835BB080AFCC47A83F9D50895ECF7"))
+                if (!HasExpectedBody(dropItemsMethod, "3A7498107DB2381D2FBB01A01EE56EA834C735551C8324B591C8562B149A9CB8") ||
+                    !HasExpectedBody(bossSuppliesMethod, "C5E6D6638348977D65D00EA976DBF27D28335494FEC4473549077C04B233739D") ||
+                    !HasExpectedBody(dropMoneyMethod, "4154720975C044EEFE6170D5A90EFDBDFB98F64CB579B229AF061F8096C9DD63") ||
+                    !HasExpectedBody(dropHealsMethod, "E8639804BD9C04229E146C3FAF47B660D102D34F9B8215920F2F92A9551E0B08") ||
+                    !HasExpectedBody(resolveRuleMethod, "83FE844F67068ED43A8BBE57AF41D946EA3E6153BB75F21F3F4CF3F81F226E01"))
                 {
                     return 23;
                 }
@@ -721,7 +721,7 @@ namespace TerrariaSplit.MemoryBridge.Payload
                     return 10;
                 }
 
-                if (terraria.GetName().Version != new Version(1, 4, 5, 6))
+                if (terraria.GetName().Version != new Version(1, 4, 5, 7))
                 {
                     return 11;
                 }

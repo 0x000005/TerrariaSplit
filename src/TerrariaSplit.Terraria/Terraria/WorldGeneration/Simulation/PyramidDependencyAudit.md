@@ -10,7 +10,7 @@ TerrariaSplit.Terraria.WorldGeneration.Simulation
 
 ## Scope
 
-- Terraria 1.4.5.6 normal world generation.
+- Terraria 1.4.5.7 normal world generation.
 - Small world only: 4200 x 1200.
 - Crimson only.
 - No special or secret seed flags.

@@ -1,4 +1,4 @@
-// Standalone Terraria 1.4.5.6 pass-stop probe for pyramid pre-screen diagnostics.
+// Standalone Terraria 1.4.5.7 pass-stop probe for pyramid pre-screen diagnostics.
 // This file is intentionally outside test/*.cs so it is not compiled into the test project.
 //
 // Build with the .NET Framework csc.exe and reference the real Terraria.exe.
@@ -107,6 +107,31 @@ public static class OfficialPyramidPassProbe
             {
                 return Assembly.LoadFrom(exePath);
             }
+
+            if (!Directory.Exists(baseDir))
+            {
+                continue;
+            }
+
+            foreach (string candidatePath in Directory.EnumerateFiles(baseDir, "*.dll", SearchOption.TopDirectoryOnly))
+            {
+                try
+                {
+                    if (string.Equals(
+                            AssemblyName.GetAssemblyName(candidatePath).Name,
+                            name,
+                            StringComparison.OrdinalIgnoreCase))
+                    {
+                        return Assembly.LoadFrom(candidatePath);
+                    }
+                }
+                catch (BadImageFormatException)
+                {
+                }
+                catch (FileLoadException)
+                {
+                }
+            }
         }
 
         return null;
@@ -147,10 +172,7 @@ public static class OfficialPyramidPassProbe
             string candidate = Path.Combine(
                 directory.FullName,
                 "reference",
-                "Terraria1456",
-                "pyramid-probe",
-                "exactgen",
-                "bin");
+                "Terraria1457");
             if (Directory.Exists(candidate))
             {
                 return candidate;
@@ -175,7 +197,10 @@ public static class OfficialPyramidPassProbe
     private static void SetupPaths()
     {
         Terraria.Program.LaunchParameters = new Dictionary<string, string>();
-        Terraria.Program.SavePath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) + "\\My Games\\Terraria";
+        Terraria.Program.SavePath = Path.Combine(
+            Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location),
+            "SaveData");
+        Directory.CreateDirectory(Terraria.Program.SavePath);
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]

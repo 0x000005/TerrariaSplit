@@ -3,6 +3,7 @@ namespace TerrariaSplit.Race.Server;
 public static class RaceErrors
 {
     public const string InvalidRequest = "invalid_request";
+    public const string IncompatibleTerraria = "incompatible_terraria";
     public const string RoomNotFound = "room_not_found";
     public const string RoomClosed = "room_closed";
     public const string NicknameTaken = "nickname_taken";

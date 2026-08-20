@@ -74,17 +74,52 @@ internal sealed class BiomeFactProvider
         TerrariaFactReadPlan readPlan)
     {
         Dictionary<string, byte?> values = new(StringComparer.OrdinalIgnoreCase);
-        foreach (string zoneFieldName in GetRequiredZoneFieldNames(readPlan))
+        string[] zoneFieldNames = GetRequiredZoneFieldNames(readPlan).ToArray();
+        var resolvedOffsets = new List<(string FieldName, int Offset)>(zoneFieldNames.Length);
+        foreach (string zoneFieldName in zoneFieldNames)
         {
-            if (!layout.ZoneBitsByteFieldOffsets.TryGetValue(zoneFieldName, out int offset) ||
-                !memory.TryReadBytes(IntPtr.Add(localPlayerAddress, offset), 1, out byte[]? bytes) ||
-                bytes.Length == 0)
+            if (!layout.ZoneBitsByteFieldOffsets.TryGetValue(zoneFieldName, out int offset))
             {
                 values[zoneFieldName] = null;
                 continue;
             }
 
-            values[zoneFieldName] = bytes[0];
+            resolvedOffsets.Add((zoneFieldName, offset));
+        }
+
+        if (resolvedOffsets.Count == 0)
+        {
+            return values;
+        }
+
+        int firstOffset = resolvedOffsets.Min(field => field.Offset);
+        int lastOffset = resolvedOffsets.Max(field => field.Offset);
+        long byteCountValue = (long)lastOffset - firstOffset + 1;
+        if (byteCountValue is <= 0 or > 256)
+        {
+            foreach ((string fieldName, _) in resolvedOffsets)
+            {
+                values[fieldName] = null;
+            }
+
+            return values;
+        }
+
+        int byteCount = (int)byteCountValue;
+        if (!memory.TryReadBytes(IntPtr.Add(localPlayerAddress, firstOffset), byteCount, out byte[]? bytes) ||
+            bytes.Length < byteCount)
+        {
+            foreach ((string fieldName, _) in resolvedOffsets)
+            {
+                values[fieldName] = null;
+            }
+
+            return values;
+        }
+
+        foreach ((string fieldName, int offset) in resolvedOffsets)
+        {
+            values[fieldName] = bytes[offset - firstOffset];
         }
 
         return values;

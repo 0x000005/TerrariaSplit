@@ -4,8 +4,6 @@ public static class RaceWorldFileValidator
 {
     private const ulong ReLogicMagic = 27981915666277746UL;
     private const byte WorldFileType = 2;
-    private const int MinimumSupportedVersion = 135;
-    private const int MaximumReasonableVersion = 1_000;
     private const int MaximumSectionCount = 1_024;
     private const int MaximumWorldNameBytes = 4_096;
 
@@ -62,7 +60,7 @@ public static class RaceWorldFileValidator
             stream.Position = 0;
             using var reader = new BinaryReader(stream, System.Text.Encoding.UTF8, leaveOpen: true);
             int version = reader.ReadInt32();
-            if (version < MinimumSupportedVersion || version > MaximumReasonableVersion)
+            if (version != RaceTerrariaCompatibility.WorldFileVersion)
             {
                 detail = $"Unsupported Terraria world version {version}.";
                 return false;
@@ -252,7 +250,7 @@ public static class RaceWorldFileValidator
     {
         detail = string.Empty;
         version = reader.ReadInt32();
-        if (version < MinimumSupportedVersion || version > MaximumReasonableVersion)
+        if (version != RaceTerrariaCompatibility.WorldFileVersion)
         {
             detail = $"Unsupported Terraria world version {version}.";
             return false;

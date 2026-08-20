@@ -96,7 +96,7 @@ internal sealed class HeadlessWorldGenerator : IDisposable
             TerrariaWorldGenerationVersion worldGenerationVersion =
                 serverTarget.IsLegacy1449
                     ? TerrariaWorldGenerationVersion.Legacy1449
-                    : TerrariaWorldGenerationVersion.Modern1456;
+                    : TerrariaWorldGenerationVersion.Modern1457;
             WorldSeedFilterPrediction prediction =
                 await seedFilterEvaluator.EvaluateAsync(
                     settings,
