@@ -8,7 +8,7 @@ public readonly record struct TerrariaMenuGeometry(
     float LogicalHeight,
     TerrariaMenuProfile Profile)
 {
-    // These values mirror Terraria 1.4.5.7's UIElement tree. They are deliberately
+    // These values mirror Terraria 1.4.5.8's UIElement tree. They are deliberately
     // expressed as layout inputs instead of measured click coordinates.
     private const float CharacterOuterTop = 220f;
     private const float CharacterOuterWidth = 500f;
@@ -31,7 +31,7 @@ public readonly record struct TerrariaMenuGeometry(
 
     public static TerrariaMenuGeometry From(Size clientSize)
     {
-        return From(clientSize, TerrariaMenuProfile.Modern1457);
+        return From(clientSize, TerrariaMenuProfile.Modern1458);
     }
 
     public static TerrariaMenuGeometry From(Size clientSize, TerrariaMenuProfile profile)
@@ -47,7 +47,7 @@ public readonly record struct TerrariaMenuGeometry(
         // Terraria's PreDrawMenu scales menu UI up to a logical 900px height unless disabled in config.
         float scale = GetMainMenuScale(clientSize.Height, mainMenuUpscaleDisabled);
         TerrariaMenuProfile selectedProfile = string.IsNullOrWhiteSpace(profile.Name)
-            ? TerrariaMenuProfile.Modern1457
+            ? TerrariaMenuProfile.Modern1458
             : profile;
         return new TerrariaMenuGeometry(scale, clientSize.Width / scale, clientSize.Height / scale, selectedProfile);
     }

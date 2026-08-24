@@ -34,7 +34,7 @@ internal static class PyramidSeedPreScreen
         string seedText,
         int difficultyCode,
         int requiredItemMask,
-        TerrariaWorldGenerationVersion version = TerrariaWorldGenerationVersion.Modern1457)
+        TerrariaWorldGenerationVersion version = TerrariaWorldGenerationVersion.Modern1458)
     {
         return Evaluate(seedText, sizeCode: 1, difficultyCode, hasCrimson: true, specialSeedMask: 0, requiredItemMask, version);
     }
@@ -46,7 +46,7 @@ internal static class PyramidSeedPreScreen
         bool hasCrimson,
         int specialSeedMask,
         int requiredItemMask,
-        TerrariaWorldGenerationVersion version = TerrariaWorldGenerationVersion.Modern1457)
+        TerrariaWorldGenerationVersion version = TerrariaWorldGenerationVersion.Modern1458)
     {
         Stopwatch stopwatch = Stopwatch.StartNew();
         string normalizedSeedText = seedText.Trim();

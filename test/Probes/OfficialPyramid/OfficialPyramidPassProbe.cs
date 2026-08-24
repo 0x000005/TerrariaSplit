@@ -1,4 +1,4 @@
-// Standalone Terraria 1.4.5.7 pass-stop probe for pyramid pre-screen diagnostics.
+// Standalone Terraria 1.4.5.8 pass-stop probe for pyramid pre-screen diagnostics.
 // This file is intentionally outside test/*.cs so it is not compiled into the test project.
 //
 // Build with the .NET Framework csc.exe and reference the real Terraria.exe.
@@ -172,7 +172,7 @@ public static class OfficialPyramidPassProbe
             string candidate = Path.Combine(
                 directory.FullName,
                 "reference",
-                "Terraria1457");
+                "Terraria1458");
             if (Directory.Exists(candidate))
             {
                 return candidate;

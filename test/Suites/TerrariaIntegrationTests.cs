@@ -30,16 +30,16 @@ internal static class TerrariaIntegrationTests
         yield return TestCase.Async("UI seed pre-screen restarts after an empty batch or RNG drift without seed writeback", TestSuite.Flow, UiSeedBatchReplanJourney, timeoutSeconds: 30);
         yield return TestCase.Async("race world upload validates, hashes, deduplicates, locates and deletes a Terraria world", TestSuite.Flow, WorldFileTransferJourney);
         yield return TestCase.Sync("world automation settings normalize incompatible options and secret seed lists", TestSuite.Core, WorldSettingsNormalization);
-        yield return TestCase.Sync("Terraria 1.4.5.7 created-player selection follows favorite and LastPlayed ordering", TestSuite.Core, CreatedPlayerSelectionOrdering);
-        yield return TestCase.Sync("Terraria 1.4.5.7 menu geometry mirrors source layout at multiple client sizes", TestSuite.Core, Terraria1457MenuGeometry);
-        yield return TestCase.Sync("Terraria 1.4.5.7 seed inputs separate secret bootstrap text from fixed seed", TestSuite.Core, Terraria1457SeedInputs);
+        yield return TestCase.Sync("Terraria 1.4.5.8 created-player selection follows favorite and LastPlayed ordering", TestSuite.Core, CreatedPlayerSelectionOrdering);
+        yield return TestCase.Sync("Terraria 1.4.5.8 menu geometry mirrors source layout at multiple client sizes", TestSuite.Core, Terraria1458MenuGeometry);
+        yield return TestCase.Sync("Terraria 1.4.5.8 seed inputs separate secret bootstrap text from fixed seed", TestSuite.Core, Terraria1458SeedInputs);
         yield return TestCase.Sync("biome facts read all required zone bytes in one memory operation", TestSuite.Core, BiomeZoneBatchRead);
         yield return TestCase.Sync("window coordinate transform round-trips logical and physical client centers", TestSuite.Core, WindowCoordinateTransform);
         yield return TestCase.Sync("race UI reflection targets compatible runtime fields and preserves deferred failures", TestSuite.Core, RaceUiRuntimeSafety);
-        yield return TestCase.Sync("Terraria 1.4.5.7 catalogs and world files reject obsolete identifiers and versions", TestSuite.Core, Terraria1457CompatibilityCatalog);
+        yield return TestCase.Sync("Terraria 1.4.5.8 catalogs and world files reject obsolete identifiers and versions", TestSuite.Core, Terraria1458CompatibilityCatalog);
     }
 
-    private static void Terraria1457CompatibilityCatalog()
+    private static void Terraria1458CompatibilityCatalog()
     {
         Check.Equal(6195, SplitFactKeys.MaxItemId);
         Check.Equal("八音盒（彩虹巨石）", TerrariaItemCatalog.ById[6145].ChineseName);
@@ -118,7 +118,7 @@ internal static class TerrariaIntegrationTests
         ];
 
         int index = TerrariaPlayerSelectionIndexResolver.ResolveCreatedPlayerIndex(
-            TerrariaMenuProfile.Modern1457,
+            TerrariaMenuProfile.Modern1458,
             players,
             "created.plr",
             fallbackIndex: 0);
@@ -126,11 +126,11 @@ internal static class TerrariaIntegrationTests
         Check.Equal(2, index);
     }
 
-    private static void Terraria1457MenuGeometry()
+    private static void Terraria1458MenuGeometry()
     {
         TerrariaMenuGeometry compact = TerrariaMenuGeometry.From(
             new Size(800, 626),
-            TerrariaMenuProfile.Modern1457,
+            TerrariaMenuProfile.Modern1458,
             mainMenuUpscaleDisabled: false);
 
         Check.Equal(1f, compact.Scale);
@@ -162,13 +162,13 @@ internal static class TerrariaIntegrationTests
 
         TerrariaMenuGeometry shortWindow = TerrariaMenuGeometry.From(
             new Size(800, 500),
-            TerrariaMenuProfile.Modern1457,
+            TerrariaMenuProfile.Modern1458,
             mainMenuUpscaleDisabled: false);
         Check.Equal(new Point(400, 434), shortWindow.WorldAdvancedApplyButton());
 
         TerrariaMenuGeometry highResolution = TerrariaMenuGeometry.From(
             new Size(1920, 1080),
-            TerrariaMenuProfile.Modern1457,
+            TerrariaMenuProfile.Modern1458,
             mainMenuUpscaleDisabled: false);
         Check.Equal(1.2f, highResolution.Scale);
         Check.Equal(new Point(960, 294), highResolution.MainMenuSinglePlayer());
@@ -178,7 +178,7 @@ internal static class TerrariaIntegrationTests
 
         TerrariaMenuGeometry unscaledHighResolution = TerrariaMenuGeometry.From(
             new Size(1920, 1080),
-            TerrariaMenuProfile.Modern1457,
+            TerrariaMenuProfile.Modern1458,
             mainMenuUpscaleDisabled: true);
         Check.Equal(1f, unscaledHighResolution.Scale);
         Check.Equal(new Point(1090, 534), unscaledHighResolution.CreatePlayerButton());
@@ -196,7 +196,7 @@ internal static class TerrariaIntegrationTests
         }
     }
 
-    private static void Terraria1457SeedInputs()
+    private static void Terraria1458SeedInputs()
     {
         const string secretSeeds = "abandoned manors|arachnophobia|beam me up|bring a towel|double daring dangers|fish mox|hocus pocus|how did i get here|i am error|invisible plane|jagged rocks|jingle all the way|mole people|monochrome|more traps please|negative infinity|night of the living dead|planetoids|pumpkin season|purify this|rainbow road|royale with cheese|does that sparkle|too easy|water park|what a horrible night to have a curse|winter is coming|x-ray vision|truck stop|sandy britches|save the rainforest|such great heights|the care bears movie|toadstool|we don't even test for that";
         Check.Equal(
@@ -418,7 +418,7 @@ internal static class TerrariaIntegrationTests
         WorldSeedFilterPrediction prediction = await evaluator.EvaluateAsync(
             settings,
             "1083872473",
-            TerrariaWorldGenerationVersion.Modern1457,
+            TerrariaWorldGenerationVersion.Modern1458,
             cancellationToken);
 
         Check.True(prediction.CanUsePrediction);
@@ -517,7 +517,7 @@ internal static class TerrariaIntegrationTests
         WorldSeedFilterPrediction prediction = await evaluator.EvaluateAsync(
             settings,
             "12345",
-            TerrariaWorldGenerationVersion.Modern1457,
+            TerrariaWorldGenerationVersion.Modern1458,
             cancellationToken);
 
         Check.True(prediction.CanUsePrediction);
@@ -559,7 +559,7 @@ internal static class TerrariaIntegrationTests
 
         PyramidSeedPreScreenLoopResult accepted = await continuingLoop.RunAsync(
             settings,
-            TerrariaMenuProfile.Modern1457,
+            TerrariaMenuProfile.Modern1458,
             continuingUi,
             continuingUi,
             cancellationToken);
@@ -585,7 +585,7 @@ internal static class TerrariaIntegrationTests
 
         PyramidSeedPreScreenLoopResult failed = await failingLoop.RunAsync(
             settings,
-            TerrariaMenuProfile.Modern1457,
+            TerrariaMenuProfile.Modern1458,
             failingUi,
             failingUi,
             cancellationToken);
@@ -624,7 +624,7 @@ internal static class TerrariaIntegrationTests
         WorldSeedFilterPrediction prediction = await evaluator.EvaluateAsync(
             settings,
             "1160429121",
-            TerrariaWorldGenerationVersion.Modern1457,
+            TerrariaWorldGenerationVersion.Modern1458,
             cancellationToken);
 
         Check.True(prediction.CanUsePrediction);
@@ -707,7 +707,7 @@ internal static class TerrariaIntegrationTests
 
         PyramidSeedPreScreenLoopResult result = await loop.RunAsync(
             settings,
-            TerrariaMenuProfile.Modern1457,
+            TerrariaMenuProfile.Modern1458,
             ui,
             ui,
             cancellationToken);
@@ -737,7 +737,7 @@ internal static class TerrariaIntegrationTests
             WorldEvil = AutoCreateWorldEvil.Crimson,
             PyramidFilterItemMask = AutoCreatePyramidFilterItem.SandstormInABottleMask
         };
-        PyramidSeedPreScreenPrediction accepted = evaluator.Evaluate(settings, "540278984", TerrariaWorldGenerationVersion.Modern1457);
+        PyramidSeedPreScreenPrediction accepted = evaluator.Evaluate(settings, "540278984", TerrariaWorldGenerationVersion.Modern1458);
         Check.True(accepted.CanUsePrediction);
         Check.True(accepted.AcceptSeed);
         Check.True(accepted.Result.LootSummary.Contains("Sandstorm in a Bottle", StringComparison.Ordinal));
@@ -747,10 +747,10 @@ internal static class TerrariaIntegrationTests
         settings.EnableCheats = true;
 
         settings.PyramidFilterItemMask = AutoCreatePyramidFilterItem.FlyingCarpetMask;
-        PyramidSeedPreScreenPrediction mismatch = evaluator.Evaluate(settings, "540278984", TerrariaWorldGenerationVersion.Modern1457);
+        PyramidSeedPreScreenPrediction mismatch = evaluator.Evaluate(settings, "540278984", TerrariaWorldGenerationVersion.Modern1458);
         Check.False(mismatch.AcceptSeed);
         Check.Equal("item mismatch", mismatch.RejectReason);
-        PyramidSeedPreScreenPrediction absent = evaluator.Evaluate(settings, "702683177", TerrariaWorldGenerationVersion.Modern1457);
+        PyramidSeedPreScreenPrediction absent = evaluator.Evaluate(settings, "702683177", TerrariaWorldGenerationVersion.Modern1458);
         Check.False(absent.AcceptSeed);
         Check.Equal("no pyramid", absent.RejectReason);
     }

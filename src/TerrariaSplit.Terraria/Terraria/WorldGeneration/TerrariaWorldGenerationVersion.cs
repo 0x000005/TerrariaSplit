@@ -2,6 +2,6 @@ namespace TerrariaSplit.Terraria.WorldGeneration;
 
 internal enum TerrariaWorldGenerationVersion
 {
-    Modern1457,
+    Modern1458,
     Legacy1449
 }

@@ -23,7 +23,7 @@
 - 外部输入先转换为项目内命令、事件或稳定模型；跨线程和跨层数据使用不可变 snapshot/view state。
 - 应用层表达意图，WinForms、Terraria、Storage 等外层执行副作用；不要为局部功能引入第二套架构。
 - 设置变更同时检查默认值、归一化、保存、当前 run 收尾和 UI 刷新。
-- 优先复用现有 helper、模型和测试风格；必要时参考 `..\reference\Terraria1457`。
+- 优先复用现有 helper、模型和测试风格；必要时参考 `..\reference\Terraria1458`。
 
 ## 常用命令
 - 还原：`dotnet restore TerrariaSplit.slnx -m:1`

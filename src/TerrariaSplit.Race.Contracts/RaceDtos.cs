@@ -201,7 +201,7 @@ public static class RaceTerrariaCompatibility
 {
     public const string TerrariaVersion =
         TerrariaSplit.Race.Determinism.RaceDeterminismProtocol.TerrariaVersion;
-    public const int WorldFileVersion = 325;
+    public const int WorldFileVersion = 326;
     public const string Id =
         TerrariaSplit.Race.Determinism.RaceDeterminismProtocol.TerrariaCompatibilityId;
 

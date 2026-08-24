@@ -5,9 +5,9 @@ namespace TerrariaSplit.Race.Determinism
         public const int CurrentVersion = 5;
         public const int CurrentChancePolicyVersion = 3;
         public const int EntropySeedLength = 32;
-        public const string TerrariaVersion = "1.4.5.7";
+        public const string TerrariaVersion = "1.4.5.8";
         public const string TerrariaCompatibilityId =
-            "terraria-1.4.5.7-win-x86-mvid-b8023c31d85647ed9755a6aab09ee184";
+            "terraria-1.4.5.8-win-x86-mvid-2c29f6c34bd94add9c58da159804e083";
 
         public const int WorldLockCapability = 1 << 0;
         public const int NpcDirectDropsCapability = 1 << 1;

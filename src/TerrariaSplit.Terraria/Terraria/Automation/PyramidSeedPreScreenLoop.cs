@@ -43,7 +43,7 @@ internal sealed class PyramidSeedPreScreenLoop
     {
         TerrariaWorldGenerationVersion worldGenerationVersion =
             PyramidSeedPreScreenEvaluator.WorldGenerationVersionFromMenuProfile(menuProfile);
-        if (worldGenerationVersion != TerrariaWorldGenerationVersion.Modern1457)
+        if (worldGenerationVersion != TerrariaWorldGenerationVersion.Modern1458)
         {
             return await RunSerialAsync(
                 settings,

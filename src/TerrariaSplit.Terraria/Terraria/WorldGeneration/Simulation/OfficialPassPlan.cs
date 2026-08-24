@@ -4,10 +4,10 @@ internal static class OfficialPassPlan
 {
     public const string StopPassName = "Pyramids";
 
-    // Terraria 1.4.5.7 normal small-world path through Pyramids.
+    // Terraria 1.4.5.8 normal small-world path through Pyramids.
     // Conditional secret-seed-only passes are intentionally excluded for the current
     // stage-1 target corpus: small, normal, crimson, non-secret worlds.
-    private static readonly (string Name, double Weight)[] Modern1457PassesToPyramids =
+    private static readonly (string Name, double Weight)[] Modern1458PassesToPyramids =
     [
         ("Terrain", 507.352d),
         ("Dunes", 239.7913d),
@@ -54,7 +54,7 @@ internal static class OfficialPassPlan
 
     // Terraria 1.4.4.9 normal small-world path through Pyramids. The implemented
     // pass bodies are shared where the official code is equivalent; Dunes skips
-    // the 1.4.5.7 dungeon setup RNG probes, and the skipped isolated passes keep
+    // the 1.4.5.8 dungeon setup RNG probes, and the skipped isolated passes keep
     // the 1.4.4.9 ordering from WorldGen.cs.
     private static readonly (string Name, double Weight)[] Legacy1449PassesToPyramids =
     [
@@ -101,17 +101,17 @@ internal static class OfficialPassPlan
         ("Pyramids", 6.6884d)
     ];
 
-    public static int PassCount => PassCountFor(TerrariaWorldGenerationVersion.Modern1457);
+    public static int PassCount => PassCountFor(TerrariaWorldGenerationVersion.Modern1458);
 
-    public static int ImplementedPassCount => ImplementedPassCountFor(TerrariaWorldGenerationVersion.Modern1457);
+    public static int ImplementedPassCount => ImplementedPassCountFor(TerrariaWorldGenerationVersion.Modern1458);
 
-    public static int ExplicitlySkippedPassCount => ExplicitlySkippedPassCountFor(TerrariaWorldGenerationVersion.Modern1457);
+    public static int ExplicitlySkippedPassCount => ExplicitlySkippedPassCountFor(TerrariaWorldGenerationVersion.Modern1458);
 
-    public static int StubPassCount => StubPassCountFor(TerrariaWorldGenerationVersion.Modern1457);
+    public static int StubPassCount => StubPassCountFor(TerrariaWorldGenerationVersion.Modern1458);
 
     public static void AppendToPyramids(WorldGenerator generator)
     {
-        AppendToPyramids(generator, TerrariaWorldGenerationVersion.Modern1457);
+        AppendToPyramids(generator, TerrariaWorldGenerationVersion.Modern1458);
     }
 
     public static void AppendToPyramids(
@@ -412,7 +412,7 @@ internal static class OfficialPassPlan
     {
         return version == TerrariaWorldGenerationVersion.Legacy1449
             ? Legacy1449PassesToPyramids
-            : Modern1457PassesToPyramids;
+            : Modern1458PassesToPyramids;
     }
 
     private static void AppendSkippedIsolatedPass(WorldGenerator generator, string name, double weight)

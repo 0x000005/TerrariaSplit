@@ -38,7 +38,7 @@ namespace TerrariaSplit.MemoryBridge.Payload
                     }
                 }
 
-                if (terraria == null || terraria.GetName().Version != new Version(1, 4, 5, 7) ||
+                if (terraria == null || terraria.GetName().Version != new Version(1, 4, 5, 8) ||
                     terraria.ManifestModule.ModuleVersionId != SupportedMvid)
                 {
                     return new PayloadCommandResult(48, "The Terraria Race start helper is not compatible with this client.", false);

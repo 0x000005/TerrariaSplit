@@ -9,7 +9,7 @@ public static class WorldPoolSignature
 {
     // Terraria's world generator is version-sensitive. Keep this as a visible pool
     // signature component instead of an opaque "v1" format marker.
-    private const string DefaultTerrariaVersion = "1.4.5.7";
+    private const string DefaultTerrariaVersion = "1.4.5.8";
 
     public static string From(AppSettings settings)
     {

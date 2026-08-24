@@ -29,6 +29,9 @@ $productVersion = if ($null -eq $versionNode) { '' } else { $versionNode.InnerTe
 if ([string]::IsNullOrWhiteSpace($productVersion)) {
     throw 'Directory.Build.props does not define TerrariaSplitProductVersion.'
 }
+$releaseArtifactsPath = [System.IO.Path]::GetFullPath(
+    (Join-Path $repositoryRoot ".build/release-$productVersion")) +
+    [System.IO.Path]::DirectorySeparatorChar
 
 function Invoke-DotNet {
     param([Parameter(Mandatory)][string[]]$Arguments)
@@ -45,11 +48,13 @@ try {
         Invoke-DotNet @(
             'restore', $clientProject,
             '-r', 'win-x64',
-            '-m:1'
+            '-m:1',
+            "-p:ArtifactsPath=$releaseArtifactsPath"
         )
         Invoke-DotNet @(
             'restore', $serverProject,
-            '-m:1'
+            '-m:1',
+            "-p:ArtifactsPath=$releaseArtifactsPath"
         )
     }
 
@@ -57,6 +62,7 @@ try {
         'publish', $clientProject,
         '--no-restore', '-c', 'Release', '-r', 'win-x64',
         '-m:1', '-p:UseSharedCompilation=false',
+        "-p:ArtifactsPath=$releaseArtifactsPath",
         "-p:TerrariaWorldFilterSource=$worldFilterSource"
     )
 
@@ -65,7 +71,8 @@ try {
             'publish', $serverProject,
             '--no-restore', '-c', 'Release', '-r', $runtimeIdentifier,
             '--self-contained', 'true',
-            '-m:1', '-p:UseSharedCompilation=false'
+            '-m:1', '-p:UseSharedCompilation=false',
+            "-p:ArtifactsPath=$releaseArtifactsPath"
         )
     }
 

@@ -19,7 +19,7 @@ internal static class RaceFlowTests
         yield return TestCase.Sync("race client rejects late updates from a room left before joining another room", TestSuite.Flow, CrossRoomUpdateIsolation);
         yield return TestCase.Sync("race deterministic core derives stable domains, counts events, rolls independent chances and accumulates fixed chances", TestSuite.Core, DeterministicCore);
         yield return TestCase.Async("race voice announces main and attached groups once, queues players in order and clears obsolete work", TestSuite.Flow, VoiceAnnouncementJourney);
-        yield return TestCase.Sync("race rooms reject clients outside the Terraria 1.4.5.7 compatibility profile", TestSuite.Core, TerrariaCompatibilityBoundary);
+        yield return TestCase.Sync("race rooms reject clients outside the Terraria 1.4.5.8 compatibility profile", TestSuite.Core, TerrariaCompatibilityBoundary);
     }
 
     private static void TerrariaCompatibilityBoundary()
@@ -34,8 +34,8 @@ internal static class RaceFlowTests
         RaceOperationResult<RaceRoomState> obsoleteJoin = manager.JoinRoom(
             new RaceRoomJoinRequest(created.RoomCode, "obsolete", "terraria-1.4.5.6-win-x86-mvid-obsolete"));
         Check.Equal(RaceErrors.IncompatibleTerraria, obsoleteJoin.ErrorCode);
-        Check.True(RaceTerrariaCompatibility.IsSupportedVersion(" 1.4.5.7 "));
-        Check.False(RaceTerrariaCompatibility.IsSupportedVersion("1.4.5.6"));
+        Check.True(RaceTerrariaCompatibility.IsSupportedVersion(" 1.4.5.8 "));
+        Check.False(RaceTerrariaCompatibility.IsSupportedVersion("1.4.5.7"));
         Check.Equal(RaceTerrariaCompatibility.Id, RaceDeterminismProtocol.TerrariaCompatibilityId);
     }
 

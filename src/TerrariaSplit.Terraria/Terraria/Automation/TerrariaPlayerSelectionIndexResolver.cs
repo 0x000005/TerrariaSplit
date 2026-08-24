@@ -28,7 +28,7 @@ public static class TerrariaPlayerSelectionIndexResolver
                     StringComparison.OrdinalIgnoreCase));
             if (createdPlayer is { FileName: not null, IsFavorite: false })
             {
-                // Terraria 1.4.5.7 orders by favorite and then PlayerFileData.LastPlayed.
+                // Terraria 1.4.5.8 orders by favorite and then PlayerFileData.LastPlayed.
                 // A player saved by this creation flow is the newest non-favorite entry,
                 // so its exact UI row is immediately after all favorite players. File
                 // LastWriteTime is not a reliable substitute for the saved LastPlayed value.
@@ -38,7 +38,7 @@ public static class TerrariaPlayerSelectionIndexResolver
 
         IEnumerable<TerrariaPlayerSelectionEntry> ordered = profile.Kind == TerrariaMenuProfileKind.Legacy1449
             ? SortLegacy1449(players)
-            : SortModern1457(players);
+            : SortModern1458(players);
 
         int index = 0;
         foreach (TerrariaPlayerSelectionEntry player in ordered)
@@ -63,7 +63,7 @@ public static class TerrariaPlayerSelectionIndexResolver
             .ThenBy(static player => player.FileName, StringComparer.CurrentCulture);
     }
 
-    private static IOrderedEnumerable<TerrariaPlayerSelectionEntry> SortModern1457(
+    private static IOrderedEnumerable<TerrariaPlayerSelectionEntry> SortModern1458(
         IEnumerable<TerrariaPlayerSelectionEntry> players)
     {
         return players

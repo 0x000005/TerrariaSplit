@@ -29,7 +29,7 @@ internal sealed class PyramidSeedPreScreenEvaluator
     {
         return profile.Kind == TerrariaMenuProfileKind.Legacy1449
             ? TerrariaWorldGenerationVersion.Legacy1449
-            : TerrariaWorldGenerationVersion.Modern1457;
+            : TerrariaWorldGenerationVersion.Modern1458;
     }
 
     public PyramidSeedPreScreenPrediction Evaluate(

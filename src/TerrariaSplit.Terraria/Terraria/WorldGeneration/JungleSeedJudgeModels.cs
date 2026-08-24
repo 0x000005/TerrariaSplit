@@ -6,7 +6,7 @@ internal static class JungleSeedJudgeProtocol
 {
     public const int Version = 1;
     public const string CompatibilityId =
-        "terraria-1.4.5.7-world-filter-pass62-v3";
+        "terraria-1.4.5.8-world-filter-pass62-v3";
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<JungleSeedJudgeGameMode>))]

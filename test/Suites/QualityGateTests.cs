@@ -113,9 +113,9 @@ internal static class QualityGateTests
             "terraria-compatibility.json")));
         JsonElement supportedClient = compatibilityManifest.RootElement
             .GetProperty("supportedClients")[0];
-        Check.Equal("1.4.5.7", supportedClient.GetProperty("terrariaVersion").GetString());
+        Check.Equal("1.4.5.8", supportedClient.GetProperty("terrariaVersion").GetString());
         Check.Equal(
-            "83FE844F67068ED43A8BBE57AF41D946EA3E6153BB75F21F3F4CF3F81F226E01",
+            "EF137BCA302965EA276E4F1B8030689057506DBFCB37C1D790ECD5705E3C577D",
             supportedClient
                 .GetProperty("methods")
                 .GetProperty("Terraria.GameContent.ItemDropRules.ItemDropResolver.ResolveRule(Terraria.GameContent.ItemDropRules.IItemDropRule,Terraria.GameContent.ItemDropRules.DropAttemptInfo)")

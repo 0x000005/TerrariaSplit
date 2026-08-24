@@ -4,7 +4,7 @@ internal sealed class StageOneReplicaSimulator
 {
     public StageOneReplicaResult Generate(
         WorldSeedMetadata metadata,
-        TerrariaWorldGenerationVersion version = TerrariaWorldGenerationVersion.Modern1457)
+        TerrariaWorldGenerationVersion version = TerrariaWorldGenerationVersion.Modern1458)
     {
         WorldOptions options = WorldOptions.FromMetadata(metadata);
         var state = new WorldGenState(options);
