@@ -79,10 +79,13 @@ internal sealed class RaceForm : Form
     private readonly CheckBox rngControlEnabledBox;
     private readonly CheckBox cheatsEnabledBox;
     private readonly CheckBox pyramidEnabledBox;
+    private readonly CheckBox pyramidDepthEnabledBox;
     private readonly CheckBox crimsonEnabledBox;
     private readonly CheckBox jungleRouteDepthEnabledBox;
     private readonly Dictionary<string, CheckBox> specialSeedButtons = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, CheckBox> pyramidItemButtons = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, CheckBox> pyramidDepthButtons = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<int, CheckBox> pyramidCoinPileMinimumButtons = new();
     private readonly Dictionary<string, CheckBox> crimsonDistanceButtons = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, CheckBox> jungleRouteDepthButtons = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, CheckBox> resourceItemButtons = new(StringComparer.OrdinalIgnoreCase);
@@ -137,6 +140,7 @@ internal sealed class RaceForm : Form
     private int programmaticUpdateDepth;
     private bool updatingCrimsonDistanceSelection;
     private bool updatingJungleRouteDepthSelection;
+    private bool updatingPyramidDepthSelection;
     private bool updatingResourceMinimumSelection;
     private bool raceModeChangeRunning;
     private bool dragging;
@@ -215,6 +219,10 @@ internal sealed class RaceForm : Form
         cheatsEnabledBox.CheckedChanged += (_, _) => UpdateCheatAvailability();
         pyramidEnabledBox = CreateSelectorButton("Pyramid", selected: true);
         pyramidEnabledBox.CheckedChanged += (_, _) => UpdateCheatAvailability();
+        pyramidDepthEnabledBox = CreateSelectorButton("Pyramid depth", selected: false);
+        pyramidDepthEnabledBox.CheckedChanged += (_, _) => SelectPyramidDepth(
+            AutoCreatePyramidDepth.None,
+            pyramidDepthEnabledBox.Checked);
         crimsonEnabledBox = CreateSelectorButton("Dungeon-side Crimson", selected: true);
         crimsonEnabledBox.CheckedChanged += (_, _) => UpdateCheatAvailability();
         jungleRouteDepthEnabledBox = CreateSelectorButton("Jungle main route", selected: true);
@@ -238,6 +246,14 @@ internal sealed class RaceForm : Form
             crimsonDistanceButtons[distance] = button;
         }
 
+        foreach (string depth in AutoCreatePyramidDepth.All)
+        {
+            CheckBox button = CreateSelectorButton(depth, selected: false);
+            button.CheckedChanged += (_, _) => SelectPyramidDepth(depth, button.Checked);
+            pyramidDepthButtons[depth] = button;
+        }
+        ApplyPyramidDepthSelection(AutoCreatePyramidDepth.None);
+
         foreach (string depth in AutoCreateJungleRouteDepth.All)
         {
             CheckBox button = CreateSelectorButton(depth, selected: false);
@@ -252,6 +268,7 @@ internal sealed class RaceForm : Form
             resourceItemButtons[item] = button;
         }
 
+        InitializeMinimumButtons(AutoCreatePyramidCoinPileMinimum.All, pyramidCoinPileMinimumButtons, "Pyramid coin piles");
         InitializeMinimumButtons(AutoCreateResourceMinimum.LifeCrystals, lifeCrystalMinimumButtons, "Life Crystal");
         InitializeMinimumButtons(AutoCreateResourceMinimum.Potions, spelunkerMinimumButtons, "Spelunker Potion");
         InitializeMinimumButtons(AutoCreateResourceMinimum.Potions, featherfallMinimumButtons, "Featherfall Potion");
@@ -1603,6 +1620,10 @@ internal sealed class RaceForm : Form
         uiFactory.AddSettingRow(cheatsGrid, "Enabled", cheatsEnabledBox);
         SettingsUiFactory.AddSectionControl(container, cheatsGrid);
         SettingsUiFactory.AddSectionControl(container, CreatePyramidItemSelector());
+        SettingsUiFactory.AddSectionControl(container, CreatePyramidDepthSelector());
+        SettingsUiFactory.AddSectionControl(container, CreateMinimumSelector(
+            AutoCreatePyramidCoinPileMinimum.All,
+            pyramidCoinPileMinimumButtons));
         SettingsUiFactory.AddSectionControl(container, CreateCrimsonDistanceSelector());
         SettingsUiFactory.AddSectionControl(container, CreateJungleRouteDepthSelector());
         SettingsUiFactory.AddSectionControl(container, CreateResourceItemSelector());
@@ -1696,6 +1717,23 @@ internal sealed class RaceForm : Form
         {
             CheckBox button = crimsonDistanceButtons[AutoCreateCrimsonDistance.All[index]];
             button.Margin = CheatSelectorMargin(index, AutoCreateCrimsonDistance.All.Length);
+            panel.Controls.Add(button, index + 2, 0);
+        }
+
+        FinishCheatSelectorRow(panel);
+        return panel;
+    }
+
+    private Control CreatePyramidDepthSelector()
+    {
+        int columnCount = AutoCreatePyramidDepth.All.Length + 1;
+        TableLayoutPanel panel = CreateCheatSelectorPanel(columnCount);
+        pyramidDepthEnabledBox.Margin = new Padding(0, 0, 0, CheatSelectorGap);
+        panel.Controls.Add(pyramidDepthEnabledBox, 0, 0);
+        for (int index = 0; index < AutoCreatePyramidDepth.All.Length; index++)
+        {
+            CheckBox button = pyramidDepthButtons[AutoCreatePyramidDepth.All[index]];
+            button.Margin = CheatSelectorMargin(index, AutoCreatePyramidDepth.All.Length);
             panel.Controls.Add(button, index + 2, 0);
         }
 
@@ -2053,7 +2091,9 @@ internal sealed class RaceForm : Form
             GetSelectedMinimum(lifeCrystalMinimumButtons, AutoCreateResourceMinimum.LifeCrystals),
             GetSelectedMinimum(spelunkerMinimumButtons, AutoCreateResourceMinimum.Potions),
             GetSelectedMinimum(featherfallMinimumButtons, AutoCreateResourceMinimum.Potions),
-            GetSelectedJungleRouteDepth());
+            GetSelectedJungleRouteDepth(),
+            GetSelectedPyramidDepth(),
+            GetSelectedMinimum(pyramidCoinPileMinimumButtons, AutoCreatePyramidCoinPileMinimum.All));
     }
 
     private async Task HandleHostWorldActionButtonClickAsync()
@@ -2353,6 +2393,10 @@ internal sealed class RaceForm : Form
             int itemMask = AutoCreatePyramidFilterItem.Mask(item);
             button.Checked = (pyramidItemMask & itemMask) == itemMask;
         }
+        ApplyPyramidDepthSelection(AutoCreatePyramidDepth.Normalize(cheats.PyramidDepth));
+        ApplyMinimumSelection(
+            AutoCreatePyramidCoinPileMinimum.Normalize(cheats.PyramidCoinPileMinimum),
+            pyramidCoinPileMinimumButtons);
 
         crimsonEnabledBox.Checked = cheats.CrimsonEnabled;
         ApplyCrimsonDistanceSelection(AutoCreateCrimsonDistance.Normalize(cheats.CrimsonDistance));
@@ -2997,6 +3041,16 @@ internal sealed class RaceForm : Form
             UpdateSelectorButtonState(button);
         }
 
+        bool pyramidSupported = cheatsEnabled && pyramidEnabledBox.Checked;
+        pyramidDepthEnabledBox.Enabled = pyramidSupported;
+        UpdateSelectorButtonState(pyramidDepthEnabledBox);
+        foreach (CheckBox button in pyramidDepthButtons.Values)
+        {
+            button.Enabled = pyramidSupported && pyramidDepthEnabledBox.Checked;
+            UpdateSelectorButtonState(button);
+        }
+        UpdateMinimumAvailability(pyramidCoinPileMinimumButtons, pyramidSupported);
+
         bool crimsonDistanceEnabled = crimsonEnabledBox.Enabled && crimsonEnabledBox.Checked;
         foreach (CheckBox button in crimsonDistanceButtons.Values)
         {
@@ -3183,6 +3237,59 @@ internal sealed class RaceForm : Form
         }
 
         return AutoCreateJungleRouteDepth.None;
+    }
+
+    private void SelectPyramidDepth(string selectedDepth, bool selected)
+    {
+        if (updatingPyramidDepthSelection)
+        {
+            return;
+        }
+
+        string normalized = selectedDepth == AutoCreatePyramidDepth.None
+            ? selected ? AutoCreatePyramidDepth.Medium : AutoCreatePyramidDepth.None
+            : AutoCreatePyramidDepth.Normalize(selectedDepth);
+        ApplyPyramidDepthSelection(normalized);
+        UpdateCheatAvailability();
+    }
+
+    private void ApplyPyramidDepthSelection(string selectedDepth)
+    {
+        updatingPyramidDepthSelection = true;
+        try
+        {
+            string normalized = AutoCreatePyramidDepth.Normalize(selectedDepth);
+            bool enabled = normalized != AutoCreatePyramidDepth.None;
+            pyramidDepthEnabledBox.Checked = enabled;
+            UpdateSelectorButtonState(pyramidDepthEnabledBox);
+            foreach ((string depth, CheckBox button) in pyramidDepthButtons)
+            {
+                button.Checked = enabled && AutoCreatePyramidDepth.Includes(normalized, depth);
+                UpdateSelectorButtonState(button);
+            }
+        }
+        finally
+        {
+            updatingPyramidDepthSelection = false;
+        }
+    }
+
+    private string GetSelectedPyramidDepth()
+    {
+        if (!pyramidDepthEnabledBox.Checked)
+        {
+            return AutoCreatePyramidDepth.None;
+        }
+
+        foreach (string depth in AutoCreatePyramidDepth.All)
+        {
+            if (pyramidDepthButtons.TryGetValue(depth, out CheckBox? button) && button.Checked)
+            {
+                return depth;
+            }
+        }
+
+        return AutoCreatePyramidDepth.None;
     }
 
     private int GetSpecialSeedMask()

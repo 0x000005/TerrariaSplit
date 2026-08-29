@@ -41,6 +41,6 @@ The CSV records:
 
 - Official `GenVars.PyrX/PyrY/numPyr` candidates after `Dunes`, `Ocean Sand`, `Full Desert`, `Corruption`, and `Clean Up Dirt`.
 - The pre-`Pyramids` official decision fields for every candidate: scan tile, spacing, dungeon exclusion, surface check, and reject reason.
-- Post-`Pyramids` target-region pyramid tile count and target chest loot summary.
+- Post-`Pyramids` target-region pyramid tile count, target chest loot summary, and surviving copper/silver/gold pile counts.
 
 Use this as evidence before changing the integrated simulator. Dataset metrics are not rule sources by themselves.

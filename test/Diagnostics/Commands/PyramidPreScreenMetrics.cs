@@ -45,11 +45,14 @@ internal static class PyramidPreScreenMetrics
         int fn = 0;
         int itemMismatch = 0;
         int errors = 0;
+        int coinCompared = 0;
+        int coinExact = 0;
+        int coinAbsoluteTotalError = 0;
         var durations = new List<long>();
         var rows = new List<PyramidMetricRow>();
         var diagnostics = new List<PyramidDiagnosticRow>();
 
-        Console.WriteLine("status,truth,predicted,seed,durationMs,worldFile,detail");
+        Console.WriteLine("status,truth,predicted,truthCoins,predictedCoins,coinMatch,seed,durationMs,worldFile,detail");
         foreach (string worldPath in Directory.EnumerateFiles(options.WorldRoot, "*.wld", SearchOption.AllDirectories)
                      .OrderBy(static path => path, StringComparer.OrdinalIgnoreCase))
         {
@@ -62,7 +65,7 @@ internal static class PyramidPreScreenMetrics
             if (!scanner.TryReadWorldSeedMetadata(worldPath, out TerrariaWorldSeedMetadata metadata, out string metadataDetail))
             {
                 unreadable++;
-                Console.WriteLine(Row("unreadable", "", "", "", "", worldPath, metadataDetail));
+                Console.WriteLine(Row("unreadable", "", "", "", "", "", "", "", worldPath, metadataDetail));
                 continue;
             }
 
@@ -72,6 +75,9 @@ internal static class PyramidPreScreenMetrics
                 unsupported++;
                 Console.WriteLine(Row(
                     "unsupported",
+                    "",
+                    "",
+                    "",
                     "",
                     "",
                     metadata.SeedText,
@@ -90,7 +96,7 @@ internal static class PyramidPreScreenMetrics
                     out string scanDetail))
             {
                 unreadable++;
-                Console.WriteLine(Row("unreadable", "", "", metadata.SeedText, "", worldPath, scanDetail));
+                Console.WriteLine(Row("unreadable", "", "", "", "", "", metadata.SeedText, "", worldPath, scanDetail));
                 continue;
             }
 
@@ -110,6 +116,22 @@ internal static class PyramidPreScreenMetrics
             bool truthHas = truth != PyramidTruthClass.None;
             bool predictedHas = prediction.Status == PyramidSeedPreScreenStatus.Complete && prediction.HasTargetPyramid;
             bool classMatches = truth == predicted;
+            PyramidCoinPileCounts truthCoinPiles = FindClosestTruthChest(truthScan, prediction.Features).CoinPiles;
+            PyramidCoinPileCounts predictedCoinPiles = prediction.Features.CoinPiles;
+            bool? coinMatches = truthHas && predictedHas
+                ? truthCoinPiles == predictedCoinPiles
+                : null;
+            if (coinMatches.HasValue)
+            {
+                coinCompared++;
+                if (coinMatches.Value)
+                {
+                    coinExact++;
+                }
+
+                coinAbsoluteTotalError += Math.Abs(truthCoinPiles.Total - predictedCoinPiles.Total);
+            }
+
             string status;
 
             if (prediction.Status != PyramidSeedPreScreenStatus.Complete)
@@ -150,6 +172,9 @@ internal static class PyramidPreScreenMetrics
                 status,
                 truth,
                 predicted,
+                truthCoinPiles,
+                predictedCoinPiles,
+                coinMatches,
                 metadata.SeedText,
                 prediction.DurationMilliseconds,
                 worldPath,
@@ -171,6 +196,9 @@ internal static class PyramidPreScreenMetrics
                 status,
                 FormatClass(truth),
                 FormatClass(predicted),
+                truthHas ? truthCoinPiles.Format() : string.Empty,
+                predictedHas ? predictedCoinPiles.Format() : string.Empty,
+                coinMatches.HasValue ? (coinMatches.Value ? "true" : "false") : string.Empty,
                 metadata.SeedText,
                 prediction.DurationMilliseconds.ToString(CultureInfo.InvariantCulture),
                 worldPath,
@@ -204,6 +232,9 @@ internal static class PyramidPreScreenMetrics
             fn,
             itemMismatch,
             errors,
+            coinCompared,
+            coinExact,
+            coinAbsoluteTotalError,
             durations);
     }
 
@@ -271,6 +302,25 @@ internal static class PyramidPreScreenMetrics
             "other" => PyramidTruthClass.Other,
             _ => PyramidTruthClass.None
         };
+    }
+
+    private static PyramidChestInfo FindClosestTruthChest(
+        PyramidChestScanResult truth,
+        PyramidFeatureSummary prediction)
+    {
+        if (truth.Chests is null || truth.Chests.Count == 0)
+        {
+            return default;
+        }
+
+        return truth.Chests
+            .OrderBy(chest =>
+            {
+                int deltaX = chest.X - prediction.ChestX;
+                int deltaY = chest.Y - prediction.ChestY;
+                return deltaX * deltaX + deltaY * deltaY;
+            })
+            .First();
     }
 
     private static IReadOnlyList<PyramidDiagnosticRow> CreateDiagnostics(
@@ -446,6 +496,9 @@ internal static class PyramidPreScreenMetrics
         int fn,
         int itemMismatch,
         int errors,
+        int coinCompared,
+        int coinExact,
+        int coinAbsoluteTotalError,
         IReadOnlyList<long> durations)
     {
         int positives = tp + fn;
@@ -467,6 +520,13 @@ internal static class PyramidPreScreenMetrics
         Console.Error.WriteLine("fpRate=" + FormatRate(fp, negatives));
         Console.Error.WriteLine("fnRate=" + FormatRate(fn, positives));
         Console.Error.WriteLine("itemMismatchRateAmongTP=" + FormatRate(itemMismatch, tp));
+        Console.Error.WriteLine("coinCompared=" + coinCompared.ToString(CultureInfo.InvariantCulture));
+        Console.Error.WriteLine("coinExact=" + coinExact.ToString(CultureInfo.InvariantCulture));
+        Console.Error.WriteLine("coinExactRate=" + FormatRate(coinExact, coinCompared));
+        Console.Error.WriteLine("coinMeanAbsoluteTotalError=" +
+            (coinCompared == 0
+                ? "n/a"
+                : (coinAbsoluteTotalError / (double)coinCompared).ToString("0.###", CultureInfo.InvariantCulture)));
 
         if (durations.Count == 0)
         {
@@ -499,6 +559,9 @@ internal static class PyramidPreScreenMetrics
         string status,
         string truth,
         string predicted,
+        string truthCoins,
+        string predictedCoins,
+        string coinMatch,
         string seed,
         string durationMs,
         string worldFile,
@@ -509,6 +572,9 @@ internal static class PyramidPreScreenMetrics
             Csv(status),
             Csv(truth),
             Csv(predicted),
+            Csv(truthCoins),
+            Csv(predictedCoins),
+            Csv(coinMatch),
             Csv(seed),
             Csv(durationMs),
             Csv(worldFile),
@@ -518,13 +584,16 @@ internal static class PyramidPreScreenMetrics
     private static void WriteCsv(string csvPath, IReadOnlyList<PyramidMetricRow> rows)
     {
         using var writer = new StreamWriter(csvPath, append: false);
-        writer.WriteLine("status,truth,predicted,seed,durationMs,worldFile,detail");
+        writer.WriteLine("status,truth,predicted,truthCoins,predictedCoins,coinMatch,seed,durationMs,worldFile,detail");
         foreach (PyramidMetricRow row in rows)
         {
             writer.WriteLine(Row(
                 row.Status,
                 FormatClass(row.Truth),
                 FormatClass(row.Predicted),
+                row.Truth != PyramidTruthClass.None ? row.TruthCoinPiles.Format() : string.Empty,
+                row.Predicted != PyramidTruthClass.None ? row.PredictedCoinPiles.Format() : string.Empty,
+                row.CoinMatch.HasValue ? (row.CoinMatch.Value ? "true" : "false") : string.Empty,
                 row.Seed,
                 row.DurationMilliseconds.ToString(CultureInfo.InvariantCulture),
                 row.WorldFile,
@@ -562,6 +631,9 @@ internal static class PyramidPreScreenMetrics
         string Status,
         PyramidTruthClass Truth,
         PyramidTruthClass Predicted,
+        PyramidCoinPileCounts TruthCoinPiles,
+        PyramidCoinPileCounts PredictedCoinPiles,
+        bool? CoinMatch,
         string Seed,
         long DurationMilliseconds,
         string WorldFile,

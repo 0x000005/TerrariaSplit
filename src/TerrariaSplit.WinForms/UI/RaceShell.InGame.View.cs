@@ -302,6 +302,8 @@ internal sealed partial class RaceShell
     {
         bool advancedFiltersEligible = AutoCreateAdvancedFilterEligibility.IsEligible(setup);
         const string pyramidGroup = "primary-choice:pyramid";
+        const string pyramidDepthGroup = "primary-choice:pyramid-depth";
+        const string pyramidCoinPileGroup = "primary-choice:pyramid-coin-piles";
         const string crimsonGroup = "primary-choice:crimson";
         const string jungleGroup = "primary-choice:jungle-route";
         const string lifeCrystalGroup = "primary-choice:life-crystal";
@@ -347,6 +349,47 @@ internal sealed partial class RaceShell
                 (setup.PyramidItemMask & AutoCreatePyramidFilterItem.Mask(item)) != 0,
                 !busy && setup.PyramidEnabled,
                 pyramidGroup);
+        }
+
+        string pyramidDepth = AutoCreatePyramidDepth.Normalize(setup.PyramidDepth);
+        bool pyramidDepthEnabled = pyramidDepth != AutoCreatePyramidDepth.None;
+        AddToggle(
+            controls,
+            "pyramid-depth",
+            Localize("Pyramid depth"),
+            pyramidDepthEnabled,
+            !busy && setup.PyramidEnabled,
+            pyramidDepthGroup);
+        AddChoiceControls(
+            controls,
+            "pyramid-depth:",
+            AutoCreatePyramidDepth.All,
+            pyramidDepth,
+            !busy && setup.PyramidEnabled && pyramidDepthEnabled,
+            pyramidDepthGroup,
+            isSelected: value =>
+                pyramidDepthEnabled && AutoCreatePyramidDepth.Includes(pyramidDepth, value));
+
+        int pyramidCoinPileMinimum = AutoCreatePyramidCoinPileMinimum.Normalize(
+            setup.PyramidCoinPileMinimum);
+        AddToggle(
+            controls,
+            "pyramid-coin-piles",
+            Localize("Pyramid coin piles"),
+            pyramidCoinPileMinimum > 0,
+            !busy && setup.PyramidEnabled,
+            pyramidCoinPileGroup);
+        foreach (int minimum in AutoCreatePyramidCoinPileMinimum.All.Where(value => value > 0))
+        {
+            AddToggle(
+                controls,
+                "pyramid-coin-pile-min:" + minimum.ToString(CultureInfo.InvariantCulture),
+                minimum == AutoCreatePyramidCoinPileMinimum.All[^1]
+                    ? minimum.ToString(CultureInfo.InvariantCulture) + "+"
+                    : minimum.ToString(CultureInfo.InvariantCulture),
+                pyramidCoinPileMinimum > 0 && minimum >= pyramidCoinPileMinimum,
+                !busy && setup.PyramidEnabled && pyramidCoinPileMinimum > 0,
+                pyramidCoinPileGroup);
         }
 
         AddToggle(

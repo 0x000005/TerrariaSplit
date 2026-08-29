@@ -133,11 +133,12 @@ internal static class PyramidPreScreenTrace
                 analysis.ActiveDepth.ToString(CultureInfo.InvariantCulture)));
         }
 
-        Console.WriteLine("chest,index,x,y,candidateIndex,source,scanY,loot");
+        Console.WriteLine("chest,index,x,y,candidateIndex,source,scanY,depth,tunnelTopX,tunnelTopY,tunnelOpeningSide,tunnelSurfaceDistance,copperPiles,silverPiles,goldPiles,totalPiles,loot");
         IReadOnlyList<PyramidChest> chests = state.PyramidChestsForDiagnostics;
         for (int i = 0; i < chests.Count; i++)
         {
             PyramidChest chest = chests[i];
+            PyramidCoinPileCounts counts = chest.CoinPileCounts;
             Console.WriteLine(string.Join(
                 ',',
                 "chest",
@@ -147,7 +148,27 @@ internal static class PyramidPreScreenTrace
                 chest.CandidateIndex.ToString(CultureInfo.InvariantCulture),
                 chest.CandidateSourceIndex.ToString(CultureInfo.InvariantCulture),
                 chest.CandidateScanY.ToString(CultureInfo.InvariantCulture),
+                chest.DepthFromSurface.ToString(CultureInfo.InvariantCulture),
+                chest.TunnelTopX.ToString(CultureInfo.InvariantCulture),
+                chest.TunnelTopY.ToString(CultureInfo.InvariantCulture),
+                chest.TunnelOpeningSide.ToString(CultureInfo.InvariantCulture),
+                chest.TunnelSurfaceDistance.ToString(CultureInfo.InvariantCulture),
+                counts.Copper.ToString(CultureInfo.InvariantCulture),
+                counts.Silver.ToString(CultureInfo.InvariantCulture),
+                counts.Gold.ToString(CultureInfo.InvariantCulture),
+                counts.Total.ToString(CultureInfo.InvariantCulture),
                 Escape(chest.FormatLootSummary())));
+
+            foreach (PyramidCoinPile pile in chest.CoinPiles)
+            {
+                Console.WriteLine(string.Join(
+                    ',',
+                    "coinPile",
+                    i.ToString(CultureInfo.InvariantCulture),
+                    pile.X.ToString(CultureInfo.InvariantCulture),
+                    pile.Y.ToString(CultureInfo.InvariantCulture),
+                    Escape(pile.Kind.ToString())));
+            }
         }
     }
 

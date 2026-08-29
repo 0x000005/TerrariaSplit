@@ -1,4 +1,5 @@
 using System.Drawing;
+using TerrariaSplit.Terraria.WorldGeneration;
 
 namespace TerrariaSplit.Terraria.Automation;
 
@@ -11,6 +12,8 @@ internal sealed class TerrariaWorldFilePyramidScanner
     private const double CorridorTopRatio = 0.15d;
     private const double CorridorBottomRatio = 0.35d;
     private const int CrimsonBiomeTileThreshold = 300;
+    private const int PyramidCoinPileHorizontalRadius = 16;
+    private const int PyramidCoinPileVerticalRadius = 12;
     private static readonly HashSet<int> CrimsonTileTypes =
     [
         199, // Crimson grass
@@ -116,14 +119,7 @@ internal sealed class TerrariaWorldFilePyramidScanner
 
         try
         {
-            phase = "build scan bounds";
-            TerrariaWorldDimensions dimensions = TerrariaWorldDimensions.FromWorldSize(worldSize);
-            corridorBounds = BuildSpeedrunCorridorBounds(dimensions);
-            if (corridorBounds.Width <= 0 || corridorBounds.Height <= 0)
-            {
-                detail = "empty scan corridor";
-                return true;
-            }
+            _ = worldSize;
 
             using FileStream stream = new(
                 worldPath,
@@ -138,8 +134,21 @@ internal sealed class TerrariaWorldFilePyramidScanner
                 return false;
             }
 
-            if (sections.ChestDataOffset <= 0)
+            if (sections.HeaderDataOffset <= 0 ||
+                sections.TileDataOffset <= sections.HeaderDataOffset ||
+                sections.ChestDataOffset <= sections.TileDataOffset)
             {
+                detail = "invalid world header, tile or chest section offset";
+                return false;
+            }
+
+            phase = "read world header";
+            stream.Position = sections.HeaderDataOffset;
+            WorldHeaderData header = ReadWorldHeaderData(reader, sections.Version);
+            corridorBounds = BuildSpeedrunCorridorBounds(new TerrariaWorldDimensions(header.Width, header.Height));
+            if (corridorBounds.Width <= 0 || corridorBounds.Height <= 0)
+            {
+                detail = "empty scan corridor";
                 return true;
             }
 
@@ -163,10 +172,27 @@ internal sealed class TerrariaWorldFilePyramidScanner
                 var chestInfo = new PyramidChestInfo(
                     chest.X,
                     chest.Y,
-                    chest.Items.Select(item => new PyramidChestItem(item.Slot, item.Type, item.Stack, item.Prefix)).ToList());
+                    chest.Items.Select(item => new PyramidChestItem(item.Slot, item.Type, item.Stack, item.Prefix)).ToList(),
+                    PyramidCoinPileCounts.Empty);
                 if (PyramidFilterItemMatcher.Matches(new PyramidChestScanResult([chestInfo]), normalizedRequiredItemMask))
                 {
                     candidateChests.Add(chestInfo);
+                }
+            }
+
+            if (candidateChests.Count > 0)
+            {
+                phase = "scan pyramid coin-pile tiles";
+                stream.Position = sections.TileDataOffset;
+                PyramidCoinPileCounts[] counts = ScanPyramidCoinPiles(
+                    reader,
+                    sections.FrameImportance,
+                    header.Width,
+                    header.Height,
+                    candidateChests);
+                for (int i = 0; i < candidateChests.Count; i++)
+                {
+                    candidateChests[i] = candidateChests[i] with { CoinPiles = counts[i] };
                 }
             }
 
@@ -650,6 +676,8 @@ internal sealed class TerrariaWorldFilePyramidScanner
 
         bool active = (header1 & 2) != 0;
         int type = -1;
+        short frameX = -1;
+        short frameY = -1;
         if (active)
         {
             type = reader.ReadByte();
@@ -665,8 +693,8 @@ internal sealed class TerrariaWorldFilePyramidScanner
 
             if (frameImportance[type])
             {
-                _ = reader.ReadInt16();
-                _ = reader.ReadInt16();
+                frameX = reader.ReadInt16();
+                frameY = reader.ReadInt16();
             }
 
             if ((header3 & 8) != 0)
@@ -700,7 +728,77 @@ internal sealed class TerrariaWorldFilePyramidScanner
             0x80 or 0xC0 => reader.ReadInt16(),
             _ => 0
         };
-        return new WorldTileRecord(active, type, runLength);
+        return new WorldTileRecord(active, type, frameX, frameY, runLength);
+    }
+
+    private static PyramidCoinPileCounts[] ScanPyramidCoinPiles(
+        BinaryReader reader,
+        bool[] frameImportance,
+        int worldWidth,
+        int worldHeight,
+        IReadOnlyList<PyramidChestInfo> chests)
+    {
+        var counts = new PyramidCoinPileCounts[chests.Count];
+        int minX = Math.Max(0, chests.Min(static chest => chest.X) - PyramidCoinPileHorizontalRadius);
+        int maxX = Math.Min(worldWidth - 1, chests.Max(static chest => chest.X) + PyramidCoinPileHorizontalRadius);
+
+        for (int x = 0; x < worldWidth; x++)
+        {
+            int y = 0;
+            while (y < worldHeight)
+            {
+                WorldTileRecord tile = ReadWorldTileRecord(reader, frameImportance);
+                int tileCount = checked(tile.RunLength + 1);
+                if (tileCount <= 0 || y + tileCount > worldHeight)
+                {
+                    throw new InvalidDataException($"invalid tile run length {tile.RunLength} at {x},{y}");
+                }
+
+                if (x >= minX &&
+                    x <= maxX &&
+                    tile.Active &&
+                    PyramidCoinPileFrameClassifier.TryClassify(tile.Type, tile.FrameX, tile.FrameY, out PyramidCoinPileKind kind))
+                {
+                    for (int offset = 0; offset < tileCount; offset++)
+                    {
+                        int chestIndex = FindAssociatedPyramidChest(chests, x, y + offset);
+                        if (chestIndex >= 0)
+                        {
+                            counts[chestIndex] = counts[chestIndex].Add(kind);
+                        }
+                    }
+                }
+
+                y += tileCount;
+            }
+        }
+
+        return counts;
+    }
+
+    private static int FindAssociatedPyramidChest(IReadOnlyList<PyramidChestInfo> chests, int pileX, int pileY)
+    {
+        int bestIndex = -1;
+        int bestDistance = int.MaxValue;
+        for (int i = 0; i < chests.Count; i++)
+        {
+            PyramidChestInfo chest = chests[i];
+            int deltaX = Math.Abs(pileX - chest.X);
+            int deltaY = Math.Abs(pileY - chest.Y);
+            if (deltaX > PyramidCoinPileHorizontalRadius || deltaY > PyramidCoinPileVerticalRadius)
+            {
+                continue;
+            }
+
+            int distance = deltaX * deltaX + deltaY * deltaY;
+            if (distance < bestDistance)
+            {
+                bestIndex = i;
+                bestDistance = distance;
+            }
+        }
+
+        return bestIndex;
     }
 
     private static List<WorldChestData> ReadChestData(BinaryReader reader, int version)
@@ -755,7 +853,7 @@ internal sealed class TerrariaWorldFilePyramidScanner
         int DungeonTileX,
         int DungeonTileY);
 
-    private readonly record struct WorldTileRecord(bool Active, int Type, int RunLength);
+    private readonly record struct WorldTileRecord(bool Active, int Type, short FrameX, short FrameY, int RunLength);
 
     private readonly record struct WorldChestData(int X, int Y, IReadOnlyList<WorldChestItemData> Items);
 
@@ -808,7 +906,8 @@ internal readonly record struct PyramidChestScanResult(IReadOnlyList<PyramidChes
 internal readonly record struct PyramidChestInfo(
     int X,
     int Y,
-    IReadOnlyList<PyramidChestItem> Items)
+    IReadOnlyList<PyramidChestItem> Items,
+    PyramidCoinPileCounts CoinPiles)
 {
     public bool ContainsItem(int itemType)
     {
@@ -820,7 +919,41 @@ internal readonly record struct PyramidChestInfo(
         string items = Items is null || Items.Count == 0
             ? "empty"
             : string.Join(", ", Items.Select(PyramidChestItemNames.Format));
-        return $"({X},{Y}): {items}";
+        return $"({X},{Y}): {items}; {CoinPiles.Format()}";
+    }
+}
+
+internal static class PyramidCoinPileFrameClassifier
+{
+    private const int SmallPilesTileType = 185;
+    private const short TwoTilePileFrameY = 18;
+
+    public static bool TryClassify(
+        int tileType,
+        short frameX,
+        short frameY,
+        out PyramidCoinPileKind kind)
+    {
+        kind = default;
+        if (tileType != SmallPilesTileType || frameY != TwoTilePileFrameY)
+        {
+            return false;
+        }
+
+        switch (frameX)
+        {
+            case 576:
+                kind = PyramidCoinPileKind.Copper;
+                return true;
+            case 612:
+                kind = PyramidCoinPileKind.Silver;
+                return true;
+            case 648:
+                kind = PyramidCoinPileKind.Gold;
+                return true;
+            default:
+                return false;
+        }
     }
 }
 

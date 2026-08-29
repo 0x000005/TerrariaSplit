@@ -558,6 +558,11 @@ internal sealed class WorldGenState
         int x,
         int y,
         IReadOnlyList<PyramidChestItem> items,
+        IReadOnlyList<PyramidCoinPile> coinPiles,
+        int tunnelTopX,
+        int tunnelTopY,
+        int tunnelOpeningSide,
+        int tunnelSurfaceDistance,
         int candidateIndex,
         int candidateSourceIndex,
         int candidateScanY,
@@ -569,6 +574,11 @@ internal sealed class WorldGenState
             x,
             y,
             items,
+            coinPiles,
+            tunnelTopX,
+            tunnelTopY,
+            tunnelOpeningSide,
+            tunnelSurfaceDistance,
             candidateIndex,
             candidateSourceIndex,
             candidateScanY,
@@ -580,6 +590,7 @@ internal sealed class WorldGenState
     public PyramidChestSet ScanTargetPyramidChests()
     {
         Bounds bounds = Bounds.ForSpeedrunCorridor(Options.Dimensions.SizeCode());
+        List<PyramidChest> matches = [];
         for (int i = 0; i < pyramidChests.Count; i++)
         {
             PyramidChest chest = pyramidChests[i];
@@ -588,14 +599,14 @@ internal sealed class WorldGenState
             {
                 if (IsRejectedByCandidateRisk(chest))
                 {
-                    return PyramidChestSet.Empty;
+                    continue;
                 }
 
-                return new PyramidChestSet([chest]);
+                matches.Add(chest);
             }
         }
 
-        return PyramidChestSet.Empty;
+        return matches.Count == 0 ? PyramidChestSet.Empty : new PyramidChestSet(matches);
     }
 
     private bool IsRejectedByCandidateRisk(PyramidChest chest)
@@ -651,6 +662,10 @@ internal static class TileIds
 
     public const int Grass = 2;
 
+    public const int Chest = 21;
+
+    public const int Pots = 28;
+
     public const int BlueDungeonBrick = 41;
 
     public const int GreenDungeonBrick = 43;
@@ -680,6 +695,8 @@ internal static class TileIds
     public const int IceBlock = 161;
 
     public const int Stalactite = 165;
+
+    public const int SmallPiles = 185;
 
     public const int Cloud = 189;
 

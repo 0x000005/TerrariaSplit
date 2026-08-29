@@ -25,6 +25,9 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
     private readonly Label autoCreateZenithStarCatchSpeedValueLabel = new();
     private readonly CheckBox autoCreateCheatsBox = new();
     private readonly CheckBox autoCreatePyramidFilterBox = new();
+    private readonly CheckBox autoCreatePyramidDepthBox = new();
+    private readonly Dictionary<string, CheckBox> autoCreatePyramidDepthBoxes = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<int, CheckBox> autoCreatePyramidCoinPileMinimumBoxes = new();
     private readonly CheckBox autoCreateCrimsonBetweenDungeonAndSpawnBox = new();
     private readonly Dictionary<string, CheckBox> autoCreateCrimsonDistanceBoxes = new(StringComparer.OrdinalIgnoreCase);
     private readonly CheckBox autoCreateJungleRouteDepthBox = new();
@@ -48,6 +51,7 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
     private bool updatingZenithStarCatchStageSelection;
     private bool updatingCrimsonDistanceSelection;
     private bool updatingJungleRouteDepthSelection;
+    private bool updatingPyramidDepthSelection;
     private bool updatingResourceMinimumSelection;
     private bool updatingPostGenerationFilterAvailability;
 
@@ -61,6 +65,9 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
     internal ThemedSlider AutoCreateZenithStarCatchSpeedBar => autoCreateZenithStarCatchSpeedBar;
     internal CheckBox AutoCreateCheatsBox => autoCreateCheatsBox;
     internal CheckBox AutoCreatePyramidFilterBox => autoCreatePyramidFilterBox;
+    internal CheckBox AutoCreatePyramidDepthBox => autoCreatePyramidDepthBox;
+    internal IReadOnlyDictionary<string, CheckBox> AutoCreatePyramidDepthBoxes => autoCreatePyramidDepthBoxes;
+    internal IReadOnlyDictionary<int, CheckBox> AutoCreatePyramidCoinPileMinimumBoxes => autoCreatePyramidCoinPileMinimumBoxes;
     internal CheckBox AutoCreateCrimsonBetweenDungeonAndSpawnBox => autoCreateCrimsonBetweenDungeonAndSpawnBox;
     internal IReadOnlyDictionary<string, CheckBox> AutoCreateCrimsonDistanceBoxes => autoCreateCrimsonDistanceBoxes;
     internal CheckBox AutoCreateJungleRouteDepthBox => autoCreateJungleRouteDepthBox;
@@ -106,6 +113,10 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
         settings.Automation.AutoCreate.ZenithStarCatchSpeedSliderValue = AutoCreateZenithStarCatchSpeed.NormalizeSliderValue(autoCreateZenithStarCatchSpeedBar.Value);
         settings.Automation.AutoCreate.EnableCheats = autoCreateCheatsBox.Checked;
         settings.Automation.AutoCreate.EnablePyramidFilter = autoCreatePyramidFilterBox.Checked;
+        settings.Automation.AutoCreate.PyramidFilterDepth = GetSelectedPyramidDepth();
+        settings.Automation.AutoCreate.PyramidFilterCoinPileMinimum = GetSelectedMinimum(
+            autoCreatePyramidCoinPileMinimumBoxes,
+            AutoCreatePyramidCoinPileMinimum.All);
         settings.Automation.AutoCreate.RequireCrimsonBetweenDungeonAndSpawn = autoCreateCrimsonBetweenDungeonAndSpawnBox.Checked;
         settings.Automation.AutoCreate.CrimsonDistance = GetSelectedCrimsonDistance();
         settings.Automation.AutoCreate.JungleRouteDepth = GetSelectedJungleRouteDepth();
@@ -210,6 +221,13 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
         autoCreateCheatsBox.CheckedChanged += (_, _) => UpdatePostGenerationFilterAvailability();
         ConfigureSelectorButton(autoCreatePyramidFilterBox, "Pyramid", Draft.Automation.AutoCreate.EnablePyramidFilter);
         autoCreatePyramidFilterBox.CheckedChanged += (_, _) => UpdatePyramidItemAvailability();
+        ConfigureSelectorButton(
+            autoCreatePyramidDepthBox,
+            "Pyramid depth",
+            AutoCreatePyramidDepth.Normalize(Draft.Automation.AutoCreate.PyramidFilterDepth) != AutoCreatePyramidDepth.None);
+        autoCreatePyramidDepthBox.CheckedChanged += (_, _) => SelectPyramidDepth(
+            AutoCreatePyramidDepth.None,
+            autoCreatePyramidDepthBox.Checked);
         ConfigureSelectorButton(
             autoCreateCrimsonBetweenDungeonAndSpawnBox,
             "Dungeon-side Crimson",
@@ -357,6 +375,8 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
         Factory.AddSettingRow(cheatsGrid, "Enabled", autoCreateCheatsBox);
         SettingsUiFactory.AddSectionControl(createSection, cheatsGrid);
         SettingsUiFactory.AddSectionControl(createSection, CreatePyramidItemSelector());
+        SettingsUiFactory.AddSectionControl(createSection, CreatePyramidDepthSelector());
+        SettingsUiFactory.AddSectionControl(createSection, CreatePyramidCoinPileMinimumSelector());
         SettingsUiFactory.AddSectionControl(createSection, CreateCrimsonDistanceSelector());
         SettingsUiFactory.AddSectionControl(createSection, CreateJungleRouteDepthSelector());
         SettingsUiFactory.AddSectionControl(createSection, CreateResourceItemSelector());

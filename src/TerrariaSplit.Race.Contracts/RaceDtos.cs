@@ -165,7 +165,9 @@ public sealed record RaceCheatSettings(
     int LifeCrystalMinimum,
     int SpelunkerPotionMinimum,
     int FeatherfallPotionMinimum,
-    string JungleRouteDepth = "0")
+    string JungleRouteDepth = "0",
+    string PyramidDepth = "Medium",
+    int PyramidCoinPileMinimum = 1)
 {
     public static RaceCheatSettings Disabled { get; } = new(
         false,
@@ -176,6 +178,9 @@ public sealed record RaceCheatSettings(
         0,
         0,
         0,
+        0,
+        "0",
+        "0",
         0);
 }
 

@@ -600,6 +600,8 @@ internal static class RaceFlowTests
             RaceWorldSettingsFactory.ToPlayerDifficulty(restored.WorldSettings.PlayerDifficultyCode));
         Check.Equal(8, restored.WorldSettings.Cheats.LifeCrystalMinimum);
         Check.Equal(AutoCreateJungleRouteDepth.VeryDeep, restored.WorldSettings.Cheats.JungleRouteDepth);
+        Check.Equal(AutoCreatePyramidDepth.Shallow, restored.WorldSettings.Cheats.PyramidDepth);
+        Check.Equal(2, restored.WorldSettings.Cheats.PyramidCoinPileMinimum);
         Check.True(restored.WorldSettings.RngControlEnabled);
         Check.False(restored.WorldSettings.BossFailurePenaltyEnabled);
         Check.Equal(
@@ -623,6 +625,8 @@ internal static class RaceFlowTests
         Check.True(generatedSettings.EnablePyramidFilter);
         Check.True(generatedSettings.RequireCrimsonBetweenDungeonAndSpawn);
         Check.Equal(AutoCreateCrimsonDistance.Near, generatedSettings.CrimsonDistance);
+        Check.Equal(AutoCreatePyramidDepth.Shallow, generatedSettings.PyramidFilterDepth);
+        Check.Equal(2, generatedSettings.PyramidFilterCoinPileMinimum);
         Check.Equal(AutoCreateJungleRouteDepth.VeryDeep, generatedSettings.JungleRouteDepth);
         Check.Equal(AutoCreateResourceFilterItem.BoomstickMask, generatedSettings.ResourceFilterItemMask);
         Check.Equal(6, generatedSettings.ResourceFilterLifeCrystalMinimum);
@@ -937,7 +941,9 @@ internal static class RaceFlowTests
                     8,
                     2,
                     1,
-                    AutoCreateJungleRouteDepth.VeryDeep),
+                    AutoCreateJungleRouteDepth.VeryDeep,
+                    AutoCreatePyramidDepth.Shallow,
+                    2),
                 "race",
                 PlayerDifficultyCode: RacePlayerDifficultyCodes.Hardcore,
                 BossFailurePenaltyEnabled: false,

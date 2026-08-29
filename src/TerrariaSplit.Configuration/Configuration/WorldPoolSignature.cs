@@ -48,6 +48,13 @@ public static class WorldPoolSignature
             ? AutoCreatePyramidFilterItem.NormalizeMaskOrAll(autoCreate.PyramidFilterItemMask)
             : 0;
         string pyramidItems = "pyramidItems=" + pyramidItemMask.ToString(CultureInfo.InvariantCulture);
+        string pyramidDepth = "pyramidDepth=" + (pyramidEnabled
+            ? AutoCreatePyramidDepth.Normalize(autoCreate.PyramidFilterDepth)
+            : AutoCreatePyramidDepth.None);
+        int pyramidCoinPileMinimum = pyramidEnabled
+            ? AutoCreatePyramidCoinPileMinimum.Normalize(autoCreate.PyramidFilterCoinPileMinimum)
+            : 0;
+        string pyramidCoinPiles = "pyramidCoinPiles=" + pyramidCoinPileMinimum.ToString(CultureInfo.InvariantCulture);
         bool advancedFiltersEligible = AutoCreateAdvancedFilterEligibility.IsEligible(autoCreate);
         bool crimsonCorridorEnabled = cheatsEnabled && advancedFiltersEligible &&
             autoCreate.RequireCrimsonBetweenDungeonAndSpawn;
@@ -67,7 +74,7 @@ public static class WorldPoolSignature
                 "featherfall=" + AutoCreateResourceMinimum.NormalizePotions(autoCreate.ResourceFilterFeatherfallPotionMinimum).ToString(CultureInfo.InvariantCulture))
             : "resource=0";
         string nameLanguage = "name=" + TerrariaLanguageCodes.FromAppLanguage(appLanguage);
-        return string.Join("|", NormalizeTerrariaVersion(terrariaVersion), size, difficulty, evil, specialSeeds, secretSeeds, fixedSeed, cheats, pyramid, pyramidItems, crimsonCorridor, resourceFilter, nameLanguage);
+        return string.Join("|", NormalizeTerrariaVersion(terrariaVersion), size, difficulty, evil, specialSeeds, secretSeeds, fixedSeed, cheats, pyramid, pyramidItems, pyramidDepth, pyramidCoinPiles, crimsonCorridor, resourceFilter, nameLanguage);
     }
 
     public static string NormalizeTerrariaVersion(string? terrariaVersion)

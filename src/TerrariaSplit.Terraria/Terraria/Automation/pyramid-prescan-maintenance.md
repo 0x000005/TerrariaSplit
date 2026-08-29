@@ -138,9 +138,11 @@ Crimson range 选择前需要知道 surface 层 `JungleGrass` 和 `Snow/Ice` 的
 
 该优化在 `D:\Worlds` 上不改变 FP/FN/itemMismatch；主要收益是移除 Crimson 内部的全宽双扫结构，当前总耗时仍主要受 Jungle 和 Full Desert 波动支配。
 
-### 10. Pyramids 只模拟到首个箱子所需信息
+### 10. Pyramids 模拟首个箱子、深度和房间金币堆
 
-预筛只需要知道是否有目标金字塔，以及箱内目标物品。无需完整模拟金字塔每一处墙、装饰和后续无关生成。
+预筛保留目标箱子位置、`官方箱子 top-left Y - candidateScanY` 深度，以及房间内成功放置的铜/银/金币堆。金币堆不能使用 `Next(1, 10)` 的尝试次数代替：箱子、先前金币堆和陶罐都会产生占位，只有通过官方支撑与空位条件的 2x1 小堆才计数。tile grid 仍不保存 frame；模拟侧单独记录金币堆类型和位置，`.wld` 二验按 `SmallPiles` 的 frame 识别。
+
+箱子生成结束后的 `Next(12)` voice-item roll 也必须消费，命中时继续消费 `Next(14)`。该调用不影响常见箱子主物品，却会改变紧随其后的金币堆 RNG 序列。
 
 ## Hard Risk Gate
 
@@ -195,7 +197,7 @@ dotnet run -c Release --project test\TerrariaSplit.Diagnostics.csproj -- pyramid
 
 选项：
 
-- `--csv <path>`：输出每个世界的 TP/FP/TN/FN/itemMismatch 和耗时。
+- `--csv <path>`：输出每个世界的 TP/FP/TN/FN/itemMismatch、铜/银/金币堆实测与预测值、是否精确匹配及耗时。
 - `--diagnose-errors`：只输出错误样本诊断。
 - `--diagnose-all`：输出所有样本诊断，文件会很大。
 - `--diagnostics-csv <path>`：输出候选和箱子细节。
@@ -208,6 +210,8 @@ dotnet run -c Release --project test\TerrariaSplit.Diagnostics.csproj -- pyramid
 - `FP`：预筛认为有目标塔，但 `.wld` 二验无目标塔。
 - `FN`：`.wld` 二验有目标塔，但预筛没有放行。
 - `itemMismatch`：预筛有塔但物品类别不一致，按 FP 风险处理。
+- `coinExactRate`：预测和 `.wld` 都命中目标塔时，铜/银/金币堆三个计数完全一致的比例。
+- `coinMeanAbsoluteTotalError`：上述样本中金币堆总数的平均绝对误差。
 - `p50Ms`：中位数耗时。当前目标要求不超过 `140ms`。
 
 ### 4. 本地 pass trace
@@ -240,7 +244,7 @@ dotnet run -c Release --project test\TerrariaSplit.Diagnostics.csproj -- pyramid
 - Crimson accepted range 和 attempt 诊断。
 - Full Desert candidate step 诊断。
 - 每个 pyramid candidate 的 scanY、tile type、spacing、fate、risk。
-- 模拟箱子位置和 loot summary。
+- 模拟箱子位置、深度、铜/银/金币堆计数、每个金币堆位置和 loot summary。
 
 ### 5. 官方 pass-stop probe
 

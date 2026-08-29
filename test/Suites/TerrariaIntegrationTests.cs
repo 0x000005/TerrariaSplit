@@ -8,6 +8,7 @@ using TerrariaSplit.Terraria;
 using TerrariaSplit.Terraria.Automation;
 using TerrariaSplit.Terraria.Memory;
 using TerrariaSplit.Terraria.WorldGeneration;
+using TerrariaSplit.Terraria.WorldGeneration.Simulation;
 using TerrariaSplit.MemoryBridge.Payload;
 
 namespace TerrariaSplit.Tests;
@@ -17,6 +18,9 @@ internal static class TerrariaIntegrationTests
     public static IEnumerable<TestCase> All()
     {
         yield return TestCase.Sync("pyramid pre-screen evaluates known positive, item mismatch and no-pyramid seeds", TestSuite.Flow, PyramidPredictionJourney, timeoutSeconds: 30);
+        yield return TestCase.Sync("pyramid seed pre-screen records the opening-side tunnel top", TestSuite.Core, PyramidTunnelTopMeasurement, timeoutSeconds: 30);
+        yield return TestCase.Sync("pyramid coin piles require valid support and world-file frames count only their left half", TestSuite.Core, PyramidCoinPileMeasurement);
+        yield return TestCase.Sync("pyramid depth and coin requirements use inclusive thresholds on the same pyramid", TestSuite.Core, PyramidRequirementThresholds);
         yield return TestCase.Async("native jungle seed judge preserves protocol and returns seed-only analysis", TestSuite.Native, JungleSeedJudgeNativeJourney, timeoutSeconds: 30);
         yield return TestCase.Async("world seed filter skips a seed when the native call times out", TestSuite.Native, WorldSeedFilterTimeoutJourney, timeoutSeconds: 10);
         yield return TestCase.Async("native jungle seed judge applies its timeout while waiting for a call slot", TestSuite.Core, JungleSeedJudgeGateTimeoutJourney, timeoutSeconds: 10);
@@ -741,6 +745,8 @@ internal static class TerrariaIntegrationTests
         Check.True(accepted.CanUsePrediction);
         Check.True(accepted.AcceptSeed);
         Check.True(accepted.Result.LootSummary.Contains("Sandstorm in a Bottle", StringComparison.Ordinal));
+        Check.Equal(56, accepted.Result.Features.DepthFromSurface);
+        Check.Equal(new PyramidCoinPileCounts(Copper: 1, Silver: 0, Gold: 2), accepted.Result.Features.CoinPiles);
 
         settings.EnableCheats = false;
         Check.False(PyramidSeedPreScreenEvaluator.IsEnabledFor(settings));
@@ -753,6 +759,133 @@ internal static class TerrariaIntegrationTests
         PyramidSeedPreScreenPrediction absent = evaluator.Evaluate(settings, "702683177", TerrariaWorldGenerationVersion.Modern1458);
         Check.False(absent.AcceptSeed);
         Check.Equal("no pyramid", absent.RejectReason);
+    }
+
+    private static void PyramidCoinPileMeasurement()
+    {
+        var metadata = new WorldSeedMetadata("1", SizeCode: 1, DifficultyCode: 0, HasCrimson: true, SpecialSeedMask: 0);
+        var state = new WorldGenState(WorldOptions.FromMetadata(metadata));
+        const int x = 100;
+        const int y = 100;
+        state.Tiles[x, y + 1].SetType(TerrariaSplit.Terraria.WorldGeneration.Simulation.TileIds.SandstoneBrick);
+        state.Tiles[x + 1, y + 1].SetType(TerrariaSplit.Terraria.WorldGeneration.Simulation.TileIds.SandstoneBrick);
+
+        Check.True(PyramidsPassReplica.TryPlacePyramidCoinPile(state, x, y, pileStyle: 16, out PyramidCoinPile pile));
+        Check.Equal(PyramidCoinPileKind.Copper, pile.Kind);
+        Check.False(PyramidsPassReplica.TryPlacePyramidCoinPile(state, x + 1, y, pileStyle: 18, out _));
+
+        Check.True(PyramidCoinPileFrameClassifier.TryClassify(185, 576, 18, out PyramidCoinPileKind copper));
+        Check.Equal(PyramidCoinPileKind.Copper, copper);
+        Check.True(PyramidCoinPileFrameClassifier.TryClassify(185, 612, 18, out PyramidCoinPileKind silver));
+        Check.Equal(PyramidCoinPileKind.Silver, silver);
+        Check.True(PyramidCoinPileFrameClassifier.TryClassify(185, 648, 18, out PyramidCoinPileKind gold));
+        Check.Equal(PyramidCoinPileKind.Gold, gold);
+        Check.False(PyramidCoinPileFrameClassifier.TryClassify(185, 594, 18, out _));
+        Check.False(PyramidCoinPileFrameClassifier.TryClassify(185, 576, 0, out _));
+        Check.False(PyramidCoinPileFrameClassifier.TryClassify(186, 576, 18, out _));
+    }
+
+    private static void PyramidRequirementThresholds()
+    {
+        Check.True(AutoCreatePyramidDepth.Matches(20, AutoCreatePyramidDepth.Medium));
+        Check.False(AutoCreatePyramidDepth.Matches(21, AutoCreatePyramidDepth.Medium));
+        Check.True(AutoCreatePyramidDepth.Matches(12, AutoCreatePyramidDepth.Shallow));
+        Check.False(AutoCreatePyramidDepth.Matches(13, AutoCreatePyramidDepth.Shallow));
+        Check.True(AutoCreatePyramidDepth.Matches(6, AutoCreatePyramidDepth.VeryShallow));
+        Check.False(AutoCreatePyramidDepth.Matches(7, AutoCreatePyramidDepth.VeryShallow));
+        Check.True(AutoCreatePyramidDepth.Matches(-1, AutoCreatePyramidDepth.None));
+        Check.True(AutoCreatePyramidCoinPileMinimum.Matches(3, 3));
+        Check.False(AutoCreatePyramidCoinPileMinimum.Matches(2, 3));
+
+        PyramidChest itemOnly = CreateChest(
+            AutoCreatePyramidDepth.MaximumDistance(AutoCreatePyramidDepth.VeryShallow),
+            coinPileCount: 1,
+            TerrariaSplit.Terraria.WorldGeneration.PyramidChestItemNames.SandstormInABottle);
+        PyramidChest coinsOnly = CreateChest(
+            AutoCreatePyramidDepth.MaximumDistance(AutoCreatePyramidDepth.VeryShallow),
+            coinPileCount: 3,
+            TerrariaSplit.Terraria.WorldGeneration.PyramidChestItemNames.FlyingCarpet);
+        Check.False(new[] { itemOnly, coinsOnly }.Any(chest =>
+            PyramidSeedPreScreen.MatchesRequirements(
+                chest,
+                AutoCreatePyramidFilterItem.SandstormInABottleMask,
+                AutoCreatePyramidDepth.VeryShallow,
+                coinPileMinimum: 3)));
+
+        PyramidChest matching = CreateChest(
+            tunnelSurfaceDistance: 6,
+            coinPileCount: 3,
+            TerrariaSplit.Terraria.WorldGeneration.PyramidChestItemNames.SandstormInABottle);
+        Check.True(PyramidSeedPreScreen.MatchesRequirements(
+            matching,
+            AutoCreatePyramidFilterItem.SandstormInABottleMask,
+            AutoCreatePyramidDepth.VeryShallow,
+            coinPileMinimum: 3));
+        Check.False(PyramidSeedPreScreen.MatchesRequirements(
+            matching with { TunnelSurfaceDistance = 7 },
+            AutoCreatePyramidFilterItem.SandstormInABottleMask,
+            AutoCreatePyramidDepth.VeryShallow,
+            coinPileMinimum: 3));
+
+        static PyramidChest CreateChest(
+            int tunnelSurfaceDistance,
+            int coinPileCount,
+            int itemType)
+        {
+            PyramidCoinPile[] coinPiles = Enumerable.Range(0, coinPileCount)
+                .Select(index => new PyramidCoinPile(index, 0, PyramidCoinPileKind.Gold))
+                .ToArray();
+            return new PyramidChest(
+                X: 100,
+                Y: 100,
+                Items: [new TerrariaSplit.Terraria.WorldGeneration.PyramidChestItem(0, itemType, 1, 0)],
+                CoinPiles: coinPiles,
+                TunnelTopX: 100,
+                TunnelTopY: 50,
+                TunnelOpeningSide: 1,
+                TunnelSurfaceDistance: tunnelSurfaceDistance,
+                CandidateIndex: 0,
+                CandidateSourceIndex: 0,
+                CandidateScanY: 40,
+                CandidateSandDepth: 0,
+                CandidateSandSpan: 0,
+                CandidateActiveDepth: 0);
+        }
+    }
+
+    private static void PyramidTunnelTopMeasurement()
+    {
+        (string Seed, int X, int Y, int OpeningSide, int SurfaceDistance)[] samples =
+        [
+            ("1253175960", 2558, 301, 1, 23),
+            ("1909291907", 1673, 251, -1, 23),
+            ("251460947", 2612, 302, 1, 32),
+            ("732094897", 1665, 286, -1, 1),
+            ("152392711", 1782, 257, -1, 19),
+            ("468249785", 2446, 262, 1, 28),
+            ("2118316111", 1641, 306, 1, 8),
+            ("1165828267", 2606, 299, 1, 19),
+            ("1017563744", 2554, 322, 1, 18),
+            ("1182504360", 2504, 282, 1, 13),
+        ];
+
+        foreach ((string seed, int expectedX, int expectedY, int expectedOpeningSide, int expectedSurfaceDistance) in samples)
+        {
+            var metadata = new WorldSeedMetadata(seed, SizeCode: 1, DifficultyCode: 0, HasCrimson: true, SpecialSeedMask: 0);
+            StageOneReplicaResult result = new StageOneReplicaSimulator().Generate(metadata, TerrariaWorldGenerationVersion.Modern1458);
+            Check.True(result.IsComplete);
+            PyramidChestSet targetChests = result.State.ScanTargetPyramidChests();
+            Check.Equal(1, targetChests.Chests.Count);
+            PyramidChest chest = targetChests.Chests[0];
+            PyramidCandidate candidate = result.State.PyramidCandidates[chest.CandidateIndex];
+
+            Check.Equal(expectedX, chest.TunnelTopX);
+            Check.Equal(expectedY, chest.TunnelTopY);
+            Check.Equal(expectedOpeningSide, chest.TunnelOpeningSide);
+            Check.Equal(expectedSurfaceDistance, chest.TunnelSurfaceDistance);
+            Check.Equal(expectedOpeningSide, Math.Sign(chest.TunnelTopX - candidate.X));
+            Check.False(result.State.Tiles[chest.TunnelTopX, chest.TunnelTopY].Active);
+        }
     }
 
     private static async Task WorldFileTransferJourney(CancellationToken cancellationToken)

@@ -16,6 +16,8 @@ public static class SettingsSectionNormalizer
         autoCreate.ZenithStarCatchStopStage = AutoCreateZenithStarCatchStage.Normalize(autoCreate.ZenithStarCatchStopStage);
         autoCreate.ZenithStarCatchSpeedSliderValue = AutoCreateZenithStarCatchSpeed.NormalizeSliderValue(autoCreate.ZenithStarCatchSpeedSliderValue);
         autoCreate.PyramidFilterItemMask = AutoCreatePyramidFilterItem.NormalizeMask(autoCreate.PyramidFilterItemMask);
+        autoCreate.PyramidFilterDepth = AutoCreatePyramidDepth.Normalize(autoCreate.PyramidFilterDepth);
+        autoCreate.PyramidFilterCoinPileMinimum = AutoCreatePyramidCoinPileMinimum.Normalize(autoCreate.PyramidFilterCoinPileMinimum);
         autoCreate.CrimsonDistance = AutoCreateCrimsonDistance.Normalize(autoCreate.CrimsonDistance);
         autoCreate.JungleRouteDepth = AutoCreateJungleRouteDepth.Normalize(autoCreate.JungleRouteDepth);
         autoCreate.ResourceFilterItemMask = AutoCreateResourceFilterItem.NormalizeMask(autoCreate.ResourceFilterItemMask);
@@ -150,6 +152,8 @@ public static class SettingsSectionNormalizer
         setup.SecretSeeds = setup.SecretSeeds?.Trim() ?? string.Empty;
         setup.BossPenaltyEnabledKinds &= RaceWorldSetupSettings.AllBossPenaltyKinds;
         setup.PyramidItemMask = AutoCreatePyramidFilterItem.NormalizeMask(setup.PyramidItemMask);
+        setup.PyramidDepth = AutoCreatePyramidDepth.Normalize(setup.PyramidDepth);
+        setup.PyramidCoinPileMinimum = AutoCreatePyramidCoinPileMinimum.Normalize(setup.PyramidCoinPileMinimum);
         setup.CrimsonDistance = AutoCreateCrimsonDistance.Normalize(setup.CrimsonDistance);
         setup.JungleRouteDepth = AutoCreateJungleRouteDepth.Normalize(setup.JungleRouteDepth);
         setup.ResourceItemMask = AutoCreateResourceFilterItem.NormalizeMask(setup.ResourceItemMask);

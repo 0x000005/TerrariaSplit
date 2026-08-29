@@ -40,12 +40,16 @@ internal sealed class PyramidSeedPreScreenEvaluator
         int difficultyCode = TerrariaWorldSeedOptions.CopiedDifficultyCode(settings.WorldDifficulty);
         int requiredItemMask = AutoCreatePyramidFilterItem.NormalizeMaskOrAll(settings.PyramidFilterItemMask);
         string requiredItems = PyramidFilterItemMatcher.FormatRequiredItems(requiredItemMask);
+        string requiredDepth = AutoCreatePyramidDepth.Normalize(settings.PyramidFilterDepth);
+        int requiredCoinPileMinimum = AutoCreatePyramidCoinPileMinimum.Normalize(settings.PyramidFilterCoinPileMinimum);
 
         PyramidSeedPreScreenResult result = PyramidSeedPreScreen.EvaluateSmallCrimson(
             seedText,
             difficultyCode,
             requiredItemMask,
-            worldGenerationVersion);
+            worldGenerationVersion,
+            requiredDepth,
+            requiredCoinPileMinimum);
 
         if (result.Status != PyramidSeedPreScreenStatus.Complete)
         {
@@ -61,18 +65,34 @@ internal sealed class PyramidSeedPreScreenEvaluator
             result,
             requiredItems,
             CanUsePrediction: true,
-            AcceptSeed: result.MatchesRequiredItems,
-            RejectReason: RejectReasonFor(result));
+            AcceptSeed: result.MatchesRequirements,
+            RejectReason: RejectReasonFor(result, requiredDepth, requiredCoinPileMinimum));
     }
 
-    private static string RejectReasonFor(PyramidSeedPreScreenResult result)
+    private static string RejectReasonFor(
+        PyramidSeedPreScreenResult result,
+        string requiredDepth,
+        int requiredCoinPileMinimum)
     {
         if (!result.HasTargetPyramid)
         {
             return "no pyramid";
         }
 
-        return result.MatchesRequiredItems ? string.Empty : "item mismatch";
+        if (result.MatchesRequirements)
+        {
+            return string.Empty;
+        }
+
+        bool filtersDepth = requiredDepth != AutoCreatePyramidDepth.None;
+        bool filtersCoinPiles = requiredCoinPileMinimum > 0;
+        return (filtersDepth, filtersCoinPiles) switch
+        {
+            (false, false) => "item mismatch",
+            (true, false) => "depth mismatch",
+            (false, true) => "coin pile mismatch",
+            _ => "pyramid requirement mismatch"
+        };
     }
 }
 

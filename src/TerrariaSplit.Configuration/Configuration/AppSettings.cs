@@ -255,6 +255,10 @@ public sealed class RaceWorldSetupSettings
         AutoCreatePyramidFilterItem.SandstormInABottleMask |
         AutoCreatePyramidFilterItem.FlyingCarpetMask;
 
+    public string PyramidDepth { get; set; } = AutoCreatePyramidDepth.Medium;
+
+    public int PyramidCoinPileMinimum { get; set; } = 1;
+
     public bool CrimsonEnabled { get; set; } = true;
 
     public string CrimsonDistance { get; set; } = AutoCreateCrimsonDistance.Default;
@@ -476,6 +480,8 @@ public sealed class AutoCreateWorldSettings
     public bool EnableCheats { get; set; } = true;
     public bool EnablePyramidFilter { get; set; } = true;
     public int PyramidFilterItemMask { get; set; } = AutoCreatePyramidFilterItem.SandstormInABottleMask | AutoCreatePyramidFilterItem.FlyingCarpetMask;
+    public string PyramidFilterDepth { get; set; } = AutoCreatePyramidDepth.Medium;
+    public int PyramidFilterCoinPileMinimum { get; set; } = 1;
     public bool RequireCrimsonBetweenDungeonAndSpawn { get; set; } = true;
     public string CrimsonDistance { get; set; } = AutoCreateCrimsonDistance.Default;
     public string JungleRouteDepth { get; set; } = AutoCreateJungleRouteDepth.Medium;
@@ -641,6 +647,51 @@ public static class AutoCreateJungleRouteDepth
         VeryDeep => 750,
         _ => 0
     };
+}
+
+public static class AutoCreatePyramidDepth
+{
+    public const string None = "0";
+    public const string Medium = "Medium";
+    public const string Shallow = "Shallow";
+    public const string VeryShallow = "Very shallow";
+
+    public static readonly string[] All = [Medium, Shallow, VeryShallow];
+
+    public static string Normalize(string? value) =>
+        All.FirstOrDefault(option => string.Equals(option, value, StringComparison.OrdinalIgnoreCase)) ?? None;
+
+    public static bool Includes(string selectedDepth, string candidate)
+    {
+        int selectedIndex = Array.IndexOf(All, Normalize(selectedDepth));
+        int candidateIndex = Array.IndexOf(All, Normalize(candidate));
+        return selectedIndex >= 0 && candidateIndex >= selectedIndex;
+    }
+
+    public static int MaximumDistance(string? depth) => Normalize(depth) switch
+    {
+        Medium => 20,
+        Shallow => 12,
+        VeryShallow => 6,
+        _ => int.MaxValue
+    };
+
+    public static bool Matches(int tunnelSurfaceDistance, string? depth)
+    {
+        string normalized = Normalize(depth);
+        return normalized == None ||
+            (tunnelSurfaceDistance >= 0 && tunnelSurfaceDistance <= MaximumDistance(normalized));
+    }
+}
+
+public static class AutoCreatePyramidCoinPileMinimum
+{
+    public static readonly int[] All = [0, 1, 2, 3];
+
+    public static int Normalize(int value) => All.Contains(value) ? value : 0;
+
+    public static bool Matches(int coinPileCount, int minimum) =>
+        coinPileCount >= Normalize(minimum);
 }
 
 public static class AutoCreateResourceFilterItem

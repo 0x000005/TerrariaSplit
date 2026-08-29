@@ -690,6 +690,8 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Cheats", "\u4F5C\u5F0A" }
       , { "World filters", "\u4E16\u754C\u7B5B\u9009" }
       , { "Pyramid", "\u91D1\u5B57\u5854" }
+      , { "Pyramid depth", "\u91D1\u5B57\u5854\u6DF1\u5EA6" }
+      , { "Pyramid coin piles", "\u91D1\u5B57\u5854\u91D1\u5E01\u5806" }
       , { "Require Crimson between dungeon and spawn", "\u8981\u6C42\u5730\u7262\u4E0E\u51FA\u751F\u70B9\u4E4B\u95F4\u5B58\u5728\u7329\u7EA2" }
       , { "Required items", "\u6307\u5B9A\u7269\u54C1" }
       , { "Boomstick", "\u4E09\u53D1\u730E\u67AA" }
@@ -743,6 +745,8 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Journey", "\u65C5\u884C" }
       , { "Small", "\u5C0F" }
       , { "Medium", "\u4E2D" }
+      , { "Shallow", "\u6D45" }
+      , { "Very shallow", "\u5F88\u6D45" }
       , { "Deep", "\u6DF1" }
       , { "Very deep", "\u5F88\u6DF1" }
       , { "Jungle main route", "\u4E1B\u6797\u4E3B\u8DEF" }

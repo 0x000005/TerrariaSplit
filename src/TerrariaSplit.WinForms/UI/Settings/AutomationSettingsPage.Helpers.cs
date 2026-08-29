@@ -157,6 +157,12 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
         autoCreateLifeCrystalMinimumBoxes,
         "Life Crystal");
 
+    private TableLayoutPanel CreatePyramidCoinPileMinimumSelector() => CreateMinimumSelector(
+        AutoCreatePyramidCoinPileMinimum.All,
+        AutoCreatePyramidCoinPileMinimum.Normalize(Draft.Automation.AutoCreate.PyramidFilterCoinPileMinimum),
+        autoCreatePyramidCoinPileMinimumBoxes,
+        "Pyramid coin piles");
+
     private TableLayoutPanel CreateSpelunkerMinimumSelector() => CreateMinimumSelector(
         AutoCreateResourceMinimum.Potions,
         AutoCreateResourceMinimum.NormalizePotions(Draft.Automation.AutoCreate.ResourceFilterSpelunkerPotionMinimum),
@@ -314,6 +320,34 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
         FinishSingleRowSelector(panel);
         ApplyJungleRouteDepthSelection(selectedDepth);
         UpdatePostGenerationFilterAvailability();
+        return panel;
+    }
+
+    private TableLayoutPanel CreatePyramidDepthSelector()
+    {
+        autoCreatePyramidDepthBoxes.Clear();
+
+        int columnCount = AutoCreatePyramidDepth.All.Length + 1;
+        TableLayoutPanel panel = CreateSelectorPanel(columnCount, fixedFirstColumn: true);
+        autoCreatePyramidDepthBox.Margin = new Padding(0, 0, 0, CheatSelectorGap);
+        panel.Controls.Add(autoCreatePyramidDepthBox, 0, 0);
+
+        string selectedDepth = AutoCreatePyramidDepth.Normalize(Draft.Automation.AutoCreate.PyramidFilterDepth);
+        for (int index = 0; index < AutoCreatePyramidDepth.All.Length; index++)
+        {
+            string depth = AutoCreatePyramidDepth.All[index];
+            CheckBox button = CreateSelectorButton(
+                depth,
+                AutoCreatePyramidDepth.Includes(selectedDepth, depth));
+            button.Margin = SelectorMargin(index, AutoCreatePyramidDepth.All.Length);
+            button.CheckedChanged += (_, _) => SelectPyramidDepth(depth, button.Checked);
+            autoCreatePyramidDepthBoxes[depth] = button;
+            panel.Controls.Add(button, index + 2, 0);
+        }
+
+        FinishSingleRowSelector(panel);
+        ApplyPyramidDepthSelection(selectedDepth);
+        UpdatePyramidItemAvailability();
         return panel;
     }
 
@@ -480,6 +514,17 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
             button.Enabled = filtersEnabled && autoCreatePyramidFilterBox.Checked;
             UpdateSpecialSeedButtonState(button);
         }
+
+        bool pyramidEnabled = filtersEnabled && autoCreatePyramidFilterBox.Checked;
+        autoCreatePyramidDepthBox.Enabled = pyramidEnabled;
+        UpdateSpecialSeedButtonState(autoCreatePyramidDepthBox);
+        foreach (CheckBox button in autoCreatePyramidDepthBoxes.Values)
+        {
+            button.Enabled = pyramidEnabled && autoCreatePyramidDepthBox.Checked;
+            UpdateSpecialSeedButtonState(button);
+        }
+
+        UpdateMinimumAvailability(autoCreatePyramidCoinPileMinimumBoxes, pyramidEnabled);
     }
 
     private void UpdatePostGenerationFilterAvailability()
@@ -715,6 +760,59 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
         }
 
         return AutoCreateJungleRouteDepth.None;
+    }
+
+    private void SelectPyramidDepth(string selectedDepth, bool selected)
+    {
+        if (updatingPyramidDepthSelection)
+        {
+            return;
+        }
+
+        string normalized = selectedDepth == AutoCreatePyramidDepth.None
+            ? selected ? AutoCreatePyramidDepth.Medium : AutoCreatePyramidDepth.None
+            : AutoCreatePyramidDepth.Normalize(selectedDepth);
+        ApplyPyramidDepthSelection(normalized);
+        UpdatePyramidItemAvailability();
+    }
+
+    private void ApplyPyramidDepthSelection(string selectedDepth)
+    {
+        updatingPyramidDepthSelection = true;
+        try
+        {
+            string normalized = AutoCreatePyramidDepth.Normalize(selectedDepth);
+            bool enabled = normalized != AutoCreatePyramidDepth.None;
+            autoCreatePyramidDepthBox.Checked = enabled;
+            UpdateSpecialSeedButtonState(autoCreatePyramidDepthBox);
+            foreach ((string depth, CheckBox button) in autoCreatePyramidDepthBoxes)
+            {
+                button.Checked = enabled && AutoCreatePyramidDepth.Includes(normalized, depth);
+                UpdateSpecialSeedButtonState(button);
+            }
+        }
+        finally
+        {
+            updatingPyramidDepthSelection = false;
+        }
+    }
+
+    private string GetSelectedPyramidDepth()
+    {
+        if (!autoCreatePyramidDepthBox.Checked)
+        {
+            return AutoCreatePyramidDepth.None;
+        }
+
+        foreach (string depth in AutoCreatePyramidDepth.All)
+        {
+            if (autoCreatePyramidDepthBoxes.TryGetValue(depth, out CheckBox? button) && button.Checked)
+            {
+                return depth;
+            }
+        }
+
+        return AutoCreatePyramidDepth.None;
     }
 
     private void SelectZenithStarCatchStage(string selectedStopStage)

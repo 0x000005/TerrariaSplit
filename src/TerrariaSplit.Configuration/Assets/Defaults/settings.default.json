@@ -1022,6 +1022,8 @@
             "EnableCheats": true,
             "EnablePyramidFilter": true,
             "PyramidFilterItemMask": 3,
+            "PyramidFilterDepth": "Medium",
+            "PyramidFilterCoinPileMinimum": 1,
             "RequireCrimsonBetweenDungeonAndSpawn": true,
             "CrimsonDistance": "Far",
             "JungleRouteDepth": "Medium",

@@ -199,12 +199,16 @@ internal static class PyramidsPassReplica
         int hallX = x - diagonalOffset * direction;
         int hallY = y + diagonalOffset;
         int hallHeight = random.Next(5, 8);
+        int tunnelOpeningSide = -direction;
+        int tunnelTopX = hallX;
+        int tunnelTopY = hallY;
 
         bool clearingEntrance = true;
         while (clearingEntrance)
         {
             clearingEntrance = false;
             bool reachedSand = false;
+            bool clearedTunnelTop = false;
             for (int row = hallY; row <= hallY + hallHeight; row++)
             {
                 if (state.Tiles[hallX, row - 1].IsActiveType(TileIds.Sand))
@@ -216,6 +220,10 @@ internal static class PyramidsPassReplica
                 {
                     ClearTile(state, hallX, row);
                     clearingEntrance = true;
+                    if (row == tunnelTopY)
+                    {
+                        clearedTunnelTop = true;
+                    }
                 }
 
                 if (reachedSand)
@@ -224,8 +232,15 @@ internal static class PyramidsPassReplica
                 }
             }
 
+            if (clearedTunnelTop && !state.Tiles[hallX, tunnelTopY].Active)
+            {
+                tunnelTopX = hallX;
+            }
+
             hallX -= direction;
         }
+
+        int tunnelSurfaceDistance = MeasureTunnelSurfaceDistance(state, tunnelTopX, tunnelTopY);
 
         hallX = x - diagonalOffset * direction;
         int turnCountdown = random.Next(20, 30);
@@ -298,23 +313,20 @@ internal static class PyramidsPassReplica
                     int chestMainItem = RollPyramidMainItem(random);
                     int chestX = (left + right) / 2;
                     int chestGroundY = FindChestGroundY(state, chestX, hallY);
-                    state.AddPyramidChest(
-                        chestX - 1,
-                        chestGroundY - 1,
-                        RollPyramidChestItems(state, random, chestMainItem),
-                        candidateIndex,
-                        candidateSourceIndex,
-                        candidateScanY,
-                        candidateSurfaceFeatures.SandDepth,
-                        candidateSurfaceFeatures.SandSpan,
-                        candidateSurfaceFeatures.ActiveDepth);
+                    IReadOnlyList<PyramidChestItem> chestItems = RollPyramidChestItems(state, random, chestMainItem);
+                    int roomFloorY = hallY + hallHeight;
+                    PlacePyramidChestTiles(state, chestX - 1, roomFloorY);
 
+                    var coinPiles = new List<PyramidCoinPile>();
                     int pileCount = random.Next(1, 10);
                     for (int i = 0; i < pileCount; i++)
                     {
-                        _ = random.Next(left, right);
-                        _ = hallY + hallHeight;
-                        _ = random.Next(16, 19);
+                        int pileX = random.Next(left, right);
+                        int pileStyle = random.Next(16, 19);
+                        if (TryPlacePyramidCoinPile(state, pileX, roomFloorY, pileStyle, out PyramidCoinPile pile))
+                        {
+                            coinPiles.Add(pile);
+                        }
                     }
 
                     _ = random.Next(4, 7);
@@ -323,8 +335,25 @@ internal static class PyramidsPassReplica
                     _ = random.Next(4, 7);
                     for (int potX = left; potX <= right; potX++)
                     {
-                        _ = random.Next(25, 28);
+                        int potStyle = random.Next(25, 28);
+                        TryPlacePyramidPot(state, random, potX, roomFloorY, potStyle);
                     }
+
+                    state.AddPyramidChest(
+                        chestX - 1,
+                        chestGroundY - 1,
+                        chestItems,
+                        coinPiles,
+                        tunnelTopX,
+                        tunnelTopY,
+                        tunnelOpeningSide,
+                        tunnelSurfaceDistance,
+                        candidateIndex,
+                        candidateSourceIndex,
+                        candidateScanY,
+                        candidateSurfaceFeatures.SandDepth,
+                        candidateSurfaceFeatures.SandSpan,
+                        candidateSurfaceFeatures.ActiveDepth);
                 }
 
                 if (firstTurn)
@@ -353,6 +382,36 @@ internal static class PyramidsPassReplica
         SimulateLowerTunnel(state, random, ref hallX, ref hallY, ref direction, hallHeight);
     }
 
+    private static int MeasureTunnelSurfaceDistance(WorldGenState state, int tunnelTopX, int tunnelTopY)
+    {
+        int minimumDistance = int.MaxValue;
+        for (int column = tunnelTopX - 2; column <= tunnelTopX + 2; column++)
+        {
+            if ((uint)column >= (uint)state.Tiles.Width)
+            {
+                continue;
+            }
+
+            int surfaceY = -1;
+            // A top-down search finds the real terrain surface and ignores underground air pockets.
+            for (int row = 0; row < tunnelTopY; row++)
+            {
+                if (state.Tiles[column, row].Active)
+                {
+                    surfaceY = row;
+                    break;
+                }
+            }
+
+            if (surfaceY >= 0)
+            {
+                minimumDistance = Math.Min(minimumDistance, tunnelTopY - surfaceY);
+            }
+        }
+
+        return minimumDistance == int.MaxValue ? 0 : minimumDistance;
+    }
+
     private static int FindChestGroundY(WorldGenState state, int x, int startY)
     {
         for (int y = startY; y < state.Options.Dimensions.Height - 10; y++)
@@ -364,6 +423,92 @@ internal static class PyramidsPassReplica
         }
 
         return startY;
+    }
+
+    private static void PlacePyramidChestTiles(WorldGenState state, int left, int bottom)
+    {
+        for (int x = left; x <= left + 1; x++)
+        {
+            SetActiveType(state, x, bottom - 1, TileIds.Chest);
+            SetActiveType(state, x, bottom, TileIds.Chest);
+        }
+    }
+
+    internal static bool TryPlacePyramidCoinPile(
+        WorldGenState state,
+        int x,
+        int y,
+        int pileStyle,
+        out PyramidCoinPile pile)
+    {
+        pile = default;
+        if (!InWorld(state, x, y) ||
+            !InWorld(state, x + 1, y) ||
+            !InWorld(state, x, y + 1) ||
+            !InWorld(state, x + 1, y + 1))
+        {
+            return false;
+        }
+
+        TileData left = state.Tiles[x, y];
+        TileData right = state.Tiles[x + 1, y];
+        if ((left.Liquid > 0 && left.LiquidType == 1) ||
+            left.Active ||
+            right.Active ||
+            !IsSolidTile(state, x, y + 1) ||
+            !IsSolidTile(state, x + 1, y + 1))
+        {
+            return false;
+        }
+
+        PyramidCoinPileKind kind = pileStyle switch
+        {
+            16 => PyramidCoinPileKind.Copper,
+            17 => PyramidCoinPileKind.Silver,
+            18 => PyramidCoinPileKind.Gold,
+            _ => throw new ArgumentOutOfRangeException(nameof(pileStyle), pileStyle, "Unsupported pyramid coin-pile style.")
+        };
+
+        SetActiveType(state, x, y, TileIds.SmallPiles);
+        SetActiveType(state, x + 1, y, TileIds.SmallPiles);
+        pile = new PyramidCoinPile(x, y, kind);
+        return true;
+    }
+
+    private static bool TryPlacePyramidPot(
+        WorldGenState state,
+        UnifiedRandom random,
+        int x,
+        int y,
+        int style)
+    {
+        _ = style;
+        if (!InWorld(state, x, y - 1) ||
+            !InWorld(state, x + 1, y - 1) ||
+            !InWorld(state, x, y + 1) ||
+            !InWorld(state, x + 1, y + 1))
+        {
+            return false;
+        }
+
+        for (int column = x; column <= x + 1; column++)
+        {
+            if (state.Tiles[column, y - 1].Active ||
+                state.Tiles[column, y].Active ||
+                !IsSolidTile(state, column, y + 1))
+            {
+                return false;
+            }
+        }
+
+        _ = random.Next(3);
+        for (int column = x; column <= x + 1; column++)
+        {
+            SetActiveType(state, column, y - 1, TileIds.Pots);
+            SetActiveType(state, column, y, TileIds.Pots);
+        }
+
+        return true;
     }
 
     private static void SimulateLowerTunnel(
@@ -630,6 +775,28 @@ internal static class PyramidsPassReplica
         if (random.Next(2) == 0)
         {
             AddItem(items, 9, random.Next(50, 100));
+        }
+
+        if (random.Next(12) == 0)
+        {
+            int voiceItem = random.Next(14) switch
+            {
+                1 => 5500,
+                2 => 5501,
+                3 => 5502,
+                4 => 5503,
+                5 => 5504,
+                6 => 5505,
+                7 => 5506,
+                8 => 5507,
+                9 => 5508,
+                10 => 5509,
+                11 => 5484,
+                12 => 5485,
+                13 => 5534,
+                _ => 5499
+            };
+            AddItem(items, voiceItem);
         }
 
         return items;

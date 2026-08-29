@@ -336,6 +336,10 @@ public static class OfficialPyramidPassProbe
         string targetChestClass;
         string targetChestSummary;
         ScanTargetChests(out targetChestClass, out targetChestSummary);
+        int targetCopperPiles;
+        int targetSilverPiles;
+        int targetGoldPiles;
+        CountTargetCoinPiles(out targetCopperPiles, out targetSilverPiles, out targetGoldPiles);
 
         int count = CurrentCandidateCount();
         if (count == 0)
@@ -351,7 +355,10 @@ public static class OfficialPyramidPassProbe
                 allFirstX,
                 allFirstY,
                 targetChestClass,
-                targetChestSummary));
+                targetChestSummary,
+                targetCopperPiles,
+                targetSilverPiles,
+                targetGoldPiles));
             return;
         }
 
@@ -376,7 +383,10 @@ public static class OfficialPyramidPassProbe
                 allFirstX,
                 allFirstY,
                 targetChestClass,
-                targetChestSummary));
+                targetChestSummary,
+                targetCopperPiles,
+                targetSilverPiles,
+                targetGoldPiles));
         }
     }
 
@@ -660,6 +670,47 @@ public static class OfficialPyramidPassProbe
         summary = string.Join(";", summaries.ToArray());
     }
 
+    private static void CountTargetCoinPiles(out int copper, out int silver, out int gold)
+    {
+        copper = 0;
+        silver = 0;
+        gold = 0;
+        for (int x = TargetXMin() - 16; x < TargetXMaxExclusive() + 16; x++)
+        {
+            if (x < 0 || x >= TMain.maxTilesX)
+            {
+                continue;
+            }
+
+            for (int y = TargetYMin - 16; y < TargetYMaxExclusive + 16; y++)
+            {
+                if (y < 0 || y >= TMain.maxTilesY)
+                {
+                    continue;
+                }
+
+                Tile tile = TMain.tile[x, y];
+                if (tile == null || !tile.active() || tile.type != 185 || tile.frameY != 18)
+                {
+                    continue;
+                }
+
+                if (tile.frameX == 576)
+                {
+                    copper++;
+                }
+                else if (tile.frameX == 612)
+                {
+                    silver++;
+                }
+                else if (tile.frameX == 648)
+                {
+                    gold++;
+                }
+            }
+        }
+    }
+
     private static string ClassifyChest(Chest chest)
     {
         bool hasFlying = false;
@@ -936,7 +987,7 @@ public static class OfficialPyramidPassProbe
     private sealed class ProbeRow
     {
         public const string Header =
-            "seed,checkpoint,rowKind,candidateIndex,candidateOrigin,candidateX,candidateY,scanY,scanActive,scanTileType,scanTileName,minPreviousDistance,officialEligible,rejectReason,sandDepth,sandSpan,activeDepth,dungeonSide,dungeonPositionX,worldSurface,undergroundDesert,undergroundDesertHive,targetPyramidTiles,targetPyramidFirstX,targetPyramidFirstY,allSurfacePyramidTiles,allSurfaceFirstX,allSurfaceFirstY,targetChestClass,targetChestSummary,finished,durationMs";
+            "seed,checkpoint,rowKind,candidateIndex,candidateOrigin,candidateX,candidateY,scanY,scanActive,scanTileType,scanTileName,minPreviousDistance,officialEligible,rejectReason,sandDepth,sandSpan,activeDepth,dungeonSide,dungeonPositionX,worldSurface,undergroundDesert,undergroundDesertHive,targetPyramidTiles,targetPyramidFirstX,targetPyramidFirstY,allSurfacePyramidTiles,allSurfaceFirstX,allSurfaceFirstY,targetChestClass,targetChestSummary,targetCopperPiles,targetSilverPiles,targetGoldPiles,finished,durationMs";
 
         private readonly int _seed;
         private readonly string _checkpoint;
@@ -968,6 +1019,9 @@ public static class OfficialPyramidPassProbe
         private readonly int _allSurfaceFirstY;
         private readonly string _targetChestClass;
         private readonly string _targetChestSummary;
+        private readonly int _targetCopperPiles;
+        private readonly int _targetSilverPiles;
+        private readonly int _targetGoldPiles;
         private readonly bool _finished;
         private readonly long _durationMilliseconds;
 
@@ -1002,6 +1056,9 @@ public static class OfficialPyramidPassProbe
             int allSurfaceFirstY,
             string targetChestClass,
             string targetChestSummary,
+            int targetCopperPiles,
+            int targetSilverPiles,
+            int targetGoldPiles,
             bool finished,
             long durationMilliseconds)
         {
@@ -1035,6 +1092,9 @@ public static class OfficialPyramidPassProbe
             _allSurfaceFirstY = allSurfaceFirstY;
             _targetChestClass = targetChestClass;
             _targetChestSummary = targetChestSummary;
+            _targetCopperPiles = targetCopperPiles;
+            _targetSilverPiles = targetSilverPiles;
+            _targetGoldPiles = targetGoldPiles;
             _finished = finished;
             _durationMilliseconds = durationMilliseconds;
         }
@@ -1050,7 +1110,10 @@ public static class OfficialPyramidPassProbe
             int allSurfaceFirstX,
             int allSurfaceFirstY,
             string targetChestClass,
-            string targetChestSummary)
+            string targetChestSummary,
+            int targetCopperPiles,
+            int targetSilverPiles,
+            int targetGoldPiles)
         {
             return new ProbeRow(
                 seed,
@@ -1083,6 +1146,9 @@ public static class OfficialPyramidPassProbe
                 allSurfaceFirstY,
                 targetChestClass,
                 targetChestSummary,
+                targetCopperPiles,
+                targetSilverPiles,
+                targetGoldPiles,
                 false,
                 elapsedMilliseconds);
         }
@@ -1103,7 +1169,10 @@ public static class OfficialPyramidPassProbe
             int allSurfaceFirstX,
             int allSurfaceFirstY,
             string targetChestClass,
-            string targetChestSummary)
+            string targetChestSummary,
+            int targetCopperPiles,
+            int targetSilverPiles,
+            int targetGoldPiles)
         {
             return new ProbeRow(
                 seed,
@@ -1136,6 +1205,9 @@ public static class OfficialPyramidPassProbe
                 allSurfaceFirstY,
                 targetChestClass,
                 targetChestSummary,
+                targetCopperPiles,
+                targetSilverPiles,
+                targetGoldPiles,
                 false,
                 elapsedMilliseconds);
         }
@@ -1173,6 +1245,9 @@ public static class OfficialPyramidPassProbe
                 -1,
                 string.Empty,
                 string.Empty,
+                0,
+                0,
+                0,
                 finished,
                 durationMilliseconds);
         }
@@ -1235,6 +1310,9 @@ public static class OfficialPyramidPassProbe
                 _allSurfaceFirstY.ToString(CultureInfo.InvariantCulture),
                 Csv(_targetChestClass),
                 Csv(_targetChestSummary),
+                _targetCopperPiles.ToString(CultureInfo.InvariantCulture),
+                _targetSilverPiles.ToString(CultureInfo.InvariantCulture),
+                _targetGoldPiles.ToString(CultureInfo.InvariantCulture),
                 _finished ? "true" : "false",
                 _durationMilliseconds.ToString(CultureInfo.InvariantCulture));
         }

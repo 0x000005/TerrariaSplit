@@ -16,6 +16,8 @@ internal sealed class PyramidFilterWorldFileEvaluator
     public PyramidFilterWorldFileResult Evaluate(string worldPath, AutoCreateWorldSettings settings)
     {
         int requiredItemMask = PyramidFilterItemMatcher.ResolveRequiredMaskOrAll(settings.PyramidFilterItemMask);
+        string requiredDepth = AutoCreatePyramidDepth.Normalize(settings.PyramidFilterDepth);
+        int requiredCoinPileMinimum = AutoCreatePyramidCoinPileMinimum.Normalize(settings.PyramidFilterCoinPileMinimum);
         Stopwatch stopwatch = Stopwatch.StartNew();
         bool pyramidEnabled = IsPyramidFilterEnabled(settings);
         bool pyramidScanned = true;
@@ -31,6 +33,13 @@ internal sealed class PyramidFilterWorldFileEvaluator
                 out candidateChests,
                 out bounds,
                 out pyramidDetail);
+
+            if (pyramidScanned && requiredCoinPileMinimum > 0)
+            {
+                candidateChests = new PyramidChestScanResult(candidateChests.Chests
+                    .Where(chest => chest.CoinPiles.Total >= requiredCoinPileMinimum)
+                    .ToList());
+            }
         }
 
         stopwatch.Stop();
@@ -42,6 +51,8 @@ internal sealed class PyramidFilterWorldFileEvaluator
             pyramidEnabled,
             pyramidKeep,
             requiredItemMask,
+            requiredDepth,
+            requiredCoinPileMinimum,
             bounds,
             candidateChests,
             pyramidDetail,
@@ -61,6 +72,8 @@ internal readonly record struct PyramidFilterWorldFileResult(
     bool PyramidFilterEnabled,
     bool PyramidKeep,
     int RequiredItemMask,
+    string RequiredDepth,
+    int RequiredCoinPileMinimum,
     Rectangle ScanBounds,
     PyramidChestScanResult CandidateChests,
     string Detail,
