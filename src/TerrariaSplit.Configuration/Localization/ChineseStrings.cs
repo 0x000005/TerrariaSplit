@@ -687,10 +687,9 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Filter pyramid", "\u7B5B\u5854" }
       , { "Quick pyramid filter", "\u7B5B\u5854" }
       , { "Required pyramid items", "\u6307\u5B9A\u7269\u54C1" }
-      , { "Cheats", "\u4F5C\u5F0A" }
+      , { "Seed Filtering", "\u79CD\u5B50\u8FC7\u6EE4" }
       , { "World filters", "\u4E16\u754C\u7B5B\u9009" }
       , { "Pyramid", "\u91D1\u5B57\u5854" }
-      , { "Pyramid depth", "\u91D1\u5B57\u5854\u6DF1\u5EA6" }
       , { "Pyramid coin piles", "\u91D1\u5B57\u5854\u91D1\u5E01\u5806" }
       , { "Require Crimson between dungeon and spawn", "\u8981\u6C42\u5730\u7262\u4E0E\u51FA\u751F\u70B9\u4E4B\u95F4\u5B58\u5728\u7329\u7EA2" }
       , { "Required items", "\u6307\u5B9A\u7269\u54C1" }
@@ -745,8 +744,6 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Journey", "\u65C5\u884C" }
       , { "Small", "\u5C0F" }
       , { "Medium", "\u4E2D" }
-      , { "Shallow", "\u6D45" }
-      , { "Very shallow", "\u5F88\u6D45" }
       , { "Deep", "\u6DF1" }
       , { "Very deep", "\u5F88\u6DF1" }
       , { "Jungle main route", "\u4E1B\u6797\u4E3B\u8DEF" }

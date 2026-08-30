@@ -524,27 +524,6 @@ internal sealed partial class RaceShell
                 static setup => setup.PyramidItemMask,
                 static (setup, value) => setup.PyramidItemMask = value);
         }
-        else if (id == "pyramid-depth")
-        {
-            RaceWorldSetupSettings setup = EnsureInGameWorldSetup();
-            if (setup.PyramidEnabled)
-            {
-                setup.PyramidDepth = AutoCreatePyramidDepth.Normalize(setup.PyramidDepth) ==
-                    AutoCreatePyramidDepth.None
-                        ? AutoCreatePyramidDepth.Medium
-                        : AutoCreatePyramidDepth.None;
-            }
-            PersistInGameWorldSetup();
-        }
-        else if (id.StartsWith("pyramid-depth:", StringComparison.Ordinal))
-        {
-            RaceWorldSetupSettings setup = EnsureInGameWorldSetup();
-            if (setup.PyramidEnabled)
-            {
-                setup.PyramidDepth = AutoCreatePyramidDepth.Normalize(id["pyramid-depth:".Length..]);
-            }
-            PersistInGameWorldSetup();
-        }
         else if (id == "pyramid-coin-piles")
         {
             RaceWorldSetupSettings setup = EnsureInGameWorldSetup();

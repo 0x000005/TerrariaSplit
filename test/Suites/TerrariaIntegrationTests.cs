@@ -20,7 +20,8 @@ internal static class TerrariaIntegrationTests
         yield return TestCase.Sync("pyramid pre-screen evaluates known positive, item mismatch and no-pyramid seeds", TestSuite.Flow, PyramidPredictionJourney, timeoutSeconds: 30);
         yield return TestCase.Sync("pyramid seed pre-screen records the opening-side tunnel top", TestSuite.Core, PyramidTunnelTopMeasurement, timeoutSeconds: 30);
         yield return TestCase.Sync("pyramid coin piles require valid support and world-file frames count only their left half", TestSuite.Core, PyramidCoinPileMeasurement);
-        yield return TestCase.Sync("pyramid depth and coin requirements use inclusive thresholds on the same pyramid", TestSuite.Core, PyramidRequirementThresholds);
+        yield return TestCase.Sync("pyramid pre-screen ignores depth while the fixed depth and coin thresholds remain inclusive", TestSuite.Core, PyramidRequirementThresholds);
+        yield return TestCase.Sync("pyramid post-verification measures the opening-side surface distance and enforces 35 tiles", TestSuite.Core, PyramidPostVerificationDepth);
         yield return TestCase.Async("native jungle seed judge preserves protocol and returns seed-only analysis", TestSuite.Native, JungleSeedJudgeNativeJourney, timeoutSeconds: 30);
         yield return TestCase.Async("world seed filter skips a seed when the native call times out", TestSuite.Native, WorldSeedFilterTimeoutJourney, timeoutSeconds: 10);
         yield return TestCase.Async("native jungle seed judge applies its timeout while waiting for a call slot", TestSuite.Core, JungleSeedJudgeGateTimeoutJourney, timeoutSeconds: 10);
@@ -787,29 +788,24 @@ internal static class TerrariaIntegrationTests
 
     private static void PyramidRequirementThresholds()
     {
-        Check.True(AutoCreatePyramidDepth.Matches(20, AutoCreatePyramidDepth.Medium));
-        Check.False(AutoCreatePyramidDepth.Matches(21, AutoCreatePyramidDepth.Medium));
-        Check.True(AutoCreatePyramidDepth.Matches(12, AutoCreatePyramidDepth.Shallow));
-        Check.False(AutoCreatePyramidDepth.Matches(13, AutoCreatePyramidDepth.Shallow));
-        Check.True(AutoCreatePyramidDepth.Matches(6, AutoCreatePyramidDepth.VeryShallow));
-        Check.False(AutoCreatePyramidDepth.Matches(7, AutoCreatePyramidDepth.VeryShallow));
-        Check.True(AutoCreatePyramidDepth.Matches(-1, AutoCreatePyramidDepth.None));
+        Check.True(AutoCreatePyramidFilterDepth.Matches(35));
+        Check.False(AutoCreatePyramidFilterDepth.Matches(36));
+        Check.False(AutoCreatePyramidFilterDepth.Matches(-1));
         Check.True(AutoCreatePyramidCoinPileMinimum.Matches(3, 3));
         Check.False(AutoCreatePyramidCoinPileMinimum.Matches(2, 3));
 
         PyramidChest itemOnly = CreateChest(
-            AutoCreatePyramidDepth.MaximumDistance(AutoCreatePyramidDepth.VeryShallow),
+            AutoCreatePyramidFilterDepth.MaximumTunnelSurfaceDistance,
             coinPileCount: 1,
             TerrariaSplit.Terraria.WorldGeneration.PyramidChestItemNames.SandstormInABottle);
         PyramidChest coinsOnly = CreateChest(
-            AutoCreatePyramidDepth.MaximumDistance(AutoCreatePyramidDepth.VeryShallow),
+            AutoCreatePyramidFilterDepth.MaximumTunnelSurfaceDistance,
             coinPileCount: 3,
             TerrariaSplit.Terraria.WorldGeneration.PyramidChestItemNames.FlyingCarpet);
         Check.False(new[] { itemOnly, coinsOnly }.Any(chest =>
             PyramidSeedPreScreen.MatchesRequirements(
                 chest,
                 AutoCreatePyramidFilterItem.SandstormInABottleMask,
-                AutoCreatePyramidDepth.VeryShallow,
                 coinPileMinimum: 3)));
 
         PyramidChest matching = CreateChest(
@@ -819,12 +815,10 @@ internal static class TerrariaIntegrationTests
         Check.True(PyramidSeedPreScreen.MatchesRequirements(
             matching,
             AutoCreatePyramidFilterItem.SandstormInABottleMask,
-            AutoCreatePyramidDepth.VeryShallow,
             coinPileMinimum: 3));
-        Check.False(PyramidSeedPreScreen.MatchesRequirements(
-            matching with { TunnelSurfaceDistance = 7 },
+        Check.True(PyramidSeedPreScreen.MatchesRequirements(
+            matching with { TunnelSurfaceDistance = 36 },
             AutoCreatePyramidFilterItem.SandstormInABottleMask,
-            AutoCreatePyramidDepth.VeryShallow,
             coinPileMinimum: 3));
 
         static PyramidChest CreateChest(
@@ -851,6 +845,50 @@ internal static class TerrariaIntegrationTests
                 CandidateSandSpan: 0,
                 CandidateActiveDepth: 0);
         }
+    }
+
+    private static void PyramidPostVerificationDepth()
+    {
+        using var directory = new TestDirectory();
+        string leftPath = directory.Combine("left-depth-35.wld");
+        string rightPath = directory.Combine("right-depth-36.wld");
+        File.WriteAllBytes(leftPath, CreatePyramidPostFilterWorld(openingSide: -1, surfaceDistance: 35));
+        File.WriteAllBytes(rightPath, CreatePyramidPostFilterWorld(openingSide: 1, surfaceDistance: 36));
+
+        var scanner = new TerrariaWorldFilePyramidScanner();
+        Check.True(scanner.TryScanCandidateItemChests(
+            leftPath,
+            AutoCreateWorldSize.Small,
+            AutoCreatePyramidFilterItem.SandstormInABottleMask,
+            out PyramidChestScanResult leftScan,
+            out _,
+            out _));
+        Check.Equal(1, leftScan.Chests.Count);
+        Check.Equal(-1, leftScan.Chests[0].TunnelOpeningSide);
+        Check.Equal(35, leftScan.Chests[0].TunnelSurfaceDistance);
+
+        Check.True(scanner.TryScanCandidateItemChests(
+            rightPath,
+            AutoCreateWorldSize.Small,
+            AutoCreatePyramidFilterItem.SandstormInABottleMask,
+            out PyramidChestScanResult rightScan,
+            out _,
+            out _));
+        Check.Equal(1, rightScan.Chests.Count);
+        Check.Equal(1, rightScan.Chests[0].TunnelOpeningSide);
+        Check.Equal(36, rightScan.Chests[0].TunnelSurfaceDistance);
+
+        var settings = new AutoCreateWorldSettings
+        {
+            EnableCheats = true,
+            EnablePyramidFilter = true,
+            WorldSize = AutoCreateWorldSize.Small,
+            PyramidFilterItemMask = AutoCreatePyramidFilterItem.SandstormInABottleMask,
+            PyramidFilterCoinPileMinimum = 0
+        };
+        var evaluator = new PyramidFilterWorldFileEvaluator(scanner);
+        Check.True(evaluator.Evaluate(leftPath, settings).Keep);
+        Check.False(evaluator.Evaluate(rightPath, settings).Keep);
     }
 
     private static void PyramidTunnelTopMeasurement()
@@ -1334,6 +1372,155 @@ internal static class TerrariaIntegrationTests
         writer.Write(headerPosition);
         stream.Position = end;
         return stream.ToArray();
+    }
+
+    private static byte[] CreatePyramidPostFilterWorld(int openingSide, int surfaceDistance)
+    {
+        const int version = 279;
+        const int importanceCount = 753;
+        const int width = 420;
+        const int height = 420;
+        const int centerX = 210;
+        const int chestY = 130;
+        const int surfaceY = 84;
+        int tunnelTopY = surfaceY + surfaceDistance;
+        var active = new bool[width, height];
+        var type = new byte[width, height];
+        var wall = new byte[width, height];
+
+        for (int x = 0; x < width; x++)
+        {
+            for (int y = surfaceY; y < height; y++)
+            {
+                active[x, y] = true;
+                type[x, y] = 53;
+            }
+        }
+
+        for (int y = 70; y <= 210; y++)
+        {
+            int halfWidth = y - 69;
+            for (int x = Math.Max(0, centerX - halfWidth); x <= Math.Min(width - 1, centerX + halfWidth); x++)
+            {
+                active[x, y] = true;
+                type[x, y] = 151;
+                wall[x, y] = 34;
+            }
+        }
+
+        int normalizedSide = openingSide < 0 ? -1 : 1;
+        int outerX = centerX + normalizedSide * 30;
+        int innerX = centerX + normalizedSide * 10;
+        for (int x = Math.Min(outerX, innerX); x <= Math.Max(outerX, innerX); x++)
+        {
+            for (int y = tunnelTopY; y <= tunnelTopY + 5; y++)
+            {
+                ClearWithPyramidWall(x, y);
+            }
+        }
+
+        int pathLength = chestY - tunnelTopY;
+        for (int y = tunnelTopY; y <= chestY + 6; y++)
+        {
+            double progress = Math.Clamp((y - tunnelTopY) / (double)Math.Max(1, pathLength), 0d, 1d);
+            int pathX = (int)Math.Round(innerX + (centerX - innerX) * progress);
+            for (int x = pathX - 3; x <= pathX + 3; x++)
+            {
+                ClearWithPyramidWall(x, y);
+            }
+        }
+
+        for (int x = centerX - 15; x <= centerX + 15; x++)
+        {
+            for (int y = chestY - 10; y <= chestY + 10; y++)
+            {
+                ClearWithPyramidWall(x, y);
+            }
+        }
+
+        using var stream = new MemoryStream();
+        using var writer = new BinaryWriter(stream, Encoding.UTF8, leaveOpen: true);
+        writer.Write(version);
+        writer.Write(0x026369676F6C6572UL);
+        writer.Write((uint)0);
+        writer.Write((ulong)0);
+        writer.Write((short)3);
+        long pointersPosition = stream.Position;
+        writer.Write(0);
+        writer.Write(0);
+        writer.Write(0);
+        writer.Write((ushort)importanceCount);
+        writer.Write(new byte[(importanceCount + 7) / 8]);
+
+        int headerOffset = checked((int)stream.Position);
+        writer.Write("pyramid-post-filter-world");
+        writer.Write("12345");
+        writer.Write((ulong)version);
+        writer.Write(Guid.Empty.ToByteArray());
+        writer.Write(12345);
+        writer.Write(0);
+        writer.Write(width * 16);
+        writer.Write(0);
+        writer.Write(height * 16);
+        writer.Write(height);
+        writer.Write(width);
+        writer.Write(0);
+        for (int index = 0; index < 8; index++) writer.Write(false);
+        writer.Write(DateTime.UnixEpoch.ToBinary());
+        writer.Write((byte)0);
+        for (int index = 0; index < 17; index++) writer.Write(0);
+        writer.Write(centerX);
+        writer.Write(120);
+        writer.Write(120d);
+        writer.Write(250d);
+        writer.Write(0d);
+        writer.Write(true);
+        writer.Write(0);
+        writer.Write(false);
+        writer.Write(false);
+        writer.Write(40);
+        writer.Write(120);
+        writer.Write(true);
+
+        int tileOffset = checked((int)stream.Position);
+        for (int x = 0; x < width; x++)
+        {
+            for (int y = 0; y < height; y++)
+            {
+                byte header = 0;
+                if (active[x, y]) header |= 2;
+                if (wall[x, y] != 0) header |= 4;
+                writer.Write(header);
+                if (active[x, y]) writer.Write(type[x, y]);
+                if (wall[x, y] != 0) writer.Write(wall[x, y]);
+            }
+        }
+
+        int chestOffset = checked((int)stream.Position);
+        writer.Write((short)1);
+        writer.Write((short)40);
+        writer.Write(centerX);
+        writer.Write(chestY);
+        writer.Write(string.Empty);
+        writer.Write((short)1);
+        writer.Write(TerrariaSplit.Terraria.Automation.PyramidChestItemNames.SandstormInABottle);
+        writer.Write((byte)0);
+        for (int slot = 1; slot < 40; slot++) writer.Write((short)0);
+
+        long end = stream.Position;
+        stream.Position = pointersPosition;
+        writer.Write(headerOffset);
+        writer.Write(tileOffset);
+        writer.Write(chestOffset);
+        stream.Position = end;
+        return stream.ToArray();
+
+        void ClearWithPyramidWall(int x, int y)
+        {
+            active[x, y] = false;
+            type[x, y] = 0;
+            wall[x, y] = 34;
+        }
     }
 
     private static byte[] CreatePostFilterWorld(

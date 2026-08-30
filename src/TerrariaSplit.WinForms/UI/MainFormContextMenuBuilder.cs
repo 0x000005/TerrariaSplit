@@ -52,7 +52,7 @@ internal sealed class MainFormContextMenuBuilder
         bool enabled,
         Action toggleCheats)
     {
-        var item = new ToolStripMenuItem(Localizer.Get("Cheats", settings))
+        var item = new ToolStripMenuItem(Localizer.Get("Seed Filtering", settings))
         {
             Name = CheatsToggleItemName,
             Checked = settings.Automation.AutoCreate.EnableCheats,

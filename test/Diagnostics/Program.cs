@@ -6,6 +6,7 @@ internal static class Program
     {
         if (StartupMetrics.TryRun(args) ||
             PyramidPreScreenMetrics.TryRun(args) ||
+            PyramidDepthReport.TryRun(args) ||
             PyramidPreScreenTrace.TryRun(args) ||
             JungleTunnelTrace.TryRun(args) ||
             WorldFilterStress.TryRun(args))
@@ -14,7 +15,7 @@ internal static class Program
         }
 
         Console.Error.WriteLine(
-            "Expected startup-metrics, pyramid-metrics, pyramid-trace, " +
+            "Expected startup-metrics, pyramid-metrics, pyramid-depths, pyramid-trace, " +
             "jungle-trace or world-filter-stress.");
         return 2;
     }

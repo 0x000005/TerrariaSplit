@@ -38,7 +38,6 @@ internal static class ConfigurationStorageFlowTests
         settings.Race.WorldSetup.BossFailurePenaltyEnabled = false;
         settings.Race.WorldSetup.BossPenaltyEnabledKinds =
             RaceWorldSetupSettings.AllBossPenaltyKinds & ~RaceBossPenaltyKinds.Plantera;
-        settings.Race.WorldSetup.PyramidDepth = AutoCreatePyramidDepth.VeryShallow;
         settings.Race.WorldSetup.PyramidCoinPileMinimum = 3;
         settings.Race.WorldSetup.LifeCrystalMinimum = 5;
         settings.Race.BossPenalty.Skeletron.JourneyBaseSeconds = 37;
@@ -56,7 +55,6 @@ internal static class ConfigurationStorageFlowTests
         settings.Automation.AutoCreate.EnableCheats = true;
         settings.Automation.AutoCreate.RequireCrimsonBetweenDungeonAndSpawn = true;
         settings.Automation.AutoCreate.CrimsonDistance = AutoCreateCrimsonDistance.Near;
-        settings.Automation.AutoCreate.PyramidFilterDepth = AutoCreatePyramidDepth.Shallow;
         settings.Automation.AutoCreate.PyramidFilterCoinPileMinimum = 2;
         settings.Automation.AutoCreate.JungleRouteDepth = AutoCreateJungleRouteDepth.Deep;
         settings.Automation.AutoCreate.ResourceFilterItemMask = AutoCreateResourceFilterItem.BoomstickMask;
@@ -96,7 +94,6 @@ internal static class ConfigurationStorageFlowTests
         Check.Equal(
             RaceWorldSetupSettings.AllBossPenaltyKinds & ~RaceBossPenaltyKinds.Plantera,
             loaded.Race.WorldSetup.BossPenaltyEnabledKinds);
-        Check.Equal(AutoCreatePyramidDepth.VeryShallow, loaded.Race.WorldSetup.PyramidDepth);
         Check.Equal(3, loaded.Race.WorldSetup.PyramidCoinPileMinimum);
         Check.Equal(37, loaded.Race.BossPenalty.Skeletron.JourneyBaseSeconds);
         Check.Equal(
@@ -118,7 +115,6 @@ internal static class ConfigurationStorageFlowTests
         Check.True(loaded.Automation.AutoCreate.EnableCheats);
         Check.True(loaded.Automation.AutoCreate.RequireCrimsonBetweenDungeonAndSpawn);
         Check.Equal(AutoCreateCrimsonDistance.Near, loaded.Automation.AutoCreate.CrimsonDistance);
-        Check.Equal(AutoCreatePyramidDepth.Shallow, loaded.Automation.AutoCreate.PyramidFilterDepth);
         Check.Equal(2, loaded.Automation.AutoCreate.PyramidFilterCoinPileMinimum);
         Check.Equal(AutoCreateJungleRouteDepth.Deep, loaded.Automation.AutoCreate.JungleRouteDepth);
         Check.Equal(AutoCreateResourceFilterItem.BoomstickMask, loaded.Automation.AutoCreate.ResourceFilterItemMask);
@@ -153,9 +149,7 @@ internal static class ConfigurationStorageFlowTests
         AppSettings freshDefaults = AppSettingsDefaults.Create();
         Check.Equal("English", freshDefaults.General.Language);
         Check.True(freshDefaults.Route.SplitRoute.Count > 0);
-        Check.Equal(AutoCreatePyramidDepth.Medium, freshDefaults.Automation.AutoCreate.PyramidFilterDepth);
         Check.Equal(1, freshDefaults.Automation.AutoCreate.PyramidFilterCoinPileMinimum);
-        Check.Equal(AutoCreatePyramidDepth.Medium, freshDefaults.Race.WorldSetup.PyramidDepth);
         Check.Equal(1, freshDefaults.Race.WorldSetup.PyramidCoinPileMinimum);
     }
 

@@ -291,7 +291,6 @@ public sealed class TerrariaRaceWorldGenerationService : IDisposable
             EnableCheats = settings.EnableCheats,
             EnablePyramidFilter = settings.EnablePyramidFilter,
             PyramidFilterItemMask = settings.PyramidFilterItemMask,
-            PyramidFilterDepth = settings.PyramidFilterDepth,
             PyramidFilterCoinPileMinimum = settings.PyramidFilterCoinPileMinimum,
             RequireCrimsonBetweenDungeonAndSpawn = settings.RequireCrimsonBetweenDungeonAndSpawn,
             CrimsonDistance = settings.CrimsonDistance,

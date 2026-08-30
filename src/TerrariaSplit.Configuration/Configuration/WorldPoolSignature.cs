@@ -48,9 +48,9 @@ public static class WorldPoolSignature
             ? AutoCreatePyramidFilterItem.NormalizeMaskOrAll(autoCreate.PyramidFilterItemMask)
             : 0;
         string pyramidItems = "pyramidItems=" + pyramidItemMask.ToString(CultureInfo.InvariantCulture);
-        string pyramidDepth = "pyramidDepth=" + (pyramidEnabled
-            ? AutoCreatePyramidDepth.Normalize(autoCreate.PyramidFilterDepth)
-            : AutoCreatePyramidDepth.None);
+        string pyramidDepth = "pyramidMaxDepth=" + (pyramidEnabled
+            ? AutoCreatePyramidFilterDepth.MaximumTunnelSurfaceDistance
+            : 0).ToString(CultureInfo.InvariantCulture);
         int pyramidCoinPileMinimum = pyramidEnabled
             ? AutoCreatePyramidCoinPileMinimum.Normalize(autoCreate.PyramidFilterCoinPileMinimum)
             : 0;

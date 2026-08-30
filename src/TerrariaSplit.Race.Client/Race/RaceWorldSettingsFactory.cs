@@ -78,7 +78,6 @@ public static class RaceWorldSettingsFactory
             EnableCheats = cheats.Enabled,
             EnablePyramidFilter = cheats.PyramidEnabled,
             PyramidFilterItemMask = AutoCreatePyramidFilterItem.NormalizeMask(cheats.PyramidItemMask),
-            PyramidFilterDepth = AutoCreatePyramidDepth.Normalize(cheats.PyramidDepth),
             PyramidFilterCoinPileMinimum = AutoCreatePyramidCoinPileMinimum.Normalize(cheats.PyramidCoinPileMinimum),
             RequireCrimsonBetweenDungeonAndSpawn = cheats.CrimsonEnabled,
             CrimsonDistance = AutoCreateCrimsonDistance.Normalize(cheats.CrimsonDistance),

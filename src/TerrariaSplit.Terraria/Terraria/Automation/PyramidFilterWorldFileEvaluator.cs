@@ -16,7 +16,6 @@ internal sealed class PyramidFilterWorldFileEvaluator
     public PyramidFilterWorldFileResult Evaluate(string worldPath, AutoCreateWorldSettings settings)
     {
         int requiredItemMask = PyramidFilterItemMatcher.ResolveRequiredMaskOrAll(settings.PyramidFilterItemMask);
-        string requiredDepth = AutoCreatePyramidDepth.Normalize(settings.PyramidFilterDepth);
         int requiredCoinPileMinimum = AutoCreatePyramidCoinPileMinimum.Normalize(settings.PyramidFilterCoinPileMinimum);
         Stopwatch stopwatch = Stopwatch.StartNew();
         bool pyramidEnabled = IsPyramidFilterEnabled(settings);
@@ -34,10 +33,14 @@ internal sealed class PyramidFilterWorldFileEvaluator
                 out bounds,
                 out pyramidDetail);
 
-            if (pyramidScanned && requiredCoinPileMinimum > 0)
+            if (pyramidScanned)
             {
                 candidateChests = new PyramidChestScanResult(candidateChests.Chests
-                    .Where(chest => chest.CoinPiles.Total >= requiredCoinPileMinimum)
+                    .Where(chest =>
+                        AutoCreatePyramidFilterDepth.Matches(chest.TunnelSurfaceDistance) &&
+                        AutoCreatePyramidCoinPileMinimum.Matches(
+                            chest.CoinPiles.Total,
+                            requiredCoinPileMinimum))
                     .ToList());
             }
         }
@@ -51,7 +54,7 @@ internal sealed class PyramidFilterWorldFileEvaluator
             pyramidEnabled,
             pyramidKeep,
             requiredItemMask,
-            requiredDepth,
+            AutoCreatePyramidFilterDepth.MaximumTunnelSurfaceDistance,
             requiredCoinPileMinimum,
             bounds,
             candidateChests,
@@ -72,7 +75,7 @@ internal readonly record struct PyramidFilterWorldFileResult(
     bool PyramidFilterEnabled,
     bool PyramidKeep,
     int RequiredItemMask,
-    string RequiredDepth,
+    int MaximumTunnelSurfaceDistance,
     int RequiredCoinPileMinimum,
     Rectangle ScanBounds,
     PyramidChestScanResult CandidateChests,

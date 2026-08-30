@@ -35,7 +35,6 @@ internal sealed partial class RaceShell
             advancedFiltersEligible
                 ? setup.JungleRouteDepth
                 : AutoCreateJungleRouteDepth.None,
-            setup.PyramidDepth,
             setup.PyramidCoinPileMinimum);
         int worldDifficultyCode =
             TerrariaWorldSeedOptions.CopiedDifficultyCode(setup.WorldDifficulty);
@@ -129,7 +128,6 @@ internal sealed partial class RaceShell
         setup.BossPenaltyEnabledKinds = RaceBossPenalty.NormalizeEnabledKinds(
             setup.BossPenaltyEnabledKinds);
         setup.PyramidItemMask = AutoCreatePyramidFilterItem.NormalizeMask(setup.PyramidItemMask);
-        setup.PyramidDepth = AutoCreatePyramidDepth.Normalize(setup.PyramidDepth);
         setup.PyramidCoinPileMinimum = AutoCreatePyramidCoinPileMinimum.Normalize(
             setup.PyramidCoinPileMinimum);
         setup.CheatsEnabled = true;
@@ -162,7 +160,6 @@ internal sealed partial class RaceShell
             CheatsEnabled = source.CheatsEnabled,
             PyramidEnabled = source.PyramidEnabled,
             PyramidItemMask = source.PyramidItemMask,
-            PyramidDepth = source.PyramidDepth,
             PyramidCoinPileMinimum = source.PyramidCoinPileMinimum,
             CrimsonEnabled = source.CrimsonEnabled,
             CrimsonDistance = source.CrimsonDistance,

@@ -40,15 +40,14 @@ internal sealed class PyramidSeedPreScreenEvaluator
         int difficultyCode = TerrariaWorldSeedOptions.CopiedDifficultyCode(settings.WorldDifficulty);
         int requiredItemMask = AutoCreatePyramidFilterItem.NormalizeMaskOrAll(settings.PyramidFilterItemMask);
         string requiredItems = PyramidFilterItemMatcher.FormatRequiredItems(requiredItemMask);
-        string requiredDepth = AutoCreatePyramidDepth.Normalize(settings.PyramidFilterDepth);
         int requiredCoinPileMinimum = AutoCreatePyramidCoinPileMinimum.Normalize(settings.PyramidFilterCoinPileMinimum);
 
+        // Tunnel depth is authoritative only after Terraria has generated the .wld file.
         PyramidSeedPreScreenResult result = PyramidSeedPreScreen.EvaluateSmallCrimson(
             seedText,
             difficultyCode,
             requiredItemMask,
             worldGenerationVersion,
-            requiredDepth,
             requiredCoinPileMinimum);
 
         if (result.Status != PyramidSeedPreScreenStatus.Complete)
@@ -66,12 +65,11 @@ internal sealed class PyramidSeedPreScreenEvaluator
             requiredItems,
             CanUsePrediction: true,
             AcceptSeed: result.MatchesRequirements,
-            RejectReason: RejectReasonFor(result, requiredDepth, requiredCoinPileMinimum));
+            RejectReason: RejectReasonFor(result, requiredCoinPileMinimum));
     }
 
     private static string RejectReasonFor(
         PyramidSeedPreScreenResult result,
-        string requiredDepth,
         int requiredCoinPileMinimum)
     {
         if (!result.HasTargetPyramid)
@@ -84,15 +82,8 @@ internal sealed class PyramidSeedPreScreenEvaluator
             return string.Empty;
         }
 
-        bool filtersDepth = requiredDepth != AutoCreatePyramidDepth.None;
         bool filtersCoinPiles = requiredCoinPileMinimum > 0;
-        return (filtersDepth, filtersCoinPiles) switch
-        {
-            (false, false) => "item mismatch",
-            (true, false) => "depth mismatch",
-            (false, true) => "coin pile mismatch",
-            _ => "pyramid requirement mismatch"
-        };
+        return filtersCoinPiles ? "item or coin pile mismatch" : "item mismatch";
     }
 }
 

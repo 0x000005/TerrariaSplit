@@ -57,7 +57,7 @@ internal sealed class PyramidFilterAutomation
             FileAppLogger.Instance.Info(
                 $"World post-generation filter rejected '{Path.GetFileName(worldPath)}' because the world file could not be scanned. " +
                 $"requiredItems={PyramidFilterItemMatcher.FormatRequiredItems(result.RequiredItemMask)}, " +
-                $"requiredDepth={result.RequiredDepth}, requiredCoinPiles={result.RequiredCoinPileMinimum}, detail={result.Detail}, " +
+                $"maximumDepth={result.MaximumTunnelSurfaceDistance}, requiredCoinPiles={result.RequiredCoinPileMinimum}, detail={result.Detail}, " +
                 $"scanMs={result.ScanDuration.TotalMilliseconds:0}");
             return PyramidFilterOutcome.Rejected;
         }
@@ -66,7 +66,7 @@ internal sealed class PyramidFilterAutomation
             $"World post-generation filter scan '{Path.GetFileName(worldPath)}': keep={result.Keep}, " +
             $"pyramidEnabled={result.PyramidFilterEnabled}, pyramidKeep={result.PyramidKeep}, " +
             $"requiredItems={PyramidFilterItemMatcher.FormatRequiredItems(result.RequiredItemMask)}, " +
-            $"requiredDepth={result.RequiredDepth}, requiredCoinPiles={result.RequiredCoinPileMinimum}, " +
+            $"maximumDepth={result.MaximumTunnelSurfaceDistance}, requiredCoinPiles={result.RequiredCoinPileMinimum}, " +
             $"corridor={result.ScanBounds.Left},{result.ScanBounds.Top},{result.ScanBounds.Right},{result.ScanBounds.Bottom}, " +
             $"candidateChests={result.CandidateChests.FormatSummary()}, " +
             $"scanMs={result.ScanDuration.TotalMilliseconds:0}");

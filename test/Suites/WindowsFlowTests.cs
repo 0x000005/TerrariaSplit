@@ -26,10 +26,9 @@ internal static class WindowsFlowTests
         var settings = new AutoCreateWorldSettings
         {
             EnableCheats = true,
-            EnablePyramidFilter = true,
+            EnablePyramidFilter = false,
             RequireCrimsonBetweenDungeonAndSpawn = false,
             JungleRouteDepth = AutoCreateJungleRouteDepth.None,
-            PyramidFilterDepth = AutoCreatePyramidDepth.None,
             PyramidFilterCoinPileMinimum = 0
         };
         Check.Equal(
@@ -37,15 +36,14 @@ internal static class WindowsFlowTests
             CheatFilterIndicator.GetColor(
                 CheatFilterIndicator.Resolve(settings)).ToArgb());
 
-        settings.PyramidFilterDepth = AutoCreatePyramidDepth.VeryShallow;
+        settings.EnablePyramidFilter = true;
         Check.Equal(
-            Color.FromArgb(240, 138, 50).ToArgb(),
+            Color.FromArgb(217, 166, 46).ToArgb(),
             CheatFilterIndicator.GetColor(
                 CheatFilterIndicator.Resolve(settings)).ToArgb());
-        settings.PyramidFilterDepth = AutoCreatePyramidDepth.None;
         settings.PyramidFilterCoinPileMinimum = 1;
         Check.Equal(
-            Color.FromArgb(240, 138, 50).ToArgb(),
+            Color.FromArgb(217, 166, 46).ToArgb(),
             CheatFilterIndicator.GetColor(
                 CheatFilterIndicator.Resolve(settings)).ToArgb());
         settings.PyramidFilterCoinPileMinimum = 0;
@@ -53,11 +51,10 @@ internal static class WindowsFlowTests
         RaceCheatSettings raceSettings = RaceCheatSettings.Disabled with
         {
             Enabled = true,
-            PyramidEnabled = true,
-            PyramidDepth = AutoCreatePyramidDepth.Shallow
+            PyramidEnabled = true
         };
         Check.Equal(
-            Color.FromArgb(240, 138, 50).ToArgb(),
+            Color.FromArgb(217, 166, 46).ToArgb(),
             CheatFilterIndicator.GetColor(
                 CheatFilterIndicator.Resolve(raceSettings)).ToArgb());
 
@@ -276,12 +273,8 @@ internal static class WindowsFlowTests
         automation.AutoCreateCheatsBox.Checked = true;
         automation.AutoCreateWorldSizeBox.SelectedIndex = Array.IndexOf(AutoCreateWorldSize.All, AutoCreateWorldSize.Small);
         automation.AutoCreatePyramidFilterBox.Checked = true;
-        Check.True(automation.AutoCreatePyramidDepthBox.Enabled);
-        Check.True(automation.AutoCreatePyramidDepthBox.Checked);
-        Check.True(automation.AutoCreatePyramidDepthBoxes.Values.All(static button => button.Enabled));
         Check.True(automation.AutoCreatePyramidCoinPileMinimumBoxes[0].Enabled);
         Check.True(automation.AutoCreatePyramidCoinPileMinimumBoxes[0].Checked);
-        automation.AutoCreatePyramidDepthBoxes[AutoCreatePyramidDepth.VeryShallow].Checked = false;
         automation.AutoCreatePyramidCoinPileMinimumBoxes[3].Checked = false;
         Check.True(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Enabled);
         automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Checked = true;
@@ -325,7 +318,6 @@ internal static class WindowsFlowTests
         automation.AutoCreateJungleRouteDepthBox.Checked = true;
         AppSettings resourceDraft = form.PageHost.CreateAppliedSnapshot();
         Check.True(resourceDraft.Automation.AutoCreate.EnableCheats);
-        Check.Equal(AutoCreatePyramidDepth.VeryShallow, resourceDraft.Automation.AutoCreate.PyramidFilterDepth);
         Check.Equal(3, resourceDraft.Automation.AutoCreate.PyramidFilterCoinPileMinimum);
         Check.Equal(AutoCreateJungleRouteDepth.Medium, resourceDraft.Automation.AutoCreate.JungleRouteDepth);
         Check.Equal(0, resourceDraft.Automation.AutoCreate.ResourceFilterItemMask);
@@ -349,7 +341,7 @@ internal static class WindowsFlowTests
             static () => { });
         var cheatsItem = Check.Is<System.Windows.Forms.ToolStripMenuItem>(
             contextMenu.Items[MainFormContextMenuBuilder.CheatsToggleItemName]);
-        Check.Equal("Cheats", cheatsItem.Text);
+        Check.Equal("Seed Filtering", cheatsItem.Text);
         Check.True(cheatsItem.Checked);
         cheatsItem.PerformClick();
         Check.True(cheatsToggleRequested);

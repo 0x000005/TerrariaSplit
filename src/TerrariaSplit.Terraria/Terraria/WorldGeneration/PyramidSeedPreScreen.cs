@@ -36,7 +36,6 @@ internal static class PyramidSeedPreScreen
         int difficultyCode,
         int requiredItemMask,
         TerrariaWorldGenerationVersion version = TerrariaWorldGenerationVersion.Modern1458,
-        string pyramidDepth = AutoCreatePyramidDepth.None,
         int coinPileMinimum = 0)
     {
         return Evaluate(
@@ -47,7 +46,6 @@ internal static class PyramidSeedPreScreen
             specialSeedMask: 0,
             requiredItemMask,
             version,
-            pyramidDepth,
             coinPileMinimum);
     }
 
@@ -59,7 +57,6 @@ internal static class PyramidSeedPreScreen
         int specialSeedMask,
         int requiredItemMask,
         TerrariaWorldGenerationVersion version = TerrariaWorldGenerationVersion.Modern1458,
-        string pyramidDepth = AutoCreatePyramidDepth.None,
         int coinPileMinimum = 0)
     {
         Stopwatch stopwatch = Stopwatch.StartNew();
@@ -119,7 +116,7 @@ internal static class PyramidSeedPreScreen
             PyramidChest? matchingChest = null;
             foreach (PyramidChest chest in chests.Chests)
             {
-                if (MatchesRequirements(chest, requiredItemMask, pyramidDepth, coinPileMinimum))
+                if (MatchesRequirements(chest, requiredItemMask, coinPileMinimum))
                 {
                     matchingChest = chest;
                     break;
@@ -181,11 +178,9 @@ internal static class PyramidSeedPreScreen
     internal static bool MatchesRequirements(
         PyramidChest chest,
         int requiredItemMask,
-        string pyramidDepth,
         int coinPileMinimum)
     {
         return MatchesRequiredItems(chest, requiredItemMask) &&
-            AutoCreatePyramidDepth.Matches(chest.TunnelSurfaceDistance, pyramidDepth) &&
             AutoCreatePyramidCoinPileMinimum.Matches(chest.CoinPileCounts.Total, coinPileMinimum);
     }
 
