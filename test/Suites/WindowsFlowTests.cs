@@ -43,7 +43,7 @@ internal static class WindowsFlowTests
                 CheatFilterIndicator.Resolve(settings)).ToArgb());
         settings.PyramidFilterCoinPileMinimum = 1;
         Check.Equal(
-            Color.FromArgb(217, 166, 46).ToArgb(),
+            Color.FromArgb(240, 138, 50).ToArgb(),
             CheatFilterIndicator.GetColor(
                 CheatFilterIndicator.Resolve(settings)).ToArgb());
         settings.PyramidFilterCoinPileMinimum = 0;
@@ -55,6 +55,11 @@ internal static class WindowsFlowTests
         };
         Check.Equal(
             Color.FromArgb(217, 166, 46).ToArgb(),
+            CheatFilterIndicator.GetColor(
+                CheatFilterIndicator.Resolve(raceSettings)).ToArgb());
+        raceSettings = raceSettings with { PyramidCoinPileMinimum = 1 };
+        Check.Equal(
+            Color.FromArgb(240, 138, 50).ToArgb(),
             CheatFilterIndicator.GetColor(
                 CheatFilterIndicator.Resolve(raceSettings)).ToArgb());
 
