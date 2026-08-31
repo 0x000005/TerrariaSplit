@@ -54,7 +54,7 @@ public static class WorldPoolSignature
         int pyramidCoinPileMinimum = pyramidEnabled
             ? AutoCreatePyramidCoinPileMinimum.Normalize(autoCreate.PyramidFilterCoinPileMinimum)
             : 0;
-        string pyramidCoinPiles = "pyramidCoinPiles=" + pyramidCoinPileMinimum.ToString(CultureInfo.InvariantCulture);
+        string pyramidCoinPiles = "pyramidGoldCoinPiles=" + pyramidCoinPileMinimum.ToString(CultureInfo.InvariantCulture);
         bool advancedFiltersEligible = AutoCreateAdvancedFilterEligibility.IsEligible(autoCreate);
         bool crimsonCorridorEnabled = cheatsEnabled && advancedFiltersEligible &&
             autoCreate.RequireCrimsonBetweenDungeonAndSpawn;

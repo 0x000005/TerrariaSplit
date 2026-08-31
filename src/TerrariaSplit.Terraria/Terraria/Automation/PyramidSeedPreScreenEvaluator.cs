@@ -83,7 +83,7 @@ internal sealed class PyramidSeedPreScreenEvaluator
         }
 
         bool filtersCoinPiles = requiredCoinPileMinimum > 0;
-        return filtersCoinPiles ? "item or coin pile mismatch" : "item mismatch";
+        return filtersCoinPiles ? "item or gold coin pile mismatch" : "item mismatch";
     }
 }
 

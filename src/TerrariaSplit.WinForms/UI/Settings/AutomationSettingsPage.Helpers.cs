@@ -161,7 +161,7 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
         AutoCreatePyramidCoinPileMinimum.All,
         AutoCreatePyramidCoinPileMinimum.Normalize(Draft.Automation.AutoCreate.PyramidFilterCoinPileMinimum),
         autoCreatePyramidCoinPileMinimumBoxes,
-        "Pyramid coin piles");
+        "Pyramid gold coin piles");
 
     private TableLayoutPanel CreateSpelunkerMinimumSelector() => CreateMinimumSelector(
         AutoCreateResourceMinimum.Potions,

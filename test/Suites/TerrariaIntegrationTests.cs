@@ -20,7 +20,7 @@ internal static class TerrariaIntegrationTests
         yield return TestCase.Sync("pyramid pre-screen evaluates known positive, item mismatch and no-pyramid seeds", TestSuite.Flow, PyramidPredictionJourney, timeoutSeconds: 30);
         yield return TestCase.Sync("pyramid seed pre-screen records the opening-side tunnel top", TestSuite.Core, PyramidTunnelTopMeasurement, timeoutSeconds: 30);
         yield return TestCase.Sync("pyramid coin piles require valid support and world-file frames count only their left half", TestSuite.Core, PyramidCoinPileMeasurement);
-        yield return TestCase.Sync("pyramid pre-screen ignores depth while the fixed depth and coin thresholds remain inclusive", TestSuite.Core, PyramidRequirementThresholds);
+        yield return TestCase.Sync("pyramid pre-screen ignores depth and counts only gold coin piles", TestSuite.Core, PyramidRequirementThresholds);
         yield return TestCase.Sync("pyramid post-verification measures the opening-side surface distance and enforces 35 tiles", TestSuite.Core, PyramidPostVerificationDepth);
         yield return TestCase.Async("native jungle seed judge preserves protocol and returns seed-only analysis", TestSuite.Native, JungleSeedJudgeNativeJourney, timeoutSeconds: 30);
         yield return TestCase.Async("world seed filter skips a seed when the native call times out", TestSuite.Native, WorldSeedFilterTimeoutJourney, timeoutSeconds: 10);
@@ -816,6 +816,18 @@ internal static class TerrariaIntegrationTests
             matching,
             AutoCreatePyramidFilterItem.SandstormInABottleMask,
             coinPileMinimum: 3));
+        Check.False(PyramidSeedPreScreen.MatchesRequirements(
+            matching with
+            {
+                CoinPiles =
+                [
+                    new PyramidCoinPile(0, 0, PyramidCoinPileKind.Copper),
+                    new PyramidCoinPile(1, 0, PyramidCoinPileKind.Silver),
+                    new PyramidCoinPile(2, 0, PyramidCoinPileKind.Copper)
+                ]
+            },
+            AutoCreatePyramidFilterItem.SandstormInABottleMask,
+            coinPileMinimum: 1));
         Check.True(PyramidSeedPreScreen.MatchesRequirements(
             matching with { TunnelSurfaceDistance = 36 },
             AutoCreatePyramidFilterItem.SandstormInABottleMask,

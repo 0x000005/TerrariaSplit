@@ -355,7 +355,7 @@ internal sealed partial class RaceShell
         AddToggle(
             controls,
             "pyramid-coin-piles",
-            Localize("Pyramid coin piles"),
+            Localize("Pyramid gold coin piles"),
             pyramidCoinPileMinimum > 0,
             !busy && setup.PyramidEnabled,
             pyramidCoinPileGroup);

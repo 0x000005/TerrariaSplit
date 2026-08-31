@@ -181,7 +181,7 @@ internal static class PyramidSeedPreScreen
         int coinPileMinimum)
     {
         return MatchesRequiredItems(chest, requiredItemMask) &&
-            AutoCreatePyramidCoinPileMinimum.Matches(chest.CoinPileCounts.Total, coinPileMinimum);
+            AutoCreatePyramidCoinPileMinimum.Matches(chest.CoinPileCounts.Gold, coinPileMinimum);
     }
 
     internal static bool MatchesRequiredItems(PyramidChest chest, int requiredItemMask)

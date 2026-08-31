@@ -660,8 +660,8 @@ public static class AutoCreatePyramidCoinPileMinimum
 
     public static int Normalize(int value) => All.Contains(value) ? value : 0;
 
-    public static bool Matches(int coinPileCount, int minimum) =>
-        coinPileCount >= Normalize(minimum);
+    public static bool Matches(int goldCoinPileCount, int minimum) =>
+        goldCoinPileCount >= Normalize(minimum);
 }
 
 public static class AutoCreateResourceFilterItem

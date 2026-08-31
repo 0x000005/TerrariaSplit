@@ -253,7 +253,7 @@ internal sealed class RaceForm : Form
             resourceItemButtons[item] = button;
         }
 
-        InitializeMinimumButtons(AutoCreatePyramidCoinPileMinimum.All, pyramidCoinPileMinimumButtons, "Pyramid coin piles");
+        InitializeMinimumButtons(AutoCreatePyramidCoinPileMinimum.All, pyramidCoinPileMinimumButtons, "Pyramid gold coin piles");
         InitializeMinimumButtons(AutoCreateResourceMinimum.LifeCrystals, lifeCrystalMinimumButtons, "Life Crystal");
         InitializeMinimumButtons(AutoCreateResourceMinimum.Potions, spelunkerMinimumButtons, "Spelunker Potion");
         InitializeMinimumButtons(AutoCreateResourceMinimum.Potions, featherfallMinimumButtons, "Featherfall Potion");

@@ -690,7 +690,7 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Seed Filtering", "\u79CD\u5B50\u8FC7\u6EE4" }
       , { "World filters", "\u4E16\u754C\u7B5B\u9009" }
       , { "Pyramid", "\u91D1\u5B57\u5854" }
-      , { "Pyramid coin piles", "\u91D1\u5B57\u5854\u91D1\u5E01\u5806" }
+      , { "Pyramid gold coin piles", "\u91D1\u5B57\u5854\u91D1\u5E01\u5806" }
       , { "Require Crimson between dungeon and spawn", "\u8981\u6C42\u5730\u7262\u4E0E\u51FA\u751F\u70B9\u4E4B\u95F4\u5B58\u5728\u7329\u7EA2" }
       , { "Required items", "\u6307\u5B9A\u7269\u54C1" }
       , { "Boomstick", "\u4E09\u53D1\u730E\u67AA" }

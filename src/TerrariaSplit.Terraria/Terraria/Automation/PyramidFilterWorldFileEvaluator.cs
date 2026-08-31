@@ -39,7 +39,7 @@ internal sealed class PyramidFilterWorldFileEvaluator
                     .Where(chest =>
                         AutoCreatePyramidFilterDepth.Matches(chest.TunnelSurfaceDistance) &&
                         AutoCreatePyramidCoinPileMinimum.Matches(
-                            chest.CoinPiles.Total,
+                            chest.CoinPiles.Gold,
                             requiredCoinPileMinimum))
                     .ToList());
             }
