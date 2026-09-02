@@ -1,6 +1,6 @@
 <Project>
   <PropertyGroup>
-    <TerrariaSplitProductVersion>1.10.2.1</TerrariaSplitProductVersion>
+    <TerrariaSplitProductVersion>1.10.2.3</TerrariaSplitProductVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AnalysisLevel>latest</AnalysisLevel>

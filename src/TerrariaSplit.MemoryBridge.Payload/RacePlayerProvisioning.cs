@@ -201,14 +201,14 @@ namespace TerrariaSplit.MemoryBridge.Payload
                 "SavePlayer",
                 BindingFlags.Static | BindingFlags.Public,
                 null,
-                new[] { playerFileDataType, typeof(bool) },
+                new[] { playerFileDataType, typeof(bool), typeof(bool) },
                 null);
             if (save == null)
             {
                 throw new MissingMethodException(playerType.FullName, "SavePlayer");
             }
 
-            save.Invoke(null, new object[] { data, true });
+            save.Invoke(null, new object[] { data, true, false });
             RequireMethod(mainType, "LoadPlayers", BindingFlags.Static | BindingFlags.Public).Invoke(null, null);
             if (!File.Exists(path))
             {
