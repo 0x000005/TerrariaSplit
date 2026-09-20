@@ -316,16 +316,18 @@ Push-Location $repositoryRoot
 try {
     if (-not $NoRestore) {
         if ($publishClient) {
-            Invoke-CachedRestore 'client-win-x64' 'TerrariaSplit.WinForms' @(
+            Invoke-CachedRestore 'client-release-r2r-win-x64' 'TerrariaSplit.WinForms' @(
                 'restore', $clientProject,
                 '-r', 'win-x64',
+                '-p:Configuration=Release', '-p:PublishReadyToRun=true',
                 '-m:1',
                 "-p:ArtifactsPath=$releaseArtifactsPath"
             )
         }
         if ($publishServer) {
-            Invoke-CachedRestore 'server-win-x64-linux-x64' 'TerrariaSplit.Race.Server' @(
+            Invoke-CachedRestore 'server-release-selfcontained-win-x64-linux-x64' 'TerrariaSplit.Race.Server' @(
                 'restore', $serverProject,
+                '-p:Configuration=Release', '-p:SelfContained=true',
                 '-m:1',
                 "-p:ArtifactsPath=$releaseArtifactsPath"
             )
