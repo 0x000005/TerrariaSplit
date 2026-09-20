@@ -436,7 +436,7 @@ internal sealed partial class RaceShell
             AddToggle(controls, "pyramid-depth:" + depth.ToString(CultureInfo.InvariantCulture),
                 Localize(AutoCreatePyramidFilterDepth.Label(depth)),
                 setup.PyramidMaximumDepth > 0 && (depth == 0 || depth <= setup.PyramidMaximumDepth),
-                !busy && advancedFiltersEligible && (depth == 0 || setup.PyramidMaximumDepth > 0), "primary-choice:pyramid-depth");
+                !busy && advancedFiltersEligible && setup.PyramidEnabled && (depth == 0 || setup.PyramidMaximumDepth > 0), "primary-choice:pyramid-depth");
         }
         foreach (string item in AutoCreateResourceFilterItem.All)
             AddToggle(controls, "resource-item:" + item, Localize(item),

@@ -25,7 +25,7 @@ public static class RaceWorldSettingsFactory
             settings.SpecialSeedMask,
             settings.SecretSeeds);
         return advancedFiltersEligible &&
-            (cheats.PyramidEnabled || cheats.PyramidMaximumDepth > 0 || cheats.CrimsonEnabled ||
+            (cheats.PyramidEnabled || cheats.CrimsonEnabled ||
              AutoCreateJungleRouteDepth.Normalize(cheats.JungleRouteDepth) != AutoCreateJungleRouteDepth.None ||
              AutoCreateResourceFilterItem.NormalizeMask(cheats.ResourceItemMask) != 0 ||
              AutoCreateResourceMinimum.NormalizeLifeCrystals(cheats.LifeCrystalMinimum) > 0 ||

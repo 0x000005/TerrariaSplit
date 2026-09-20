@@ -521,6 +521,7 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
 
         bool pyramidEnabled = filtersEnabled && autoCreatePyramidFilterBox.Checked;
         UpdateMinimumAvailability(autoCreatePyramidCoinPileMinimumBoxes, pyramidEnabled);
+        UpdateMinimumAvailability(autoCreatePyramidDepthBoxes, pyramidEnabled);
     }
 
     private void UpdatePostGenerationFilterAvailability()
@@ -547,7 +548,6 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
                     selectedSpecialSeeds,
                     autoCreateSecretSeedsBox.Text);
             bool supportsAdvancedFilters = cheatsEnabled && eligibleForAdvancedFilters;
-            UpdateMinimumAvailability(autoCreatePyramidDepthBoxes, supportsAdvancedFilters);
 
             autoCreateCrimsonBetweenDungeonAndSpawnBox.Enabled = supportsAdvancedFilters;
             autoCreateCrimsonBetweenDungeonAndSpawnBox.ForeColor = supportsAdvancedFilters

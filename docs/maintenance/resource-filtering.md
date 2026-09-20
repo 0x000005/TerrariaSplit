@@ -9,7 +9,7 @@ The master switch and eligibility only disable controls and execution; they do n
 3. Accept only after the requested conditions are satisfied. Candidate simulation failures or uncertain results skip the candidate; three consecutive candidate failures stop UI/Race filtering with diagnostics. Missing or incompatible native components fail closed.
 4. Generate the real world once. There is no resource validation of the generated file. File readiness and metadata checks remain for world-pool/Race installation.
 
-Pyramid maximum entrance depth is independently selectable: disabled=0, Medium=30, Shallow=15, Open-air=5 tiles. These are inclusive upper bounds. The default is Medium. Other numeric thresholds are defined in Configuration/AppSettings.cs.
+Pyramid maximum entrance depth has its own visible row and toggle, available only while the parent Pyramid filter is enabled: disabled=0, Medium=30, Shallow=15, Open-air=5 tiles. These are inclusive upper bounds. The default is Medium. Disabling Pyramid preserves the selected depth but removes it from execution and the effective world-pool signature. Other numeric thresholds are defined in Configuration/AppSettings.cs.
 
 Ordinary filtering processes one candidate at a time with native threads=0 (automatic, up to four). Multi-threaded native calls retain a shared single-world lease until native completion, even if the caller times out. Race evaluates parallel candidates with threads=1 per native call. The DLL is loaded/copied from TerrariaResourceJudge/out/resourcejudge-pgo/current/TerrariaSplit.WorldFilter.dll, with no older ABI fallback.
 

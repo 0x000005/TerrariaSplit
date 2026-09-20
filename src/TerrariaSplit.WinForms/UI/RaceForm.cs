@@ -3004,7 +3004,7 @@ internal sealed class RaceForm : Form
     private void UpdateCheatAvailability()
     {
         bool cheatsEnabled = cheatsEnabledBox.Checked && GetSelectedInt(sizeBox, 2) == 1 && GetSelectedInt(evilBox, 2) == 2;
-        UpdateMinimumAvailability(pyramidDepthButtons, cheatsEnabled);
+        UpdateMinimumAvailability(pyramidDepthButtons, cheatsEnabled && pyramidEnabledBox.Checked);
         pyramidEnabledBox.Enabled = cheatsEnabled;
         crimsonEnabledBox.Enabled = cheatsEnabled && GetSelectedInt(evilBox, 2) == 2;
         UpdateSelectorButtonState(pyramidEnabledBox);

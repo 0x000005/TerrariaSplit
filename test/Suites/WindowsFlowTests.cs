@@ -328,6 +328,12 @@ internal static class WindowsFlowTests
         Check.Equal(15, form.PageHost.CreateAppliedSnapshot().Automation.AutoCreate.PyramidMaximumDepth);
         automation.AutoCreateCheatsBox.Checked = true;
         Check.True(automation.AutoCreatePyramidDepthBoxes[15].Enabled);
+        automation.AutoCreatePyramidFilterBox.Checked = false;
+        Check.False(automation.AutoCreatePyramidDepthBoxes[0].Enabled);
+        Check.False(automation.AutoCreatePyramidDepthBoxes[15].Enabled);
+        Check.Equal(15, form.PageHost.CreateAppliedSnapshot().Automation.AutoCreate.PyramidMaximumDepth);
+        automation.AutoCreatePyramidFilterBox.Checked = true;
+        Check.True(automation.AutoCreatePyramidDepthBoxes[15].Enabled);
         automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Checked = true;
         automation.AutoCreateJungleRouteDepthBox.Checked = true;
         AppSettings resourceDraft = form.PageHost.CreateAppliedSnapshot();

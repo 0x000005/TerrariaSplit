@@ -593,7 +593,7 @@ internal sealed partial class RaceShell
         else if (id.StartsWith("pyramid-depth:", StringComparison.Ordinal) && int.TryParse(id[14..], out int depth) && AutoCreatePyramidFilterDepth.All.Contains(depth))
         {
             RaceWorldSetupSettings setup = EnsureInGameWorldSetup();
-            if (AutoCreateAdvancedFilterEligibility.IsEligible(setup))
+            if (setup.PyramidEnabled && AutoCreateAdvancedFilterEligibility.IsEligible(setup))
                 setup.PyramidMaximumDepth = depth == 0 ? setup.PyramidMaximumDepth > 0 ? 0 : 30 : depth;
             PersistInGameWorldSetup();
         }

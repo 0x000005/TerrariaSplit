@@ -35,7 +35,7 @@ internal static class CheatFilterIndicator
         if ((settings.EnablePyramidFilter &&
                 AutoCreatePyramidCoinPileMinimum.Normalize(settings.PyramidFilterCoinPileMinimum) > 0) ||
             settings.RequireCrimsonBetweenDungeonAndSpawn ||
-            settings.PyramidMaximumDepth > 0 ||
+            (settings.EnablePyramidFilter && settings.PyramidMaximumDepth > 0) ||
             AutoCreateJungleRouteDepth.Normalize(settings.JungleRouteDepth) != AutoCreateJungleRouteDepth.None)
         {
             return CheatFilterIndicatorLevel.Terrain;
@@ -62,7 +62,7 @@ internal static class CheatFilterIndicator
         if ((settings.PyramidEnabled &&
                 AutoCreatePyramidCoinPileMinimum.Normalize(settings.PyramidCoinPileMinimum) > 0) ||
             settings.CrimsonEnabled ||
-            settings.PyramidMaximumDepth > 0 ||
+            (settings.PyramidEnabled && settings.PyramidMaximumDepth > 0) ||
             AutoCreateJungleRouteDepth.Normalize(settings.JungleRouteDepth) != AutoCreateJungleRouteDepth.None)
         {
             return CheatFilterIndicatorLevel.Terrain;

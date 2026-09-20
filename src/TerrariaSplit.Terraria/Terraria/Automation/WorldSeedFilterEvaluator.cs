@@ -34,7 +34,6 @@ internal sealed class WorldSeedFilterEvaluator : IDisposable
         return settings.EnableCheats &&
             AutoCreateAdvancedFilterEligibility.IsEligible(settings) &&
             (settings.RequireCrimsonBetweenDungeonAndSpawn ||
-             AutoCreatePyramidFilterDepth.Normalize(settings.PyramidMaximumDepth) > 0 ||
              AutoCreateResourceFilter.HasRequirements(settings));
     }
 
@@ -213,9 +212,9 @@ internal sealed class WorldSeedFilterEvaluator : IDisposable
         {
             mask |= ResourceJudgeAnalysis.PyramidItems;
             if (settings.PyramidFilterCoinPileMinimum > 0) mask |= ResourceJudgeAnalysis.PyramidGold;
+            if (AutoCreatePyramidFilterDepth.Normalize(settings.PyramidMaximumDepth) > 0)
+                mask |= ResourceJudgeAnalysis.PyramidDepth;
         }
-        if (AutoCreatePyramidFilterDepth.Normalize(settings.PyramidMaximumDepth) > 0)
-            mask |= ResourceJudgeAnalysis.PyramidDepth;
         if (settings.RequireCrimsonBetweenDungeonAndSpawn) mask |= ResourceJudgeAnalysis.Crimson;
         if (AutoCreateJungleRouteDepth.MinimumY(settings.JungleRouteDepth) > 0) mask |= ResourceJudgeAnalysis.JungleRoute;
         if (AutoCreateResourceFilterItem.NormalizeMask(settings.ResourceFilterItemMask) != 0) mask |= ResourceJudgeAnalysis.JungleItems;

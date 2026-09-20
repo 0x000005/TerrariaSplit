@@ -511,8 +511,11 @@ internal static class TerrariaIntegrationTests
         settings.PyramidMaximumDepth = 5;
         settings.SpecialSeeds = AutoCreateSpecialWorldSeed.Zenith;
         settings.SecretSeeds = "abandoned manors";
+        Check.False(WorldSeedFilterEvaluator.IsEnabledFor(settings));
+        Check.Equal(0, WorldSeedFilterEvaluator.RequestedAnalysis(settings));
+        settings.EnablePyramidFilter = true;
         Check.True(WorldSeedFilterEvaluator.IsEnabledFor(settings));
-        Check.Equal(ResourceJudgeAnalysis.PyramidDepth, WorldSeedFilterEvaluator.RequestedAnalysis(settings));
+        Check.Equal(ResourceJudgeAnalysis.PyramidItems | ResourceJudgeAnalysis.PyramidDepth, WorldSeedFilterEvaluator.RequestedAnalysis(settings));
         settings.WorldSize = AutoCreateWorldSize.Large;
         Check.False(WorldSeedFilterEvaluator.IsEnabledFor(settings));
     }

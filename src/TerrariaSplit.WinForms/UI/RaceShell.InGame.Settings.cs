@@ -36,7 +36,7 @@ internal sealed partial class RaceShell
                 ? setup.JungleRouteDepth
                 : AutoCreateJungleRouteDepth.None,
             setup.PyramidCoinPileMinimum,
-            advancedFiltersEligible ? setup.PyramidMaximumDepth : 0);
+            advancedFiltersEligible && setup.PyramidEnabled ? setup.PyramidMaximumDepth : 0);
         int worldDifficultyCode =
             TerrariaWorldSeedOptions.CopiedDifficultyCode(setup.WorldDifficulty);
         return new RaceWorldSettings(
