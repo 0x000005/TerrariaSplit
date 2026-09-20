@@ -649,13 +649,13 @@ public static class AutoCreateJungleRouteDepth
 
 public static class AutoCreatePyramidFilterDepth
 {
-    public static readonly int[] All = [0, 30, 15, 5];
+    public static readonly int[] All = [0, 30, 15, 2];
     public static int Normalize(int value) => All.Contains(value) ? value : 0;
     public static bool Matches(int distance, int maximum) =>
         maximum == 0 || distance >= 0 && distance <= maximum;
     public static string Label(int value) => value switch
     {
-        30 => "Medium", 15 => "Shallow", 5 => "Open-air", _ => "Pyramid depth"
+        30 => "Medium", 15 => "Shallow", 2 => "Open-air", _ => "Pyramid depth"
     };
 }
 

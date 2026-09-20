@@ -508,7 +508,7 @@ internal static class TerrariaIntegrationTests
         Check.True(JungleSeedFilterMatcher.Match(settings, itemOnly).Matches);
         Check.Equal(ResourceJudgeAnalysis.PyramidItems, WorldSeedFilterEvaluator.RequestedAnalysis(settings));
         settings.EnablePyramidFilter = false;
-        settings.PyramidMaximumDepth = 5;
+        settings.PyramidMaximumDepth = 2;
         settings.SpecialSeeds = AutoCreateSpecialWorldSeed.Zenith;
         settings.SecretSeeds = "abandoned manors";
         Check.False(WorldSeedFilterEvaluator.IsEnabledFor(settings));
@@ -1075,7 +1075,7 @@ internal static class TerrariaIntegrationTests
 
     private static void PyramidRequirementThresholds()
     {
-        foreach (int maximum in new[] { 30, 15, 5 })
+        foreach (int maximum in new[] { 30, 15, 2 })
         {
             Check.True(AutoCreatePyramidFilterDepth.Matches(maximum, maximum));
             Check.False(AutoCreatePyramidFilterDepth.Matches(maximum + 1, maximum));
