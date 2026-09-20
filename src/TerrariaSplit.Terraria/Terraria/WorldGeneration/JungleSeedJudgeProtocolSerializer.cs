@@ -94,6 +94,9 @@ internal static class JungleSeedJudgeProtocolSerializer
         return r.Pyramids is null || r.Pyramids.All(p =>
             Number(ResourceJudgeAnalysis.PyramidItems, p.ItemMask) &&
             Number(ResourceJudgeAnalysis.PyramidGold, p.GoldCoinPileCount) &&
-            Number(ResourceJudgeAnalysis.PyramidDepth, p.TunnelSurfaceDistance));
+            (Needs(ResourceJudgeAnalysis.PyramidDepth)
+                ? (p.Entrance is null ? p.TunnelSurfaceDistance is null
+                    : p.Entrance is { X: >= 0 and < 4200, Y: >= 0 and < 1200 } && p.TunnelSurfaceDistance is >= 0)
+                : p.Entrance is null && p.TunnelSurfaceDistance is null));
     }
 }

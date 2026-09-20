@@ -423,6 +423,7 @@ internal static class TerrariaIntegrationTests
         foreach (string invalid in new[]
         {
             json.Replace("\"protocolVersion\":4", "\"protocolVersion\":3", StringComparison.Ordinal),
+            json.Replace("analysis-v4-entrance2", "analysis-v4", StringComparison.Ordinal),
             json.Replace("\"resourceScope\":\"Pass62\"", "\"resourceScope\":null", StringComparison.Ordinal),
             json.Replace("\"pyramidItemMask\":0,", "", StringComparison.Ordinal),
             json.Replace("\"reachableDeepestY\"", "\"deepestY\"", StringComparison.Ordinal)
@@ -539,6 +540,8 @@ internal static class TerrariaIntegrationTests
         Check.Equal(expected.ItemMask, results[1].Pyramids![0].ItemMask);
         Check.Equal(expected.GoldCoinPileCount, results[3].Pyramids![0].GoldCoinPileCount);
         Check.Equal(expected.TunnelSurfaceDistance, results[5].Pyramids![0].TunnelSurfaceDistance);
+        Check.True(results[1].Pyramids![0].Entrance is null);
+        Check.True(results[5].Pyramids![0].Entrance is not null);
         Check.True(results[1].Jungle is null && results[1].CrimsonVertices is null);
         Check.True(results[1].Pyramids![0].GoldCoinPileCount is null);
         Check.True(results[16].Pyramids is null && results[16].ResourceScope is null);

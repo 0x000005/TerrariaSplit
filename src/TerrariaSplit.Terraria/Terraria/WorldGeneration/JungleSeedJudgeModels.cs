@@ -6,7 +6,7 @@ internal static class JungleSeedJudgeProtocol
 {
     public const int Version = 4;
     public const string CompatibilityId =
-        "terraria-1.4.5.8-resource-judge-analysis-v4";
+        "terraria-1.4.5.8-resource-judge-analysis-v4-entrance2";
 }
 
 internal static class ResourceJudgeAnalysis
@@ -121,7 +121,7 @@ internal sealed record JungleRouteSummary(
 internal sealed record ResourceJudgePyramidRegion(int MinimumX, int MaximumX, string Coordinates);
 internal sealed record ResourceJudgePoint(int X, int Y);
 internal sealed record ResourceJudgePyramid(
-    ResourceJudgePoint Entrance,
+    [property: JsonRequired] ResourceJudgePoint? Entrance,
     int? MainItemType,
     [property: JsonRequired] int? ItemMask,
     [property: JsonRequired] int? GoldCoinPileCount,

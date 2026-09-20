@@ -42,7 +42,7 @@ internal sealed class AboutSettingsPage : SettingsPageBase
             ForeColor = UiTheme.Text,
             Font = UiTheme.FormFont(23f, FontStyle.Bold),
             Margin = Padding.Empty,
-            Text = "Terraria Split"
+            Text = "TerrariaSplit"
         };
 
         versionValue.AutoSize = true;
