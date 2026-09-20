@@ -296,6 +296,8 @@ public sealed class TerrariaRaceWorldGenerationService : IDisposable
             RequireCrimsonBetweenDungeonAndSpawn = settings.RequireCrimsonBetweenDungeonAndSpawn,
             CrimsonDistance = settings.CrimsonDistance,
             JungleRouteDepth = settings.JungleRouteDepth,
+            StarfuryMaximumDistance = settings.StarfuryMaximumDistance,
+            FinchStaffMaximumDistance = settings.FinchStaffMaximumDistance,
             ResourceFilterItemMask = settings.ResourceFilterItemMask,
             ResourceFilterLifeCrystalMinimum = settings.ResourceFilterLifeCrystalMinimum,
             ResourceFilterSpelunkerPotionMinimum = settings.ResourceFilterSpelunkerPotionMinimum,

@@ -20,6 +20,8 @@ public static class SettingsSectionNormalizer
         autoCreate.PyramidMaximumDepth = AutoCreatePyramidFilterDepth.Normalize(autoCreate.PyramidMaximumDepth);
         autoCreate.CrimsonDistance = AutoCreateCrimsonDistance.Normalize(autoCreate.CrimsonDistance);
         autoCreate.JungleRouteDepth = AutoCreateJungleRouteDepth.Normalize(autoCreate.JungleRouteDepth);
+        autoCreate.StarfuryMaximumDistance = AutoCreateItemDistance.NormalizeStarfury(autoCreate.StarfuryMaximumDistance);
+        autoCreate.FinchStaffMaximumDistance = AutoCreateItemDistance.NormalizeFinchStaff(autoCreate.FinchStaffMaximumDistance);
         autoCreate.ResourceFilterItemMask = AutoCreateResourceFilterItem.NormalizeMask(autoCreate.ResourceFilterItemMask);
         autoCreate.ResourceFilterLifeCrystalMinimum = AutoCreateResourceMinimum.NormalizeLifeCrystals(autoCreate.ResourceFilterLifeCrystalMinimum);
         autoCreate.ResourceFilterSpelunkerPotionMinimum = AutoCreateResourceMinimum.NormalizePotions(autoCreate.ResourceFilterSpelunkerPotionMinimum);
@@ -150,6 +152,8 @@ public static class SettingsSectionNormalizer
         setup.PyramidMaximumDepth = AutoCreatePyramidFilterDepth.Normalize(setup.PyramidMaximumDepth);
         setup.CrimsonDistance = AutoCreateCrimsonDistance.Normalize(setup.CrimsonDistance);
         setup.JungleRouteDepth = AutoCreateJungleRouteDepth.Normalize(setup.JungleRouteDepth);
+        setup.StarfuryMaximumDistance = AutoCreateItemDistance.NormalizeStarfury(setup.StarfuryMaximumDistance);
+        setup.FinchStaffMaximumDistance = AutoCreateItemDistance.NormalizeFinchStaff(setup.FinchStaffMaximumDistance);
         setup.ResourceItemMask = AutoCreateResourceFilterItem.NormalizeMask(setup.ResourceItemMask);
         setup.LifeCrystalMinimum = AutoCreateResourceMinimum.NormalizeLifeCrystals(setup.LifeCrystalMinimum);
         setup.SpelunkerPotionMinimum = AutoCreateResourceMinimum.NormalizePotions(setup.SpelunkerPotionMinimum);

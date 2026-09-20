@@ -24,8 +24,10 @@ internal static class TerrariaIntegrationTests
         yield return TestCase.Sync("diagnostic world scanner measures the opening-side surface distance", TestSuite.Core, PyramidWorldScannerDepth);
         yield return TestCase.Async("native jungle seed judge preserves protocol and returns seed-only analysis", TestSuite.Native, JungleSeedJudgeNativeJourney, timeoutSeconds: 90);
         yield return TestCase.Sync("resource judge v4 rejects legacy and incomplete protocol payloads", TestSuite.Core, ResourceJudgeProtocolV2);
+        yield return TestCase.Sync("resource judge sky chest protocol accepts empty results and rejects invalid fields", TestSuite.Core, ResourceJudgeSkyProtocol);
         yield return TestCase.Async("resource judge releases partial thread budgets and charges one slot for single threading", TestSuite.Core, ResourceJudgeThreadBudget);
         yield return TestCase.Async("resource judge combines enabled filters into one generation request", TestSuite.Core, ResourceJudgeSingleGeneration);
+        yield return TestCase.Async("item distance filters preserve settings and enforce inclusive horizontal limits in ordinary and Race filtering", TestSuite.Core, ItemDistanceFiltering);
         yield return TestCase.Async("resource judge selects requested prefixes and freezes pyramid measurements", TestSuite.Native, ResourceJudgePrefixes, timeoutSeconds: 90);
         yield return TestCase.Sync("resource judge partial routes preserve uncertainty for missing resources", TestSuite.Core, ResourceJudgePartialPolicy);
         yield return TestCase.Async("world seed filter skips a seed when the native call times out", TestSuite.Native, WorldSeedFilterTimeoutJourney, timeoutSeconds: 10);
@@ -423,7 +425,7 @@ internal static class TerrariaIntegrationTests
         foreach (string invalid in new[]
         {
             json.Replace("\"protocolVersion\":4", "\"protocolVersion\":3", StringComparison.Ordinal),
-            json.Replace("analysis-v4-entrance2", "analysis-v4", StringComparison.Ordinal),
+            json.Replace("analysis-v4-target-chests1", "analysis-v4-sky1", StringComparison.Ordinal),
             json.Replace("\"resourceScope\":\"Pass62\"", "\"resourceScope\":null", StringComparison.Ordinal),
             json.Replace("\"pyramidItemMask\":0,", "", StringComparison.Ordinal),
             json.Replace("\"reachableDeepestY\"", "\"deepestY\"", StringComparison.Ordinal)
@@ -431,6 +433,33 @@ internal static class TerrariaIntegrationTests
         {
             bool rejected = false;
             try { _ = JungleSeedJudgeProtocolSerializer.DeserializeResponse(invalid, "protocol"); }
+            catch (InvalidDataException) { rejected = true; }
+            Check.True(rejected);
+        }
+    }
+
+    private static void ResourceJudgeSkyProtocol()
+    {
+        var expected = CreateFilterJudgeResult("1", "sky-protocol", JungleSeedJudgeStatus.Complete) with
+        {
+            AnalysisMask = ResourceJudgeAnalysis.All, PlannedEndPass = 69, CheckpointPassIndex = 69,
+            StarfuryChestPassIndex = 69, StarfuryChests = Array.Empty<ResourceJudgePoint>(),
+            FinchStaffChestPassIndex = 42, FinchStaffChests = Array.Empty<ResourceJudgePoint>()
+        };
+        string Serialize(JungleSeedJudgeResult result) => System.Text.Json.JsonSerializer.Serialize(result,
+            new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase });
+        Check.True(JungleSeedJudgeProtocolSerializer.DeserializeResponse(Serialize(expected), "sky-protocol").Complete);
+        foreach (var invalid in new[]
+        {
+            expected with { StarfuryChests = null },
+            expected with { StarfuryChestPassIndex = 62 },
+            expected with { StarfuryChests = [new ResourceJudgePoint(4199, 100)] },
+            expected with { FinchStaffChests = null },
+            expected with { FinchStaffChests = [new ResourceJudgePoint(1000, 1199)] }
+        })
+        {
+            bool rejected = false;
+            try { _ = JungleSeedJudgeProtocolSerializer.DeserializeResponse(Serialize(invalid), "sky-protocol"); }
             catch (InvalidDataException) { rejected = true; }
             Check.True(rejected);
         }
@@ -521,12 +550,116 @@ internal static class TerrariaIntegrationTests
         Check.False(WorldSeedFilterEvaluator.IsEnabledFor(settings));
     }
 
+    private static async Task ItemDistanceFiltering(CancellationToken cancellationToken)
+    {
+        var settings = new AutoCreateWorldSettings
+        {
+            EnablePyramidFilter = false, RequireCrimsonBetweenDungeonAndSpawn = false,
+            JungleRouteDepth = AutoCreateJungleRouteDepth.None
+        };
+        var result = CreateFilterJudgeResult("123", "distance", JungleSeedJudgeStatus.Complete);
+        Check.False(WorldSeedFilterEvaluator.IsEnabledFor(settings));
+        foreach (bool starfury in new[] { true, false })
+        {
+            int[] thresholds = starfury ? AutoCreateItemDistance.Starfury : AutoCreateItemDistance.FinchStaff;
+            foreach (int maximum in thresholds.Where(value => value > 0))
+            {
+                settings.StarfuryMaximumDistance = starfury ? maximum : 0;
+                settings.FinchStaffMaximumDistance = starfury ? 0 : maximum;
+                Check.True(WorldSeedFilterEvaluator.IsEnabledFor(settings));
+                Check.Equal(starfury ? ResourceJudgeAnalysis.StarfuryChests : ResourceJudgeAnalysis.FinchStaffChests,
+                    WorldSeedFilterEvaluator.RequestedAnalysis(settings));
+                foreach (int side in new[] { -1, 1 })
+                foreach (int offset in new[] { -1, 0, 1 })
+                {
+                    ResourceJudgePoint[] chests = [new(2100 + side * (maximum + offset), 1190)];
+                    var sample = starfury ? result with { StarfuryChests = chests } : result with { FinchStaffChests = chests };
+                    Check.Equal(offset <= 0, JungleSeedFilterMatcher.Match(settings, sample).Matches);
+                }
+                Check.False(JungleSeedFilterMatcher.Match(settings, result with { StarfuryChests = [], FinchStaffChests = [] }).Matches);
+                Check.False(JungleSeedFilterMatcher.Match(settings, result).Matches);
+            }
+        }
+        settings.StarfuryMaximumDistance = 200;
+        settings.FinchStaffMaximumDistance = 500;
+        var both = result with
+        {
+            StarfuryChests = [new(100, 100), new(2300, 1190)],
+            FinchStaffChests = [new(1600, 20)]
+        };
+        Check.True(JungleSeedFilterMatcher.Match(settings, both).Matches);
+        Check.False(JungleSeedFilterMatcher.Match(settings, both with { FinchStaffChests = [new(1599, 20)] }).Matches);
+        int calls = 0;
+        foreach (bool race in new[] { false, true })
+        {
+            var client = new JungleSeedJudgeNativeClient((seed, _, id, mask, threads) =>
+            {
+                calls++;
+                Check.Equal(ResourceJudgeAnalysis.StarfuryChests | ResourceJudgeAnalysis.FinchStaffChests, mask);
+                Check.Equal(race ? 1 : 0, threads);
+                return both with { RequestId = id, SeedText = seed };
+            }, TimeSpan.FromSeconds(1), new SemaphoreSlim(1, 1));
+            using var evaluator = new WorldSeedFilterEvaluator(client, raceParallelism: race);
+            Check.True((await evaluator.EvaluateAsync(settings, "123", TerrariaWorldGenerationVersion.Modern1458, cancellationToken)).AcceptSeed);
+        }
+        Check.Equal(2, calls);
+
+        var app = AppSettingsDefaults.Create();
+        app.Automation.AutoCreate = settings;
+        app.Race.WorldSetup.StarfuryMaximumDistance = 100;
+        app.Race.WorldSetup.FinchStaffMaximumDistance = 800;
+        var clone = AppSettingsCloner.Clone(app);
+        Check.Equal(200, clone.Automation.AutoCreate.StarfuryMaximumDistance);
+        Check.Equal(500, clone.Automation.AutoCreate.FinchStaffMaximumDistance);
+        Check.Equal(100, clone.Race.WorldSetup.StarfuryMaximumDistance);
+        Check.Equal(800, clone.Race.WorldSetup.FinchStaffMaximumDistance);
+        using (var directory = new TestDirectory())
+        {
+            var repository = new AppSettingsRepository(new AppContextRuntimeDataPaths(directory.Path));
+            Check.True(repository.Save(clone).Succeeded);
+            AppSettings loaded = repository.Load();
+            Check.Equal(200, loaded.Automation.AutoCreate.StarfuryMaximumDistance);
+            Check.Equal(500, loaded.Automation.AutoCreate.FinchStaffMaximumDistance);
+            Check.Equal(100, loaded.Race.WorldSetup.StarfuryMaximumDistance);
+            Check.Equal(800, loaded.Race.WorldSetup.FinchStaffMaximumDistance);
+            loaded.General.Language = "中文";
+            Check.Equal("星怒", TerrariaSplit.Localization.Localizer.Get("Starfury", loaded));
+            Check.Equal("雀杖", TerrariaSplit.Localization.Localizer.Get("Finch Staff", loaded));
+            Check.Equal("非常近", TerrariaSplit.Localization.Localizer.Get("Extremely near", loaded));
+            Check.Equal("很近", TerrariaSplit.Localization.Localizer.Get("Very near", loaded));
+        }
+        string signature = WorldPoolSignature.From(settings);
+        settings.StarfuryMaximumDistance = 100;
+        Check.False(signature == WorldPoolSignature.From(settings));
+        settings.StarfuryMaximumDistance = 200;
+        settings.FinchStaffMaximumDistance = 800;
+        Check.False(signature == WorldPoolSignature.From(settings));
+        settings.EnableCheats = false;
+        signature = WorldPoolSignature.From(settings);
+        settings.StarfuryMaximumDistance = 300;
+        Check.Equal(signature, WorldPoolSignature.From(settings));
+        Check.False(WorldSeedFilterEvaluator.IsEnabledFor(settings));
+        settings.StarfuryMaximumDistance = 123;
+        settings.FinchStaffMaximumDistance = -1;
+        SettingsSectionNormalizer.NormalizeAutoCreate(settings);
+        Check.Equal(0, settings.StarfuryMaximumDistance);
+        Check.Equal(0, settings.FinchStaffMaximumDistance);
+
+        var cheats = RaceCheatSettings.Disabled with { Enabled = true, StarfuryMaximumDistance = 100, FinchStaffMaximumDistance = 800 };
+        var world = new RaceWorldSettings("1.4.5.8", 1, 1, true, 0, cheats);
+        var wire = System.Text.Json.JsonSerializer.Deserialize<RaceWorldSettings>(System.Text.Json.JsonSerializer.Serialize(world))!;
+        var converted = TerrariaSplit.Race.Client.RaceWorldSettingsFactory.ToAutoCreateWorldSettings(wire);
+        Check.Equal(100, converted.StarfuryMaximumDistance);
+        Check.Equal(800, converted.FinchStaffMaximumDistance);
+        Check.True(WorldSeedFilterEvaluator.IsEnabledFor(converted));
+    }
+
     private static async Task ResourceJudgePrefixes(CancellationToken cancellationToken)
     {
         var client = new JungleSeedJudgeNativeClient(JungleSeedJudgeNativeLibraryLocator.ResolvePath(), TimeSpan.FromSeconds(15));
         JungleSeedJudgeResult? all = null;
         var results = new Dictionary<int, JungleSeedJudgeResult>();
-        foreach (int mask in new[] { 1, 3, 5, 9, 16, 511 })
+        foreach (int mask in new[] { 1, 3, 5, 9, 16, 511, 512, 528, 1023, 1024, 2047 })
         {
             var result = await client.AnalyzeAsync("492550619", JungleSeedJudgeGameMode.Classic, cancellationToken, mask);
             Check.True(result.Complete);
@@ -546,6 +679,16 @@ internal static class TerrariaIntegrationTests
         Check.True(results[1].Pyramids![0].GoldCoinPileCount is null);
         Check.True(results[16].Pyramids is null && results[16].ResourceScope is null);
         Check.Equal(0, results[16].Jungle!.VisitedCostTiles);
+        Check.True(results[511].StarfuryChests is null);
+        Check.True(results[512].Jungle is null && results[512].StarfuryChests is { Count: > 0 });
+        Check.True(results[512].StarfuryChests!.SequenceEqual(results[1023].StarfuryChests!));
+        Check.Equal(results[511].Metrics, results[1023].Metrics);
+        Check.True(results[511].Pyramids!.SequenceEqual(results[1023].Pyramids!));
+        Check.True(results[511].Jungle!.Resources.SequenceEqual(results[1023].Jungle!.Resources));
+        Check.Equal(results[16].Jungle!.Route.DeepestY, results[528].Jungle!.Route.DeepestY);
+        Check.True(results[1024].FinchStaffChests!.SequenceEqual(results[2047].FinchStaffChests!));
+        Check.True(results[1024].StarfuryChests is null && results[1024].Jungle is null);
+        Check.True(results[512].StarfuryChests!.SequenceEqual(results[2047].StarfuryChests!));
     }
 
     private static void ResourceJudgePartialPolicy()
@@ -575,7 +718,8 @@ internal static class TerrariaIntegrationTests
             cancellationToken);
         Check.Equal(JungleSeedJudgeStatus.Complete, result.Status);
         Check.True(result.Complete);
-        Check.Equal(62, result.CheckpointPassIndex);
+        Check.Equal(69, result.CheckpointPassIndex);
+        Check.True(result.StarfuryChests is { Count: > 0 });
         Check.Equal("Pass62", result.ResourceScope);
         Check.True(result.Pyramids is not null);
         Check.True(result.Metrics is not null);
@@ -1437,7 +1581,7 @@ internal static class TerrariaIntegrationTests
             "accepted")
         {
             ResourceScope = "Pass62",
-            AnalysisMask = ResourceJudgeAnalysis.All,
+            AnalysisMask = ResourceJudgeAnalysis.All & ~(ResourceJudgeAnalysis.StarfuryChests | ResourceJudgeAnalysis.FinchStaffChests),
             PlannedEndPass = 62,
             ExecutionPath = "FullPrefix",
             PyramidDepthPassIndex = 53,

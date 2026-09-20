@@ -167,7 +167,9 @@ public sealed record RaceCheatSettings(
     int FeatherfallPotionMinimum,
     string JungleRouteDepth = "0",
     int PyramidCoinPileMinimum = 1,
-    int PyramidMaximumDepth = 30)
+    int PyramidMaximumDepth = 30,
+    int StarfuryMaximumDistance = 0,
+    int FinchStaffMaximumDistance = 0)
 {
     public static RaceCheatSettings Disabled { get; } = new(
         false,

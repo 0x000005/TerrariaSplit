@@ -27,6 +27,8 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
     private readonly CheckBox autoCreatePyramidFilterBox = new();
     private readonly Dictionary<int, CheckBox> autoCreatePyramidCoinPileMinimumBoxes = new();
     private readonly Dictionary<int, CheckBox> autoCreatePyramidDepthBoxes = new();
+    private readonly Dictionary<int, CheckBox> autoCreateStarfuryDistanceBoxes = new();
+    private readonly Dictionary<int, CheckBox> autoCreateFinchStaffDistanceBoxes = new();
     private bool updatingPyramidDepth;
     private int selectedPyramidDepth;
     private readonly CheckBox autoCreateCrimsonBetweenDungeonAndSpawnBox = new();
@@ -65,6 +67,8 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
     internal CheckBox AutoCreateCheatsBox => autoCreateCheatsBox;
     internal CheckBox AutoCreatePyramidFilterBox => autoCreatePyramidFilterBox;
     internal IReadOnlyDictionary<int, CheckBox> AutoCreatePyramidDepthBoxes => autoCreatePyramidDepthBoxes;
+    internal IReadOnlyDictionary<int, CheckBox> AutoCreateStarfuryDistanceBoxes => autoCreateStarfuryDistanceBoxes;
+    internal IReadOnlyDictionary<int, CheckBox> AutoCreateFinchStaffDistanceBoxes => autoCreateFinchStaffDistanceBoxes;
     internal IReadOnlyDictionary<int, CheckBox> AutoCreatePyramidCoinPileMinimumBoxes => autoCreatePyramidCoinPileMinimumBoxes;
     internal CheckBox AutoCreateCrimsonBetweenDungeonAndSpawnBox => autoCreateCrimsonBetweenDungeonAndSpawnBox;
     internal IReadOnlyDictionary<string, CheckBox> AutoCreateCrimsonDistanceBoxes => autoCreateCrimsonDistanceBoxes;
@@ -112,6 +116,8 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
         settings.Automation.AutoCreate.EnableCheats = autoCreateCheatsBox.Checked;
         settings.Automation.AutoCreate.EnablePyramidFilter = autoCreatePyramidFilterBox.Checked;
         settings.Automation.AutoCreate.PyramidMaximumDepth = selectedPyramidDepth;
+        settings.Automation.AutoCreate.StarfuryMaximumDistance = GetSelectedMaximum(autoCreateStarfuryDistanceBoxes);
+        settings.Automation.AutoCreate.FinchStaffMaximumDistance = GetSelectedMaximum(autoCreateFinchStaffDistanceBoxes);
         settings.Automation.AutoCreate.PyramidFilterCoinPileMinimum = GetSelectedMinimum(
             autoCreatePyramidCoinPileMinimumBoxes,
             AutoCreatePyramidCoinPileMinimum.All);
@@ -365,6 +371,12 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
         SettingsUiFactory.AddSectionControl(createSection, CreateCrimsonDistanceSelector());
         SettingsUiFactory.AddSectionControl(createSection, CreateJungleRouteDepthSelector());
         SettingsUiFactory.AddSectionControl(createSection, CreateResourceItemSelector());
+        SettingsUiFactory.AddSectionControl(createSection, CreateItemDistanceSelector(
+            AutoCreateItemDistance.Starfury, AutoCreateItemDistance.StarfuryLabel,
+            AutoCreateItemDistance.NormalizeStarfury(Draft.Automation.AutoCreate.StarfuryMaximumDistance), autoCreateStarfuryDistanceBoxes));
+        SettingsUiFactory.AddSectionControl(createSection, CreateItemDistanceSelector(
+            AutoCreateItemDistance.FinchStaff, AutoCreateItemDistance.FinchStaffLabel,
+            AutoCreateItemDistance.NormalizeFinchStaff(Draft.Automation.AutoCreate.FinchStaffMaximumDistance), autoCreateFinchStaffDistanceBoxes));
         SettingsUiFactory.AddSectionControl(createSection, CreateLifeCrystalMinimumSelector());
         SettingsUiFactory.AddSectionControl(createSection, CreateSpelunkerMinimumSelector());
         SettingsUiFactory.AddSectionControl(createSection, CreateFeatherfallMinimumSelector());

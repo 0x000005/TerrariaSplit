@@ -78,7 +78,14 @@ internal static class JungleSeedJudgeProtocolSerializer
                 : r.CheckpointPassIndex != end)) return false;
         if (r.ResourceScope != (Needs(ResourceJudgeAnalysis.Resources) ? "Pass62" : null) ||
             r.PyramidDepthPassIndex != (Needs(ResourceJudgeAnalysis.PyramidDepth) ? 53 : (int?)null) ||
-            r.PyramidGoldPassIndex != (Needs(ResourceJudgeAnalysis.PyramidGold) ? 40 : (int?)null)) return false;
+            r.PyramidGoldPassIndex != (Needs(ResourceJudgeAnalysis.PyramidGold) ? 40 : (int?)null) ||
+            r.StarfuryChestPassIndex != (Needs(ResourceJudgeAnalysis.StarfuryChests) ? 69 : (int?)null) ||
+            r.FinchStaffChestPassIndex != (Needs(ResourceJudgeAnalysis.FinchStaffChests) ? 42 : (int?)null)) return false;
+        bool Positions(int bit, IReadOnlyList<ResourceJudgePoint>? points) => Needs(bit)
+            ? points is not null && points.All(p => p is { X: >= 0 and < 4199, Y: >= 0 and < 1199 })
+            : points is null;
+        if (!Positions(ResourceJudgeAnalysis.StarfuryChests, r.StarfuryChests) ||
+            !Positions(ResourceJudgeAnalysis.FinchStaffChests, r.FinchStaffChests)) return false;
         if (Needs(ResourceJudgeAnalysis.Pyramids)
             ? r.PyramidRegion is not { MinimumX: 1260, MaximumX: 2940, Coordinates: "anchor" }
             : r.Pyramids is not null || r.PyramidRegion is not null) return false;

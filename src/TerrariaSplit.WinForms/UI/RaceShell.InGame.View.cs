@@ -442,6 +442,10 @@ internal sealed partial class RaceShell
             AddToggle(controls, "resource-item:" + item, Localize(item),
                 (setup.ResourceItemMask & AutoCreateResourceFilterItem.Mask(item)) != 0,
                 !busy && advancedFiltersEligible, "primary-choice:resource-" + AutoCreateResourceFilterItem.Mask(item));
+        AddItemDistanceControls(controls, "starfury-distance:", AutoCreateItemDistance.Starfury,
+            AutoCreateItemDistance.StarfuryLabel, setup.StarfuryMaximumDistance, !busy && advancedFiltersEligible);
+        AddItemDistanceControls(controls, "finch-staff-distance:", AutoCreateItemDistance.FinchStaff,
+            AutoCreateItemDistance.FinchStaffLabel, setup.FinchStaffMaximumDistance, !busy && advancedFiltersEligible);
         foreach ((string id, string label, int selected) in new[]
         {
             ("spelunker", "Spelunker Potion", setup.SpelunkerPotionMinimum),
@@ -456,6 +460,14 @@ internal sealed partial class RaceShell
         }
         AddButton(controls, "nav-host-world", Localize("Back"), !busy, "footer");
         AddButton(controls, "host-generate", Localize("Generate and upload"), !busy, "footer");
+    }
+
+    private void AddItemDistanceControls(List<RaceInGameControl> controls, string prefix,
+        IReadOnlyList<int> values, Func<int, string> label, int selected, bool enabled)
+    {
+        foreach (int value in values)
+            AddToggle(controls, prefix + value.ToString(CultureInfo.InvariantCulture), Localize(label(value)),
+                selected > 0 && value <= selected, enabled && (value == 0 || selected > 0), "primary-choice:" + prefix);
     }
 
     private void BuildRoomPreparationControls(

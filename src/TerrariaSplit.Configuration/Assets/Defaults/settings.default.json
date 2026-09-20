@@ -1027,6 +1027,8 @@
             "RequireCrimsonBetweenDungeonAndSpawn": true,
             "CrimsonDistance": "Far",
             "JungleRouteDepth": "Medium",
+            "StarfuryMaximumDistance": 0,
+            "FinchStaffMaximumDistance": 0,
             "ResourceFilterItemMask": 0,
             "ResourceFilterLifeCrystalMinimum": 0,
             "ResourceFilterSpelunkerPotionMinimum": 0,

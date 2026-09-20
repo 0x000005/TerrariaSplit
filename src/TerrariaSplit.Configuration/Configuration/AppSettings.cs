@@ -264,6 +264,9 @@ public sealed class RaceWorldSetupSettings
 
     public string JungleRouteDepth { get; set; } = AutoCreateJungleRouteDepth.Medium;
 
+    public int StarfuryMaximumDistance { get; set; }
+    public int FinchStaffMaximumDistance { get; set; }
+
     public int ResourceItemMask { get; set; }
 
     public int LifeCrystalMinimum { get; set; }
@@ -484,6 +487,8 @@ public sealed class AutoCreateWorldSettings
     public bool RequireCrimsonBetweenDungeonAndSpawn { get; set; } = true;
     public string CrimsonDistance { get; set; } = AutoCreateCrimsonDistance.Default;
     public string JungleRouteDepth { get; set; } = AutoCreateJungleRouteDepth.Medium;
+    public int StarfuryMaximumDistance { get; set; }
+    public int FinchStaffMaximumDistance { get; set; }
     public int ResourceFilterItemMask { get; set; }
     public int ResourceFilterLifeCrystalMinimum { get; set; }
     public int ResourceFilterSpelunkerPotionMinimum { get; set; }
@@ -659,6 +664,23 @@ public static class AutoCreatePyramidFilterDepth
     };
 }
 
+public static class AutoCreateItemDistance
+{
+    public static readonly int[] Starfury = [0, 100, 200, 300];
+    public static readonly int[] FinchStaff = [0, 300, 500, 800];
+
+    public static int NormalizeStarfury(int value) => Starfury.Contains(value) ? value : 0;
+    public static int NormalizeFinchStaff(int value) => FinchStaff.Contains(value) ? value : 0;
+    public static string StarfuryLabel(int value) => value switch
+    {
+        100 => "Extremely near", 200 => "Very near", 300 => "Near", _ => "Starfury"
+    };
+    public static string FinchStaffLabel(int value) => value switch
+    {
+        300 => "Very near", 500 => "Near", 800 => "Medium", _ => "Finch Staff"
+    };
+}
+
 public static class AutoCreatePyramidCoinPileMinimum
 {
     public static readonly int[] All = [0, 1, 2, 3];
@@ -706,6 +728,8 @@ public static class AutoCreateResourceFilterItem
 public static class AutoCreateResourceFilter
 {
     public static bool HasRequirements(AutoCreateWorldSettings settings) =>
+        AutoCreateItemDistance.NormalizeStarfury(settings.StarfuryMaximumDistance) > 0 ||
+        AutoCreateItemDistance.NormalizeFinchStaff(settings.FinchStaffMaximumDistance) > 0 ||
         AutoCreateJungleRouteDepth.Normalize(settings.JungleRouteDepth) != AutoCreateJungleRouteDepth.None ||
         AutoCreateResourceFilterItem.NormalizeMask(settings.ResourceFilterItemMask) != 0 ||
         AutoCreateResourceMinimum.NormalizeLifeCrystals(settings.ResourceFilterLifeCrystalMinimum) > 0 ||

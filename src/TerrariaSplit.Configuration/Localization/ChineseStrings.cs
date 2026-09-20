@@ -746,6 +746,10 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Pyramid depth", "金字塔深度" }
       , { "Shallow", "浅" }
       , { "Open-air", "露天" }
+      , { "Starfury", "星怒" }
+      , { "Finch Staff", "雀杖" }
+      , { "Extremely near", "非常近" }
+      , { "Very near", "很近" }
       , { "Deep", "\u6DF1" }
       , { "Very deep", "\u5F88\u6DF1" }
       , { "Jungle main route", "\u4E1B\u6797\u4E3B\u8DEF" }

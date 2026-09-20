@@ -36,7 +36,9 @@ internal sealed partial class RaceShell
                 ? setup.JungleRouteDepth
                 : AutoCreateJungleRouteDepth.None,
             setup.PyramidCoinPileMinimum,
-            advancedFiltersEligible && setup.PyramidEnabled ? setup.PyramidMaximumDepth : 0);
+            advancedFiltersEligible && setup.PyramidEnabled ? setup.PyramidMaximumDepth : 0,
+            advancedFiltersEligible ? setup.StarfuryMaximumDistance : 0,
+            advancedFiltersEligible ? setup.FinchStaffMaximumDistance : 0);
         int worldDifficultyCode =
             TerrariaWorldSeedOptions.CopiedDifficultyCode(setup.WorldDifficulty);
         return new RaceWorldSettings(
@@ -134,6 +136,8 @@ internal sealed partial class RaceShell
         setup.CheatsEnabled = true;
         setup.CrimsonDistance = AutoCreateCrimsonDistance.Normalize(setup.CrimsonDistance);
         setup.JungleRouteDepth = AutoCreateJungleRouteDepth.Normalize(setup.JungleRouteDepth);
+        setup.StarfuryMaximumDistance = AutoCreateItemDistance.NormalizeStarfury(setup.StarfuryMaximumDistance);
+        setup.FinchStaffMaximumDistance = AutoCreateItemDistance.NormalizeFinchStaff(setup.FinchStaffMaximumDistance);
         setup.ResourceItemMask = AutoCreateResourceFilterItem.NormalizeMask(setup.ResourceItemMask);
         setup.PyramidMaximumDepth = AutoCreatePyramidFilterDepth.Normalize(setup.PyramidMaximumDepth);
         setup.LifeCrystalMinimum = AutoCreateResourceMinimum.NormalizeLifeCrystals(
@@ -166,6 +170,8 @@ internal sealed partial class RaceShell
             CrimsonEnabled = source.CrimsonEnabled,
             CrimsonDistance = source.CrimsonDistance,
             JungleRouteDepth = source.JungleRouteDepth,
+            StarfuryMaximumDistance = source.StarfuryMaximumDistance,
+            FinchStaffMaximumDistance = source.FinchStaffMaximumDistance,
             ResourceItemMask = source.ResourceItemMask,
             LifeCrystalMinimum = source.LifeCrystalMinimum,
             SpelunkerPotionMinimum = source.SpelunkerPotionMinimum,

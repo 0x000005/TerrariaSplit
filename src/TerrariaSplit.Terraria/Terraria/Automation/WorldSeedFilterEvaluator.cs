@@ -221,6 +221,8 @@ internal sealed class WorldSeedFilterEvaluator : IDisposable
         if (settings.ResourceFilterLifeCrystalMinimum > 0) mask |= ResourceJudgeAnalysis.LifeCrystals;
         if (settings.ResourceFilterSpelunkerPotionMinimum > 0) mask |= ResourceJudgeAnalysis.SpelunkerPotions;
         if (settings.ResourceFilterFeatherfallPotionMinimum > 0) mask |= ResourceJudgeAnalysis.FeatherfallPotions;
+        if (AutoCreateItemDistance.NormalizeStarfury(settings.StarfuryMaximumDistance) > 0) mask |= ResourceJudgeAnalysis.StarfuryChests;
+        if (AutoCreateItemDistance.NormalizeFinchStaff(settings.FinchStaffMaximumDistance) > 0) mask |= ResourceJudgeAnalysis.FinchStaffChests;
         return mask;
     }
 
@@ -378,6 +380,12 @@ internal static class JungleSeedFilterMatcher
             jungle.Route.Status != JungleRouteStatus.Complete);
 
         int requestedAnalysis = WorldSeedFilterEvaluator.RequestedAnalysis(settings);
+        int starfuryDistance = AutoCreateItemDistance.NormalizeStarfury(settings.StarfuryMaximumDistance);
+        int finchStaffDistance = AutoCreateItemDistance.NormalizeFinchStaff(settings.FinchStaffMaximumDistance);
+        if (!HasChestWithinDistance(result.StarfuryChests, starfuryDistance))
+            return new JungleSeedFilterMatch(false, $"no Starfury chest within {starfuryDistance} tiles of world center");
+        if (!HasChestWithinDistance(result.FinchStaffChests, finchStaffDistance))
+            return new JungleSeedFilterMatch(false, $"no Finch Staff chest within {finchStaffDistance} tiles of world center");
         if ((requestedAnalysis & (ResourceJudgeAnalysis.PyramidItems | ResourceJudgeAnalysis.PyramidGold | ResourceJudgeAnalysis.PyramidDepth)) != 0)
         {
             int items = AutoCreatePyramidFilterItem.NormalizeMaskOrAll(settings.PyramidFilterItemMask);
@@ -430,6 +438,11 @@ internal static class JungleSeedFilterMatcher
             true,
             $"judge accepted; endPass={result.CheckpointPassIndex}; routeStatus={jungle?.Route.Status}; " +
             $"jungleDepth={metrics.JungleRouteDeepestY}; itemMask={metrics.JungleItemMask}; " +
-            $"lifeCrystals={metrics.LifeCrystalCount}; spelunker={metrics.SpelunkerPotionCount}; featherfall={metrics.FeatherfallPotionCount}");
+            $"lifeCrystals={metrics.LifeCrystalCount}; spelunker={metrics.SpelunkerPotionCount}; featherfall={metrics.FeatherfallPotionCount}; " +
+            $"starfuryMaxDistance={starfuryDistance}; finchStaffMaxDistance={finchStaffDistance}");
     }
+
+    private static bool HasChestWithinDistance(IReadOnlyList<ResourceJudgePoint>? chests, int maximum) =>
+        maximum == 0 || chests is not null && chests.Any(chest =>
+            Math.Abs(chest.X - SmallWorldWidth / 2) <= maximum);
 }

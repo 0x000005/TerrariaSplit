@@ -76,6 +76,8 @@ public static class RaceWorldSettingsFactory
             RequireCrimsonBetweenDungeonAndSpawn = cheats.CrimsonEnabled,
             CrimsonDistance = AutoCreateCrimsonDistance.Normalize(cheats.CrimsonDistance),
             JungleRouteDepth = AutoCreateJungleRouteDepth.Normalize(cheats.JungleRouteDepth),
+            StarfuryMaximumDistance = AutoCreateItemDistance.NormalizeStarfury(cheats.StarfuryMaximumDistance),
+            FinchStaffMaximumDistance = AutoCreateItemDistance.NormalizeFinchStaff(cheats.FinchStaffMaximumDistance),
             ResourceFilterItemMask = AutoCreateResourceFilterItem.NormalizeMask(cheats.ResourceItemMask),
             ResourceFilterLifeCrystalMinimum = AutoCreateResourceMinimum.NormalizeLifeCrystals(cheats.LifeCrystalMinimum),
             ResourceFilterSpelunkerPotionMinimum = AutoCreateResourceMinimum.NormalizePotions(cheats.SpelunkerPotionMinimum),

@@ -71,6 +71,15 @@ internal static class WindowsFlowTests
             CheatFilterIndicator.GetColor(
                 CheatFilterIndicator.Resolve(settings)).ToArgb());
 
+        settings.StarfuryMaximumDistance = 100;
+        Check.Equal(CheatFilterIndicatorLevel.Resource, CheatFilterIndicator.Resolve(settings));
+        settings.StarfuryMaximumDistance = 0;
+        settings.FinchStaffMaximumDistance = 800;
+        Check.Equal(CheatFilterIndicatorLevel.Resource, CheatFilterIndicator.Resolve(settings));
+        settings.FinchStaffMaximumDistance = 0;
+        Check.Equal(CheatFilterIndicatorLevel.Resource, CheatFilterIndicator.Resolve(raceSettings with { StarfuryMaximumDistance = 300 }));
+        Check.Equal(CheatFilterIndicatorLevel.Resource, CheatFilterIndicator.Resolve(raceSettings with { FinchStaffMaximumDistance = 300 }));
+
         settings.ResourceFilterItemMask =
             AutoCreateResourceFilterItem.BoomstickMask;
         Check.Equal(
@@ -321,6 +330,25 @@ internal static class WindowsFlowTests
         Check.True(fixedSeedDraft.Automation.AutoCreate.JungleRouteDepth != AutoCreateJungleRouteDepth.None);
         automation.AutoCreateFixedSeedBox.Text = string.Empty;
         Check.True(automation.AutoCreatePyramidFilterBox.Enabled);
+        Check.True(automation.AutoCreateStarfuryDistanceBoxes[0].Enabled);
+        Check.False(automation.AutoCreateStarfuryDistanceBoxes[100].Enabled);
+        automation.AutoCreateStarfuryDistanceBoxes[0].Checked = true;
+        automation.AutoCreateStarfuryDistanceBoxes[200].Checked = false;
+        Check.Equal(200, form.PageHost.CreateAppliedSnapshot().Automation.AutoCreate.StarfuryMaximumDistance);
+        Check.True(automation.AutoCreateStarfuryDistanceBoxes[100].Checked);
+        Check.False(automation.AutoCreateStarfuryDistanceBoxes[300].Checked);
+        automation.AutoCreateFinchStaffDistanceBoxes[0].Checked = true;
+        automation.AutoCreateFinchStaffDistanceBoxes[500].Checked = false;
+        Check.Equal(500, form.PageHost.CreateAppliedSnapshot().Automation.AutoCreate.FinchStaffMaximumDistance);
+        automation.AutoCreateCheatsBox.Checked = false;
+        Check.False(automation.AutoCreateStarfuryDistanceBoxes[0].Enabled);
+        Check.False(automation.AutoCreateFinchStaffDistanceBoxes[0].Enabled);
+        Check.Equal(200, form.PageHost.CreateAppliedSnapshot().Automation.AutoCreate.StarfuryMaximumDistance);
+        Check.Equal(500, form.PageHost.CreateAppliedSnapshot().Automation.AutoCreate.FinchStaffMaximumDistance);
+        automation.AutoCreateCheatsBox.Checked = true;
+        automation.AutoCreateStarfuryDistanceBoxes[0].Checked = false;
+        Check.Equal(0, form.PageHost.CreateAppliedSnapshot().Automation.AutoCreate.StarfuryMaximumDistance);
+        Check.False(automation.AutoCreateStarfuryDistanceBoxes[100].Enabled);
         automation.AutoCreatePyramidDepthBoxes[15].Checked = false;
         Check.Equal(15, form.PageHost.CreateAppliedSnapshot().Automation.AutoCreate.PyramidMaximumDepth);
         automation.AutoCreateCheatsBox.Checked = false;

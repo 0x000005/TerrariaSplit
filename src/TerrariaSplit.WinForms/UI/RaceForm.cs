@@ -85,6 +85,9 @@ internal sealed class RaceForm : Form
     private readonly Dictionary<string, CheckBox> pyramidItemButtons = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<int, CheckBox> pyramidCoinPileMinimumButtons = new();
     private readonly Dictionary<int, CheckBox> pyramidDepthButtons = new();
+    private readonly Dictionary<int, CheckBox> starfuryDistanceButtons = new();
+    private readonly Dictionary<int, CheckBox> finchStaffDistanceButtons = new();
+    private bool updatingItemDistanceSelection;
     private static readonly int[] PyramidDepthLevels = [0, 1, 2, 3];
     private readonly Dictionary<string, CheckBox> crimsonDistanceButtons = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, CheckBox> jungleRouteDepthButtons = new(StringComparer.OrdinalIgnoreCase);
@@ -259,6 +262,8 @@ internal sealed class RaceForm : Form
         InitializeMinimumButtons(PyramidDepthLevels, pyramidDepthButtons, "Pyramid depth",
             level => AutoCreatePyramidFilterDepth.Label(AutoCreatePyramidFilterDepth.All[level]));
         ApplyMinimumSelection(1, pyramidDepthButtons);
+        InitializeItemDistanceButtons(AutoCreateItemDistance.Starfury, AutoCreateItemDistance.StarfuryLabel, starfuryDistanceButtons);
+        InitializeItemDistanceButtons(AutoCreateItemDistance.FinchStaff, AutoCreateItemDistance.FinchStaffLabel, finchStaffDistanceButtons);
         InitializeMinimumButtons(AutoCreateResourceMinimum.LifeCrystals, lifeCrystalMinimumButtons, "Life Crystal");
         InitializeMinimumButtons(AutoCreateResourceMinimum.Potions, spelunkerMinimumButtons, "Spelunker Potion");
         InitializeMinimumButtons(AutoCreateResourceMinimum.Potions, featherfallMinimumButtons, "Featherfall Potion");
@@ -1617,6 +1622,8 @@ internal sealed class RaceForm : Form
         SettingsUiFactory.AddSectionControl(container, CreateMinimumSelector(PyramidDepthLevels, pyramidDepthButtons));
         SettingsUiFactory.AddSectionControl(container, CreateJungleRouteDepthSelector());
         SettingsUiFactory.AddSectionControl(container, CreateResourceItemSelector());
+        SettingsUiFactory.AddSectionControl(container, CreateMinimumSelector(AutoCreateItemDistance.Starfury, starfuryDistanceButtons));
+        SettingsUiFactory.AddSectionControl(container, CreateMinimumSelector(AutoCreateItemDistance.FinchStaff, finchStaffDistanceButtons));
         SettingsUiFactory.AddSectionControl(container, CreateMinimumSelector(
             AutoCreateResourceMinimum.LifeCrystals,
             lifeCrystalMinimumButtons));
@@ -1745,6 +1752,40 @@ internal sealed class RaceForm : Form
 
         return panel;
     }
+
+    private void InitializeItemDistanceButtons(IReadOnlyList<int> values, Func<int, string> label,
+        Dictionary<int, CheckBox> buttons)
+    {
+        foreach (int value in values)
+        {
+            CheckBox button = CreatePyramidItemButton(label(value), selected: false);
+            buttons[value] = button;
+            button.CheckedChanged += (_, _) =>
+            {
+                if (updatingItemDistanceSelection) return;
+                int selected = value == 0 ? button.Checked ? values[^1] : 0 : value;
+                ApplyItemDistanceSelection(selected, buttons);
+                UpdateCheatAvailability();
+            };
+        }
+    }
+
+    private void ApplyItemDistanceSelection(int selected, IReadOnlyDictionary<int, CheckBox> buttons)
+    {
+        updatingItemDistanceSelection = true;
+        try
+        {
+            foreach ((int distance, CheckBox button) in buttons)
+            {
+                button.Checked = selected > 0 && distance <= selected;
+                UpdateSelectorButtonState(button);
+            }
+        }
+        finally { updatingItemDistanceSelection = false; }
+    }
+
+    private static int GetSelectedItemDistance(IReadOnlyDictionary<int, CheckBox> buttons) =>
+        buttons.Where(pair => pair.Value.Checked).Select(pair => pair.Key).DefaultIfEmpty(0).Max();
 
     private static Control CreateMinimumSelector(
         IReadOnlyList<int> values,
@@ -2067,7 +2108,9 @@ internal sealed class RaceForm : Form
             GetSelectedMinimum(featherfallMinimumButtons, AutoCreateResourceMinimum.Potions),
             GetSelectedJungleRouteDepth(),
             GetSelectedMinimum(pyramidCoinPileMinimumButtons, AutoCreatePyramidCoinPileMinimum.All),
-            AutoCreatePyramidFilterDepth.All[GetSelectedMinimum(pyramidDepthButtons, PyramidDepthLevels)]);
+            AutoCreatePyramidFilterDepth.All[GetSelectedMinimum(pyramidDepthButtons, PyramidDepthLevels)],
+            GetSelectedItemDistance(starfuryDistanceButtons),
+            GetSelectedItemDistance(finchStaffDistanceButtons));
     }
 
     private async Task HandleHostWorldActionButtonClickAsync()
@@ -2375,6 +2418,8 @@ internal sealed class RaceForm : Form
         crimsonEnabledBox.Checked = cheats.CrimsonEnabled;
         ApplyCrimsonDistanceSelection(AutoCreateCrimsonDistance.Normalize(cheats.CrimsonDistance));
         ApplyJungleRouteDepthSelection(AutoCreateJungleRouteDepth.Normalize(cheats.JungleRouteDepth));
+        ApplyItemDistanceSelection(AutoCreateItemDistance.NormalizeStarfury(cheats.StarfuryMaximumDistance), starfuryDistanceButtons);
+        ApplyItemDistanceSelection(AutoCreateItemDistance.NormalizeFinchStaff(cheats.FinchStaffMaximumDistance), finchStaffDistanceButtons);
         int resourceItemMask = AutoCreateResourceFilterItem.NormalizeMask(cheats.ResourceItemMask);
         foreach ((string item, CheckBox button) in resourceItemButtons)
         {
@@ -3005,6 +3050,8 @@ internal sealed class RaceForm : Form
     {
         bool cheatsEnabled = cheatsEnabledBox.Checked && GetSelectedInt(sizeBox, 2) == 1 && GetSelectedInt(evilBox, 2) == 2;
         UpdateMinimumAvailability(pyramidDepthButtons, cheatsEnabled && pyramidEnabledBox.Checked);
+        UpdateMinimumAvailability(starfuryDistanceButtons, cheatsEnabled);
+        UpdateMinimumAvailability(finchStaffDistanceButtons, cheatsEnabled);
         pyramidEnabledBox.Enabled = cheatsEnabled;
         crimsonEnabledBox.Enabled = cheatsEnabled && GetSelectedInt(evilBox, 2) == 2;
         UpdateSelectorButtonState(pyramidEnabledBox);

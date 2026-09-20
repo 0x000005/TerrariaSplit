@@ -25,6 +25,8 @@ internal static class CheatFilterIndicator
         }
 
         if (AutoCreateResourceFilterItem.NormalizeMask(settings.ResourceFilterItemMask) != 0 ||
+            AutoCreateItemDistance.NormalizeStarfury(settings.StarfuryMaximumDistance) > 0 ||
+            AutoCreateItemDistance.NormalizeFinchStaff(settings.FinchStaffMaximumDistance) > 0 ||
             AutoCreateResourceMinimum.NormalizeLifeCrystals(settings.ResourceFilterLifeCrystalMinimum) > 0 ||
             AutoCreateResourceMinimum.NormalizePotions(settings.ResourceFilterSpelunkerPotionMinimum) > 0 ||
             AutoCreateResourceMinimum.NormalizePotions(settings.ResourceFilterFeatherfallPotionMinimum) > 0)
@@ -52,6 +54,8 @@ internal static class CheatFilterIndicator
         }
 
         if (AutoCreateResourceFilterItem.NormalizeMask(settings.ResourceItemMask) != 0 ||
+            AutoCreateItemDistance.NormalizeStarfury(settings.StarfuryMaximumDistance) > 0 ||
+            AutoCreateItemDistance.NormalizeFinchStaff(settings.FinchStaffMaximumDistance) > 0 ||
             AutoCreateResourceMinimum.NormalizeLifeCrystals(settings.LifeCrystalMinimum) > 0 ||
             AutoCreateResourceMinimum.NormalizePotions(settings.SpelunkerPotionMinimum) > 0 ||
             AutoCreateResourceMinimum.NormalizePotions(settings.FeatherfallPotionMinimum) > 0)

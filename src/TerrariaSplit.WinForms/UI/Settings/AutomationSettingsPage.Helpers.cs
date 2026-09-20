@@ -208,6 +208,44 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
         autoCreateFeatherfallMinimumBoxes,
         "Featherfall Potion");
 
+    private TableLayoutPanel CreateItemDistanceSelector(
+        IReadOnlyList<int> values, Func<int, string> label, int selected,
+        Dictionary<int, CheckBox> boxes)
+    {
+        bool updating = false;
+        boxes.Clear();
+        TableLayoutPanel panel = CreateSelectorPanel(values.Count, fixedFirstColumn: true);
+        for (int index = 0; index < values.Count; index++)
+        {
+            int value = values[index];
+            CheckBox button = CreateSelectorButton(label(value), selected > 0 && value <= selected);
+            button.Margin = value == 0 ? new Padding(0, 0, 0, CheatSelectorGap) : SelectorMargin(index - 1, values.Count - 1);
+            boxes[value] = button;
+            button.CheckedChanged += (_, _) =>
+            {
+                if (updating) return;
+                selected = value == 0 ? button.Checked ? values[^1] : 0 : value;
+                updating = true;
+                try
+                {
+                    foreach ((int distance, CheckBox box) in boxes)
+                    {
+                        box.Checked = selected > 0 && distance <= selected;
+                        UpdateSpecialSeedButtonState(box);
+                    }
+                }
+                finally { updating = false; }
+                UpdatePostGenerationFilterAvailability();
+            };
+            panel.Controls.Add(button, index == 0 ? 0 : index + 1, 0);
+        }
+        FinishSingleRowSelector(panel);
+        return panel;
+    }
+
+    private static int GetSelectedMaximum(IReadOnlyDictionary<int, CheckBox> boxes) =>
+        boxes.Where(pair => pair.Value.Checked).Select(pair => pair.Key).DefaultIfEmpty(0).Max();
+
     private TableLayoutPanel CreateMinimumSelector(
         IReadOnlyList<int> values,
         int selectedMinimum,
@@ -574,6 +612,8 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
                 UpdateSpecialSeedButtonState(button);
             }
             UpdateMinimumAvailability(autoCreateLifeCrystalMinimumBoxes, supportsAdvancedFilters);
+            UpdateMinimumAvailability(autoCreateStarfuryDistanceBoxes, supportsAdvancedFilters);
+            UpdateMinimumAvailability(autoCreateFinchStaffDistanceBoxes, supportsAdvancedFilters);
             UpdateMinimumAvailability(autoCreateSpelunkerMinimumBoxes, supportsAdvancedFilters);
             UpdateMinimumAvailability(autoCreateFeatherfallMinimumBoxes, supportsAdvancedFilters);
             UpdatePyramidItemAvailability();

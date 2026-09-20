@@ -597,6 +597,24 @@ internal sealed partial class RaceShell
                 setup.PyramidMaximumDepth = depth == 0 ? setup.PyramidMaximumDepth > 0 ? 0 : 30 : depth;
             PersistInGameWorldSetup();
         }
+        else if ((id.StartsWith("starfury-distance:", StringComparison.Ordinal) || id.StartsWith("finch-staff-distance:", StringComparison.Ordinal)) &&
+            int.TryParse(id[(id.IndexOf(':') + 1)..], NumberStyles.None, CultureInfo.InvariantCulture, out int itemDistance))
+        {
+            RaceWorldSetupSettings setup = EnsureInGameWorldSetup();
+            bool starfury = id.StartsWith("starfury-distance:", StringComparison.Ordinal);
+            int[] values = starfury ? AutoCreateItemDistance.Starfury : AutoCreateItemDistance.FinchStaff;
+            if (AutoCreateAdvancedFilterEligibility.IsEligible(setup) && values.Contains(itemDistance))
+            {
+                int current = starfury ? setup.StarfuryMaximumDistance : setup.FinchStaffMaximumDistance;
+                if (itemDistance == 0 || current > 0)
+                {
+                    int next = itemDistance == 0 ? current > 0 ? 0 : values[^1] : itemDistance;
+                    if (starfury) setup.StarfuryMaximumDistance = next;
+                    else setup.FinchStaffMaximumDistance = next;
+                }
+            }
+            PersistInGameWorldSetup();
+        }
         else if (id.StartsWith("resource-item:", StringComparison.Ordinal))
         {
             if (AutoCreateAdvancedFilterEligibility.IsEligible(EnsureInGameWorldSetup()))
