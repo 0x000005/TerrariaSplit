@@ -68,7 +68,7 @@ public sealed class TerrariaRaceWorldGenerationService : IDisposable
 
     public TerrariaRaceWorldGenerationService(IRuntimeDataPaths? paths = null)
     {
-        generator = new HeadlessWorldGenerator(paths);
+        generator = new HeadlessWorldGenerator(paths, raceParallelism: true);
     }
 
     public async Task<TerrariaRaceWorldGenerationResult> GenerateAndInstallAsync(
@@ -88,7 +88,7 @@ public sealed class TerrariaRaceWorldGenerationService : IDisposable
         }
 
         AutoCreateWorldSettings generationSettings = CloneRaceSettings(settings);
-        HeadlessWorldGenResult result = await generator.GenerateAndScanAsync(
+        HeadlessWorldGenResult result = await generator.GenerateAsync(
             serverTarget.Value,
             appLanguage,
             generationSettings,
@@ -166,13 +166,14 @@ public sealed class TerrariaRaceWorldGenerationService : IDisposable
         EnsureSeedFilterEvaluatorCount(seedTexts.Count);
         for (int index = 0; index < seedTexts.Count; index++)
         {
-            tasks[index] = EvaluateSeedAsync(
-                seedFilterEvaluators[index],
+            int candidateIndex = index;
+            tasks[index] = Task.Run(() => EvaluateSeedAsync(
+                seedFilterEvaluators[candidateIndex],
                 filterSettings,
-                seedTexts[index],
-                index,
+                seedTexts[candidateIndex],
+                candidateIndex,
                 worldGenerationVersion,
-                cancellationToken);
+                cancellationToken), cancellationToken);
         }
 
         SeedFilterEvaluation[] evaluations = await Task.WhenAll(tasks);
@@ -223,8 +224,7 @@ public sealed class TerrariaRaceWorldGenerationService : IDisposable
                     consecutiveCandidateFailures);
             }
 
-            if (prediction.CanUsePrediction && prediction.AcceptSeed ||
-                !prediction.CanUsePrediction && prediction.CanContinueWithoutPrediction)
+            if (prediction.CanUsePrediction && prediction.AcceptSeed)
             {
                 accepted.Add(new TerrariaRaceSeedFilterCandidate(
                     evaluation.SeedText,
@@ -275,7 +275,7 @@ public sealed class TerrariaRaceWorldGenerationService : IDisposable
     {
         while (seedFilterEvaluators.Count < count)
         {
-            seedFilterEvaluators.Add(new WorldSeedFilterEvaluator());
+            seedFilterEvaluators.Add(new WorldSeedFilterEvaluator(raceParallelism: true));
         }
     }
 
@@ -292,6 +292,7 @@ public sealed class TerrariaRaceWorldGenerationService : IDisposable
             EnablePyramidFilter = settings.EnablePyramidFilter,
             PyramidFilterItemMask = settings.PyramidFilterItemMask,
             PyramidFilterCoinPileMinimum = settings.PyramidFilterCoinPileMinimum,
+            PyramidMaximumDepth = settings.PyramidMaximumDepth,
             RequireCrimsonBetweenDungeonAndSpawn = settings.RequireCrimsonBetweenDungeonAndSpawn,
             CrimsonDistance = settings.CrimsonDistance,
             JungleRouteDepth = settings.JungleRouteDepth,

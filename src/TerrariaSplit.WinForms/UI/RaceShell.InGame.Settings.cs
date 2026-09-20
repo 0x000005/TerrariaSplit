@@ -21,21 +21,22 @@ internal sealed partial class RaceShell
             _ => true
         };
         RaceCheatSettings cheats = new(
-            !fixedSeed,
-            !fixedSeed && setup.PyramidEnabled,
+            advancedFiltersEligible,
+            advancedFiltersEligible && setup.PyramidEnabled,
             setup.PyramidItemMask,
             advancedFiltersEligible && setup.CrimsonEnabled,
             setup.CrimsonDistance,
-            0,
+            advancedFiltersEligible ? setup.ResourceItemMask : 0,
             advancedFiltersEligible
                 ? setup.LifeCrystalMinimum
                 : 0,
-            0,
-            0,
+            advancedFiltersEligible ? setup.SpelunkerPotionMinimum : 0,
+            advancedFiltersEligible ? setup.FeatherfallPotionMinimum : 0,
             advancedFiltersEligible
                 ? setup.JungleRouteDepth
                 : AutoCreateJungleRouteDepth.None,
-            setup.PyramidCoinPileMinimum);
+            setup.PyramidCoinPileMinimum,
+            advancedFiltersEligible ? setup.PyramidMaximumDepth : 0);
         int worldDifficultyCode =
             TerrariaWorldSeedOptions.CopiedDifficultyCode(setup.WorldDifficulty);
         return new RaceWorldSettings(
@@ -133,12 +134,12 @@ internal sealed partial class RaceShell
         setup.CheatsEnabled = true;
         setup.CrimsonDistance = AutoCreateCrimsonDistance.Normalize(setup.CrimsonDistance);
         setup.JungleRouteDepth = AutoCreateJungleRouteDepth.Normalize(setup.JungleRouteDepth);
-        setup.ResourceItemMask = 0;
+        setup.ResourceItemMask = AutoCreateResourceFilterItem.NormalizeMask(setup.ResourceItemMask);
+        setup.PyramidMaximumDepth = AutoCreatePyramidFilterDepth.Normalize(setup.PyramidMaximumDepth);
         setup.LifeCrystalMinimum = AutoCreateResourceMinimum.NormalizeLifeCrystals(
             setup.LifeCrystalMinimum);
-        setup.SpelunkerPotionMinimum = 0;
-        setup.FeatherfallPotionMinimum = 0;
-        AutoCreateAdvancedFilterEligibility.ClearUnsupportedFilters(setup);
+        setup.SpelunkerPotionMinimum = AutoCreateResourceMinimum.NormalizePotions(setup.SpelunkerPotionMinimum);
+        setup.FeatherfallPotionMinimum = AutoCreateResourceMinimum.NormalizePotions(setup.FeatherfallPotionMinimum);
         return setup;
     }
 
@@ -161,6 +162,7 @@ internal sealed partial class RaceShell
             PyramidEnabled = source.PyramidEnabled,
             PyramidItemMask = source.PyramidItemMask,
             PyramidCoinPileMinimum = source.PyramidCoinPileMinimum,
+            PyramidMaximumDepth = source.PyramidMaximumDepth,
             CrimsonEnabled = source.CrimsonEnabled,
             CrimsonDistance = source.CrimsonDistance,
             JungleRouteDepth = source.JungleRouteDepth,

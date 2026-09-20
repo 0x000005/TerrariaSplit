@@ -532,6 +532,14 @@ internal static class PyramidsPassReplica
         int sidePadding = random.Next(5, 10);
         while (digging)
         {
+            // Partial terrain may keep this tunnel alive longer than in a full world.
+            // Do not treat a truncated tunnel (and its RNG state) as a valid prediction.
+            if (!InWorld(state, hallX - sidePadding - 1, hallY) ||
+                !InWorld(state, hallX + tunnelWidth + sidePadding + 1, hallY))
+            {
+                throw new InvalidOperationException(
+                    $"Pyramid lower tunnel reached the simulation boundary at ({hallX}, {hallY}).");
+            }
             keepAliveCountdown--;
             hardStopCountdown--;
             turnCountdown--;
@@ -557,6 +565,11 @@ internal static class PyramidsPassReplica
                 digging = false;
                 for (int columnToCheck = hallX + 1; columnToCheck <= hallX + tunnelWidth - 1; columnToCheck++)
                 {
+                    if (!InWorld(state, columnToCheck, hallY))
+                    {
+                        throw new InvalidOperationException(
+                            $"Pyramid lower tunnel reached the simulation boundary at ({columnToCheck}, {hallY}).");
+                    }
                     if (state.Tiles[columnToCheck, hallY].Active)
                     {
                         digging = true;

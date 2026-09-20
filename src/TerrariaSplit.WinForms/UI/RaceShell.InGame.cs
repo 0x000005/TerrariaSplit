@@ -590,6 +590,32 @@ internal sealed partial class RaceShell
             }
             PersistInGameWorldSetup();
         }
+        else if (id.StartsWith("pyramid-depth:", StringComparison.Ordinal) && int.TryParse(id[14..], out int depth) && AutoCreatePyramidFilterDepth.All.Contains(depth))
+        {
+            RaceWorldSetupSettings setup = EnsureInGameWorldSetup();
+            if (AutoCreateAdvancedFilterEligibility.IsEligible(setup))
+                setup.PyramidMaximumDepth = depth == 0 ? setup.PyramidMaximumDepth > 0 ? 0 : 30 : depth;
+            PersistInGameWorldSetup();
+        }
+        else if (id.StartsWith("resource-item:", StringComparison.Ordinal))
+        {
+            if (AutoCreateAdvancedFilterEligibility.IsEligible(EnsureInGameWorldSetup()))
+                ToggleMask(AutoCreateResourceFilterItem.Mask(id[14..]), static s => s.ResourceItemMask, static (s, v) => s.ResourceItemMask = v);
+        }
+        else if ((id.StartsWith("spelunker-min:", StringComparison.Ordinal) || id.StartsWith("featherfall-min:", StringComparison.Ordinal)) &&
+            int.TryParse(id[(id.IndexOf(':') + 1)..], out int minimum) && AutoCreateResourceMinimum.Potions.Contains(minimum))
+        {
+            RaceWorldSetupSettings setup = EnsureInGameWorldSetup();
+            if (AutoCreateAdvancedFilterEligibility.IsEligible(setup))
+            {
+                bool spelunker = id.StartsWith("spelunker", StringComparison.Ordinal);
+                int current = spelunker ? setup.SpelunkerPotionMinimum : setup.FeatherfallPotionMinimum;
+                int next = minimum == 0 ? current > 0 ? 0 : 1 : minimum;
+                if (spelunker) setup.SpelunkerPotionMinimum = next;
+                else setup.FeatherfallPotionMinimum = next;
+            }
+            PersistInGameWorldSetup();
+        }
         else if (id == "life-crystal")
         {
             RaceWorldSetupSettings setup = EnsureInGameWorldSetup();

@@ -53,8 +53,7 @@ internal sealed class PyramidSeedPreScreenLoop
                 cancellationToken);
         }
 
-        int batchSize = WorldSeedFilterEvaluator.CalculateParallelism(
-            Environment.ProcessorCount);
+        const int batchSize = 1;
         int attempt = 0;
         int consecutiveCandidateFailures = 0;
         int consecutiveSeedReadFailures = 0;
@@ -168,7 +167,7 @@ internal sealed class PyramidSeedPreScreenLoop
                     $"consecutiveFailures={consecutiveSeedReadFailures}.";
                 if (consecutiveSeedReadFailures >= MaxConsecutiveSeedReadFailures)
                 {
-                    logInfo("Pyramid seed pre-screen will continue without prediction: " + detail);
+                    logInfo("Seed filtering stopped because the visible seed could not be verified: " + detail);
                     return new PyramidSeedPreScreenLoopResult(
                         PyramidSeedPreScreenLoopStatus.SeedReadFailed,
                         attempt,
@@ -207,14 +206,9 @@ internal sealed class PyramidSeedPreScreenLoop
             {
                 string detail =
                     $"Seed {readResult.SeedText} could not be predicted: {prediction.Detail}.";
-                logInfo(
-                    prediction.CanContinueWithoutPrediction
-                        ? "World seed pre-screen will continue with pyramid post-verification: " + detail
-                        : "World seed pre-screen failed closed: " + detail);
+                logInfo("World seed filter unavailable: " + detail);
                 return new PyramidSeedPreScreenLoopResult(
-                    prediction.CanContinueWithoutPrediction
-                        ? PyramidSeedPreScreenLoopStatus.PredictionUnavailable
-                        : PyramidSeedPreScreenLoopStatus.RequiredPredictionUnavailable,
+                    PyramidSeedPreScreenLoopStatus.RequiredPredictionUnavailable,
                     attempt,
                     AcceptedSeed: null,
                     detail);
@@ -284,7 +278,7 @@ internal sealed class PyramidSeedPreScreenLoop
                     $"consecutiveFailures={consecutiveSeedReadFailures}.";
                 if (consecutiveSeedReadFailures >= MaxConsecutiveSeedReadFailures)
                 {
-                    logInfo("Pyramid seed pre-screen will continue without prediction: " + detail);
+                    logInfo("Seed filtering stopped because the visible seed could not be verified: " + detail);
                     return new PyramidSeedPreScreenLoopResult(
                         PyramidSeedPreScreenLoopStatus.SeedReadFailed,
                         attempt,
@@ -331,14 +325,9 @@ internal sealed class PyramidSeedPreScreenLoop
             {
                 string detail =
                     $"Seed {readResult.SeedText} could not be predicted: {prediction.Detail}.";
-                logInfo(
-                    prediction.CanContinueWithoutPrediction
-                        ? "World seed pre-screen will continue with pyramid post-verification: " + detail
-                        : "World seed pre-screen failed closed: " + detail);
+                logInfo("World seed filter unavailable: " + detail);
                 return new PyramidSeedPreScreenLoopResult(
-                    prediction.CanContinueWithoutPrediction
-                        ? PyramidSeedPreScreenLoopStatus.PredictionUnavailable
-                        : PyramidSeedPreScreenLoopStatus.RequiredPredictionUnavailable,
+                    PyramidSeedPreScreenLoopStatus.RequiredPredictionUnavailable,
                     attempt,
                     AcceptedSeed: null,
                     detail);
@@ -370,7 +359,6 @@ internal enum PyramidSeedPreScreenLoopStatus
     Accepted,
     RandomizeFailed,
     SeedReadFailed,
-    PredictionUnavailable,
     RequiredPredictionUnavailable,
     CandidateFailuresExceeded,
 }

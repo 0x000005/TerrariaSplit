@@ -7,11 +7,7 @@ internal sealed class PyramidSeedPreScreenEvaluator
     public static bool IsEnabledFor(AutoCreateWorldSettings settings)
     {
         return settings.EnableCheats && settings.EnablePyramidFilter &&
-            AutoCreateWorldSize.Normalize(settings.WorldSize) == AutoCreateWorldSize.Small &&
-            AutoCreateWorldEvil.Normalize(settings.WorldEvil) == AutoCreateWorldEvil.Crimson &&
-            // Special and secret seeds may use the fast pyramid pre-screen; the
-            // generated world-file check remains the authoritative second pass.
-            string.IsNullOrWhiteSpace(settings.FixedSeed);
+            AutoCreateAdvancedFilterEligibility.IsEligible(settings);
     }
 
     public static bool IsSupportedTerrariaVersion(string? fileVersion)
@@ -57,7 +53,7 @@ internal sealed class PyramidSeedPreScreenEvaluator
                 requiredItems,
                 CanUsePrediction: false,
                 AcceptSeed: false,
-                RejectReason: $"prediction status {result.Status}");
+                RejectReason: $"prediction status {result.Status}; seed={seedText}: {result.Detail}");
         }
 
         return new PyramidSeedPreScreenPrediction(

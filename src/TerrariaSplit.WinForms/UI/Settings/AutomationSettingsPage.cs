@@ -26,6 +26,9 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
     private readonly CheckBox autoCreateCheatsBox = new();
     private readonly CheckBox autoCreatePyramidFilterBox = new();
     private readonly Dictionary<int, CheckBox> autoCreatePyramidCoinPileMinimumBoxes = new();
+    private readonly Dictionary<int, CheckBox> autoCreatePyramidDepthBoxes = new();
+    private bool updatingPyramidDepth;
+    private int selectedPyramidDepth;
     private readonly CheckBox autoCreateCrimsonBetweenDungeonAndSpawnBox = new();
     private readonly Dictionary<string, CheckBox> autoCreateCrimsonDistanceBoxes = new(StringComparer.OrdinalIgnoreCase);
     private readonly CheckBox autoCreateJungleRouteDepthBox = new();
@@ -39,7 +42,6 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
     private readonly TextBox autoCreateWorldPoolTargetBox = new();
     private readonly TextBox autoCreateShortActionDelayBox = new();
     private readonly TextBox autoCreateMenuActionDelayBox = new();
-    private readonly TextBox autoCreatePyramidFilterPostDelayBox = new();
     private readonly TextBox autoCreateWindowActivationDelayBox = new();
     private readonly TextBox autoCreateClickFocusDelayBox = new();
     private readonly TextBox autoCreateInputPressDurationBox = new();
@@ -62,6 +64,7 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
     internal ThemedSlider AutoCreateZenithStarCatchSpeedBar => autoCreateZenithStarCatchSpeedBar;
     internal CheckBox AutoCreateCheatsBox => autoCreateCheatsBox;
     internal CheckBox AutoCreatePyramidFilterBox => autoCreatePyramidFilterBox;
+    internal IReadOnlyDictionary<int, CheckBox> AutoCreatePyramidDepthBoxes => autoCreatePyramidDepthBoxes;
     internal IReadOnlyDictionary<int, CheckBox> AutoCreatePyramidCoinPileMinimumBoxes => autoCreatePyramidCoinPileMinimumBoxes;
     internal CheckBox AutoCreateCrimsonBetweenDungeonAndSpawnBox => autoCreateCrimsonBetweenDungeonAndSpawnBox;
     internal IReadOnlyDictionary<string, CheckBox> AutoCreateCrimsonDistanceBoxes => autoCreateCrimsonDistanceBoxes;
@@ -108,6 +111,7 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
         settings.Automation.AutoCreate.ZenithStarCatchSpeedSliderValue = AutoCreateZenithStarCatchSpeed.NormalizeSliderValue(autoCreateZenithStarCatchSpeedBar.Value);
         settings.Automation.AutoCreate.EnableCheats = autoCreateCheatsBox.Checked;
         settings.Automation.AutoCreate.EnablePyramidFilter = autoCreatePyramidFilterBox.Checked;
+        settings.Automation.AutoCreate.PyramidMaximumDepth = selectedPyramidDepth;
         settings.Automation.AutoCreate.PyramidFilterCoinPileMinimum = GetSelectedMinimum(
             autoCreatePyramidCoinPileMinimumBoxes,
             AutoCreatePyramidCoinPileMinimum.All);
@@ -143,11 +147,6 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
         settings.Automation.AutoCreate.MenuActionDelayMilliseconds = SettingsValueParser.ParseIntBox(
             autoCreateMenuActionDelayBox,
             AppSettingsDefaults.AutoCreate.MenuActionDelayMilliseconds,
-            0,
-            5000);
-        settings.Automation.AutoCreate.PyramidFilterPostDelayMilliseconds = SettingsValueParser.ParseIntBox(
-            autoCreatePyramidFilterPostDelayBox,
-            AppSettingsDefaults.AutoCreate.PyramidFilterPostDelayMilliseconds,
             0,
             5000);
         settings.Automation.AutoCreate.WindowActivationDelayMilliseconds = SettingsValueParser.ParseIntBox(
@@ -232,7 +231,6 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
         ConfigureNumberBox(autoCreateWorldPoolTargetBox, Draft.Automation.AutoCreate.WorldPoolTargetCount, 1, 50);
         ConfigureNumberBox(autoCreateShortActionDelayBox, Draft.Automation.AutoCreate.ShortActionDelayMilliseconds, 0, 5000);
         ConfigureNumberBox(autoCreateMenuActionDelayBox, Draft.Automation.AutoCreate.MenuActionDelayMilliseconds, 0, 5000);
-        ConfigureNumberBox(autoCreatePyramidFilterPostDelayBox, Draft.Automation.AutoCreate.PyramidFilterPostDelayMilliseconds, 0, 5000);
         ConfigureNumberBox(autoCreateWindowActivationDelayBox, Draft.Automation.AutoCreate.WindowActivationDelayMilliseconds, 0, 5000);
         ConfigureNumberBox(autoCreateClickFocusDelayBox, Draft.Automation.AutoCreate.ClickFocusDelayMilliseconds, 0, 5000);
         ConfigureNumberBox(autoCreateInputPressDurationBox, Draft.Automation.AutoCreate.InputPressDurationMilliseconds, 1, 5000);
@@ -363,6 +361,7 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
         SettingsUiFactory.AddSectionControl(createSection, cheatsGrid);
         SettingsUiFactory.AddSectionControl(createSection, CreatePyramidItemSelector());
         SettingsUiFactory.AddSectionControl(createSection, CreatePyramidCoinPileMinimumSelector());
+        SettingsUiFactory.AddSectionControl(createSection, CreatePyramidDepthSelector());
         SettingsUiFactory.AddSectionControl(createSection, CreateCrimsonDistanceSelector());
         SettingsUiFactory.AddSectionControl(createSection, CreateJungleRouteDepthSelector());
         SettingsUiFactory.AddSectionControl(createSection, CreateResourceItemSelector());

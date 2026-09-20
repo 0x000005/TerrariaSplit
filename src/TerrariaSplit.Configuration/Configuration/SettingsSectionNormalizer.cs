@@ -17,20 +17,15 @@ public static class SettingsSectionNormalizer
         autoCreate.ZenithStarCatchSpeedSliderValue = AutoCreateZenithStarCatchSpeed.NormalizeSliderValue(autoCreate.ZenithStarCatchSpeedSliderValue);
         autoCreate.PyramidFilterItemMask = AutoCreatePyramidFilterItem.NormalizeMask(autoCreate.PyramidFilterItemMask);
         autoCreate.PyramidFilterCoinPileMinimum = AutoCreatePyramidCoinPileMinimum.Normalize(autoCreate.PyramidFilterCoinPileMinimum);
+        autoCreate.PyramidMaximumDepth = AutoCreatePyramidFilterDepth.Normalize(autoCreate.PyramidMaximumDepth);
         autoCreate.CrimsonDistance = AutoCreateCrimsonDistance.Normalize(autoCreate.CrimsonDistance);
         autoCreate.JungleRouteDepth = AutoCreateJungleRouteDepth.Normalize(autoCreate.JungleRouteDepth);
         autoCreate.ResourceFilterItemMask = AutoCreateResourceFilterItem.NormalizeMask(autoCreate.ResourceFilterItemMask);
         autoCreate.ResourceFilterLifeCrystalMinimum = AutoCreateResourceMinimum.NormalizeLifeCrystals(autoCreate.ResourceFilterLifeCrystalMinimum);
         autoCreate.ResourceFilterSpelunkerPotionMinimum = AutoCreateResourceMinimum.NormalizePotions(autoCreate.ResourceFilterSpelunkerPotionMinimum);
         autoCreate.ResourceFilterFeatherfallPotionMinimum = AutoCreateResourceMinimum.NormalizePotions(autoCreate.ResourceFilterFeatherfallPotionMinimum);
-        if (autoCreate.FixedSeed.Length > 0)
-        {
-            autoCreate.EnablePyramidFilter = false;
-        }
-        AutoCreateAdvancedFilterEligibility.ClearUnsupportedFilters(autoCreate);
         autoCreate.ShortActionDelayMilliseconds = Math.Clamp(autoCreate.ShortActionDelayMilliseconds, 0, 5000);
         autoCreate.MenuActionDelayMilliseconds = Math.Clamp(autoCreate.MenuActionDelayMilliseconds, 0, 5000);
-        autoCreate.PyramidFilterPostDelayMilliseconds = Math.Clamp(autoCreate.PyramidFilterPostDelayMilliseconds, 0, 5000);
         autoCreate.WindowActivationDelayMilliseconds = Math.Clamp(autoCreate.WindowActivationDelayMilliseconds, 0, 5000);
         autoCreate.ClickFocusDelayMilliseconds = Math.Clamp(autoCreate.ClickFocusDelayMilliseconds, 0, 5000);
         autoCreate.InputPressDurationMilliseconds = Math.Clamp(autoCreate.InputPressDurationMilliseconds, 1, 5000);
@@ -152,13 +147,13 @@ public static class SettingsSectionNormalizer
         setup.BossPenaltyEnabledKinds &= RaceWorldSetupSettings.AllBossPenaltyKinds;
         setup.PyramidItemMask = AutoCreatePyramidFilterItem.NormalizeMask(setup.PyramidItemMask);
         setup.PyramidCoinPileMinimum = AutoCreatePyramidCoinPileMinimum.Normalize(setup.PyramidCoinPileMinimum);
+        setup.PyramidMaximumDepth = AutoCreatePyramidFilterDepth.Normalize(setup.PyramidMaximumDepth);
         setup.CrimsonDistance = AutoCreateCrimsonDistance.Normalize(setup.CrimsonDistance);
         setup.JungleRouteDepth = AutoCreateJungleRouteDepth.Normalize(setup.JungleRouteDepth);
         setup.ResourceItemMask = AutoCreateResourceFilterItem.NormalizeMask(setup.ResourceItemMask);
         setup.LifeCrystalMinimum = AutoCreateResourceMinimum.NormalizeLifeCrystals(setup.LifeCrystalMinimum);
         setup.SpelunkerPotionMinimum = AutoCreateResourceMinimum.NormalizePotions(setup.SpelunkerPotionMinimum);
         setup.FeatherfallPotionMinimum = AutoCreateResourceMinimum.NormalizePotions(setup.FeatherfallPotionMinimum);
-        AutoCreateAdvancedFilterEligibility.ClearUnsupportedFilters(setup);
     }
 
     private static void NormalizeRaceBossPenalty(

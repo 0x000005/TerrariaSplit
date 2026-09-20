@@ -54,7 +54,7 @@ internal sealed class PyramidSeedPreScreenAutomation : IDisposable
         {
             string unsupportedProfileDetail = $"{geometry.Profile.Name} does not expose the modern advanced seed randomize control.";
             FileAppLogger.Instance.Info($"Pyramid seed pre-screen skipped: {unsupportedProfileDetail}");
-            return PyramidSeedPreScreenAutomationResult.FromContinueWithoutPreScreen(unsupportedProfileDetail);
+            return PyramidSeedPreScreenAutomationResult.FromFailed(unsupportedProfileDetail, detailedDiagnostics: true);
         }
 
         if (!IsEnabledFor(settings))
@@ -69,8 +69,7 @@ internal sealed class PyramidSeedPreScreenAutomation : IDisposable
             await AcquireVisibleSeedReaderAsync(cancellationToken);
         if (seedReader is null)
         {
-            FileAppLogger.Instance.Info($"Pyramid seed pre-screen could not start seed reader; randomizing once and continuing without prediction: {detail}");
-            return await RandomizeOnceAndContinueWithoutPredictionAsync(geometry, clickDelay, detail, cancellationToken);
+            return PyramidSeedPreScreenAutomationResult.FromFailed(detail, detailedDiagnostics: true);
         }
 
         using (seedReader)
@@ -101,8 +100,7 @@ internal sealed class PyramidSeedPreScreenAutomation : IDisposable
             await AcquireVisibleSeedReaderAsync(cancellationToken);
         if (seedReader is null)
         {
-            FileAppLogger.Instance.Info($"Pyramid seed pre-screen could not start seed reader for 1.4.4.9 seed randomizer; randomizing once and continuing without prediction: {detail}");
-            return await RandomizeLegacyOnceAndContinueWithoutPredictionAsync(geometry, clickDelay, detail, cancellationToken);
+            return PyramidSeedPreScreenAutomationResult.FromFailed(detail, detailedDiagnostics: true);
         }
 
         using (seedReader)
@@ -138,8 +136,6 @@ internal sealed class PyramidSeedPreScreenAutomation : IDisposable
             return result.Status switch
             {
                 PyramidSeedPreScreenLoopStatus.Accepted => PyramidSeedPreScreenAutomationResult.FromAccepted(),
-                PyramidSeedPreScreenLoopStatus.SeedReadFailed or PyramidSeedPreScreenLoopStatus.PredictionUnavailable =>
-                    PyramidSeedPreScreenAutomationResult.FromContinueWithoutPreScreen(result.Detail),
                 _ => PyramidSeedPreScreenAutomationResult.FromFailed(
                     BuildLoopFailureDetail(
                         result.Status.ToString(),
@@ -284,35 +280,6 @@ internal sealed class PyramidSeedPreScreenAutomation : IDisposable
             TaskScheduler.Default);
     }
 
-    private async Task<PyramidSeedPreScreenAutomationResult> RandomizeLegacyOnceAndContinueWithoutPredictionAsync(
-        TerrariaMenuGeometry geometry,
-        TimeSpan clickDelay,
-        string detail,
-        CancellationToken cancellationToken)
-    {
-        bool randomized = await automation.ClickAsync(
-            "randomize 1.4.4.9 visible seed without pre-screen",
-            geometry,
-            static current => current.WorldAdvancedSeedButton(),
-            clickDelay,
-            cancellationToken);
-        return randomized
-            ? PyramidSeedPreScreenAutomationResult.FromContinueWithoutPreScreen(detail)
-            : PyramidSeedPreScreenAutomationResult.FromFailed("1.4.4.9 visible seed randomize click failed.");
-    }
-
-    private async Task<PyramidSeedPreScreenAutomationResult> RandomizeOnceAndContinueWithoutPredictionAsync(
-        TerrariaMenuGeometry geometry,
-        TimeSpan clickDelay,
-        string detail,
-        CancellationToken cancellationToken)
-    {
-        bool randomized = await RandomizeOnceAsync("randomize visible seed without pre-screen", geometry, clickDelay, cancellationToken);
-        return randomized
-            ? PyramidSeedPreScreenAutomationResult.FromContinueWithoutPreScreen(detail)
-            : PyramidSeedPreScreenAutomationResult.FromFailed("Visible seed randomize click failed.");
-    }
-
     private Task<bool> RandomizeOnceAsync(
         string step,
         TerrariaMenuGeometry geometry,
@@ -380,7 +347,6 @@ internal sealed class PyramidSeedPreScreenAutomation : IDisposable
 internal enum PyramidSeedPreScreenAutomationStatus
 {
     Accepted,
-    ContinueWithoutPreScreen,
     Failed
 }
 
@@ -390,14 +356,10 @@ internal readonly record struct PyramidSeedPreScreenAutomationResult(
     bool DetailedDiagnostics = false,
     Exception? Exception = null)
 {
-    public bool CanCreateWorld => Status == PyramidSeedPreScreenAutomationStatus.Accepted ||
-        Status == PyramidSeedPreScreenAutomationStatus.ContinueWithoutPreScreen;
+    public bool CanCreateWorld => Status == PyramidSeedPreScreenAutomationStatus.Accepted;
 
     public static PyramidSeedPreScreenAutomationResult FromAccepted() =>
         new(PyramidSeedPreScreenAutomationStatus.Accepted, "accepted");
-
-    public static PyramidSeedPreScreenAutomationResult FromContinueWithoutPreScreen(string detail) =>
-        new(PyramidSeedPreScreenAutomationStatus.ContinueWithoutPreScreen, detail);
 
     public static PyramidSeedPreScreenAutomationResult FromFailed(
         string detail,

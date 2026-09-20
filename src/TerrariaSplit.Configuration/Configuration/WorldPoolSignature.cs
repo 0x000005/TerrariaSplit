@@ -42,14 +42,14 @@ public static class WorldPoolSignature
             Encoding.UTF8.GetBytes(autoCreate.FixedSeed?.Trim() ?? string.Empty));
         bool cheatsEnabled = autoCreate.EnableCheats;
         string cheats = cheatsEnabled ? "cheats=1" : "cheats=0";
-        bool pyramidEnabled = cheatsEnabled && autoCreate.EnablePyramidFilter;
+        bool pyramidEnabled = cheatsEnabled && AutoCreateAdvancedFilterEligibility.IsEligible(autoCreate) && autoCreate.EnablePyramidFilter;
         string pyramid = pyramidEnabled ? "pyramid=1" : "pyramid=0";
         int pyramidItemMask = pyramidEnabled
             ? AutoCreatePyramidFilterItem.NormalizeMaskOrAll(autoCreate.PyramidFilterItemMask)
             : 0;
         string pyramidItems = "pyramidItems=" + pyramidItemMask.ToString(CultureInfo.InvariantCulture);
-        string pyramidDepth = "pyramidMaxDepth=" + (pyramidEnabled
-            ? AutoCreatePyramidFilterDepth.MaximumTunnelSurfaceDistance
+        string pyramidDepth = "resourceAnalysisV4;pyramidMaxDepth=" + (cheatsEnabled && AutoCreateAdvancedFilterEligibility.IsEligible(autoCreate)
+            ? AutoCreatePyramidFilterDepth.Normalize(autoCreate.PyramidMaximumDepth)
             : 0).ToString(CultureInfo.InvariantCulture);
         int pyramidCoinPileMinimum = pyramidEnabled
             ? AutoCreatePyramidCoinPileMinimum.Normalize(autoCreate.PyramidFilterCoinPileMinimum)

@@ -169,6 +169,39 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
         autoCreateSpelunkerMinimumBoxes,
         "Spelunker Potion");
 
+    private TableLayoutPanel CreatePyramidDepthSelector()
+    {
+        selectedPyramidDepth = AutoCreatePyramidFilterDepth.Normalize(Draft.Automation.AutoCreate.PyramidMaximumDepth);
+        TableLayoutPanel panel = CreateSelectorPanel(4, fixedFirstColumn: true);
+        for (int index = 0; index < AutoCreatePyramidFilterDepth.All.Length; index++)
+        {
+            int value = AutoCreatePyramidFilterDepth.All[index];
+            CheckBox button = CreateSelectorButton(AutoCreatePyramidFilterDepth.Label(value),
+                selectedPyramidDepth > 0 && (value == 0 || value <= selectedPyramidDepth));
+            button.Margin = value == 0 ? new Padding(0, 0, 0, CheatSelectorGap) : SelectorMargin(index - 1, 3);
+            autoCreatePyramidDepthBoxes[value] = button;
+            button.CheckedChanged += (_, _) =>
+            {
+                if (updatingPyramidDepth) return;
+                selectedPyramidDepth = value == 0 ? button.Checked ? 30 : 0 : value;
+                updatingPyramidDepth = true;
+                try
+                {
+                    foreach ((int depth, CheckBox box) in autoCreatePyramidDepthBoxes)
+                    {
+                        box.Checked = selectedPyramidDepth > 0 && (depth == 0 || depth <= selectedPyramidDepth);
+                        UpdateSpecialSeedButtonState(box);
+                    }
+                }
+                finally { updatingPyramidDepth = false; }
+                UpdatePostGenerationFilterAvailability();
+            };
+            panel.Controls.Add(button, index == 0 ? 0 : index + 1, 0);
+        }
+        FinishSingleRowSelector(panel);
+        return panel;
+    }
+
     private TableLayoutPanel CreateFeatherfallMinimumSelector() => CreateMinimumSelector(
         AutoCreateResourceMinimum.Potions,
         AutoCreateResourceMinimum.NormalizePotions(Draft.Automation.AutoCreate.ResourceFilterFeatherfallPotionMinimum),
@@ -473,11 +506,10 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
     private void UpdatePyramidItemAvailability()
     {
         bool filtersEnabled = autoCreateCheatsBox.Checked &&
-            string.IsNullOrWhiteSpace(autoCreateFixedSeedBox.Text);
-        if (!filtersEnabled)
-        {
-            autoCreatePyramidFilterBox.Checked = false;
-        }
+            string.IsNullOrWhiteSpace(autoCreateFixedSeedBox.Text) &&
+            AutoCreateAdvancedFilterEligibility.IsEligible(
+                GetSelectedOption(autoCreateWorldSizeBox, AutoCreateWorldSize.Small),
+                GetSelectedOption(autoCreateWorldEvilBox, AutoCreateWorldEvil.Crimson), null, null);
 
         autoCreatePyramidFilterBox.Enabled = filtersEnabled;
         UpdateSpecialSeedButtonState(autoCreatePyramidFilterBox);
@@ -508,27 +540,14 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
                 AutoCreateSpecialWorldSeed.All.Where(seed =>
                     autoCreateSpecialSeedBoxes.TryGetValue(seed, out CheckBox? button) && button.Checked));
             bool cheatsEnabled = autoCreateCheatsBox.Checked;
-            bool supportsAdvancedFilters = cheatsEnabled &&
-                string.IsNullOrWhiteSpace(autoCreateFixedSeedBox.Text) &&
+            bool eligibleForAdvancedFilters = string.IsNullOrWhiteSpace(autoCreateFixedSeedBox.Text) &&
                 AutoCreateAdvancedFilterEligibility.IsEligible(
                     selectedWorldSize,
                     selectedWorldEvil,
                     selectedSpecialSeeds,
                     autoCreateSecretSeedsBox.Text);
-            if (!supportsAdvancedFilters)
-            {
-                autoCreateCrimsonBetweenDungeonAndSpawnBox.Checked = false;
-                ApplyJungleRouteDepthSelection(AutoCreateJungleRouteDepth.None);
-                foreach (CheckBox button in autoCreateResourceItemBoxes.Values)
-                {
-                    button.Checked = false;
-                    UpdateSpecialSeedButtonState(button);
-                }
-
-                ApplyMinimumSelection(0, autoCreateLifeCrystalMinimumBoxes);
-                ApplyMinimumSelection(0, autoCreateSpelunkerMinimumBoxes);
-                ApplyMinimumSelection(0, autoCreateFeatherfallMinimumBoxes);
-            }
+            bool supportsAdvancedFilters = cheatsEnabled && eligibleForAdvancedFilters;
+            UpdateMinimumAvailability(autoCreatePyramidDepthBoxes, supportsAdvancedFilters);
 
             autoCreateCrimsonBetweenDungeonAndSpawnBox.Enabled = supportsAdvancedFilters;
             autoCreateCrimsonBetweenDungeonAndSpawnBox.ForeColor = supportsAdvancedFilters
@@ -889,7 +908,6 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
         Factory.AddSettingRow(timingGrid, "Mouse / key duration ms", autoCreateInputPressDurationBox);
         Factory.AddSettingRow(timingGrid, "Adjacent operation delay ms", autoCreateShortActionDelayBox);
         Factory.AddSettingRow(timingGrid, "Cross-menu operation delay ms", autoCreateMenuActionDelayBox);
-        Factory.AddSettingRow(timingGrid, "Pyramid filter post wait ms", autoCreatePyramidFilterPostDelayBox);
         SettingsUiFactory.AddSectionControl(timingSection, timingGrid);
         SettingsUiFactory.AddSection(parent, timingSection);
     }

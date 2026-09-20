@@ -84,6 +84,8 @@ internal sealed class RaceForm : Form
     private readonly Dictionary<string, CheckBox> specialSeedButtons = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, CheckBox> pyramidItemButtons = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<int, CheckBox> pyramidCoinPileMinimumButtons = new();
+    private readonly Dictionary<int, CheckBox> pyramidDepthButtons = new();
+    private static readonly int[] PyramidDepthLevels = [0, 1, 2, 3];
     private readonly Dictionary<string, CheckBox> crimsonDistanceButtons = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, CheckBox> jungleRouteDepthButtons = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, CheckBox> resourceItemButtons = new(StringComparer.OrdinalIgnoreCase);
@@ -254,6 +256,9 @@ internal sealed class RaceForm : Form
         }
 
         InitializeMinimumButtons(AutoCreatePyramidCoinPileMinimum.All, pyramidCoinPileMinimumButtons, "Pyramid gold coin piles");
+        InitializeMinimumButtons(PyramidDepthLevels, pyramidDepthButtons, "Pyramid depth",
+            level => AutoCreatePyramidFilterDepth.Label(AutoCreatePyramidFilterDepth.All[level]));
+        ApplyMinimumSelection(1, pyramidDepthButtons);
         InitializeMinimumButtons(AutoCreateResourceMinimum.LifeCrystals, lifeCrystalMinimumButtons, "Life Crystal");
         InitializeMinimumButtons(AutoCreateResourceMinimum.Potions, spelunkerMinimumButtons, "Spelunker Potion");
         InitializeMinimumButtons(AutoCreateResourceMinimum.Potions, featherfallMinimumButtons, "Featherfall Potion");
@@ -1609,6 +1614,7 @@ internal sealed class RaceForm : Form
             AutoCreatePyramidCoinPileMinimum.All,
             pyramidCoinPileMinimumButtons));
         SettingsUiFactory.AddSectionControl(container, CreateCrimsonDistanceSelector());
+        SettingsUiFactory.AddSectionControl(container, CreateMinimumSelector(PyramidDepthLevels, pyramidDepthButtons));
         SettingsUiFactory.AddSectionControl(container, CreateJungleRouteDepthSelector());
         SettingsUiFactory.AddSectionControl(container, CreateResourceItemSelector());
         SettingsUiFactory.AddSectionControl(container, CreateMinimumSelector(
@@ -1890,7 +1896,8 @@ internal sealed class RaceForm : Form
     private void InitializeMinimumButtons(
         IReadOnlyList<int> values,
         Dictionary<int, CheckBox> buttons,
-        string nameKey)
+        string nameKey,
+        Func<int, string>? labelForValue = null)
     {
         for (int index = 0; index < values.Count; index++)
         {
@@ -1900,7 +1907,7 @@ internal sealed class RaceForm : Form
                 : index == values.Count - 1
                     ? $"{value.ToString(System.Globalization.CultureInfo.InvariantCulture)}+"
                     : value.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            CheckBox button = CreateSelectorButton(label, selected: false);
+            CheckBox button = CreateSelectorButton(labelForValue?.Invoke(value) ?? label, selected: false);
             if (value != 0)
             {
                 button.AutoEllipsis = false;
@@ -2059,7 +2066,8 @@ internal sealed class RaceForm : Form
             GetSelectedMinimum(spelunkerMinimumButtons, AutoCreateResourceMinimum.Potions),
             GetSelectedMinimum(featherfallMinimumButtons, AutoCreateResourceMinimum.Potions),
             GetSelectedJungleRouteDepth(),
-            GetSelectedMinimum(pyramidCoinPileMinimumButtons, AutoCreatePyramidCoinPileMinimum.All));
+            GetSelectedMinimum(pyramidCoinPileMinimumButtons, AutoCreatePyramidCoinPileMinimum.All),
+            AutoCreatePyramidFilterDepth.All[GetSelectedMinimum(pyramidDepthButtons, PyramidDepthLevels)]);
     }
 
     private async Task HandleHostWorldActionButtonClickAsync()
@@ -2351,6 +2359,7 @@ internal sealed class RaceForm : Form
         RaceCheatSettings cheats = worldSettings.EffectiveCheats;
         cheatsEnabledBox.Checked = cheats.Enabled;
         pyramidEnabledBox.Checked = cheats.PyramidEnabled;
+        ApplyMinimumSelection(Array.IndexOf(AutoCreatePyramidFilterDepth.All, AutoCreatePyramidFilterDepth.Normalize(cheats.PyramidMaximumDepth)), pyramidDepthButtons);
         int pyramidItemMask = cheats.PyramidEnabled
             ? AutoCreatePyramidFilterItem.NormalizeMaskOrAll(cheats.PyramidItemMask)
             : AutoCreatePyramidFilterItem.NormalizeMask(cheats.PyramidItemMask);
@@ -2994,7 +3003,8 @@ internal sealed class RaceForm : Form
 
     private void UpdateCheatAvailability()
     {
-        bool cheatsEnabled = cheatsEnabledBox.Checked;
+        bool cheatsEnabled = cheatsEnabledBox.Checked && GetSelectedInt(sizeBox, 2) == 1 && GetSelectedInt(evilBox, 2) == 2;
+        UpdateMinimumAvailability(pyramidDepthButtons, cheatsEnabled);
         pyramidEnabledBox.Enabled = cheatsEnabled;
         crimsonEnabledBox.Enabled = cheatsEnabled && GetSelectedInt(evilBox, 2) == 2;
         UpdateSelectorButtonState(pyramidEnabledBox);

@@ -29,7 +29,8 @@ internal static class WindowsFlowTests
             EnablePyramidFilter = false,
             RequireCrimsonBetweenDungeonAndSpawn = false,
             JungleRouteDepth = AutoCreateJungleRouteDepth.None,
-            PyramidFilterCoinPileMinimum = 0
+            PyramidFilterCoinPileMinimum = 0,
+            PyramidMaximumDepth = 0
         };
         Check.Equal(
             Color.FromArgb(217, 166, 46).ToArgb(),
@@ -51,7 +52,8 @@ internal static class WindowsFlowTests
         RaceCheatSettings raceSettings = RaceCheatSettings.Disabled with
         {
             Enabled = true,
-            PyramidEnabled = true
+            PyramidEnabled = true,
+            PyramidMaximumDepth = 0
         };
         Check.Equal(
             Color.FromArgb(217, 166, 46).ToArgb(),
@@ -271,9 +273,9 @@ internal static class WindowsFlowTests
         Check.Equal(7, automation.AutoCreateLifeCrystalMinimumBoxes.Count);
         Check.Equal("6+", automation.AutoCreateLifeCrystalMinimumBoxes[6].Text);
         Check.False(automation.AutoCreateLifeCrystalMinimumBoxes[6].AutoEllipsis);
-        Check.True(automation.AutoCreatePyramidFilterBox.Enabled);
+        Check.False(automation.AutoCreatePyramidFilterBox.Enabled);
         Check.False(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Enabled);
-        Check.False(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Checked);
+        Check.True(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Checked);
         Check.False(automation.AutoCreateJungleRouteDepthBox.Enabled);
         automation.AutoCreateCheatsBox.Checked = true;
         automation.AutoCreateWorldSizeBox.SelectedIndex = Array.IndexOf(AutoCreateWorldSize.All, AutoCreateWorldSize.Small);
@@ -294,31 +296,38 @@ internal static class WindowsFlowTests
         Check.True(automation.AutoCreateFeatherfallMinimumBoxes[0].Enabled);
         automation.AutoCreateSpecialSeedBoxes[AutoCreateSpecialWorldSeed.NotTheBees].Checked = true;
         Check.True(automation.AutoCreatePyramidFilterBox.Enabled);
-        Check.False(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Enabled);
-        Check.False(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Checked);
-        Check.False(automation.AutoCreateJungleRouteDepthBox.Enabled);
-        Check.False(automation.AutoCreateJungleRouteDepthBox.Checked);
+        Check.True(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Enabled);
+        Check.True(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Checked);
+        Check.True(automation.AutoCreateJungleRouteDepthBox.Enabled);
+        Check.True(automation.AutoCreateJungleRouteDepthBox.Checked);
         automation.AutoCreateSpecialSeedBoxes[AutoCreateSpecialWorldSeed.NotTheBees].Checked = false;
         Check.True(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Enabled);
         automation.AutoCreateSecretSeedsBox.Text = "secret";
-        Check.False(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Enabled);
+        Check.True(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Enabled);
         Check.True(automation.AutoCreatePyramidFilterBox.Enabled);
         automation.AutoCreateSecretSeedsBox.Text = string.Empty;
         automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Checked = true;
         automation.AutoCreateJungleRouteDepthBox.Checked = true;
         automation.AutoCreateFixedSeedBox.Text = " 8675309 ";
         Check.False(automation.AutoCreatePyramidFilterBox.Enabled);
-        Check.False(automation.AutoCreatePyramidFilterBox.Checked);
+        Check.True(automation.AutoCreatePyramidFilterBox.Checked);
         Check.False(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Enabled);
-        Check.False(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Checked);
+        Check.True(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Checked);
         Check.False(automation.AutoCreateJungleRouteDepthBox.Enabled);
         AppSettings fixedSeedDraft = form.PageHost.CreateAppliedSnapshot();
         Check.Equal("8675309", fixedSeedDraft.Automation.AutoCreate.FixedSeed);
-        Check.False(fixedSeedDraft.Automation.AutoCreate.EnablePyramidFilter);
-        Check.False(fixedSeedDraft.Automation.AutoCreate.RequireCrimsonBetweenDungeonAndSpawn);
-        Check.Equal(AutoCreateJungleRouteDepth.None, fixedSeedDraft.Automation.AutoCreate.JungleRouteDepth);
+        Check.True(fixedSeedDraft.Automation.AutoCreate.EnablePyramidFilter);
+        Check.True(fixedSeedDraft.Automation.AutoCreate.RequireCrimsonBetweenDungeonAndSpawn);
+        Check.True(fixedSeedDraft.Automation.AutoCreate.JungleRouteDepth != AutoCreateJungleRouteDepth.None);
         automation.AutoCreateFixedSeedBox.Text = string.Empty;
         Check.True(automation.AutoCreatePyramidFilterBox.Enabled);
+        automation.AutoCreatePyramidDepthBoxes[15].Checked = false;
+        Check.Equal(15, form.PageHost.CreateAppliedSnapshot().Automation.AutoCreate.PyramidMaximumDepth);
+        automation.AutoCreateCheatsBox.Checked = false;
+        Check.False(automation.AutoCreatePyramidDepthBoxes[0].Enabled);
+        Check.Equal(15, form.PageHost.CreateAppliedSnapshot().Automation.AutoCreate.PyramidMaximumDepth);
+        automation.AutoCreateCheatsBox.Checked = true;
+        Check.True(automation.AutoCreatePyramidDepthBoxes[15].Enabled);
         automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Checked = true;
         automation.AutoCreateJungleRouteDepthBox.Checked = true;
         AppSettings resourceDraft = form.PageHost.CreateAppliedSnapshot();

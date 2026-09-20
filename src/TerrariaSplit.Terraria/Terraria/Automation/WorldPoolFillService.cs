@@ -2,7 +2,7 @@ namespace TerrariaSplit.Terraria.Automation;
 
 // Background worker that keeps the world pool topped up. While world pooling is enabled,
 // it asks TerrariaServer.exe to generate worlds from program-built copied seeds and banks
-// the .wld file after metadata and optional pyramid validation pass.
+// the .wld file after seed filtering and generated-file metadata validation.
 // It backs off once the pool reaches the target count and resumes when worlds are consumed.
 // This is a background task, not a dedicated UI thread; the expensive work happens in a
 // separate TerrariaServer.exe process.
@@ -149,7 +149,7 @@ public sealed class WorldPoolFillService : IDisposable
             return false;
         }
 
-        HeadlessWorldGenResult result = await generator.GenerateAndScanAsync(serverTarget.Value, current.General.Language, autoCreate, cancellationToken);
+        HeadlessWorldGenResult result = await generator.GenerateAsync(serverTarget.Value, current.General.Language, autoCreate, cancellationToken);
         try
         {
             if (result.Keep &&

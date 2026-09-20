@@ -256,6 +256,7 @@ public sealed class RaceWorldSetupSettings
         AutoCreatePyramidFilterItem.FlyingCarpetMask;
 
     public int PyramidCoinPileMinimum { get; set; } = 1;
+    public int PyramidMaximumDepth { get; set; } = 30;
 
     public bool CrimsonEnabled { get; set; } = true;
 
@@ -479,6 +480,7 @@ public sealed class AutoCreateWorldSettings
     public bool EnablePyramidFilter { get; set; } = true;
     public int PyramidFilterItemMask { get; set; } = AutoCreatePyramidFilterItem.SandstormInABottleMask | AutoCreatePyramidFilterItem.FlyingCarpetMask;
     public int PyramidFilterCoinPileMinimum { get; set; } = 1;
+    public int PyramidMaximumDepth { get; set; } = 30;
     public bool RequireCrimsonBetweenDungeonAndSpawn { get; set; } = true;
     public string CrimsonDistance { get; set; } = AutoCreateCrimsonDistance.Default;
     public string JungleRouteDepth { get; set; } = AutoCreateJungleRouteDepth.Medium;
@@ -490,7 +492,6 @@ public sealed class AutoCreateWorldSettings
     public int WorldPoolTargetCount { get; set; } = 10;
     public int ShortActionDelayMilliseconds { get; set; }
     public int MenuActionDelayMilliseconds { get; set; }
-    public int PyramidFilterPostDelayMilliseconds { get; set; } = 50;
     public int WindowActivationDelayMilliseconds { get; set; }
     public int ClickFocusDelayMilliseconds { get; set; }
     public int InputPressDurationMilliseconds { get; set; }
@@ -648,10 +649,14 @@ public static class AutoCreateJungleRouteDepth
 
 public static class AutoCreatePyramidFilterDepth
 {
-    public const int MaximumTunnelSurfaceDistance = 35;
-
-    public static bool Matches(int tunnelSurfaceDistance) =>
-        tunnelSurfaceDistance is >= 0 and <= MaximumTunnelSurfaceDistance;
+    public static readonly int[] All = [0, 30, 15, 5];
+    public static int Normalize(int value) => All.Contains(value) ? value : 0;
+    public static bool Matches(int distance, int maximum) =>
+        maximum == 0 || distance >= 0 && distance <= maximum;
+    public static string Label(int value) => value switch
+    {
+        30 => "Medium", 15 => "Shallow", 5 => "Open-air", _ => "Pyramid depth"
+    };
 }
 
 public static class AutoCreatePyramidCoinPileMinimum

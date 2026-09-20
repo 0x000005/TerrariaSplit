@@ -24,20 +24,13 @@ public static class RaceWorldSettingsFactory
             settings.HasCrimson,
             settings.SpecialSeedMask,
             settings.SecretSeeds);
-        return cheats.PyramidEnabled ||
-            advancedFiltersEligible &&
-            (cheats.CrimsonEnabled ||
+        return advancedFiltersEligible &&
+            (cheats.PyramidEnabled || cheats.PyramidMaximumDepth > 0 || cheats.CrimsonEnabled ||
              AutoCreateJungleRouteDepth.Normalize(cheats.JungleRouteDepth) != AutoCreateJungleRouteDepth.None ||
              AutoCreateResourceFilterItem.NormalizeMask(cheats.ResourceItemMask) != 0 ||
              AutoCreateResourceMinimum.NormalizeLifeCrystals(cheats.LifeCrystalMinimum) > 0 ||
              AutoCreateResourceMinimum.NormalizePotions(cheats.SpelunkerPotionMinimum) > 0 ||
              AutoCreateResourceMinimum.NormalizePotions(cheats.FeatherfallPotionMinimum) > 0);
-    }
-
-    public static bool IsPyramidFilterEnabled(RaceWorldSettings settings)
-    {
-        RaceCheatSettings cheats = settings.EffectiveCheats;
-        return cheats.Enabled && cheats.PyramidEnabled;
     }
 
     public static string ToPlayerDifficulty(int difficultyCode)
@@ -79,6 +72,7 @@ public static class RaceWorldSettingsFactory
             EnablePyramidFilter = cheats.PyramidEnabled,
             PyramidFilterItemMask = AutoCreatePyramidFilterItem.NormalizeMask(cheats.PyramidItemMask),
             PyramidFilterCoinPileMinimum = AutoCreatePyramidCoinPileMinimum.Normalize(cheats.PyramidCoinPileMinimum),
+            PyramidMaximumDepth = AutoCreatePyramidFilterDepth.Normalize(cheats.PyramidMaximumDepth),
             RequireCrimsonBetweenDungeonAndSpawn = cheats.CrimsonEnabled,
             CrimsonDistance = AutoCreateCrimsonDistance.Normalize(cheats.CrimsonDistance),
             JungleRouteDepth = AutoCreateJungleRouteDepth.Normalize(cheats.JungleRouteDepth),

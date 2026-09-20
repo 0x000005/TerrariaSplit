@@ -732,7 +732,6 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Pre-click wait ms", "\u70B9\u51FB\u524D\u7B49\u5F85\u65F6\u95F4\uFF08ms\uFF09" }
       , { "Adjacent operation delay ms", "\u76F8\u90BB\u64CD\u4F5C\u95F4\u7B49\u5F85\u65F6\u95F4\uFF08ms\uFF09" }
       , { "Cross-menu operation delay ms", "\u8DE8\u83DC\u5355\u64CD\u4F5C\u7B49\u5F85\u65F6\u95F4\uFF08ms\uFF09" }
-      , { "Pyramid filter post wait ms", "\u7B5B\u5854\u540E\u7B49\u5F85\u65F6\u95F4\uFF08ms\uFF09" }
       , { "Empty = default character", "\u7559\u7A7A = \u9ED8\u8BA4\u4EBA\u7269" }
       , { "Empty = 1", "\u7559\u7A7A = 1" }
       , { "Empty = random visible seed", "\u7559\u7A7A = \u968F\u673A\u53EF\u89C1\u79CD\u5B50" }
@@ -744,6 +743,9 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Journey", "\u65C5\u884C" }
       , { "Small", "\u5C0F" }
       , { "Medium", "\u4E2D" }
+      , { "Pyramid depth", "金字塔深度" }
+      , { "Shallow", "浅" }
+      , { "Open-air", "露天" }
       , { "Deep", "\u6DF1" }
       , { "Very deep", "\u5F88\u6DF1" }
       , { "Jungle main route", "\u4E1B\u6797\u4E3B\u8DEF" }

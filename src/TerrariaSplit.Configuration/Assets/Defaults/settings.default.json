@@ -1023,6 +1023,7 @@
             "EnablePyramidFilter": true,
             "PyramidFilterItemMask": 3,
             "PyramidFilterCoinPileMinimum": 1,
+            "PyramidMaximumDepth": 30,
             "RequireCrimsonBetweenDungeonAndSpawn": true,
             "CrimsonDistance": "Far",
             "JungleRouteDepth": "Medium",
@@ -1034,7 +1035,6 @@
             "WorldPoolTargetCount": 10,
             "ShortActionDelayMilliseconds": 10,
             "MenuActionDelayMilliseconds": 90,
-            "PyramidFilterPostDelayMilliseconds": 50,
             "WindowActivationDelayMilliseconds": 10,
             "ClickFocusDelayMilliseconds": 10,
             "InputPressDurationMilliseconds": 140

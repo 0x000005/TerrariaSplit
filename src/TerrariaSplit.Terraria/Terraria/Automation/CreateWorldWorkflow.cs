@@ -8,7 +8,6 @@ internal sealed class CreateWorldWorkflow : IDisposable
     private readonly TerrariaAutomationContext automation = new("Create world");
     private readonly WindowActivationService windowActivation;
     private readonly ZenithStarCatchAutomation zenithStarCatchAutomation;
-    private readonly PyramidFilterAutomation pyramidFilterAutomation;
     private readonly PyramidSeedPreScreenAutomation pyramidSeedPreScreenAutomation;
     private readonly WorldPoolInstallWorkflow worldPoolInstallWorkflow;
     private readonly WorldCreationMenuDriver menuDriver;
@@ -17,7 +16,6 @@ internal sealed class CreateWorldWorkflow : IDisposable
     {
         windowActivation = new WindowActivationService(automation, "Create world");
         zenithStarCatchAutomation = new ZenithStarCatchAutomation(automation);
-        pyramidFilterAutomation = new PyramidFilterAutomation(automation);
         pyramidSeedPreScreenAutomation = new PyramidSeedPreScreenAutomation(automation);
         worldPoolInstallWorkflow = new WorldPoolInstallWorkflow(worldPool);
         menuDriver = new WorldCreationMenuDriver(
@@ -40,58 +38,51 @@ internal sealed class CreateWorldWorkflow : IDisposable
         {
             AutoCreateWorldSettings autoCreate = settings.Automation.AutoCreate;
             ApplyTiming(autoCreate);
-            while (true)
+            CreateWorldActivationStep activation = await ActivateTerrariaAsync(cancellationToken);
+            if (!activation.Succeeded)
             {
-                CreateWorldActivationStep activation = await ActivateTerrariaAsync(cancellationToken);
-                if (!activation.Succeeded)
-                {
-                    return AutomationResult.Failure(
-                        "Could not activate the Terraria window.",
-                        "Create world automation could not activate Terraria window.");
-                }
-
-                TerrariaMenuProfile menuProfile = TerrariaMenuProfile.ResolveRunningProcess();
-                TerrariaMenuGeometry geometry = TerrariaMenuGeometry.From(activation.ClientSize, menuProfile);
-                FileAppLogger.Instance.Info($"Create world automation using menu profile: {menuProfile.Name}.");
-
-                CreateWorldCleanupStep cleanupStep = await RunSaveCleanupAsync(autoCreate, cancellationToken);
-                if (!cleanupStep.Succeeded)
-                {
-                    return AutomationResult.Failure(
-                        "Could not prepare Terraria save files.",
-                        "Create world automation save cleanup step failed.");
-                }
-
-                string worldGenSignature = WorldPoolRuntimeVersion.SignatureFromCurrentRuntime(settings);
-                WorldPoolInstallResult poolInstall = await InstallPooledWorldAsync(autoCreate, worldGenSignature, cancellationToken);
-                if (!poolInstall.Succeeded)
-                {
-                    return menuDriver.BuildFailure(poolInstall.UserMessage, poolInstall.DiagnosticMessage);
-                }
-
-                if (!await menuDriver.CreatePlayerAndOpenWorldSelectAsync(autoCreate, geometry, cleanupStep.Cleanup, cancellationToken))
-                {
-                    return menuDriver.BuildFailure(
-                        "Could not create or select the Terraria player.",
-                        "Create world automation failed before world selection.");
-                }
-
-                if (poolInstall.InstalledWorld is WorldPoolItem installedWorld)
-                {
-                    worldPoolInstallWorkflow.RemoveInstalled(worldGenSignature, installedWorld);
-                    FileAppLogger.Instance.Info(
-                        $"Create world automation installed pooled world {installedWorld.WorldFileName}; " +
-                        "stopped at world select.");
-                    return AutomationResult.Success(
-                        $"Create world automation installed pooled world {installedWorld.WorldFileName}.");
-                }
-
-                CreateWorldLoopResult loopResult = await RunWorldCreationLoopAsync(autoCreate, geometry, cancellationToken);
-                if (!loopResult.ContinueFromMainMenu)
-                {
-                    return loopResult.Result;
-                }
+                return AutomationResult.Failure(
+                    "Could not activate the Terraria window.",
+                    "Create world automation could not activate Terraria window.");
             }
+
+            TerrariaMenuProfile menuProfile = TerrariaMenuProfile.ResolveRunningProcess();
+            TerrariaMenuGeometry geometry = TerrariaMenuGeometry.From(activation.ClientSize, menuProfile);
+            FileAppLogger.Instance.Info($"Create world automation using menu profile: {menuProfile.Name}.");
+
+            CreateWorldCleanupStep cleanupStep = await RunSaveCleanupAsync(autoCreate, cancellationToken);
+            if (!cleanupStep.Succeeded)
+            {
+                return AutomationResult.Failure(
+                    "Could not prepare Terraria save files.",
+                    "Create world automation save cleanup step failed.");
+            }
+
+            string worldGenSignature = WorldPoolRuntimeVersion.SignatureFromCurrentRuntime(settings);
+            WorldPoolInstallResult poolInstall = await InstallPooledWorldAsync(autoCreate, worldGenSignature, cancellationToken);
+            if (!poolInstall.Succeeded)
+            {
+                return menuDriver.BuildFailure(poolInstall.UserMessage, poolInstall.DiagnosticMessage);
+            }
+
+            if (!await menuDriver.CreatePlayerAndOpenWorldSelectAsync(autoCreate, geometry, cleanupStep.Cleanup, cancellationToken))
+            {
+                return menuDriver.BuildFailure(
+                    "Could not create or select the Terraria player.",
+                    "Create world automation failed before world selection.");
+            }
+
+            if (poolInstall.InstalledWorld is WorldPoolItem installedWorld)
+            {
+                worldPoolInstallWorkflow.RemoveInstalled(worldGenSignature, installedWorld);
+                FileAppLogger.Instance.Info(
+                    $"Create world automation installed pooled world {installedWorld.WorldFileName}; " +
+                    "stopped at world select.");
+                return AutomationResult.Success(
+                    $"Create world automation installed pooled world {installedWorld.WorldFileName}.");
+            }
+
+            return await CreateWorldAsync(autoCreate, geometry, cancellationToken);
         }
         catch (OperationCanceledException)
         {
@@ -152,47 +143,25 @@ internal sealed class CreateWorldWorkflow : IDisposable
                 installStep.DiagnosticMessage);
     }
 
-    private async Task<CreateWorldLoopResult> RunWorldCreationLoopAsync(
+    private async Task<AutomationResult> CreateWorldAsync(
         AutoCreateWorldSettings settings,
         TerrariaMenuGeometry geometry,
         CancellationToken cancellationToken)
     {
-        while (true)
+        automation.ThrowIfCancellationRequested(cancellationToken);
+        CreateWorldAttemptResult createResult = await menuDriver.CreateOneWorldAsync(settings, geometry, cancellationToken);
+        if (createResult == CreateWorldAttemptResult.Failed)
         {
-            automation.ThrowIfCancellationRequested(cancellationToken);
-            Dictionary<string, DateTime> worldsBefore = savePreparation.SnapshotSaveFiles("Worlds", "*.wld");
-            CreateWorldAttemptResult createResult = await menuDriver.CreateOneWorldAsync(settings, geometry, cancellationToken);
-            if (createResult == CreateWorldAttemptResult.Failed)
-            {
-                return CreateWorldLoopResult.Failure(menuDriver.BuildFailure(
-                    "Could not create the Terraria world.",
-                    "Create world automation failed while configuring or creating the world."));
-            }
-
-            FileAppLogger.Instance.Info(
-                $"Create world automation entered post-click stage; " +
-                $"zenith={settings.EnableZenithStarCatch}, cheats={settings.EnableCheats}.");
-            long postClickTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
-            await zenithStarCatchAutomation.RunAsync(settings, cancellationToken);
-
-            PyramidFilterOutcome outcome = await pyramidFilterAutomation.RunAsync(settings, worldsBefore, cancellationToken);
-            TimeSpan postClickElapsed = System.Diagnostics.Stopwatch.GetElapsedTime(postClickTimestamp);
-            FileAppLogger.Instance.Info(
-                $"Create world automation post-click stage completed; outcome={outcome}, " +
-                $"elapsedMs={postClickElapsed.TotalMilliseconds:F0}.");
-            if (outcome != PyramidFilterOutcome.Rejected)
-            {
-                return CreateWorldLoopResult.Finished(
-                    $"Create world automation stopped with post-generation filter outcome {outcome}.");
-            }
-
-            if (!await menuDriver.PrepareRejectedWorldSelectRetryAsync(settings, cancellationToken))
-            {
-                return CreateWorldLoopResult.Failure(
-                    "Could not prepare Terraria for another world creation attempt.",
-                    "Create world automation failed to prepare world select before retrying.");
-            }
+            return menuDriver.BuildFailure(
+                "Could not create the Terraria world.",
+                "Create world automation failed while configuring or creating the world.");
         }
+
+        FileAppLogger.Instance.Info(
+            $"Create world automation entered post-click stage; " +
+            $"zenith={settings.EnableZenithStarCatch}, cheats={settings.EnableCheats}.");
+        await zenithStarCatchAutomation.RunAsync(settings, cancellationToken);
+        return AutomationResult.Success("Create world automation completed.");
     }
 
     private void ApplyTiming(AutoCreateWorldSettings settings)
@@ -227,31 +196,6 @@ internal sealed class CreateWorldWorkflow : IDisposable
 internal readonly record struct CreateWorldActivationStep(bool Succeeded, Size ClientSize);
 
 internal readonly record struct CreateWorldCleanupStep(bool Succeeded, TerrariaSaveCleanupResult Cleanup);
-
-internal readonly record struct CreateWorldLoopResult(
-    bool ContinueFromMainMenu,
-    AutomationResult Result)
-{
-    public static CreateWorldLoopResult Continue()
-    {
-        return new CreateWorldLoopResult(true, AutomationResult.Success());
-    }
-
-    public static CreateWorldLoopResult Finished(string diagnostic)
-    {
-        return new CreateWorldLoopResult(false, AutomationResult.Success(diagnostic));
-    }
-
-    public static CreateWorldLoopResult Failure(string userMessage, string diagnostic)
-    {
-        return new CreateWorldLoopResult(false, AutomationResult.Failure(userMessage, diagnostic));
-    }
-
-    public static CreateWorldLoopResult Failure(AutomationResult result)
-    {
-        return new CreateWorldLoopResult(false, result);
-    }
-}
 
 internal enum CreateWorldAttemptResult
 {

@@ -337,7 +337,7 @@ internal sealed partial class RaceShell
             "pyramid",
             Localize("Pyramid"),
             setup.PyramidEnabled,
-            !busy,
+            !busy && advancedFiltersEligible,
             pyramidGroup);
         foreach (string item in AutoCreatePyramidFilterItem.All)
         {
@@ -346,7 +346,7 @@ internal sealed partial class RaceShell
                 "pyramid-item:" + item,
                 Localize(item),
                 (setup.PyramidItemMask & AutoCreatePyramidFilterItem.Mask(item)) != 0,
-                !busy && setup.PyramidEnabled,
+                !busy && advancedFiltersEligible && setup.PyramidEnabled,
                 pyramidGroup);
         }
 
@@ -357,7 +357,7 @@ internal sealed partial class RaceShell
             "pyramid-coin-piles",
             Localize("Pyramid gold coin piles"),
             pyramidCoinPileMinimum > 0,
-            !busy && setup.PyramidEnabled,
+            !busy && advancedFiltersEligible && setup.PyramidEnabled,
             pyramidCoinPileGroup);
         foreach (int minimum in AutoCreatePyramidCoinPileMinimum.All.Where(value => value > 0))
         {
@@ -368,7 +368,7 @@ internal sealed partial class RaceShell
                     ? minimum.ToString(CultureInfo.InvariantCulture) + "+"
                     : minimum.ToString(CultureInfo.InvariantCulture),
                 pyramidCoinPileMinimum > 0 && minimum >= pyramidCoinPileMinimum,
-                !busy && setup.PyramidEnabled && pyramidCoinPileMinimum > 0,
+                !busy && advancedFiltersEligible && setup.PyramidEnabled && pyramidCoinPileMinimum > 0,
                 pyramidCoinPileGroup);
         }
 
@@ -376,7 +376,7 @@ internal sealed partial class RaceShell
             controls,
             "crimson",
             Localize("Dungeon-side Crimson"),
-            advancedFiltersEligible && setup.CrimsonEnabled,
+            setup.CrimsonEnabled,
             !busy && advancedFiltersEligible,
             crimsonGroup);
         AddChoiceControls(
@@ -387,10 +387,9 @@ internal sealed partial class RaceShell
             !busy && advancedFiltersEligible && setup.CrimsonEnabled,
             crimsonGroup,
             isSelected: value =>
-                advancedFiltersEligible && setup.CrimsonEnabled &&
+                setup.CrimsonEnabled &&
                 AutoCreateCrimsonDistance.Includes(setup.CrimsonDistance, value));
         bool jungleEnabled =
-            advancedFiltersEligible &&
             AutoCreateJungleRouteDepth.Normalize(setup.JungleRouteDepth) !=
             AutoCreateJungleRouteDepth.None;
         AddToggle(
@@ -405,7 +404,7 @@ internal sealed partial class RaceShell
             "jungle-depth:",
             AutoCreateJungleRouteDepth.All,
             setup.JungleRouteDepth,
-            !busy && jungleEnabled,
+            !busy && advancedFiltersEligible && jungleEnabled,
             jungleGroup,
             isSelected: value =>
                 jungleEnabled &&
@@ -432,6 +431,29 @@ internal sealed partial class RaceShell
                 lifeCrystalGroup);
         }
 
+        foreach (int depth in AutoCreatePyramidFilterDepth.All)
+        {
+            AddToggle(controls, "pyramid-depth:" + depth.ToString(CultureInfo.InvariantCulture),
+                Localize(AutoCreatePyramidFilterDepth.Label(depth)),
+                setup.PyramidMaximumDepth > 0 && (depth == 0 || depth <= setup.PyramidMaximumDepth),
+                !busy && advancedFiltersEligible && (depth == 0 || setup.PyramidMaximumDepth > 0), "primary-choice:pyramid-depth");
+        }
+        foreach (string item in AutoCreateResourceFilterItem.All)
+            AddToggle(controls, "resource-item:" + item, Localize(item),
+                (setup.ResourceItemMask & AutoCreateResourceFilterItem.Mask(item)) != 0,
+                !busy && advancedFiltersEligible, "primary-choice:resource-" + AutoCreateResourceFilterItem.Mask(item));
+        foreach ((string id, string label, int selected) in new[]
+        {
+            ("spelunker", "Spelunker Potion", setup.SpelunkerPotionMinimum),
+            ("featherfall", "Featherfall Potion", setup.FeatherfallPotionMinimum)
+        })
+        {
+            foreach (int minimum in AutoCreateResourceMinimum.Potions)
+                AddToggle(controls, id + "-min:" + minimum.ToString(CultureInfo.InvariantCulture),
+                    minimum == 0 ? Localize(label) : minimum == 3 ? "3+" : minimum.ToString(CultureInfo.InvariantCulture),
+                    selected > 0 && (minimum == 0 || minimum >= selected),
+                    !busy && advancedFiltersEligible && (minimum == 0 || selected > 0), "primary-choice:" + id);
+        }
         AddButton(controls, "nav-host-world", Localize("Back"), !busy, "footer");
         AddButton(controls, "host-generate", Localize("Generate and upload"), !busy, "footer");
     }

@@ -114,6 +114,32 @@ public readonly record struct TerrariaMenuProfile(
         }
     }
 
+    internal static bool IsExclusiveFullscreenConfigured()
+    {
+        try
+        {
+            string configPath = TerrariaConfigPath();
+            if (!File.Exists(configPath))
+            {
+                return false;
+            }
+
+            using FileStream stream = File.OpenRead(configPath);
+            using JsonDocument document = JsonDocument.Parse(stream);
+            JsonElement root = document.RootElement;
+            bool fullscreen = root.TryGetProperty("Fullscreen", out JsonElement fullscreenValue) &&
+                fullscreenValue.ValueKind == JsonValueKind.True;
+            bool borderless = root.TryGetProperty("WindowBorderless", out JsonElement borderlessValue) &&
+                borderlessValue.ValueKind == JsonValueKind.True;
+            return fullscreen && !borderless;
+        }
+        catch (Exception ex)
+        {
+            FileAppLogger.Instance.Error(ex, "Failed to read Terraria fullscreen settings.");
+            return false;
+        }
+    }
+
     private static string TerrariaConfigPath()
     {
         return Path.Combine(

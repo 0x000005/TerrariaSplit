@@ -9,17 +9,21 @@ internal sealed class JungleSeedJudgeNativeClient
 {
     private const int MaximumResponseBytes = 16 * 1024 * 1024;
     private const int CpuUsagePercent = 80;
-    private static readonly int MaximumConcurrentCalls = Math.Max(
+    private static readonly int MaximumConcurrentExecutionThreads = Math.Max(
         1,
         (int)((long)Math.Max(1, Environment.ProcessorCount) *
             CpuUsagePercent / 100));
     private static readonly SemaphoreSlim NativeCallGate =
-        new(MaximumConcurrentCalls, MaximumConcurrentCalls);
+        new(MaximumConcurrentExecutionThreads, MaximumConcurrentExecutionThreads);
+    private static readonly SemaphoreSlim BudgetReservationGate = new(1, 1);
+    private static readonly SemaphoreSlim SingleWorldGate = new(1, 1);
     private static readonly ConcurrentDictionary<string, Lazy<NativeApi>>
         LoadedLibraries = new(StringComparer.OrdinalIgnoreCase);
 
-    private readonly Func<string, JungleSeedJudgeGameMode, string, JungleSeedJudgeResult> analyze;
+    private readonly Func<string, JungleSeedJudgeGameMode, string, int, int, JungleSeedJudgeResult> analyze;
     private readonly SemaphoreSlim nativeCallGate;
+    private readonly SemaphoreSlim budgetReservationGate;
+    private readonly int maximumLeaseThreads;
     private readonly TimeSpan requestTimeout;
     private long nextRequestId;
 
@@ -46,43 +50,66 @@ internal sealed class JungleSeedJudgeNativeClient
             .Value;
         analyze = api.Analyze;
         nativeCallGate = NativeCallGate;
+        budgetReservationGate = BudgetReservationGate;
+        maximumLeaseThreads = Math.Min(4, Math.Min(Math.Max(1, Environment.ProcessorCount), MaximumConcurrentExecutionThreads));
     }
 
     internal JungleSeedJudgeNativeClient(
-        Func<string, JungleSeedJudgeGameMode, string, JungleSeedJudgeResult> analyze,
+        Func<string, JungleSeedJudgeGameMode, string, int, int, JungleSeedJudgeResult> analyze,
         TimeSpan requestTimeout,
-        SemaphoreSlim nativeCallGate)
+        SemaphoreSlim nativeCallGate,
+        int maximumLeaseThreads = 1)
     {
         ArgumentNullException.ThrowIfNull(analyze);
         ArgumentNullException.ThrowIfNull(nativeCallGate);
         this.analyze = analyze;
         this.requestTimeout = ValidateRequestTimeout(requestTimeout);
         this.nativeCallGate = nativeCallGate;
+        budgetReservationGate = new SemaphoreSlim(1, 1);
+        if (maximumLeaseThreads is < 1 or > 4) throw new ArgumentOutOfRangeException(nameof(maximumLeaseThreads));
+        this.maximumLeaseThreads = maximumLeaseThreads;
     }
 
     public async Task<JungleSeedJudgeResult> AnalyzeAsync(
         string seedText,
         JungleSeedJudgeGameMode gameMode,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        int analysisMask = ResourceJudgeAnalysis.All,
+        int threads = 0)
     {
         ArgumentNullException.ThrowIfNull(seedText);
+        if (threads is < 0 or > 4) throw new ArgumentOutOfRangeException(nameof(threads));
+        if (analysisMask is <= 0 or > ResourceJudgeAnalysis.All) throw new ArgumentOutOfRangeException(nameof(analysisMask));
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(
             cancellationToken);
         deadline.CancelAfter(requestTimeout);
+        int leaseThreads;
+        bool singleWorldLease = false;
         try
         {
-            await nativeCallGate.WaitAsync(deadline.Token).ConfigureAwait(false);
+            if (threads != 1)
+            {
+                await SingleWorldGate.WaitAsync(deadline.Token).ConfigureAwait(false);
+                singleWorldLease = true;
+            }
+            leaseThreads = await AcquireCallBudgetAsync(threads, deadline.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
             when (!cancellationToken.IsCancellationRequested)
         {
+            if (singleWorldLease) SingleWorldGate.Release();
             throw CreateTimeoutException();
+        }
+        catch
+        {
+            if (singleWorldLease) SingleWorldGate.Release();
+            throw;
         }
 
         string requestId = Interlocked.Increment(ref nextRequestId)
             .ToString(CultureInfo.InvariantCulture);
         Task<JungleSeedJudgeResult> nativeCall = Task.Run(
-            () => analyze(seedText, gameMode, requestId),
+            () => analyze(seedText, gameMode, requestId, analysisMask, threads),
             CancellationToken.None);
         bool releaseWhenNativeCallCompletes = false;
         try
@@ -108,7 +135,8 @@ internal sealed class JungleSeedJudgeNativeClient
                     completed =>
                     {
                         _ = completed.Exception;
-                        gate.Release();
+                        gate.Release(leaseThreads);
+                        if (singleWorldLease) SingleWorldGate.Release();
                     },
                     CancellationToken.None,
                     TaskContinuationOptions.ExecuteSynchronously,
@@ -124,9 +152,31 @@ internal sealed class JungleSeedJudgeNativeClient
         {
             if (!releaseWhenNativeCallCompletes)
             {
-                nativeCallGate.Release();
+                nativeCallGate.Release(leaseThreads);
+                if (singleWorldLease) SingleWorldGate.Release();
             }
         }
+    }
+
+    private async Task<int> AcquireCallBudgetAsync(int requestedThreads, CancellationToken cancellationToken)
+    {
+        int desired = Math.Min(requestedThreads == 0 ? 4 : requestedThreads, maximumLeaseThreads);
+        int acquired = 0;
+        // Serialize reservations so two callers cannot each hold a partial lease
+        // while waiting for the other one's slots. Running calls release directly.
+        await budgetReservationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            for (; acquired < desired; acquired++)
+                await nativeCallGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            return acquired;
+        }
+        catch
+        {
+            if (acquired != 0) nativeCallGate.Release(acquired);
+            throw;
+        }
+        finally { budgetReservationGate.Release(); }
     }
 
     private static TimeSpan ValidateRequestTimeout(TimeSpan? requestTimeout)
@@ -190,7 +240,7 @@ internal sealed class JungleSeedJudgeNativeClient
                         libraryHandle,
                         "TerrariaSplitWorldFilterGetAbiVersion");
                 int abiVersion = getAbiVersion();
-                if (abiVersion != 1)
+                if (abiVersion != 4)
                 {
                     throw new InvalidDataException(
                         $"Unsupported native world-filter ABI {abiVersion}.");
@@ -214,7 +264,9 @@ internal sealed class JungleSeedJudgeNativeClient
         public JungleSeedJudgeResult Analyze(
             string seedText,
             JungleSeedJudgeGameMode gameMode,
-            string requestId)
+            string requestId,
+            int analysisMask,
+            int threads)
         {
             byte[] seedUtf8 = Encoding.UTF8.GetBytes(seedText);
             byte[] requestIdUtf8 = Encoding.UTF8.GetBytes(requestId);
@@ -226,6 +278,8 @@ internal sealed class JungleSeedJudgeNativeClient
                 (int)gameMode,
                 requestIdUtf8,
                 requestIdUtf8.Length,
+                analysisMask,
+                threads,
                 out responsePointer,
                 out responseLength);
             try
@@ -250,9 +304,14 @@ internal sealed class JungleSeedJudgeNativeClient
                     startIndex: 0,
                     responseLength);
                 string responseJson = Encoding.UTF8.GetString(responseUtf8);
-                return JungleSeedJudgeProtocolSerializer.DeserializeResponse(
+                var result = JungleSeedJudgeProtocolSerializer.DeserializeResponse(
                     responseJson,
                     requestId);
+                if (result.Status == JungleSeedJudgeStatus.Complete && result.AnalysisMask != analysisMask)
+                    throw new InvalidDataException("World Filter returned a different analysis mask.");
+                if (result.Status == JungleSeedJudgeStatus.Complete && result.RequestedThreads != threads)
+                    throw new InvalidDataException("World Filter returned a different thread request.");
+                return result;
             }
             finally
             {
@@ -283,6 +342,8 @@ internal sealed class JungleSeedJudgeNativeClient
         int gameMode,
         [In] byte[] requestIdUtf8,
         int requestIdLength,
+        int analysisMask,
+        int threads,
         out nint responseUtf8,
         out int responseLength);
 
@@ -332,11 +393,10 @@ internal static class JungleSeedJudgeNativeLibraryLocator
         {
             yield return Path.Combine(
                 directory.FullName,
-                "TerrariaJungleJudge",
+                "TerrariaResourceJudge",
                 "out",
-                "build",
-                "x64-release",
-                "Release",
+                "resourcejudge-pgo",
+                "current",
                 LibraryFileName);
             directory = directory.Parent;
         }

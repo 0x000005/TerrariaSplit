@@ -404,6 +404,7 @@ public static class AppSettingsCloner
             EnablePyramidFilter = source.EnablePyramidFilter,
             PyramidFilterItemMask = source.PyramidFilterItemMask,
             PyramidFilterCoinPileMinimum = source.PyramidFilterCoinPileMinimum,
+            PyramidMaximumDepth = source.PyramidMaximumDepth,
             RequireCrimsonBetweenDungeonAndSpawn = source.RequireCrimsonBetweenDungeonAndSpawn,
             CrimsonDistance = source.CrimsonDistance,
             JungleRouteDepth = source.JungleRouteDepth,
@@ -415,7 +416,6 @@ public static class AppSettingsCloner
             WorldPoolTargetCount = source.WorldPoolTargetCount,
             ShortActionDelayMilliseconds = source.ShortActionDelayMilliseconds,
             MenuActionDelayMilliseconds = source.MenuActionDelayMilliseconds,
-            PyramidFilterPostDelayMilliseconds = source.PyramidFilterPostDelayMilliseconds,
             WindowActivationDelayMilliseconds = source.WindowActivationDelayMilliseconds,
             ClickFocusDelayMilliseconds = source.ClickFocusDelayMilliseconds,
             InputPressDurationMilliseconds = source.InputPressDurationMilliseconds
@@ -459,6 +459,7 @@ public static class AppSettingsCloner
             PyramidEnabled = source.PyramidEnabled,
             PyramidItemMask = source.PyramidItemMask,
             PyramidCoinPileMinimum = source.PyramidCoinPileMinimum,
+            PyramidMaximumDepth = source.PyramidMaximumDepth,
             CrimsonEnabled = source.CrimsonEnabled,
             CrimsonDistance = source.CrimsonDistance,
             JungleRouteDepth = source.JungleRouteDepth,

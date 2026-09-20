@@ -14,7 +14,6 @@ internal sealed class WorldCreationMenuDriver
     private readonly PyramidSeedPreScreenAutomation pyramidSeedPreScreenAutomation;
     private TimeSpan shortActionDelay = TimeSpan.FromMilliseconds(AppSettingsDefaults.Automation.AutoCreate.ShortActionDelayMilliseconds);
     private TimeSpan menuActionDelay = TimeSpan.FromMilliseconds(AppSettingsDefaults.Automation.AutoCreate.MenuActionDelayMilliseconds);
-    private int pyramidFilterPostDelayMilliseconds = AppSettingsDefaults.Automation.AutoCreate.PyramidFilterPostDelayMilliseconds;
     private AutomationResult? lastFailure;
 
     public WorldCreationMenuDriver(
@@ -33,7 +32,6 @@ internal sealed class WorldCreationMenuDriver
     {
         shortActionDelay = TimeSpan.FromMilliseconds(settings.ShortActionDelayMilliseconds);
         menuActionDelay = TimeSpan.FromMilliseconds(settings.MenuActionDelayMilliseconds);
-        pyramidFilterPostDelayMilliseconds = settings.PyramidFilterPostDelayMilliseconds;
     }
 
     public void ClearFailure()
@@ -191,10 +189,6 @@ internal sealed class WorldCreationMenuDriver
             return CreateWorldAttemptResult.Failed;
         }
 
-        if (preScreenResult.Status == PyramidSeedPreScreenAutomationStatus.ContinueWithoutPreScreen)
-        {
-            FileAppLogger.Instance.Info($"Create world automation will continue without 1.4.4.9 pyramid seed pre-screen result: {preScreenResult.Detail}");
-        }
 
         string worldSeed = BuildLegacy1449WorldSeed(settings);
         if (!string.IsNullOrWhiteSpace(worldSeed) &&
@@ -224,43 +218,6 @@ internal sealed class WorldCreationMenuDriver
         FileAppLogger.Instance.Info(
             $"Create world automation final create-world click returned; clicked={clicked}, elapsedMs={elapsed.TotalMilliseconds:F0}.");
         return clicked;
-    }
-
-    public async Task<bool> PrepareRejectedWorldSelectRetryAsync(
-        AutoCreateWorldSettings settings,
-        CancellationToken cancellationToken)
-    {
-        if (!windowActivation.TryReactivate(
-                "before retrying a rejected world",
-                pyramidFilterPostDelayMilliseconds))
-        {
-            return false;
-        }
-
-        if (settings.PreserveExistingSaves)
-        {
-            FileAppLogger.Instance.Info(
-                "Create world automation preserved the rejected world before retrying from world select.");
-            return true;
-        }
-
-        TerrariaWorldCleanupResult cleanup = default;
-        if (!await automation.RunStepAsync(
-                "rejected world cleanup",
-                _ =>
-                {
-                    cleanup = savePreparation.MoveNonFavoriteWorldsToBackup();
-                    return Task.FromResult(true);
-                },
-                cancellationToken))
-        {
-            return false;
-        }
-
-        FileAppLogger.Instance.Info(
-            $"Create world automation removed {cleanup.MovedWorlds} non-favorite world(s) " +
-            $"before retrying from world select; favoriteWorlds={cleanup.FavoriteWorlds}.");
-        return true;
     }
 
     private async Task<bool> ApplyPlayerTemplateAsync(
@@ -410,10 +367,6 @@ internal sealed class WorldCreationMenuDriver
                 return WorldSeedOptionsResult.Failed;
             }
 
-            if (preScreenResult.Status == PyramidSeedPreScreenAutomationStatus.ContinueWithoutPreScreen)
-            {
-                FileAppLogger.Instance.Info($"Create world automation will continue without pyramid seed pre-screen result: {preScreenResult.Detail}");
-            }
 
             if (!windowActivation.TryReactivate(
                     "after world seed pre-screen",

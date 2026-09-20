@@ -57,12 +57,16 @@ The Bootstrap target declares its source files as inputs and the DLL as its outp
 
 ## Directory release
 
-The product version has one source of truth: `TerrariaSplitProductVersion` in `Directory.Build.props`. Publishing stops at runnable directories and never creates ZIP files automatically:
+The product version has one source of truth: `TerrariaSplitProductVersion` in `Directory.Build.props`. The production command accepts the exact release version, updates that source, publishes, verifies binary versions and the client update manifest, and prints SHA-256 hashes. Re-running the same command is safe after a failed publish; publishing a version lower than the current source is rejected.
 
 ```powershell
 $ErrorActionPreference = 'Stop'
-pwsh -NoProfile -File eng/Publish-Release.ps1
+pwsh -NoProfile -File eng/Publish-Release.ps1 -Version 1.10.2.13
+pwsh -NoProfile -File eng/Publish-Release.ps1 -Version 1.10.2.13 -ClientOnly
+pwsh -NoProfile -File eng/Publish-Release.ps1 -Version 1.10.2.13 -ServerOnly
 ```
+
+The default command publishes every product. `-ClientOnly` publishes only the Windows client, while `-ServerOnly` publishes only the Windows and Linux servers. Publishing stops at runnable directories and never creates ZIP files automatically. Release intermediates are reused from `.build/release/` across product-version changes. Add `-NoRestore` only when retrying with a cache already restored for the current dependency graph; normal production publishes should let the script run incremental restore.
 
 For version `1.9.4.0`, the final products are:
 

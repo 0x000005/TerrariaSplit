@@ -146,7 +146,7 @@ internal static class PyramidSeedPreScreen
                 targetClass: string.Empty,
                 lootSummary: string.Empty,
                 PyramidFeatureSummary.Empty,
-                detail: ex.Message,
+                detail: ex.ToString(),
                 stopwatch);
         }
     }
