@@ -35,7 +35,7 @@ internal static class JungleSeedJudgeProtocolSerializer
         if (!r.Complete || r.Decision is not (JungleSeedJudgeDecision.Accepted or JungleSeedJudgeDecision.Rejected) || string.IsNullOrEmpty(r.SeedText) || string.IsNullOrEmpty(r.Reason) ||
             r.RequestedThreads is < 0 or > 4 || r.AvailableThreads < 1 ||
             r.Threads != Math.Min(r.RequestedThreads == 0 ? 4 : r.RequestedThreads, r.AvailableThreads) ||
-            r.PlannedEndPass is not (40 or 42 or 53 or 59 or 69 or 97) ||
+            r.PlannedEndPass is not (29 or 40 or 42 or 53 or 59 or 69 or 97) ||
             !double.IsFinite(r.DurationMs) || r.DurationMs < 0 || !double.IsFinite(r.GenerationMs) || r.GenerationMs < 0)
             return false;
         bool fast = r.ExecutionPath == "PyramidFast";
@@ -44,6 +44,6 @@ internal static class JungleSeedJudgeProtocolSerializer
         if (r.EarlyRejected != (r.Decision == JungleSeedJudgeDecision.Rejected && r.CheckpointPassIndex < r.PlannedEndPass)) return false;
         if (r.CheckpointPassIndex > r.PlannedEndPass) return false;
         if (r.Decision != JungleSeedJudgeDecision.Rejected) return r.CheckpointPassIndex == r.PlannedEndPass;
-        return fast ? r.CheckpointPassIndex is 2 or 32 or 40 : r.CheckpointPassIndex is 40 or 42 or 53 or 59 or 69 or 97;
+        return fast ? r.CheckpointPassIndex is 2 or 32 or 40 : r.CheckpointPassIndex is 2 or 29 or 32 or 40 or 42 or 53 or 59 or 69 or 97;
     }
 }

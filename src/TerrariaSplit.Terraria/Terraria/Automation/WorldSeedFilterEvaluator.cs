@@ -93,6 +93,20 @@ internal sealed class WorldSeedFilterEvaluator : IDisposable
         bool judgeEnabled = IsJudgeFilterEnabled(settings);
         PyramidSeedPreScreenPrediction? pyramid = null;
 
+        if (pyramidEnabled)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            // Every supported game version uses the current pre-screen rules.
+            // Passing this stage only authorizes the final native check, never acceptance.
+            pyramid = new PyramidSeedPreScreenEvaluator().Evaluate(
+                settings, seedText, TerrariaWorldGenerationVersion.Modern1458);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (pyramid.Value.Result.Status == PyramidSeedPreScreenStatus.Error)
+                return WorldSeedFilterPrediction.CandidateFailure(pyramid.Value.RejectReason, pyramid, null);
+            if (pyramid.Value.CanUsePrediction && !pyramid.Value.AcceptSeed)
+                return WorldSeedFilterPrediction.Rejected("pyramid pre-screen: " + pyramid.Value.RejectReason, pyramid, null);
+        }
+
         if (!pyramidEnabled && !judgeEnabled)
         {
             return WorldSeedFilterPrediction.Accepted(

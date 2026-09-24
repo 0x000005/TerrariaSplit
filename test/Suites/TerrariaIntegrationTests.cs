@@ -469,6 +469,12 @@ internal static class TerrariaIntegrationTests
         string Serialize(JungleSeedJudgeResult value) => System.Text.Json.JsonSerializer.Serialize(value,
             new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase });
         Check.True(JungleSeedJudgeProtocolSerializer.DeserializeResponse(Serialize(expected), "decision").Complete);
+        foreach (int checkpoint in new[] { 2, 29, 32 })
+            Check.True(JungleSeedJudgeProtocolSerializer.DeserializeResponse(
+                Serialize(expected with { CheckpointPassIndex = checkpoint }), "decision").Complete);
+        Check.True(JungleSeedJudgeProtocolSerializer.DeserializeResponse(Serialize(expected with {
+            Decision = JungleSeedJudgeDecision.Accepted, Reason = "RequirementsSatisfied",
+            PlannedEndPass = 29, CheckpointPassIndex = 29, EarlyRejected = false }), "decision").Complete);
         foreach (var invalid in new[]
         {
             expected with { Decision = null },
@@ -532,20 +538,30 @@ internal static class TerrariaIntegrationTests
         Check.Equal("540278984", analyzedSeed); Check.Equal(1, calls); Check.Equal(0, requestedThreads);
         Check.Equal(1, requested!.PyramidItemMask); Check.Equal(2, requested.PyramidGoldMinimum);
         Check.Equal(30, requested.PyramidMaximumDepth); Check.Equal(550, requested.JungleMinimumY);
-        // The DLL decision is authoritative even for a seed rejected by the retired managed heuristic.
-        Check.True((await evaluator.EvaluateAsync(settings, "702683177", TerrariaWorldGenerationVersion.Modern1458, cancellationToken)).AcceptSeed);
-        Check.Equal(2, calls);
+        // A negative pre-screen must avoid native generation even with combined filters.
+        var rejected = await evaluator.EvaluateAsync(settings, "702683177", TerrariaWorldGenerationVersion.Modern1458, cancellationToken);
+        Check.False(rejected.AcceptSeed);
+        Check.True(rejected.Pyramid.HasValue);
+        Check.True(rejected.Judge is null);
+        Check.Equal(1, calls);
         decision = JungleSeedJudgeDecision.Rejected;
         Check.False((await evaluator.EvaluateAsync(settings, "540278984", TerrariaWorldGenerationVersion.Legacy1449, cancellationToken)).AcceptSeed);
-        Check.Equal(3, calls);
+        Check.Equal(2, calls);
         decision = JungleSeedJudgeDecision.Accepted;
         using var race = new WorldSeedFilterEvaluator(client, raceParallelism: true);
+        int beforeRaceRejection = calls;
+        Check.False((await race.EvaluateAsync(settings, "702683177", TerrariaWorldGenerationVersion.Legacy1449, cancellationToken)).AcceptSeed);
+        Check.Equal(beforeRaceRejection, calls);
         Check.True((await race.EvaluateAsync(settings, "540278984", TerrariaWorldGenerationVersion.Modern1458, cancellationToken)).AcceptSeed);
         Check.Equal(1, requestedThreads);
+        settings.EnablePyramidFilter = false;
+        Check.True((await evaluator.EvaluateAsync(settings, "702683177", TerrariaWorldGenerationVersion.Modern1458, cancellationToken)).AcceptSeed);
+        Check.Equal(0, requested!.PyramidItemMask);
+        settings.EnablePyramidFilter = true;
         settings.RequireCrimsonBetweenDungeonAndSpawn = false;
         settings.JungleRouteDepth = AutoCreateJungleRouteDepth.None;
         settings.PyramidMaximumDepth = 0; settings.PyramidFilterCoinPileMinimum = 0;
-        Check.True(WorldSeedFilterEvaluator.RequestedRequirements(settings).PyramidItemsOnly);
+        Check.True(WorldSeedFilterEvaluator.RequestedRequirements(settings).PyramidFastEligible);
         settings.EnablePyramidFilter = false; settings.PyramidMaximumDepth = 2;
         Check.False(WorldSeedFilterEvaluator.IsEnabledFor(settings));
         Check.Equal(0, WorldSeedFilterEvaluator.RequestedRequirements(settings).PyramidMaximumDepth);
@@ -651,8 +667,8 @@ internal static class TerrariaIntegrationTests
         var client = new JungleSeedJudgeNativeClient(JungleSeedJudgeNativeLibraryLocator.ResolvePath(), TimeSpan.FromSeconds(15));
         ResourceJudgeRequirements[] requests =
         [
-            new(PyramidItemMask: 7), new(PyramidItemMask: 7, PyramidMaximumDepth: 35),
-            new(CrimsonMaximumDistance: 2100), new(FinchStaffMaximumDistance: 2100),
+            new(PyramidItemMask: 7), new(PyramidGoldMinimum: 1), new(PyramidItemMask: 7, PyramidGoldMinimum: 1), new(PyramidItemMask: 7, PyramidMaximumDepth: 35),
+            new(CrimsonMaximumDistance: 2100), new(CrimsonMaximumDistance: 1, LifeCrystalMinimum: 1), new(FinchStaffMaximumDistance: 2100),
             new(StarfuryMaximumDistance: 2100), new(JungleMinimumY: 1),
             new(LifeCrystalMinimum: 1), new(JungleMinimumY: 650, LifeCrystalMinimum: 1),
             new(PyramidGoldMinimum: 9999, LifeCrystalMinimum: 1),
@@ -664,11 +680,18 @@ internal static class TerrariaIntegrationTests
             Check.True(result.Complete);
             Check.Equal(requirements.EndPass, result.PlannedEndPass);
             Check.True(result.CheckpointPassIndex <= result.PlannedEndPass);
-            Check.Equal(requirements.PyramidItemsOnly ? "PyramidFast" : "FullPrefix", result.ExecutionPath);
+            Check.Equal(requirements.PyramidFastEligible ? "PyramidFast" : "FullPrefix", result.ExecutionPath);
+            if (requirements.CrimsonMaximumDistance == 1)
+            {
+                Check.Equal(JungleSeedJudgeDecision.Rejected, result.Decision!.Value);
+                Check.Equal("CrimsonDistance", result.Reason);
+                Check.Equal(29, result.CheckpointPassIndex);
+                Check.True(result.EarlyRejected);
+            }
             if (requirements.PyramidGoldMinimum == 9999)
             {
                 Check.Equal(JungleSeedJudgeDecision.Rejected, result.Decision!.Value);
-                Check.Equal(40, result.CheckpointPassIndex); Check.True(result.EarlyRejected);
+                Check.True(result.CheckpointPassIndex is 2 or 32 or 40); Check.True(result.EarlyRejected);
             }
             if (requirements == new ResourceJudgeRequirements(LifeCrystalMinimum: 1))
                 Check.Equal(97, result.CheckpointPassIndex);
@@ -846,9 +869,14 @@ internal static class TerrariaIntegrationTests
             RequireCrimsonBetweenDungeonAndSpawn = true,
             PyramidFilterItemMask = 1
         };
+        int nativeCalls = 0;
         var failureClient = new JungleSeedJudgeNativeClient(
-            (seed, _, id, _, _) => CreateFilterJudgeResult(seed, id, JungleSeedJudgeStatus.GenerationFailed)
-                with { Detail = "Pass40: injected generation failure" },
+            (seed, _, id, _, _) =>
+            {
+                nativeCalls++;
+                return CreateFilterJudgeResult(seed, id, JungleSeedJudgeStatus.GenerationFailed)
+                    with { Detail = "Pass40: injected generation failure" };
+            },
             TimeSpan.FromSeconds(1), new SemaphoreSlim(1, 1));
         using var evaluator = new WorldSeedFilterEvaluator(nativeClient: failureClient);
         WorldSeedFilterPrediction prediction = await evaluator.EvaluateAsync(
@@ -857,7 +885,9 @@ internal static class TerrariaIntegrationTests
         Check.False(prediction.IsFatal);
         Check.False(prediction.AcceptSeed);
         Check.True(prediction.Detail.Contains("1320009733", StringComparison.Ordinal));
-        Check.True(prediction.Detail.Contains("Pass40: injected generation failure", StringComparison.Ordinal));
+        Check.True(prediction.Detail.Contains("prediction status Error", StringComparison.Ordinal));
+        Check.True(prediction.Judge is null);
+        Check.Equal(0, nativeCalls);
 
         int failures = WorldSeedFilterFailurePolicy.Advance(0, prediction);
         Check.False(WorldSeedFilterFailurePolicy.ShouldStop(failures));
@@ -866,11 +896,12 @@ internal static class TerrariaIntegrationTests
         failures = WorldSeedFilterFailurePolicy.Advance(failures, prediction);
         Check.True(WorldSeedFilterFailurePolicy.ShouldStop(failures));
         Check.True(WorldSeedFilterFailurePolicy.FormatLimitReached(failures, prediction)
-            .Contains("Pass40: injected generation failure", StringComparison.Ordinal));
+            .Contains(prediction.Detail, StringComparison.Ordinal));
         WorldSeedFilterPrediction nativeFailure = await evaluator.EvaluateAsync(
             settings, "540278984", TerrariaWorldGenerationVersion.Modern1458, cancellationToken);
         Check.True(nativeFailure.IsCandidateFailure);
         Check.True(nativeFailure.Detail.Contains("injected generation failure", StringComparison.Ordinal));
+        Check.Equal(1, nativeCalls);
     }
 
     private static async Task UiSeedCandidateFailureJourney(

@@ -310,7 +310,7 @@ internal sealed class JungleSeedJudgeNativeClient
                     responseJson,
                     requestId);
                 if (result.Status == JungleSeedJudgeStatus.Complete && (result.PlannedEndPass != requirements.EndPass ||
-                    result.ExecutionPath != (requirements.PyramidItemsOnly ? "PyramidFast" : "FullPrefix")))
+                    result.ExecutionPath != (requirements.PyramidFastEligible ? "PyramidFast" : "FullPrefix")))
                     throw new InvalidDataException("World Filter returned a different filter plan.");
                 if (result.Status == JungleSeedJudgeStatus.Complete && result.RequestedThreads != threads)
                     throw new InvalidDataException("World Filter returned a different thread request.");

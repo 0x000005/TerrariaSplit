@@ -16,8 +16,8 @@ internal sealed record ResourceJudgeRequirements(
 {
     public bool HasResources => JungleItemMask != 0 || LifeCrystalMinimum != 0 || SpelunkerPotionMinimum != 0 || FeatherfallPotionMinimum != 0;
     public int EndPass => HasResources ? 97 : StarfuryMaximumDistance != 0 ? 69 : JungleMinimumY != 0 ? 59
-        : PyramidMaximumDepth != 0 ? 53 : FinchStaffMaximumDistance != 0 ? 42 : 40;
-    public bool PyramidItemsOnly => PyramidItemMask != 0 && PyramidGoldMinimum == 0 && PyramidMaximumDepth == 0
+        : PyramidMaximumDepth != 0 ? 53 : FinchStaffMaximumDistance != 0 ? 42 : (PyramidItemMask != 0 || PyramidGoldMinimum != 0) ? 40 : 29;
+    public bool PyramidFastEligible => (PyramidItemMask != 0 || PyramidGoldMinimum != 0) && PyramidMaximumDepth == 0
         && CrimsonMaximumDistance == 0 && JungleMinimumY == 0 && !HasResources
         && StarfuryMaximumDistance == 0 && FinchStaffMaximumDistance == 0;
     public void Validate()
