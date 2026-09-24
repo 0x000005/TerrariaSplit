@@ -328,7 +328,7 @@ internal static class SplitCompletionAnimationRenderer
             textBounds,
             textCenterX,
             context.ScaleFactor,
-            context.Settings.Overlay.Columns.Timer.FontFamily,
+            context.Settings.Overlay.SplitCompletionText,
             context.Settings.General.Language,
             context.Settings.Overlay.EnableDynamicDeltaTimeUnits,
             graphics.DpiX,
@@ -375,8 +375,14 @@ internal static class SplitCompletionAnimationRenderer
             textResources.SegmentDelta,
             animation.PersonalBestSegmentComparison,
             animation.SegmentTimeOutlineStyle,
-            context.Palette.SplitCompletionSegmentLabelText,
-            context.Palette.SplitCompletionSegmentTimeText,
+            context.Palette.SplitCompletionLabelText,
+            context.Palette.SplitCompletionTimeText,
+            context.Settings.Overlay.SplitCompletionText.Hint,
+            context.Settings.Overlay.SplitCompletionText.Time,
+            context.Palette.SplitCompletionLabelTextOutline,
+            context.Palette.SplitCompletionLabelTextShadow,
+            context.Palette.SplitCompletionTimeTextOutline,
+            context.Palette.SplitCompletionTimeTextShadow,
             labelFont,
             valueFont,
             deltaFont,
@@ -397,6 +403,12 @@ internal static class SplitCompletionAnimationRenderer
             animation.SplitTimeOutlineStyle,
             context.Palette.SplitCompletionLabelText,
             context.Palette.SplitCompletionTimeText,
+            context.Settings.Overlay.SplitCompletionText.Hint,
+            context.Settings.Overlay.SplitCompletionText.Time,
+            context.Palette.SplitCompletionLabelTextOutline,
+            context.Palette.SplitCompletionLabelTextShadow,
+            context.Palette.SplitCompletionTimeTextOutline,
+            context.Palette.SplitCompletionTimeTextShadow,
             labelFont,
             valueFont,
             deltaFont,
@@ -436,7 +448,7 @@ internal static class SplitCompletionAnimationRenderer
             splitValue,
             splitDelta,
             cacheKey.Scale,
-            cacheKey.FontFamily,
+            cacheKey,
             fontFactory);
 
         Font? labelFont = null;
@@ -444,21 +456,9 @@ internal static class SplitCompletionAnimationRenderer
         Font? deltaFont = null;
         try
         {
-            labelFont = OverlayTextMetrics.CreatePixelFont(
-                valueSize * SplitCompletionLabelFontRatio,
-                FontStyle.Bold,
-                cacheKey.FontFamily,
-                fontFactory);
-            valueFont = OverlayTextMetrics.CreatePixelFont(
-                valueSize,
-                FontStyle.Bold,
-                cacheKey.FontFamily,
-                fontFactory);
-            deltaFont = OverlayTextMetrics.CreatePixelFont(
-                valueSize * SplitCompletionDeltaFontRatio,
-                FontStyle.Bold,
-                cacheKey.FontFamily,
-                fontFactory);
+            labelFont = CreateFont(valueSize * SplitCompletionLabelFontRatio, cacheKey.HintStyle, fontFactory);
+            valueFont = CreateFont(valueSize, cacheKey.TimeStyle, fontFactory);
+            deltaFont = CreateFont(valueSize * SplitCompletionDeltaFontRatio, cacheKey.DeltaStyle, fontFactory);
             return new SplitCompletionAnimationTextResources(
                 cacheKey,
                 Localizer.Get("Segment time", context.Settings),
@@ -518,7 +518,7 @@ internal static class SplitCompletionAnimationRenderer
         string secondValue,
         string secondDelta,
         float scale,
-        string fontFamily,
+        SplitCompletionAnimationTextCacheKey styles,
         IUiFontFactory fontFactory)
     {
         if (availableLeftWidth <= 0f || availableRightWidth <= 0f || availableHeight <= 0)
@@ -541,7 +541,7 @@ internal static class SplitCompletionAnimationRenderer
                 firstDelta,
                 secondValue,
                 secondDelta,
-                fontFamily,
+                styles,
                 fontFactory))
             {
                 low = mid;
@@ -565,24 +565,12 @@ internal static class SplitCompletionAnimationRenderer
         string firstDelta,
         string secondValue,
         string secondDelta,
-        string fontFamily,
+        SplitCompletionAnimationTextCacheKey styles,
         IUiFontFactory fontFactory)
     {
-        using var labelFont = OverlayTextMetrics.CreatePixelFont(
-            valueSize * SplitCompletionLabelFontRatio,
-            FontStyle.Bold,
-            fontFamily,
-            fontFactory);
-        using var valueFont = OverlayTextMetrics.CreatePixelFont(
-            valueSize,
-            FontStyle.Bold,
-            fontFamily,
-            fontFactory);
-        using var deltaFont = OverlayTextMetrics.CreatePixelFont(
-            valueSize * SplitCompletionDeltaFontRatio,
-            FontStyle.Bold,
-            fontFamily,
-            fontFactory);
+        using var labelFont = CreateFont(valueSize * SplitCompletionLabelFontRatio, styles.HintStyle, fontFactory);
+        using var valueFont = CreateFont(valueSize, styles.TimeStyle, fontFactory);
+        using var deltaFont = CreateFont(valueSize * SplitCompletionDeltaFontRatio, styles.DeltaStyle, fontFactory);
         using var format = new StringFormat(StringFormat.GenericTypographic)
         {
             FormatFlags = StringFormatFlags.NoWrap
@@ -609,6 +597,11 @@ internal static class SplitCompletionAnimationRenderer
             totalHeight <= availableHeight;
     }
 
+    private static Font CreateFont(float size, SplitCompletionTextStyle style, IUiFontFactory factory) =>
+        OverlayTextMetrics.CreatePixelFont(size,
+            (style.Bold ? FontStyle.Bold : FontStyle.Regular) | (style.Italic ? FontStyle.Italic : FontStyle.Regular),
+            style.FontFamily, factory);
+
     private static float MeasureDeltaTextWidth(
         Graphics graphics,
         Font deltaFont,
@@ -632,6 +625,12 @@ internal static class SplitCompletionAnimationRenderer
         string outlineStyle,
         Color labelColor,
         Color valueColor,
+        SplitCompletionTextStyle labelStyle,
+        SplitCompletionTextStyle valueStyle,
+        Color labelOutline,
+        Color labelShadow,
+        Color valueOutline,
+        Color valueShadow,
         Font labelFont,
         Font valueFont,
         Font deltaFont,
@@ -646,7 +645,8 @@ internal static class SplitCompletionAnimationRenderer
             return;
         }
 
-        bool isAhead = SplitCompletionOutlineStyles.Normalize(outlineStyle) != SplitCompletionOutlineStyles.None &&
+        bool isAhead = valueStyle.OutlineThicknessPercent > 0 &&
+            SplitCompletionOutlineStyles.Normalize(outlineStyle) != SplitCompletionOutlineStyles.None &&
             comparison.Delta is TimeSpan aheadDelta &&
             aheadDelta < TimeSpan.Zero;
 
@@ -663,14 +663,14 @@ internal static class SplitCompletionAnimationRenderer
             bounds.Top,
             (int)Math.Ceiling(centerX + labelHalfWidth),
             bounds.Top + labelHeight);
-        using var labelBrush = new SolidBrush(TextEffectRenderer.WithOpacity(labelColor, opacity * 0.86f));
-        TextEffectRenderer.DrawText(
+        TextEffectRenderer.DrawStyledText(
             graphics,
             label,
             labelFont,
-            labelBrush,
+            new TextRenderStyle(labelColor, labelOutline, labelShadow, labelStyle.ShadowPercent, labelStyle.OutlineThicknessPercent, LinearEffects: true),
             labelRect,
-            ContentAlignment.MiddleCenter);
+            ContentAlignment.MiddleCenter,
+            opacity * labelStyle.OpacityPercent / 100f);
 
         SizeF valueSize = graphics.MeasureString(value, valueFont, bounds.Size, format);
         float gap = string.IsNullOrEmpty(deltaText) ? 0f : reservedGap;
@@ -679,6 +679,9 @@ internal static class SplitCompletionAnimationRenderer
         float valueTextHeight = valueMetrics.Ascent + valueMetrics.Descent;
         float valueBaselineY = bounds.Top + labelHeight + Math.Max(0f, (bounds.Height - labelHeight - valueTextHeight) / 2f) + valueMetrics.Ascent;
         float valueY = valueBaselineY - valueMetrics.Ascent;
+        float valueOpacity = opacity * valueStyle.OpacityPercent / 100f;
+        var renderStyle = new TextRenderStyle(valueColor, valueOutline, valueShadow,
+            valueStyle.ShadowPercent, valueStyle.OutlineThicknessPercent, LinearEffects: true);
 
         if (isAhead)
         {
@@ -686,26 +689,25 @@ internal static class SplitCompletionAnimationRenderer
                 graphics,
                 value,
                 valueFont,
-                valueColor,
+                renderStyle,
                 startX,
                 valueY,
                 format,
                 elapsed,
-                context.Settings.Overlay.SplitCompletionOutlineThicknessPercent,
                 outlineStyle,
-                opacity);
+                valueOpacity);
         }
         else
         {
-            TextEffectRenderer.DrawString(
+            TextEffectRenderer.DrawStyledString(
                 graphics,
                 value,
                 valueFont,
-                valueColor,
+                renderStyle,
                 startX,
                 valueY,
                 format,
-                opacity);
+                valueOpacity);
         }
 
         if (!string.IsNullOrEmpty(deltaText))
@@ -727,7 +729,7 @@ internal static class SplitCompletionAnimationRenderer
                 animationDuration,
                 GetDeltaSlideDistance(deltaFont.Size));
             float deltaX = startX + valueSize.Width + gap + deltaMotion.OffsetX;
-            float deltaY = TextEffectRenderer.AlignTextPathBottom(
+            float deltaY = TextEffectRenderer.AlignTextPathCenter(
                 graphics,
                 value,
                 valueFont,
@@ -738,15 +740,23 @@ internal static class SplitCompletionAnimationRenderer
                 deltaX,
                 valueY,
                 format);
-            TextEffectRenderer.DrawString(
+            SplitCompletionTextStyle deltaAppearance = context.Settings.Overlay.SplitCompletionText.Delta;
+            TextRenderStyle deltaStyle = OverlayTextStyles.GetDeltaTextStyle(context.Settings, comparison, context.Palette) with
+            {
+                Fill = deltaColor,
+                ShadowPercent = deltaAppearance.ShadowPercent,
+                OutlineThicknessPercent = deltaAppearance.OutlineThicknessPercent
+            };
+            // Delta has its own ordinary outline; the time's animated outline never applies here.
+            TextEffectRenderer.DrawStyledString(
                 graphics,
                 deltaText,
                 deltaFont,
-                deltaColor,
+                deltaStyle,
                 deltaX,
                 deltaY,
                 format,
-                opacity * deltaMotion.Opacity);
+                opacity * deltaMotion.Opacity * deltaAppearance.OpacityPercent / 100f);
         }
     }
 }

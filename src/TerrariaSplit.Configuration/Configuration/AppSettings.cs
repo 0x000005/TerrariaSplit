@@ -106,7 +106,7 @@ public sealed class OverlaySettings
     public int? WindowPositionY { get; set; }
     public bool ShowSplitCompletionAnimation { get; set; } = true;
     public float SplitCompletionAnimationDurationSeconds { get; set; } = 4.2f;
-    public int SplitCompletionOutlineThicknessPercent { get; set; } = 30;
+    public SplitCompletionTextSettings SplitCompletionText { get; set; } = new();
     public Dictionary<string, bool> SplitCompletionSplitComparisons { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public Dictionary<string, bool> SplitCompletionSegmentComparisons { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public Dictionary<string, string> SplitCompletionOutlineSplitStyles { get; set; } = new(StringComparer.OrdinalIgnoreCase);

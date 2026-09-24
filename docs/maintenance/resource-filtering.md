@@ -4,6 +4,8 @@ All conditions apply only to Small Crimson worlds. Special and secret seed selec
 
 The master switch and eligibility only disable controls and execution; they do not erase selected conditions.
 
+All game versions use the current 1.4.5.8 managed pre-screen and ResourceJudge rules for filtering, including 1.4.4.9. Cross-version generation differences are accepted; this does not change the actual game's menu automation, world generation or Race version compatibility requirements.
+
 1. If pyramid items are enabled, run the managed pyramid pre-screen with the item mask and gold-pile minimum. A negative result skips the candidate; a positive result cannot accept it.
 2. Run ResourceJudge ABI/protocol 4 once with the analysis mask for all enabled conditions. Pyramid item, gold and entrance-depth conditions must match the same pyramid. Pyramid items use OR; jungle items use AND.
 3. Accept only after the requested conditions are satisfied. Candidate simulation failures or uncertain results skip the candidate; three consecutive candidate failures stop UI/Race filtering with diagnostics. Missing or incompatible native components fail closed.

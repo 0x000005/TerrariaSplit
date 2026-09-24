@@ -6,6 +6,8 @@ namespace TerrariaSplit.UI.Settings;
 
 internal sealed partial class AnimationSettingsPage : SettingsPageBase
 {
+    private const float TextEffectPreviewFontSize = 18f;
+
     private void PopulateAnimationOutlineGrid()
     {
         if (animationComparisonGrid is null || animationOutlineGrid is null)
@@ -294,7 +296,8 @@ internal sealed partial class AnimationSettingsPage : SettingsPageBase
     private void UpdateSplitCompletionAvailability()
     {
         bool enabled = showSplitCompletionAnimationBox.Checked;
-        SetEnabled(enabled, splitCompletionAnimationDurationBox, splitCompletionOutlineThicknessBox, outlineStylePreview);
+        if (completionTextGrid is not null) completionTextGrid.Enabled = enabled;
+        SetEnabled(enabled, splitCompletionAnimationDurationBox, outlineStylePreview);
         foreach (AnimationOutlineControls controls in animationOutlineControls.Values)
         {
             SetEnabled(enabled, controls.SplitComparison, controls.SegmentComparison, controls.SplitTime, controls.SegmentTime);
@@ -319,7 +322,7 @@ internal sealed partial class AnimationSettingsPage : SettingsPageBase
         }
     }
 
-    private void PaintSegmentBestDeltaHighlightPreview(Graphics graphics, Rectangle bounds)
+    internal void PaintSegmentBestDeltaHighlightPreview(Graphics graphics, Rectangle bounds)
     {
         graphics.SmoothingMode = SmoothingMode.AntiAlias;
         using var backgroundBrush = new SolidBrush(UiTheme.Field);
@@ -327,31 +330,26 @@ internal sealed partial class AnimationSettingsPage : SettingsPageBase
         using var borderPen = new Pen(UiTheme.Border);
         graphics.DrawRectangle(borderPen, 0, 0, Math.Max(0, bounds.Width - 1), Math.Max(0, bounds.Height - 1));
 
-        using var font = UiTheme.FormFont(16f, FontStyle.Bold);
-        using var format = new StringFormat(StringFormat.GenericTypographic)
-        {
-            Alignment = StringAlignment.Center,
-            LineAlignment = StringAlignment.Center
-        };
+        UiColumnSettings appearance = Draft.Overlay.Columns.Delta;
+        using var font = UiFontFactory.Default.CreateFont(appearance.FontFamily, TextEffectPreviewFontSize,
+            (appearance.Bold ? FontStyle.Bold : FontStyle.Regular) | (appearance.Italic ? FontStyle.Italic : FontStyle.Regular));
+        UiPalette palette = UiPalette.From(Draft.Overlay.Colors);
+        float opacity = OverlayTextStyles.GetDeltaTextOpacity(Draft);
 
         double seconds = Environment.TickCount64 / 1000.0;
-        Color[] baseColors =
-        {
-            ColorText.Parse(Draft.Overlay.Colors.DeltaAheadText, Color.FromArgb(114, 213, 114)),
-            ColorText.Parse(Draft.Overlay.Colors.DeltaBehindText, Color.FromArgb(240, 112, 112))
-        };
         string[] texts = { "-0:01.23", "+0:01.23" };
         int columns = texts.Length;
         for (int i = 0; i < columns; i++)
         {
             var rect = new Rectangle(bounds.Left + i * bounds.Width / columns, bounds.Top, bounds.Width / columns, bounds.Height);
-            Color color = SegmentBestDeltaHighlightColorMath.Apply(baseColors[i], previewSegmentBestDeltaHighlightStyle, seconds);
-            using var brush = new SolidBrush(color);
-            graphics.DrawString(texts[i], font, brush, rect, format);
+            var comparison = new SplitComparison(TimeSpan.FromSeconds(i == 0 ? -1.23 : 1.23), ShowDelta: true);
+            TextRenderStyle style = OverlayTextStyles.GetDeltaTextStyle(Draft, comparison, palette);
+            style = style with { Fill = SegmentBestDeltaHighlightColorMath.Apply(style.Fill, previewSegmentBestDeltaHighlightStyle, seconds) };
+            TextEffectRenderer.DrawStyledText(graphics, texts[i], font, style, rect, ContentAlignment.MiddleCenter, opacity);
         }
     }
 
-    private void PaintOutlineStylePreview(Graphics graphics, Rectangle bounds)
+    internal void PaintOutlineStylePreview(Graphics graphics, Rectangle bounds)
     {
         graphics.SmoothingMode = SmoothingMode.AntiAlias;
         using var backgroundBrush = new SolidBrush(UiTheme.Field);
@@ -359,66 +357,31 @@ internal sealed partial class AnimationSettingsPage : SettingsPageBase
         using var borderPen = new Pen(UiTheme.Border);
         graphics.DrawRectangle(borderPen, 0, 0, Math.Max(0, bounds.Width - 1), Math.Max(0, bounds.Height - 1));
 
-        using var font = UiTheme.FormFont(18f, FontStyle.Bold);
+        SplitCompletionTextStyle appearance = Draft.Overlay.SplitCompletionText.Time with { };
+        ReadCompletionTextControls(nameof(SplitCompletionTextSettings.Time), appearance);
+        using var font = UiFontFactory.Default.CreateFont(appearance.FontFamily, TextEffectPreviewFontSize,
+            (appearance.Bold ? FontStyle.Bold : FontStyle.Regular) | (appearance.Italic ? FontStyle.Italic : FontStyle.Regular));
         string text = "0:01:23.45";
         using var format = new StringFormat(StringFormat.GenericTypographic)
         {
             Alignment = StringAlignment.Near,
             LineAlignment = StringAlignment.Near
         };
-        DrawPreviewOutlinedString(
+        UiPalette palette = UiPalette.From(Draft.Overlay.Colors);
+        var style = new TextRenderStyle(palette.SplitCompletionTimeText, palette.SplitCompletionTimeTextOutline,
+            palette.SplitCompletionTimeTextShadow, appearance.ShadowPercent, appearance.OutlineThicknessPercent, LinearEffects: true);
+        SizeF textSize = graphics.MeasureString(text, font, Size.Empty, format);
+        TextEffectRenderer.DrawOutlinedString(
             graphics,
             text,
             font,
-            Color.White,
-            bounds.Left + bounds.Width / 2f,
-            bounds.Top + bounds.Height / 2f,
+            style,
+            bounds.Left + (bounds.Width - textSize.Width) / 2f,
+            bounds.Top + (bounds.Height - textSize.Height) / 2f,
             format,
+            TimeSpan.FromMilliseconds(Environment.TickCount64),
             previewOutlineStyle,
-            SettingsValueParser.ParseIntBox(splitCompletionOutlineThicknessBox, 30, 0, 100));
-    }
-
-    private static void DrawPreviewOutlinedString(
-        Graphics graphics,
-        string text,
-        Font font,
-        Color fillColor,
-        float centerX,
-        float centerY,
-        StringFormat format,
-        string style,
-        int thicknessPercent)
-    {
-        string normalized = SplitCompletionOutlineStyles.Normalize(style);
-        if (normalized == SplitCompletionOutlineStyles.None)
-        {
-            using var textBrush = new SolidBrush(fillColor);
-            SizeF size = graphics.MeasureString(text, font, Size.Empty, format);
-            graphics.DrawString(text, font, textBrush, centerX - size.Width / 2f, centerY - size.Height / 2f, format);
-            return;
-        }
-
-        using GraphicsPath path = TextEffectGeometry.CreateTextPath(graphics, text, font, 0f, 0f, format);
-        TextEffectGeometry.CenterPath(path, centerX, centerY);
-        RectangleF pathBounds = path.GetBounds();
-        RectangleF gradientBounds = TextEffectGeometry.InflateBounds(pathBounds, Math.Max(4f, font.Size * 0.35f));
-        using var outlineBrush = new LinearGradientBrush(gradientBounds, Color.White, Color.White, LinearGradientMode.Horizontal);
-        Color[] colors = SplitCompletionOutlineColorPalette.GetColors(normalized, Environment.TickCount64 / 1000.0);
-        outlineBrush.InterpolationColors = new ColorBlend
-        {
-            Positions = TextEffectGeometry.CreateColorPositions(colors.Length),
-            Colors = colors
-        };
-
-        float thickness = font.Size * Math.Clamp(thicknessPercent, 0, 100) / 100f;
-        using var outlinePen = new Pen(outlineBrush, Math.Max(1f, thickness))
-        {
-            LineJoin = LineJoin.Round
-        };
-        graphics.DrawPath(outlinePen, path);
-
-        using var fillBrush = new SolidBrush(fillColor);
-        graphics.FillPath(fillBrush, path);
+            appearance.OpacityPercent / 100f);
     }
 
     private void PopulateSegmentBestDeltaHighlightGrid()

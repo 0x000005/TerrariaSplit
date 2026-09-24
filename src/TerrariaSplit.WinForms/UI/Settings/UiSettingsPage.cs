@@ -215,6 +215,13 @@ internal sealed class UiSettingsPage : SettingsPageBase
         });
     }
 
+    public override void OnDeselected()
+    {
+        ApplyColumnSettings(UiColumnDescriptors.Delta, Draft.Overlay.Columns.Delta);
+        ApplyTextEffectSettings(Draft.Overlay.TextEffects);
+        Context.NotifyModelChanged(SettingsModelChange.TextAppearanceChanged);
+    }
+
     public override void Apply(AppSettings settings)
     {
         foreach (UiColumnDescriptor descriptor in UiColumnDescriptors.SplitDisplay)

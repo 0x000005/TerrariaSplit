@@ -169,7 +169,7 @@ public static class AppSettingsCloner
             WindowPositionY = source.WindowPositionY,
             ShowSplitCompletionAnimation = source.ShowSplitCompletionAnimation,
             SplitCompletionAnimationDurationSeconds = source.SplitCompletionAnimationDurationSeconds,
-            SplitCompletionOutlineThicknessPercent = source.SplitCompletionOutlineThicknessPercent,
+            SplitCompletionText = (source.SplitCompletionText ?? new()).Clone(),
             SplitCompletionSplitComparisons = new Dictionary<string, bool>(
                 source.SplitCompletionSplitComparisons ?? [],
                 StringComparer.OrdinalIgnoreCase),
@@ -264,9 +264,11 @@ public static class AppSettingsCloner
             TimerPausedText = source.TimerPausedText,
             TimerPausedTextOutline = source.TimerPausedTextOutline,
             TimerPausedTextShadow = source.TimerPausedTextShadow,
-            SplitCompletionSegmentLabelText = source.SplitCompletionSegmentLabelText,
+            SplitCompletionLabelTextOutline = source.SplitCompletionLabelTextOutline,
+            SplitCompletionLabelTextShadow = source.SplitCompletionLabelTextShadow,
+            SplitCompletionTimeTextOutline = source.SplitCompletionTimeTextOutline,
+            SplitCompletionTimeTextShadow = source.SplitCompletionTimeTextShadow,
             SplitCompletionLabelText = source.SplitCompletionLabelText,
-            SplitCompletionSegmentTimeText = source.SplitCompletionSegmentTimeText,
             SplitCompletionTimeText = source.SplitCompletionTimeText
         };
     }

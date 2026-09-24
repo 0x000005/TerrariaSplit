@@ -7,5 +7,6 @@ internal enum SettingsModelChange
     ReferenceDataChanged,
     PersonalBestTimeChanged,
     PersonalBestSegmentChanged,
-    AnimationSettingsChanged
+    AnimationSettingsChanged,
+    TextAppearanceChanged
 }

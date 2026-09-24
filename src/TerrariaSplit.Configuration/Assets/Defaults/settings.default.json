@@ -756,7 +756,32 @@
         "WindowPositionY": null,
         "ShowSplitCompletionAnimation": true,
         "SplitCompletionAnimationDurationSeconds": 6,
-        "SplitCompletionOutlineThicknessPercent": 25,
+        "SplitCompletionText": {
+            "Time": {
+                "FontFamily": "Segoe UI",
+                "Bold": true,
+                "Italic": false,
+                "OpacityPercent": 100,
+                "ShadowPercent": 0,
+                "OutlineThicknessPercent": 25
+            },
+            "Hint": {
+                "FontFamily": "Segoe UI",
+                "Bold": true,
+                "Italic": false,
+                "OpacityPercent": 86,
+                "ShadowPercent": 0,
+                "OutlineThicknessPercent": 25
+            },
+            "Delta": {
+                "FontFamily": "Segoe UI",
+                "Bold": true,
+                "Italic": false,
+                "OpacityPercent": 100,
+                "ShadowPercent": 0,
+                "OutlineThicknessPercent": 25
+            }
+        },
         "SplitCompletionSplitComparisons": {
             "split:boss-skeletron": true,
             "split:boss-wall-of-flesh": true,
@@ -865,10 +890,12 @@
             "TimerPausedText": "#5F5F5F",
             "TimerPausedTextOutline": "#101010",
             "TimerPausedTextShadow": "#000000",
-            "SplitCompletionSegmentLabelText": "#DEDEE2",
             "SplitCompletionLabelText": "#DEDEE2",
-            "SplitCompletionSegmentTimeText": "#FFFFFF",
-            "SplitCompletionTimeText": "#FFFFFF"
+            "SplitCompletionTimeText": "#FFFFFF",
+            "SplitCompletionLabelTextOutline": "#101010",
+            "SplitCompletionLabelTextShadow": "#000000",
+            "SplitCompletionTimeTextOutline": "#101010",
+            "SplitCompletionTimeTextShadow": "#000000"
         },
         "Sounds": {
             "Pause": "",

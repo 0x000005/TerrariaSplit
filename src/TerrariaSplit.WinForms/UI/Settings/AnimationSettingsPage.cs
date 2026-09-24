@@ -18,7 +18,6 @@ internal sealed partial class AnimationSettingsPage : SettingsPageBase
     private readonly CheckBox showSegmentBestDeltaHighlightBox = new();
     private readonly CheckBox enableDefeatedBossIconLightingBox = new();
     private readonly TextBox splitCompletionAnimationDurationBox = new();
-    private readonly TextBox splitCompletionOutlineThicknessBox = new();
     private readonly TextBox undefeatedIconGrayscaleBox = new();
     private readonly TextBox undefeatedIconBrightnessBox = new();
     private readonly TextBox currentBossIconGrayscaleWeakenBox = new();
@@ -29,6 +28,8 @@ internal sealed partial class AnimationSettingsPage : SettingsPageBase
     private readonly Panel segmentBestDeltaHighlightPreview = new();
     private readonly Panel deltaGradientPreview = new();
     private readonly System.Windows.Forms.Timer outlineStylePreviewTimer = new();
+    private readonly Dictionary<string, CompletionTextControls> completionTextControls = new();
+    private TableLayoutPanel? completionTextGrid;
 
     private TableLayoutPanel? animationComparisonGrid;
     private TableLayoutPanel? animationOutlineGrid;
@@ -68,12 +69,18 @@ internal sealed partial class AnimationSettingsPage : SettingsPageBase
         settings.Overlay.DeltaGradientCurve = GetSelectedDeltaGradientCurve(deltaGradientCurveBox);
         settings.Overlay.ShowSegmentBestDeltaHighlight = showSegmentBestDeltaHighlightBox.Checked;
         settings.Overlay.SplitCompletionAnimationDurationSeconds = SettingsValueParser.ParseFloatBox(splitCompletionAnimationDurationBox, 4.2f, 2f, 20f);
-        settings.Overlay.SplitCompletionOutlineThicknessPercent = SettingsValueParser.ParseIntBox(splitCompletionOutlineThicknessBox, 30, 0, 100);
+        ApplyCompletionText(settings.Overlay.SplitCompletionText);
         SaveAnimationOutlineControls();
     }
 
     public override void OnModelChanged(SettingsModelChange change)
     {
+        if (change == SettingsModelChange.TextAppearanceChanged)
+        {
+            segmentBestDeltaHighlightPreview.Invalidate();
+            outlineStylePreview.Invalidate();
+            return;
+        }
         if (change != SettingsModelChange.RouteChanged)
         {
             return;
@@ -108,8 +115,6 @@ internal sealed partial class AnimationSettingsPage : SettingsPageBase
         ConfigureCheckBox(showSplitCompletionAnimationBox, Draft.Overlay.ShowSplitCompletionAnimation);
         showSplitCompletionAnimationBox.CheckedChanged += (_, _) => UpdateEffectAvailability();
         ConfigureDecimalBox(splitCompletionAnimationDurationBox, Draft.Overlay.SplitCompletionAnimationDurationSeconds, 2m, 20m);
-        ConfigureNumberBox(splitCompletionOutlineThicknessBox, Draft.Overlay.SplitCompletionOutlineThicknessPercent, 0, 100);
-        splitCompletionOutlineThicknessBox.TextChanged += (_, _) => outlineStylePreview.Invalidate();
         ConfigureCheckBox(showSegmentBestDeltaHighlightBox, Draft.Overlay.ShowSegmentBestDeltaHighlight);
         showSegmentBestDeltaHighlightBox.CheckedChanged += (_, _) => UpdateEffectAvailability();
 
@@ -167,6 +172,8 @@ internal sealed partial class AnimationSettingsPage : SettingsPageBase
         Factory.AddSettingRow(optionGrid, "Animation duration seconds", splitCompletionAnimationDurationBox);
         SettingsUiFactory.AddSectionControl(section, optionGrid);
 
+        completionTextGrid = CreateCompletionTextGrid();
+        SettingsUiFactory.AddSectionControl(section, completionTextGrid);
         SettingsUiFactory.AddSectionControl(section, Factory.CreateSubsectionLabel("Show comparison with reference time"));
         animationComparisonGrid = Factory.CreateGrid(
             SettingsUiFactory.ColumnStylePercent(100f),
@@ -175,9 +182,6 @@ internal sealed partial class AnimationSettingsPage : SettingsPageBase
         SettingsUiFactory.AddSectionControl(section, animationComparisonGrid);
 
         SettingsUiFactory.AddSectionControl(section, Factory.CreateSubsectionLabel("Outline when faster than reference"));
-        TableLayoutPanel outlineOptionGrid = Factory.CreateTwoColumnGrid(280f);
-        Factory.AddSettingRow(outlineOptionGrid, "Outline %", splitCompletionOutlineThicknessBox);
-        SettingsUiFactory.AddSectionControl(section, outlineOptionGrid);
 
         animationOutlineGrid = Factory.CreateGrid(
             SettingsUiFactory.ColumnStylePercent(100f),

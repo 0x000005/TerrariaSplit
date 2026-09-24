@@ -68,7 +68,7 @@ internal static class TextEffectGeometry
         return path;
     }
 
-    public static float AlignTextPathBottom(
+    public static float AlignTextPathCenter(
         Graphics graphics,
         string referenceText,
         Font referenceFont,
@@ -87,7 +87,9 @@ internal static class TextEffectGeometry
             return y;
         }
 
-        return y + referencePath.GetBounds().Bottom - path.GetBounds().Bottom;
+        RectangleF referenceBounds = referencePath.GetBounds();
+        RectangleF bounds = path.GetBounds();
+        return y + (referenceBounds.Top + referenceBounds.Height / 2f) - (bounds.Top + bounds.Height / 2f);
     }
 
     public static void CenterPath(GraphicsPath path, float centerX, float centerY)

@@ -108,10 +108,10 @@ internal static class WorldFilterStress
                     JungleSeedJudgeResult result = await client.AnalyzeAsync(
                         seed,
                         options.GameMode,
-                        cancellationToken);
+                        cancellationToken, new ResourceJudgeRequirements(LifeCrystalMinimum: 1), threads: 1);
                     results[index] = new WorldFilterStressResult(
-                        result.Status.ToString(),
-                        result.Detail,
+                        result.Status.ToString() + "/" + result.Decision,
+                        result.Reason ?? result.Detail ?? string.Empty,
                         requestStopwatch.ElapsedMilliseconds,
                         result.Status == JungleSeedJudgeStatus.GenerationFailed);
                 }

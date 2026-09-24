@@ -64,16 +64,19 @@ internal sealed class ColorSettingsPage : SettingsPageBase
         TableLayoutPanel animationSection = Factory.CreateSection("Animation Colors");
         TableLayoutPanel animationGrid = Factory.CreateGrid(
             SettingsUiFactory.ColumnStylePercent(100f),
+            SettingsUiFactory.ColumnStyleAbsolute(214f),
+            SettingsUiFactory.ColumnStyleAbsolute(214f),
             SettingsUiFactory.ColumnStyleAbsolute(214f));
 
-        Factory.AddHeaderRow(animationGrid, "Text type", "Text");
-        foreach (ColorDescriptor descriptor in SettingsDescriptors.AnimationColors)
+        Factory.AddHeaderRow(animationGrid, "Text type", "Text", "Outline", "Shadow");
+        foreach (TextColorDescriptor descriptor in SettingsDescriptors.AnimationColors)
         {
-            AddColorRow(
+            AddTextColorRow(
                 animationGrid,
                 descriptor.Label,
-                descriptor.Key,
-                descriptor.GetValue(Draft.Overlay.Colors));
+                descriptor.TextKey, descriptor.GetText(Draft.Overlay.Colors),
+                descriptor.OutlineKey, descriptor.GetOutline(Draft.Overlay.Colors),
+                descriptor.ShadowKey, descriptor.GetShadow(Draft.Overlay.Colors));
         }
 
         SettingsUiFactory.AddSectionControl(animationSection, animationGrid);
@@ -106,13 +109,6 @@ internal sealed class ColorSettingsPage : SettingsPageBase
         grid.Controls.Add(Factory.CreateRowLabel("Icon"), 0, row);
         grid.Controls.Add(CreateColorEditor(outline.Key, outline.GetValue(Draft.Overlay.Colors)), 1, row);
         grid.Controls.Add(CreateColorEditor(shadow.Key, shadow.GetValue(Draft.Overlay.Colors)), 2, row);
-    }
-
-    private void AddColorRow(TableLayoutPanel grid, string label, string key, string value)
-    {
-        int row = Factory.AddGridRow(grid);
-        grid.Controls.Add(Factory.CreateRowLabel(label), 0, row);
-        grid.Controls.Add(CreateColorEditor(key, value), 1, row);
     }
 
     private Control CreateColorEditor(string key, string value)
@@ -179,7 +175,7 @@ internal sealed class ColorSettingsPage : SettingsPageBase
     {
         Draft.Overlay.Colors ??= new UiColorSettings();
         string normalized = ColorText.Format(ColorText.Parse(colorText, Color.White));
-        foreach (TextColorDescriptor descriptor in SettingsDescriptors.TextColors)
+        foreach (TextColorDescriptor descriptor in SettingsDescriptors.TextColors.Concat(SettingsDescriptors.AnimationColors))
         {
             if (descriptor.TextKey == key)
             {
@@ -209,14 +205,6 @@ internal sealed class ColorSettingsPage : SettingsPageBase
             }
         }
 
-        foreach (ColorDescriptor descriptor in SettingsDescriptors.AnimationColors)
-        {
-            if (descriptor.Key == key)
-            {
-                descriptor.SetValue(Draft.Overlay.Colors, normalized);
-                return;
-            }
-        }
     }
 
     private static void UpdateColorButton(Button button, string colorText)

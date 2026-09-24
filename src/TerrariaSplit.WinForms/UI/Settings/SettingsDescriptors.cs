@@ -84,24 +84,20 @@ internal static class SettingsDescriptors
             (colors, value) => colors.IconShadow = value)
     ];
 
-    public static IReadOnlyList<ColorDescriptor> AnimationColors { get; } =
+    public static IReadOnlyList<TextColorDescriptor> AnimationColors { get; } =
     [
-        new("Segment time hint text",
-            nameof(UiColorSettings.SplitCompletionSegmentLabelText),
-            colors => colors.SplitCompletionSegmentLabelText,
-            (colors, value) => colors.SplitCompletionSegmentLabelText = value),
-        new("Cumulative time hint text",
+        new("Hint text",
             nameof(UiColorSettings.SplitCompletionLabelText),
             colors => colors.SplitCompletionLabelText,
-            (colors, value) => colors.SplitCompletionLabelText = value),
-        new("Segment time",
-            nameof(UiColorSettings.SplitCompletionSegmentTimeText),
-            colors => colors.SplitCompletionSegmentTimeText,
-            (colors, value) => colors.SplitCompletionSegmentTimeText = value),
-        new("Cumulative time",
+            (colors, value) => colors.SplitCompletionLabelText = value,
+            nameof(UiColorSettings.SplitCompletionLabelTextOutline), colors => colors.SplitCompletionLabelTextOutline, (colors, value) => colors.SplitCompletionLabelTextOutline = value,
+            nameof(UiColorSettings.SplitCompletionLabelTextShadow), colors => colors.SplitCompletionLabelTextShadow, (colors, value) => colors.SplitCompletionLabelTextShadow = value),
+        new("Time",
             nameof(UiColorSettings.SplitCompletionTimeText),
             colors => colors.SplitCompletionTimeText,
-            (colors, value) => colors.SplitCompletionTimeText = value)
+            (colors, value) => colors.SplitCompletionTimeText = value,
+            nameof(UiColorSettings.SplitCompletionTimeTextOutline), colors => colors.SplitCompletionTimeTextOutline, (colors, value) => colors.SplitCompletionTimeTextOutline = value,
+            nameof(UiColorSettings.SplitCompletionTimeTextShadow), colors => colors.SplitCompletionTimeTextShadow, (colors, value) => colors.SplitCompletionTimeTextShadow = value)
     ];
 
     public static IReadOnlyList<SoundDescriptor> Sounds { get; } =
@@ -152,7 +148,7 @@ internal static class SettingsBinder
     {
         targetSettings.Overlay.Colors ??= new UiColorSettings();
 
-        foreach (TextColorDescriptor descriptor in SettingsDescriptors.TextColors)
+        foreach (TextColorDescriptor descriptor in SettingsDescriptors.TextColors.Concat(SettingsDescriptors.AnimationColors))
         {
             ApplyColor(colorTextBoxes, descriptor.TextKey, value => descriptor.SetText(targetSettings.Overlay.Colors, value));
             ApplyColor(colorTextBoxes, descriptor.OutlineKey, value => descriptor.SetOutline(targetSettings.Overlay.Colors, value));
@@ -164,10 +160,6 @@ internal static class SettingsBinder
             ApplyColor(colorTextBoxes, descriptor.Key, value => descriptor.SetValue(targetSettings.Overlay.Colors, value));
         }
 
-        foreach (ColorDescriptor descriptor in SettingsDescriptors.AnimationColors)
-        {
-            ApplyColor(colorTextBoxes, descriptor.Key, value => descriptor.SetValue(targetSettings.Overlay.Colors, value));
-        }
     }
 
     public static void ApplySounds(AppSettings targetSettings, IReadOnlyDictionary<string, TextBox> soundTextBoxes)

@@ -30,6 +30,7 @@ public static class SettingsNormalizer
         settings.Overlay.Sounds ??= defaults.Overlay.Sounds;
         settings.Overlay.Columns ??= defaults.Overlay.Columns;
         settings.Overlay.TextEffects ??= defaults.Overlay.TextEffects;
+        (settings.Overlay.SplitCompletionText ??= new()).Normalize();
         settings.Automation.AutoCreate ??= defaults.Automation.AutoCreate;
         settings.Race.Leaderboard ??= defaults.Race.Leaderboard;
         settings.PracticeWorlds ??= new PracticeWorldSettings();
@@ -39,7 +40,6 @@ public static class SettingsNormalizer
         SettingsSectionNormalizer.NormalizePracticeWorlds(settings.PracticeWorlds);
         SettingsSectionNormalizer.NormalizeAdvanced(settings.Advanced);
         settings.Overlay.SplitCompletionAnimationDurationSeconds = Math.Clamp(settings.Overlay.SplitCompletionAnimationDurationSeconds, 2f, 20f);
-        settings.Overlay.SplitCompletionOutlineThicknessPercent = Math.Clamp(settings.Overlay.SplitCompletionOutlineThicknessPercent, 0, 100);
         settings.Overlay.CurrentSplitHighlightScalePercent = Math.Clamp(settings.Overlay.CurrentSplitHighlightScalePercent, 100, 140);
         settings.Overlay.CurrentSplitDepthStrengthPercent = Math.Clamp(settings.Overlay.CurrentSplitDepthStrengthPercent, 0, 100);
         settings.Overlay.EarlyDeltaTimeSeconds = Math.Clamp(settings.Overlay.EarlyDeltaTimeSeconds, 0, 3600);

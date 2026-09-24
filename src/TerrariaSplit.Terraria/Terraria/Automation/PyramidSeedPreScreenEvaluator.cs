@@ -38,7 +38,7 @@ internal sealed class PyramidSeedPreScreenEvaluator
         string requiredItems = PyramidFilterItemMatcher.FormatRequiredItems(requiredItemMask);
         int requiredCoinPileMinimum = AutoCreatePyramidCoinPileMinimum.Normalize(settings.PyramidFilterCoinPileMinimum);
 
-        // Tunnel depth is authoritative only after Terraria has generated the .wld file.
+        // ResourceJudge, not this preliminary prediction, decides tunnel depth.
         PyramidSeedPreScreenResult result = PyramidSeedPreScreen.EvaluateSmallCrimson(
             seedText,
             difficultyCode,

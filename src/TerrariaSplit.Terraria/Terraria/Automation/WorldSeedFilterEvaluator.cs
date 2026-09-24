@@ -93,16 +93,6 @@ internal sealed class WorldSeedFilterEvaluator : IDisposable
         bool judgeEnabled = IsJudgeFilterEnabled(settings);
         PyramidSeedPreScreenPrediction? pyramid = null;
 
-        if (pyramidEnabled)
-        {
-            pyramid = new PyramidSeedPreScreenEvaluator().Evaluate(settings, seedText, worldGenerationVersion);
-            if (pyramid.Value.Result.Status == PyramidSeedPreScreenStatus.Error)
-                return WorldSeedFilterPrediction.CandidateFailure(pyramid.Value.RejectReason, pyramid, null);
-            if (pyramid.Value.CanUsePrediction && !pyramid.Value.AcceptSeed)
-                return WorldSeedFilterPrediction.Rejected("pyramid pre-screen: " + pyramid.Value.RejectReason, pyramid, null);
-            // A pre-screen pass never authorizes a seed; ResourceJudge makes the final decision.
-        }
-
         if (!pyramidEnabled && !judgeEnabled)
         {
             return WorldSeedFilterPrediction.Accepted(
@@ -111,7 +101,7 @@ internal sealed class WorldSeedFilterEvaluator : IDisposable
                 judge: null);
         }
 
-        string? unsupported = UnsupportedJudgeScope(settings, worldGenerationVersion);
+        string? unsupported = UnsupportedJudgeScope(settings);
         if (unsupported is not null)
         {
             return WorldSeedFilterPrediction.Unavailable(
@@ -130,7 +120,7 @@ internal sealed class WorldSeedFilterEvaluator : IDisposable
                 seedText,
                 gameMode,
                 cancellationToken,
-                RequestedAnalysis(settings),
+                RequestedRequirements(settings),
                 threads: raceParallelism ? 1 : 0).ConfigureAwait(false);
         }
         catch (Exception ex)
@@ -184,15 +174,9 @@ internal sealed class WorldSeedFilterEvaluator : IDisposable
                     judge);
         }
 
-        JungleSeedFilterMatch match = JungleSeedFilterMatcher.Match(settings, judge);
-        if (match.IsUncertain)
-        {
-            return WorldSeedFilterPrediction.CandidateFailure(
-                "Resource analysis uncertain: " + match.Detail, pyramid, judge);
-        }
-        return match.Matches
-            ? WorldSeedFilterPrediction.Accepted(match.Detail, pyramid, judge)
-            : WorldSeedFilterPrediction.Rejected(match.Detail, pyramid, judge);
+        return judge.Decision == JungleSeedJudgeDecision.Accepted
+            ? WorldSeedFilterPrediction.Accepted(judge.Reason!, pyramid, judge)
+            : WorldSeedFilterPrediction.Rejected(judge.Reason!, pyramid, judge);
     }
 
     public void Dispose()
@@ -205,35 +189,26 @@ internal sealed class WorldSeedFilterEvaluator : IDisposable
         disposed = true;
     }
 
-    internal static int RequestedAnalysis(AutoCreateWorldSettings settings)
+    internal static ResourceJudgeRequirements RequestedRequirements(AutoCreateWorldSettings settings)
     {
-        int mask = 0;
-        if (PyramidSeedPreScreenEvaluator.IsEnabledFor(settings))
-        {
-            mask |= ResourceJudgeAnalysis.PyramidItems;
-            if (settings.PyramidFilterCoinPileMinimum > 0) mask |= ResourceJudgeAnalysis.PyramidGold;
-            if (AutoCreatePyramidFilterDepth.Normalize(settings.PyramidMaximumDepth) > 0)
-                mask |= ResourceJudgeAnalysis.PyramidDepth;
-        }
-        if (settings.RequireCrimsonBetweenDungeonAndSpawn) mask |= ResourceJudgeAnalysis.Crimson;
-        if (AutoCreateJungleRouteDepth.MinimumY(settings.JungleRouteDepth) > 0) mask |= ResourceJudgeAnalysis.JungleRoute;
-        if (AutoCreateResourceFilterItem.NormalizeMask(settings.ResourceFilterItemMask) != 0) mask |= ResourceJudgeAnalysis.JungleItems;
-        if (settings.ResourceFilterLifeCrystalMinimum > 0) mask |= ResourceJudgeAnalysis.LifeCrystals;
-        if (settings.ResourceFilterSpelunkerPotionMinimum > 0) mask |= ResourceJudgeAnalysis.SpelunkerPotions;
-        if (settings.ResourceFilterFeatherfallPotionMinimum > 0) mask |= ResourceJudgeAnalysis.FeatherfallPotions;
-        if (AutoCreateItemDistance.NormalizeStarfury(settings.StarfuryMaximumDistance) > 0) mask |= ResourceJudgeAnalysis.StarfuryChests;
-        if (AutoCreateItemDistance.NormalizeFinchStaff(settings.FinchStaffMaximumDistance) > 0) mask |= ResourceJudgeAnalysis.FinchStaffChests;
-        return mask;
+        const int smallWorldWidth = 4200;
+        bool pyramid = PyramidSeedPreScreenEvaluator.IsEnabledFor(settings);
+        return new ResourceJudgeRequirements(
+            PyramidItemMask: pyramid ? AutoCreatePyramidFilterItem.NormalizeMaskOrAll(settings.PyramidFilterItemMask) : 0,
+            PyramidGoldMinimum: pyramid ? AutoCreatePyramidCoinPileMinimum.Normalize(settings.PyramidFilterCoinPileMinimum) : 0,
+            PyramidMaximumDepth: pyramid ? AutoCreatePyramidFilterDepth.Normalize(settings.PyramidMaximumDepth) : 0,
+            CrimsonMaximumDistance: settings.RequireCrimsonBetweenDungeonAndSpawn ? AutoCreateCrimsonDistance.MaximumDistanceTiles(smallWorldWidth, settings.CrimsonDistance) : 0,
+            JungleMinimumY: AutoCreateJungleRouteDepth.MinimumY(settings.JungleRouteDepth),
+            JungleItemMask: AutoCreateResourceFilterItem.NormalizeMask(settings.ResourceFilterItemMask),
+            LifeCrystalMinimum: Math.Max(0, settings.ResourceFilterLifeCrystalMinimum),
+            SpelunkerPotionMinimum: Math.Max(0, settings.ResourceFilterSpelunkerPotionMinimum),
+            FeatherfallPotionMinimum: Math.Max(0, settings.ResourceFilterFeatherfallPotionMinimum),
+            StarfuryMaximumDistance: AutoCreateItemDistance.NormalizeStarfury(settings.StarfuryMaximumDistance),
+            FinchStaffMaximumDistance: AutoCreateItemDistance.NormalizeFinchStaff(settings.FinchStaffMaximumDistance));
     }
 
-    private static string? UnsupportedJudgeScope(
-        AutoCreateWorldSettings settings,
-        TerrariaWorldGenerationVersion worldGenerationVersion)
+    private static string? UnsupportedJudgeScope(AutoCreateWorldSettings settings)
     {
-        if (worldGenerationVersion != TerrariaWorldGenerationVersion.Modern1458)
-        {
-            return "seed judge supports Terraria 1.4.5.8 only";
-        }
         if (AutoCreateWorldSize.Normalize(settings.WorldSize) != AutoCreateWorldSize.Small)
         {
             return "seed judge supports Small worlds only";
@@ -361,88 +336,4 @@ internal static class WorldSeedFilterFailurePolicy
             $"consecutive candidate generation failures. Last failure: " +
             prediction.Detail;
     }
-}
-
-internal readonly record struct JungleSeedFilterMatch(bool Matches, string Detail, bool IsUncertain = false);
-
-internal static class JungleSeedFilterMatcher
-{
-    private const int SmallWorldWidth = 4200;
-
-    public static JungleSeedFilterMatch Match(
-        AutoCreateWorldSettings settings,
-        JungleSeedJudgeResult result)
-    {
-        ResourceJudgeMetrics metrics = result.Metrics ??
-            throw new ArgumentException("Requested measurements are required.", nameof(result));
-        JungleSeedAnalysis? jungle = result.Jungle;
-        bool uncertain = jungle is not null && (jungle.AnalysisStatus == JungleSeedAnalysisStatus.Uncertain ||
-            jungle.Route.Status != JungleRouteStatus.Complete);
-
-        int requestedAnalysis = WorldSeedFilterEvaluator.RequestedAnalysis(settings);
-        int starfuryDistance = AutoCreateItemDistance.NormalizeStarfury(settings.StarfuryMaximumDistance);
-        int finchStaffDistance = AutoCreateItemDistance.NormalizeFinchStaff(settings.FinchStaffMaximumDistance);
-        if (!HasChestWithinDistance(result.StarfuryChests, starfuryDistance))
-            return new JungleSeedFilterMatch(false, $"no Starfury chest within {starfuryDistance} tiles of world center");
-        if (!HasChestWithinDistance(result.FinchStaffChests, finchStaffDistance))
-            return new JungleSeedFilterMatch(false, $"no Finch Staff chest within {finchStaffDistance} tiles of world center");
-        if ((requestedAnalysis & (ResourceJudgeAnalysis.PyramidItems | ResourceJudgeAnalysis.PyramidGold | ResourceJudgeAnalysis.PyramidDepth)) != 0)
-        {
-            int items = AutoCreatePyramidFilterItem.NormalizeMaskOrAll(settings.PyramidFilterItemMask);
-            int gold = AutoCreatePyramidCoinPileMinimum.Normalize(settings.PyramidFilterCoinPileMinimum);
-            bool checkItems = (requestedAnalysis & ResourceJudgeAnalysis.PyramidItems) != 0;
-            bool checkGold = (requestedAnalysis & ResourceJudgeAnalysis.PyramidGold) != 0;
-            bool checkDepth = (requestedAnalysis & ResourceJudgeAnalysis.PyramidDepth) != 0;
-            if (result.Pyramids is null || !result.Pyramids.Any(p =>
-                (!checkItems || (p.ItemMask.GetValueOrDefault() & items) != 0) &&
-                (!checkGold || gold == 0 || p.GoldCoinPileCount >= gold) &&
-                (!checkDepth || p.TunnelSurfaceDistance is { } distance && AutoCreatePyramidFilterDepth.Matches(distance, settings.PyramidMaximumDepth))))
-                return new JungleSeedFilterMatch(false, "pyramid item, gold pile or depth requirements not met by one pyramid");
-        }
-
-        if (settings.RequireCrimsonBetweenDungeonAndSpawn &&
-            (metrics.NearestDungeonSideCrimsonDistance is not { } crimsonDistance ||
-             crimsonDistance > AutoCreateCrimsonDistance.MaximumDistanceTiles(SmallWorldWidth, settings.CrimsonDistance)))
-        {
-            return new JungleSeedFilterMatch(
-                false,
-                $"crimson vertices outside {AutoCreateCrimsonDistance.Normalize(settings.CrimsonDistance)} corridor");
-        }
-
-        int minimumDepth = AutoCreateJungleRouteDepth.MinimumY(settings.JungleRouteDepth);
-        if (minimumDepth > 0 && (metrics.JungleRouteDeepestY is not { } depth || depth < minimumDepth))
-        {
-            return new JungleSeedFilterMatch(
-                false,
-                $"jungle route depth {metrics.JungleRouteDeepestY} < {minimumDepth}; " +
-                $"routeStatus={jungle?.Route.Status}", IsUncertain: uncertain);
-        }
-
-        int mask = AutoCreateResourceFilterItem.NormalizeMask(
-            settings.ResourceFilterItemMask);
-        if ((metrics.JungleItemMask.GetValueOrDefault() & mask) != mask)
-        {
-            return new JungleSeedFilterMatch(false, "required jungle-route item missing",
-                IsUncertain: uncertain);
-        }
-
-        if (metrics.LifeCrystalCount.GetValueOrDefault() < Math.Max(0, settings.ResourceFilterLifeCrystalMinimum) ||
-            metrics.SpelunkerPotionCount.GetValueOrDefault() < Math.Max(0, settings.ResourceFilterSpelunkerPotionMinimum) ||
-            metrics.FeatherfallPotionCount.GetValueOrDefault() < Math.Max(0, settings.ResourceFilterFeatherfallPotionMinimum))
-        {
-            return new JungleSeedFilterMatch(false, "required jungle-route resource count missing",
-                IsUncertain: uncertain);
-        }
-
-        return new JungleSeedFilterMatch(
-            true,
-            $"judge accepted; endPass={result.CheckpointPassIndex}; routeStatus={jungle?.Route.Status}; " +
-            $"jungleDepth={metrics.JungleRouteDeepestY}; itemMask={metrics.JungleItemMask}; " +
-            $"lifeCrystals={metrics.LifeCrystalCount}; spelunker={metrics.SpelunkerPotionCount}; featherfall={metrics.FeatherfallPotionCount}; " +
-            $"starfuryMaxDistance={starfuryDistance}; finchStaffMaxDistance={finchStaffDistance}");
-    }
-
-    private static bool HasChestWithinDistance(IReadOnlyList<ResourceJudgePoint>? chests, int maximum) =>
-        maximum == 0 || chests is not null && chests.Any(chest =>
-            Math.Abs(chest.X - SmallWorldWidth / 2) <= maximum);
 }

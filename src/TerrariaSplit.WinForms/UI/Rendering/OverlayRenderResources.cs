@@ -166,7 +166,7 @@ internal readonly struct SplitCompletionAnimationTextCacheKey : IEquatable<Split
         Rectangle textBounds,
         float textCenterX,
         float scale,
-        string? fontFamily,
+        SplitCompletionTextSettings textSettings,
         string? language,
         bool enableDynamicDeltaTimeUnits,
         float dpiX,
@@ -176,7 +176,9 @@ internal readonly struct SplitCompletionAnimationTextCacheKey : IEquatable<Split
         TextBounds = textBounds;
         TextCenterX = textCenterX;
         Scale = scale;
-        FontFamily = fontFamily ?? string.Empty;
+        TimeStyle = textSettings.Time with { };
+        HintStyle = textSettings.Hint with { };
+        DeltaStyle = textSettings.Delta with { };
         Language = language ?? string.Empty;
         EnableDynamicDeltaTimeUnits = enableDynamicDeltaTimeUnits;
         DpiX = dpiX;
@@ -197,7 +199,9 @@ internal readonly struct SplitCompletionAnimationTextCacheKey : IEquatable<Split
 
     public float Scale { get; }
 
-    public string FontFamily { get; }
+    public SplitCompletionTextStyle TimeStyle { get; }
+    public SplitCompletionTextStyle HintStyle { get; }
+    public SplitCompletionTextStyle DeltaStyle { get; }
 
     public string Language { get; }
 
@@ -225,7 +229,7 @@ internal readonly struct SplitCompletionAnimationTextCacheKey : IEquatable<Split
             TextBounds == other.TextBounds &&
             TextCenterX.Equals(other.TextCenterX) &&
             Scale.Equals(other.Scale) &&
-            string.Equals(FontFamily, other.FontFamily, StringComparison.Ordinal) &&
+            TimeStyle == other.TimeStyle && HintStyle == other.HintStyle && DeltaStyle == other.DeltaStyle &&
             string.Equals(Language, other.Language, StringComparison.Ordinal) &&
             EnableDynamicDeltaTimeUnits == other.EnableDynamicDeltaTimeUnits &&
             DpiX.Equals(other.DpiX) &&
@@ -250,7 +254,9 @@ internal readonly struct SplitCompletionAnimationTextCacheKey : IEquatable<Split
         hash.Add(TextBounds);
         hash.Add(TextCenterX);
         hash.Add(Scale);
-        hash.Add(FontFamily, StringComparer.Ordinal);
+        hash.Add(TimeStyle);
+        hash.Add(HintStyle);
+        hash.Add(DeltaStyle);
         hash.Add(Language, StringComparer.Ordinal);
         hash.Add(EnableDynamicDeltaTimeUnits);
         hash.Add(DpiX);

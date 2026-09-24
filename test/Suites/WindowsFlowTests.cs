@@ -13,6 +13,7 @@ internal static class WindowsFlowTests
         yield return TestCase.Sync("overlay restores a visible multi-monitor position and keeps dense layouts inside composite bounds", TestSuite.Windows, OverlayLayoutJourney);
         yield return TestCase.Sync("timer reserves stable proportional-font slots for milliseconds and indicators", TestSuite.Windows, TimerProportionalFontLayoutJourney);
         yield return TestCase.Sync("rendering color effects and icons use deterministic render resources", TestSuite.Windows, RenderingResourceJourney);
+        yield return TestCase.Async("completion animation text settings persist with shared styles and live previews", TestSuite.Windows, CompletionTextJourney);
         yield return TestCase.Sync("expanded current condition follows early delta timing after a prior condition completes", TestSuite.Windows, ExpandedConditionEarlyDeltaJourney);
         yield return TestCase.Sync("cheat filter indicator uses yellow orange and red priority", TestSuite.Core, CheatFilterIndicatorPriority);
         yield return TestCase.Async("automation failures preserve diagnostics and expose copyable details", TestSuite.Windows, AutomationFailureDetailsJourney);
@@ -741,6 +742,183 @@ internal static class WindowsFlowTests
 
         Check.Equal(narrowDigits.Milliseconds.Bounds.X, wideDigits.Milliseconds.Bounds.X);
         Check.Equal(narrowDigits.Indicator.Bounds.X, wideDigits.Indicator.Bounds.X);
+    }
+
+    private static Task CompletionTextJourney(CancellationToken cancellationToken) => StaTestHost.RunAsync(() =>
+    {
+        AppSettings source = AppSettingsDefaults.Create();
+        using var form = new SettingsForm(source, applicationUpdateService: new FakeUpdateService(new Version(1, 0, 0, 0)));
+        form.PageHost.Select(SettingsPageId.Effects);
+        var page = form.PageHost.GetOrCreatePage<AnimationSettingsPage>(SettingsPageId.Effects);
+        Check.Equal(3, page.CompletionTextOptions.Count);
+        Check.Equal(25, source.Overlay.SplitCompletionText.Time.OutlineThicknessPercent);
+        Check.Equal(25, source.Overlay.SplitCompletionText.Hint.OutlineThicknessPercent);
+        Check.Equal(25, source.Overlay.SplitCompletionText.Delta.OutlineThicknessPercent);
+        Check.Equal(0, source.Overlay.SplitCompletionText.Time.ShadowPercent);
+        Check.Equal(0, source.Overlay.SplitCompletionText.Hint.ShadowPercent);
+        Check.Equal(0, source.Overlay.SplitCompletionText.Delta.ShadowPercent);
+        int percent = 21;
+        foreach (var controls in page.CompletionTextOptions.Values)
+        {
+            controls.Font.SetSelectedFontFamily("Arial");
+            controls.Bold.Checked = false;
+            controls.Italic.Checked = true;
+            controls.Opacity.Text = percent++.ToString();
+            controls.Shadow.Text = "35";
+            controls.Outline.Text = "12";
+        }
+        form.PageHost.Select(SettingsPageId.Colors);
+        var colors = form.PageHost.GetOrCreatePage<ColorSettingsPage>(SettingsPageId.Colors);
+        foreach (TextColorDescriptor descriptor in SettingsDescriptors.AnimationColors)
+        {
+            colors.ColorTextBoxes[descriptor.TextKey].Text = "#123456";
+            colors.ColorTextBoxes[descriptor.OutlineKey].Text = "#345678";
+            colors.ColorTextBoxes[descriptor.ShadowKey].Text = "#56789A";
+        }
+        AppSettings applied = form.PageHost.CreateAppliedSnapshot();
+        Check.Equal(100, source.Overlay.SplitCompletionText.Time.OpacityPercent);
+        Check.Equal(21, applied.Overlay.SplitCompletionText.Time.OpacityPercent);
+        Check.Equal(22, applied.Overlay.SplitCompletionText.Hint.OpacityPercent);
+        Check.Equal(23, applied.Overlay.SplitCompletionText.Delta.OpacityPercent);
+        Check.False(applied.Overlay.SplitCompletionText.Delta.Bold);
+        Check.True(applied.Overlay.SplitCompletionText.Delta.Italic);
+        Check.Equal(35, applied.Overlay.SplitCompletionText.Delta.ShadowPercent);
+        Check.Equal(12, applied.Overlay.SplitCompletionText.Delta.OutlineThicknessPercent);
+        Check.False(applied.Overlay.SplitCompletionText.Time.Bold);
+        Check.True(applied.Overlay.SplitCompletionText.Hint.Italic);
+        Check.Equal(35, applied.Overlay.SplitCompletionText.Time.ShadowPercent);
+        Check.Equal(12, applied.Overlay.SplitCompletionText.Hint.OutlineThicknessPercent);
+        using var directory = new TestDirectory();
+        var repository = new AppSettingsRepository(new AppContextRuntimeDataPaths(directory.Path));
+        Check.True(repository.Save(applied).Succeeded);
+        var loaded = repository.Load();
+        Check.Equal(applied.Overlay.SplitCompletionText.Time, loaded.Overlay.SplitCompletionText.Time);
+        Check.Equal(applied.Overlay.SplitCompletionText.Delta, loaded.Overlay.SplitCompletionText.Delta);
+        foreach (TextColorDescriptor descriptor in SettingsDescriptors.AnimationColors)
+        {
+            Check.Equal("#345678", descriptor.GetOutline(loaded.Overlay.Colors));
+            Check.Equal("#56789A", descriptor.GetShadow(loaded.Overlay.Colors));
+        }
+        using var reopened = new SettingsForm(loaded, applicationUpdateService: new FakeUpdateService(new Version(1, 0, 0, 0)));
+        reopened.PageHost.Select(SettingsPageId.Effects);
+        Check.Equal("22", reopened.PageHost.GetOrCreatePage<AnimationSettingsPage>(SettingsPageId.Effects).CompletionTextOptions["Hint"].Opacity.Text);
+
+        var definition = new SplitDefinition("split:text-test", "Text", SplitCondition.All([]), [], [], []);
+        var animation = new SplitCompletionAnimation(definition, TimeSpan.FromSeconds(12), TimeSpan.FromSeconds(24),
+            default, default, false, SplitCompletionOutlineStyles.None, false, SplitCompletionOutlineStyles.None,
+            SegmentBestDeltaHighlightStyles.None, DateTime.UtcNow);
+        var text = loaded.Overlay.SplitCompletionText;
+        SplitCompletionTextStyle[] styles = [text.Time, text.Hint];
+        using var bitmap = new Bitmap(600, 400);
+        using var graphics = Graphics.FromImage(bitmap);
+        using var resources = new OverlayRenderResources();
+        var context = new OverlayRenderContext(loaded, UiPalette.From(loaded.Overlay.Colors), default,
+            [SplitStatusSnapshot.FromDefinition(definition)], 0, SplitTimerPhase.Running, TimeSpan.Zero,
+            new SplitLayout(new Rectangle(0, 60, 600, 40), new Rectangle(0, 0, 600, 60), 0), 7, false, animation,
+            new Dictionary<int, SegmentBestDeltaHighlight>(), animation.StartedAtUtc.AddSeconds(1));
+        using (var mainFont = new Font("Arial", 36, FontStyle.Bold))
+        using (var deltaFont = new Font("Segoe UI", 18, FontStyle.Italic))
+        using (var format = new StringFormat(StringFormat.GenericTypographic))
+        {
+            foreach (string delta in new[] { "+0:01.23", "-0:01.23" })
+            {
+                float alignedY = TextEffectGeometry.AlignTextPathCenter(graphics, "0:12.34", mainFont, 10, 20,
+                    delta, deltaFont, 200, 20, format);
+                using var mainPath = TextEffectGeometry.CreateTextPath(graphics, "0:12.34", mainFont, 10, 20, format);
+                using var deltaPath = TextEffectGeometry.CreateTextPath(graphics, delta, deltaFont, 200, alignedY, format);
+                RectangleF mainBounds = mainPath.GetBounds(), deltaBounds = deltaPath.GetBounds();
+                Check.True(Math.Abs(mainBounds.Top + mainBounds.Height / 2f - deltaBounds.Top - deltaBounds.Height / 2f) < 0.01f);
+            }
+        }
+        var key = new SplitCompletionAnimationTextCacheKey(animation, new Rectangle(0, 0, 600, 400), 300, 1,
+            text, "English", true, 96, 96);
+        text.Time.Italic = !text.Time.Italic;
+        var changedKey = new SplitCompletionAnimationTextCacheKey(animation, new Rectangle(0, 0, 600, 400), 300, 1,
+            text, "English", true, 96, 96);
+        Check.False(key == changedKey);
+        foreach (var style in styles) style.OpacityPercent = 0;
+        graphics.Clear(Color.Transparent);
+        SplitCompletionAnimationRenderer.Render(graphics, context, resources, animation, TimeSpan.FromSeconds(1), 1);
+        Check.Equal(0, CountPaintedPixels(bitmap));
+        foreach (var style in styles)
+        {
+            style.OpacityPercent = 100;
+            graphics.Clear(Color.Transparent);
+            SplitCompletionAnimationRenderer.Render(graphics, context, resources, animation, TimeSpan.FromSeconds(1), 1);
+            Check.True(CountPaintedPixels(bitmap) > 0);
+            style.OpacityPercent = 0;
+        }
+
+        // Delta is independently visible and cannot receive the time's colored outline.
+        var deltaAnimation = animation with
+        {
+            ReferenceSplitComparison = new SplitComparison(TimeSpan.FromSeconds(-1), ShowDelta: true),
+            PersonalBestSegmentComparison = new SplitComparison(TimeSpan.FromSeconds(-1), ShowDelta: true),
+            ShowSplitComparison = true, ShowSegmentComparison = true
+        };
+        text.Delta.OpacityPercent = 0;
+        graphics.Clear(Color.Transparent);
+        SplitCompletionAnimationRenderer.Render(graphics, context, resources, deltaAnimation, TimeSpan.FromSeconds(1), 1);
+        Check.Equal(0, CountPaintedPixels(bitmap));
+        text.Delta.OpacityPercent = 100;
+        graphics.Clear(Color.Transparent);
+        SplitCompletionAnimationRenderer.Render(graphics, context, resources, deltaAnimation, TimeSpan.FromSeconds(1), 1);
+        Check.True(CountPaintedPixels(bitmap) > 0);
+        using var ordinaryDelta = (Bitmap)bitmap.Clone();
+        graphics.Clear(Color.Transparent);
+        SplitCompletionAnimationRenderer.Render(graphics, context, resources,
+            deltaAnimation with { SplitTimeOutlineStyle = SplitCompletionOutlineStyles.Rainbow, SegmentTimeOutlineStyle = SplitCompletionOutlineStyles.Rainbow },
+            TimeSpan.FromSeconds(1), 1);
+        int changedPixels = 0;
+        for (int y = 0; y < bitmap.Height; y++)
+        for (int x = 0; x < bitmap.Width; x++)
+            if (bitmap.GetPixel(x, y) != ordinaryDelta.GetPixel(x, y)) changedPixels++;
+        Check.Equal(0, changedPixels);
+
+        // Preview consumes unsaved time settings, including zero opacity and zero outline.
+        page.CompletionTextOptions["Time"].Opacity.Text = "0";
+        page.PaintOutlineStylePreview(graphics, new Rectangle(0, 0, 600, 400));
+        Check.Equal(0, CountPreviewInk(bitmap));
+        page.CompletionTextOptions["Time"].Opacity.Text = "100";
+        page.CompletionTextOptions["Time"].Outline.Text = "0";
+        page.PaintOutlineStylePreview(graphics, new Rectangle(0, 0, 600, 400));
+        Check.True(CountPreviewInk(bitmap) > 0);
+
+        // Switching from Interface publishes primary Delta settings to the effect preview.
+        form.PageHost.Select(SettingsPageId.Ui);
+        var ui = form.PageHost.GetOrCreatePage<UiSettingsPage>(SettingsPageId.Ui);
+        ui.DeltaOpacityBox.Text = "0";
+        ui.GetFontFamilySelectorForTests(UiColumnDescriptors.Delta.Key).SetSelectedFontFamily("Arial");
+        ui.GetItalicBoxForTests(UiColumnDescriptors.Delta.Key)!.Checked = true;
+        form.PageHost.Select(SettingsPageId.Effects);
+        page.PaintSegmentBestDeltaHighlightPreview(graphics, new Rectangle(0, 0, 600, 400));
+        Check.Equal(0, CountPreviewInk(bitmap));
+        form.PageHost.Select(SettingsPageId.Ui);
+        ui.DeltaOpacityBox.Text = "100";
+        ui.DeltaOutlineThicknessBox.Text = "25";
+        ui.DeltaShadowBox.Text = "35";
+        form.PageHost.Select(SettingsPageId.Effects);
+        page.PaintSegmentBestDeltaHighlightPreview(graphics, new Rectangle(0, 0, 600, 400));
+        Check.True(CountPreviewInk(bitmap) > 0);
+        Check.Equal(100, form.PageHost.CreateAppliedSnapshot().Overlay.TextEffects.DeltaOpacityPercent);
+    }, cancellationToken);
+
+    private static int CountPreviewInk(Bitmap bitmap)
+    {
+        int count = 0;
+        for (int y = 2; y < bitmap.Height - 2; y++)
+        for (int x = 2; x < bitmap.Width - 2; x++)
+            if (bitmap.GetPixel(x, y).ToArgb() != UiTheme.Field.ToArgb()) count++;
+        return count;
+    }
+
+    private static int CountPaintedPixels(Bitmap bitmap)
+    {
+        int count = 0;
+        for (int y = 0; y < bitmap.Height; y++)
+        for (int x = 0; x < bitmap.Width; x++)
+            if (bitmap.GetPixel(x, y).A > 0) count++;
+        return count;
     }
 
     private static void RenderingResourceJourney()

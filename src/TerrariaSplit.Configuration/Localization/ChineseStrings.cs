@@ -9,7 +9,7 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
         { "Startup failed", "启动失败" },
         { "TerrariaSplit could not finish initialization and must close.", "TerrariaSplit 无法完成初始化，程序必须关闭。" },
         { "TerrariaSplit Settings", "TerrariaSplit 设置" },
-        { "Settings cannot be saved while in a Race room.", "联机房间内不能保存设置，请先离开房间。" },
+        { "Settings cannot be saved while in a Race room.", "竞速房间内不能保存设置，请先离开房间。" },
         { "OK", "确定" },
         { "Apply", "应用" },
         { "Cancel", "取消" },
@@ -130,6 +130,7 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
         { "Attached group marker", "附属组" },
         { "Auto hide attached groups", "自动隐藏附属组" },
         { "Time", "时间" },
+        { "Hint text", "提示文本" },
         { "Time (attached)", "时间（附属）" },
         { "Name (future stage)", "名称（未来阶段）" },
         { "Name (current stage)", "名称（当前阶段）" },
@@ -314,9 +315,9 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
         { "BOSS", "BOSS" },
         { "BOSS Group", "组" },
         { "Enabled", "启用" },
-        { "Race mode", "Race 模式" },
-        { "Enter Race mode", "进入 Race 模式" },
-        { "Exit Race mode", "退出 Race 模式" },
+        { "Race mode", "竞速模式" },
+        { "Enter Race mode", "进入竞速模式" },
+        { "Exit Race mode", "退出竞速模式" },
         { "Attached", "附属" },
         { "Segment", "分段" },
         { "Group", "组" },
@@ -325,9 +326,9 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
         { "No config files", "没有配置文件" },
         { "Statistics...", "统计信息..." },
         { "Statistics", "统计信息" },
-        { "Race...", "联机..." },
-        { "Race", "联机" },
-        { "Race leaderboard", "联机实时排行榜" },
+        { "Race...", "竞速..." },
+        { "Race", "竞速" },
+        { "Race leaderboard", "竞速实时排行榜" },
         { "Leaderboard appearance", "排行榜界面" },
         { "Leaderboard colors", "排行榜颜色" },
         { "Use rank color for main timer", "主计时器使用排名颜色" },
@@ -349,7 +350,7 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
         { "Apply leaderboard settings", "应用排行榜设置" },
         { "Settings saved.", "设置已保存。" },
         { "Leaderboard", "排行榜" },
-        { "Race settings", "联机设置" },
+        { "Race settings", "竞速设置" },
         { "Voice", "语音" },
         { "Voice announcements", "语音播报" },
         { "System default", "系统默认" },
@@ -436,12 +437,12 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
         { "The clipboard does not contain a player code.", "剪贴板中没有人物代码。" },
         { "Not set", "未设置" },
         { "Set ({0} characters, {1})", "已设置（{0} 个字符，{1}）" },
-        { "Unable to open the Terraria Race page.", "无法打开 Terraria 内的 Race 页面。" },
+        { "Unable to open the Terraria Race page.", "无法打开 Terraria 内的竞速页面。" },
         { "World ready.", "世界已准备完成。" },
-        { "World uploaded. Preparing Race environment...", "世界已上传，正在准备 Race 环境……" },
+        { "World uploaded. Preparing Race environment...", "世界已上传，正在准备竞速环境……" },
         { "Joined room.", "已加入房间。" },
         { "Kicking player...", "正在踢出玩家…" },
-        { "Starting Race...", "正在开始 Race…" },
+        { "Starting Race...", "正在开始竞速…" },
         { "Closing room...", "正在关闭房间…" },
         { "Leaving room...", "正在离开房间…" },
         { "Operation failed.", "操作失败。" },
@@ -483,7 +484,7 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
         { "Latest split", "最新分段" },
         { "Race split time", "分段时间" },
         { "Gap", "差距" },
-        { "Not in a race room", "未加入联机房间" },
+        { "Not in a race room", "未加入竞速房间" },
         { "Room {0} / {1} / Host {2}", "房间 {0} / {1} / 房主 {2}" },
         { "Route: {0}", "路线：{0}" },
         { "Route not assigned", "未分配路线" },
@@ -526,7 +527,7 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
         { "All files", "所有文件" },
         { "World file selection cancelled.", "已取消选择世界文件。" },
         { "World file selected: {0}", "已选择世界文件：{0}" },
-        { "Left race room", "已离开联机房间" },
+        { "Left race room", "已离开竞速房间" },
         { "{0}: {1}", "{0}：{1}" },
         { "Seed and world settings are required before generating the world.", "生成世界前需要先获得种子和世界设置。" },
         { "Prepare and upload before creating the room.", "请先准备并上传，然后创建房间。" },
@@ -534,15 +535,15 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
         { "World generation cancelled.", "世界生成已取消。" },
         { "A seed is required.", "需要填写种子。" },
         { "World generation completed without a world file.", "世界生成结束，但没有产生世界文件。" },
-        { "Race server URL is required.", "需要填写联机服务器地址。" },
-        { "Invalid race request.", "联机请求无效。" },
-        { "Race room was not found.", "找不到联机房间。" },
-        { "Race room is closed.", "联机房间已关闭。" },
+        { "Race server URL is required.", "需要填写竞速服务器地址。" },
+        { "Invalid race request.", "竞速请求无效。" },
+        { "Race room was not found.", "找不到竞速房间。" },
+        { "Race room is closed.", "竞速房间已关闭。" },
         { "Nickname already exists in this room.", "该房间内已存在这个昵称。" },
         { "Player is not in this room.", "玩家不在该房间中。" },
         { "Only the room host can perform this action.", "只有房主可以执行此操作。" },
-        { "Invalid race split report.", "联机分段上报无效。" },
-        { "Join or create a race room before sending race updates.", "请先创建或加入联机房间。" },
+        { "Invalid race split report.", "竞速分段上报无效。" },
+        { "Join or create a race room before sending race updates.", "请先创建或加入竞速房间。" },
         { "Last run", "上一局" },
         { "Best split", "历史最佳累积时间" },
         { "Fastest segment", "最快单段时间" },
@@ -672,7 +673,7 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Player name", "\u4EBA\u7269\u540D\u79F0" }
       , { "Player difficulty", "\u4EBA\u7269\u96BE\u5EA6" }
       , { "Player code", "\u4EBA\u7269\u4EE3\u7801" }
-      , { "Initial player", "Race \u521D\u59CB\u4EBA\u7269" }
+      , { "Initial player", "竞速初始人物" }
       , { "World", "\u4E16\u754C" }
       , { "World options", "\u4E16\u754C\u9009\u9879" }
       , { "World size", "\u4E16\u754C\u5927\u5C0F" }
@@ -848,15 +849,15 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
       , { "Watcher resolved the managed runtime layout.", "\u76D1\u6D4B\u5668\u5DF2\u89E3\u6790\u6258\u7BA1\u8FD0\u884C\u65F6\u5E03\u5C40\u3002" }
       , { "gameMenu resolved, but boss and hardmode pointers are still pending or unreadable.", "\u83DC\u5355\u72B6\u6001\u5DF2\u89E3\u6790\uFF0C\u4F46 Boss \u4E0E hardmode \u6307\u9488\u4ECD\u5728\u7B49\u5F85\u89E3\u6790\u6216\u4E0D\u53EF\u8BFB\u3002" }
       , { "Watcher resolved all current pointers.", "\u76D1\u6D4B\u5668\u5DF2\u89E3\u6790\u5F53\u524D\u6240\u6709\u6307\u9488\u3002" }
-      , { "Only the assigned Race world can be entered until the run is completed.", "Race \u5B8C\u6210\u524D\u53EA\u80FD\u8FDB\u5165\u6307\u5B9A\u4E16\u754C\u3002" }
-      , { "Only the assigned Race world and player can be used until the run is completed.", "Race \u5B8C\u6210\u524D\u53EA\u80FD\u4F7F\u7528\u6307\u5B9A\u4EBA\u7269\u5E76\u8FDB\u5165\u6307\u5B9A\u4E16\u754C\u3002" }
+      , { "Only the assigned Race world can be entered until the run is completed.", "竞速完成前只能进入指定世界。" }
+      , { "Only the assigned Race world and player can be used until the run is completed.", "竞速完成前只能使用指定人物并进入指定世界。" }
       , { "Local preparation: {0}", "本地准备：{0}" }
       , { "Download world", "下载世界" }
       , { "Validate world", "校验世界" }
       , { "Analyze world", "分析世界" }
       , { "Wait for game", "等待游戏" }
       , { "Prepare memory control", "准备内存控制" }
-      , { "Create Race player", "创建联机角色" }
+      , { "Create Race player", "创建竞速角色" }
       , { "Almost ready", "即将完成" }
       , { "Connect to server", "连接到服务器" }
       , { "Wait for manual ready", "等待手动就绪" }

@@ -4,167 +4,45 @@ namespace TerrariaSplit.Terraria.WorldGeneration;
 
 internal static class JungleSeedJudgeProtocol
 {
-    public const int Version = 4;
-    public const string CompatibilityId =
-        "terraria-1.4.5.8-resource-judge-analysis-v4-target-chests1";
+    public const int Version = 5;
+    public const string CompatibilityId = "terraria-1.4.5.8-resource-judge-filter-v5-pass97";
 }
 
-internal static class ResourceJudgeAnalysis
+internal sealed record ResourceJudgeRequirements(
+    int PyramidItemMask = 0, int PyramidGoldMinimum = 0, int PyramidMaximumDepth = 0,
+    int CrimsonMaximumDistance = 0, int JungleMinimumY = 0, int JungleItemMask = 0,
+    int LifeCrystalMinimum = 0, int SpelunkerPotionMinimum = 0, int FeatherfallPotionMinimum = 0,
+    int StarfuryMaximumDistance = 0, int FinchStaffMaximumDistance = 0)
 {
-    public const int PyramidItems = 1, PyramidGold = 2, PyramidDepth = 4, Crimson = 8,
-        JungleRoute = 16, JungleItems = 32, LifeCrystals = 64, SpelunkerPotions = 128, FeatherfallPotions = 256, StarfuryChests = 512, FinchStaffChests = 1024;
-    public const int Pyramids = PyramidItems | PyramidGold | PyramidDepth;
-    public const int Resources = JungleItems | LifeCrystals | SpelunkerPotions | FeatherfallPotions;
-    public const int Jungle = JungleRoute | Resources;
-    public const int All = Pyramids | Crimson | Jungle | StarfuryChests | FinchStaffChests;
-    public static int EndPass(int mask) => (mask & StarfuryChests) != 0 ? 69 : (mask & Resources) != 0 ? 62 : (mask & JungleRoute) != 0 ? 59 : (mask & PyramidDepth) != 0 ? 53 : (mask & FinchStaffChests) != 0 ? 42 : 40;
+    public bool HasResources => JungleItemMask != 0 || LifeCrystalMinimum != 0 || SpelunkerPotionMinimum != 0 || FeatherfallPotionMinimum != 0;
+    public int EndPass => HasResources ? 97 : StarfuryMaximumDistance != 0 ? 69 : JungleMinimumY != 0 ? 59
+        : PyramidMaximumDepth != 0 ? 53 : FinchStaffMaximumDistance != 0 ? 42 : 40;
+    public bool PyramidItemsOnly => PyramidItemMask != 0 && PyramidGoldMinimum == 0 && PyramidMaximumDepth == 0
+        && CrimsonMaximumDistance == 0 && JungleMinimumY == 0 && !HasResources
+        && StarfuryMaximumDistance == 0 && FinchStaffMaximumDistance == 0;
+    public void Validate()
+    {
+        int[] values = [PyramidItemMask, PyramidGoldMinimum, PyramidMaximumDepth, CrimsonMaximumDistance, JungleMinimumY,
+            JungleItemMask, LifeCrystalMinimum, SpelunkerPotionMinimum, FeatherfallPotionMinimum, StarfuryMaximumDistance, FinchStaffMaximumDistance];
+        if (values.Any(v => v < 0) || !values.Any(v => v > 0) || (PyramidItemMask & ~7) != 0 || (JungleItemMask & ~11) != 0 ||
+            PyramidMaximumDepth > 1200 || JungleMinimumY >= 1200 || CrimsonMaximumDistance > 2100 ||
+            StarfuryMaximumDistance > 2100 || FinchStaffMaximumDistance > 2100)
+            throw new ArgumentOutOfRangeException(nameof(ResourceJudgeRequirements), "Invalid resource filter requirements.");
+    }
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<JungleSeedJudgeGameMode>))]
-internal enum JungleSeedJudgeGameMode
-{
-    Classic,
-    Expert,
-    Master,
-    Journey
-}
-
+internal enum JungleSeedJudgeGameMode { Classic, Expert, Master, Journey }
 [JsonConverter(typeof(JsonStringEnumConverter<JungleSeedJudgeStatus>))]
-internal enum JungleSeedJudgeStatus
-{
-    Complete,
-    InvalidRequest,
-    InvalidSeed,
-    SpecialSeedUnsupported,
-    GenerationFailed
-}
-
-[JsonConverter(typeof(JsonStringEnumConverter<JungleSeedAnalysisStatus>))]
-internal enum JungleSeedAnalysisStatus
-{
-    Complete,
-    Uncertain
-}
-
-[JsonConverter(typeof(JsonStringEnumConverter<JungleRouteStatus>))]
-internal enum JungleRouteStatus
-{
-    Complete,
-    Partial,
-    Unavailable
-}
-
-[JsonConverter(typeof(JsonStringEnumConverter<JungleResourceSource>))]
-internal enum JungleResourceSource
-{
-    Tile,
-    Chest
-}
+internal enum JungleSeedJudgeStatus { Complete, InvalidRequest, InvalidSeed, SpecialSeedUnsupported, GenerationFailed }
+[JsonConverter(typeof(JsonStringEnumConverter<JungleSeedJudgeDecision>))]
+internal enum JungleSeedJudgeDecision { Accepted, Rejected }
 
 internal sealed record JungleSeedJudgeResult(
-    int ProtocolVersion,
-    string RequestId,
-    string CompatibilityId,
-    JungleSeedJudgeStatus Status,
-    string? SeedText,
-    int CheckpointPassIndex,
-    double DurationMs,
-    double GenerationMs,
-    JungleSeedAnalysis? Jungle,
-    IReadOnlyList<CrimsonCorridorVertex>? CrimsonVertices,
-    string Detail)
+    int ProtocolVersion, string RequestId, string CompatibilityId, JungleSeedJudgeStatus Status,
+    string? SeedText, JungleSeedJudgeDecision? Decision, string? Reason, int PlannedEndPass,
+    int CheckpointPassIndex, string? ExecutionPath, bool EarlyRejected, int RequestedThreads,
+    int AvailableThreads, int Threads, double DurationMs, double GenerationMs, string? Detail = null)
 {
-    public string? ResourceScope { get; init; }
-    public int Threads { get; init; }
-    public int RequestedThreads { get; init; }
-    public int AvailableThreads { get; init; }
-    public ResourceJudgePyramidRegion? PyramidRegion { get; init; }
-    public IReadOnlyList<ResourceJudgePyramid>? Pyramids { get; init; }
-    public ResourceJudgeMetrics? Metrics { get; init; }
-    public int AnalysisMask { get; init; }
-    public int PlannedEndPass { get; init; }
-    public string? ExecutionPath { get; init; }
-    public bool EarlyRejected { get; init; }
-    public int? PyramidDepthPassIndex { get; init; }
-    public int? PyramidGoldPassIndex { get; init; }
-    public int? StarfuryChestPassIndex { get; init; }
-    public int? FinchStaffChestPassIndex { get; init; }
-    public IReadOnlyList<ResourceJudgePoint>? StarfuryChests { get; init; }
-    public IReadOnlyList<ResourceJudgePoint>? FinchStaffChests { get; init; }
-
-    public bool Complete =>
-        Status == JungleSeedJudgeStatus.Complete &&
-        Threads is >= 1 and <= 4 && AnalysisMask is > 0 and <= ResourceJudgeAnalysis.All && Metrics is not null &&
-        ((AnalysisMask & ResourceJudgeAnalysis.Pyramids) == 0 || (PyramidRegion is not null && Pyramids is not null)) &&
-        ((AnalysisMask & ResourceJudgeAnalysis.Jungle) == 0 || Jungle is not null) &&
-        ((AnalysisMask & ResourceJudgeAnalysis.StarfuryChests) == 0 || StarfuryChests is not null) &&
-        ((AnalysisMask & ResourceJudgeAnalysis.FinchStaffChests) == 0 || FinchStaffChests is not null) &&
-        ((AnalysisMask & ResourceJudgeAnalysis.Crimson) == 0 || CrimsonVertices is { Count: 2 });
+    public bool Complete => Status == JungleSeedJudgeStatus.Complete && Decision is not null;
 }
-
-internal sealed record JungleSeedAnalysis(
-    JungleSeedAnalysisStatus AnalysisStatus,
-    string Side,
-    int OriginX,
-    int MinX,
-    int MaxX,
-    JungleRouteSummary Route,
-    double ResourceAnalysisMs,
-    int VisitedCostTiles,
-    IReadOnlyList<JungleResourceLocation> Resources)
-{
-    public int GeneratedDeepestY { get; init; }
-}
-
-internal sealed record JungleRouteSummary(
-    JungleRouteStatus Status,
-    double DurationMs,
-    int BandRadiusTiles,
-    int CellCount,
-    int DeepestX,
-    [property: JsonPropertyName("reachableDeepestY")] int DeepestY);
-
-internal sealed record ResourceJudgePyramidRegion(int MinimumX, int MaximumX, string Coordinates);
-internal sealed record ResourceJudgePoint(int X, int Y);
-internal sealed record ResourceJudgePyramid(
-    [property: JsonRequired] ResourceJudgePoint? Entrance,
-    int? MainItemType,
-    [property: JsonRequired] int? ItemMask,
-    [property: JsonRequired] int? GoldCoinPileCount,
-    [property: JsonRequired] int? TunnelSurfaceDistance);
-
-// Measurements only. Selection masks, thresholds and AND/OR policy live in the host.
-internal sealed record ResourceJudgeMetrics(
-    [property: JsonRequired] int? PyramidItemMask,
-    [property: JsonRequired] int? DungeonSide,
-    [property: JsonRequired] int? NearestDungeonSideCrimsonDistance,
-    [property: JsonRequired] int? JungleRouteDeepestY,
-    [property: JsonRequired] int? JungleItemMask,
-    [property: JsonRequired] int? LifeCrystalCount,
-    [property: JsonRequired] int? SpelunkerPotionCount,
-    [property: JsonRequired] int? FeatherfallPotionCount);
-
-internal sealed record JungleResourceLocation(
-    string Category,
-    JungleResourceSource Source,
-    int X,
-    int Y,
-    int? TileId,
-    int? ItemId,
-    int? ChestX,
-    int? ChestY,
-    int? ChestStyle,
-    int? Slot,
-    int Stack,
-    int Units,
-    double Cost,
-    int CostLimit,
-    int TravelSteps,
-    int DugTiles,
-    int? NearestRouteX,
-    int? NearestRouteY);
-
-internal sealed record CrimsonCorridorVertex(
-    int Index,
-    int X,
-    int Y);

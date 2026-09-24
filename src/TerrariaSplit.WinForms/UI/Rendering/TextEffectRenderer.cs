@@ -176,12 +176,11 @@ internal static class TextEffectRenderer
         Graphics graphics,
         string text,
         Font font,
-        Color fillColor,
+        TextRenderStyle textStyle,
         float x,
         float y,
         StringFormat format,
         TimeSpan elapsed,
-        int thicknessPercent,
         string outlineStyle,
         float opacity)
     {
@@ -192,11 +191,13 @@ internal static class TextEffectRenderer
         }
 
         string style = SplitCompletionOutlineStyles.Normalize(outlineStyle);
-        if (style == SplitCompletionOutlineStyles.None)
+        if (style == SplitCompletionOutlineStyles.None || textStyle.OutlineThicknessPercent <= 0)
         {
-            DrawString(graphics, text, font, fillColor, x, y, format, opacity);
+            DrawStyledString(graphics, text, font, textStyle, x, y, format, opacity);
             return;
         }
+
+        DrawTextEffects(graphics, path, font, textStyle with { OutlineThicknessPercent = 0 }, opacity);
 
         RectangleF bounds = path.GetBounds();
         RectangleF gradientBounds = TextEffectGeometry.InflateBounds(bounds, Math.Max(4f, font.Size * 0.35f));
@@ -211,23 +212,14 @@ internal static class TextEffectRenderer
         };
         outlineBrush.InterpolationColors = blend;
 
-        float thickness = font.Size * Math.Clamp(thicknessPercent, 0, 100) / 100f;
-        if (style is SplitCompletionOutlineStyles.Rainbow)
-        {
-            using var backingPen = new Pen(WithOpacity(Color.FromArgb(42, 255, 255, 255), opacity), Math.Max(1f, thickness * 1.35f))
-            {
-                LineJoin = LineJoin.Round
-            };
-            graphics.DrawPath(backingPen, path);
-        }
-
-        using var outlinePen = new Pen(outlineBrush, Math.Max(1f, thickness))
+        float thickness = TextEffectGeometry.GetTextOutlineRadius(graphics, font, textStyle) * 2f;
+        using var outlinePen = new Pen(outlineBrush, Math.Max(0.2f, thickness))
         {
             LineJoin = LineJoin.Round
         };
         graphics.DrawPath(outlinePen, path);
 
-        using var fillBrush = new SolidBrush(WithOpacity(fillColor, opacity));
+        using var fillBrush = new SolidBrush(WithOpacity(textStyle.Fill, opacity));
         graphics.FillPath(fillBrush, path);
     }
 
@@ -446,7 +438,7 @@ internal static class TextEffectRenderer
         return TextEffectGeometry.CreateTextPath(graphics, text, font, bounds, format);
     }
 
-    public static float AlignTextPathBottom(
+    public static float AlignTextPathCenter(
         Graphics graphics,
         string referenceText,
         Font referenceFont,
@@ -458,7 +450,7 @@ internal static class TextEffectRenderer
         float y,
         StringFormat format)
     {
-        return TextEffectGeometry.AlignTextPathBottom(
+        return TextEffectGeometry.AlignTextPathCenter(
             graphics,
             referenceText,
             referenceFont,

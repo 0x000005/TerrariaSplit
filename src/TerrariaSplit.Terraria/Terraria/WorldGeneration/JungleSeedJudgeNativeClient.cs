@@ -20,7 +20,7 @@ internal sealed class JungleSeedJudgeNativeClient
     private static readonly ConcurrentDictionary<string, Lazy<NativeApi>>
         LoadedLibraries = new(StringComparer.OrdinalIgnoreCase);
 
-    private readonly Func<string, JungleSeedJudgeGameMode, string, int, int, JungleSeedJudgeResult> analyze;
+    private readonly Func<string, JungleSeedJudgeGameMode, string, ResourceJudgeRequirements, int, JungleSeedJudgeResult> analyze;
     private readonly SemaphoreSlim nativeCallGate;
     private readonly SemaphoreSlim budgetReservationGate;
     private readonly int maximumLeaseThreads;
@@ -55,7 +55,7 @@ internal sealed class JungleSeedJudgeNativeClient
     }
 
     internal JungleSeedJudgeNativeClient(
-        Func<string, JungleSeedJudgeGameMode, string, int, int, JungleSeedJudgeResult> analyze,
+        Func<string, JungleSeedJudgeGameMode, string, ResourceJudgeRequirements, int, JungleSeedJudgeResult> analyze,
         TimeSpan requestTimeout,
         SemaphoreSlim nativeCallGate,
         int maximumLeaseThreads = 1)
@@ -74,12 +74,13 @@ internal sealed class JungleSeedJudgeNativeClient
         string seedText,
         JungleSeedJudgeGameMode gameMode,
         CancellationToken cancellationToken,
-        int analysisMask = ResourceJudgeAnalysis.All,
+        ResourceJudgeRequirements requirements,
         int threads = 0)
     {
         ArgumentNullException.ThrowIfNull(seedText);
         if (threads is < 0 or > 4) throw new ArgumentOutOfRangeException(nameof(threads));
-        if (analysisMask is <= 0 or > ResourceJudgeAnalysis.All) throw new ArgumentOutOfRangeException(nameof(analysisMask));
+        ArgumentNullException.ThrowIfNull(requirements);
+        requirements.Validate();
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(
             cancellationToken);
         deadline.CancelAfter(requestTimeout);
@@ -109,7 +110,7 @@ internal sealed class JungleSeedJudgeNativeClient
         string requestId = Interlocked.Increment(ref nextRequestId)
             .ToString(CultureInfo.InvariantCulture);
         Task<JungleSeedJudgeResult> nativeCall = Task.Run(
-            () => analyze(seedText, gameMode, requestId, analysisMask, threads),
+            () => analyze(seedText, gameMode, requestId, requirements, threads),
             CancellationToken.None);
         bool releaseWhenNativeCallCompletes = false;
         try
@@ -240,7 +241,7 @@ internal sealed class JungleSeedJudgeNativeClient
                         libraryHandle,
                         "TerrariaSplitWorldFilterGetAbiVersion");
                 int abiVersion = getAbiVersion();
-                if (abiVersion != 4)
+                if (abiVersion != 5)
                 {
                     throw new InvalidDataException(
                         $"Unsupported native world-filter ABI {abiVersion}.");
@@ -265,20 +266,21 @@ internal sealed class JungleSeedJudgeNativeClient
             string seedText,
             JungleSeedJudgeGameMode gameMode,
             string requestId,
-            int analysisMask,
+            ResourceJudgeRequirements requirements,
             int threads)
         {
             byte[] seedUtf8 = Encoding.UTF8.GetBytes(seedText);
             byte[] requestIdUtf8 = Encoding.UTF8.GetBytes(requestId);
             nint responsePointer = 0;
             int responseLength = 0;
+            var nativeRequirements = new NativeRequirements(requirements);
             int status = analyze(
                 seedUtf8,
                 seedUtf8.Length,
                 (int)gameMode,
                 requestIdUtf8,
                 requestIdUtf8.Length,
-                analysisMask,
+                in nativeRequirements,
                 threads,
                 out responsePointer,
                 out responseLength);
@@ -307,8 +309,9 @@ internal sealed class JungleSeedJudgeNativeClient
                 var result = JungleSeedJudgeProtocolSerializer.DeserializeResponse(
                     responseJson,
                     requestId);
-                if (result.Status == JungleSeedJudgeStatus.Complete && result.AnalysisMask != analysisMask)
-                    throw new InvalidDataException("World Filter returned a different analysis mask.");
+                if (result.Status == JungleSeedJudgeStatus.Complete && (result.PlannedEndPass != requirements.EndPass ||
+                    result.ExecutionPath != (requirements.PyramidItemsOnly ? "PyramidFast" : "FullPrefix")))
+                    throw new InvalidDataException("World Filter returned a different filter plan.");
                 if (result.Status == JungleSeedJudgeStatus.Complete && result.RequestedThreads != threads)
                     throw new InvalidDataException("World Filter returned a different thread request.");
                 return result;
@@ -332,6 +335,24 @@ internal sealed class JungleSeedJudgeNativeClient
         }
     }
 
+    [StructLayout(LayoutKind.Sequential)]
+    private readonly struct NativeRequirements
+    {
+        public readonly uint Size;
+        public readonly int PyramidItemMask, PyramidGoldMinimum, PyramidMaximumDepth, CrimsonMaximumDistance,
+            JungleMinimumY, JungleItemMask, LifeCrystalMinimum, SpelunkerPotionMinimum, FeatherfallPotionMinimum,
+            StarfuryMaximumDistance, FinchStaffMaximumDistance;
+        public NativeRequirements(ResourceJudgeRequirements q)
+        {
+            Size = (uint)Marshal.SizeOf<NativeRequirements>();
+            PyramidItemMask = q.PyramidItemMask; PyramidGoldMinimum = q.PyramidGoldMinimum; PyramidMaximumDepth = q.PyramidMaximumDepth;
+            CrimsonMaximumDistance = q.CrimsonMaximumDistance; JungleMinimumY = q.JungleMinimumY; JungleItemMask = q.JungleItemMask;
+            LifeCrystalMinimum = q.LifeCrystalMinimum; SpelunkerPotionMinimum = q.SpelunkerPotionMinimum;
+            FeatherfallPotionMinimum = q.FeatherfallPotionMinimum; StarfuryMaximumDistance = q.StarfuryMaximumDistance;
+            FinchStaffMaximumDistance = q.FinchStaffMaximumDistance;
+        }
+    }
+
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     private delegate int GetAbiVersionDelegate();
 
@@ -342,7 +363,7 @@ internal sealed class JungleSeedJudgeNativeClient
         int gameMode,
         [In] byte[] requestIdUtf8,
         int requestIdLength,
-        int analysisMask,
+        in NativeRequirements requirements,
         int threads,
         out nint responseUtf8,
         out int responseLength);
