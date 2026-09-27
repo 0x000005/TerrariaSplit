@@ -22,6 +22,7 @@ internal static class TerrariaIntegrationTests
         yield return TestCase.Sync("pyramid pre-screen ignores depth and counts only gold coin piles", TestSuite.Core, PyramidRequirementThresholds);
         yield return TestCase.Sync("diagnostic world scanner measures the opening-side surface distance", TestSuite.Core, PyramidWorldScannerDepth);
         yield return TestCase.Async("native jungle seed judge preserves protocol and returns seed-only analysis", TestSuite.Native, JungleSeedJudgeNativeJourney, timeoutSeconds: 90);
+        yield return TestCase.Async("native pyramid filters distinguish sandstorm bottle from flying carpet", TestSuite.Native, PyramidItemIdentity, timeoutSeconds: 90);
         yield return TestCase.Sync("resource judge v5 rejects legacy and incomplete protocol payloads", TestSuite.Core, ResourceJudgeProtocolV2);
         yield return TestCase.Sync("resource judge validates early reject metadata", TestSuite.Core, ResourceJudgeSkyProtocol);
         yield return TestCase.Async("resource judge releases partial thread budgets and charges one slot for single threading", TestSuite.Core, ResourceJudgeThreadBudget);
@@ -721,6 +722,23 @@ internal static class TerrariaIntegrationTests
         Check.Equal(100, converted.StarfuryMaximumDistance);
         Check.Equal(800, converted.FinchStaffMaximumDistance);
         Check.True(WorldSeedFilterEvaluator.IsEnabledFor(converted));
+    }
+
+    private static async Task PyramidItemIdentity(CancellationToken cancellationToken)
+    {
+        var client = new JungleSeedJudgeNativeClient(JungleSeedJudgeNativeLibraryLocator.ResolvePath(), TimeSpan.FromSeconds(15));
+        // Full-prefix reference generation: 540278984 has item 857; seed 8 has item 934.
+        foreach ((string seed, int expectedMask) in new[] { ("540278984", 1), ("8", 2) })
+        foreach (int selectedMask in new[] { 1, 2 })
+        foreach (int depth in new[] { 0, 1200 })
+        {
+            var result = await client.AnalyzeAsync(seed, JungleSeedJudgeGameMode.Classic, cancellationToken,
+                new ResourceJudgeRequirements(PyramidItemMask: selectedMask, PyramidMaximumDepth: depth), threads: 1);
+            Check.True(result.Complete);
+            Check.Equal(depth == 0 ? "PyramidFast" : "FullPrefix", result.ExecutionPath);
+            Check.Equal(selectedMask == expectedMask ? JungleSeedJudgeDecision.Accepted : JungleSeedJudgeDecision.Rejected,
+                result.Decision!.Value);
+        }
     }
 
     private static async Task ResourceJudgePrefixes(CancellationToken cancellationToken)
