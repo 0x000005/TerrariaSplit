@@ -50,6 +50,8 @@ internal sealed class CreateWorldWorkflow : IDisposable
             TerrariaMenuGeometry geometry = TerrariaMenuGeometry.From(activation.ClientSize, menuProfile);
             FileAppLogger.Instance.Info($"Create world automation using menu profile: {menuProfile.Name}.");
 
+            // Cleanup must precede pooled-world installation and player creation:
+            // both produce non-favorite saves that a later cleanup would remove.
             CreateWorldCleanupStep cleanupStep = await RunSaveCleanupAsync(autoCreate, cancellationToken);
             if (!cleanupStep.Succeeded)
             {

@@ -17,6 +17,7 @@ public sealed class FileAppLogger : IAppLogger
 
     public void Info(string message)
     {
+        WorldFilterTrace.WorkflowMessage(message);
         if (!IsEnabled)
         {
             return;
@@ -27,6 +28,7 @@ public sealed class FileAppLogger : IAppLogger
 
     public void Error(Exception exception, string message)
     {
+        WorldFilterTrace.WorkflowMessage(message, exception);
         if (!IsEnabled)
         {
             return;

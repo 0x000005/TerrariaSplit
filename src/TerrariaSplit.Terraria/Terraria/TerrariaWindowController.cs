@@ -21,7 +21,6 @@ public sealed class TerrariaWindowController
     private const int RestoredWindowPollMilliseconds = 25;
     private const int RestoredWindowStableSampleCount = 3;
     private const int RestoredWindowTimeoutMilliseconds = 5000;
-    private const int CursorSettleMilliseconds = 50;
     private static readonly IntPtr DpiAwarenessContextPerMonitorAwareV2 = new(-4);
     private static readonly IntPtr DpiAwarenessContextUnawareGdiScaled = new(-5);
 
@@ -118,7 +117,8 @@ public sealed class TerrariaWindowController
         Func<Size, Point> resolvePoint,
         out Point resolvedPoint,
         out Size clientSize,
-        out string failureDetail)
+        out string failureDetail,
+        bool skipPreClickDelay = false)
     {
         ArgumentNullException.ThrowIfNull(resolvePoint);
         resolvedPoint = Point.Empty;
@@ -137,7 +137,7 @@ public sealed class TerrariaWindowController
 
         if (!TryRequestForegroundAndWait(
                 handle,
-                ClickFocusDelayMilliseconds,
+                0,
                 restoredFromMinimized,
                 out string foregroundDiagnostic))
         {
@@ -184,7 +184,13 @@ public sealed class TerrariaWindowController
             $"actualXnaClientPoint={actualClientPoint.X},{actualClientPoint.Y}; " +
             $"xnaClientPointMatchedRequest={actualClientPoint == resolvedPoint}";
 
-        Sleep(CursorSettleMilliseconds);
+        // One configurable pre-click wait, after activation and cursor positioning.
+        if (!skipPreClickDelay) Sleep(ClickFocusDelayMilliseconds);
+        if (GetForegroundWindow() != handle)
+        {
+            failureDetail = "Terraria lost foreground focus during the pre-click wait.";
+            return false;
+        }
         if (!TrySendMouseInput(MouseEventLeftDown, out int mouseDownError))
         {
             failureDetail =

@@ -78,7 +78,7 @@ internal sealed class PyramidSeedPreScreenAutomation : IDisposable
             return await RunLoopAsync(
                 settings,
                 geometry,
-                new TerrariaVisibleSeedRandomizer(automation, geometry, clickDelay),
+                new TerrariaVisibleSeedRandomizer(automation, geometry),
                 geometry.AdvancedSeedRandomizeButton(),
                 seedReader,
                 cancellationToken);
@@ -109,7 +109,7 @@ internal sealed class PyramidSeedPreScreenAutomation : IDisposable
             return await RunLoopAsync(
                 settings,
                 geometry,
-                new TerrariaLegacy1449SeedRandomizer(automation, geometry, clickDelay),
+                new TerrariaLegacy1449SeedRandomizer(automation, geometry),
                 geometry.WorldAdvancedSeedButton(),
                 seedReader,
                 cancellationToken);
@@ -126,6 +126,10 @@ internal sealed class PyramidSeedPreScreenAutomation : IDisposable
     {
         try
         {
+            WorldFilterTrace.Write("filter-loop.start", new { profile = geometry.Profile.Name,
+                requirements = WorldSeedFilterEvaluator.RequestedRequirements(settings), settings.WorldDifficulty,
+                settings.ClickFocusDelayMilliseconds, settings.InputPressDurationMilliseconds,
+                settings.WindowActivationDelayMilliseconds });
             var loop = new PyramidSeedPreScreenLoop(evaluator, FileAppLogger.Instance.Info);
             PyramidSeedPreScreenLoopResult result = await loop.RunAsync(
                 settings,
@@ -133,6 +137,7 @@ internal sealed class PyramidSeedPreScreenAutomation : IDisposable
                 randomizer,
                 seedReader,
                 cancellationToken);
+            WorldFilterTrace.Write("filter-loop.end", new { result.Status, result.Attempts, result.AcceptedSeed, result.Detail });
             return result.Status switch
             {
                 PyramidSeedPreScreenLoopStatus.Accepted => PyramidSeedPreScreenAutomationResult.FromAccepted(),
@@ -293,16 +298,13 @@ internal sealed class PyramidSeedPreScreenAutomation : IDisposable
     {
         private readonly TerrariaAutomationContext automation;
         private readonly TerrariaMenuGeometry geometry;
-        private readonly TimeSpan clickDelay;
 
         public TerrariaVisibleSeedRandomizer(
             TerrariaAutomationContext automation,
-            TerrariaMenuGeometry geometry,
-            TimeSpan clickDelay)
+            TerrariaMenuGeometry geometry)
         {
             this.automation = automation;
             this.geometry = geometry;
-            this.clickDelay = clickDelay;
         }
 
         public Task<bool> RandomizeVisibleSeedAsync(int attempt, CancellationToken cancellationToken)
@@ -311,8 +313,9 @@ internal sealed class PyramidSeedPreScreenAutomation : IDisposable
                 $"randomize visible seed pre-screen attempt {attempt}",
                 geometry,
                 static current => current.AdvancedSeedRandomizeButton(),
-                clickDelay,
-                cancellationToken);
+                TimeSpan.Zero,
+                cancellationToken,
+                skipPreClickDelay: attempt > 1);
         }
     }
 
@@ -320,16 +323,13 @@ internal sealed class PyramidSeedPreScreenAutomation : IDisposable
     {
         private readonly TerrariaAutomationContext automation;
         private readonly TerrariaMenuGeometry geometry;
-        private readonly TimeSpan clickDelay;
 
         public TerrariaLegacy1449SeedRandomizer(
             TerrariaAutomationContext automation,
-            TerrariaMenuGeometry geometry,
-            TimeSpan clickDelay)
+            TerrariaMenuGeometry geometry)
         {
             this.automation = automation;
             this.geometry = geometry;
-            this.clickDelay = clickDelay;
         }
 
         public Task<bool> RandomizeVisibleSeedAsync(int attempt, CancellationToken cancellationToken)
@@ -338,8 +338,9 @@ internal sealed class PyramidSeedPreScreenAutomation : IDisposable
                 $"randomize 1.4.4.9 visible seed pre-screen attempt {attempt}",
                 geometry,
                 static current => current.WorldAdvancedSeedButton(),
-                clickDelay,
-                cancellationToken);
+                TimeSpan.Zero,
+                cancellationToken,
+                skipPreClickDelay: attempt > 1);
         }
     }
 }

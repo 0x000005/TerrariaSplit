@@ -42,7 +42,9 @@ internal sealed class PyramidSeedPreScreenLoop
         CancellationToken cancellationToken)
     {
         TerrariaWorldGenerationVersion worldGenerationVersion =
-            PyramidSeedPreScreenEvaluator.WorldGenerationVersionFromMenuProfile(menuProfile);
+            menuProfile.Kind == TerrariaMenuProfileKind.Legacy1449
+                ? TerrariaWorldGenerationVersion.Legacy1449
+                : TerrariaWorldGenerationVersion.Modern1458;
         if (worldGenerationVersion != TerrariaWorldGenerationVersion.Modern1458)
         {
             return await RunSerialAsync(
@@ -54,6 +56,7 @@ internal sealed class PyramidSeedPreScreenLoop
         }
 
         const int batchSize = 1;
+        WorldFilterTrace.Write("filter-loop.policy", new { batchSize, worldGenerationVersion });
         int attempt = 0;
         int consecutiveCandidateFailures = 0;
         int consecutiveSeedReadFailures = 0;

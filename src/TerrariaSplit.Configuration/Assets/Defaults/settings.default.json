@@ -1065,7 +1065,7 @@
             "ShortActionDelayMilliseconds": 10,
             "MenuActionDelayMilliseconds": 90,
             "WindowActivationDelayMilliseconds": 10,
-            "ClickFocusDelayMilliseconds": 10,
+            "ClickFocusDelayMilliseconds": 50,
             "InputPressDurationMilliseconds": 140
         }
     },

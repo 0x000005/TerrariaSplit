@@ -8,14 +8,14 @@ internal sealed class WorldSeedFilterEvaluator : IDisposable
 {
     private const int CpuUsagePercent = 80;
     private readonly Lazy<JungleSeedJudgeNativeClient> nativeClient;
-    private readonly bool raceParallelism;
+    private readonly bool parallelCandidates;
     private bool disposed;
 
     public WorldSeedFilterEvaluator(
         JungleSeedJudgeNativeClient? nativeClient = null,
-        bool raceParallelism = false)
+        bool parallelCandidates = false)
     {
-        this.raceParallelism = raceParallelism;
+        this.parallelCandidates = parallelCandidates;
         this.nativeClient = new Lazy<JungleSeedJudgeNativeClient>(
             nativeClient is null
                 ? () => JungleSeedJudgeNativeClient.CreateDefault()
@@ -25,15 +25,14 @@ internal sealed class WorldSeedFilterEvaluator : IDisposable
 
     public static bool IsEnabledFor(AutoCreateWorldSettings settings)
     {
-        return PyramidSeedPreScreenEvaluator.IsEnabledFor(settings) ||
-            IsJudgeFilterEnabled(settings);
+        return IsJudgeFilterEnabled(settings);
     }
 
     public static bool IsJudgeFilterEnabled(AutoCreateWorldSettings settings)
     {
         return settings.EnableCheats &&
             AutoCreateAdvancedFilterEligibility.IsEligible(settings) &&
-            (settings.RequireCrimsonBetweenDungeonAndSpawn ||
+            (settings.EnablePyramidFilter || settings.RequireCrimsonBetweenDungeonAndSpawn ||
              AutoCreateResourceFilter.HasRequirements(settings));
     }
 
@@ -56,7 +55,7 @@ internal sealed class WorldSeedFilterEvaluator : IDisposable
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(seedTexts);
 
-        if (!raceParallelism)
+        if (!parallelCandidates)
         {
             var results = new List<WorldSeedFilterPrediction>(seedTexts.Count);
             foreach (string seed in seedTexts)
@@ -81,37 +80,46 @@ internal sealed class WorldSeedFilterEvaluator : IDisposable
     }
 
     public async Task<WorldSeedFilterPrediction> EvaluateAsync(
+        AutoCreateWorldSettings settings, string seedText,
+        TerrariaWorldGenerationVersion worldGenerationVersion, CancellationToken cancellationToken)
+    {
+        string traceId = Guid.NewGuid().ToString("N");
+        var clock = Stopwatch.StartNew();
+        WorldFilterTrace.Write("candidate.start", new { traceId, seedText, worldGenerationVersion,
+            settings.WorldDifficulty, settings.WorldSize, settings.EnableCheats, parallelCandidates,
+            requirements = RequestedRequirements(settings), requestedThreads = parallelCandidates ? 1 : 0 });
+        try
+        {
+            var result = await EvaluateCoreAsync(settings, seedText, worldGenerationVersion, cancellationToken).ConfigureAwait(false);
+            WorldFilterTrace.Write("candidate.end", new { traceId, seedText, elapsedMs = clock.Elapsed.TotalMilliseconds,
+                result.Kind, result.Detail, result.AcceptSeed, result.CanUsePrediction, result.IsCandidateFailure,
+                hasNativeResult = result.Judge is not null, judge = result.Judge });
+            return result;
+        }
+        catch (Exception ex)
+        {
+            WorldFilterTrace.Write("candidate.error", new { traceId, seedText,
+                elapsedMs = clock.Elapsed.TotalMilliseconds, cancelled = cancellationToken.IsCancellationRequested,
+                error = ex.ToString() });
+            throw;
+        }
+    }
+
+    private async Task<WorldSeedFilterPrediction> EvaluateCoreAsync(
         AutoCreateWorldSettings settings,
         string seedText,
         TerrariaWorldGenerationVersion worldGenerationVersion,
         CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
-        bool pyramidEnabled = PyramidSeedPreScreenEvaluator.IsEnabledFor(settings);
         // Copied seeds prepend secret tokens; only the visible numeric seed is simulated.
         seedText = seedText[(seedText.LastIndexOf('|') + 1)..].Trim();
         bool judgeEnabled = IsJudgeFilterEnabled(settings);
-        PyramidSeedPreScreenPrediction? pyramid = null;
-
-        if (pyramidEnabled)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            // Every supported game version uses the current pre-screen rules.
-            // Passing this stage only authorizes the final native check, never acceptance.
-            pyramid = new PyramidSeedPreScreenEvaluator().Evaluate(
-                settings, seedText, TerrariaWorldGenerationVersion.Modern1458);
-            cancellationToken.ThrowIfCancellationRequested();
-            if (pyramid.Value.Result.Status == PyramidSeedPreScreenStatus.Error)
-                return WorldSeedFilterPrediction.CandidateFailure(pyramid.Value.RejectReason, pyramid, null);
-            if (pyramid.Value.CanUsePrediction && !pyramid.Value.AcceptSeed)
-                return WorldSeedFilterPrediction.Rejected("pyramid pre-screen: " + pyramid.Value.RejectReason, pyramid, null);
-        }
-
-        if (!pyramidEnabled && !judgeEnabled)
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!judgeEnabled)
         {
             return WorldSeedFilterPrediction.Accepted(
                 "filters disabled",
-                pyramid,
                 judge: null);
         }
 
@@ -119,8 +127,7 @@ internal sealed class WorldSeedFilterEvaluator : IDisposable
         if (unsupported is not null)
         {
             return WorldSeedFilterPrediction.Unavailable(
-                unsupported,
-                pyramid);
+                unsupported);
         }
 
         JungleSeedJudgeGameMode gameMode = ResolveGameMode(settings.WorldDifficulty);
@@ -135,7 +142,7 @@ internal sealed class WorldSeedFilterEvaluator : IDisposable
                 gameMode,
                 cancellationToken,
                 RequestedRequirements(settings),
-                threads: raceParallelism ? 1 : 0).ConfigureAwait(false);
+                threads: parallelCandidates ? 1 : 0).ConfigureAwait(false);
         }
         catch (Exception ex)
             when (ex is TimeoutException ||
@@ -144,7 +151,6 @@ internal sealed class WorldSeedFilterEvaluator : IDisposable
             return WorldSeedFilterPrediction.Rejected(
                 $"seed judge transient failure; skip seed; seed={seedText}, " +
                 $"mode={gameMode}: {ex.Message}",
-                pyramid,
                 judge: null);
         }
         catch (Exception ex)
@@ -153,8 +159,7 @@ internal sealed class WorldSeedFilterEvaluator : IDisposable
         {
             return WorldSeedFilterPrediction.Unavailable(
                 $"seed judge unavailable; seed={seedText}, mode={gameMode}: " +
-                ex.Message,
-                pyramid);
+                ex.Message);
         }
         finally
         {
@@ -173,24 +178,21 @@ internal sealed class WorldSeedFilterEvaluator : IDisposable
             {
                 return WorldSeedFilterPrediction.CandidateFailure(
                     detail,
-                    pyramid,
                     judge);
             }
 
             return IsCandidateRejection(judge.Status)
                 ? WorldSeedFilterPrediction.Rejected(
                     "seed judge skipped candidate; " + detail,
-                    pyramid,
                     judge)
                 : WorldSeedFilterPrediction.Unavailable(
                     detail,
-                    pyramid,
                     judge);
         }
 
         return judge.Decision == JungleSeedJudgeDecision.Accepted
-            ? WorldSeedFilterPrediction.Accepted(judge.Reason!, pyramid, judge)
-            : WorldSeedFilterPrediction.Rejected(judge.Reason!, pyramid, judge);
+            ? WorldSeedFilterPrediction.Accepted(judge.Reason!, judge)
+            : WorldSeedFilterPrediction.Rejected(judge.Reason!, judge);
     }
 
     public void Dispose()
@@ -206,7 +208,7 @@ internal sealed class WorldSeedFilterEvaluator : IDisposable
     internal static ResourceJudgeRequirements RequestedRequirements(AutoCreateWorldSettings settings)
     {
         const int smallWorldWidth = 4200;
-        bool pyramid = PyramidSeedPreScreenEvaluator.IsEnabledFor(settings);
+        bool pyramid = settings.EnableCheats && settings.EnablePyramidFilter && AutoCreateAdvancedFilterEligibility.IsEligible(settings);
         return new ResourceJudgeRequirements(
             PyramidItemMask: pyramid ? AutoCreatePyramidFilterItem.NormalizeMaskOrAll(settings.PyramidFilterItemMask) : 0,
             PyramidGoldMinimum: pyramid ? AutoCreatePyramidCoinPileMinimum.Normalize(settings.PyramidFilterCoinPileMinimum) : 0,
@@ -268,7 +270,6 @@ internal enum WorldSeedFilterPredictionKind
 internal readonly record struct WorldSeedFilterPrediction(
     WorldSeedFilterPredictionKind Kind,
     string Detail,
-    PyramidSeedPreScreenPrediction? Pyramid,
     JungleSeedJudgeResult? Judge)
 {
     public bool CanUsePrediction =>
@@ -283,42 +284,34 @@ internal readonly record struct WorldSeedFilterPrediction(
 
     public static WorldSeedFilterPrediction Accepted(
         string detail,
-        PyramidSeedPreScreenPrediction? pyramid,
         JungleSeedJudgeResult? judge) =>
         new(
             WorldSeedFilterPredictionKind.Accepted,
             detail,
-            pyramid,
             judge);
 
     public static WorldSeedFilterPrediction Rejected(
         string detail,
-        PyramidSeedPreScreenPrediction? pyramid,
         JungleSeedJudgeResult? judge) =>
         new(
             WorldSeedFilterPredictionKind.Rejected,
             detail,
-            pyramid,
             judge);
 
     public static WorldSeedFilterPrediction CandidateFailure(
         string detail,
-        PyramidSeedPreScreenPrediction? pyramid,
         JungleSeedJudgeResult? judge) =>
         new(
             WorldSeedFilterPredictionKind.CandidateFailure,
             detail,
-            pyramid,
             judge);
 
     public static WorldSeedFilterPrediction Unavailable(
         string detail,
-        PyramidSeedPreScreenPrediction? pyramid,
         JungleSeedJudgeResult? judge = null) =>
         new(
             WorldSeedFilterPredictionKind.Unavailable,
             detail,
-            pyramid,
             judge);
 }
 

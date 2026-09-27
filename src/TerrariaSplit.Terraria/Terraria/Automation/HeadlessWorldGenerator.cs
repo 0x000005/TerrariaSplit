@@ -8,8 +8,8 @@ using Process = System.Diagnostics.Process;
 namespace TerrariaSplit.Terraria.Automation;
 
 // Generates a single world headlessly with TerrariaServer.exe (no game window, no
-// foreground), then reads metadata from the world header and optionally scans for
-// candidate item chests. Used by the background world pool to discover world files worth banking.
+// foreground), then reads metadata from the world header. Background candidates are
+// filtered before this step; no post-generation resource scan is performed.
 // The dedicated server writes the world to a private scratch folder, so the user's Worlds
 // folder is never touched.
 internal sealed class HeadlessWorldGenerator : IDisposable
@@ -31,12 +31,12 @@ internal sealed class HeadlessWorldGenerator : IDisposable
     private Process? currentProcess;
     private bool disposed;
 
-    public HeadlessWorldGenerator(IRuntimeDataPaths? paths = null, bool raceParallelism = false)
+    public HeadlessWorldGenerator(IRuntimeDataPaths? paths = null, bool parallelCandidates = false)
     {
         paths ??= AppContextRuntimeDataPaths.Default;
         scratchDirectory = paths.WorldPoolScratchDirectory;
         serverPidPath = Path.Combine(scratchDirectory, "server.pid");
-        seedFilterEvaluator = new WorldSeedFilterEvaluator(raceParallelism: raceParallelism);
+        seedFilterEvaluator = new WorldSeedFilterEvaluator(parallelCandidates: parallelCandidates);
     }
 
     public async Task<HeadlessWorldGenResult> GenerateAsync(

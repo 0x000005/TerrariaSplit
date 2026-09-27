@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Diagnostics;
 using System.Windows.Forms;
 
 namespace TerrariaSplit.Terraria.Automation;
@@ -61,13 +62,19 @@ internal sealed class TerrariaAutomationContext
         Func<CancellationToken, Task<bool>> action,
         CancellationToken cancellationToken)
     {
+        var clock = Stopwatch.StartNew();
+        bool trace = name.Contains("world", StringComparison.OrdinalIgnoreCase);
+        if (trace) WorldFilterTrace.Write("automation.step-start", new { name, step });
         try
         {
             ThrowIfCancellationRequested(cancellationToken);
-            return await action(cancellationToken);
+            bool success = await action(cancellationToken);
+            if (trace) WorldFilterTrace.Write("automation.step-end", new { name, step, success, elapsedMs = clock.Elapsed.TotalMilliseconds });
+            return success;
         }
         catch (OperationCanceledException)
         {
+            if (trace) WorldFilterTrace.Write("automation.step-cancelled", new { name, step, elapsedMs = clock.Elapsed.TotalMilliseconds });
             throw;
         }
         catch (Exception ex)
@@ -94,11 +101,12 @@ internal sealed class TerrariaAutomationContext
         TerrariaMenuGeometry geometry,
         Func<TerrariaMenuGeometry, Point> resolvePoint,
         TimeSpan delay,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool skipPreClickDelay = false)
     {
         return RunStepAsync(
             $"click {step}",
-            ct => ClickOnceAsync(step, geometry, resolvePoint, delay, ct),
+            ct => ClickOnceAsync(step, geometry, resolvePoint, delay, ct, skipPreClickDelay),
             cancellationToken);
     }
 
@@ -135,14 +143,16 @@ internal sealed class TerrariaAutomationContext
         TerrariaMenuGeometry geometry,
         Func<TerrariaMenuGeometry, Point> resolvePoint,
         TimeSpan delay,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool skipPreClickDelay = false)
     {
         ThrowIfCancellationRequested(cancellationToken);
         bool clicked = Window.TryClickClient(
             currentClientSize => resolvePoint(TerrariaMenuGeometry.From(currentClientSize, geometry.Profile)),
             out Point point,
             out Size clientSize,
-            out string failureDetail);
+            out string failureDetail,
+            skipPreClickDelay);
         Log(new AutomationStepResult(
             $"click {step}",
             clicked,

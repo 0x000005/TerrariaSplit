@@ -1,3 +1,5 @@
+using TerrariaSplit.Terraria.WorldGeneration;
+
 namespace TerrariaSplit.Terraria.Automation;
 
 // Background worker that keeps the world pool topped up. While world pooling is enabled,
@@ -12,6 +14,9 @@ public sealed class WorldPoolFillService : IDisposable
 
     private readonly IWorldPoolStore store;
     private readonly HeadlessWorldGenerator generator;
+    private readonly WorldPoolSeedFilter seedFilter;
+    private readonly Queue<string> acceptedSeeds = new();
+    private string? seedFilterSignature;
     private readonly ISettingsSnapshotFactory settingsSnapshots;
     private readonly IAppLogger logger;
     private readonly object sync = new();
@@ -29,6 +34,7 @@ public sealed class WorldPoolFillService : IDisposable
     {
         this.store = store;
         generator = new HeadlessWorldGenerator(paths);
+        seedFilter = new WorldPoolSeedFilter(Environment.ProcessorCount);
         this.settingsSnapshots = settingsSnapshots;
         this.logger = logger ?? NullAppLogger.Instance;
     }
@@ -118,12 +124,14 @@ public sealed class WorldPoolFillService : IDisposable
 
         if (current is null)
         {
+            ClearPendingSeeds();
             return false;
         }
 
         AutoCreateWorldSettings autoCreate = current.Automation.AutoCreate;
         if (!autoCreate.EnableWorldPool)
         {
+            ClearPendingSeeds();
             return false;
         }
 
@@ -143,13 +151,38 @@ public sealed class WorldPoolFillService : IDisposable
         }
 
         string signature = WorldPoolRuntimeVersion.SignatureFromServerTarget(current, serverTarget.Value);
+        if (!string.Equals(seedFilterSignature, signature, StringComparison.Ordinal))
+        {
+            ClearPendingSeeds();
+            seedFilterSignature = signature;
+        }
         store.EnsureSignature(signature);
         if (store.Count(signature) >= autoCreate.WorldPoolTargetCount)
         {
             return false;
         }
 
-        HeadlessWorldGenResult result = await generator.GenerateAsync(serverTarget.Value, current.General.Language, autoCreate, cancellationToken);
+        bool filtering = WorldSeedFilterEvaluator.IsEnabledFor(autoCreate);
+        if (filtering && acceptedSeeds.Count == 0)
+        {
+            TerrariaWorldGenerationVersion version = serverTarget.Value.IsLegacy1449
+                ? TerrariaWorldGenerationVersion.Legacy1449 : TerrariaWorldGenerationVersion.Modern1458;
+            WorldPoolSeedFilterResult batch = await seedFilter.FilterBatchAsync(autoCreate, version, cancellationToken);
+            if (!IsGenerationStillCurrent(signature)) return true;
+            if (batch.Failure is { } failure)
+            {
+                logger.Info($"World pool seed filtering stopped: {failure}");
+                return false;
+            }
+            foreach (string seed in batch.AcceptedSeeds) acceptedSeeds.Enqueue(seed);
+            logger.Info($"World pool filtered {seedFilter.Concurrency} candidates with one native thread each; accepted={acceptedSeeds.Count}.");
+            if (acceptedSeeds.Count == 0) return true;
+        }
+        if (!IsGenerationStillCurrent(signature)) return true;
+        HeadlessWorldGenResult result = await generator.GenerateAsync(serverTarget.Value, current.General.Language, autoCreate,
+            seedOverride: filtering ? acceptedSeeds.Peek() : null, worldNameOverride: null,
+            cancellationToken, skipSeedFilter: filtering);
+        if (filtering && result.Generated) acceptedSeeds.Dequeue();
         try
         {
             if (result.Keep &&
@@ -163,10 +196,19 @@ public sealed class WorldPoolFillService : IDisposable
         }
         finally
         {
-            generator.ClearScratch();
+            // A skipped attempt did not acquire the generation lease and must not
+            // clear the scratch directory of the generator currently holding it.
+            if (result.Generated) generator.ClearScratch();
         }
 
         return result.Generated;
+    }
+
+    private void ClearPendingSeeds()
+    {
+        acceptedSeeds.Clear();
+        seedFilter.Reset();
+        seedFilterSignature = null;
     }
 
     private bool IsGenerationStillCurrent(string signature)
@@ -205,6 +247,7 @@ public sealed class WorldPoolFillService : IDisposable
         try
         {
             generator.Dispose();
+            seedFilter.Dispose();
             pending?.Wait(TimeSpan.FromSeconds(5));
         }
         catch (Exception ex) when (ex is AggregateException or OperationCanceledException)

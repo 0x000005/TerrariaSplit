@@ -498,7 +498,7 @@ public sealed class AutoCreateWorldSettings
     public int ShortActionDelayMilliseconds { get; set; }
     public int MenuActionDelayMilliseconds { get; set; }
     public int WindowActivationDelayMilliseconds { get; set; }
-    public int ClickFocusDelayMilliseconds { get; set; }
+    public int ClickFocusDelayMilliseconds { get; set; } = 50;
     public int InputPressDurationMilliseconds { get; set; }
 }
 

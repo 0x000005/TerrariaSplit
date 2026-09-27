@@ -68,7 +68,7 @@ public sealed class TerrariaRaceWorldGenerationService : IDisposable
 
     public TerrariaRaceWorldGenerationService(IRuntimeDataPaths? paths = null)
     {
-        generator = new HeadlessWorldGenerator(paths, raceParallelism: true);
+        generator = new HeadlessWorldGenerator(paths, parallelCandidates: true);
     }
 
     public async Task<TerrariaRaceWorldGenerationResult> GenerateAndInstallAsync(
@@ -275,7 +275,7 @@ public sealed class TerrariaRaceWorldGenerationService : IDisposable
     {
         while (seedFilterEvaluators.Count < count)
         {
-            seedFilterEvaluators.Add(new WorldSeedFilterEvaluator(raceParallelism: true));
+            seedFilterEvaluators.Add(new WorldSeedFilterEvaluator(parallelCandidates: true));
         }
     }
 
