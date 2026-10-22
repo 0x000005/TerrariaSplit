@@ -2100,7 +2100,7 @@ internal sealed class RaceForm : Form
             cheatsEnabledBox.Checked,
             pyramidEnabledBox.Checked,
             pyramidItemMask,
-            crimsonEnabledBox.Checked,
+            crimsonEnabledBox.Checked && GetSelectedInt(evilBox, 2) == 2,
             GetSelectedCrimsonDistance(),
             resourceItemMask,
             GetSelectedMinimum(lifeCrystalMinimumButtons, AutoCreateResourceMinimum.LifeCrystals),
@@ -3048,7 +3048,7 @@ internal sealed class RaceForm : Form
 
     private void UpdateCheatAvailability()
     {
-        bool cheatsEnabled = cheatsEnabledBox.Checked && GetSelectedInt(sizeBox, 2) == 1 && GetSelectedInt(evilBox, 2) == 2;
+        bool cheatsEnabled = cheatsEnabledBox.Checked;
         UpdateMinimumAvailability(pyramidDepthButtons, cheatsEnabled && pyramidEnabledBox.Checked);
         UpdateMinimumAvailability(starfuryDistanceButtons, cheatsEnabled);
         UpdateMinimumAvailability(finchStaffDistanceButtons, cheatsEnabled);

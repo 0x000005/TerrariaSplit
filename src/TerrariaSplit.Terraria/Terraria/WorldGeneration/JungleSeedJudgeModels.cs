@@ -4,15 +4,16 @@ namespace TerrariaSplit.Terraria.WorldGeneration;
 
 internal static class JungleSeedJudgeProtocol
 {
-    public const int Version = 5;
-    public const string CompatibilityId = "terraria-1.4.5.8-resource-judge-filter-v5-pass97";
+    public const int Version = 6;
+    public const string CompatibilityId = "terraria-1.4.5.8-resource-judge-filter-v6-sizes-pass97";
 }
 
 internal sealed record ResourceJudgeRequirements(
     int PyramidItemMask = 0, int PyramidGoldMinimum = 0, int PyramidMaximumDepth = 0,
     int CrimsonMaximumDistance = 0, int JungleMinimumY = 0, int JungleItemMask = 0,
     int LifeCrystalMinimum = 0, int SpelunkerPotionMinimum = 0, int FeatherfallPotionMinimum = 0,
-    int StarfuryMaximumDistance = 0, int FinchStaffMaximumDistance = 0)
+    int StarfuryMaximumDistance = 0, int FinchStaffMaximumDistance = 0,
+    int WorldSize = 1, int Evil = 2)
 {
     public bool HasResources => JungleItemMask != 0 || LifeCrystalMinimum != 0 || SpelunkerPotionMinimum != 0 || FeatherfallPotionMinimum != 0;
     public int EndPass => HasResources ? 97 : StarfuryMaximumDistance != 0 ? 69 : JungleMinimumY != 0 ? 59
@@ -24,9 +25,12 @@ internal sealed record ResourceJudgeRequirements(
     {
         int[] values = [PyramidItemMask, PyramidGoldMinimum, PyramidMaximumDepth, CrimsonMaximumDistance, JungleMinimumY,
             JungleItemMask, LifeCrystalMinimum, SpelunkerPotionMinimum, FeatherfallPotionMinimum, StarfuryMaximumDistance, FinchStaffMaximumDistance];
-        if (values.Any(v => v < 0) || !values.Any(v => v > 0) || (PyramidItemMask & ~7) != 0 || (JungleItemMask & ~11) != 0 ||
-            PyramidMaximumDepth > 1200 || JungleMinimumY >= 1200 || CrimsonMaximumDistance > 2100 ||
-            StarfuryMaximumDistance > 2100 || FinchStaffMaximumDistance > 2100)
+        int width = WorldSize switch { 1 => 4200, 2 => 6400, 3 => 8400, _ => 0 };
+        int height = WorldSize switch { 1 => 1200, 2 => 1800, 3 => 2400, _ => 0 };
+        if (width == 0 || Evil is not (1 or 2) || (Evil == 1 && CrimsonMaximumDistance != 0) ||
+            values.Any(v => v < 0) || !values.Any(v => v > 0) || (PyramidItemMask & ~7) != 0 || (JungleItemMask & ~11) != 0 ||
+            PyramidMaximumDepth > height || JungleMinimumY >= height || CrimsonMaximumDistance > width / 2 ||
+            StarfuryMaximumDistance > width / 2 || FinchStaffMaximumDistance > width / 2)
             throw new ArgumentOutOfRangeException(nameof(ResourceJudgeRequirements), "Invalid resource filter requirements.");
     }
 }

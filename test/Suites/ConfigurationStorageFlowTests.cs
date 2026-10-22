@@ -9,7 +9,7 @@ internal static class ConfigurationStorageFlowTests
         yield return TestCase.Sync("settings save reports split-set write failures before writing the settings document", TestSuite.Flow, SplitSetWriteFailureIsReported);
         yield return TestCase.Sync("new settings are deep clones of the single embedded default template", TestSuite.Flow, CanonicalSettingsDefaults);
         yield return TestCase.Sync("switching routes preserves reference data owned by another profile", TestSuite.Flow, SwitchingRoutesPreservesInactiveReferenceData);
-        yield return TestCase.Sync("advanced world filters require a plain small Crimson world and fixed seeds disable every filter", TestSuite.Flow, AdvancedFilterEligibility);
+        yield return TestCase.Sync("advanced world filters support all sizes and both evils while fixed seeds disable filtering", TestSuite.Flow, AdvancedFilterEligibility);
         yield return TestCase.Sync("split time and run statistics persist through injected runtime paths", TestSuite.Flow, SplitAndRunStorageFlow);
         yield return TestCase.Sync("corrupt settings recover to usable defaults without escaping the data root", TestSuite.Flow, CorruptSettingsRecovery);
     }
@@ -99,9 +99,10 @@ internal static class ConfigurationStorageFlowTests
         Check.Equal(
             RaceBossPenaltySettings.MaximumSeconds,
             loaded.Race.BossPenalty.Skeletron.ClassicProportionalSeconds);
-        Check.False(loaded.Race.WorldSetup.CrimsonEnabled);
-        Check.Equal(AutoCreateJungleRouteDepth.None, loaded.Race.WorldSetup.JungleRouteDepth);
-        Check.Equal(0, loaded.Race.WorldSetup.LifeCrystalMinimum);
+        Check.True(loaded.Race.WorldSetup.CrimsonEnabled); // Selection persists; Corruption never submits it.
+        Check.False(AutoCreateAdvancedFilterEligibility.IsCrimsonEligible(loaded.Race.WorldSetup.WorldEvil));
+        Check.Equal(AutoCreateJungleRouteDepth.Medium, loaded.Race.WorldSetup.JungleRouteDepth);
+        Check.Equal(5, loaded.Race.WorldSetup.LifeCrystalMinimum);
         Check.True(loaded.Race.Voice.Enabled);
         Check.Equal("Test Voice", loaded.Race.Voice.VoiceName);
         Check.Equal(200, loaded.Race.Voice.SpeedPercent);
@@ -284,19 +285,13 @@ internal static class ConfigurationStorageFlowTests
         Check.True(valid.RequireCrimsonBetweenDungeonAndSpawn);
         Check.Equal(AutoCreateJungleRouteDepth.Deep, valid.JungleRouteDepth);
 
-        foreach ((Action<AutoCreateWorldSettings> makeUnsupported, bool pyramidRemainsEnabled) in new (Action<AutoCreateWorldSettings>, bool)[]
-        {
-            (settings => settings.WorldSize = AutoCreateWorldSize.Medium, true),
-            (settings => settings.WorldEvil = AutoCreateWorldEvil.Corruption, true),
-            (settings => settings.SpecialSeeds = AutoCreateSpecialWorldSeed.NotTheBees, true),
-            (settings => settings.SecretSeeds = "secret", true),
-            (settings => settings.FixedSeed = "  12345  ", false)
-        })
+        foreach (string size in AutoCreateWorldSize.All)
+        foreach (string evil in new[] { AutoCreateWorldEvil.Crimson, AutoCreateWorldEvil.Corruption })
         {
             var unsupported = new AutoCreateWorldSettings
             {
-                WorldSize = AutoCreateWorldSize.Small,
-                WorldEvil = AutoCreateWorldEvil.Crimson,
+                WorldSize = size,
+                WorldEvil = evil,
                 EnableCheats = true,
                 EnablePyramidFilter = true,
                 RequireCrimsonBetweenDungeonAndSpawn = true,
@@ -306,20 +301,13 @@ internal static class ConfigurationStorageFlowTests
                 ResourceFilterSpelunkerPotionMinimum = 3,
                 ResourceFilterFeatherfallPotionMinimum = 3
             };
-            makeUnsupported(unsupported);
             SettingsSectionNormalizer.NormalizeAutoCreate(unsupported);
+            Check.True(AutoCreateAdvancedFilterEligibility.IsEligible(unsupported));
+            Check.True(unsupported.EnablePyramidFilter);
+            Check.Equal(AutoCreateJungleRouteDepth.VeryDeep, unsupported.JungleRouteDepth);
+            unsupported.FixedSeed="  12345  ";SettingsSectionNormalizer.NormalizeAutoCreate(unsupported);
+            Check.Equal("12345",unsupported.FixedSeed);
             Check.False(AutoCreateAdvancedFilterEligibility.IsEligible(unsupported));
-            Check.Equal(pyramidRemainsEnabled, unsupported.EnablePyramidFilter);
-            if (!pyramidRemainsEnabled)
-            {
-                Check.Equal("12345", unsupported.FixedSeed);
-            }
-            Check.False(unsupported.RequireCrimsonBetweenDungeonAndSpawn);
-            Check.Equal(AutoCreateJungleRouteDepth.None, unsupported.JungleRouteDepth);
-            Check.Equal(0, unsupported.ResourceFilterItemMask);
-            Check.Equal(0, unsupported.ResourceFilterLifeCrystalMinimum);
-            Check.Equal(0, unsupported.ResourceFilterSpelunkerPotionMinimum);
-            Check.Equal(0, unsupported.ResourceFilterFeatherfallPotionMinimum);
         }
     }
 

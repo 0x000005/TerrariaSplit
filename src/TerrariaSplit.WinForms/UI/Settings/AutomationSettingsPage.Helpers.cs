@@ -587,12 +587,13 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
                     autoCreateSecretSeedsBox.Text);
             bool supportsAdvancedFilters = cheatsEnabled && eligibleForAdvancedFilters;
 
-            autoCreateCrimsonBetweenDungeonAndSpawnBox.Enabled = supportsAdvancedFilters;
-            autoCreateCrimsonBetweenDungeonAndSpawnBox.ForeColor = supportsAdvancedFilters
+            bool supportsCrimson = supportsAdvancedFilters && AutoCreateAdvancedFilterEligibility.IsCrimsonEligible(selectedWorldEvil);
+            autoCreateCrimsonBetweenDungeonAndSpawnBox.Enabled = supportsCrimson;
+            autoCreateCrimsonBetweenDungeonAndSpawnBox.ForeColor = supportsCrimson
                 ? UiTheme.Text
                 : UiTheme.MutedText;
             UpdateSpecialSeedButtonState(autoCreateCrimsonBetweenDungeonAndSpawnBox);
-            bool crimsonDistanceEnabled = supportsAdvancedFilters && autoCreateCrimsonBetweenDungeonAndSpawnBox.Checked;
+            bool crimsonDistanceEnabled = supportsCrimson && autoCreateCrimsonBetweenDungeonAndSpawnBox.Checked;
             foreach (CheckBox button in autoCreateCrimsonDistanceBoxes.Values)
             {
                 button.Enabled = crimsonDistanceEnabled;

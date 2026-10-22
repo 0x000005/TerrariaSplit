@@ -36,7 +36,7 @@ internal static class CheatFilterIndicator
 
         if ((settings.EnablePyramidFilter &&
                 AutoCreatePyramidCoinPileMinimum.Normalize(settings.PyramidFilterCoinPileMinimum) > 0) ||
-            settings.RequireCrimsonBetweenDungeonAndSpawn ||
+            (settings.RequireCrimsonBetweenDungeonAndSpawn && AutoCreateAdvancedFilterEligibility.IsCrimsonEligible(settings.WorldEvil)) ||
             (settings.EnablePyramidFilter && settings.PyramidMaximumDepth > 0) ||
             AutoCreateJungleRouteDepth.Normalize(settings.JungleRouteDepth) != AutoCreateJungleRouteDepth.None)
         {

@@ -32,7 +32,7 @@ internal sealed class WorldSeedFilterEvaluator : IDisposable
     {
         return settings.EnableCheats &&
             AutoCreateAdvancedFilterEligibility.IsEligible(settings) &&
-            (settings.EnablePyramidFilter || settings.RequireCrimsonBetweenDungeonAndSpawn ||
+            (settings.EnablePyramidFilter || (settings.RequireCrimsonBetweenDungeonAndSpawn && AutoCreateAdvancedFilterEligibility.IsCrimsonEligible(settings.WorldEvil)) ||
              AutoCreateResourceFilter.HasRequirements(settings));
     }
 
@@ -207,31 +207,30 @@ internal sealed class WorldSeedFilterEvaluator : IDisposable
 
     internal static ResourceJudgeRequirements RequestedRequirements(AutoCreateWorldSettings settings)
     {
-        const int smallWorldWidth = 4200;
+        int worldWidth = AutoCreateWorldSize.Width(settings.WorldSize);
+        int worldHeight = AutoCreateWorldSize.Height(settings.WorldSize);
         bool pyramid = settings.EnableCheats && settings.EnablePyramidFilter && AutoCreateAdvancedFilterEligibility.IsEligible(settings);
         return new ResourceJudgeRequirements(
             PyramidItemMask: pyramid ? AutoCreatePyramidFilterItem.NormalizeMaskOrAll(settings.PyramidFilterItemMask) : 0,
             PyramidGoldMinimum: pyramid ? AutoCreatePyramidCoinPileMinimum.Normalize(settings.PyramidFilterCoinPileMinimum) : 0,
             PyramidMaximumDepth: pyramid ? AutoCreatePyramidFilterDepth.Normalize(settings.PyramidMaximumDepth) : 0,
-            CrimsonMaximumDistance: settings.RequireCrimsonBetweenDungeonAndSpawn ? AutoCreateCrimsonDistance.MaximumDistanceTiles(smallWorldWidth, settings.CrimsonDistance) : 0,
-            JungleMinimumY: AutoCreateJungleRouteDepth.MinimumY(settings.JungleRouteDepth),
+            CrimsonMaximumDistance: settings.RequireCrimsonBetweenDungeonAndSpawn && AutoCreateAdvancedFilterEligibility.IsCrimsonEligible(settings.WorldEvil) ? AutoCreateCrimsonDistance.MaximumDistanceTiles(worldWidth, settings.CrimsonDistance) : 0,
+            JungleMinimumY: AutoCreateJungleRouteDepth.MinimumY(settings.JungleRouteDepth, worldHeight),
             JungleItemMask: AutoCreateResourceFilterItem.NormalizeMask(settings.ResourceFilterItemMask),
             LifeCrystalMinimum: Math.Max(0, settings.ResourceFilterLifeCrystalMinimum),
             SpelunkerPotionMinimum: Math.Max(0, settings.ResourceFilterSpelunkerPotionMinimum),
             FeatherfallPotionMinimum: Math.Max(0, settings.ResourceFilterFeatherfallPotionMinimum),
-            StarfuryMaximumDistance: AutoCreateItemDistance.NormalizeStarfury(settings.StarfuryMaximumDistance),
-            FinchStaffMaximumDistance: AutoCreateItemDistance.NormalizeFinchStaff(settings.FinchStaffMaximumDistance));
+            StarfuryMaximumDistance: AutoCreateItemDistance.StarfuryMaximum(settings.StarfuryMaximumDistance, worldWidth),
+            FinchStaffMaximumDistance: AutoCreateItemDistance.FinchStaffMaximum(settings.FinchStaffMaximumDistance, worldWidth),
+            WorldSize: TerrariaWorldSeedOptions.SizeCode(settings.WorldSize),
+            Evil: AutoCreateAdvancedFilterEligibility.IsCrimsonEligible(settings.WorldEvil) ? 2 : 1);
     }
 
     private static string? UnsupportedJudgeScope(AutoCreateWorldSettings settings)
     {
-        if (AutoCreateWorldSize.Normalize(settings.WorldSize) != AutoCreateWorldSize.Small)
+        if (AutoCreateWorldEvil.Normalize(settings.WorldEvil) == AutoCreateWorldEvil.Random)
         {
-            return "seed judge supports Small worlds only";
-        }
-        if (AutoCreateWorldEvil.Normalize(settings.WorldEvil) != AutoCreateWorldEvil.Crimson)
-        {
-            return "seed judge supports Crimson worlds only";
+            return "seed judge requires an explicit Crimson or Corruption world";
         }
         return null;
     }

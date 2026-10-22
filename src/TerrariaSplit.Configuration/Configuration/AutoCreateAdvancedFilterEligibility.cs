@@ -7,14 +7,11 @@ public static class AutoCreateAdvancedFilterEligibility
         string? worldEvil,
         string? specialSeeds,
         string? secretSeeds) =>
-        string.Equals(
-            AutoCreateWorldSize.Normalize(worldSize),
-            AutoCreateWorldSize.Small,
-            StringComparison.Ordinal) &&
-        string.Equals(
-            AutoCreateWorldEvil.Normalize(worldEvil),
-            AutoCreateWorldEvil.Crimson,
-            StringComparison.Ordinal);
+        AutoCreateWorldSize.All.Contains(AutoCreateWorldSize.Normalize(worldSize)) &&
+        AutoCreateWorldEvil.Normalize(worldEvil) is AutoCreateWorldEvil.Crimson or AutoCreateWorldEvil.Corruption;
+
+    public static bool IsCrimsonEligible(string? worldEvil) =>
+        AutoCreateWorldEvil.Normalize(worldEvil) == AutoCreateWorldEvil.Crimson;
 
     public static bool IsEligible(AutoCreateWorldSettings settings) =>
         string.IsNullOrWhiteSpace(settings.FixedSeed) &&
@@ -36,7 +33,6 @@ public static class AutoCreateAdvancedFilterEligibility
         bool hasCrimson,
         int specialSeedMask,
         string? secretSeeds) =>
-        worldSizeCode == 1 &&
-        hasCrimson;
+        worldSizeCode is >= 1 and <= 3;
 
 }

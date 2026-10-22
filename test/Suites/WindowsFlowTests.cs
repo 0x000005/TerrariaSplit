@@ -283,10 +283,10 @@ internal static class WindowsFlowTests
         Check.Equal(7, automation.AutoCreateLifeCrystalMinimumBoxes.Count);
         Check.Equal("6+", automation.AutoCreateLifeCrystalMinimumBoxes[6].Text);
         Check.False(automation.AutoCreateLifeCrystalMinimumBoxes[6].AutoEllipsis);
-        Check.False(automation.AutoCreatePyramidFilterBox.Enabled);
-        Check.False(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Enabled);
+        Check.True(automation.AutoCreatePyramidFilterBox.Enabled);
+        Check.True(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Enabled);
         Check.True(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Checked);
-        Check.False(automation.AutoCreateJungleRouteDepthBox.Enabled);
+        Check.True(automation.AutoCreateJungleRouteDepthBox.Enabled);
         automation.AutoCreateCheatsBox.Checked = true;
         automation.AutoCreateWorldSizeBox.SelectedIndex = Array.IndexOf(AutoCreateWorldSize.All, AutoCreateWorldSize.Small);
         automation.AutoCreatePyramidFilterBox.Checked = true;

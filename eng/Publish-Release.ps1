@@ -77,10 +77,10 @@ $worldFilterSource = $null
 if ($publishClient) {
     $physicalRepositoryRoot = [System.IO.Directory]::ResolveLinkTarget($repositoryRoot, $true)
     $worldFilterCandidates = @(
-        Join-Path (Split-Path -Parent $repositoryRoot) 'TerrariaResourceJudge/out/resourcejudge-pgo/current/TerrariaSplit.WorldFilter.dll'
+        Join-Path (Split-Path -Parent $repositoryRoot) 'TerrariaResourceJudge/out/resourcejudge-release/current/TerrariaSplit.WorldFilter.dll'
     )
     if ($null -ne $physicalRepositoryRoot) {
-        $worldFilterCandidates += Join-Path (Split-Path -Parent $physicalRepositoryRoot.FullName) 'TerrariaResourceJudge/out/resourcejudge-pgo/current/TerrariaSplit.WorldFilter.dll'
+        $worldFilterCandidates += Join-Path (Split-Path -Parent $physicalRepositoryRoot.FullName) 'TerrariaResourceJudge/out/resourcejudge-release/current/TerrariaSplit.WorldFilter.dll'
     }
 
     $worldFilterSource = $worldFilterCandidates |

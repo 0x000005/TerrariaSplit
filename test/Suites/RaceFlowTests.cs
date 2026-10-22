@@ -635,13 +635,13 @@ internal static class RaceFlowTests
             SizeCode = 2,
             Cheats = restored.WorldSettings.Cheats with { PyramidEnabled = false }
         };
-        Check.False(RaceWorldSettingsFactory.HasActiveFilters(unsupportedAdvancedFilters));
+        Check.True(RaceWorldSettingsFactory.HasActiveFilters(unsupportedAdvancedFilters));
         AutoCreateWorldSettings unsupportedGeneratedSettings =
             RaceWorldSettingsFactory.ToAutoCreateWorldSettings(unsupportedAdvancedFilters);
-        Check.False(unsupportedGeneratedSettings.RequireCrimsonBetweenDungeonAndSpawn);
-        Check.Equal(AutoCreateJungleRouteDepth.None, unsupportedGeneratedSettings.JungleRouteDepth);
-        Check.Equal(0, unsupportedGeneratedSettings.ResourceFilterItemMask);
-        Check.Equal(0, unsupportedGeneratedSettings.ResourceFilterLifeCrystalMinimum);
+        Check.True(unsupportedGeneratedSettings.RequireCrimsonBetweenDungeonAndSpawn);
+        Check.Equal(AutoCreateJungleRouteDepth.VeryDeep, unsupportedGeneratedSettings.JungleRouteDepth);
+        Check.Equal(AutoCreateResourceFilterItem.BoomstickMask, unsupportedGeneratedSettings.ResourceFilterItemMask);
+        Check.Equal(6, unsupportedGeneratedSettings.ResourceFilterLifeCrystalMinimum);
         Check.True(RaceWorldSettingsFactory.HasActiveFilters(
             unsupportedAdvancedFilters with
             {

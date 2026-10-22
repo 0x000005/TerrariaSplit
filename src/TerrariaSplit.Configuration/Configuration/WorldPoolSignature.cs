@@ -48,7 +48,7 @@ public static class WorldPoolSignature
             ? AutoCreatePyramidFilterItem.NormalizeMaskOrAll(autoCreate.PyramidFilterItemMask)
             : 0;
         string pyramidItems = "pyramidItems=" + pyramidItemMask.ToString(CultureInfo.InvariantCulture);
-        string pyramidDepth = "resourceFilterV5PyramidItems2;pyramidMaxDepth=" + (pyramidEnabled
+        string pyramidDepth = "resourceFilterV6Sizes;pyramidMaxDepth=" + (pyramidEnabled
             ? AutoCreatePyramidFilterDepth.Normalize(autoCreate.PyramidMaximumDepth)
             : 0).ToString(CultureInfo.InvariantCulture);
         int pyramidCoinPileMinimum = pyramidEnabled
@@ -57,7 +57,7 @@ public static class WorldPoolSignature
         string pyramidCoinPiles = "pyramidGoldCoinPiles=" + pyramidCoinPileMinimum.ToString(CultureInfo.InvariantCulture);
         bool advancedFiltersEligible = AutoCreateAdvancedFilterEligibility.IsEligible(autoCreate);
         bool crimsonCorridorEnabled = cheatsEnabled && advancedFiltersEligible &&
-            autoCreate.RequireCrimsonBetweenDungeonAndSpawn;
+            autoCreate.RequireCrimsonBetweenDungeonAndSpawn && AutoCreateAdvancedFilterEligibility.IsCrimsonEligible(autoCreate.WorldEvil);
         string crimsonCorridor = crimsonCorridorEnabled
             ? "crimsonCorridor=" + AutoCreateCrimsonDistance.Normalize(autoCreate.CrimsonDistance)
             : "crimsonCorridor=0";

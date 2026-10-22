@@ -272,7 +272,7 @@ internal sealed class JungleSeedJudgeNativeClient
                         libraryHandle,
                         "TerrariaSplitWorldFilterGetAbiVersion");
                 int abiVersion = getAbiVersion();
-                if (abiVersion != 5)
+                if (abiVersion != 6)
                 {
                     throw new InvalidDataException(
                         $"Unsupported native world-filter ABI {abiVersion}.");
@@ -374,7 +374,7 @@ internal sealed class JungleSeedJudgeNativeClient
         public readonly uint Size;
         public readonly int PyramidItemMask, PyramidGoldMinimum, PyramidMaximumDepth, CrimsonMaximumDistance,
             JungleMinimumY, JungleItemMask, LifeCrystalMinimum, SpelunkerPotionMinimum, FeatherfallPotionMinimum,
-            StarfuryMaximumDistance, FinchStaffMaximumDistance;
+            StarfuryMaximumDistance, FinchStaffMaximumDistance, WorldSize, Evil;
         public NativeRequirements(ResourceJudgeRequirements q)
         {
             Size = (uint)Marshal.SizeOf<NativeRequirements>();
@@ -383,6 +383,7 @@ internal sealed class JungleSeedJudgeNativeClient
             LifeCrystalMinimum = q.LifeCrystalMinimum; SpelunkerPotionMinimum = q.SpelunkerPotionMinimum;
             FeatherfallPotionMinimum = q.FeatherfallPotionMinimum; StarfuryMaximumDistance = q.StarfuryMaximumDistance;
             FinchStaffMaximumDistance = q.FinchStaffMaximumDistance;
+            WorldSize = q.WorldSize; Evil = q.Evil;
         }
     }
 
@@ -449,7 +450,7 @@ internal static class JungleSeedJudgeNativeLibraryLocator
                 directory.FullName,
                 "TerrariaResourceJudge",
                 "out",
-                "resourcejudge-pgo",
+                "resourcejudge-release",
                 "current",
                 LibraryFileName);
             directory = directory.Parent;

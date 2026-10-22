@@ -301,6 +301,7 @@ internal sealed partial class RaceShell
         bool busy)
     {
         bool advancedFiltersEligible = AutoCreateAdvancedFilterEligibility.IsEligible(setup);
+        bool crimsonEligible = advancedFiltersEligible && AutoCreateAdvancedFilterEligibility.IsCrimsonEligible(setup.WorldEvil);
         const string pyramidGroup = "primary-choice:pyramid";
         const string pyramidCoinPileGroup = "primary-choice:pyramid-coin-piles";
         const string crimsonGroup = "primary-choice:crimson";
@@ -377,14 +378,14 @@ internal sealed partial class RaceShell
             "crimson",
             Localize("Dungeon-side Crimson"),
             setup.CrimsonEnabled,
-            !busy && advancedFiltersEligible,
+            !busy && crimsonEligible,
             crimsonGroup);
         AddChoiceControls(
             controls,
             "crimson-distance:",
             AutoCreateCrimsonDistance.All,
             setup.CrimsonDistance,
-            !busy && advancedFiltersEligible && setup.CrimsonEnabled,
+            !busy && crimsonEligible && setup.CrimsonEnabled,
             crimsonGroup,
             isSelected: value =>
                 setup.CrimsonEnabled &&

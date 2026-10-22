@@ -1,15 +1,15 @@
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
     <TerrariaWorldFilterRepositoryRoot Condition="'$(TerrariaWorldFilterRepositoryRoot)' == ''">$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..\..\..\TerrariaResourceJudge'))</TerrariaWorldFilterRepositoryRoot>
-    <TerrariaWorldFilterSource Condition="'$(TerrariaWorldFilterSource)' == ''">$(TerrariaWorldFilterRepositoryRoot)\out\resourcejudge-pgo\current\TerrariaSplit.WorldFilter.dll</TerrariaWorldFilterSource>
+    <TerrariaWorldFilterSource Condition="'$(TerrariaWorldFilterSource)' == ''">$(TerrariaWorldFilterRepositoryRoot)\out\resourcejudge-release\current\TerrariaSplit.WorldFilter.dll</TerrariaWorldFilterSource>
     <TerrariaWorldFilterRequired Condition="'$(TerrariaWorldFilterRequired)' == '' and '$(Configuration)' == 'Release'">true</TerrariaWorldFilterRequired>
   </PropertyGroup>
 
   <ItemGroup Condition="Exists('$(TerrariaWorldFilterSource)')">
     <Content Include="$(TerrariaWorldFilterSource)"
              Link="TerrariaSplit.WorldFilter.dll"
-             CopyToOutputDirectory="PreserveNewest"
-             CopyToPublishDirectory="PreserveNewest" />
+             CopyToOutputDirectory="Always"
+             CopyToPublishDirectory="Always" />
   </ItemGroup>
 
   <Target Name="ValidateRequiredTerrariaWorldFilter"
@@ -25,7 +25,7 @@
       <TerrariaWorldFilterPublishedFile Include="$(TerrariaWorldFilterSource)" />
       <ResolvedFileToPublish Include="@(TerrariaWorldFilterPublishedFile)">
         <RelativePath>TerrariaSplit.WorldFilter.dll</RelativePath>
-        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+        <CopyToPublishDirectory>Always</CopyToPublishDirectory>
       </ResolvedFileToPublish>
     </ItemGroup>
   </Target>
@@ -35,6 +35,6 @@
           Condition="'$(PublishDir)' != '' and Exists('$(TerrariaWorldFilterSource)')">
     <Copy SourceFiles="$(TerrariaWorldFilterSource)"
           DestinationFiles="$(PublishDir)TerrariaSplit.WorldFilter.dll"
-          SkipUnchangedFiles="true" />
+          SkipUnchangedFiles="false" />
   </Target>
 </Project>

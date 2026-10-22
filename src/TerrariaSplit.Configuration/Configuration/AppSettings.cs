@@ -550,6 +550,16 @@ public static class AutoCreateWorldSize
 
     public static readonly string[] All = { Small, Medium, Large };
 
+    public static int Width(string? size) => Normalize(size) switch
+    {
+        Medium => 6400, Large => 8400, _ => 4200
+    };
+
+    public static int Height(string? size) => Normalize(size) switch
+    {
+        Medium => 1800, Large => 2400, _ => 1200
+    };
+
     public static string Normalize(string? value)
     {
         return All.FirstOrDefault(option => string.Equals(option, value, StringComparison.OrdinalIgnoreCase)) ?? Small;
@@ -643,13 +653,13 @@ public static class AutoCreateJungleRouteDepth
         return selectedIndex >= 0 && candidateIndex >= selectedIndex;
     }
 
-    public static int MinimumY(string? depth) => Normalize(depth) switch
+    public static int MinimumY(string? depth, int worldHeight = 1200) => (Normalize(depth) switch
     {
         Medium => 550,
         Deep => 650,
         VeryDeep => 750,
         _ => 0
-    };
+    }) * worldHeight / 1200;
 }
 
 public static class AutoCreatePyramidFilterDepth
@@ -671,6 +681,9 @@ public static class AutoCreateItemDistance
 
     public static int NormalizeStarfury(int value) => Starfury.Contains(value) ? value : 0;
     public static int NormalizeFinchStaff(int value) => FinchStaff.Contains(value) ? value : 0;
+
+    public static int StarfuryMaximum(int value, int worldWidth) => NormalizeStarfury(value) * worldWidth / 4200;
+    public static int FinchStaffMaximum(int value, int worldWidth) => NormalizeFinchStaff(value) * worldWidth / 4200;
     public static string StarfuryLabel(int value) => value switch
     {
         100 => "Extremely near", 200 => "Very near", 300 => "Near", _ => "Starfury"

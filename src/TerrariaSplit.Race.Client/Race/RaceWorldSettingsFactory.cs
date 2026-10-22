@@ -25,7 +25,9 @@ public static class RaceWorldSettingsFactory
             settings.SpecialSeedMask,
             settings.SecretSeeds);
         return advancedFiltersEligible &&
-            (cheats.PyramidEnabled || cheats.CrimsonEnabled ||
+            (cheats.PyramidEnabled || (settings.HasCrimson && cheats.CrimsonEnabled) ||
+             AutoCreateItemDistance.NormalizeStarfury(cheats.StarfuryMaximumDistance) > 0 ||
+             AutoCreateItemDistance.NormalizeFinchStaff(cheats.FinchStaffMaximumDistance) > 0 ||
              AutoCreateJungleRouteDepth.Normalize(cheats.JungleRouteDepth) != AutoCreateJungleRouteDepth.None ||
              AutoCreateResourceFilterItem.NormalizeMask(cheats.ResourceItemMask) != 0 ||
              AutoCreateResourceMinimum.NormalizeLifeCrystals(cheats.LifeCrystalMinimum) > 0 ||
@@ -73,7 +75,7 @@ public static class RaceWorldSettingsFactory
             PyramidFilterItemMask = AutoCreatePyramidFilterItem.NormalizeMask(cheats.PyramidItemMask),
             PyramidFilterCoinPileMinimum = AutoCreatePyramidCoinPileMinimum.Normalize(cheats.PyramidCoinPileMinimum),
             PyramidMaximumDepth = AutoCreatePyramidFilterDepth.Normalize(cheats.PyramidMaximumDepth),
-            RequireCrimsonBetweenDungeonAndSpawn = cheats.CrimsonEnabled,
+            RequireCrimsonBetweenDungeonAndSpawn = settings.HasCrimson && cheats.CrimsonEnabled,
             CrimsonDistance = AutoCreateCrimsonDistance.Normalize(cheats.CrimsonDistance),
             JungleRouteDepth = AutoCreateJungleRouteDepth.Normalize(cheats.JungleRouteDepth),
             StarfuryMaximumDistance = AutoCreateItemDistance.NormalizeStarfury(cheats.StarfuryMaximumDistance),

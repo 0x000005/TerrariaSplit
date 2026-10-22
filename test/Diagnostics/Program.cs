@@ -9,7 +9,7 @@ internal static class Program
             PyramidDepthReport.TryRun(args) ||
             PyramidPreScreenTrace.TryRun(args) ||
             JungleTunnelTrace.TryRun(args) ||
-            WorldFilterStress.TryRun(args) || FilterQuotaMetrics.TryRun(args))
+            WorldFilterStress.TryRun(args) || FilterQuotaMetrics.TryRun(args) || LegacyPreScreenLoss.TryRun(args))
         {
             return 0;
         }

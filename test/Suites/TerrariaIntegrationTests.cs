@@ -23,7 +23,9 @@ internal static class TerrariaIntegrationTests
         yield return TestCase.Sync("diagnostic world scanner measures the opening-side surface distance", TestSuite.Core, PyramidWorldScannerDepth);
         yield return TestCase.Async("native jungle seed judge preserves protocol and returns seed-only analysis", TestSuite.Native, JungleSeedJudgeNativeJourney, timeoutSeconds: 90);
         yield return TestCase.Async("native pyramid filters distinguish sandstorm bottle from flying carpet", TestSuite.Native, PyramidItemIdentity, timeoutSeconds: 90);
-        yield return TestCase.Sync("resource judge v5 rejects legacy and incomplete protocol payloads", TestSuite.Core, ResourceJudgeProtocolV2);
+        yield return TestCase.Sync("resource judge v6 rejects legacy and incomplete protocol payloads", TestSuite.Core, ResourceJudgeProtocolV2);
+        yield return TestCase.Sync("resource judge scales world-size thresholds and disables Crimson in Corruption", TestSuite.Core, ResourceJudgeWorldSizes);
+        yield return TestCase.Async("native resource judge ABI6 accepts every world size and evil", TestSuite.Native, ResourceJudgeNativeWorldSizes, timeoutSeconds: 180);
         yield return TestCase.Sync("resource judge validates early reject metadata", TestSuite.Core, ResourceJudgeSkyProtocol);
         yield return TestCase.Async("resource judge releases partial thread budgets and charges one slot for single threading", TestSuite.Core, ResourceJudgeThreadBudget);
         yield return TestCase.Async("resource judge combines enabled filters into one generation request", TestSuite.Core, ResourceJudgeSingleGeneration);
@@ -437,6 +439,49 @@ internal static class TerrariaIntegrationTests
         Check.Equal("world lock failure", worldLockFailure);
     }
 
+    private static void ResourceJudgeWorldSizes()
+    {
+        foreach (var (size, code, ys, stars, finches, crimson) in new[] {
+            (AutoCreateWorldSize.Small, 1, new[] {550,650,750}, new[] {100,200,300}, new[] {300,500,800}, new[] {525,945,2100}),
+            (AutoCreateWorldSize.Medium, 2, new[] {825,975,1125}, new[] {152,304,457}, new[] {457,761,1219}, new[] {800,1440,3200}),
+            (AutoCreateWorldSize.Large, 3, new[] {1100,1300,1500}, new[] {200,400,600}, new[] {600,1000,1600}, new[] {1050,1890,4200}) })
+        foreach (string evil in new[] { AutoCreateWorldEvil.Crimson, AutoCreateWorldEvil.Corruption })
+        for (int tier=0; tier<3; tier++)
+        {
+            var settings = new AutoCreateWorldSettings { WorldSize=size, WorldEvil=evil, EnableCheats=true,
+                EnablePyramidFilter=true, PyramidFilterItemMask=3, PyramidFilterCoinPileMinimum=2, PyramidMaximumDepth=15,
+                RequireCrimsonBetweenDungeonAndSpawn=true, CrimsonDistance=AutoCreateCrimsonDistance.All[tier],
+                JungleRouteDepth=AutoCreateJungleRouteDepth.All[tier],
+                StarfuryMaximumDistance=AutoCreateItemDistance.Starfury[tier+1],
+                FinchStaffMaximumDistance=AutoCreateItemDistance.FinchStaff[tier+1], ResourceFilterLifeCrystalMinimum=3 };
+            Check.True(AutoCreateAdvancedFilterEligibility.IsEligible(settings));
+            Check.True(WorldSeedFilterEvaluator.IsEnabledFor(settings));
+            var q=WorldSeedFilterEvaluator.RequestedRequirements(settings);q.Validate();
+            Check.Equal(code,q.WorldSize);Check.Equal(evil==AutoCreateWorldEvil.Crimson?2:1,q.Evil);
+            Check.Equal(ys[tier],q.JungleMinimumY);Check.Equal(stars[tier],q.StarfuryMaximumDistance);
+            Check.Equal(finches[tier],q.FinchStaffMaximumDistance);
+            Check.Equal(evil==AutoCreateWorldEvil.Crimson?crimson[tier]:0,q.CrimsonMaximumDistance);
+            Check.Equal(15,q.PyramidMaximumDepth);Check.Equal(2,q.PyramidGoldMinimum);Check.Equal(3,q.LifeCrystalMinimum);
+            Check.Equal(97,q.EndPass);
+            settings.EnablePyramidFilter=false;settings.JungleRouteDepth=AutoCreateJungleRouteDepth.None;
+            settings.StarfuryMaximumDistance=0;settings.FinchStaffMaximumDistance=0;settings.ResourceFilterLifeCrystalMinimum=0;
+            Check.Equal(evil==AutoCreateWorldEvil.Crimson,WorldSeedFilterEvaluator.IsEnabledFor(settings));
+        }
+    }
+
+    private static async Task ResourceJudgeNativeWorldSizes(CancellationToken cancellationToken)
+    {
+        var client=new JungleSeedJudgeNativeClient(JungleSeedJudgeNativeLibraryLocator.ResolvePath(),TimeSpan.FromSeconds(60));
+        for(int size=1;size<=3;size++)for(int evil=1;evil<=2;evil++)
+        {
+            string seed=size==2 && evil==2?"492550619":"540278984";
+            var q=new ResourceJudgeRequirements(PyramidItemMask:7,WorldSize:size,Evil:evil);
+            var r=await client.AnalyzeAsync(seed,JungleSeedJudgeGameMode.Classic,cancellationToken,q,threads:1);
+            Check.True(r.Complete);Check.Equal(40,r.PlannedEndPass);Check.Equal("PyramidFast",r.ExecutionPath);
+            if((size==2 && evil==2) || (size==3 && evil==1))Check.Equal(JungleSeedJudgeDecision.Accepted,r.Decision!.Value);
+        }
+    }
+
     private static void ResourceJudgeProtocolV2()
     {
         var expected = CreateFilterJudgeResult("1", "protocol", JungleSeedJudgeStatus.Complete);
@@ -445,8 +490,8 @@ internal static class TerrariaIntegrationTests
         Check.True(JungleSeedJudgeProtocolSerializer.DeserializeResponse(json, "protocol").Complete);
         foreach (string invalid in new[]
         {
-            json.Replace("\"protocolVersion\":5", "\"protocolVersion\":4", StringComparison.Ordinal),
-            json.Replace("filter-v5-pass97", "analysis-v4-target-chests1", StringComparison.Ordinal),
+            json.Replace("\"protocolVersion\":6", "\"protocolVersion\":5", StringComparison.Ordinal),
+            json.Replace("filter-v6-sizes-pass97", "filter-v5-pass97", StringComparison.Ordinal),
             json.Replace("\"decision\":\"Accepted\"", "\"decision\":null", StringComparison.Ordinal),
             json[..^1] + ",\"metrics\":{}}"
         })
@@ -566,7 +611,7 @@ internal static class TerrariaIntegrationTests
         settings.EnablePyramidFilter = true;
         Check.Equal(53, WorldSeedFilterEvaluator.RequestedRequirements(settings).EndPass);
         settings.WorldSize = AutoCreateWorldSize.Large;
-        Check.False(WorldSeedFilterEvaluator.IsEnabledFor(settings));
+        Check.True(WorldSeedFilterEvaluator.IsEnabledFor(settings));
     }
 
     private static async Task BackgroundSeedFiltering(CancellationToken cancellationToken)
