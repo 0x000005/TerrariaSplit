@@ -8,14 +8,16 @@ internal sealed class WorldPoolSeedFilter : IDisposable
 {
     private readonly WorldSeedFilterEvaluator evaluator;
     private readonly Func<string> nextSeed;
+    private readonly Func<int> nextEvilCode;
     private int consecutiveCandidateFailures;
 
     public WorldPoolSeedFilter(int logicalProcessorCount, JungleSeedJudgeNativeClient? nativeClient = null,
-        Func<string>? nextSeed = null)
+        Func<string>? nextSeed = null, Func<int>? nextEvilCode = null)
     {
         Concurrency = CalculateConcurrency(logicalProcessorCount);
         evaluator = new WorldSeedFilterEvaluator(nativeClient, parallelCandidates: true);
         this.nextSeed = nextSeed ?? (() => TerrariaSeedRandom.NextShared().ToString(CultureInfo.InvariantCulture));
+        this.nextEvilCode = nextEvilCode ?? (() => TerrariaSeedRandom.NextShared(2) + 1);
     }
 
     public int Concurrency { get; }
@@ -29,11 +31,12 @@ internal sealed class WorldPoolSeedFilter : IDisposable
         TerrariaWorldGenerationVersion version, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        string[] seeds = Enumerable.Range(0, Concurrency).Select(_ => nextSeed()).ToArray();
-        IReadOnlyList<WorldSeedFilterPrediction> predictions = await evaluator.EvaluateBatchAsync(
-            settings, seeds, version, cancellationToken).ConfigureAwait(false);
-        var accepted = new List<string>();
-        for (int index = 0; index < predictions.Count; index++)
+        var candidates = Enumerable.Range(0, Concurrency).Select(_ =>
+            (Seed: nextSeed(), Settings: TerrariaWorldSeedOptions.ResolveRandomEvil(settings, nextEvilCode))).ToArray();
+        WorldSeedFilterPrediction[] predictions = await Task.WhenAll(candidates.Select(candidate => Task.Run(
+            () => evaluator.EvaluateAsync(candidate.Settings, candidate.Seed, version, cancellationToken), cancellationToken))).ConfigureAwait(false);
+        var accepted = new List<WorldPoolSeedCandidate>();
+        for (int index = 0; index < predictions.Length; index++)
         {
             WorldSeedFilterPrediction prediction = predictions[index];
             consecutiveCandidateFailures = WorldSeedFilterFailurePolicy.Advance(consecutiveCandidateFailures, prediction);
@@ -44,7 +47,8 @@ internal sealed class WorldPoolSeedFilter : IDisposable
                 Reset();
                 return new WorldPoolSeedFilterResult([], detail);
             }
-            if (prediction.AcceptSeed) accepted.Add(seeds[index]);
+            if (prediction.AcceptSeed) accepted.Add(new(candidates[index].Seed,
+                AutoCreateAdvancedFilterEligibility.IsCrimsonEligible(candidates[index].Settings.WorldEvil)));
         }
         return new WorldPoolSeedFilterResult(accepted, null);
     }
@@ -52,4 +56,13 @@ internal sealed class WorldPoolSeedFilter : IDisposable
     public void Dispose() => evaluator.Dispose();
 }
 
-internal readonly record struct WorldPoolSeedFilterResult(IReadOnlyList<string> AcceptedSeeds, string? Failure);
+internal readonly record struct WorldPoolSeedCandidate(string SeedText, bool HasCrimson)
+{
+    public AutoCreateWorldSettings GenerationSettings(AutoCreateWorldSettings settings)
+    {
+        int evilCode = HasCrimson ? TerrariaWorldSeedOptions.CrimsonEvilCode : TerrariaWorldSeedOptions.CorruptionEvilCode;
+        return TerrariaWorldSeedOptions.ResolveRandomEvil(settings, () => evilCode);
+    }
+}
+
+internal readonly record struct WorldPoolSeedFilterResult(IReadOnlyList<WorldPoolSeedCandidate> AcceptedSeeds, string? Failure);

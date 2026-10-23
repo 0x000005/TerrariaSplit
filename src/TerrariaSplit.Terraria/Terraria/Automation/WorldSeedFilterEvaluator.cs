@@ -223,14 +223,19 @@ internal sealed class WorldSeedFilterEvaluator : IDisposable
             StarfuryMaximumDistance: AutoCreateItemDistance.StarfuryMaximum(settings.StarfuryMaximumDistance, worldWidth),
             FinchStaffMaximumDistance: AutoCreateItemDistance.FinchStaffMaximum(settings.FinchStaffMaximumDistance, worldWidth),
             WorldSize: TerrariaWorldSeedOptions.SizeCode(settings.WorldSize),
-            Evil: AutoCreateAdvancedFilterEligibility.IsCrimsonEligible(settings.WorldEvil) ? 2 : 1);
+            Evil: AutoCreateWorldEvil.Normalize(settings.WorldEvil) switch
+            {
+                AutoCreateWorldEvil.Crimson => TerrariaWorldSeedOptions.CrimsonEvilCode,
+                AutoCreateWorldEvil.Corruption => TerrariaWorldSeedOptions.CorruptionEvilCode,
+                _ => throw new InvalidOperationException("Random world evil must be resolved before seed evaluation.")
+            });
     }
 
     private static string? UnsupportedJudgeScope(AutoCreateWorldSettings settings)
     {
         if (AutoCreateWorldEvil.Normalize(settings.WorldEvil) == AutoCreateWorldEvil.Random)
         {
-            return "seed judge requires an explicit Crimson or Corruption world";
+            return "Random world evil must be resolved before seed evaluation.";
         }
         return null;
     }

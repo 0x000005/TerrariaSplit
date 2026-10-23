@@ -553,7 +553,7 @@ internal sealed partial class RaceShell
         else if (id == "crimson")
         {
             RaceWorldSetupSettings setup = EnsureInGameWorldSetup();
-            if (AutoCreateAdvancedFilterEligibility.IsEligible(setup))
+            if (AutoCreateAdvancedFilterEligibility.IsEligible(setup) && AutoCreateAdvancedFilterEligibility.IsCrimsonEligible(setup.WorldEvil))
             {
                 setup.CrimsonEnabled = !setup.CrimsonEnabled;
             }
@@ -562,7 +562,7 @@ internal sealed partial class RaceShell
         else if (id.StartsWith("crimson-distance:", StringComparison.Ordinal))
         {
             RaceWorldSetupSettings setup = EnsureInGameWorldSetup();
-            if (AutoCreateAdvancedFilterEligibility.IsEligible(setup))
+            if (AutoCreateAdvancedFilterEligibility.IsEligible(setup) && AutoCreateAdvancedFilterEligibility.IsCrimsonEligible(setup.WorldEvil))
             {
                 setup.CrimsonDistance = id["crimson-distance:".Length..];
             }

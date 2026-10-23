@@ -66,6 +66,7 @@ internal sealed class HeadlessWorldGenerator : IDisposable
         IProgress<int>? progress = null,
         bool skipSeedFilter = false)
     {
+        settings = TerrariaWorldSeedOptions.ResolveRandomEvil(settings, () => TerrariaSeedRandom.NextShared(2) + 1);
         using HeadlessGenerationLease? lease = HeadlessGenerationLease.TryAcquire(GenerationMutexName);
         if (lease is null)
         {

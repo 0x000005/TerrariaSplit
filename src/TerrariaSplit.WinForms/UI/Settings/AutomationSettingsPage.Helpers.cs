@@ -940,7 +940,7 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
 
     private void AddDelaySection(TableLayoutPanel parent)
     {
-        TableLayoutPanel timingSection = Factory.CreateSection("Delay");
+        TableLayoutPanel timingSection = Factory.CreateSection("Terraria 1.4.4.9 delays");
         TableLayoutPanel timingGrid = Factory.CreateGrid(
             SettingsUiFactory.ColumnStylePercent(100f),
             SettingsUiFactory.ColumnStyleAbsolute(180f));

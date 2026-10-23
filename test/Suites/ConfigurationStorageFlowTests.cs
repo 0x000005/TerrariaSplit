@@ -9,7 +9,7 @@ internal static class ConfigurationStorageFlowTests
         yield return TestCase.Sync("settings save reports split-set write failures before writing the settings document", TestSuite.Flow, SplitSetWriteFailureIsReported);
         yield return TestCase.Sync("new settings are deep clones of the single embedded default template", TestSuite.Flow, CanonicalSettingsDefaults);
         yield return TestCase.Sync("switching routes preserves reference data owned by another profile", TestSuite.Flow, SwitchingRoutesPreservesInactiveReferenceData);
-        yield return TestCase.Sync("advanced world filters support all sizes and both evils while fixed seeds disable filtering", TestSuite.Flow, AdvancedFilterEligibility);
+        yield return TestCase.Sync("advanced world filters support all sizes and random evil while fixed seeds disable filtering", TestSuite.Flow, AdvancedFilterEligibility);
         yield return TestCase.Sync("split time and run statistics persist through injected runtime paths", TestSuite.Flow, SplitAndRunStorageFlow);
         yield return TestCase.Sync("corrupt settings recover to usable defaults without escaping the data root", TestSuite.Flow, CorruptSettingsRecovery);
     }
@@ -286,7 +286,7 @@ internal static class ConfigurationStorageFlowTests
         Check.Equal(AutoCreateJungleRouteDepth.Deep, valid.JungleRouteDepth);
 
         foreach (string size in AutoCreateWorldSize.All)
-        foreach (string evil in new[] { AutoCreateWorldEvil.Crimson, AutoCreateWorldEvil.Corruption })
+        foreach (string evil in AutoCreateWorldEvil.All)
         {
             var unsupported = new AutoCreateWorldSettings
             {
@@ -303,6 +303,8 @@ internal static class ConfigurationStorageFlowTests
             };
             SettingsSectionNormalizer.NormalizeAutoCreate(unsupported);
             Check.True(AutoCreateAdvancedFilterEligibility.IsEligible(unsupported));
+            Check.Equal(evil == AutoCreateWorldEvil.Crimson, AutoCreateAdvancedFilterEligibility.IsCrimsonEligible(evil));
+            Check.True(AutoCreateAdvancedFilterEligibility.IsEligible(new RaceWorldSetupSettings { WorldSize = size, WorldEvil = evil }));
             Check.True(unsupported.EnablePyramidFilter);
             Check.Equal(AutoCreateJungleRouteDepth.VeryDeep, unsupported.JungleRouteDepth);
             unsupported.FixedSeed="  12345  ";SettingsSectionNormalizer.NormalizeAutoCreate(unsupported);

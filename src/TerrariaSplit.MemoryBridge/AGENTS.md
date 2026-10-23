@@ -2,7 +2,7 @@
 
 ## 边界
 - 统一的 `win-x86` 内存控制单元，集中承载必须与 32 位 Terraria/CLR 同位数的 CLRMD 探测、受控内存读取和 Payload/Bootstrap 注入启动。
-- 只读命令包括 `runtime-layout <pid>` 和 `random-seed-batch <pid> <count>`，通过标准输出返回结构化 JSON；线协议统一定义在 `Protocol/MemoryBridgeProtocol.cs`，由消费方链接同一份源码。
+- 只读命令包括 `runtime-layout <pid>` 和 `random-seed-batch <pid> <count>`，通过标准输出返回结构化 JSON；线协议统一定义在 `Protocol/MemoryBridgeProtocol.cs`，由消费方链接同一份源码。`runtime-layout` 在同一次快照中解析监测布局和 1.4.5.8 菜单布局，并返回进程启动时间供消费方验证缓存归属；不另设菜单探测命令。
 - 控制命令包括 `inject <pid> <bootstrap dll> <command>`；它只负责校验参数、建立命名 IPC、注入受信任的随包 bootstrap 并等待结构化结果，不拥有竞速/计时业务决策。
 - 所有命令均为一次性调用；长期 watcher、UI 自动化、重试策略和业务状态仍由消费方拥有。
 

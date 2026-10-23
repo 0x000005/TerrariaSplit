@@ -313,7 +313,7 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
         SettingsUiFactory.AddSectionControl(
             createSection,
             Factory.CreateWrappedFieldLabel(
-                "If clicks are too fast for your computer to respond, adjust the delay settings at the bottom of this page.",
+                "Terraria 1.4.5.8 waits for game state automatically. Delay settings below apply to Terraria 1.4.4.9.",
                 UiTheme.Text));
 
         SettingsUiFactory.AddSectionControl(createSection, Factory.CreateSubsectionLabel("Player options"));

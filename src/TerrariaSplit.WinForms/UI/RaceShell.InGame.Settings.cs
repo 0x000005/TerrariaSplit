@@ -24,7 +24,7 @@ internal sealed partial class RaceShell
             advancedFiltersEligible,
             advancedFiltersEligible && setup.PyramidEnabled,
             setup.PyramidItemMask,
-            advancedFiltersEligible && hasCrimson && setup.CrimsonEnabled,
+            advancedFiltersEligible && AutoCreateAdvancedFilterEligibility.IsCrimsonEligible(setup.WorldEvil) && setup.CrimsonEnabled,
             setup.CrimsonDistance,
             advancedFiltersEligible ? setup.ResourceItemMask : 0,
             advancedFiltersEligible

@@ -41,6 +41,7 @@ internal static class TerrariaIntegrationTests
         yield return TestCase.Async("world seed filter keeps an uncertain partial jungle route", TestSuite.Native, WorldSeedFilterPartialRouteJourney, timeoutSeconds: 30);
         yield return TestCase.Sync("race seed filter concurrency uses eighty percent of processors", TestSuite.Core, RaceSeedFilterConcurrency);
         yield return TestCase.Async("background seed filtering uses rounded-up twenty percent concurrency and single-threaded DLL calls", TestSuite.Core, BackgroundSeedFiltering);
+        yield return TestCase.Async("random evil filters preserve each candidate evil through generation without enabling dormant Crimson filters", TestSuite.Core, RandomEvilFiltering);
         yield return TestCase.Sync("world pool consumption never removes the installed world copy", TestSuite.Flow, WorldPoolCopyLifecycle);
         yield return TestCase.Sync("race seed filtering skips isolated candidate failures and preserves the failure circuit", TestSuite.Core, RaceSeedCandidateFailureBatch);
         yield return TestCase.Async("race seed filter evaluates candidate seeds as one parallel batch", TestSuite.Native, RaceSeedFilterBatchJourney, timeoutSeconds: 15);
@@ -639,7 +640,7 @@ internal static class TerrariaIntegrationTests
         var batch = await filter.FilterBatchAsync(settings, TerrariaWorldGenerationVersion.Modern1458, cancellationToken);
         Check.Equal(2, maximumActive);
         Check.True(batch.Failure is null);
-        Check.Sequence(["2"], batch.AcceptedSeeds);
+        Check.Sequence(["2"], batch.AcceptedSeeds.Select(candidate => candidate.SeedText));
         using var cancelled = new CancellationTokenSource();
         cancelled.Cancel();
         await Check.ThrowsAsync<OperationCanceledException>(() => filter.FilterBatchAsync(settings,
@@ -654,6 +655,67 @@ internal static class TerrariaIntegrationTests
         Check.True((await failingFilter.FilterBatchAsync(settings, TerrariaWorldGenerationVersion.Modern1458, cancellationToken)).Failure is not null);
         failingFilter.Reset();
         Check.True((await failingFilter.FilterBatchAsync(settings, TerrariaWorldGenerationVersion.Modern1458, cancellationToken)).Failure is null);
+    }
+
+    private static async Task RandomEvilFiltering(CancellationToken token)
+    {
+        var settings = new AutoCreateWorldSettings
+        {
+            WorldEvil = AutoCreateWorldEvil.Random, EnableCheats = true, EnablePyramidFilter = true,
+            PyramidFilterItemMask = 7, PyramidMaximumDepth = 15, PyramidFilterCoinPileMinimum = 2,
+            RequireCrimsonBetweenDungeonAndSpawn = true, ResourceFilterLifeCrystalMinimum = 3,
+            StarfuryMaximumDistance = 200, FinchStaffMaximumDistance = 500
+        };
+        Check.True(WorldSeedFilterEvaluator.IsEnabledFor(settings));
+        foreach (int evilCode in new[] { 1, 2 })
+        {
+            int draws = 0;
+            var resolved = TerrariaWorldSeedOptions.ResolveRandomEvil(settings, () => { draws++; return evilCode; });
+            Check.Equal(1, draws);
+            Check.False(ReferenceEquals(settings, resolved));
+            Check.False(resolved.RequireCrimsonBetweenDungeonAndSpawn);
+            var unchanged = TerrariaWorldSeedOptions.ResolveRandomEvil(resolved, () => throw new InvalidOperationException("Evil must not be drawn twice."));
+            Check.True(ReferenceEquals(resolved, unchanged));
+            var requirements = WorldSeedFilterEvaluator.RequestedRequirements(resolved);
+            requirements.Validate();
+            Check.Equal(evilCode, requirements.Evil); Check.Equal(0, requirements.CrimsonMaximumDistance);
+            Check.Equal(7, requirements.PyramidItemMask); Check.Equal(15, requirements.PyramidMaximumDepth);
+            Check.Equal(2, requirements.PyramidGoldMinimum); Check.Equal(3, requirements.LifeCrystalMinimum);
+            Check.Equal(200, requirements.StarfuryMaximumDistance); Check.Equal(500, requirements.FinchStaffMaximumDistance);
+            TerrariaCopiedSeed world = TerrariaCopiedSeedBuilder.Create(resolved, "123", requirements.Evil);
+            Check.Equal(evilCode == 2, world.Metadata.HasCrimson);
+            Check.True(TerrariaWorldSeedOptions.EvilMatches(settings.WorldEvil, world.Metadata.HasCrimson));
+        }
+        Check.Equal(AutoCreateWorldEvil.Random, settings.WorldEvil);
+        Check.True(settings.RequireCrimsonBetweenDungeonAndSpawn);
+        Check.Throws<InvalidOperationException>(() => WorldSeedFilterEvaluator.RequestedRequirements(settings));
+
+        var requests = new System.Collections.Concurrent.ConcurrentDictionary<string, int>();
+        var client = new JungleSeedJudgeNativeClient((seed, _, id, requirements, threads) =>
+        {
+            Check.Equal(1, threads); Check.Equal(0, requirements.CrimsonMaximumDistance);
+            requests[seed] = requirements.Evil;
+            return CreateFilterJudgeResult(seed, id, JungleSeedJudgeStatus.Complete) with { Decision = JungleSeedJudgeDecision.Accepted };
+        }, TimeSpan.FromSeconds(5), new SemaphoreSlim(2, 2));
+        int sequence = 0, evilDraws = 0;
+        using var filter = new WorldPoolSeedFilter(8, client, () => (++sequence).ToString(), () => ++evilDraws);
+        var batch = await filter.FilterBatchAsync(settings, TerrariaWorldGenerationVersion.Modern1458, token);
+        Check.True(batch.Failure is null); Check.Equal(2, batch.AcceptedSeeds.Count);
+        Check.Equal(2, evilDraws);
+        foreach (WorldPoolSeedCandidate candidate in batch.AcceptedSeeds)
+        {
+            AutoCreateWorldSettings generation = candidate.GenerationSettings(settings);
+            ResourceJudgeRequirements requirements = WorldSeedFilterEvaluator.RequestedRequirements(generation);
+            Check.Equal(requests[candidate.SeedText], requirements.Evil);
+            Check.Equal(candidate.HasCrimson, requirements.Evil == 2);
+            Check.False(generation.RequireCrimsonBetweenDungeonAndSpawn);
+            Check.Equal(candidate.HasCrimson, TerrariaCopiedSeedBuilder.Create(generation, candidate.SeedText, requirements.Evil).Metadata.HasCrimson);
+        }
+        Check.Equal(AutoCreateWorldEvil.Random, settings.WorldEvil);
+        Check.True(settings.RequireCrimsonBetweenDungeonAndSpawn);
+        settings.EnablePyramidFilter = false; settings.JungleRouteDepth = AutoCreateJungleRouteDepth.None;
+        settings.ResourceFilterLifeCrystalMinimum = 0; settings.StarfuryMaximumDistance = 0; settings.FinchStaffMaximumDistance = 0;
+        Check.False(WorldSeedFilterEvaluator.IsEnabledFor(settings));
     }
 
     private static void WorldPoolCopyLifecycle()

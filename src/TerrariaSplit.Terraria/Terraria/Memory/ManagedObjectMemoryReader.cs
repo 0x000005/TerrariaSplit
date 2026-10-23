@@ -11,7 +11,8 @@ internal static class ManagedObjectMemoryReader
     public static bool TryReadManagedString(
         IProcessMemoryReader memory,
         IntPtr objectAddress,
-        out string? value)
+        out string? value,
+        int maximumLength = MaxManagedStringLength)
     {
         value = null;
         if (objectAddress == IntPtr.Zero || memory.Is64Bit)
@@ -21,7 +22,7 @@ internal static class ManagedObjectMemoryReader
 
         if (!memory.TryReadInt32(IntPtr.Add(objectAddress, X86StringLengthOffset), out int length) ||
             length < 0 ||
-            length > MaxManagedStringLength)
+            length > maximumLength || length > int.MaxValue / 2)
         {
             return false;
         }

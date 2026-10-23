@@ -15,7 +15,7 @@ public sealed class WorldPoolFillService : IDisposable
     private readonly IWorldPoolStore store;
     private readonly HeadlessWorldGenerator generator;
     private readonly WorldPoolSeedFilter seedFilter;
-    private readonly Queue<string> acceptedSeeds = new();
+    private readonly Queue<WorldPoolSeedCandidate> acceptedSeeds = new();
     private string? seedFilterSignature;
     private readonly ISettingsSnapshotFactory settingsSnapshots;
     private readonly IAppLogger logger;
@@ -174,13 +174,14 @@ public sealed class WorldPoolFillService : IDisposable
                 logger.Info($"World pool seed filtering stopped: {failure}");
                 return false;
             }
-            foreach (string seed in batch.AcceptedSeeds) acceptedSeeds.Enqueue(seed);
+            foreach (WorldPoolSeedCandidate seed in batch.AcceptedSeeds) acceptedSeeds.Enqueue(seed);
             logger.Info($"World pool filtered {seedFilter.Concurrency} candidates with one native thread each; accepted={acceptedSeeds.Count}.");
             if (acceptedSeeds.Count == 0) return true;
         }
         if (!IsGenerationStillCurrent(signature)) return true;
-        HeadlessWorldGenResult result = await generator.GenerateAsync(serverTarget.Value, current.General.Language, autoCreate,
-            seedOverride: filtering ? acceptedSeeds.Peek() : null, worldNameOverride: null,
+        HeadlessWorldGenResult result = await generator.GenerateAsync(serverTarget.Value, current.General.Language,
+            filtering ? acceptedSeeds.Peek().GenerationSettings(autoCreate) : autoCreate,
+            seedOverride: filtering ? acceptedSeeds.Peek().SeedText : null, worldNameOverride: null,
             cancellationToken, skipSeedFilter: filtering);
         if (filtering && result.Generated) acceptedSeeds.Dequeue();
         try

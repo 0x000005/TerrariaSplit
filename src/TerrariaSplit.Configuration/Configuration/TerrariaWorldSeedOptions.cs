@@ -67,6 +67,20 @@ public static class TerrariaWorldSeedOptions
             hasCrimson == string.Equals(evil, AutoCreateWorldEvil.Crimson, StringComparison.OrdinalIgnoreCase);
     }
 
+    // Resolve once per generation, without changing the user's Random setting. The filter and
+    // Terraria must receive the same explicit evil; a dormant Crimson-only filter stays dormant.
+    public static AutoCreateWorldSettings ResolveRandomEvil(AutoCreateWorldSettings settings, Func<int> nextRandomEvilCode)
+    {
+        if (AutoCreateWorldEvil.Normalize(settings.WorldEvil) != AutoCreateWorldEvil.Random) return settings;
+        int evilCode = nextRandomEvilCode();
+        if (evilCode is not (CorruptionEvilCode or CrimsonEvilCode))
+            throw new ArgumentOutOfRangeException(nameof(nextRandomEvilCode), "Expected a Crimson or Corruption evil code.");
+        AutoCreateWorldSettings resolved = AppSettingsCloner.CloneAutoCreateWorldSettings(settings);
+        resolved.WorldEvil = evilCode == CrimsonEvilCode ? AutoCreateWorldEvil.Crimson : AutoCreateWorldEvil.Corruption;
+        resolved.RequireCrimsonBetweenDungeonAndSpawn = false;
+        return resolved;
+    }
+
     public static string FormatExpectedEvil(string worldEvil)
     {
         string evil = AutoCreateWorldEvil.Normalize(worldEvil);

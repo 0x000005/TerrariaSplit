@@ -8,7 +8,7 @@ public static class AutoCreateAdvancedFilterEligibility
         string? specialSeeds,
         string? secretSeeds) =>
         AutoCreateWorldSize.All.Contains(AutoCreateWorldSize.Normalize(worldSize)) &&
-        AutoCreateWorldEvil.Normalize(worldEvil) is AutoCreateWorldEvil.Crimson or AutoCreateWorldEvil.Corruption;
+        AutoCreateWorldEvil.All.Contains(AutoCreateWorldEvil.Normalize(worldEvil));
 
     public static bool IsCrimsonEligible(string? worldEvil) =>
         AutoCreateWorldEvil.Normalize(worldEvil) == AutoCreateWorldEvil.Crimson;

@@ -17,6 +17,7 @@ internal sealed record RandomSeedBatchResponse(
 
 internal sealed record RuntimeLayoutDto(
     string? TerrariaVersion,
+    long ProcessStartTimeUtcTicks,
     CoreLayoutDto Core,
     BossLayoutDto Boss,
     PlayerItemLayoutDto? Item,
@@ -24,7 +25,42 @@ internal sealed record RuntimeLayoutDto(
     BiomeLayoutDto? Biome,
     SeedUiLayoutDto? SeedUi,
     WorldGenerationLayoutDto WorldGeneration,
-    int ResolvedFieldCount);
+    int ResolvedFieldCount,
+    MenuAutomationLayoutDto? MenuAutomation,
+    RuntimeStartupLayoutDto? Startup);
+
+internal sealed record RuntimeStartupLayoutDto(long ShowSplashAddress, long EngineLoadedAddress, bool ReadyAtProbe);
+
+internal sealed record MenuAutomationLayoutDto(
+    Dictionary<string, long> Statics,
+    Dictionary<string, int> Fields,
+    Dictionary<string, long> Types,
+    int[] KeyboardWordOffsets)
+{
+    internal static readonly string[] RequiredStatics = ["MenuUI", "gameMenu", "menuMode", "mouseLeft", "maxTilesX",
+        "ActiveWorldFileData", "ActivePlayerFileData", "inputText", "_uiScaleUsed", "Evil", "generatingWorld", "WorldOptions"];
+    internal static readonly string[] RequiredFields = ["UI._currentState", "UI._isStateDirty", "UI._clickDisabledTimeRemaining",
+        "UI._lastElementHover", "UI.LeftMouse", "UI.MousePosition", "WorldData.GameMode", "Pointer.WasDown", "Pointer.LastDown",
+        "Character._player", "Character._selectedPicker", "World._optionSeed", "World._secretSeedTextsEntered", "Advanced._creationState",
+        "Keyboard._textBox", "Keyboard._canSubmit", "TextBox._text", "TextBox._maxLength", "FileData._path", "Player.difficulty",
+        "Player.hair", "Player.skinVariant", "Player.voiceVariant", "Player.voicePitchOffset", "Player.hairColor", "Player.skinColor",
+        "Player.shirtColor", "Player.underShirtColor", "Player.pantsColor", "Player.shoeColor", "Player.eyeColor", "Option._enabled",
+        "ReferenceList._items", "ReferenceList._size"];
+    internal static readonly string[] RequiredTypes = ["UI", "WorldData", "Pointer", "PlayerSelect", "WorldSelect", "Character",
+        "World", "Advanced", "Keyboard", "TextBox", "FileData", "Player", "Option", "KeyboardState",
+        "SeedOption.0", "SeedOption.1", "SeedOption.2", "SeedOption.3", "SeedOption.4", "SeedOption.5", "SeedOption.6",
+        "SeedOption.7", "SeedOption.8", "SeedOption.9"];
+
+    public string? ValidationError()
+    {
+        string[] missing = RequiredStatics.Where(key => Statics.GetValueOrDefault(key) == 0).Select(key => "static:" + key)
+            .Concat(RequiredFields.Where(key => !Fields.TryGetValue(key, out int offset) || offset < 0).Select(key => "field:" + key))
+            .Concat(RequiredTypes.Where(key => Types.GetValueOrDefault(key) == 0).Select(key => "type:" + key)).ToArray();
+        if (missing.Length > 0) return "Incomplete menu layout: " + string.Join(", ", missing);
+        return KeyboardWordOffsets.Length != 8 || KeyboardWordOffsets.Any(offset => offset < 0) || KeyboardWordOffsets.Distinct().Count() != 8
+            ? "Incomplete menu layout: KeyboardState word offsets." : null;
+    }
+}
 
 internal sealed record CoreLayoutDto(
     long GameMenuStaticFieldAddress,

@@ -27,7 +27,7 @@ internal sealed class PyramidSeedPreScreenAutomation : IDisposable
     public void BeginVisibleSeedReaderPreparation(
         AutoCreateWorldSettings settings)
     {
-        if (!IsEnabledFor(settings))
+        if (automation.ModernMenu is not null || !IsEnabledFor(settings))
         {
             return;
         }
@@ -63,6 +63,12 @@ internal sealed class PyramidSeedPreScreenAutomation : IDisposable
             return randomized
                 ? PyramidSeedPreScreenAutomationResult.FromAccepted()
                 : PyramidSeedPreScreenAutomationResult.FromFailed("Visible seed randomize click failed.");
+        }
+
+        if (automation.ModernMenu is { } modern)
+        {
+            return await RunLoopAsync(settings, geometry, new TerrariaVisibleSeedRandomizer(automation, geometry),
+                geometry.AdvancedSeedRandomizeButton(), modern, cancellationToken);
         }
 
         (TerrariaVisibleSeedReader? seedReader, string detail) =
@@ -121,7 +127,7 @@ internal sealed class PyramidSeedPreScreenAutomation : IDisposable
         TerrariaMenuGeometry geometry,
         IPyramidSeedRandomizer randomizer,
         Point randomizeTarget,
-        TerrariaVisibleSeedReader seedReader,
+        IPyramidVisibleSeedReader seedReader,
         CancellationToken cancellationToken)
     {
         try
@@ -285,13 +291,20 @@ internal sealed class PyramidSeedPreScreenAutomation : IDisposable
             TaskScheduler.Default);
     }
 
-    private Task<bool> RandomizeOnceAsync(
+    private async Task<bool> RandomizeOnceAsync(
         string step,
         TerrariaMenuGeometry geometry,
         TimeSpan clickDelay,
         CancellationToken cancellationToken)
     {
-        return automation.ClickAsync(step, geometry, static current => current.AdvancedSeedRandomizeButton(), clickDelay, cancellationToken);
+        string? previous = automation.ModernMenu?.ReadCurrentSeed();
+        bool clicked = await automation.ClickAsync(step, geometry, static current => current.AdvancedSeedRandomizeButton(), clickDelay, cancellationToken,
+            completion: MenuExpectation.RandomSeed());
+        if (!clicked || automation.ModernMenu is not { } modern) return clicked;
+        // Unlike the filter loop, this one-shot path has no separate seed-read stage.
+        PyramidVisibleSeedReadResult result = await modern.WaitForSeedAfterRandomizeAsync(previous, cancellationToken);
+        if (!result.Success) throw new TimeoutException($"Random seed did not change: before={previous}; after={result.LastSeedText}.");
+        return true;
     }
 
     private sealed class TerrariaVisibleSeedRandomizer : IPyramidSeedRandomizer
@@ -315,7 +328,9 @@ internal sealed class PyramidSeedPreScreenAutomation : IDisposable
                 static current => current.AdvancedSeedRandomizeButton(),
                 TimeSpan.Zero,
                 cancellationToken,
-                skipPreClickDelay: attempt > 1);
+                skipPreClickDelay: attempt > 1,
+                // The click engine owns three total attempts, including confirmation of the changed seed.
+                completion: MenuExpectation.RandomSeed());
         }
     }
 

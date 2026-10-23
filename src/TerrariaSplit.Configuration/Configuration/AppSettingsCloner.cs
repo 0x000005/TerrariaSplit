@@ -53,7 +53,7 @@ public static class AppSettingsCloner
         return Clone(source);
     }
 
-    internal static AutoCreateWorldSettings CloneAutoCreateWorldSettings(AutoCreateWorldSettings source)
+    public static AutoCreateWorldSettings CloneAutoCreateWorldSettings(AutoCreateWorldSettings source)
     {
         ArgumentNullException.ThrowIfNull(source);
         return Clone(source);

@@ -38,6 +38,8 @@ internal sealed class CreateWorldWorkflow : IDisposable
         {
             AutoCreateWorldSettings autoCreate = settings.Automation.AutoCreate;
             ApplyTiming(autoCreate);
+            bool modernMenus = TerrariaMenuObserver.IsSupported(TerrariaMenuProfile.TryGetRunningTerrariaFileVersion());
+            if (modernMenus) automation.Window.WindowActivationDelayMilliseconds = 0;
             CreateWorldActivationStep activation = await ActivateTerrariaAsync(cancellationToken);
             if (!activation.Succeeded)
             {
@@ -49,6 +51,7 @@ internal sealed class CreateWorldWorkflow : IDisposable
             TerrariaMenuProfile menuProfile = TerrariaMenuProfile.ResolveRunningProcess();
             TerrariaMenuGeometry geometry = TerrariaMenuGeometry.From(activation.ClientSize, menuProfile);
             FileAppLogger.Instance.Info($"Create world automation using menu profile: {menuProfile.Name}.");
+            if (modernMenus) await automation.ConfigureModernMenuAsync(cancellationToken);
 
             // Cleanup must precede pooled-world installation and player creation:
             // both produce non-favorite saves that a later cleanup would remove.
@@ -98,6 +101,7 @@ internal sealed class CreateWorldWorkflow : IDisposable
                 "Create world automation threw an unhandled exception.",
                 ex);
         }
+        finally { automation.EndModernMenu(); }
     }
 
     private async Task<CreateWorldActivationStep> ActivateTerrariaAsync(CancellationToken cancellationToken)
@@ -191,6 +195,7 @@ internal sealed class CreateWorldWorkflow : IDisposable
 
     public void Dispose()
     {
+        automation.EndModernMenu();
         pyramidSeedPreScreenAutomation.Dispose();
     }
 }

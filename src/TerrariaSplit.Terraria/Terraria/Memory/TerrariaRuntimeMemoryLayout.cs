@@ -9,9 +9,20 @@ internal sealed record TerrariaRuntimeMemoryLayout(
     TerrariaBiomeMemoryLayout? Biome,
     TerrariaWorldCreationSeedMemoryLayout? SeedUi,
     TerrariaWorldGenerationMemoryLayout WorldGeneration,
-    int ResolvedFieldCount)
+    int ResolvedFieldCount,
+    TerrariaSplit.MemoryBridge.Protocol.MenuAutomationLayoutDto? MenuAutomation = null,
+    TerrariaSplit.MemoryBridge.Protocol.RuntimeStartupLayoutDto? Startup = null)
 {
     public bool HasCore => Core.GameMenuStaticFieldAddress != IntPtr.Zero;
+
+    public string? CacheValidationError()
+    {
+        if (!HasCore) return "Runtime layout has no game-menu address.";
+        if (!Version.TryParse(TerrariaVersion?.Trim().TrimStart('v'), out Version? version) || version != new Version(1, 4, 5, 8)) return null;
+        if (Startup is not { ReadyAtProbe: true, ShowSplashAddress: not 0, EngineLoadedAddress: not 0 })
+            return "Waiting for Terraria startup: showSplash=false and IsEngineLoaded=true.";
+        return MenuAutomation is null ? "Runtime layout has no menu metadata." : MenuAutomation.ValidationError();
+    }
 }
 
 internal sealed record TerrariaCoreMemoryLayout(

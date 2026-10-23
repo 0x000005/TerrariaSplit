@@ -9,9 +9,11 @@ public sealed class TerrariaWindowController
 {
     private const int SwRestore = 9;
     private const uint InputMouse = 0;
+    private const uint InputKeyboard = 1;
     private const uint MouseEventLeftDown = 0x0002;
     private const uint MouseEventLeftUp = 0x0004;
     private const uint KeyEventKeyUp = 0x0002;
+    private const uint KeyEventUnicode = 0x0004;
     private const uint MonitorDefaultToNearest = 0x00000002;
     private const int EnumCurrentSettings = -1;
     private const int EnumRegistrySettings = -2;
@@ -120,6 +122,57 @@ public sealed class TerrariaWindowController
         out string failureDetail,
         bool skipPreClickDelay = false)
     {
+        if (!TryPositionClient(resolvePoint, out resolvedPoint, out clientSize, out failureDetail)) return false;
+        if (!skipPreClickDelay) Sleep(ClickFocusDelayMilliseconds);
+        if (!IsInputForeground) { failureDetail = "Terraria lost foreground focus during the pre-click wait."; return false; }
+        try
+        {
+            if (!TrySendMouseInput(MouseEventLeftDown, out int mouseDownError))
+            {
+                failureDetail = $"SendInput(left-down) failed with Win32 error {mouseDownError}. {LastCoordinateDiagnostic}";
+                return false;
+            }
+            Thread.Sleep(InputPressDurationMilliseconds);
+        }
+        finally
+        {
+            if (!TrySendMouseInput(MouseEventLeftUp, out int mouseUpError))
+                failureDetail = $"SendInput(left-up) failed with Win32 error {mouseUpError}. {LastCoordinateDiagnostic}";
+        }
+        return string.IsNullOrEmpty(failureDetail);
+    }
+
+    internal bool IsInputForeground => activatedWindowHandle != IntPtr.Zero && GetForegroundWindow() == activatedWindowHandle;
+    internal bool SetLeftMouse(bool down) => TrySendMouseInput(down ? MouseEventLeftDown : MouseEventLeftUp, out _);
+    internal void SetKey(Keys key, bool down) => keybd_event((byte)key, 0, down ? 0u : KeyEventKeyUp, UIntPtr.Zero);
+
+    internal bool TrySendUnicodeText(string text, out string detail)
+    {
+        detail = string.Empty;
+        if (!IsInputForeground) { detail = "Terraria lost foreground focus before Unicode input."; return false; }
+        foreach (Keys modifier in new[] { Keys.ControlKey, Keys.ShiftKey, Keys.Menu, Keys.LWin, Keys.RWin })
+            if ((NativeMethods.GetAsyncKeyState((int)modifier) & 0x8000) != 0)
+            { detail = "A modifier key was pressed before Unicode input."; return false; }
+        var events = new Input[text.Length * 2];
+        for (int i = 0; i < text.Length; i++)
+        {
+            events[i * 2] = new Input { Type = InputKeyboard, Data = new InputUnion { Keyboard = new KeyboardInput { ScanCode = text[i], Flags = KeyEventUnicode } } };
+            events[i * 2 + 1] = new Input { Type = InputKeyboard, Data = new InputUnion { Keyboard = new KeyboardInput { ScanCode = text[i], Flags = KeyEventUnicode | KeyEventKeyUp } } };
+        }
+        uint sent = SendInput((uint)events.Length, events, Marshal.SizeOf<Input>());
+        if (sent == events.Length) return true;
+        int error = Marshal.GetLastWin32Error();
+        if ((sent & 1) != 0) SendInput(1, [events[(int)sent]], Marshal.SizeOf<Input>()); // Release a partially sent packet.
+        detail = $"Unicode SendInput failed: sent={sent}/{events.Length}; Win32 error={error}.";
+        return false;
+    }
+
+    internal bool TryPositionClient(
+        Func<Size, Point> resolvePoint,
+        out Point resolvedPoint,
+        out Size clientSize,
+        out string failureDetail)
+    {
         ArgumentNullException.ThrowIfNull(resolvePoint);
         resolvedPoint = Point.Empty;
         if (!TryResolveWindowHandle(out IntPtr handle, preferActivatedWindow: true))
@@ -183,34 +236,6 @@ public sealed class TerrariaWindowController
             $"requestedXnaScreenPoint={screenPoint.X},{screenPoint.Y}; " +
             $"actualXnaClientPoint={actualClientPoint.X},{actualClientPoint.Y}; " +
             $"xnaClientPointMatchedRequest={actualClientPoint == resolvedPoint}";
-
-        // One configurable pre-click wait, after activation and cursor positioning.
-        if (!skipPreClickDelay) Sleep(ClickFocusDelayMilliseconds);
-        if (GetForegroundWindow() != handle)
-        {
-            failureDetail = "Terraria lost foreground focus during the pre-click wait.";
-            return false;
-        }
-        if (!TrySendMouseInput(MouseEventLeftDown, out int mouseDownError))
-        {
-            failureDetail =
-                $"SendInput(left-down) failed with Win32 error {mouseDownError}. " +
-                $"{foregroundDiagnostic}; {coordinateSpace.Diagnostic}; " +
-                $"logicalPoint={resolvedPoint.X},{resolvedPoint.Y}; " +
-                actualCursorDiagnostic;
-            return false;
-        }
-
-        Thread.Sleep(InputPressDurationMilliseconds);
-        if (!TrySendMouseInput(MouseEventLeftUp, out int mouseUpError))
-        {
-            failureDetail =
-                $"SendInput(left-up) failed with Win32 error {mouseUpError}. " +
-                $"{foregroundDiagnostic}; {coordinateSpace.Diagnostic}; " +
-                $"logicalPoint={resolvedPoint.X},{resolvedPoint.Y}; " +
-                actualCursorDiagnostic;
-            return false;
-        }
 
         LastCoordinateDiagnostic =
             $"{foregroundDiagnostic}; {coordinateSpace.Diagnostic}; " +
@@ -871,6 +896,18 @@ public sealed class TerrariaWindowController
     {
         [FieldOffset(0)]
         public MouseInput Mouse;
+        [FieldOffset(0)]
+        public KeyboardInput Keyboard;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct KeyboardInput
+    {
+        public ushort VirtualKey;
+        public ushort ScanCode;
+        public uint Flags;
+        public uint Time;
+        public UIntPtr ExtraInfo;
     }
 
     [StructLayout(LayoutKind.Sequential)]

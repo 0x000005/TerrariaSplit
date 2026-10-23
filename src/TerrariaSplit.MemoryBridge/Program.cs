@@ -102,6 +102,11 @@ internal static class Program
             WriteResponse(new RuntimeLayoutResponse(false, ex.Message, null));
             return 1;
         }
+        catch (ArgumentException ex)
+        {
+            WriteResponse(new RuntimeLayoutResponse(false, ex.Message, null));
+            return 1;
+        }
     }
 
     private static int RunRandomSeedBatch(string[] args)
@@ -348,6 +353,9 @@ internal static class Program
     {
         layout = null;
 
+        using Process process = Process.GetProcessById(targetProcessId);
+        string? version = process.MainModule?.FileVersionInfo.FileVersion;
+        long startTime = process.StartTime.ToUniversalTime().Ticks;
         using DataTarget target = DataTarget.CreateSnapshotAndAttach(targetProcessId);
         ClrInfo? clrInfo = target.ClrVersions.FirstOrDefault();
         if (clrInfo is null)
@@ -365,6 +373,24 @@ internal static class Program
         }
 
         CoreLayoutDto core = ResolveCoreLayout(mainType, domain);
+        bool modernMenu = Version.TryParse(version?.Trim().TrimStart('v'), out Version? parsed) && parsed == new Version(1, 4, 5, 8);
+        RuntimeStartupLayoutDto? startup = null;
+        if (modernMenu)
+        {
+            long splash = GetStaticFieldAddress(mainType, domain, "showSplash");
+            long engine = GetStaticFieldAddress(mainType, domain, "IsEngineLoaded");
+            bool ready = splash != 0 && engine != 0 &&
+                mainType.GetStaticFieldByName("showSplash")!.Read<bool>(domain) == false &&
+                mainType.GetStaticFieldByName("IsEngineLoaded")!.Read<bool>(domain);
+            startup = new(splash, engine, ready);
+            if (!ready)
+            {
+                // Startup-only result. The controller waits on these two live bools before one full resolution.
+                layout = new(version, startTime, core, new(new()), null, null, null, null,
+                    new(core.StatusTextStaticFieldAddress, 0, 0, -1, -1, -1, -1, -1, -1, -1, -1), 0, null, startup);
+                return core.GameMenuStaticFieldAddress != 0;
+            }
+        }
         Dictionary<string, long> bossFacts = ResolveBossFactAddresses(mainType, npcType, domain);
         PlayerItemLayoutDto? item = ResolveItemLayout(runtime, mainType, domain);
         NpcLayoutDto? npc = ResolveNpcLayout(runtime, mainType, domain);
@@ -380,8 +406,11 @@ internal static class Program
             CountSeedFields(seedUi) +
             CountWorldGenerationFields(worldGeneration);
 
+        MenuAutomationLayoutDto? menu = modernMenu ? ResolveMenuAutomation(runtime, mainType, domain) : null;
+        if (process.HasExited) throw new InvalidOperationException("Terraria exited during layout discovery.");
         layout = new RuntimeLayoutDto(
-            TerrariaVersion: ReadTerrariaVersion(targetProcessId),
+            version,
+            startTime,
             core,
             new BossLayoutDto(bossFacts),
             item,
@@ -389,21 +418,59 @@ internal static class Program
             biome,
             seedUi,
             worldGeneration,
-            resolvedFieldCount);
+            resolvedFieldCount,
+            menu,
+            startup);
         return core.GameMenuStaticFieldAddress != 0 || resolvedFieldCount > 0;
     }
 
-    private static string? ReadTerrariaVersion(int processId)
+    private static MenuAutomationLayoutDto ResolveMenuAutomation(ClrRuntime runtime, ClrType main, ClrAppDomain domain)
     {
-        try
+        var statics = new Dictionary<string, long>();
+        foreach (string name in new[] { "MenuUI", "gameMenu", "menuMode", "mouseLeft", "maxTilesX", "ActiveWorldFileData", "ActivePlayerFileData", "inputText", "_uiScaleUsed" })
+            statics[name] = GetStaticFieldAddress(main, domain, name);
+        ClrType? worldGen = main.Module.GetTypeByName("Terraria.WorldGen");
+        statics["Evil"] = worldGen is null ? 0 : GetStaticFieldAddress(worldGen, domain, "WorldGenParam_Evil");
+        statics["generatingWorld"] = worldGen is null ? 0 : GetStaticFieldAddress(worldGen, domain, "generatingWorld");
+        var fields = new Dictionary<string, int>();
+        var types = new Dictionary<string, long>();
+        void Add(string key, string typeName, params string[] names)
         {
-            using Process process = Process.GetProcessById(processId);
-            return process.MainModule?.FileVersionInfo.FileVersion;
+            ClrType? type = main.Module.GetTypeByName(typeName);
+            if (type is null) return;
+            types[key] = unchecked((long)type.MethodTable);
+            foreach (string name in names) fields[key + "." + name] = GetOptionalFieldOffset(type, name);
         }
-        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or Win32Exception)
-        {
-            return null;
-        }
+        Add("UI", "Terraria.UI.UserInterface", "_currentState", "_isStateDirty", "_clickDisabledTimeRemaining", "_lastElementHover", "LeftMouse", "MousePosition");
+        Add("WorldData", "Terraria.IO.WorldFileData", "GameMode");
+        Add("Pointer", "Terraria.UI.UserInterface+InputPointerCache", "WasDown", "LastDown");
+        Add("PlayerSelect", "Terraria.GameContent.UI.States.UICharacterSelect");
+        Add("WorldSelect", "Terraria.GameContent.UI.States.UIWorldSelect");
+        Add("Character", "Terraria.GameContent.UI.States.UICharacterCreation", "_player", "_selectedPicker");
+        Add("World", "Terraria.GameContent.UI.States.UIWorldCreation", "_optionSeed", "_secretSeedTextsEntered");
+        Add("Advanced", "Terraria.GameContent.UI.States.UIWorldCreationAdvanced", "_creationState");
+        Add("Keyboard", "Terraria.GameContent.UI.States.UIVirtualKeyboard", "_textBox", "_canSubmit");
+        Add("TextBox", "Terraria.GameContent.UI.Elements.UITextBox", "_text", "_maxLength");
+        Add("FileData", "Terraria.IO.FileData", "_path");
+        Add("Player", "Terraria.Player", "difficulty", "hair", "skinVariant", "voiceVariant", "voicePitchOffset", "hairColor", "skinColor", "shirtColor", "underShirtColor", "pantsColor", "shoeColor", "eyeColor");
+        Add("Option", "Terraria.WorldBuilding.AWorldGenerationOption", "_enabled");
+        ClrType? optionsType = main.Module.GetTypeByName("Terraria.WorldBuilding.WorldGenerationOptions");
+        statics["WorldOptions"] = optionsType is null ? 0 : GetStaticFieldAddress(optionsType, domain, "_options");
+        ClrStaticField? optionsField = optionsType?.GetStaticFieldByName("_options");
+        ClrObject options = optionsField is null ? default : optionsField.ReadObject(domain);
+        // Resolve the actual List<reference> object, not an array field's incomplete ComponentType.
+        // List<string> uses the same reference-generic layout for the secret-seed text list.
+        fields["ReferenceList._items"] = GetOptionalFieldOffset(options.IsNull ? null : options.Type, "_items");
+        fields["ReferenceList._size"] = GetOptionalFieldOffset(options.IsNull ? null : options.Type, "_size");
+        string[] seedOptionTypes = ["Normal", "NotTheBees", "Drunk", "Anniversary", "DontStarve", "ForTheWorthy",
+            "NoTraps", "Remix", "Everything", "Skyblock"];
+        for (int i = 0; i < seedOptionTypes.Length; i++)
+            Add("SeedOption." + i, "Terraria.WorldBuilding.WorldSeedOption_" + seedOptionTypes[i]);
+        ClrType? keyboardType = main.GetStaticFieldByName("inputText")?.Type;
+        if (keyboardType is not null) types["KeyboardState"] = unchecked((long)keyboardType.MethodTable);
+        int[] words = keyboardType?.Fields.Where(f => f.Type?.Name == "System.UInt32")
+            .OrderBy(f => f.Offset).Select(f => f.Offset).ToArray() ?? [];
+        return new MenuAutomationLayoutDto(statics, fields, types, words);
     }
 
     private static CoreLayoutDto ResolveCoreLayout(ClrType mainType, ClrAppDomain domain)
@@ -669,6 +736,8 @@ internal static class Program
     private static bool TryGetFieldOffset(ClrType type, string fieldName, out int offset)
     {
         ClrInstanceField? field = type.GetFieldByName(fieldName);
+        for (ClrType? parent = type.BaseType; field is null && parent is not null; parent = parent.BaseType)
+            field = parent.GetFieldByName(fieldName);
         if (field is null)
         {
             offset = -1;

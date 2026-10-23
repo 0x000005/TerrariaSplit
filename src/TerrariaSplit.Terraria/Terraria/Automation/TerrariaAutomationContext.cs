@@ -19,6 +19,17 @@ internal sealed class TerrariaAutomationContext
     }
 
     public TerrariaWindowController Window { get; } = new();
+    public ModernMenuAutomation? ModernMenu { get; private set; }
+
+    public async Task ConfigureModernMenuAsync(CancellationToken token)
+    {
+        ModernMenu?.Dispose();
+        ModernMenu = new ModernMenuAutomation(new TerrariaMenuObserver(), new ModernMenuWindowInput(Window), DelayAsync);
+        Window.WindowActivationDelayMilliseconds = 0;
+        await ModernMenu.InitializeAsync(token);
+    }
+
+    public void EndModernMenu() { ModernMenu?.Dispose(); ModernMenu = null; }
 
     public void ConfigureTiming(AutoCreateWorldSettings settings)
     {
@@ -29,6 +40,7 @@ internal sealed class TerrariaAutomationContext
 
     public void BeginRun()
     {
+        EndModernMenu();
         escapeCancellationLogged = false;
         LastFailureDiagnostic = string.Empty;
         ClearEscapeKeyState();
@@ -102,11 +114,13 @@ internal sealed class TerrariaAutomationContext
         Func<TerrariaMenuGeometry, Point> resolvePoint,
         TimeSpan delay,
         CancellationToken cancellationToken,
-        bool skipPreClickDelay = false)
+        bool skipPreClickDelay = false,
+        MenuExpectation? completion = null,
+        Func<CancellationToken, Task>? beforePress = null)
     {
         return RunStepAsync(
             $"click {step}",
-            ct => ClickOnceAsync(step, geometry, resolvePoint, delay, ct, skipPreClickDelay),
+            ct => ClickOnceAsync(step, geometry, resolvePoint, delay, ct, skipPreClickDelay, completion, beforePress),
             cancellationToken);
     }
 
@@ -144,9 +158,19 @@ internal sealed class TerrariaAutomationContext
         Func<TerrariaMenuGeometry, Point> resolvePoint,
         TimeSpan delay,
         CancellationToken cancellationToken,
-        bool skipPreClickDelay = false)
+        bool skipPreClickDelay = false,
+        MenuExpectation? completion = null,
+        Func<CancellationToken, Task>? beforePress = null)
     {
         ThrowIfCancellationRequested(cancellationToken);
+        if (ModernMenu is { } modern)
+        {
+            await modern.ClickAsync(step, geometry, resolvePoint,
+                completion ?? throw new InvalidOperationException($"Missing completion condition for {step}."), cancellationToken, beforePress);
+            Log(new AutomationStepResult($"click {step}", true, Detail: Window.LastCoordinateDiagnostic));
+            return true;
+        }
+        if (beforePress is not null) await beforePress(cancellationToken);
         bool clicked = Window.TryClickClient(
             currentClientSize => resolvePoint(TerrariaMenuGeometry.From(currentClientSize, geometry.Profile)),
             out Point point,

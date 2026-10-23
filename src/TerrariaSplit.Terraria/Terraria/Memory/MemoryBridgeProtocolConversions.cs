@@ -15,7 +15,9 @@ internal static class MemoryBridgeProtocolConversions
             layout.Biome?.ToBiomeMemoryLayout(),
             layout.SeedUi?.ToSeedUiLayout(),
             layout.WorldGeneration.ToWorldGenerationLayout(),
-            layout.ResolvedFieldCount);
+            layout.ResolvedFieldCount,
+            layout.MenuAutomation,
+            layout.Startup);
     }
 
     private static TerrariaCoreMemoryLayout ToCoreLayout(this CoreLayoutDto layout)

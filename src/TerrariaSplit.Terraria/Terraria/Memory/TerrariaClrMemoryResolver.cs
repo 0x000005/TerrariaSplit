@@ -11,19 +11,23 @@ internal sealed class TerrariaClrMemoryResolver
     private static readonly TimeSpan ResolveRetryInterval = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan MemoryBridgeTimeout = TimeSpan.FromSeconds(15);
     private readonly MemoryBridgeClient bridgeClient;
+    private readonly TerrariaRuntimeLayoutCache layoutCache;
     private Process? process;
-    private int? processId;
+    private TerrariaProcessIdentity? processIdentity;
     private DateTime nextResolveAttemptUtc = DateTime.MinValue;
     private TerrariaRuntimeMemoryLayout? runtimeLayout;
+    private TerrariaRuntimeMemoryLayout? invalidatedLayout;
+    private Task<TerrariaRuntimeMemoryLayout>? pendingResolution;
     private int resolveAttempts;
     private DateTime? lastAttemptUtc;
     private DateTime? lastSuccessUtc;
     private int? lastExitCode;
     private string? lastError;
 
-    public TerrariaClrMemoryResolver(MemoryBridgeClient? bridgeClient = null)
+    public TerrariaClrMemoryResolver(MemoryBridgeClient? bridgeClient = null, TerrariaRuntimeLayoutCache? layoutCache = null)
     {
         this.bridgeClient = bridgeClient ?? new MemoryBridgeClient();
+        this.layoutCache = layoutCache ?? TerrariaRuntimeLayoutCache.Shared;
     }
 
     public TerrariaLayoutProbeDiagnostics ProbeDiagnostics => new(
@@ -52,11 +56,11 @@ internal sealed class TerrariaClrMemoryResolver
 
     public void SetProcess(Process? targetProcess)
     {
-        int? targetProcessId = targetProcess is null ? null : GetProcessId(targetProcess);
-        if (targetProcessId != processId)
+        TerrariaProcessIdentity? targetIdentity = targetProcess is null ? null : GetProcessIdentity(targetProcess);
+        if (targetIdentity != processIdentity)
         {
             Reset();
-            processId = targetProcessId;
+            processIdentity = targetIdentity;
         }
 
         process = targetProcess;
@@ -65,6 +69,8 @@ internal sealed class TerrariaClrMemoryResolver
     public void Reset()
     {
         runtimeLayout = null;
+        invalidatedLayout = null;
+        pendingResolution = null;
         nextResolveAttemptUtc = DateTime.MinValue;
         resolveAttempts = 0;
         lastAttemptUtc = null;
@@ -75,7 +81,9 @@ internal sealed class TerrariaClrMemoryResolver
 
     public void ResetLayout()
     {
+        invalidatedLayout = runtimeLayout ?? invalidatedLayout;
         runtimeLayout = null;
+        pendingResolution = null;
         nextResolveAttemptUtc = DateTime.MinValue;
     }
 
@@ -94,7 +102,7 @@ internal sealed class TerrariaClrMemoryResolver
             return true;
         }
 
-        if (process is null || processId is null || DateTime.UtcNow < nextResolveAttemptUtc)
+        if (process is null || processIdentity is not { } identity || DateTime.UtcNow < nextResolveAttemptUtc)
         {
             return false;
         }
@@ -102,14 +110,32 @@ internal sealed class TerrariaClrMemoryResolver
         nextResolveAttemptUtc = DateTime.UtcNow + ResolveRetryInterval;
         resolveAttempts++;
         lastAttemptUtc = DateTime.UtcNow;
-        if (TryResolveRuntimeLayoutWithMemoryBridge(processId.Value, out TerrariaRuntimeMemoryLayout? resolvedLayout) &&
-            resolvedLayout is not null)
+        long started = Stopwatch.GetTimestamp();
+        try
         {
+            pendingResolution ??= layoutCache.GetAsync(identity, invalidatedLayout, CancellationToken.None);
+            if (!pendingResolution.IsCompleted)
+            {
+                lastError = "Waiting for Terraria loading and shared runtime initialization.";
+                return false;
+            }
+            TerrariaRuntimeMemoryLayout resolvedLayout = pendingResolution.GetAwaiter().GetResult();
+            pendingResolution = null;
             runtimeLayout = resolvedLayout;
+            invalidatedLayout = null;
             lastSuccessUtc = DateTime.UtcNow;
             lastError = null;
+            lastExitCode = 0;
             layout = resolvedLayout;
+            FileAppLogger.Instance.Info($"Terraria shared runtime layout ready; pid={identity.ProcessId}; elapsedMs={Stopwatch.GetElapsedTime(started).TotalMilliseconds:F0}.");
             return true;
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or System.ComponentModel.Win32Exception)
+        {
+            pendingResolution = null;
+            lastError = ex.Message;
+            lastExitCode = null;
+            FileAppLogger.Instance.Info($"Terraria shared runtime layout unavailable; pid={identity.ProcessId}; error={lastError}.");
         }
 
         return false;
@@ -122,6 +148,7 @@ internal sealed class TerrariaClrMemoryResolver
     {
         seedTexts = Array.Empty<string>();
         detail = string.Empty;
+        int? processId = processIdentity?.ProcessId;
         if (count is < 1 or > 256)
         {
             detail = "Random seed batch size must be between 1 and 256.";
@@ -178,69 +205,16 @@ internal sealed class TerrariaClrMemoryResolver
         }
     }
 
-    private static int? GetProcessId(Process targetProcess)
+    private static TerrariaProcessIdentity? GetProcessIdentity(Process targetProcess)
     {
         try
         {
-            return targetProcess.HasExited ? null : targetProcess.Id;
+            return targetProcess.HasExited ? null : TerrariaProcessIdentity.FromProcess(targetProcess);
         }
         catch (InvalidOperationException)
         {
             return null;
         }
-    }
-
-    private bool TryResolveRuntimeLayoutWithMemoryBridge(
-        int targetProcessId,
-        out TerrariaRuntimeMemoryLayout? layout)
-    {
-        layout = null;
-        long startedTimestamp = Stopwatch.GetTimestamp();
-        FileAppLogger.Instance.Info(
-            $"MemoryBridge runtime-layout probe starting for Terraria PID {targetProcessId}; attempt={resolveAttempts}.");
-
-        MemoryBridgeCommandResult commandResult = bridgeClient.Execute(
-            MemoryBridgeCommands.RuntimeLayout,
-            MemoryBridgeTimeout,
-            targetProcessId.ToString(CultureInfo.InvariantCulture));
-        lastExitCode = commandResult.ExitCode;
-        if (commandResult.TimedOut)
-        {
-            lastError = "MemoryBridge timed out";
-            LogProbeCompletion(targetProcessId, startedTimestamp);
-            return false;
-        }
-
-        try
-        {
-            RuntimeLayoutResponse? response = JsonSerializer.Deserialize<RuntimeLayoutResponse>(
-                commandResult.StandardOutput);
-            if (commandResult.Succeeded && response?.Success == true && response.Layout is not null)
-            {
-                layout = response.Layout.ToRuntimeMemoryLayout();
-                LogProbeCompletion(targetProcessId, startedTimestamp, layout.ResolvedFieldCount);
-                return true;
-            }
-
-            lastError = response?.Error ?? commandResult.FailureDetail("MemoryBridge returned no runtime layout");
-        }
-        catch (JsonException ex)
-        {
-            lastError = commandResult.FailureDetail(ex.Message);
-        }
-
-        LogProbeCompletion(targetProcessId, startedTimestamp);
-        return false;
-    }
-
-    private void LogProbeCompletion(int targetProcessId, long startedTimestamp, int? resolvedFieldCount = null)
-    {
-        TimeSpan elapsed = Stopwatch.GetElapsedTime(startedTimestamp);
-        FileAppLogger.Instance.Info(
-            $"MemoryBridge runtime-layout probe completed for Terraria PID {targetProcessId}; " +
-            $"elapsedMs={elapsed.TotalMilliseconds:F0}, exitCode={lastExitCode?.ToString(CultureInfo.InvariantCulture) ?? "<none>"}, " +
-            $"fields={resolvedFieldCount?.ToString(CultureInfo.InvariantCulture) ?? "<none>"}, " +
-            $"error={lastError ?? "<none>"}.");
     }
 
     private static bool IsPartial(TerrariaRuntimeMemoryLayout layout)

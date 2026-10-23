@@ -130,6 +130,8 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
         { "Attached group marker", "附属组" },
         { "Auto hide attached groups", "自动隐藏附属组" },
         { "Time", "时间" },
+        { "Terraria 1.4.4.9 delays", "Terraria 1.4.4.9 延迟" },
+        { "Terraria 1.4.5.8 waits for game state automatically. Delay settings below apply to Terraria 1.4.4.9.", "Terraria 1.4.5.8 自动等待游戏状态，下方延迟设置适用于 Terraria 1.4.4.9。" },
         { "Hint text", "提示文本" },
         { "Time (attached)", "时间（附属）" },
         { "Name (future stage)", "名称（未来阶段）" },
