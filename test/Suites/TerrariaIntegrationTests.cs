@@ -27,6 +27,8 @@ internal static class TerrariaIntegrationTests
         yield return TestCase.Sync("resource judge scales world-size thresholds and disables Crimson in Corruption", TestSuite.Core, ResourceJudgeWorldSizes);
         yield return TestCase.Async("native resource judge ABI6 accepts every world size and evil", TestSuite.Native, ResourceJudgeNativeWorldSizes, timeoutSeconds: 180);
         yield return TestCase.Sync("resource judge validates early reject metadata", TestSuite.Core, ResourceJudgeSkyProtocol);
+        yield return TestCase.Sync("resource judge sizes single-world budgets by available physical cores", TestSuite.Core, ResourceJudgePhysicalCoreBudget);
+        yield return TestCase.Async("resource judge forwards its reserved thread budget", TestSuite.Core, ResourceJudgeForwardsBudget);
         yield return TestCase.Async("resource judge releases partial thread budgets and charges one slot for single threading", TestSuite.Core, ResourceJudgeThreadBudget);
         yield return TestCase.Async("resource judge combines enabled filters into one generation request", TestSuite.Core, ResourceJudgeSingleGeneration);
         yield return TestCase.Async("item distance filters preserve settings and enforce inclusive horizontal limits in ordinary and Race filtering", TestSuite.Core, ItemDistanceFiltering);
@@ -536,6 +538,43 @@ internal static class TerrariaIntegrationTests
         }
     }
 
+    private static void ResourceJudgePhysicalCoreBudget()
+    {
+        foreach ((int cores, int expected) in new[] { (0, 1), (1, 1), (2, 1), (3, 2), (4, 3), (6, 4), (8, 6), (16, 6) })
+            Check.Equal(expected, WorldFilterThreadPolicy.Automatic(cores));
+        Check.Equal(1, WorldFilterThreadPolicy.Select(1, 16));
+        Check.Equal(2, WorldFilterThreadPolicy.Select(8, 2));
+        byte[] data = new byte[32 * 6];
+        for (int index = 0; index < 6; index++)
+        {
+            Span<byte> cpu = data.AsSpan(index * 32, 32);
+            System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(cpu, 32);
+            cpu[14] = (byte)index;
+            cpu[15] = (byte)(index / 2); // Two SMT threads share each physical core.
+        }
+        Check.Equal(3, TerrariaSplit.Infrastructure.Windows.ProcessCpuTopology.CountPhysicalCores(data, 63, 0));
+        Check.Equal(1, TerrariaSplit.Infrastructure.Windows.ProcessCpuTopology.CountPhysicalCores(data, 3, 0));
+        data[4 * 32 + 19] = 2; data[5 * 32 + 19] = 2; // Allocated to another process.
+        Check.Equal(2, TerrariaSplit.Infrastructure.Windows.ProcessCpuTopology.CountPhysicalCores(data, 63, 0));
+        Check.Equal(1, TerrariaSplit.Infrastructure.Windows.ProcessCpuTopology.CountPhysicalCores(data, 63, 1));
+    }
+
+    private static async Task ResourceJudgeForwardsBudget(CancellationToken cancellationToken)
+    {
+        using var gate = new SemaphoreSlim(2, 2);
+        int actualThreads = 0;
+        var client = new JungleSeedJudgeNativeClient((seed, _, id, _, threads) =>
+        {
+            actualThreads = threads;
+            Check.Equal(0, gate.CurrentCount);
+            return CreateFilterJudgeResult(seed, id, JungleSeedJudgeStatus.Complete);
+        }, TimeSpan.FromSeconds(1), gate, maximumLeaseThreads: 2);
+        await client.AnalyzeAsync("1", JungleSeedJudgeGameMode.Classic, cancellationToken,
+            new ResourceJudgeRequirements(PyramidItemMask: 7));
+        Check.Equal(2, actualThreads);
+        Check.Equal(2, gate.CurrentCount);
+    }
+
     private static async Task ResourceJudgeThreadBudget(CancellationToken cancellationToken)
     {
         var gate = new SemaphoreSlim(2, 4); // Two slots already belong to another call.
@@ -580,7 +619,7 @@ internal static class TerrariaIntegrationTests
         settings.SpecialSeeds = AutoCreateSpecialWorldSeed.Zenith;
         settings.SecretSeeds = "abandoned manors";
         Check.True((await evaluator.EvaluateAsync(settings, "abandoned manors|540278984", TerrariaWorldGenerationVersion.Modern1458, cancellationToken)).AcceptSeed);
-        Check.Equal("540278984", analyzedSeed); Check.Equal(1, calls); Check.Equal(0, requestedThreads);
+        Check.Equal("540278984", analyzedSeed); Check.Equal(1, calls); Check.Equal(1, requestedThreads);
         Check.Equal(1, requested!.PyramidItemMask); Check.Equal(2, requested.PyramidGoldMinimum);
         Check.Equal(30, requested.PyramidMaximumDepth); Check.Equal(550, requested.JungleMinimumY);
         // Previously rejected managed seeds must now reach the authoritative DLL.
@@ -772,7 +811,7 @@ internal static class TerrariaIntegrationTests
                 calls++;
                 Check.Equal(200, requirements.StarfuryMaximumDistance);
                 Check.Equal(500, requirements.FinchStaffMaximumDistance);
-                Check.Equal(race ? 1 : 0, threads);
+                Check.Equal(1, threads);
                 return CreateFilterJudgeResult(seed, id, JungleSeedJudgeStatus.Complete);
             }, TimeSpan.FromSeconds(1), new SemaphoreSlim(1, 1));
             using var evaluator = new WorldSeedFilterEvaluator(client, parallelCandidates: race);

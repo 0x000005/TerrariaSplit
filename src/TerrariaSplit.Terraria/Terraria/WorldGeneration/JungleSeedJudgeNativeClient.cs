@@ -52,7 +52,7 @@ internal sealed class JungleSeedJudgeNativeClient
         analyze = api.Analyze;
         nativeCallGate = NativeCallGate;
         budgetReservationGate = BudgetReservationGate;
-        maximumLeaseThreads = Math.Min(4, Math.Min(Math.Max(1, Environment.ProcessorCount), MaximumConcurrentExecutionThreads));
+        maximumLeaseThreads = Math.Min(WorldFilterThreadPolicy.Automatic(ProcessCpuTopology.AvailablePhysicalCoreCount()), MaximumConcurrentExecutionThreads);
     }
 
     internal JungleSeedJudgeNativeClient(
@@ -67,7 +67,7 @@ internal sealed class JungleSeedJudgeNativeClient
         this.requestTimeout = ValidateRequestTimeout(requestTimeout);
         this.nativeCallGate = nativeCallGate;
         budgetReservationGate = new SemaphoreSlim(1, 1);
-        if (maximumLeaseThreads is < 1 or > 4) throw new ArgumentOutOfRangeException(nameof(maximumLeaseThreads));
+        if (maximumLeaseThreads is < 1 or > WorldFilterThreadPolicy.MaximumThreads) throw new ArgumentOutOfRangeException(nameof(maximumLeaseThreads));
         this.maximumLeaseThreads = maximumLeaseThreads;
     }
 
@@ -79,7 +79,7 @@ internal sealed class JungleSeedJudgeNativeClient
         int threads = 0)
     {
         ArgumentNullException.ThrowIfNull(seedText);
-        if (threads is < 0 or > 4) throw new ArgumentOutOfRangeException(nameof(threads));
+        if (threads is < 0 or > WorldFilterThreadPolicy.MaximumThreads) throw new ArgumentOutOfRangeException(nameof(threads));
         ArgumentNullException.ThrowIfNull(requirements);
         requirements.Validate();
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(
@@ -126,7 +126,7 @@ internal sealed class JungleSeedJudgeNativeClient
                     threadPoolWaitMs = enteredMs - queueMs, leaseThreads, requestedThreads = threads });
                 try
                 {
-                    var result = analyze(seedText, gameMode, requestId, requirements, threads);
+                    var result = analyze(seedText, gameMode, requestId, requirements, leaseThreads);
                     WorldFilterTrace.Write("native.return", new { traceId, seedText, requestId,
                         nativeWallMs = clock.Elapsed.TotalMilliseconds - enteredMs, totalMs = clock.Elapsed.TotalMilliseconds, result });
                     return result;
@@ -192,7 +192,7 @@ internal sealed class JungleSeedJudgeNativeClient
 
     private async Task<int> AcquireCallBudgetAsync(int requestedThreads, CancellationToken cancellationToken)
     {
-        int desired = Math.Min(requestedThreads == 0 ? 4 : requestedThreads, maximumLeaseThreads);
+        int desired = Math.Min(requestedThreads == 0 ? maximumLeaseThreads : requestedThreads, maximumLeaseThreads);
         int acquired = 0;
         // Serialize reservations so two callers cannot each hold a partial lease
         // while waiting for the other one's slots. Running calls release directly.

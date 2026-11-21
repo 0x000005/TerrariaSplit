@@ -35,3 +35,7 @@
 - 跳过内存控制单元构建：追加 `-p:TerrariaSplitSkipMemoryBridge=true`。
 - 金字塔聚焦测试：设置 `$env:TERRARIA_SPLIT_TEST_FILTER='Pyramid seed pre-screen'` 后运行测试命令。
 - metrics/trace：`dotnet run --project test\TerrariaSplit.Diagnostics.csproj --no-restore -- <命令及参数>`。
+
+## 原生资源筛选
+- 使用相邻 TerrariaResourceJudge 当前发布 DLL；ABI6。单世界默认 max(1,min(6,floor(3×亲和性内可用物理核心数/4)))，把实际预留预算传给 DLL；多候选并发时每世界1线程。
+- 线程规则与发布指纹见 `docs/resource-judge-thread-policy.md`。拓扑识别属于 Infrastructure.Windows，预算策略属于 Terraria.WorldGeneration。
