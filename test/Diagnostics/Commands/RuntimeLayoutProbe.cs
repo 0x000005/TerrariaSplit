@@ -40,8 +40,14 @@ internal static class RuntimeLayoutProbe
             if (state.Page is TerrariaMenuPage.World or TerrariaMenuPage.Advanced &&
                 (state.SpecialSeeds is null || state.SecretSeeds is null))
                 throw new InvalidOperationException("World creation options were not readable: " + state.Detail);
+            var buttons = Enum.GetValues<TerrariaMenuButton>().Select(button =>
+            {
+                var target = new TerrariaMenuTarget(button, button == TerrariaMenuButton.WorldSize ? 1 : 0);
+                bool available = observer.TryReadButton(state, target, out TerrariaMenuButtonPosition position, out string detail);
+                return new { Button = target.ToString(), Available = available, position.Point, Detail = detail };
+            }).ToArray();
             automation.Add(new { Run = run + 1, InitializeMs = elapsed, Page = state.Page.ToString(), state.Ready,
-                state.SpecialSeeds, state.SecretSeeds, state.TextMaximumLength, state.ActivePlayerPath, state.Detail });
+                state.SpecialSeeds, state.SecretSeeds, state.TextMaximumLength, state.ActivePlayerPath, state.Detail, Buttons = buttons });
         }
         var secondResolver = new TerrariaClrMemoryResolver();
         secondResolver.SetProcess(process);

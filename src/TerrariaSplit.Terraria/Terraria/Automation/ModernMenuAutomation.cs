@@ -23,7 +23,7 @@ internal sealed record MenuExpectation(TerrariaMenuPage Before, TerrariaMenuPage
 internal interface IModernMenuInput
 {
     bool IsForeground { get; }
-    bool Position(TerrariaMenuGeometry geometry, Func<TerrariaMenuGeometry, Point> target, out Point point, out string detail);
+    bool Position(Point point, out string detail);
     bool Mouse(bool down);
     void Key(Keys key, bool down);
     void UnicodeText(string text);
@@ -103,7 +103,7 @@ internal sealed class ModernMenuAutomation : IPyramidVisibleSeedReader, IDisposa
         throw new TimeoutException($"{step}: expected state was not reached within {limit.TotalSeconds:F1}s. {last.Detail}");
     }
 
-    public async Task ClickAsync(string step, TerrariaMenuGeometry geometry, Func<TerrariaMenuGeometry, Point> target,
+    public async Task ClickAsync(string step, TerrariaMenuTarget target,
         MenuExpectation expected, CancellationToken token, Func<CancellationToken, Task>? beforePress = null)
     {
         TimeSpan budget = expected.After is TerrariaMenuPage.PlayerSelect or TerrariaMenuPage.WorldSelect ? ListTimeout : StepTimeout;
@@ -114,6 +114,7 @@ internal sealed class ModernMenuAutomation : IPyramidVisibleSeedReader, IDisposa
         bool ObservableCompletion() => expected.Before != expected.After || expected.SkipIfSatisfied || expected.Changed is not null ||
             expected.Completed is not null && baseline is not null && !expected.Matches(baseline, baseline);
         bool SourceReady(TerrariaMenuSnapshot s) => s.Ready && s.Page == expected.Before &&
+            (s.Page != TerrariaMenuPage.Main || s.MouseReleased) &&
             (expected.Before != TerrariaMenuPage.Keyboard || s.CanSubmit) && (expected.SourceCondition?.Invoke(s) ?? true);
         for (int attempt = 1; ; attempt++)
         {
@@ -133,16 +134,25 @@ internal sealed class ModernMenuAutomation : IPyramidVisibleSeedReader, IDisposa
                     await Wait("prior result confirmation", HasResult);
                     return;
                 }
-                if (!input.Position(geometry, target, out Point point, out string detail)) throw new MenuInputException(step + ": " + detail);
+                TerrariaMenuButtonPosition located = default;
+                string targetDetail = "No button sample.";
+                try
+                {
+                    await Wait("game button layout " + target, s => SourceReady(s) && observer.TryReadButton(s, target, out located, out targetDetail));
+                }
+                catch (TimeoutException ex) { throw new TimeoutException($"{step}: {targetDetail}. {ex.Message}", ex); }
+                Point point = located.Point;
+                WorldFilterTrace.Write("automation.button-target", new { step, attempt, target, point, detail = located.Detail });
+                if (!input.Position(point, out string detail)) throw new MenuInputException(step + ": " + detail);
                 TerrariaMenuSnapshot before = await Wait($"hover at {point.X},{point.Y}", s => SourceReady(s) &&
-                    (!s.UsesMenuUi || s.Hover != IntPtr.Zero && s.CursorAt(point)));
+                    s.CursorAt(point) && (!s.UsesMenuUi || s.Hover != IntPtr.Zero));
                 if (beforePress is not null)
                 {
                     await beforePress(token);
                     token.ThrowIfCancellationRequested();
                     before = observer.Read();
                     if (!input.IsForeground) throw new InvalidOperationException(step + ": Terraria lost foreground focus.");
-                    if (!SourceReady(before) || before.UsesMenuUi && (before.Hover == IntPtr.Zero || !before.CursorAt(point)))
+                    if (!SourceReady(before) || !before.CursorAt(point) || before.UsesMenuUi && before.Hover == IntPtr.Zero)
                         throw new MenuInputException(step + ": menu input changed while verifying the paste source.");
                 }
                 bool completedBeforePress = expected.Matches(before, baseline);
@@ -158,7 +168,7 @@ internal sealed class ModernMenuAutomation : IPyramidVisibleSeedReader, IDisposa
                          s.MouseDown && (before.UsesMenuUi
                              ? s.Page == expected.Before && s.UiMouseDown && s.LastDown != IntPtr.Zero &&
                                s.LastDown == s.Hover && s.CursorAt(point)
-                             : expected.Matches(s, baseline))));
+                             : s.Page == expected.Before && s.CursorAt(point))));
                 }
                 finally
                 {

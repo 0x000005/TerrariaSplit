@@ -54,6 +54,8 @@ internal static class ClipboardAutomationTests
             false, false, new(300), IntPtr.Zero, 4200, 0, 1, 0, 1, null, null, false, null,
             new Dictionary<string, int>(), new int[8], "character", new PointF(100, 100));
         public TerrariaMenuSnapshot Read() => State;
+        public bool TryReadButton(TerrariaMenuSnapshot menu, TerrariaMenuTarget target, out TerrariaMenuButtonPosition position, out string detail)
+        { detail = "fake template button"; position = new(new(100, 100), detail); return true; }
         public Task InitializeAsync(CancellationToken token) => Task.CompletedTask;
         public void Dispose() { }
     }
@@ -63,8 +65,8 @@ internal static class ClipboardAutomationTests
         public bool IsForeground => true;
         public int Downs, Ups;
         public Action<bool>? OnMouse;
-        public bool Position(TerrariaMenuGeometry geometry, Func<TerrariaMenuGeometry, Point> target, out Point point, out string detail)
-        { point = target(geometry); observer.State = observer.State with { MousePosition = point }; detail = ""; return true; }
+        public bool Position(Point point, out string detail)
+        { observer.State = observer.State with { MousePosition = point }; detail = ""; return true; }
         public bool Mouse(bool down)
         {
             if (down) Downs++; else Ups++;
@@ -95,7 +97,7 @@ internal static class ClipboardAutomationTests
             { retries++; return Task.CompletedTask; }, token, clipboard))
         {
             Check.Equal(2, clipboard.Writes); Check.Equal(2, retries);
-            await menu.ClickAsync("paste template", TerrariaMenuGeometry.From(new Size(800, 600)), _ => new Point(100, 100),
+            await menu.ClickAsync("paste template", new(TerrariaMenuButton.AdvancedMenu),
                 new(TerrariaMenuPage.Character, TerrariaMenuPage.Character, ModernMenuAutomation.TemplateMatches(template)), token, scope.EnsureTextAsync);
             Check.Equal(2, applicationTicks); Check.Equal(0, clipboard.Restores);
         }
@@ -120,7 +122,7 @@ internal static class ClipboardAutomationTests
                     Check.Equal("template", clipboard.Text);
                     if (!down && mode == "after-paste") clipboard.CopyByUser("latest user text");
                 };
-                await menu.ClickAsync("paste template", TerrariaMenuGeometry.From(new Size(800, 600)), _ => new Point(100, 100),
+                await menu.ClickAsync("paste template", new(TerrariaMenuButton.AdvancedMenu),
                     MenuExpectation.Page(TerrariaMenuPage.Character, TerrariaMenuPage.Character), token, scope.EnsureTextAsync);
                 Check.Equal(1, input.Downs); Check.Equal(1, input.Ups);
             }

@@ -12,7 +12,7 @@ internal sealed record TerrariaMenuSnapshot(
     string? Text, string? Seed, bool CanSubmit, bool[]? SpecialSeeds,
     IReadOnlyDictionary<string, int> PlayerValues, int[] KeyboardWords, string Detail, PointF? MousePosition = null, float UiScale = 1f,
     int? TextMaximumLength = null, IReadOnlyList<string>? SecretSeeds = null, string? SpecialSeedLayoutError = null,
-    string? ActivePlayerPath = null)
+    string? ActivePlayerPath = null, Size ScreenSize = default, bool MouseReleased = true)
 {
     public bool Ready => Valid && Page != TerrariaMenuPage.Unknown && !LayoutDirty && ClickDisabledMs <= 0 &&
         !MouseDown && (!UsesMenuUi || !UiMouseDown);
@@ -90,11 +90,27 @@ internal sealed class TerrariaMenuStateReader
         IntPtr hover = IntPtr.Zero, lastDown = IntPtr.Zero;
         PointF? mousePosition = null;
         float uiScale = 1f;
-        if (page is not (TerrariaMenuPage.Main or TerrariaMenuPage.Generating))
+        Size screenSize = Size.Empty;
+        bool mouseReleased = true;
+        if (page != TerrariaMenuPage.Generating)
         {
             if (!memory.TryReadInt32(Address("_uiScaleUsed"), out int scaleBits) ||
                 !float.IsFinite(uiScale = BitConverter.Int32BitsToSingle(scaleBits)) || uiScale <= 0)
                 return TerrariaMenuSnapshot.Unknown("UI scale unreadable or invalid.");
+            if (!memory.TryReadInt32(Address("ScreenWidth"), out int screenWidth) ||
+                !memory.TryReadInt32(Address("ScreenHeight"), out int screenHeight) || screenWidth <= 0 || screenHeight <= 0)
+                return TerrariaMenuSnapshot.Unknown("Game screen dimensions unreadable or invalid.");
+            screenSize = new(screenWidth, screenHeight);
+        }
+        if (page == TerrariaMenuPage.Main)
+        {
+            if (!memory.TryReadInt32(Address("MouseX"), out int mouseX) || !memory.TryReadInt32(Address("MouseY"), out int mouseY) ||
+                !memory.TryReadBool(Address("mouseLeftRelease"), out mouseReleased))
+                return TerrariaMenuSnapshot.Unknown("Main menu cursor or release state unreadable.");
+            mousePosition = new(mouseX / uiScale, mouseY / uiScale);
+        }
+        else if (page != TerrariaMenuPage.Generating)
+        {
             if (!Bool(ui, "UI._isStateDirty", out dirty) || !Field(ui, "UI._clickDisabledTimeRemaining", out IntPtr timer) ||
                 !memory.TryReadDouble(timer, out disabled) || !double.IsFinite(disabled) ||
                 !Pointer(ui, "UI._lastElementHover", out hover) || !Pointer(ui, "UI.LeftMouse", out IntPtr pointer) ||
@@ -181,7 +197,7 @@ internal sealed class TerrariaMenuStateReader
             return TerrariaMenuSnapshot.Unknown("Menu changed while reading.");
         return new(true, page, state, dirty, disabled, down, wasDown, hover, lastDown, width, gameMode, evil,
             difficulty, category, text, seed, canSubmit, seeds, playerValues, keys,
-            $"mode={mode}; page={page}; state=0x{state.ToInt64():X}; dirty={dirty}; disabledMs={disabled:F0}; mouse={down}/{wasDown}; hover=0x{hover.ToInt64():X}; lastDown=0x{lastDown.ToInt64():X}; cursor={mousePosition}; uiScale={uiScale}; width={width}; gameMode={gameMode}; evil={evil}; category={category}; playerDifficulty={difficulty}; canSubmit={canSubmit}; input={text}; maxInput={textMaximumLength}; seed={seed}; specials={(seeds is null ? "unreadable" : string.Join(",", seeds))}; secrets={(secretSeeds is null ? "unreadable" : string.Join("|", secretSeeds))}; layoutError={specialSeedLayoutError}; activePlayer={activePlayerPath}",
-            mousePosition, uiScale, textMaximumLength, secretSeeds, specialSeedLayoutError, activePlayerPath);
+            $"mode={mode}; page={page}; state=0x{state.ToInt64():X}; dirty={dirty}; disabledMs={disabled:F0}; mouse={down}/{wasDown}; released={mouseReleased}; hover=0x{hover.ToInt64():X}; lastDown=0x{lastDown.ToInt64():X}; cursor={mousePosition}; uiScale={uiScale}; gameScreen={screenSize}; width={width}; gameMode={gameMode}; evil={evil}; category={category}; playerDifficulty={difficulty}; canSubmit={canSubmit}; input={text}; maxInput={textMaximumLength}; seed={seed}; specials={(seeds is null ? "unreadable" : string.Join(",", seeds))}; secrets={(secretSeeds is null ? "unreadable" : string.Join("|", secretSeeds))}; layoutError={specialSeedLayoutError}; activePlayer={activePlayerPath}",
+            mousePosition, uiScale, textMaximumLength, secretSeeds, specialSeedLayoutError, activePlayerPath, screenSize, mouseReleased);
     }
 }

@@ -1,6 +1,7 @@
 using System.Drawing;
 using System.Diagnostics;
 using System.Windows.Forms;
+using TerrariaSplit.Terraria.Memory;
 
 namespace TerrariaSplit.Terraria.Automation;
 
@@ -116,11 +117,12 @@ internal sealed class TerrariaAutomationContext
         CancellationToken cancellationToken,
         bool skipPreClickDelay = false,
         MenuExpectation? completion = null,
-        Func<CancellationToken, Task>? beforePress = null)
+        Func<CancellationToken, Task>? beforePress = null,
+        TerrariaMenuTarget? button = null)
     {
         return RunStepAsync(
             $"click {step}",
-            ct => ClickOnceAsync(step, geometry, resolvePoint, delay, ct, skipPreClickDelay, completion, beforePress),
+            ct => ClickOnceAsync(step, geometry, resolvePoint, delay, ct, skipPreClickDelay, completion, beforePress, button),
             cancellationToken);
     }
 
@@ -160,12 +162,13 @@ internal sealed class TerrariaAutomationContext
         CancellationToken cancellationToken,
         bool skipPreClickDelay = false,
         MenuExpectation? completion = null,
-        Func<CancellationToken, Task>? beforePress = null)
+        Func<CancellationToken, Task>? beforePress = null,
+        TerrariaMenuTarget? button = null)
     {
         ThrowIfCancellationRequested(cancellationToken);
         if (ModernMenu is { } modern)
         {
-            await modern.ClickAsync(step, geometry, resolvePoint,
+            await modern.ClickAsync(step, button ?? throw new InvalidOperationException($"Missing game button target for {step}."),
                 completion ?? throw new InvalidOperationException($"Missing completion condition for {step}."), cancellationToken, beforePress);
             Log(new AutomationStepResult($"click {step}", true, Detail: Window.LastCoordinateDiagnostic));
             return true;

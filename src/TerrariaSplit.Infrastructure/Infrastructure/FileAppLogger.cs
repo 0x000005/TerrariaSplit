@@ -39,6 +39,14 @@ public sealed class FileAppLogger : IAppLogger
             $"{exception}{Environment.NewLine}");
     }
 
+    internal void Diagnostic(string entry)
+    {
+        if (IsEnabled)
+        {
+            TryAppend(entry + Environment.NewLine);
+        }
+    }
+
     private void TryAppend(string entry)
     {
         try

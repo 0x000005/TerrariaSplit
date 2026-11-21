@@ -7,6 +7,7 @@ namespace TerrariaSplit.Terraria.Automation;
 internal interface ITerrariaMenuObserver : IDisposable
 {
     TerrariaMenuSnapshot Read();
+    bool TryReadButton(TerrariaMenuSnapshot menu, TerrariaMenuTarget target, out TerrariaMenuButtonPosition position, out string detail);
     Task InitializeAsync(CancellationToken cancellationToken);
 }
 
@@ -16,6 +17,7 @@ internal sealed class TerrariaMenuObserver : ITerrariaMenuObserver
     private readonly ProcessMemoryReader memory;
     private readonly TerrariaProcessIdentity identity;
     private readonly TerrariaMenuStateReader reader = new();
+    private readonly TerrariaMenuButtonReader buttons = new();
     private MenuAutomationLayoutDto? layout;
 
     public TerrariaMenuObserver()
@@ -41,6 +43,13 @@ internal sealed class TerrariaMenuObserver : ITerrariaMenuObserver
     {
         TerrariaRuntimeMemoryLayout shared = await TerrariaRuntimeLayoutCache.Shared.GetAsync(identity, null, cancellationToken).ConfigureAwait(false);
         layout = shared.MenuAutomation ?? throw new InvalidOperationException("Shared runtime layout has no Terraria 1.4.5.8 menu fields.");
+    }
+
+    public bool TryReadButton(TerrariaMenuSnapshot menu, TerrariaMenuTarget target, out TerrariaMenuButtonPosition position, out string detail)
+    {
+        position = default;
+        detail = "Menu button layout is not resolved.";
+        return layout is { } current && buttons.TryRead(memory, current, menu, target, out position, out detail);
     }
 
     public void Dispose() => process.Dispose();

@@ -38,18 +38,24 @@ internal sealed record MenuAutomationLayoutDto(
     int[] KeyboardWordOffsets)
 {
     internal static readonly string[] RequiredStatics = ["MenuUI", "gameMenu", "menuMode", "mouseLeft", "maxTilesX",
-        "ActiveWorldFileData", "ActivePlayerFileData", "inputText", "_uiScaleUsed", "Evil", "generatingWorld", "WorldOptions"];
+        "ActiveWorldFileData", "ActivePlayerFileData", "inputText", "_uiScaleUsed", "Evil", "generatingWorld", "WorldOptions",
+        "mouseLeftRelease", "ScreenWidth", "ScreenHeight", "MouseX", "MouseY", "MainMenuPositions", "MainMenuLastDrew"];
     internal static readonly string[] RequiredFields = ["UI._currentState", "UI._isStateDirty", "UI._clickDisabledTimeRemaining",
         "UI._lastElementHover", "UI.LeftMouse", "UI.MousePosition", "WorldData.GameMode", "Pointer.WasDown", "Pointer.LastDown",
         "Character._player", "Character._selectedPicker", "World._optionSeed", "World._secretSeedTextsEntered", "Advanced._creationState",
         "Keyboard._textBox", "Keyboard._canSubmit", "TextBox._text", "TextBox._maxLength", "FileData._path", "Player.difficulty",
         "Player.hair", "Player.skinVariant", "Player.voiceVariant", "Player.voicePitchOffset", "Player.hairColor", "Player.skinColor",
         "Player.shirtColor", "Player.underShirtColor", "Player.pantsColor", "Player.shoeColor", "Player.eyeColor", "Option._enabled",
-        "ReferenceList._items", "ReferenceList._size"];
+        "ReferenceList._items", "ReferenceList._size", "Element.Elements", "Element._dimensions", "Element._snapPoint",
+        "Snap.Name", "Snap.<Id>k__BackingField", "PlayerSelect._newPanel", "WorldSelect._newPanel",
+        "Character._charInfoCategoryButton", "Character._clothingStylesCategoryButton", "Character._pasteTemplateButton",
+        "World._sizeButtons", "World._difficultyButtons", "World._evilButtons", "World._seedPlate", "World._advancedSeedButton",
+        "Advanced._randomButton", "Advanced._seedPlate", "Advanced._seedButtons", "Advanced._backButton", "Keyboard._submitButton",
+        "Keyboard._submitButton2", "Keyboard.outerLayer1", "Keyboard.outerLayer2"];
     internal static readonly string[] RequiredTypes = ["UI", "WorldData", "Pointer", "PlayerSelect", "WorldSelect", "Character",
         "World", "Advanced", "Keyboard", "TextBox", "FileData", "Player", "Option", "KeyboardState",
         "SeedOption.0", "SeedOption.1", "SeedOption.2", "SeedOption.3", "SeedOption.4", "SeedOption.5", "SeedOption.6",
-        "SeedOption.7", "SeedOption.8", "SeedOption.9"];
+        "SeedOption.7", "SeedOption.8", "SeedOption.9", "Element", "Snap"];
 
     public string? ValidationError()
     {

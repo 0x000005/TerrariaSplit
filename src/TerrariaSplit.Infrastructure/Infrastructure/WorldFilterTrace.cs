@@ -1,15 +1,13 @@
 using System.Diagnostics;
 using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace TerrariaSplit.Infrastructure;
 
-// Dedicated diagnostic stream: independent of the optional general app logger.
+// Structured diagnostics use the same opt-in log file as the general app logger.
 public static class WorldFilterTrace
 {
-    private const long MaximumFileBytes = 20 * 1024 * 1024;
     private static readonly object Sync = new();
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -17,18 +15,17 @@ public static class WorldFilterTrace
         Converters = { new JsonStringEnumConverter() }
     };
     private static bool started;
-    public static string LogPath { get; } = Path.Combine(AppContext.BaseDirectory, "Logs",
-        $"world-filter-{DateTime.UtcNow:yyyyMMdd-HHmmss}-{Environment.ProcessId}.jsonl");
-
     public static void Write(string eventName, object data)
     {
+        if (!FileAppLogger.Instance.IsEnabled)
+        {
+            return;
+        }
+
         try
         {
             lock (Sync)
             {
-                Directory.CreateDirectory(Path.GetDirectoryName(LogPath)!);
-                if (File.Exists(LogPath) && new FileInfo(LogPath).Length >= MaximumFileBytes)
-                    File.Move(LogPath, LogPath + ".previous", overwrite: true);
                 if (!started)
                 {
                     Append("process.start", new { executable = Environment.ProcessPath,
@@ -43,13 +40,18 @@ public static class WorldFilterTrace
         catch { /* Diagnostics must never alter filtering or UI behavior. */ }
     }
 
-    private static void Append(string eventName, object data) => File.AppendAllText(LogPath,
+    private static void Append(string eventName, object data) => FileAppLogger.Instance.Diagnostic(
         JsonSerializer.Serialize(new { utc = DateTime.UtcNow, monotonicTicks = Stopwatch.GetTimestamp(),
             processId = Environment.ProcessId, threadId = Environment.CurrentManagedThreadId,
-            eventName, data }, Options) + Environment.NewLine, Encoding.UTF8);
+            eventName, data }, Options));
 
     public static void LibraryLoaded(string path, int abi)
     {
+        if (!FileAppLogger.Instance.IsEnabled)
+        {
+            return;
+        }
+
         try
         {
             using var input = File.OpenRead(path);

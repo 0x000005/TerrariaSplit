@@ -1,3 +1,5 @@
+using TerrariaSplit.Terraria.Memory;
+
 namespace TerrariaSplit.Terraria.Automation;
 
 internal sealed class EnterWorldWorkflow : IDisposable
@@ -34,6 +36,8 @@ internal sealed class EnterWorldWorkflow : IDisposable
             }
 
             TerrariaMenuProfile menuProfile = TerrariaMenuProfile.ResolveRunningProcess();
+            if (TerrariaMenuObserver.IsSupported(TerrariaMenuProfile.TryGetRunningTerrariaFileVersion()))
+                await automation.ConfigureModernMenuAsync(cancellationToken);
             TerrariaMenuGeometry geometry = TerrariaMenuGeometry.From(activation.ClientSize, menuProfile);
             FileAppLogger.Instance.Info($"Enter world automation using menu profile: {menuProfile.Name}.");
             OperationResult install = await InstallPracticeSaveFilesAsync(slot, cancellationToken);
@@ -45,7 +49,8 @@ internal sealed class EnterWorldWorkflow : IDisposable
                     install.Exception);
             }
 
-            if (!await automation.ClickAsync("Single Player", geometry, static current => current.MainMenuSinglePlayer(), menuActionDelay, cancellationToken))
+            if (!await automation.ClickAsync("Single Player", geometry, static current => current.MainMenuSinglePlayer(), menuActionDelay, cancellationToken,
+                completion: MenuExpectation.Page(TerrariaMenuPage.Main, TerrariaMenuPage.PlayerSelect), button: new(TerrariaMenuButton.SinglePlayer)))
             {
                 return AutomationResult.Failure(
                     "Could not open Terraria single player menu.",
@@ -66,6 +71,7 @@ internal sealed class EnterWorldWorkflow : IDisposable
                 "Enter world automation threw an unhandled exception.",
                 ex);
         }
+        finally { automation.EndModernMenu(); }
     }
 
     private async Task<OperationResult> InstallPracticeSaveFilesAsync(
@@ -101,5 +107,6 @@ internal sealed class EnterWorldWorkflow : IDisposable
 
     public void Dispose()
     {
+        automation.EndModernMenu();
     }
 }

@@ -1,4 +1,5 @@
 using System.Drawing;
+using TerrariaSplit.Terraria.Memory;
 
 namespace TerrariaSplit.Terraria.Automation;
 
@@ -299,7 +300,7 @@ internal sealed class PyramidSeedPreScreenAutomation : IDisposable
     {
         string? previous = automation.ModernMenu?.ReadCurrentSeed();
         bool clicked = await automation.ClickAsync(step, geometry, static current => current.AdvancedSeedRandomizeButton(), clickDelay, cancellationToken,
-            completion: MenuExpectation.RandomSeed());
+            completion: MenuExpectation.RandomSeed(), button: new(TerrariaMenuButton.RandomSeed));
         if (!clicked || automation.ModernMenu is not { } modern) return clicked;
         // Unlike the filter loop, this one-shot path has no separate seed-read stage.
         PyramidVisibleSeedReadResult result = await modern.WaitForSeedAfterRandomizeAsync(previous, cancellationToken);
@@ -330,7 +331,7 @@ internal sealed class PyramidSeedPreScreenAutomation : IDisposable
                 cancellationToken,
                 skipPreClickDelay: attempt > 1,
                 // The click engine owns three total attempts, including confirmation of the changed seed.
-                completion: MenuExpectation.RandomSeed());
+                completion: MenuExpectation.RandomSeed(), button: new(TerrariaMenuButton.RandomSeed));
         }
     }
 

@@ -40,7 +40,17 @@ internal static class ModernMenuTests
     {
         public TerrariaMenuSnapshot State = Snapshot(TerrariaMenuPage.World);
         public int Initializations;
+        public Point ButtonPoint = new(100, 100);
+        public bool ButtonAvailable = true;
+        public int ButtonReads;
         public TerrariaMenuSnapshot Read() => State;
+        public bool TryReadButton(TerrariaMenuSnapshot menu, TerrariaMenuTarget target, out TerrariaMenuButtonPosition position, out string detail)
+        {
+            ButtonReads++;
+            detail = "fake game layout " + target;
+            position = new(ButtonPoint, detail);
+            return ButtonAvailable;
+        }
         public Task InitializeAsync(CancellationToken cancellationToken) { Initializations++; return Task.CompletedTask; }
         public void Dispose() { }
     }
@@ -55,9 +65,8 @@ internal static class ModernMenuTests
         public Action<string>? OnText;
         public readonly List<string> TextBatches = [];
         public readonly HashSet<Keys> HeldKeys = [];
-        public bool Position(TerrariaMenuGeometry geometry, Func<TerrariaMenuGeometry, Point> target, out Point point, out string detail)
+        public bool Position(Point point, out string detail)
         {
-            point = target(geometry);
             observer.State = observer.State with { MousePosition = new PointF((int)(point.X / observer.State.UiScale), (int)(point.Y / observer.State.UiScale)) };
             detail = ""; return true;
         }
@@ -93,7 +102,7 @@ internal static class ModernMenuTests
                 if (released && ++readyTicks == 3) observer.State = Snapshot(TerrariaMenuPage.Advanced);
                 return Task.CompletedTask;
             });
-            await menu.ClickAsync("advanced", TerrariaMenuGeometry.From(new Size(800, 600)), _ => new Point(100, 100),
+            await menu.ClickAsync("advanced", new(TerrariaMenuButton.AdvancedMenu),
                 MenuExpectation.Page(TerrariaMenuPage.World, TerrariaMenuPage.Advanced), token);
             Check.Equal(1, input.Downs); Check.Equal(1, input.Ups); Check.Equal(3, readyTicks);
         }
@@ -109,7 +118,7 @@ internal static class ModernMenuTests
             using var menu = new ModernMenuAutomation(observer, input, (_, ct) => Task.Delay(1, ct));
             try
             {
-                await menu.ClickAsync("interrupted", TerrariaMenuGeometry.From(new Size(800, 600)), _ => new Point(100, 100),
+                await menu.ClickAsync("interrupted", new(TerrariaMenuButton.AdvancedMenu),
                     MenuExpectation.Page(TerrariaMenuPage.World, TerrariaMenuPage.Advanced), cts.Token);
                 throw new InvalidOperationException("Expected interrupted click.");
             }
@@ -153,7 +162,7 @@ internal static class ModernMenuTests
                 observer.State = observer.State with { Hover = observer.State.LastDown, MousePosition = new PointF(100, 100) };
                 return Task.CompletedTask;
             });
-            await menu.ClickAsync(mode, TerrariaMenuGeometry.From(new Size(800, 600)), _ => new Point(100, 100),
+            await menu.ClickAsync(mode, new(TerrariaMenuButton.AdvancedMenu),
                 new MenuExpectation(TerrariaMenuPage.Character, TerrariaMenuPage.Character, s => s.CharacterCategory == 1), token);
             Check.Equal(mode is "torn" or "wrong-target" or "wrong-position" ? 1 : 0, samples);
             Check.Equal(1, input.Downs); Check.Equal(1, input.Ups);
@@ -185,7 +194,7 @@ internal static class ModernMenuTests
                 ct.ThrowIfCancellationRequested();
                 return Task.Delay(1, ct);
             });
-            Task click = menu.ClickAsync(mode, TerrariaMenuGeometry.From(new Size(800, 600)), _ => new Point(100, 100),
+            Task click = menu.ClickAsync(mode, new(TerrariaMenuButton.AdvancedMenu),
                 MenuExpectation.Page(TerrariaMenuPage.World, TerrariaMenuPage.Advanced), cts.Token);
             if (mode == "persistent") await Check.ThrowsAsync<InvalidOperationException>(() => click);
             else if (mode == "cancel") await Check.ThrowsAsync<OperationCanceledException>(() => click);
@@ -213,7 +222,7 @@ internal static class ModernMenuTests
                 if (duration == TimeSpan.FromMilliseconds(50)) retries++;
                 return Task.Delay(1, ct);
             });
-            Task click = menu.ClickAsync("random seed", TerrariaMenuGeometry.From(new Size(800, 600)), _ => new Point(100, 100),
+            Task click = menu.ClickAsync("random seed", new(TerrariaMenuButton.AdvancedMenu),
                 MenuExpectation.RandomSeed(), token);
             if (succeeds) await click;
             else await Check.ThrowsAsync<TimeoutException>(() => click);
@@ -254,7 +263,7 @@ internal static class ModernMenuTests
             var expected = keyboard
                 ? MenuExpectation.Page(TerrariaMenuPage.Keyboard, TerrariaMenuPage.World)
                 : new MenuExpectation(TerrariaMenuPage.World, TerrariaMenuPage.World, s => s.WorldWidth == 6400);
-            await menu.ClickAsync("option", TerrariaMenuGeometry.From(new Size(800, 600)), _ => new Point(100, 100), expected, token);
+            await menu.ClickAsync("option", new(TerrariaMenuButton.AdvancedMenu), expected, token);
             Check.Equal(keyboard ? 2 : 0, readyTicks);
             Check.Equal(3, completionTicks); Check.Equal(1, input.Downs); Check.Equal(1, input.Ups);
         }
@@ -333,7 +342,7 @@ internal static class ModernMenuTests
             MenuExpectation expected = legacyPredicate
                 ? new(TerrariaMenuPage.Advanced, TerrariaMenuPage.Advanced, s => !string.IsNullOrEmpty(s.Seed))
                 : MenuExpectation.Page(TerrariaMenuPage.Advanced, TerrariaMenuPage.Advanced);
-            await menu.ClickAsync("random seed", TerrariaMenuGeometry.From(new Size(800, 600)), _ => new Point(100, 100), expected, token);
+            await menu.ClickAsync("random seed", new(TerrariaMenuButton.AdvancedMenu), expected, token);
             PyramidVisibleSeedReadResult result = await menu.WaitForSeedAfterRandomizeAsync("old", token);
             Check.True(result.Success); Check.Equal("new", result.SeedText);
             Check.Equal(1, input.Downs); Check.Equal(1, input.Ups);
@@ -354,11 +363,10 @@ internal static class ModernMenuTests
             };
             using var menu = new ModernMenuAutomation(observer, input, (_, ct) => Task.Delay(1, ct));
             var ensure = MenuExpectation.Ensure(TerrariaMenuPage.Advanced, s => s.SpecialSeeds![5], "For the Worthy enabled", ModernMenuAutomation.SpecialSeedsReadable);
-            await menu.ClickAsync("worthy", TerrariaMenuGeometry.From(new Size(800, 600)), _ => new Point(100, 100), ensure, token);
+            await menu.ClickAsync("worthy", new(TerrariaMenuButton.AdvancedMenu), ensure, token);
             Check.Equal(satisfied ? 0 : 2, input.Downs); Check.Equal(input.Downs, input.Ups);
             observer.State = observer.State with { SpecialSeeds = null, SpecialSeedLayoutError = "Missing Option._enabled" };
-            await Check.ThrowsAsync<InvalidDataException>(() => menu.ClickAsync("unreadable", TerrariaMenuGeometry.From(new Size(800, 600)),
-                _ => new Point(100, 100), ensure, token));
+            await Check.ThrowsAsync<InvalidDataException>(() => menu.ClickAsync("unreadable", new(TerrariaMenuButton.SpecialSeed, 5), ensure, token));
             Check.Equal(satisfied ? 0 : 2, input.Downs);
         }
         Check.Equal(1000.0, ModernMenuAutomation.StepTimeout.TotalMilliseconds);
@@ -609,7 +617,8 @@ internal static class ModernMenuTests
         {
             ["menuMode"] = 100, ["mouseLeft"] = 104, ["maxTilesX"] = 108, ["Evil"] = 112,
             ["ActiveWorldFileData"] = 116, ["MenuUI"] = 120, ["inputText"] = 124, ["generatingWorld"] = 156,
-            ["_uiScaleUsed"] = 160, ["gameMenu"] = 164
+            ["_uiScaleUsed"] = 160, ["gameMenu"] = 164, ["ScreenWidth"] = 180, ["ScreenHeight"] = 184,
+            ["mouseLeftRelease"] = 188, ["MouseX"] = 192, ["MouseY"] = 196
         }, new()
         {
             ["WorldData.GameMode"] = 4, ["UI._currentState"] = 4, ["UI._isStateDirty"] = 8,
@@ -623,6 +632,8 @@ internal static class ModernMenuTests
         memory.Set(156, [0]); memory.Set(2004, BitConverter.GetBytes(2));
         memory.Set(160, BitConverter.GetBytes(1.2f));
         memory.Set(164, [1]);
+        memory.Set(180, BitConverter.GetBytes(1920)); memory.Set(184, BitConverter.GetBytes(1080));
+        memory.Set(188, [1]); memory.Set(192, BitConverter.GetBytes(120)); memory.Set(196, BitConverter.GetBytes(294));
         memory.Set(3004, BitConverter.GetBytes(4000)); memory.Set(3008, [0]);
         memory.Set(3012, BitConverter.GetBytes(200.0)); memory.Set(3020, BitConverter.GetBytes(6000));
         memory.Set(3024, BitConverter.GetBytes(5000)); memory.Set(3028, BitConverter.GetBytes(100f).Concat(BitConverter.GetBytes(100f)).ToArray());

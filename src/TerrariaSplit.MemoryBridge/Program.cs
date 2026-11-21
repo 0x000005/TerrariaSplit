@@ -427,8 +427,15 @@ internal static class Program
     private static MenuAutomationLayoutDto ResolveMenuAutomation(ClrRuntime runtime, ClrType main, ClrAppDomain domain)
     {
         var statics = new Dictionary<string, long>();
-        foreach (string name in new[] { "MenuUI", "gameMenu", "menuMode", "mouseLeft", "maxTilesX", "ActiveWorldFileData", "ActivePlayerFileData", "inputText", "_uiScaleUsed" })
+        foreach (string name in new[] { "MenuUI", "gameMenu", "menuMode", "mouseLeft", "mouseLeftRelease", "maxTilesX", "ActiveWorldFileData", "ActivePlayerFileData", "inputText", "_uiScaleUsed" })
             statics[name] = GetStaticFieldAddress(main, domain, name);
+        ClrType? inputType = main.Module.GetTypeByName("Terraria.GameInput.PlayerInput");
+        foreach ((string key, string name) in new[] { ("ScreenWidth", "_originalScreenWidth"), ("ScreenHeight", "_originalScreenHeight"),
+            ("MouseX", "_originalMouseX"), ("MouseY", "_originalMouseY") })
+            statics[key] = inputType is null ? 0 : GetStaticFieldAddress(inputType, domain, name);
+        ClrType? menuHandler = main.Module.GetTypeByName("Terraria.UI.Gamepad.GamepadMainMenuHandler");
+        statics["MainMenuPositions"] = menuHandler is null ? 0 : GetStaticFieldAddress(menuHandler, domain, "MenuItemPositions");
+        statics["MainMenuLastDrew"] = menuHandler is null ? 0 : GetStaticFieldAddress(menuHandler, domain, "LastDrew");
         ClrType? worldGen = main.Module.GetTypeByName("Terraria.WorldGen");
         statics["Evil"] = worldGen is null ? 0 : GetStaticFieldAddress(worldGen, domain, "WorldGenParam_Evil");
         statics["generatingWorld"] = worldGen is null ? 0 : GetStaticFieldAddress(worldGen, domain, "generatingWorld");
@@ -444,12 +451,16 @@ internal static class Program
         Add("UI", "Terraria.UI.UserInterface", "_currentState", "_isStateDirty", "_clickDisabledTimeRemaining", "_lastElementHover", "LeftMouse", "MousePosition");
         Add("WorldData", "Terraria.IO.WorldFileData", "GameMode");
         Add("Pointer", "Terraria.UI.UserInterface+InputPointerCache", "WasDown", "LastDown");
-        Add("PlayerSelect", "Terraria.GameContent.UI.States.UICharacterSelect");
-        Add("WorldSelect", "Terraria.GameContent.UI.States.UIWorldSelect");
-        Add("Character", "Terraria.GameContent.UI.States.UICharacterCreation", "_player", "_selectedPicker");
-        Add("World", "Terraria.GameContent.UI.States.UIWorldCreation", "_optionSeed", "_secretSeedTextsEntered");
-        Add("Advanced", "Terraria.GameContent.UI.States.UIWorldCreationAdvanced", "_creationState");
-        Add("Keyboard", "Terraria.GameContent.UI.States.UIVirtualKeyboard", "_textBox", "_canSubmit");
+        Add("Element", "Terraria.UI.UIElement", "Elements", "_dimensions", "_snapPoint");
+        Add("Snap", "Terraria.UI.SnapPoint", "Name", "<Id>k__BackingField");
+        Add("PlayerSelect", "Terraria.GameContent.UI.States.UICharacterSelect", "_newPanel");
+        Add("WorldSelect", "Terraria.GameContent.UI.States.UIWorldSelect", "_newPanel");
+        Add("Character", "Terraria.GameContent.UI.States.UICharacterCreation", "_player", "_selectedPicker",
+            "_charInfoCategoryButton", "_clothingStylesCategoryButton", "_pasteTemplateButton");
+        Add("World", "Terraria.GameContent.UI.States.UIWorldCreation", "_optionSeed", "_secretSeedTextsEntered",
+            "_sizeButtons", "_difficultyButtons", "_evilButtons", "_seedPlate", "_advancedSeedButton");
+        Add("Advanced", "Terraria.GameContent.UI.States.UIWorldCreationAdvanced", "_creationState", "_randomButton", "_seedPlate", "_seedButtons", "_backButton");
+        Add("Keyboard", "Terraria.GameContent.UI.States.UIVirtualKeyboard", "_textBox", "_canSubmit", "_submitButton", "_submitButton2", "outerLayer1", "outerLayer2");
         Add("TextBox", "Terraria.GameContent.UI.Elements.UITextBox", "_text", "_maxLength");
         Add("FileData", "Terraria.IO.FileData", "_path");
         Add("Player", "Terraria.Player", "difficulty", "hair", "skinVariant", "voiceVariant", "voicePitchOffset", "hairColor", "skinColor", "shirtColor", "underShirtColor", "pantsColor", "shoeColor", "eyeColor");
