@@ -1,4 +1,6 @@
+using System.Windows;
 using System.Windows.Forms;
+using TerrariaSplit.UI.Wpf.Interop;
 
 namespace TerrariaSplit.UI;
 
@@ -77,6 +79,40 @@ internal sealed class ProgramModalWindowCoordinator
             options);
     }
 
+    public IDisposable RegisterModalWpfWindow(Window window, ModalWindowOptions options = default)
+    {
+        ArgumentNullException.ThrowIfNull(window);
+        _ = WpfWindowInterop.EnsureHandle(window);
+        return RegisterModalWindow(
+            () => WpfWindowInterop.GetHandle(window),
+            options);
+    }
+
+    public bool? ShowWpfDialog(Window window, ModalWindowOptions options = default)
+    {
+        ArgumentNullException.ThrowIfNull(window);
+        WpfWindowInterop.AttachOwner(window, mainWindow);
+        using IDisposable modalWindow = RegisterModalWpfWindow(window, options);
+        EventHandler? deactivatedHandler = null;
+        if (options.KeepForeground)
+        {
+            deactivatedHandler = (_, _) => QueueCurrentModalActivation(window);
+            window.Deactivated += deactivatedHandler;
+        }
+
+        try
+        {
+            return window.ShowDialog();
+        }
+        finally
+        {
+            if (deactivatedHandler is not null)
+            {
+                window.Deactivated -= deactivatedHandler;
+            }
+        }
+    }
+
     public DialogResult ShowDialog(Form form, ModalWindowOptions options = default)
     {
         using IDisposable modalWindow = RegisterModalForm(form, options);
@@ -119,6 +155,28 @@ internal sealed class ProgramModalWindowCoordinator
         }
         catch (ObjectDisposedException)
         {
+        }
+        catch (InvalidOperationException)
+        {
+        }
+    }
+
+    private void QueueCurrentModalActivation(Window window)
+    {
+        if (!window.IsVisible || window.Dispatcher.HasShutdownStarted)
+        {
+            return;
+        }
+
+        try
+        {
+            _ = window.Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (window.IsVisible && window.IsEnabled)
+                {
+                    layerController.ActivateCurrentModal();
+                }
+            }));
         }
         catch (InvalidOperationException)
         {

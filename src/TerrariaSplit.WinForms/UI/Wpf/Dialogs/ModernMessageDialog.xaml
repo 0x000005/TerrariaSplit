@@ -1,0 +1,107 @@
+<controls:ModernWindow x:Class="TerrariaSplit.UI.Wpf.Dialogs.ModernMessageDialog"
+                       x:ClassModifier="internal"
+                       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                       xmlns:controls="clr-namespace:TerrariaSplit.UI.Wpf.Controls"
+                       ShowMinimizeButton="False"
+                       ShowMaximizeButton="False"
+                       ShowInTaskbar="False"
+                       ResizeMode="NoResize"
+                       CloseOnEscape="True"
+                       SizeToContent="Height"
+                       WindowStartupLocation="CenterOwner">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Clean Win11 ContentDialog Body -->
+        <Border Grid.Row="0"
+                Background="{DynamicResource PageLayerBgBrush}"
+                RenderOptions.ClearTypeHint="Enabled">
+        <Grid Margin="18,12,18,16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Subtle Circular Fluent Status Badge -->
+            <Border x:Name="IconBadge"
+                    Grid.Column="0"
+                    Width="22"
+                    Height="22"
+                    CornerRadius="11"
+                    VerticalAlignment="Top"
+                    Margin="0,1,12,0"
+                    Background="{DynamicResource SurfaceRaisedBrush}"
+                    BorderBrush="{DynamicResource BorderStrongBrush}"
+                    BorderThickness="1">
+                <TextBlock x:Name="IconGlyph"
+                           Text="i"
+                           FontSize="11.5"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextPrimaryBrush}"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center" />
+            </Border>
+
+            <!-- Simple Message Text -->
+            <ScrollViewer x:Name="PlainMessageHost"
+                          Grid.Column="1"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled"
+                          MaxHeight="340">
+                <TextBlock x:Name="PlainMessageText"
+                           TextWrapping="Wrap"
+                           LineHeight="19"
+                           FontSize="{DynamicResource FontSizeBody}"
+                           Foreground="{DynamicResource TextPrimaryBrush}"
+                           VerticalAlignment="Center" />
+            </ScrollViewer>
+
+            <!-- Selectable Monospace Details Box -->
+            <TextBox x:Name="SelectableMessageBox"
+                     Grid.Column="1"
+                     Visibility="Collapsed"
+                     IsReadOnly="True"
+                     TextWrapping="Wrap"
+                     AcceptsReturn="True"
+                     VerticalContentAlignment="Top"
+                     VerticalScrollBarVisibility="Auto"
+                     HorizontalScrollBarVisibility="Disabled"
+                     FontFamily="{DynamicResource MonoFontFamily}"
+                     FontSize="{DynamicResource FontSizeSub}"
+                     Padding="10,8"
+                     MinHeight="180"
+                     MaxHeight="380" />
+        </Grid>
+        </Border>
+
+        <!-- Clean ContentDialog Footer -->
+        <Border Grid.Row="1"
+                Background="{DynamicResource FooterBgBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="16,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel x:Name="UtilityButtonsPanel"
+                            Grid.Column="0"
+                            Orientation="Horizontal"
+                            VerticalAlignment="Center" />
+
+                <StackPanel x:Name="PrimaryButtonsPanel"
+                            Grid.Column="2"
+                            Orientation="Horizontal"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center" />
+            </Grid>
+        </Border>
+    </Grid>
+</controls:ModernWindow>

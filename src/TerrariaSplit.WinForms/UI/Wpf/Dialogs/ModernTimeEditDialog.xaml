@@ -1,0 +1,53 @@
+<controls:ModernWindow x:Class="TerrariaSplit.UI.Wpf.Dialogs.ModernTimeEditDialog"
+                       x:ClassModifier="internal"
+                       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                       xmlns:controls="clr-namespace:TerrariaSplit.UI.Wpf.Controls"
+                       Width="320"
+                       ShowMinimizeButton="False"
+                       ShowMaximizeButton="False"
+                       ShowInTaskbar="False"
+                       ResizeMode="NoResize"
+                       CloseOnEscape="True"
+                       SizeToContent="Height"
+                       WindowStartupLocation="CenterOwner">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0"
+                Background="{DynamicResource PageLayerBgBrush}"
+                RenderOptions.ClearTypeHint="Enabled">
+            <Grid Margin="18,12,18,16">
+                <TextBox x:Name="TimeTextBox"
+                         Height="36"
+                         FontFamily="{DynamicResource MonoFontFamily}"
+                         FontSize="17"
+                         FontWeight="SemiBold"
+                         TextAlignment="Center"
+                         HorizontalContentAlignment="Center"
+                         VerticalContentAlignment="Center"
+                         Padding="12,0" />
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="1"
+                Background="{DynamicResource FooterBgBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="16,10">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button x:Name="CancelActionButton"
+                        MinWidth="74"
+                        Margin="0,0,6,0"
+                        IsCancel="True" />
+                <Button x:Name="OkActionButton"
+                        Style="{DynamicResource AccentButtonStyle}"
+                        MinWidth="74"
+                        IsDefault="True" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</controls:ModernWindow>

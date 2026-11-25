@@ -71,7 +71,7 @@ internal sealed class TerrariaAutomationContext
             "activate Terraria window",
             success,
             ClientSize: clientSize,
-            Detail: success ? Window.LastCoordinateDiagnostic : "window activation failed"));
+            Detail: Window.LastCoordinateDiagnostic));
     }
 
     public async Task<bool> RunStepAsync(

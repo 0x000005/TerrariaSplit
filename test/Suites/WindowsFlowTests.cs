@@ -1,5 +1,7 @@
 using TerrariaSplit.UI.Rendering;
 using TerrariaSplit.Terraria.Automation;
+using TerrariaSplit.UI.Wpf.Settings;
+using TerrariaSplit.UI.Wpf.Windows;
 
 namespace TerrariaSplit.Tests;
 
@@ -93,13 +95,11 @@ internal static class WindowsFlowTests
     private static Task AboutPageJourney(CancellationToken cancellationToken) => StaTestHost.RunAsync(() =>
     {
         using var service = new FakeUpdateService(new Version(9, 8, 7, 6));
-        using var form = new SettingsForm(new AppSettings(), applicationUpdateService: service);
-        Check.Equal(SettingsPageId.About, form.PageHost.Pages.Last().Id);
-        AboutSettingsPage page = form.PageHost.GetOrCreatePage<AboutSettingsPage>(SettingsPageId.About);
+        using var window = new SettingsWindow(new AppSettings(), applicationUpdateService: service);
+        Check.Equal(SettingsPageId.About, window.PageHost.Pages.Last().Id);
+        WpfAboutSettingsPage page = window.PageHost.GetOrCreatePage<WpfAboutSettingsPage>(SettingsPageId.About);
         Check.Equal("v9.8.7.6", page.DisplayedVersion);
-        Check.True(page.ProductSectionNaturalHeight > 0);
-        Check.Equal(page.ProductSectionNaturalHeight * 2, page.ProductSectionMinimumHeight);
-        form.Dispose();
+        window.Dispose();
         Check.True(service.Disposed);
     }, cancellationToken);
 
@@ -123,11 +123,11 @@ internal static class WindowsFlowTests
             }
         ];
 
-        using var form = new SettingsForm(
+        using var window = new SettingsWindow(
             settings,
             applicationUpdateService: new FakeUpdateService(new Version(1, 0, 0, 0)));
-        form.PageHost.Select(SettingsPageId.Splits);
-        SplitSettingsPage page = form.PageHost.GetOrCreatePage<SplitSettingsPage>(SettingsPageId.Splits);
+        window.PageHost.Select(SettingsPageId.Splits);
+        WpfSplitSettingsPage page = window.PageHost.GetOrCreatePage<WpfSplitSettingsPage>(SettingsPageId.Splits);
 
         Check.True(page.AllIconFilesSectionVisibleForTests);
         Check.Equal(2, page.AllIconFileBoxesForTests.Count);
@@ -144,7 +144,7 @@ internal static class WindowsFlowTests
         Check.True(page.AllIconFilesSectionVisibleForTests);
         Check.Equal(customPath, page.AllIconFileBoxesForTests[SplitCatalog.Destroyer].Text);
 
-        AppSettings draft = form.PageHost.CreateAppliedSnapshot();
+        AppSettings draft = window.PageHost.CreateAppliedSnapshot();
         SplitIconOverride iconOverride = draft.Route.SplitRoute.Single().IconOverride;
         Check.Equal(SplitIconOverrideSource.All, iconOverride.Source);
         Check.Equal(customPath, iconOverride.AllIconFilePaths[SplitCatalog.Destroyer]);
@@ -160,21 +160,21 @@ internal static class WindowsFlowTests
         AppSettings source = AppSettingsDefaults.Create();
         source.General.Language = "English";
         source.Automation.AutoCreate.WorldSize = AutoCreateWorldSize.Large;
-        using var form = new SettingsForm(source, applicationUpdateService: new FakeUpdateService(new Version(1, 0, 0, 0)));
+        using var form = new SettingsWindow(source, applicationUpdateService: new FakeUpdateService(new Version(1, 0, 0, 0)));
         foreach (SettingsPageId pageId in form.PageHost.Pages.Select(page => page.Id))
         {
             form.PageHost.Select(pageId);
             Check.True(form.PageHost.IsCreated(pageId));
         }
-        UiSettingsPage ui = form.PageHost.GetOrCreatePage<UiSettingsPage>(SettingsPageId.Ui);
+        WpfUiSettingsPage ui = form.PageHost.GetOrCreatePage<WpfUiSettingsPage>(SettingsPageId.Ui);
         foreach ((UiColumnDescriptor primary, UiColumnDescriptor attached) in UiColumnDescriptors.SharedWidthPairs)
         {
-            System.Windows.Forms.TextBox primaryWidth = ui.GetColumnWidthBoxForTests(primary.Key);
-            System.Windows.Forms.TextBox attachedWidth = ui.GetColumnWidthBoxForTests(attached.Key);
+            System.Windows.Controls.TextBox primaryWidth = ui.GetColumnWidthBoxForTests(primary.Key);
+            System.Windows.Controls.TextBox attachedWidth = ui.GetColumnWidthBoxForTests(attached.Key);
             Check.True(ReferenceEquals(primaryWidth, attachedWidth));
             primaryWidth.Text = "333";
-            ThemedDropDownList primaryAlignment = ui.GetColumnAlignmentBoxForTests(primary.Key);
-            ThemedDropDownList attachedAlignment = ui.GetColumnAlignmentBoxForTests(attached.Key);
+            System.Windows.Controls.ComboBox primaryAlignment = ui.GetColumnAlignmentBoxForTests(primary.Key);
+            System.Windows.Controls.ComboBox attachedAlignment = ui.GetColumnAlignmentBoxForTests(attached.Key);
             Check.True(ReferenceEquals(primaryAlignment, attachedAlignment));
             primaryAlignment.SelectedIndex = 1;
         }
@@ -182,58 +182,58 @@ internal static class WindowsFlowTests
         ui.NameTimeGapBoxForTests.Text = "8";
         ui.TimeDeltaGapBoxForTests.Text = "9";
 
-        System.Windows.Forms.CheckBox nameShow = ui.GetColumnShowBoxForTests(UiColumnDescriptors.Name.Key);
-        System.Windows.Forms.CheckBox attachedNameShow = ui.GetColumnShowBoxForTests(UiColumnDescriptors.AttachedName.Key);
-        Check.False(nameShow.Checked);
-        Check.False(attachedNameShow.Checked);
-        nameShow.Checked = true;
-        attachedNameShow.Checked = true;
-        nameShow.Checked = false;
-        Check.False(ui.GetColumnFontSizeBoxForTests(UiColumnDescriptors.Name.Key).Enabled);
-        Check.True(ui.GetColumnWidthBoxForTests(UiColumnDescriptors.Name.Key).Enabled);
-        Check.True(ui.GetColumnAlignmentBoxForTests(UiColumnDescriptors.Name.Key).Enabled);
-        Check.True(ui.IconNameGapBoxForTests.Enabled);
-        Check.True(ui.NameTimeGapBoxForTests.Enabled);
+        System.Windows.Controls.CheckBox nameShow = ui.GetColumnShowBoxForTests(UiColumnDescriptors.Name.Key);
+        System.Windows.Controls.CheckBox attachedNameShow = ui.GetColumnShowBoxForTests(UiColumnDescriptors.AttachedName.Key);
+        Check.False(nameShow.IsChecked == true);
+        Check.False(attachedNameShow.IsChecked == true);
+        nameShow.IsChecked = true;
+        attachedNameShow.IsChecked = true;
+        nameShow.IsChecked = false;
+        Check.False(ui.GetColumnFontSizeBoxForTests(UiColumnDescriptors.Name.Key).IsEnabled);
+        Check.True(ui.GetColumnWidthBoxForTests(UiColumnDescriptors.Name.Key).IsEnabled);
+        Check.True(ui.GetColumnAlignmentBoxForTests(UiColumnDescriptors.Name.Key).IsEnabled);
+        Check.True(ui.IconNameGapBoxForTests.IsEnabled);
+        Check.True(ui.NameTimeGapBoxForTests.IsEnabled);
 
-        attachedNameShow.Checked = false;
-        Check.False(ui.GetColumnFontSizeBoxForTests(UiColumnDescriptors.AttachedName.Key).Enabled);
-        Check.False(ui.GetColumnWidthBoxForTests(UiColumnDescriptors.Name.Key).Enabled);
-        Check.False(ui.GetColumnAlignmentBoxForTests(UiColumnDescriptors.Name.Key).Enabled);
-        Check.True(ui.IconNameGapBoxForTests.Enabled);
-        Check.False(ui.NameTimeGapBoxForTests.Enabled);
+        attachedNameShow.IsChecked = false;
+        Check.False(ui.GetColumnFontSizeBoxForTests(UiColumnDescriptors.AttachedName.Key).IsEnabled);
+        Check.False(ui.GetColumnWidthBoxForTests(UiColumnDescriptors.Name.Key).IsEnabled);
+        Check.False(ui.GetColumnAlignmentBoxForTests(UiColumnDescriptors.Name.Key).IsEnabled);
+        Check.True(ui.IconNameGapBoxForTests.IsEnabled);
+        Check.False(ui.NameTimeGapBoxForTests.IsEnabled);
 
-        nameShow.Checked = true;
-        attachedNameShow.Checked = true;
-        Check.True(ui.GetColumnFontSizeBoxForTests(UiColumnDescriptors.Name.Key).Enabled);
-        Check.True(ui.GetColumnWidthBoxForTests(UiColumnDescriptors.Name.Key).Enabled);
-        Check.True(ui.GetColumnAlignmentBoxForTests(UiColumnDescriptors.Name.Key).Enabled);
-        Check.True(ui.IconNameGapBoxForTests.Enabled);
-        Check.True(ui.NameTimeGapBoxForTests.Enabled);
+        nameShow.IsChecked = true;
+        attachedNameShow.IsChecked = true;
+        Check.True(ui.GetColumnFontSizeBoxForTests(UiColumnDescriptors.Name.Key).IsEnabled);
+        Check.True(ui.GetColumnWidthBoxForTests(UiColumnDescriptors.Name.Key).IsEnabled);
+        Check.True(ui.GetColumnAlignmentBoxForTests(UiColumnDescriptors.Name.Key).IsEnabled);
+        Check.True(ui.IconNameGapBoxForTests.IsEnabled);
+        Check.True(ui.NameTimeGapBoxForTests.IsEnabled);
 
-        System.Windows.Forms.CheckBox iconShow = ui.GetColumnShowBoxForTests(UiColumnDescriptors.Icon.Key);
-        System.Windows.Forms.CheckBox attachedIconShow = ui.GetColumnShowBoxForTests(UiColumnDescriptors.AttachedIcon.Key);
-        iconShow.Checked = false;
-        attachedIconShow.Checked = false;
-        Check.False(ui.IconNameGapBoxForTests.Enabled);
-        iconShow.Checked = true;
-        attachedIconShow.Checked = true;
-        Check.True(ui.IconNameGapBoxForTests.Enabled);
+        System.Windows.Controls.CheckBox iconShow = ui.GetColumnShowBoxForTests(UiColumnDescriptors.Icon.Key);
+        System.Windows.Controls.CheckBox attachedIconShow = ui.GetColumnShowBoxForTests(UiColumnDescriptors.AttachedIcon.Key);
+        iconShow.IsChecked = false;
+        attachedIconShow.IsChecked = false;
+        Check.False(ui.IconNameGapBoxForTests.IsEnabled);
+        iconShow.IsChecked = true;
+        attachedIconShow.IsChecked = true;
+        Check.True(ui.IconNameGapBoxForTests.IsEnabled);
 
-        System.Windows.Forms.CheckBox timeShow = ui.GetColumnShowBoxForTests(UiColumnDescriptors.Time.Key);
-        System.Windows.Forms.CheckBox attachedTimeShow = ui.GetColumnShowBoxForTests(UiColumnDescriptors.AttachedTime.Key);
-        timeShow.Checked = false;
-        attachedTimeShow.Checked = false;
-        Check.False(ui.TimeDeltaGapBoxForTests.Enabled);
-        timeShow.Checked = true;
-        attachedTimeShow.Checked = true;
-        Check.True(ui.TimeDeltaGapBoxForTests.Enabled);
+        System.Windows.Controls.CheckBox timeShow = ui.GetColumnShowBoxForTests(UiColumnDescriptors.Time.Key);
+        System.Windows.Controls.CheckBox attachedTimeShow = ui.GetColumnShowBoxForTests(UiColumnDescriptors.AttachedTime.Key);
+        timeShow.IsChecked = false;
+        attachedTimeShow.IsChecked = false;
+        Check.False(ui.TimeDeltaGapBoxForTests.IsEnabled);
+        timeShow.IsChecked = true;
+        attachedTimeShow.IsChecked = true;
+        Check.True(ui.TimeDeltaGapBoxForTests.IsEnabled);
 
         foreach (UiColumnDescriptor descriptor in UiColumnDescriptors.All.Where(static descriptor => descriptor.ShowItalic))
         {
-            System.Windows.Forms.CheckBox italicBox = Check.Is<System.Windows.Forms.CheckBox>(ui.GetItalicBoxForTests(descriptor.Key));
-            italicBox.Checked = true;
+            System.Windows.Controls.CheckBox italicBox = Check.Is<System.Windows.Controls.CheckBox>(ui.GetItalicBoxForTests(descriptor.Key));
+            italicBox.IsChecked = true;
         }
-        ColorSettingsPage colors = form.PageHost.GetOrCreatePage<ColorSettingsPage>(SettingsPageId.Colors);
+        WpfColorSettingsPage colors = form.PageHost.GetOrCreatePage<WpfColorSettingsPage>(SettingsPageId.Colors);
         Check.True(colors.ColorTextBoxes.ContainsKey(nameof(UiColorSettings.NameText)));
         Check.True(colors.ColorTextBoxes.ContainsKey(nameof(UiColorSettings.ActiveNameText)));
         Check.True(colors.ColorTextBoxes.ContainsKey(nameof(UiColorSettings.CompletedNameText)));
@@ -244,17 +244,17 @@ internal static class WindowsFlowTests
         colors.ColorTextBoxes[nameof(UiColorSettings.CompletedNameText)].Text = "#654321";
         colors.ColorTextBoxes[nameof(UiColorSettings.DeltaEqualText)].Text = "#456789";
         colors.ColorTextBoxes[nameof(UiColorSettings.TimerEqualText)].Text = "#ABCDEF";
-        AdvancedSettingsPage advanced = form.PageHost.GetOrCreatePage<AdvancedSettingsPage>(SettingsPageId.Advanced);
+        WpfAdvancedSettingsPage advanced = form.PageHost.GetOrCreatePage<WpfAdvancedSettingsPage>(SettingsPageId.Advanced);
         Check.Sequence(new[] { "DEBUG", "INFO", "WARN", "ERROR", "No logging" }, advanced.MinimumLogLevelBox.Items.Cast<string>());
         Check.Equal(3, advanced.MinimumLogLevelBox.SelectedIndex);
         advanced.MinimumLogLevelBox.SelectedIndex = 4;
         Check.Equal("NONE", form.PageHost.CreateAppliedSnapshot().Advanced.MinimumLogLevel);
         advanced.MinimumLogLevelBox.SelectedIndex = 0;
-        Check.False(advanced.EnableManualSplitBox.Checked);
-        Check.False(advanced.ManualSplitKeyBox.Enabled);
-        advanced.EnableManualSplitBox.Checked = true;
-        advanced.ManualSplitKeyBox.SetHotkey(System.Windows.Forms.Keys.Control | System.Windows.Forms.Keys.F7);
-        Check.True(advanced.ManualSplitKeyBox.Enabled);
+        Check.False(advanced.EnableManualSplitBox.IsChecked == true);
+        Check.False(advanced.ManualSplitKeyBox.IsEnabled);
+        advanced.EnableManualSplitBox.IsChecked = true;
+        advanced.ManualSplitKeyBox.Hotkey = System.Windows.Forms.Keys.Control | System.Windows.Forms.Keys.F7;
+        Check.True(advanced.ManualSplitKeyBox.IsEnabled);
         AppSettings draft = form.PageHost.CreateAppliedSnapshot();
         Check.False(ReferenceEquals(source, draft));
         Check.Equal("English", draft.General.Language);
@@ -287,92 +287,91 @@ internal static class WindowsFlowTests
             draft.Hotkeys.ManualSplitKey);
         Check.False(string.Equals(source.Overlay.Colors.NameText, draft.Overlay.Colors.NameText, StringComparison.Ordinal));
         Check.Equal("English", source.General.Language);
-        AutomationSettingsPage automation = form.PageHost.GetOrCreatePage<AutomationSettingsPage>(SettingsPageId.Automation);
+        WpfAutomationSettingsPage automation = form.PageHost.GetOrCreatePage<WpfAutomationSettingsPage>(SettingsPageId.Automation);
         Check.Equal(7, automation.AutoCreateLifeCrystalMinimumBoxes.Count);
-        Check.Equal("6+", automation.AutoCreateLifeCrystalMinimumBoxes[6].Text);
-        Check.False(automation.AutoCreateLifeCrystalMinimumBoxes[6].AutoEllipsis);
-        Check.True(automation.AutoCreatePyramidFilterBox.Enabled);
-        Check.True(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Enabled);
-        Check.True(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Checked);
-        Check.True(automation.AutoCreateJungleRouteDepthBox.Enabled);
-        automation.AutoCreateCheatsBox.Checked = true;
+        Check.Equal("6+", (string)automation.AutoCreateLifeCrystalMinimumBoxes[6].Tag!);
+        Check.True(automation.AutoCreatePyramidFilterBox.IsEnabled);
+        Check.True(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.IsEnabled);
+        Check.True(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.IsChecked == true);
+        Check.True(automation.AutoCreateJungleRouteDepthBox.IsEnabled);
+        automation.AutoCreateCheatsBox.IsChecked = true;
         automation.AutoCreateWorldSizeBox.SelectedIndex = Array.IndexOf(AutoCreateWorldSize.All, AutoCreateWorldSize.Small);
-        automation.AutoCreatePyramidFilterBox.Checked = true;
-        Check.True(automation.AutoCreatePyramidCoinPileMinimumBoxes[0].Enabled);
-        Check.True(automation.AutoCreatePyramidCoinPileMinimumBoxes[0].Checked);
-        automation.AutoCreatePyramidCoinPileMinimumBoxes[3].Checked = false;
-        Check.True(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Enabled);
-        automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Checked = true;
-        Check.True(automation.AutoCreateCrimsonDistanceBoxes.Values.All(static button => button.Enabled));
-        Check.True(automation.AutoCreateJungleRouteDepthBox.Enabled);
-        automation.AutoCreateJungleRouteDepthBox.Checked = true;
-        Check.True(automation.AutoCreateJungleRouteDepthBox.Checked);
-        Check.True(automation.AutoCreateJungleRouteDepthBoxes.Values.All(static button => button.Enabled));
-        Check.True(automation.AutoCreateResourceItemBoxes.Values.All(static button => button.Enabled));
-        Check.True(automation.AutoCreateLifeCrystalMinimumBoxes[0].Enabled);
-        Check.True(automation.AutoCreateSpelunkerMinimumBoxes[0].Enabled);
-        Check.True(automation.AutoCreateFeatherfallMinimumBoxes[0].Enabled);
-        automation.AutoCreateSpecialSeedBoxes[AutoCreateSpecialWorldSeed.NotTheBees].Checked = true;
-        Check.True(automation.AutoCreatePyramidFilterBox.Enabled);
-        Check.True(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Enabled);
-        Check.True(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Checked);
-        Check.True(automation.AutoCreateJungleRouteDepthBox.Enabled);
-        Check.True(automation.AutoCreateJungleRouteDepthBox.Checked);
-        automation.AutoCreateSpecialSeedBoxes[AutoCreateSpecialWorldSeed.NotTheBees].Checked = false;
-        Check.True(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Enabled);
+        automation.AutoCreatePyramidFilterBox.IsChecked = true;
+        Check.True(automation.AutoCreatePyramidCoinPileMinimumBoxes[0].IsEnabled);
+        Check.True(automation.AutoCreatePyramidCoinPileMinimumBoxes[0].IsChecked == true);
+        automation.AutoCreatePyramidCoinPileMinimumBoxes[3].IsChecked = false;
+        Check.True(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.IsEnabled);
+        automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.IsChecked = true;
+        Check.True(automation.AutoCreateCrimsonDistanceBoxes.Values.All(static button => button.IsEnabled));
+        Check.True(automation.AutoCreateJungleRouteDepthBox.IsEnabled);
+        automation.AutoCreateJungleRouteDepthBox.IsChecked = true;
+        Check.True(automation.AutoCreateJungleRouteDepthBox.IsChecked == true);
+        Check.True(automation.AutoCreateJungleRouteDepthBoxes.Values.All(static button => button.IsEnabled));
+        Check.True(automation.AutoCreateResourceItemBoxes.Values.All(static button => button.IsEnabled));
+        Check.True(automation.AutoCreateLifeCrystalMinimumBoxes[0].IsEnabled);
+        Check.True(automation.AutoCreateSpelunkerMinimumBoxes[0].IsEnabled);
+        Check.True(automation.AutoCreateFeatherfallMinimumBoxes[0].IsEnabled);
+        automation.AutoCreateSpecialSeedBoxes[AutoCreateSpecialWorldSeed.NotTheBees].IsChecked = true;
+        Check.True(automation.AutoCreatePyramidFilterBox.IsEnabled);
+        Check.True(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.IsEnabled);
+        Check.True(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.IsChecked == true);
+        Check.True(automation.AutoCreateJungleRouteDepthBox.IsEnabled);
+        Check.True(automation.AutoCreateJungleRouteDepthBox.IsChecked == true);
+        automation.AutoCreateSpecialSeedBoxes[AutoCreateSpecialWorldSeed.NotTheBees].IsChecked = false;
+        Check.True(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.IsEnabled);
         automation.AutoCreateSecretSeedsBox.Text = "secret";
-        Check.True(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Enabled);
-        Check.True(automation.AutoCreatePyramidFilterBox.Enabled);
+        Check.True(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.IsEnabled);
+        Check.True(automation.AutoCreatePyramidFilterBox.IsEnabled);
         automation.AutoCreateSecretSeedsBox.Text = string.Empty;
-        automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Checked = true;
-        automation.AutoCreateJungleRouteDepthBox.Checked = true;
+        automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.IsChecked = true;
+        automation.AutoCreateJungleRouteDepthBox.IsChecked = true;
         automation.AutoCreateFixedSeedBox.Text = " 8675309 ";
-        Check.False(automation.AutoCreatePyramidFilterBox.Enabled);
-        Check.True(automation.AutoCreatePyramidFilterBox.Checked);
-        Check.False(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Enabled);
-        Check.True(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Checked);
-        Check.False(automation.AutoCreateJungleRouteDepthBox.Enabled);
+        Check.False(automation.AutoCreatePyramidFilterBox.IsEnabled);
+        Check.True(automation.AutoCreatePyramidFilterBox.IsChecked == true);
+        Check.False(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.IsEnabled);
+        Check.True(automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.IsChecked == true);
+        Check.False(automation.AutoCreateJungleRouteDepthBox.IsEnabled);
         AppSettings fixedSeedDraft = form.PageHost.CreateAppliedSnapshot();
         Check.Equal("8675309", fixedSeedDraft.Automation.AutoCreate.FixedSeed);
         Check.True(fixedSeedDraft.Automation.AutoCreate.EnablePyramidFilter);
         Check.True(fixedSeedDraft.Automation.AutoCreate.RequireCrimsonBetweenDungeonAndSpawn);
         Check.True(fixedSeedDraft.Automation.AutoCreate.JungleRouteDepth != AutoCreateJungleRouteDepth.None);
         automation.AutoCreateFixedSeedBox.Text = string.Empty;
-        Check.True(automation.AutoCreatePyramidFilterBox.Enabled);
-        Check.True(automation.AutoCreateStarfuryDistanceBoxes[0].Enabled);
-        Check.False(automation.AutoCreateStarfuryDistanceBoxes[100].Enabled);
-        automation.AutoCreateStarfuryDistanceBoxes[0].Checked = true;
-        automation.AutoCreateStarfuryDistanceBoxes[200].Checked = false;
+        Check.True(automation.AutoCreatePyramidFilterBox.IsEnabled);
+        Check.True(automation.AutoCreateStarfuryDistanceBoxes[0].IsEnabled);
+        Check.False(automation.AutoCreateStarfuryDistanceBoxes[100].IsEnabled);
+        automation.AutoCreateStarfuryDistanceBoxes[0].IsChecked = true;
+        automation.AutoCreateStarfuryDistanceBoxes[200].IsChecked = false;
         Check.Equal(200, form.PageHost.CreateAppliedSnapshot().Automation.AutoCreate.StarfuryMaximumDistance);
-        Check.True(automation.AutoCreateStarfuryDistanceBoxes[100].Checked);
-        Check.False(automation.AutoCreateStarfuryDistanceBoxes[300].Checked);
-        automation.AutoCreateFinchStaffDistanceBoxes[0].Checked = true;
-        automation.AutoCreateFinchStaffDistanceBoxes[500].Checked = false;
+        Check.True(automation.AutoCreateStarfuryDistanceBoxes[100].IsChecked == true);
+        Check.False(automation.AutoCreateStarfuryDistanceBoxes[300].IsChecked == true);
+        automation.AutoCreateFinchStaffDistanceBoxes[0].IsChecked = true;
+        automation.AutoCreateFinchStaffDistanceBoxes[500].IsChecked = false;
         Check.Equal(500, form.PageHost.CreateAppliedSnapshot().Automation.AutoCreate.FinchStaffMaximumDistance);
-        automation.AutoCreateCheatsBox.Checked = false;
-        Check.False(automation.AutoCreateStarfuryDistanceBoxes[0].Enabled);
-        Check.False(automation.AutoCreateFinchStaffDistanceBoxes[0].Enabled);
+        automation.AutoCreateCheatsBox.IsChecked = false;
+        Check.False(automation.AutoCreateStarfuryDistanceBoxes[0].IsEnabled);
+        Check.False(automation.AutoCreateFinchStaffDistanceBoxes[0].IsEnabled);
         Check.Equal(200, form.PageHost.CreateAppliedSnapshot().Automation.AutoCreate.StarfuryMaximumDistance);
         Check.Equal(500, form.PageHost.CreateAppliedSnapshot().Automation.AutoCreate.FinchStaffMaximumDistance);
-        automation.AutoCreateCheatsBox.Checked = true;
-        automation.AutoCreateStarfuryDistanceBoxes[0].Checked = false;
+        automation.AutoCreateCheatsBox.IsChecked = true;
+        automation.AutoCreateStarfuryDistanceBoxes[0].IsChecked = false;
         Check.Equal(0, form.PageHost.CreateAppliedSnapshot().Automation.AutoCreate.StarfuryMaximumDistance);
-        Check.False(automation.AutoCreateStarfuryDistanceBoxes[100].Enabled);
-        automation.AutoCreatePyramidDepthBoxes[15].Checked = false;
+        Check.False(automation.AutoCreateStarfuryDistanceBoxes[100].IsEnabled);
+        automation.AutoCreatePyramidDepthBoxes[15].IsChecked = false;
         Check.Equal(15, form.PageHost.CreateAppliedSnapshot().Automation.AutoCreate.PyramidMaximumDepth);
-        automation.AutoCreateCheatsBox.Checked = false;
-        Check.False(automation.AutoCreatePyramidDepthBoxes[0].Enabled);
+        automation.AutoCreateCheatsBox.IsChecked = false;
+        Check.False(automation.AutoCreatePyramidDepthBoxes[0].IsEnabled);
         Check.Equal(15, form.PageHost.CreateAppliedSnapshot().Automation.AutoCreate.PyramidMaximumDepth);
-        automation.AutoCreateCheatsBox.Checked = true;
-        Check.True(automation.AutoCreatePyramidDepthBoxes[15].Enabled);
-        automation.AutoCreatePyramidFilterBox.Checked = false;
-        Check.False(automation.AutoCreatePyramidDepthBoxes[0].Enabled);
-        Check.False(automation.AutoCreatePyramidDepthBoxes[15].Enabled);
+        automation.AutoCreateCheatsBox.IsChecked = true;
+        Check.True(automation.AutoCreatePyramidDepthBoxes[15].IsEnabled);
+        automation.AutoCreatePyramidFilterBox.IsChecked = false;
+        Check.False(automation.AutoCreatePyramidDepthBoxes[0].IsEnabled);
+        Check.False(automation.AutoCreatePyramidDepthBoxes[15].IsEnabled);
         Check.Equal(15, form.PageHost.CreateAppliedSnapshot().Automation.AutoCreate.PyramidMaximumDepth);
-        automation.AutoCreatePyramidFilterBox.Checked = true;
-        Check.True(automation.AutoCreatePyramidDepthBoxes[15].Enabled);
-        automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.Checked = true;
-        automation.AutoCreateJungleRouteDepthBox.Checked = true;
+        automation.AutoCreatePyramidFilterBox.IsChecked = true;
+        Check.True(automation.AutoCreatePyramidDepthBoxes[15].IsEnabled);
+        automation.AutoCreateCrimsonBetweenDungeonAndSpawnBox.IsChecked = true;
+        automation.AutoCreateJungleRouteDepthBox.IsChecked = true;
         AppSettings resourceDraft = form.PageHost.CreateAppliedSnapshot();
         Check.True(resourceDraft.Automation.AutoCreate.EnableCheats);
         Check.Equal(3, resourceDraft.Automation.AutoCreate.PyramidFilterCoinPileMinimum);
@@ -382,7 +381,6 @@ internal static class WindowsFlowTests
         Check.Equal(0, resourceDraft.Automation.AutoCreate.ResourceFilterSpelunkerPotionMinimum);
         Check.Equal(0, resourceDraft.Automation.AutoCreate.ResourceFilterFeatherfallPotionMinimum);
         Check.True(source.Automation.AutoCreate.RequireCrimsonBetweenDungeonAndSpawn);
-
         using var contextMenu = new System.Windows.Forms.ContextMenuStrip();
         bool cheatsToggleRequested = false;
         new MainFormContextMenuBuilder().Rebuild(
@@ -752,9 +750,9 @@ internal static class WindowsFlowTests
     private static Task CompletionTextJourney(CancellationToken cancellationToken) => StaTestHost.RunAsync(() =>
     {
         AppSettings source = AppSettingsDefaults.Create();
-        using var form = new SettingsForm(source, applicationUpdateService: new FakeUpdateService(new Version(1, 0, 0, 0)));
+        using var form = new SettingsWindow(source, applicationUpdateService: new FakeUpdateService(new Version(1, 0, 0, 0)));
         form.PageHost.Select(SettingsPageId.Effects);
-        var page = form.PageHost.GetOrCreatePage<AnimationSettingsPage>(SettingsPageId.Effects);
+        var page = form.PageHost.GetOrCreatePage<WpfAnimationSettingsPage>(SettingsPageId.Effects);
         Check.Equal(3, page.CompletionTextOptions.Count);
         Check.Equal(25, source.Overlay.SplitCompletionText.Time.OutlineThicknessPercent);
         Check.Equal(25, source.Overlay.SplitCompletionText.Hint.OutlineThicknessPercent);
@@ -766,14 +764,14 @@ internal static class WindowsFlowTests
         foreach (var controls in page.CompletionTextOptions.Values)
         {
             controls.Font.SetSelectedFontFamily("Arial");
-            controls.Bold.Checked = false;
-            controls.Italic.Checked = true;
+            controls.Bold.IsChecked = false;
+            controls.Italic.IsChecked = true;
             controls.Opacity.Text = percent++.ToString();
             controls.Shadow.Text = "35";
             controls.Outline.Text = "12";
         }
         form.PageHost.Select(SettingsPageId.Colors);
-        var colors = form.PageHost.GetOrCreatePage<ColorSettingsPage>(SettingsPageId.Colors);
+        var colors = form.PageHost.GetOrCreatePage<WpfColorSettingsPage>(SettingsPageId.Colors);
         foreach (TextColorDescriptor descriptor in SettingsDescriptors.AnimationColors)
         {
             colors.ColorTextBoxes[descriptor.TextKey].Text = "#123456";
@@ -804,9 +802,9 @@ internal static class WindowsFlowTests
             Check.Equal("#345678", descriptor.GetOutline(loaded.Overlay.Colors));
             Check.Equal("#56789A", descriptor.GetShadow(loaded.Overlay.Colors));
         }
-        using var reopened = new SettingsForm(loaded, applicationUpdateService: new FakeUpdateService(new Version(1, 0, 0, 0)));
+        using var reopened = new SettingsWindow(loaded, applicationUpdateService: new FakeUpdateService(new Version(1, 0, 0, 0)));
         reopened.PageHost.Select(SettingsPageId.Effects);
-        Check.Equal("22", reopened.PageHost.GetOrCreatePage<AnimationSettingsPage>(SettingsPageId.Effects).CompletionTextOptions["Hint"].Opacity.Text);
+        Check.Equal("22", reopened.PageHost.GetOrCreatePage<WpfAnimationSettingsPage>(SettingsPageId.Effects).CompletionTextOptions["Hint"].Opacity.Text);
 
         var definition = new SplitDefinition("split:text-test", "Text", SplitCondition.All([]), [], [], []);
         var animation = new SplitCompletionAnimation(definition, TimeSpan.FromSeconds(12), TimeSpan.FromSeconds(24),
@@ -891,10 +889,10 @@ internal static class WindowsFlowTests
 
         // Switching from Interface publishes primary Delta settings to the effect preview.
         form.PageHost.Select(SettingsPageId.Ui);
-        var ui = form.PageHost.GetOrCreatePage<UiSettingsPage>(SettingsPageId.Ui);
+        var ui = form.PageHost.GetOrCreatePage<WpfUiSettingsPage>(SettingsPageId.Ui);
         ui.DeltaOpacityBox.Text = "0";
         ui.GetFontFamilySelectorForTests(UiColumnDescriptors.Delta.Key).SetSelectedFontFamily("Arial");
-        ui.GetItalicBoxForTests(UiColumnDescriptors.Delta.Key)!.Checked = true;
+        ui.GetItalicBoxForTests(UiColumnDescriptors.Delta.Key)!.IsChecked = true;
         form.PageHost.Select(SettingsPageId.Effects);
         page.PaintSegmentBestDeltaHighlightPreview(graphics, new Rectangle(0, 0, 600, 400));
         Check.Equal(0, CountPreviewInk(bitmap));
@@ -911,9 +909,10 @@ internal static class WindowsFlowTests
     private static int CountPreviewInk(Bitmap bitmap)
     {
         int count = 0;
+        int backgroundArgb = WpfAnimationSettingsPage.PreviewBackgroundColor.ToArgb();
         for (int y = 2; y < bitmap.Height - 2; y++)
         for (int x = 2; x < bitmap.Width - 2; x++)
-            if (bitmap.GetPixel(x, y).ToArgb() != UiTheme.Field.ToArgb()) count++;
+            if (bitmap.GetPixel(x, y).ToArgb() != backgroundArgb) count++;
         return count;
     }
 

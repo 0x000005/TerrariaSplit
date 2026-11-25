@@ -12,7 +12,7 @@ TerrariaSplit 是一款运行于 Windows 平台的 `.NET 10`（x64）桌面应�
 ```mermaid
 flowchart TB
     subgraph Client["TerrariaSplit 主进程 (net10.0-windows / x64)"]
-        UI["WinForms 表现层 & 薄 Shell<br/>MainForm + TimerOverlayForm(独立 STA) + Settings/Race/Stats"]
+        UI["WinForms 透明浮层 + WPF Fluent 2 管理界面<br/>MainForm + TimerOverlayForm(独立 STA) + WPF Settings/Race/Stats/Palette"]
         APP["Application 应用编排层<br/>ApplicationController + TerrariaMonitorCoordinator(5ms WatcherLoop)"]
         CORE["纯核心层<br/>Domain / Compatibility / Configuration / Storage / Statistics"]
         TERR["Terraria 集成层<br/>ReadProcessMemory / Automation / WorldPool / NativeFilterClient"]
@@ -163,7 +163,7 @@ flowchart BT
 | **游戏集成** | `Terraria` | `net10.0-windows` | 内存直读、UI 缩放补丁、菜单/存档/世界池自动化、原生 ABI7 筛选客户端、竞速世界锁服务；不依赖 WinForms。 |
 | **联机协议栈** | `Race.Contracts` / `Client` / `Server` | `net10.0` | 联机 DTO 与 `.wld` 校验、SignalR 客户端会话与重连、ASP.NET Core 竞速服务端；客户端不依赖 UI。 |
 | **内存控制** | `MemoryBridge` / `Bootstrap` / `Payload` | `x86` / C++ / `net40` | 统一承载 32 位 CLRMD 探测、种子预测与进程内 Harmony 注入；线协议源码通过链接共享。 |
-| **表现组合根** | `WinForms` | `net10.0-windows` | `MainShellCompositionRoot`、双窗 Overlay、渲染管线、10 页懒加载设置、竞速与统计窗体、热键、语音、自动更新。 |
+| **表现组合根** | `WinForms` | `net10.0-windows`（WinForms + WPF） | `MainShellCompositionRoot`、双窗 WinForms 透明 Overlay、渲染管线，以及基于 WPF Fluent 2 的 10 页设置、竞速、统计、练习世界面板与模态对话框；热键、语音、自动更新。 |
 
 ---
 
@@ -190,8 +190,8 @@ flowchart LR
 
 | 线程 / 调度器 | 归属 | 周期 / 触发方式 | 职责与线程安全机制 |
 |---|---|---|---|
-| **UI 主线程（STA）** | `MainForm` | Win32 消息循环 | 持有 `ApplicationController`、`MainForm`（Split 状态层）、统计/竞速窗体、全局热键消息；所有业务决策串行化在此线程执行。 |
-| **设置窗口线程（STA）** | `SettingsDialogHost`（`TerrariaSplit Settings UI`） | 独立消息循环 | 独立承载 `SettingsForm` 避免阻塞主界面，应用设置、窗口关闭与更新重启回调统一派发回 UI 主线程执行。 |
+| **UI 主线程（STA）** | `MainForm` | Win32 消息循环 | 持有 `ApplicationController`、`MainForm`（Split 状态层）、WPF 统计/竞速/练习世界窗口、全局热键消息；所有业务决策串行化在此线程执行。 |
+| **设置窗口线程（STA）** | `SettingsDialogHost`（`TerrariaSplit Settings UI`） | 独立 WPF `Dispatcher` 消息循环 | 独立承载 WPF `SettingsWindow` 避免阻塞主界面，应用设置、窗口关闭与更新重启回调统一派发回 UI 主线程执行。 |
 | **独立计时窗口线程（STA）** | `TimerOverlayWindowHost` | 独立消息循环 + 内部高帧率调度 | 专职渲染底部 `TimerOverlayForm`，接收不可变 `TimerOverlayRenderState` 与布局坐标，与主 UI 线程完全解耦。 |
 | **Watcher 后台线程** | `WatcherLoop`（`TaskCreationOptions.LongRunning`） | 自适应间隔：未附着 `1s` / 扫描 `250ms` / 就绪 `5ms` | 消费 `RuntimeCommand`，轮询 `TerrariaWorldWatcher.Poll()`，在 `WatcherRuntimeProcessor` 内推进 `SplitTimer` 与 `SplitTracker`，仅在状态变化或 `250ms` 心跳时发布不可变 `RuntimeRunSnapshot`。 |
 | **UI 控制调度器** | `HighPrecisionScheduler`（`TerrariaSplit UI control`） | 未就绪 `5ms`；就绪后按 `ReadyUiControlHz`（默认 `100Hz` / `10ms`） | 驱动 `MonitorCoordinator.Tick`（调度 UI 缩放补丁检查等），通过 `Interlocked.Exchange` 合并未消费派发防止消息队列积压。 |
@@ -318,7 +318,7 @@ sequenceDiagram
   - `1.4.4.9` 沿用固定延时与几何坐标点击（`LegacyMenu`）；
   - `1.4.5.8` / `1.4.6.1` 使用 `ModernMenuAutomation`，通过 `MemoryBridge` 解析的 `MenuAutomationLayoutDto` 实时观测 `Main.menuMode`、`MenuUI._currentState` 及按钮真实矩形坐标，实现状态驱动点击与文本输入。
 - **`CreateWorldWorkflow` 执行顺序（关键不变式）**：
-  1. 激活窗口并配置现代菜单观测；
+  1. 确认窗口位于前台并配置现代菜单观测：已在前台时不重复请求激活，否则请求一次并每 100ms 检查，最多等待 2000ms；取得前台后保留独立的窗口坐标稳定检查，失败报告保留窗口与等待诊断；
   2. **先执行存档准备**：将非收藏存档移至备份目录（或 `PreserveExistingSaves` 模式下仅采集清点快照）——**必须在世界池安装与建人之前执行**，避免误删刚安装的池中世界；
   3. 计算 `WorldPoolSignature` 并尝试 `WorldPoolInstallWorkflow.TryInstall`（若池中有匹配世界，拷贝至 Terraria `Worlds/` 目录，创建人物并停在选图界面，随后只删除私有池条目）；
   4. 若池空或未启用世界池，走 `WorldCreationMenuDriver`（若启用筛选则经 `PyramidSeedPreScreenLoop` 调用原生评估器选出合格种子）创建世界，并在 Zenith 彩蛋配置下衔接 `ZenithStarCatchAutomation` 自动接星。
@@ -359,12 +359,12 @@ sequenceDiagram
   1. 房主通过 `TerrariaRaceWorldGenerationService`（原生并发筛选 + 无头 `TerrariaServer.exe`）生成或选择 `.wld` 并上传；
   2. 收到 `RacePackageChanged` 后，通过 `RaceRouteOverrideController` 临时覆盖主计时器路线与参考时间，并将 `.wld` 同步到 `RaceWorldFileWorkspace`；
   3. 驱动 `TerrariaRaceWorldLockService` 注入并配置游戏内世界锁、确定性熵种子、世纪之花花苞计划、Boss 罚时表与人物创建；
-  4. 持续与 `Payload` 交换 `RaceInGameSnapshot` / `RaceInGameAction`，双向同步游戏内竞速菜单与桌面 `RaceForm`；
+  4. 持续与 `Payload` 交换 `RaceInGameSnapshot` / `RaceInGameAction`，双向同步游戏内竞速菜单与桌面 WPF `RaceWindow`；
   5. 接收全房进度与死亡事件，更新透明排行榜 `RaceLeaderboardForm`、向游戏内发送播报消息，并经 `RaceSpeechCoordinator`（`System.Speech`）触发语音播报。
 
 ---
 
-## 9. WinForms 表现层、双窗渲染引擎与基础设施（`WinForms` / `Infrastructure.Windows`）
+## 9. 表现层、双窗渲染引擎与 WPF 管理界面（`WinForms` + WPF / `Infrastructure.Windows`）
 
 ### 9.1 组合根与薄 Shell 拆分
 [MainShellCompositionRoot.cs](../src/TerrariaSplit.WinForms/UI/MainShellCompositionRoot.cs) 集中装配所有服务与回调，[MainForm](../src/TerrariaSplit.WinForms/UI/MainForm.cs) 拆分为 `MainForm.cs`、`Startup`、`Runtime`、`Overlay`、`Rendering`、`Windowing` 6 个局部文件，并将各类副作用委托给专职 Shell：
@@ -374,9 +374,9 @@ sequenceDiagram
 | `OverlayShell` | 管理双窗布局上下文、调色板缓存、静态脏标记、局部裁剪框与 `OverlayAnimationController`。 |
 | `RuntimeShell` | 托管 `TerrariaMonitorCoordinator`、`ControlScheduler`、`StatusPaintScheduler` 及引用计数的暂停绘制机制。 |
 | `WindowLayerController` + `ProgramModalWindowCoordinator` | 跨线程统一管理 `MainForm`、`TimerOverlayForm` 与所有模态弹窗的 Z-Order、`AlwaysOnTop`、Owner 链及输入拦截重定向。 |
-| `HotkeyShell` + `GlobalHotkeyManager` | 注册/释放系统级热键、映射为 `AppCommand` 并在冲突时弹窗提示（设置页打开期间自动挂起）。 |
-| `AutomationShell` | 串行调度 `CreateWorldWorkflow`、`EnterWorldWorkflow` 与 `PracticeWorldSelectorForm`，管理取消令牌。 |
-| `SettingsShell` + `SettingsDialogHost` | 管理 `SettingsForm` 打开、热键挂起、应用回调与更新重启交接。 |
+| `HotkeyShell` + `GlobalHotkeyManager` | 注册/释放系统级热键、映射为 `AppCommand` 并在冲突时通过 `ModernMessageDialog` 弹窗提示（设置页打开期间自动挂起）。 |
+| `AutomationShell` | 串行调度 `CreateWorldWorkflow`、`EnterWorldWorkflow` 与 WPF `PracticeWorldPaletteWindow`，管理取消令牌。 |
+| `SettingsShell` + `SettingsDialogHost` | 在独立 STA 线程管理 WPF `SettingsWindow` 打开、热键挂起、应用回调与更新重启交接。 |
 | `RaceShell` | 管理整个竞速模式生命周期（见第 8.2 节）。 |
 
 ### 9.2 双透明分层窗口与高性能渲染管线
@@ -388,9 +388,12 @@ sequenceDiagram
   - `RtssOverlayPublisher` 在检测到 `Terraria.exe` 运行时按需拉起 RTSS，通过 `RtssOsdWriter` 写入共享内存实现全屏游戏内 OSD；
   - `HighPrecisionScheduler` 组合 `timeBeginPeriod(1)`、Windows 高分辨率 `WaitableTimer`（`0.1ms` 保护窗）与最后 `1ms` 自旋等待，保证高帧率计时与轮询的低抖动精度。
 
-### 9.3 管理窗口体系（Settings / Statistics / Race）
-- **10 页懒加载设置架构**：`SettingsForm` 通过 `SettingsPageHost` 注册 10 个页面（`General`、`Splits`、`Data`、`Ui`、`Effects`、`Automation`、`Sounds`、`Colors`、`Advanced`、`About`）；页面仅在首次选中时构建，跨页联动通过 `SettingsModelChange` / `ISettingsModelListener` 解耦，保存时按依赖顺序逐页 `Apply` 并穿插 `SettingsNormalizer.Normalize`。
-- **Base-200 统一 DPI 缩放**：[UiDpiScale](../src/TerrariaSplit.WinForms/UI/UiDpiScale.cs) 以 `192 DPI`（200%）为设计基准，初始化时关闭 WinForms 自动缩放，按 `Clamp(DpiX / 192f, 0.5f, 2.5f)` 递归缩放窗口及整棵控件树并记录缩放状态，消除跨 DPI 屏幕错位。
+### 9.3 WPF Fluent 2 紧凑管理界面体系（Settings / Statistics / Race / Palette / Dialogs）
+- **工作区约束**：管理窗口打开及 DPI 变化时按自身所在屏幕工作区约束尺寸与位置，小屏幕下同步放宽最小尺寸，设置页允许横向滚动；模态弹窗跟随所属窗口定位，不再按鼠标所在屏幕重新定位。
+- **WinForms 浮层与 WPF 管理界面共存**：在 `TerrariaSplit.WinForms.csproj` 中启用 `<UseWPF>true</UseWPF>`（保持 17 个生产项目拓扑与依赖图零变动）；实时透明浮层（`MainForm`、`TimerOverlayForm`、`RaceLeaderboardForm`）继续由 WinForms 分层窗口与 GDI+ 管线渲染，全部交互式管理窗口统一收口于 `UI/Wpf/{Theme,Controls,Converters,Dialogs,Settings,Race,Windows,Interop}`。
+- **Fluent 2 Dark 底座与窗口互操作**：`ModernWindow` 结合 `DwmWindowNative` 提供 Win11 DWM 深色模式、窗口圆角、原生 Mica / Acrylic 背景材质与单套自定义标题栏控件；`ThemeManager` 加载 `Colors.xaml`、`Typography.xaml`、`Density.Compact.xaml` 与 `Controls.xaml` 资源字典；`WpfWindowInterop` 处理 WinForms/WPF 所有者句柄桥接与非模态键盘互操作；所有 WPF 窗口随系统 Per-Monitor DPI 原生矢量缩放（`UiDpiScale` 仅保留服务 WinForms 透明排行榜浮窗 `RaceLeaderboardForm`）。
+- **10 页懒加载设置架构**：`SettingsWindow` 注册 10 个 WPF 页面（`General`、`Splits`、`Data`、`Ui`、`Effects`、`Automation`、`Sounds`、`Colors`、`Advanced`、`About`）；页面仅在首次选中时构建，跨页联动通过 `SettingsModelChange` / `ISettingsModelListener` 解耦，保存时按依赖顺序逐页 `Apply` 并穿插 `SettingsNormalizer.Normalize`。
+- **其余桌面窗口**：`RaceWindow`（5 页模块化竞速控制台：`Connection`、`Penalty`、`UI`、`Colors`、`Voice`）、`StatisticsWindow`（支持多条件主组子行像素图标展开与共享单段列纵向合并）、`PracticeWorldPaletteWindow`（Acrylic 命令面板风格练习世界选择器）以及 `ModernMessageDialog` / `ModernTimeEditDialog` 模态对话框。
 
 ---
 
@@ -402,7 +405,7 @@ sequenceDiagram
   - `Worlds/`（及世界池子目录）：练习存档、世界池索引 `world-pool.json` 与预生成 `.wld`、私有 `scratch/` 临时目录；
   - `terrariasplit.log`（客户端）与 `terrariasplit-race-server.log`（服务端）：UTF-8 JSON Lines 滚动日志（程序目录不可写时自动回退至 `%LOCALAPPDATA%\TerrariaSplit`）。
 - **持久化可靠性**：`JsonFileStore` 统一处理序列化与安全读写；`AppSettingsRepository` 启动时会验证候选配置文件合法性并在损坏时回退默认配置；保存失败一律通过 `OperationResult` 回传应用层并弹窗提示，不静默吞错。
-- **统计聚合**：`StatisticsTableBuilder` 将当前路线配置、选定参考时间集、选定运行记录及累计/单段 PB 投影为不可变 `StatisticsTableRow` 列表供 `StatisticsForm` 展示。
+- **统计聚合**：`StatisticsTableBuilder` 将当前路线配置、选定参考时间集、选定运行记录及累计/单段 PB 投影为不可变 `StatisticsTableRow` 列表供 `StatisticsWindow` 展示。
 
 ---
 
@@ -449,7 +452,7 @@ sequenceDiagram
 ## 12. 测试与诊断体系（`test/`）
 
 - **自定义确定性测试宿主（`test/TerrariaSplit.Tests.csproj`）**：
-  - 入口 `test/Suites/Program.cs`（WinForms 路径通过 `StaTestHost` 在 STA 线程运行），按完整行为链组织 17 个测试套件（`CoreAndRun`、`ApplicationFlow`、`ConfigurationStorageFlow`、`CompatibilityFlow`、`Terraria1461Compatibility`、`ResourceJudgeVersion`、`MenuButtonMemory`、`ModernMenu`、`ClipboardAutomation`、`RaceFlow`、`RaceWorldUploadFlow`、`UpdateFlow`、`InfrastructureFlow`、`LoggingFlow`、`WindowsFlow`、`TerrariaIntegration`、`QualityGate`）；
+  - 入口 `test/Suites/Program.cs`（WinForms/WPF 路径通过 `StaTestHost` 在 STA 线程运行），按完整行为链组织 18 个测试套件（`CoreAndRun`、`ApplicationFlow`、`ConfigurationStorageFlow`、`CompatibilityFlow`、`Terraria1461Compatibility`、`ResourceJudgeVersion`、`MenuButtonMemory`、`ModernMenu`、`ClipboardAutomation`、`RaceFlow`、`RaceWorldUploadFlow`、`UpdateFlow`、`InfrastructureFlow`、`LoggingFlow`、`WindowsFlow`、`WpfFoundation`、`TerrariaIntegration`、`QualityGate`）；
   - 依赖真实原生 `TerrariaSplit.WorldFilter.dll` 与本机 Terraria 的高成本用例隔离在 `Native` 套件（需显式设置 `TERRARIA_SPLIT_TEST_SUITE=Native` 运行，缺少依赖时直接报失败）；
   - 支持 `$env:TERRARIA_SPLIT_TEST_FILTER` 按关键字聚焦运行。
 - **独立诊断与基准工具（`test/TerrariaSplit.Diagnostics.csproj`）**：提供启动指标（`StartupMetrics`）、筛选配额/压力测试（`FilterQuotaMetrics`、`WorldFilterStress`）、运行时内存布局探针（`RuntimeLayoutProbe`）与历史金字塔/丛林深度分析命令，输出隔离在 `test/Results/` 与 `test/Temp/`。

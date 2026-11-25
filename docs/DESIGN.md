@@ -71,12 +71,12 @@ TerrariaSplit 面向 Terraria 速通、日常分段练习、自动化刷图与�
 
 ### 3.3 练习模式与统计页面
 - **练习模式（`PracticeMode`）**：
-  - 允许在主浮层直接点击单段或总时间弹出 `TimeEditDialog` 修改时间；
+  - 允许在主浮层直接点击单段或总时间弹出 `ModernTimeEditDialog` 修改时间；
   - 修改单段时自动保持时间序列单调递增（不得早于前序已完成段，且自动推高后续更早的已完段）；修改总时间时自动将超过总时间的已完成段钳制到总时间；
   - 进入竞速房间后自动禁用编辑。
-- **统计页面（`StatisticsForm`）**：
+- **统计页面（`StatisticsWindow`）**：
   - 顶部提供 **参考记录** 与 **选定记录**（历史运行列表）双下拉选择器；
-  - 下方表格按路线顺序列出每个分段/子条件的：参考累计、当前/选定累计、参考单段、选定单段、历史累计 PB 与历史单段最佳。
+  - 下方表格按路线顺序列出每个分段/子条件的：参考累计、当前/选定累计、参考单段、选定单段、历史累计 PB 与历史单段最佳；多条件主分组以子条件像素图标逐行展开并纵向合并共享单段列。
 
 ---
 
@@ -127,27 +127,25 @@ TerrariaSplit 面向 Terraria 速通、日常分段练习、自动化刷图与�
 
 ## 5. 管理窗口 UI 设计系统（Settings / Statistics / Race）
 
-### 5.1 暗色扁平视觉规范（`UiTheme`）
-所有管理窗口共享一套低眩光深灰青绿视觉语言，采用无边框自定义标题栏（拖拽移动、双击最大化、8px 边缘自由缩放）与自绘扁平控件（`ThemedDropDownList`、`ThemedListBox`、`ThemedMultilineTextBox`、`ThemedScrollPanel`、`ThemedSlider`）：
+### 5.1 Windows 11 Fluent 2 Dark 紧凑视觉规范（WPF `UI/Wpf/Theme`）
+所有管理窗口（`SettingsWindow`、`RaceWindow`、`StatisticsWindow`、`PracticeWorldPaletteWindow` 与 `ModernMessageDialog` / `ModernTimeEditDialog`）统一采用基于 WPF 的 **Windows 11 Fluent 2 Dark** 紧凑桌面视觉体系，启用原生 DWM 深色模式、窗口圆角、**Mica**（主窗口）/ **Acrylic**（练习世界面板）背景材质与极简无多余装饰的单套标题栏控件：
 
-| 语义角色 | 色值 | 用途 |
+| 语义角色 | 色值 / 材质 | 用途 |
 |---|---|---|
-| `Window` | `#121619` | 窗口主背景 |
-| `Surface` | `#1C2226` | 卡片/内容区面板、表格底色 |
-| `SurfaceRaised` | `#252D32` | 自定义标题栏、次级按钮、导航未选中态 |
-| `Field` | `#161B1F` | 输入框、下拉框、数字框底色 |
-| `Border` | `#465258` | 1px 窗口外框、分隔线与控件边框 |
-| `Accent` | `#369684`（Hover `#45AE99` / Down `#267769`） | 主操作按钮、选中导航项、勾选框激活态 |
-| `Selection` | `#355752` | 下拉选项与列表选中高亮 |
-| `Text` / `MutedText` | `#EEF2EF` / `#A1ADA9` | 正文与辅助说明/禁用态文字 |
+| `WindowBg` / `Mica` | `#202020` + Win11 Mica（回退纯中性炭灰） | 窗口主画布与无边框自定义标题栏 |
+| `SidebarBg` / `Surface` | `#242424` / `rgba(255,255,255,0.04)` | 左侧导航栏、设置卡片与数据表格表面 |
+| `ControlFill` / `Field` | `rgba(255,255,255,0.05)` / `#1C1C1C` | 按钮、输入框、下拉框与数字框表面 |
+| `Border` / `Divider` | `rgba(255,255,255,0.08)` | 1px 卡片边框、行间分隔线与控件描边 |
+| `Accent` | `#60CDFF`（Hover `#78D6FF` / Pressed `#4CC2FF`） | 主操作按钮、激活态 Toggle、选中导航指示条与焦点下划线 |
+| `TextPrimary` / `TextSecondary` | `#FFFFFF` / `#C5C5C5` | 正文、行标签与次级表头/禁用态文字 |
 
-所有管理窗口遵循 **Base-200 DPI 缩放规范**（基准 `192 DPI`，运行时按 `0.5x–2.5x` 统一等比缩放整棵控件树）。
+所有 WPF 管理窗口遵循 **紧凑桌面密度令牌**（`TitleBarHeight = 34`、`ControlHeight = 26`、`Toggle = 32×18`、`TableRowHeight = 30`、`NavItemHeight = 28`）与原生 Per-Monitor DPI 矢量缩放；仅保留透明排行榜浮窗 `RaceLeaderboardForm` 沿用 WinForms 渲染与 `UiDpiScale`。
 
 ### 5.2 主浮层交互入口与 10 页设置信息架构
 - **主浮层右键菜单（`MainFormContextMenuBuilder`）**：
   - `统计...`、`竞速...`、`设置...`、`种子筛选`（快捷勾选开关）、`切换配置`（动态列出 `Settings/` 下全部有效配置文件并标记当前项）、`退出`。
-- **全局热键（`HotkeySettings`）**：暂停/恢复（默认 `F8`）、重置（默认 `F6`）、鼠标穿透（默认 `F9`）、一键创图、练习世界、手动分片；注册冲突时弹出 `HotkeyWarningDialog` 明确提示。
-- **10 页设置导航（`SettingsForm`）**：
+- **全局热键（`HotkeySettings`）**：暂停/恢复（默认 `F8`）、重置（默认 `F6`）、鼠标穿透（默认 `F9`）、一键创图、练习世界、手动分片；注册冲突时弹出 `ModernMessageDialog` 明确提示。
+- **10 页设置导航（`SettingsWindow`）**：
   1. `General`：语言（中/英）、置顶、鼠标穿透指示器、练习模式、6 组全局热键；
   2. `Splits`：可视化路线编辑器——支持拖拽排序、全目标搜索（Boss/物品/NPC/群系）、主/附切换、基础勾选与高级条件树编辑、图标覆盖与分组裁剪策略；
   3. `Data`：参考时间集与个人最佳（累计/单段）管理、导入/切换、自动更新 PB 开关；
@@ -213,6 +211,6 @@ TerrariaSplit 面向 Terraria 速通、日常分段练习、自动化刷图与�
   - 默认基准（Classic，单位秒，格式 `基础 + 比例`）：骷髅王 `120+180`、肉山 `120+240`、毁灭者 `120+60`、机械骷髅王 `60+240`、双子魔眼 `120+180`、世纪之花 `180+240`、石巨人 `180+240`、拜月教徒 `180+240`；其余难度按倍率缩放（Journey `0.5×`、Expert `1.25×`、Master `1.5×`）。
 
 ### 7.4 多端反馈与竞速界面
-- **竞速控制台（`RaceForm`）**：包含连接/房间大厅与 5 个侧边设置页（`Connection`、`Penalty`、`Interface`、`Colors`、`Voice`）。
+- **竞速控制台（`RaceWindow`）**：采用与设置窗口一致的 WPF Fluent 2 侧边导航结构，包含 5 个页面（`Connection`、`Penalty`、`UI`、`Colors`、`Voice`）；开房、加房与准备流程通过游戏内竞速菜单交互完成。
 - **实时排行榜浮窗（`RaceLeaderboardForm`）**：与主浮层一致的透明分层窗口，支持鼠标穿透、4 列（排名 / 玩家 / 图标 / 时间）自定义宽距与对齐、排名渐变色，并支持勾选 `UseRankColorForMainTimer` 将实时排名色同步映射至主计时器。
 - **游戏内联动与语音播报**：支持直接在 Terraria 菜单界面操作竞速大厅与准备流程；选手完成关键分组、死亡或重置进度时，同步向游戏内推送消息并可选通过 Windows TTS 语音播报（可配音色、语速与音量）。

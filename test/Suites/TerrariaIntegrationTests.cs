@@ -57,6 +57,7 @@ internal static class TerrariaIntegrationTests
         yield return TestCase.Sync("biome facts read all required zone bytes in one memory operation", TestSuite.Core, BiomeZoneBatchRead);
         yield return TestCase.Async("window coordinate transform round-trips logical and physical client centers", TestSuite.Windows, WindowCoordinateTransform);
         yield return TestCase.Sync("exclusive fullscreen automation uses the active client coordinate space", TestSuite.Core, FullscreenAutomationCoordinateSpace);
+        yield return TestCase.Sync("window activation skips foreground requests and polls at 100ms within 2000ms", TestSuite.Core, ForegroundActivationWait);
         yield return TestCase.Sync("race UI reflection targets compatible runtime fields and preserves deferred failures", TestSuite.Core, RaceUiRuntimeSafety);
         yield return TestCase.Sync("item catalog identifiers remain stable while Race accepts only the current world-file version", TestSuite.Core, Terraria1458CompatibilityCatalog);
     }
@@ -292,6 +293,62 @@ internal static class TerrariaIntegrationTests
             currentModeAvailable: false,
             terrariaResolution,
             new Point(-1792, 0)));
+    }
+
+    private static void ForegroundActivationWait()
+    {
+        IntPtr target = new(123);
+        IntPtr other = new(456);
+        foreach ((bool alreadyForeground, int readyAt, bool requestResult, bool expected, int expectedWait) in
+                 new[]
+                 {
+                     (true, 0, true, true, 0),
+                     (false, 0, true, true, 0),
+                     (false, 300, true, true, 300),
+                     (false, 100, false, true, 100),
+                     (false, 2000, true, true, 2000),
+                     (false, 2100, true, false, 2000),
+                     (false, int.MaxValue, false, false, 2000)
+                 })
+        {
+            var clock = new ForegroundClock();
+            var waits = new List<int>();
+            int requests = 0;
+            bool requested = false;
+            bool actual = TerrariaWindowController.TryEnsureForeground(
+                target,
+                () => alreadyForeground || requested && clock.Milliseconds >= readyAt ? target : other,
+                handle =>
+                {
+                    Check.Equal(target, handle);
+                    requests++;
+                    requested = true;
+                    return requestResult;
+                },
+                milliseconds =>
+                {
+                    waits.Add(milliseconds);
+                    clock.Milliseconds += milliseconds;
+                },
+                clock,
+                out IntPtr foregroundBefore,
+                out string diagnostic);
+            Check.Equal(expected, actual);
+            Check.Equal(alreadyForeground ? target : other, foregroundBefore);
+            Check.Equal(alreadyForeground ? 0 : 1, requests);
+            Check.Equal(expectedWait, clock.Milliseconds);
+            Check.True(waits.All(wait => wait == 100));
+            Check.True(diagnostic.Contains("foregroundPollMs=100", StringComparison.Ordinal));
+            Check.True(diagnostic.Contains("foregroundTimeoutMs=2000", StringComparison.Ordinal));
+            Check.True(diagnostic.Contains(expected ? "foregroundWait=ready" : "foregroundWait=timed-out", StringComparison.Ordinal));
+        }
+    }
+
+    private sealed class ForegroundClock : TimeProvider
+    {
+        public int Milliseconds { get; set; }
+        public override long TimestampFrequency => 1000;
+        public override long GetTimestamp() => Milliseconds;
     }
 
     private static void Terraria1458SeedInputs()

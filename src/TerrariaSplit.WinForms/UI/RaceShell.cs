@@ -7,6 +7,8 @@ using TerrariaSplit.Race.InGame;
 using TerrariaSplit.Terraria;
 using TerrariaSplit.Terraria.Automation;
 using TerrariaSplit.UI.Rendering;
+using TerrariaSplit.UI.Wpf.Interop;
+using TerrariaSplit.UI.Wpf.Windows;
 
 namespace TerrariaSplit.UI;
 
@@ -45,7 +47,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
     private readonly RaceProgressTransport progressTransport;
     private Task? completedRunUnlockTask;
     private readonly object progressViewUpdateLock = new();
-    private RaceForm? form;
+    private RaceWindow? raceWindow;
     private RaceLeaderboardForm? leaderboardForm;
     private CancellationTokenSource? worldGenerationCancellation;
     private CancellationTokenSource? memberWorldDownloadCancellation;
@@ -206,7 +208,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
                 publishSystemEvent(new RaceModeSystemEvent(enabled));
             }
 
-            form?.UpdateRaceState(session.State);
+            raceWindow?.UpdateRaceState(session.State);
         }
         catch (Exception ex)
         {
@@ -280,7 +282,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
     public void RefreshDisplay(DisplayRefreshLevel level)
     {
         speechCoordinator.ApplySettings(getSettings().Race?.Voice ?? new RaceVoiceSettings());
-        form?.UpdateRaceState(session.State);
+        raceWindow?.UpdateRaceState(session.State);
         SyncLeaderboardVisibility();
         ApplyLeaderboardTopMost();
         leaderboardForm?.ApplyMouseClickThrough(mouseClickThrough);
@@ -313,8 +315,8 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
         closingWindows = true;
         try
         {
-            CloseFormIfOpen(form);
-            form = null;
+            CloseWindowIfOpen(raceWindow);
+            raceWindow = null;
             CloseFormIfOpen(leaderboardForm);
             leaderboardForm = null;
         }
@@ -326,24 +328,31 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
 
     public void OpenPanel()
     {
-        if (form is { IsDisposed: false })
+        if (raceWindow is not null)
         {
-            form.Show();
-            if (form.IsHandleCreated)
+            if (raceWindow.WindowState == System.Windows.WindowState.Minimized)
             {
-                WindowTopMostSync.Apply(false, form.Handle);
+                raceWindow.WindowState = System.Windows.WindowState.Normal;
             }
 
-            form.Activate();
+            raceWindow.Show();
+            IntPtr existingHandle = WpfWindowInterop.GetHandle(raceWindow);
+            if (existingHandle != IntPtr.Zero)
+            {
+                WindowTopMostSync.Apply(false, existingHandle);
+            }
+
+            raceWindow.Activate();
             return;
         }
 
-        form = new RaceForm(this);
-        form.FormClosed += (_, _) => form = null;
-        form.Show();
-        if (form.IsHandleCreated)
+        raceWindow = new RaceWindow(this);
+        raceWindow.Closed += (_, _) => raceWindow = null;
+        WpfWindowInterop.ShowModeless(raceWindow);
+        IntPtr handle = WpfWindowInterop.GetHandle(raceWindow);
+        if (handle != IntPtr.Zero)
         {
-            WindowTopMostSync.Apply(false, form.Handle);
+            WindowTopMostSync.Apply(false, handle);
         }
 
         SyncLeaderboardVisibility();
@@ -1773,7 +1782,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
             return;
         }
 
-        form?.UpdateRaceState(session.State);
+        raceWindow?.UpdateRaceState(session.State);
         MarkInGameMenuDirty();
     }
 
@@ -1787,7 +1796,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
         logger.LogInformation(
             $"Race room resume failed. Room={failure.RoomCode} " +
             $"Error={failure.ErrorCode} Message={failure.Message}.");
-        form?.UpdateRaceState(session.State);
+        raceWindow?.UpdateRaceState(session.State);
         MarkInGameMenuDirty();
         BeginClearLocalRoomStateAfterResumeFailure();
     }
@@ -2627,6 +2636,29 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
     {
         CloseFormIfOpen(leaderboardForm);
         leaderboardForm = null;
+    }
+
+    private static void CloseWindowIfOpen(System.Windows.Window? target)
+    {
+        if (target is null)
+        {
+            return;
+        }
+
+        try
+        {
+            if (target.Dispatcher.CheckAccess())
+            {
+                target.Close();
+            }
+            else
+            {
+                target.Dispatcher.Invoke(target.Close);
+            }
+        }
+        catch (InvalidOperationException)
+        {
+        }
     }
 
     private static void CloseFormIfOpen(Form? target)

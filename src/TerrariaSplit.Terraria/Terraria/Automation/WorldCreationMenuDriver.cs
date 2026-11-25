@@ -398,7 +398,7 @@ internal sealed class WorldCreationMenuDriver
             {
                 RecordFailure(AutomationResult.Failure(
                     "Could not reactivate Terraria after screening the world seed.",
-                    "Create world automation could not reactivate Terraria after the world seed pre-screen worker round was released."));
+                    $"Create world automation could not reactivate Terraria after the world seed pre-screen worker round was released. {automation.LastFailureDiagnostic}"));
                 return WorldSeedOptionsResult.Failed;
             }
         }

@@ -84,6 +84,7 @@ internal static class TestCatalog
             .Concat(RaceWorldUploadFlowTests.All())
             .Concat(RaceFlowTests.All())
             .Concat(WindowsFlowTests.All())
+            .Concat(WpfFoundationTests.All())
             .Concat(UpdateFlowTests.All())
             .Concat(QualityGateTests.All());
     }

@@ -315,7 +315,7 @@ internal sealed partial class MainForm : Form
                 title,
                 value,
                 allowEmpty,
-                form => modalWindows.RegisterModalForm(form),
+                window => modalWindows.RegisterModalWpfWindow(window),
                 out localEditedText));
         editedText = localEditedText;
         return accepted;

@@ -32,20 +32,15 @@ internal sealed class SettingsMessageDialog : Form
         bool selectableMessage = false,
         AppFault? fault = null)
     {
-        using var dialog = new SettingsMessageDialog(
+        return TerrariaSplit.UI.Wpf.Dialogs.ModernMessageDialog.Show(
+            owner,
             title,
             message,
             buttons,
             icon,
             localize,
-            selectableMessage, fault);
-        dialog.Shown += (_, _) =>
-        {
-            dialog.BringToFront();
-            dialog.Activate();
-            NativeMethods.SetForegroundWindow(dialog.Handle);
-        };
-        return owner is null ? dialog.ShowDialog() : dialog.ShowDialog(owner);
+            selectableMessage,
+            fault);
     }
 
     public SettingsMessageDialog(

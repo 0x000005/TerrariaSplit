@@ -16,13 +16,13 @@ internal sealed partial class MainForm : Form
         {
             update.Discard();
             appLogger.LogError(ex, "Failed to start application update helper.");
-            using var dialog = new SettingsMessageDialog(
+            TerrariaSplit.UI.Wpf.Dialogs.ModernMessageDialog.Show(
+                this,
                 Localizer.Get("TerrariaSplit Update", settings),
                 string.Format(Localizer.Get("Update failed: {0}", settings), ex.Message),
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error,
                 key => Localizer.Get(key, settings));
-            dialog.ShowDialog(this);
         }
     }
 
@@ -131,10 +131,14 @@ internal sealed partial class MainForm : Form
 
     private void ShowHotkeyWarning(string message)
     {
-        using var dialog = new HotkeyWarningDialog(
+        var dialog = new TerrariaSplit.UI.Wpf.Dialogs.ModernMessageDialog(
             Localizer.Get("Hotkey warning", settings),
-            message);
-        modalWindows.ShowDialog(dialog);
+            message,
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Warning,
+            key => Localizer.Get(key, settings));
+        dialog.WindowStartupLocation = System.Windows.WindowStartupLocation.CenterScreen;
+        modalWindows.ShowWpfDialog(dialog);
     }
 
     private void UpdateContextMenu()
@@ -217,17 +221,14 @@ internal sealed partial class MainForm : Form
 
     private void CloseStatisticsWindow()
     {
-        if (statisticsForm is null)
+        if (statisticsWindow is null)
         {
             return;
         }
 
-        StatisticsForm form = statisticsForm;
-        statisticsForm = null;
-        if (!form.IsDisposed)
-        {
-            form.Close();
-        }
+        TerrariaSplit.UI.Wpf.Windows.StatisticsWindow window = statisticsWindow;
+        statisticsWindow = null;
+        window.Close();
     }
 
     protected override void OnHandleDestroyed(EventArgs e)

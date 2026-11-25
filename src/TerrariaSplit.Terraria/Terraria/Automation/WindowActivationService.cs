@@ -34,7 +34,7 @@ internal sealed class WindowActivationService
             ? WindowActivationResult.Success(clientSize)
             : WindowActivationResult.Failed(
                 "Could not activate the Terraria window.",
-                $"{workflowName} automation could not activate Terraria window.");
+                $"{workflowName} automation could not activate Terraria window. {automation.LastFailureDiagnostic}");
     }
 
     public bool TryReactivate(string detail, int activationDelayMilliseconds)

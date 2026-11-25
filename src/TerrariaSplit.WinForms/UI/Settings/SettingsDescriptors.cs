@@ -2,6 +2,13 @@ using System.Windows.Forms;
 
 namespace TerrariaSplit.UI.Settings;
 
+internal delegate DialogResult SettingsMessageBoxPresenter(
+    IWin32Window owner,
+    string text,
+    string caption,
+    MessageBoxButtons buttons,
+    MessageBoxIcon icon);
+
 internal static class SettingsDescriptors
 {
     public static IReadOnlyList<TextColorDescriptor> TextColors { get; } =
@@ -141,48 +148,3 @@ internal sealed record SoundDescriptor(
     Func<UiSoundSettings, string> GetValue,
     Action<UiSoundSettings, string> SetValue,
     bool PrefixWithFinalGroupName = false);
-
-internal static class SettingsBinder
-{
-    public static void ApplyColors(AppSettings targetSettings, IReadOnlyDictionary<string, TextBox> colorTextBoxes)
-    {
-        targetSettings.Overlay.Colors ??= new UiColorSettings();
-
-        foreach (TextColorDescriptor descriptor in SettingsDescriptors.TextColors.Concat(SettingsDescriptors.AnimationColors))
-        {
-            ApplyColor(colorTextBoxes, descriptor.TextKey, value => descriptor.SetText(targetSettings.Overlay.Colors, value));
-            ApplyColor(colorTextBoxes, descriptor.OutlineKey, value => descriptor.SetOutline(targetSettings.Overlay.Colors, value));
-            ApplyColor(colorTextBoxes, descriptor.ShadowKey, value => descriptor.SetShadow(targetSettings.Overlay.Colors, value));
-        }
-
-        foreach (ColorDescriptor descriptor in SettingsDescriptors.IconColors)
-        {
-            ApplyColor(colorTextBoxes, descriptor.Key, value => descriptor.SetValue(targetSettings.Overlay.Colors, value));
-        }
-
-    }
-
-    public static void ApplySounds(AppSettings targetSettings, IReadOnlyDictionary<string, TextBox> soundTextBoxes)
-    {
-        targetSettings.Overlay.Sounds ??= new UiSoundSettings();
-
-        foreach (SoundDescriptor descriptor in SettingsDescriptors.Sounds)
-        {
-            if (soundTextBoxes.TryGetValue(descriptor.Key, out TextBox? textBox))
-            {
-                descriptor.SetValue(targetSettings.Overlay.Sounds, textBox.Text.Trim());
-            }
-        }
-    }
-
-    private static void ApplyColor(
-        IReadOnlyDictionary<string, TextBox> colorTextBoxes,
-        string key,
-        Action<string> setter)
-    {
-        if (colorTextBoxes.TryGetValue(key, out TextBox? textBox))
-        {
-            setter(ColorText.Format(ColorText.Parse(textBox.Text, System.Drawing.Color.White)));
-        }
-    }
-}

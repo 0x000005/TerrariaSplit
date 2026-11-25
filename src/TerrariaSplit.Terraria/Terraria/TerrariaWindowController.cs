@@ -23,6 +23,8 @@ public sealed class TerrariaWindowController
     private const int RestoredWindowPollMilliseconds = 25;
     private const int RestoredWindowStableSampleCount = 3;
     private const int RestoredWindowTimeoutMilliseconds = 5000;
+    private const int ForegroundPollMilliseconds = 100;
+    private const int ForegroundTimeoutMilliseconds = 2000;
     private static readonly IntPtr DpiAwarenessContextPerMonitorAwareV2 = new(-4);
     private static readonly IntPtr DpiAwarenessContextUnawareGdiScaled = new(-5);
 
@@ -42,8 +44,10 @@ public sealed class TerrariaWindowController
     public bool TryActivate(out Size clientSize, int activationDelayMilliseconds)
     {
         clientSize = Size.Empty;
+        LastCoordinateDiagnostic = string.Empty;
         if (!TryResolveWindowHandle(out IntPtr handle, preferActivatedWindow: false))
         {
+            LastCoordinateDiagnostic = "Terraria main window was not found.";
             return false;
         }
 
@@ -63,8 +67,9 @@ public sealed class TerrariaWindowController
             return false;
         }
 
-        if (!TryGetClientCoordinateSpace(handle, out ClientCoordinateSpace coordinateSpace, out _))
+        if (!TryGetClientCoordinateSpace(handle, out ClientCoordinateSpace coordinateSpace, out string coordinateFailure))
         {
+            LastCoordinateDiagnostic = $"{foregroundDiagnostic}; {coordinateFailure}";
             return false;
         }
 
@@ -297,22 +302,20 @@ public sealed class TerrariaWindowController
         bool restoredFromMinimized,
         out string diagnostic)
     {
-        IntPtr foregroundBefore = GetForegroundWindow();
-        bool requestSucceeded = SetForegroundWindow(handle);
-        Sleep(delayMilliseconds);
-        IntPtr foregroundAfter = GetForegroundWindow();
-        string foregroundDiagnostic =
-            $"foregroundBefore=0x{foregroundBefore.ToInt64():X}; " +
-            $"setForegroundSucceeded={requestSucceeded}; " +
-            $"foregroundAfter=0x{foregroundAfter.ToInt64():X}; " +
-            $"foregroundMatchesTerraria={foregroundAfter == handle}; foregroundDelayMs={delayMilliseconds}";
-
-        if (foregroundAfter != handle)
+        if (!TryEnsureForeground(handle, GetForegroundWindow, SetForegroundWindow, Sleep, TimeProvider.System,
+                out IntPtr foregroundBefore, out string foregroundDiagnostic))
         {
             diagnostic = foregroundDiagnostic;
             return false;
         }
 
+        // Preserve the configured legacy settling delay after an actual focus switch.
+        if (foregroundBefore != handle)
+        {
+            Sleep(delayMilliseconds);
+        }
+
+        foregroundDiagnostic += $"; foregroundDelayMs={delayMilliseconds}";
         bool coordinateStabilityRequired = restoredFromMinimized || foregroundBefore != handle;
         bool requireFullscreenCoordinateSpace = TerrariaMenuProfile.IsExclusiveFullscreenConfigured();
         if (!coordinateStabilityRequired &&
@@ -334,6 +337,52 @@ public sealed class TerrariaWindowController
             out string restoredWindowDiagnostic);
         diagnostic = $"{foregroundDiagnostic}; {restoredWindowDiagnostic}";
         return ready;
+    }
+
+    internal static bool TryEnsureForeground(
+        IntPtr handle,
+        Func<IntPtr> getForegroundWindow,
+        Func<IntPtr, bool> requestForeground,
+        Action<int> wait,
+        TimeProvider clock,
+        out IntPtr foregroundBefore,
+        out string diagnostic)
+    {
+        foregroundBefore = getForegroundWindow();
+        IntPtr foregroundAfter = foregroundBefore;
+        bool requestRequired = foregroundBefore != handle;
+        bool? requestSucceeded = null;
+        long started = clock.GetTimestamp();
+        if (requestRequired)
+        {
+            requestSucceeded = requestForeground(handle);
+            while (true)
+            {
+                foregroundAfter = getForegroundWindow();
+                if (foregroundAfter == handle)
+                {
+                    break;
+                }
+
+                double remaining = ForegroundTimeoutMilliseconds - clock.GetElapsedTime(started).TotalMilliseconds;
+                if (remaining <= 0)
+                {
+                    break;
+                }
+
+                wait((int)Math.Min(ForegroundPollMilliseconds, Math.Ceiling(remaining)));
+            }
+        }
+
+        bool succeeded = foregroundAfter == handle;
+        diagnostic = $"foregroundBefore=0x{foregroundBefore.ToInt64():X}; " +
+            $"foregroundRequest={(requestRequired ? "requested" : "skipped-already-foreground")}; " +
+            $"setForegroundSucceeded={requestSucceeded?.ToString() ?? "not-requested"}; " +
+            $"foregroundAfter=0x{foregroundAfter.ToInt64():X}; foregroundMatchesTerraria={succeeded}; " +
+            $"foregroundWait={(succeeded ? "ready" : "timed-out")}; " +
+            $"foregroundWaitMs={clock.GetElapsedTime(started).TotalMilliseconds:F0}; " +
+            $"foregroundPollMs={ForegroundPollMilliseconds}; foregroundTimeoutMs={ForegroundTimeoutMilliseconds}";
+        return succeeded;
     }
 
     private static bool TryWaitForRestoredWindowInputSpace(

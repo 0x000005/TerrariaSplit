@@ -571,24 +571,31 @@ internal sealed partial class MainForm : Form
 
     private void OpenStatistics()
     {
-        if (statisticsForm is { IsDisposed: false })
+        if (statisticsWindow is not null)
         {
-            statisticsForm.Show();
-            if (statisticsForm.IsHandleCreated)
+            if (statisticsWindow.WindowState == System.Windows.WindowState.Minimized)
             {
-                WindowTopMostSync.Apply(false, statisticsForm.Handle);
+                statisticsWindow.WindowState = System.Windows.WindowState.Normal;
             }
 
-            statisticsForm.Activate();
+            statisticsWindow.Show();
+            IntPtr handle = statisticsWindow.Handle;
+            if (handle != IntPtr.Zero)
+            {
+                WindowTopMostSync.Apply(false, handle);
+            }
+
+            statisticsWindow.Activate();
             return;
         }
 
-        statisticsForm = new StatisticsForm(settings);
-        statisticsForm.FormClosed += (_, _) => statisticsForm = null;
-        statisticsForm.Show();
-        if (statisticsForm.IsHandleCreated)
+        statisticsWindow = new TerrariaSplit.UI.Wpf.Windows.StatisticsWindow(settings);
+        statisticsWindow.Closed += (_, _) => statisticsWindow = null;
+        TerrariaSplit.UI.Wpf.Interop.WpfWindowInterop.ShowModeless(statisticsWindow);
+        IntPtr createdHandle = statisticsWindow.Handle;
+        if (createdHandle != IntPtr.Zero)
         {
-            WindowTopMostSync.Apply(false, statisticsForm.Handle);
+            WindowTopMostSync.Apply(false, createdHandle);
         }
     }
 

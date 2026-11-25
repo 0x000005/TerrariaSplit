@@ -1,5 +1,11 @@
 using System.Drawing;
+using System.Windows;
 using System.Windows.Forms;
+using System.Windows.Media;
+using System.Windows.Threading;
+using TerrariaSplit.UI.Wpf;
+using TerrariaSplit.UI.Wpf.Interop;
+using TerrariaSplit.UI.Wpf.Windows;
 
 namespace TerrariaSplit.UI;
 
@@ -16,8 +22,9 @@ internal sealed class SettingsDialogHost : IDisposable
     private readonly Rectangle ownerBounds;
     private readonly object sync = new();
     private Thread? thread;
-    private SettingsForm? form;
-    private IntPtr formHandle;
+    private Dispatcher? windowDispatcher;
+    private SettingsWindow? window;
+    private IntPtr windowHandle;
     private bool started;
     private bool disposed;
     private bool applyInProgress;
@@ -49,7 +56,7 @@ internal sealed class SettingsDialogHost : IDisposable
         {
             lock (sync)
             {
-                return formHandle;
+                return windowHandle;
             }
         }
     }
@@ -88,7 +95,8 @@ internal sealed class SettingsDialogHost : IDisposable
 
     public void Dispose()
     {
-        SettingsForm? currentForm;
+        Dispatcher? currentDispatcher;
+        SettingsWindow? currentWindow;
         Thread? currentThread;
         lock (sync)
         {
@@ -99,19 +107,21 @@ internal sealed class SettingsDialogHost : IDisposable
 
             disposed = true;
             suppressClosedCallback = true;
-            currentForm = form;
+            currentDispatcher = windowDispatcher;
+            currentWindow = window;
             currentThread = thread;
-            formHandle = IntPtr.Zero;
+            windowHandle = IntPtr.Zero;
         }
 
-        if (currentForm is not null && !currentForm.IsDisposed && currentForm.IsHandleCreated)
+        if (currentDispatcher is not null && !currentDispatcher.HasShutdownStarted)
         {
             try
             {
-                currentForm.BeginInvoke(new Action(currentForm.Close));
-            }
-            catch (ObjectDisposedException)
-            {
+                _ = currentDispatcher.BeginInvoke(new Action(() =>
+                {
+                    currentWindow?.Close();
+                    currentDispatcher.BeginInvokeShutdown(DispatcherPriority.Background);
+                }));
             }
             catch (InvalidOperationException)
             {
@@ -126,37 +136,38 @@ internal sealed class SettingsDialogHost : IDisposable
 
     private void ThreadEntry()
     {
-        SettingsDialogResult result;
-        using var dialog = new SettingsForm(
+        WpfBootstrap.EnsureInitialized();
+        Dispatcher currentDispatcher = Dispatcher.CurrentDispatcher;
+        SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(currentDispatcher));
+
+        var dialog = new SettingsWindow(
             initialSettings,
             settingsSnapshots: settingsSnapshots,
             canSaveSettings: canSaveSettings);
-        dialog.HandleCreated += (_, _) =>
+
+        dialog.SourceInitialized += (_, _) =>
         {
+            IntPtr handle = WpfWindowInterop.GetHandle(dialog);
             lock (sync)
             {
-                formHandle = dialog.Handle;
+                windowHandle = handle;
             }
         };
-        dialog.HandleDestroyed += (_, _) =>
-        {
-            lock (sync)
-            {
-                formHandle = IntPtr.Zero;
-            }
-        };
+
         lock (sync)
         {
             if (disposed)
             {
+                dialog.Dispose();
                 return;
             }
 
-            form = dialog;
+            windowDispatcher = currentDispatcher;
+            window = dialog;
         }
 
-        dialog.StartPosition = FormStartPosition.Manual;
-        dialog.Location = ResolveStartLocation(dialog.Size);
+        PositionNearOwner(dialog);
+
         dialog.Applied += (_, _) => ApplySettingsFromDialog(dialog);
         dialog.UpdateRestartRequested += update =>
         {
@@ -166,22 +177,32 @@ internal sealed class SettingsDialogHost : IDisposable
 
         DialogResult dialogResult = DialogResult.Cancel;
         AppSettings resultSettings = settingsSnapshots.CreateSnapshot(dialog.Result);
-        dialog.FormClosed += (_, _) =>
+        dialog.Closed += (_, _) =>
         {
-            dialogResult = dialog.DialogResult == DialogResult.None
+            dialogResult = dialog.CloseResult == DialogResult.None
                 ? DialogResult.Cancel
-                : dialog.DialogResult;
+                : dialog.CloseResult;
             resultSettings = settingsSnapshots.CreateSnapshot(dialog.Result);
+            lock (sync)
+            {
+                windowHandle = IntPtr.Zero;
+            }
+
+            currentDispatcher.BeginInvokeShutdown(DispatcherPriority.Background);
         };
 
-        System.Windows.Forms.Application.Run(dialog);
-        result = new SettingsDialogResult(dialogResult, resultSettings);
+        dialog.Show();
+        Dispatcher.Run();
+        dialog.Dispose();
+
+        var result = new SettingsDialogResult(dialogResult, resultSettings);
 
         bool notifyClosed;
         lock (sync)
         {
-            form = null;
-            formHandle = IntPtr.Zero;
+            window = null;
+            windowDispatcher = null;
+            windowHandle = IntPtr.Zero;
             thread = null;
             notifyClosed = !suppressClosedCallback;
         }
@@ -192,16 +213,33 @@ internal sealed class SettingsDialogHost : IDisposable
         }
     }
 
-    private Point ResolveStartLocation(Size dialogSize)
+    private void PositionNearOwner(SettingsWindow dialog)
     {
-        Rectangle targetArea = ownerBounds.Width > 0 && ownerBounds.Height > 0
+        Rectangle targetPixels = ownerBounds.Width > 0 && ownerBounds.Height > 0
             ? ownerBounds
             : Screen.PrimaryScreen?.WorkingArea ?? new Rectangle(0, 0, 1920, 1080);
-        Rectangle screenBounds = Screen.FromRectangle(targetArea).Bounds;
-        int x = targetArea.Left + Math.Max(0, (targetArea.Width - dialogSize.Width) / 2);
-        int y = targetArea.Top + Math.Max(0, (targetArea.Height - dialogSize.Height) / 2);
-        y = Math.Max(screenBounds.Top, y);
-        return new Point(x, y);
+        Rectangle screenPixels = Screen.FromRectangle(targetPixels).WorkingArea;
+
+        DpiScale dpi = VisualTreeHelper.GetDpi(dialog);
+        double scaleX = dpi.DpiScaleX > 0 ? dpi.DpiScaleX : 1d;
+        double scaleY = dpi.DpiScaleY > 0 ? dpi.DpiScaleY : 1d;
+
+        double targetLeft = targetPixels.Left / scaleX;
+        double targetTop = targetPixels.Top / scaleY;
+        double targetWidth = targetPixels.Width / scaleX;
+        double targetHeight = targetPixels.Height / scaleY;
+
+        double screenLeft = screenPixels.Left / scaleX;
+        double screenTop = screenPixels.Top / scaleY;
+        double screenRight = screenPixels.Right / scaleX;
+        double screenBottom = screenPixels.Bottom / scaleY;
+
+        double left = targetLeft + (targetWidth - dialog.Width) / 2d;
+        double top = targetTop + (targetHeight - dialog.Height) / 2d;
+
+        dialog.WindowStartupLocation = WindowStartupLocation.Manual;
+        dialog.Left = Math.Clamp(left, screenLeft, Math.Max(screenLeft, screenRight - dialog.Width));
+        dialog.Top = Math.Clamp(top, screenTop, Math.Max(screenTop, screenBottom - dialog.Height));
     }
 
     private void DispatchToOwner(Action action)
@@ -226,7 +264,7 @@ internal sealed class SettingsDialogHost : IDisposable
         return false;
     }
 
-    private void ApplySettingsFromDialog(SettingsForm dialog)
+    private void ApplySettingsFromDialog(SettingsWindow dialog)
     {
         lock (sync)
         {
@@ -260,7 +298,6 @@ internal sealed class SettingsDialogHost : IDisposable
             }
         }
     }
-
 }
 
 internal readonly record struct SettingsDialogResult(

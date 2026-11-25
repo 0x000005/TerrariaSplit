@@ -39,7 +39,7 @@ internal sealed partial class MainForm : Form
     private int statusRenderCount;
     private long lastSubmittedRuntimeCommandSequence;
     private long lastAppliedRuntimeCommandSequence;
-    private StatisticsForm? statisticsForm;
+    private TerrariaSplit.UI.Wpf.Windows.StatisticsWindow? statisticsWindow;
     private int rtssOverlayDispatchPending;
     private bool runtimeResourcesDisposed;
     private RtssOverlayPublishStatus lastRtssOverlayStatus = RtssOverlayPublishStatus.Disabled;

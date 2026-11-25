@@ -235,6 +235,7 @@ internal sealed class ChineseStrings : ILocalizedStringProvider
         { "Reference time", "参考时间" },
         { "Reference run", "参考局" },
         { "Selected run", "选择一局" },
+        { "Selected run total time", "该局总时间" },
         { "Personal best", "个人最佳累计" },
         { "Personal Cumulative Best", "个人最佳累计" },
         { "Personal segment best", "个人最佳单段" },

@@ -1,0 +1,75 @@
+<controls:ModernWindow x:Class="TerrariaSplit.UI.Wpf.Windows.SettingsWindow"
+                       x:ClassModifier="internal"
+                       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                       xmlns:controls="clr-namespace:TerrariaSplit.UI.Wpf.Controls"
+                       Width="1120"
+                       Height="700"
+                       MinWidth="1020"
+                       MinHeight="560"
+                       ShowInTaskbar="True"
+                       WindowStartupLocation="CenterScreen">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Main Navigation + Content Area -->
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="156" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Quiet Fluent 2 NavigationView Sidebar -->
+            <Border Grid.Column="0"
+                    Background="{DynamicResource SidebarBgBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="0,0,1,0"
+                    RenderOptions.ClearTypeHint="Enabled">
+                <DockPanel>
+                    <StackPanel x:Name="BottomNavPanel"
+                                DockPanel.Dock="Bottom"
+                                Orientation="Vertical"
+                                Margin="8,4,8,8" />
+
+                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel x:Name="PrimaryNavPanel"
+                                    Orientation="Vertical"
+                                    Margin="8,8,8,6" />
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+
+            <!-- Active Settings Page Host (Opaque Fluent Layer for hardware RGB ClearType) -->
+            <Border Grid.Column="1"
+                    Background="{DynamicResource PageLayerBgBrush}"
+                    RenderOptions.ClearTypeHint="Enabled">
+                <Grid x:Name="PageHostGrid" />
+            </Border>
+        </Grid>
+
+        <!-- Clean ContentDialog-Style Footer -->
+        <Border Grid.Row="1"
+                Background="{DynamicResource FooterBgBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="16,10">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button x:Name="CancelActionButton"
+                        MinWidth="76"
+                        Margin="0,0,6,0"
+                        IsCancel="True" />
+                <Button x:Name="ApplyActionButton"
+                        MinWidth="76"
+                        Margin="0,0,6,0" />
+                <Button x:Name="OkActionButton"
+                        Style="{DynamicResource AccentButtonStyle}"
+                        MinWidth="76"
+                        IsDefault="True" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</controls:ModernWindow>

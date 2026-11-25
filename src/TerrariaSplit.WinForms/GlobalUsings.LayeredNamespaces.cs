@@ -1,3 +1,5 @@
+global using System.IO;
+global using System.Net.Http;
 global using TerrariaSplit.Application;
 global using TerrariaSplit.Application.Diagnostics;
 global using TerrariaSplit.Application.Ports;

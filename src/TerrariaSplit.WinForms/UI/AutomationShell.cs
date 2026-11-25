@@ -1,6 +1,9 @@
 using System.Drawing;
+using System.Windows;
 using System.Windows.Forms;
-using TerrariaSplit.UI.Settings;
+using TerrariaSplit.UI.Wpf.Dialogs;
+using TerrariaSplit.UI.Wpf.Interop;
+using TerrariaSplit.UI.Wpf.Windows;
 
 namespace TerrariaSplit.UI;
 
@@ -58,24 +61,16 @@ internal sealed class AutomationShell : IDisposable
     public void ShowPracticeWorldSelector()
     {
         AppSettings settings = getSettings();
-        using var form = new PracticeWorldSelectorForm(settings);
+        var palette = new PracticeWorldPaletteWindow(settings);
         var window = new TerrariaWindowController();
-        if (window.TryGetClientScreenBounds(out Rectangle terrariaBounds))
-        {
-            form.Location = new Point(
-                terrariaBounds.Left + Math.Max(0, (terrariaBounds.Width - form.Width) / 2),
-                terrariaBounds.Top + Math.Max(0, (terrariaBounds.Height - form.Height) / 2));
-        }
-        else
-        {
-            Rectangle workingArea = Screen.FromControl(owner).WorkingArea;
-            form.Location = new Point(
-                workingArea.Left + Math.Max(0, (workingArea.Width - form.Width) / 2),
-                workingArea.Top + Math.Max(0, (workingArea.Height - form.Height) / 2));
-        }
+        Rectangle targetBounds = window.TryGetClientScreenBounds(out Rectangle terrariaBounds)
+            ? terrariaBounds
+            : Screen.FromControl(owner).WorkingArea;
+        palette.Loaded += (_, _) => WpfWindowInterop.CenterOnPixelBounds(palette, targetBounds);
+        WpfWindowInterop.CenterOnPixelBounds(palette, targetBounds);
 
-        if (modalWindows.ShowDialog(form, ModalWindowOptions.ForceTopMostForeground) == DialogResult.OK &&
-            form.SelectedSlot is PracticeWorldSlot selectedSlot)
+        if (modalWindows.ShowWpfDialog(palette, ModalWindowOptions.ForceTopMostForeground) == true &&
+            palette.SelectedSlot is PracticeWorldSlot selectedSlot)
         {
             StartPracticeWorld(selectedSlot);
         }
@@ -166,14 +161,17 @@ internal sealed class AutomationShell : IDisposable
         string message = string.IsNullOrWhiteSpace(detail)
             ? failureMessage
             : failureMessage + Environment.NewLine + detail;
-        using var dialog = new SettingsMessageDialog(
+        var dialog = new ModernMessageDialog(
             title,
             message,
             MessageBoxButtons.OK,
             MessageBoxIcon.Warning,
             key => Localizer.Get(key, settings),
             selectableMessage: true,
-            fault: fault);
-        modalWindows.ShowDialog(dialog, ModalWindowOptions.ForceTopMostForeground);
+            fault: fault)
+        {
+            WindowStartupLocation = WindowStartupLocation.CenterScreen
+        };
+        modalWindows.ShowWpfDialog(dialog, ModalWindowOptions.ForceTopMostForeground);
     }
 }

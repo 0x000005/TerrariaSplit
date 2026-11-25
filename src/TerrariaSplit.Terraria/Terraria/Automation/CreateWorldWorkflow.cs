@@ -46,7 +46,7 @@ internal sealed class CreateWorldWorkflow : IDisposable
             {
                 return AutomationResult.Failure(
                     "Could not activate the Terraria window.",
-                    "Create world automation could not activate Terraria window.");
+                    $"Create world automation could not activate Terraria window. {automation.LastFailureDiagnostic}");
             }
 
             TerrariaMenuGeometry geometry = TerrariaMenuGeometry.From(activation.ClientSize, menuProfile);
