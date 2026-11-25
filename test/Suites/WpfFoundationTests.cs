@@ -2,12 +2,14 @@ using System.Windows;
 using System.Runtime.InteropServices;
 using System.Windows.Media;
 using TerrariaSplit.Race.Contracts;
+using TerrariaSplit.Localization;
 using TerrariaSplit.UI.Wpf;
 using TerrariaSplit.UI.Wpf.Controls;
 using TerrariaSplit.UI.Wpf.Dialogs;
 using TerrariaSplit.UI.Wpf.Interop;
 using TerrariaSplit.UI.Wpf.Theme;
 using TerrariaSplit.UI.Wpf.Windows;
+using TerrariaSplit.UI.Wpf.Settings;
 
 namespace TerrariaSplit.Tests;
 
@@ -23,6 +25,11 @@ internal static class WpfFoundationTests
         yield return TestCase.Async("wpf hotkey capture accepts Tab and modifier chords and clears on Escape", TestSuite.Windows, HotkeyCaptureJourney);
         yield return TestCase.Async("wpf statistics totals evaluate the final main condition rather than the final row", TestSuite.Windows, StatisticsTotalsJourney);
         yield return TestCase.Async("wpf modal windows preserve owner layering and restore interaction after closing", TestSuite.Windows, ModalWindowLayerJourney);
+        yield return TestCase.Async("wpf shortcut capture resolves letters digits and IME and dead-key events", TestSuite.Windows, ImeHotkeyJourney);
+        yield return TestCase.Async("wpf settings text fields keep layout width independent of long paths and templates", TestSuite.Windows, TextInputLayoutJourney);
+        yield return TestCase.Async("wpf practice palette opens through the modal coordinator after early handle creation", TestSuite.Windows, PracticePaletteModalJourney);
+        yield return TestCase.Async("wpf foreground restoration respects a native-disabled dialog owner", TestSuite.Windows, NativeModalOwnerJourney);
+        yield return TestCase.Async("wpf practice palette focuses and selects all ten slots with queued top-row and numpad keys", TestSuite.Windows, PracticePaletteDigitsJourney);
     }
 
     private static Task ThemeBundlesLoadJourney(CancellationToken cancellationToken) => StaTestHost.RunAsync(() =>
@@ -226,6 +233,7 @@ internal static class WpfFoundationTests
         foreach ((string mode, int expectedMinutes) in new[] { ("All", 20), ("Any", 10), ("AtLeast", 15) })
         {
             AppSettings settings = AppSettingsDefaults.Create();
+            settings.General.Language = LanguageNames.Chinese;
             List<SplitCondition> facts = settings.Route.SplitRoute.Take(3)
                 .Select(entry => entry.Condition.ToFlatGroup().GetFactConditions().First().Clone()).ToList();
             SplitCondition condition = mode switch
@@ -258,6 +266,10 @@ internal static class WpfFoundationTests
             var timeSets = new SplitTimeSetRepository(new AppContextRuntimeDataPaths(dir.Path));
             timeSets.SaveLastRun(personal);
             var window = new StatisticsWindow(settings, new RunStatsRepository(timeSets), timeSets);
+            Check.Equal("该局", ((System.Windows.Controls.TextBlock)window.FindName("KpiSelectedLabel")).Text);
+            Check.Equal("参考", ((System.Windows.Controls.TextBlock)window.FindName("KpiReferenceLabel")).Text);
+            Check.Equal("个人最佳", ((System.Windows.Controls.TextBlock)window.FindName("KpiPbLabel")).Text);
+            Check.Equal("参考累计时间", ((System.Windows.Controls.TextBlock)window.FindName("ColRefTimeHeader")).Text);
             Check.Equal(TimeText.FormatRecord(TimeSpan.FromMinutes(expectedMinutes)), window.PersonalBestDisplayText);
             Check.Equal(TimeText.FormatRecord(TimeSpan.FromMinutes(expectedMinutes + 2)), window.SelectedTotalDisplayText);
             Check.Equal(TimeText.FormatRecord(TimeSpan.FromMinutes(expectedMinutes + 10)), window.ReferenceTotalDisplayText);
@@ -308,8 +320,203 @@ internal static class WpfFoundationTests
         }
     }, cancellationToken);
 
+    private static Task ImeHotkeyJourney(CancellationToken cancellationToken) => StaTestHost.RunAsync(() =>
+    {
+        var capture = new HotkeyCaptureBox();
+        Check.False(System.Windows.Input.InputMethod.GetIsInputMethodEnabled(capture));
+        for (int i = 0; i < 26; i++)
+        {
+            var letter = (System.Windows.Input.Key)((int)System.Windows.Input.Key.A + i);
+            var expected = (Keys)((int)Keys.A + i);
+            capture.CaptureKey(letter, System.Windows.Input.ModifierKeys.None);
+            Check.Equal(expected, capture.Hotkey);
+            System.Windows.Input.Key actual = HotkeyCaptureBox.ResolveKey(System.Windows.Input.Key.ImeProcessed,
+                System.Windows.Input.Key.None, letter, System.Windows.Input.Key.None);
+            capture.CaptureKey(actual, System.Windows.Input.ModifierKeys.Control);
+            Check.Equal(Keys.Control | expected, capture.Hotkey);
+        }
+
+        for (int i = 0; i < 10; i++)
+        {
+            var digit = (System.Windows.Input.Key)((int)System.Windows.Input.Key.D0 + i);
+            capture.CaptureKey(digit, System.Windows.Input.ModifierKeys.None);
+            Check.Equal((Keys)((int)Keys.D0 + i), capture.Hotkey);
+        }
+
+        capture.CaptureKey(HotkeyCaptureBox.ResolveKey(System.Windows.Input.Key.System, System.Windows.Input.Key.A,
+                System.Windows.Input.Key.None, System.Windows.Input.Key.None), System.Windows.Input.ModifierKeys.Alt);
+        Check.Equal(Keys.Alt | Keys.A, capture.Hotkey);
+        capture.CaptureKey(HotkeyCaptureBox.ResolveKey(System.Windows.Input.Key.DeadCharProcessed,
+            System.Windows.Input.Key.None, System.Windows.Input.Key.None, System.Windows.Input.Key.OemQuotes),
+            System.Windows.Input.ModifierKeys.None);
+        Check.Equal(Keys.OemQuotes, capture.Hotkey);
+    }, cancellationToken);
+
+    private static Task TextInputLayoutJourney(CancellationToken cancellationToken) => StaTestHost.RunAsync(() =>
+    {
+        System.Windows.Controls.TextBox path = WpfSettingsUi.CreateTextBox(@"C:\short.wld");
+        System.Windows.Controls.TextBox multiline = WpfSettingsUi.CreateMultilineTextBox("short");
+        var page = WpfSettingsUi.CreateScrollPage(parent =>
+        {
+            var card = WpfSettingsUi.CreateCard("Input layout", out System.Windows.Controls.StackPanel body);
+            var grid = WpfSettingsUi.CreateColumnGrid(new GridLength(1, GridUnitType.Star), GridLength.Auto);
+            grid.Children.Add(path);
+            var browse = WpfSettingsUi.CreateButton("Browse", minWidth: 64);
+            System.Windows.Controls.Grid.SetColumn(browse, 1);
+            grid.Children.Add(browse);
+            WpfSettingsUi.AddSettingRow(body, "World file", grid);
+            body.Children.Add(multiline);
+            parent.Children.Add(card);
+        });
+        WpfThemeManager.ApplyTheme(page);
+        void Layout()
+        {
+            page.Measure(new System.Windows.Size(800, 500));
+            page.Arrange(new Rect(0, 0, 800, 500));
+            page.UpdateLayout();
+        }
+
+        Layout();
+        double initialWidth = path.ActualWidth;
+        double initialExtent = page.ExtentWidth;
+        string longPath = @"C:\" + new string('a', 4000) + @"\world.wld";
+        string longTemplate = new string('x', 20000);
+        path.Text = longPath;
+        multiline.Text = longTemplate;
+        Layout();
+        Check.True(initialWidth > 0);
+        Check.True(Math.Abs(initialWidth - path.ActualWidth) < 0.01);
+        Check.True(Math.Abs(initialExtent - page.ExtentWidth) < 0.01);
+        Check.Equal(longPath, path.Text);
+        Check.Equal(longTemplate, multiline.Text);
+        page.Arrange(new Rect(0, 0, 1000, 500));
+        page.UpdateLayout();
+        Check.True(path.ActualWidth >= initialWidth);
+    }, cancellationToken);
+
+    private static Task PracticePaletteModalJourney(CancellationToken cancellationToken) => StaTestHost.RunAsync(() =>
+    {
+        using var owner = new System.Windows.Forms.Form();
+        _ = owner.Handle;
+        var coordinator = new ProgramModalWindowCoordinator(owner, _ => { }, () => IntPtr.Zero);
+        var palette = new PracticeWorldPaletteWindow(AppSettingsDefaults.Create())
+        {
+            Opacity = 0,
+            ShowActivated = false
+        };
+        Check.False(System.Windows.Input.InputMethod.GetIsInputMethodEnabled(palette));
+        bool rendered = false;
+        bool visibleAtRender = false;
+        bool blockedOwner = false;
+        palette.ContentRendered += (_, _) =>
+        {
+            rendered = true;
+            visibleAtRender = palette.IsVisible;
+            blockedOwner = !IsWindowEnabled(owner.Handle);
+            _ = palette.Dispatcher.BeginInvoke(new Action(palette.Close));
+        };
+        _ = WpfWindowInterop.EnsureHandle(palette);
+        _ = coordinator.ShowWpfDialog(palette, ModalWindowOptions.ForceTopMostForeground);
+        Check.True(rendered);
+        Check.True(visibleAtRender);
+        Check.True(blockedOwner);
+        Check.True(IsWindowEnabled(owner.Handle));
+        Check.False(coordinator.HasModalWindow);
+    }, cancellationToken);
+
+    private static Task PracticePaletteDigitsJourney(CancellationToken cancellationToken) => StaTestHost.RunAsync(() =>
+    {
+        AppSettings settings = AppSettingsDefaults.Create();
+        for (int index = 0; index < PracticeWorldSettings.SlotCount; index++)
+        {
+            settings.PracticeWorlds.Slots[index].Name = "Slot " + index;
+        }
+
+        Keys[][] keyboards =
+        [
+            [Keys.D1, Keys.D2, Keys.D3, Keys.D4, Keys.D5, Keys.D6, Keys.D7, Keys.D8, Keys.D9, Keys.D0],
+            [Keys.NumPad1, Keys.NumPad2, Keys.NumPad3, Keys.NumPad4, Keys.NumPad5, Keys.NumPad6, Keys.NumPad7, Keys.NumPad8, Keys.NumPad9, Keys.NumPad0]
+        ];
+        using var owner = new System.Windows.Forms.Form();
+        _ = owner.Handle;
+        var coordinator = new ProgramModalWindowCoordinator(owner, _ => { }, () => IntPtr.Zero);
+        foreach (Keys[] keys in keyboards)
+        {
+            for (int index = 0; index < keys.Length; index++)
+            {
+                Keys key = keys[index];
+                // The hotkey path can prepare the HWND without initially activating it.
+                var palette = new PracticeWorldPaletteWindow(settings) { Opacity = 0, ShowActivated = false };
+                bool focusedBeforeInput = false;
+                palette.ContentRendered += (_, _) =>
+                {
+                    _ = palette.Dispatcher.BeginInvoke(new Action(() =>
+                    {
+                        focusedBeforeInput = palette.IsActive && palette.IsKeyboardFocusWithin;
+                        IntPtr handle = palette.Handle;
+                        _ = PostMessage(handle, 0x100, new IntPtr((int)key), new IntPtr(1));
+                        _ = PostMessage(handle, 0x101, new IntPtr((int)key), new IntPtr(1L << 31));
+                        _ = palette.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, new Action(() =>
+                        {
+                            if (palette.SelectedSlot is null)
+                            {
+                                Console.WriteLine($"Palette input was not delivered: key={key}; active={palette.IsActive}; focused={palette.IsKeyboardFocusWithin}");
+                                palette.Close();
+                            }
+                        }));
+                    }));
+                };
+                bool? accepted = coordinator.ShowWpfDialog(palette, ModalWindowOptions.ForceTopMostForeground);
+                Check.True(focusedBeforeInput);
+                Check.True(accepted == true);
+                Check.Equal(settings.PracticeWorlds.Slots[index].Name, palette.SelectedSlot!.Name);
+                Check.False(coordinator.HasModalWindow);
+            }
+        }
+    }, cancellationToken);
+
+    private static Task NativeModalOwnerJourney(CancellationToken cancellationToken) => StaTestHost.RunAsync(() =>
+    {
+        using var owner = new System.Windows.Forms.Form();
+        _ = owner.Handle;
+        var coordinator = new ProgramModalWindowCoordinator(owner, _ => { }, () => IntPtr.Zero);
+        var window = new DeactivatableWindow
+        {
+            Width = 300,
+            Height = 200,
+            Opacity = 0,
+            ShowActivated = false,
+            Content = new System.Windows.Controls.Grid()
+        };
+        bool remainedDisabled = false;
+        window.ContentRendered += (_, _) =>
+        {
+            NativeMethods.EnableWindow(window.Handle, false);
+            window.NotifyDeactivated();
+            _ = window.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, new Action(() =>
+            {
+                remainedDisabled = !IsWindowEnabled(window.Handle);
+                NativeMethods.EnableWindow(window.Handle, true);
+                window.Close();
+            }));
+        };
+        _ = coordinator.ShowWpfDialog(window, ModalWindowOptions.ForceTopMostForeground);
+        Check.True(remainedDisabled);
+        Check.True(IsWindowEnabled(owner.Handle));
+        Check.False(coordinator.HasModalWindow);
+    }, cancellationToken);
+
+    private sealed class DeactivatableWindow : ModernWindow
+    {
+        public void NotifyDeactivated() => OnDeactivated(EventArgs.Empty);
+    }
+
     [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")]
     private static extern IntPtr GetWindowLongPtr(IntPtr window, int index);
+
+    [DllImport("user32.dll", EntryPoint = "PostMessageW")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool PostMessage(IntPtr window, int message, IntPtr wParam, IntPtr lParam);
 
     [DllImport("user32.dll")]
     private static extern IntPtr GetWindow(IntPtr window, uint command);

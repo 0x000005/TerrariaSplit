@@ -236,7 +236,7 @@ internal static class WpfSettingsUi
                 ? WpfHorizontalAlignment.Right
                 : WpfHorizontalAlignment.Left;
 
-        var box = new WpfTextBox
+        var box = new LayoutTextBox
         {
             Text = text ?? string.Empty,
             VerticalAlignment = VerticalAlignment.Center,

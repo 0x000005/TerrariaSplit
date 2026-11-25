@@ -66,7 +66,7 @@ internal sealed class AutomationShell : IDisposable
         Rectangle targetBounds = window.TryGetClientScreenBounds(out Rectangle terrariaBounds)
             ? terrariaBounds
             : Screen.FromControl(owner).WorkingArea;
-        palette.Loaded += (_, _) => WpfWindowInterop.CenterOnPixelBounds(palette, targetBounds);
+        palette.ContentRendered += (_, _) => WpfWindowInterop.CenterOnPixelBounds(palette, targetBounds);
         WpfWindowInterop.CenterOnPixelBounds(palette, targetBounds);
 
         if (modalWindows.ShowWpfDialog(palette, ModalWindowOptions.ForceTopMostForeground) == true &&

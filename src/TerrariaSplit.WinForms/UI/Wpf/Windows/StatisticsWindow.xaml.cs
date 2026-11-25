@@ -81,9 +81,9 @@ internal sealed partial class StatisticsWindow : ModernWindow
         ReferenceRunLabel.Text = Localizer.Get("Reference run", settings);
         SelectedRunLabel.Text = Localizer.Get("Selected run", settings);
 
-        KpiSelectedLabel.Text = Localizer.Get("Selected run total time", settings);
-        KpiReferenceLabel.Text = Localizer.Get("Reference time column", settings);
-        KpiPbLabel.Text = Localizer.Get("Personal best time column", settings);
+        KpiSelectedLabel.Text = Localizer.Get("Run", settings);
+        KpiReferenceLabel.Text = Localizer.Get("Reference", settings);
+        KpiPbLabel.Text = Localizer.Get("PB", settings);
         KpiSobLabel.Text = "Sum of Best";
 
         ColSplitHeader.Text = Localizer.Get("Split", settings);

@@ -69,7 +69,8 @@ internal class ModernWindow : Window
         ApplyWindowChrome();
         StateChanged += OnWindowStateChanged;
         PreviewKeyDown += OnWindowPreviewKeyDown;
-        Loaded += (_, _) =>
+        // Preparing an HWND can raise Loaded before Show; defer window changes until it is shown.
+        ContentRendered += (_, _) =>
         {
             EnsureNativeTitlebarContentsRemoved();
             WpfWindowInterop.FitToWorkingArea(this);
@@ -160,7 +161,7 @@ internal class ModernWindow : Window
     {
         base.OnDpiChanged(oldDpi, newDpi);
         UpdateTextFormattingForDpi(newDpi);
-        if (IsLoaded)
+        if (IsVisible)
         {
             WpfWindowInterop.FitToWorkingArea(this);
         }

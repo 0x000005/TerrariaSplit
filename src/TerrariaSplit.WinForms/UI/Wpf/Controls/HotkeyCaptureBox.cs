@@ -39,6 +39,7 @@ internal sealed class HotkeyCaptureBox : WpfControl
     public HotkeyCaptureBox()
     {
         Focusable = true;
+        InputMethod.SetIsInputMethodEnabled(this, false);
         UpdateDisplayText();
     }
 
@@ -93,10 +94,18 @@ internal sealed class HotkeyCaptureBox : WpfControl
     {
         base.OnPreviewKeyDown(e);
 
-        Key wpfKey = e.Key == Key.System ? e.SystemKey : e.Key;
+        Key wpfKey = ResolveKey(e.Key, e.SystemKey, e.ImeProcessedKey, e.DeadCharProcessedKey);
         CaptureKey(wpfKey, Keyboard.Modifiers);
         e.Handled = true;
     }
+
+    internal static Key ResolveKey(Key key, Key systemKey, Key imeProcessedKey, Key deadCharProcessedKey) => key switch
+    {
+        Key.System => systemKey,
+        Key.ImeProcessed => imeProcessedKey,
+        Key.DeadCharProcessed => deadCharProcessedKey,
+        _ => key
+    };
 
     internal void CaptureKey(Key wpfKey, ModifierKeys modifiers)
     {

@@ -30,7 +30,7 @@ internal sealed partial class ModernTimeEditDialog : ModernWindow
             Close();
         };
 
-        Loaded += (_, _) =>
+        ContentRendered += (_, _) =>
         {
             TimeTextBox.Focus();
             TimeTextBox.SelectAll();

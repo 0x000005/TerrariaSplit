@@ -389,6 +389,7 @@ sequenceDiagram
   - `HighPrecisionScheduler` 组合 `timeBeginPeriod(1)`、Windows 高分辨率 `WaitableTimer`（`0.1ms` 保护窗）与最后 `1ms` 自旋等待，保证高帧率计时与轮询的低抖动精度。
 
 ### 9.3 WPF Fluent 2 紧凑管理界面体系（Settings / Statistics / Race / Palette / Dialogs）
+- **显示与输入时序**：预创建 HWND 可能提前触发 `Loaded`；窗口初始定位、布局收敛与焦点设置在 `ContentRendered` 执行。快捷键控件禁用输入法组合，并解析系统键、输入法与死键事件中的原始按键；设置输入框在无水平宽度约束时使用固定测量宽度，避免长路径与模板文本撑大页面。
 - **工作区约束**：管理窗口打开及 DPI 变化时按自身所在屏幕工作区约束尺寸与位置，小屏幕下同步放宽最小尺寸，设置页允许横向滚动；模态弹窗跟随所属窗口定位，不再按鼠标所在屏幕重新定位。
 - **WinForms 浮层与 WPF 管理界面共存**：在 `TerrariaSplit.WinForms.csproj` 中启用 `<UseWPF>true</UseWPF>`（保持 17 个生产项目拓扑与依赖图零变动）；实时透明浮层（`MainForm`、`TimerOverlayForm`、`RaceLeaderboardForm`）继续由 WinForms 分层窗口与 GDI+ 管线渲染，全部交互式管理窗口统一收口于 `UI/Wpf/{Theme,Controls,Converters,Dialogs,Settings,Race,Windows,Interop}`。
 - **Fluent 2 Dark 底座与窗口互操作**：`ModernWindow` 结合 `DwmWindowNative` 提供 Win11 DWM 深色模式、窗口圆角、原生 Mica / Acrylic 背景材质与单套自定义标题栏控件；`ThemeManager` 加载 `Colors.xaml`、`Typography.xaml`、`Density.Compact.xaml` 与 `Controls.xaml` 资源字典；`WpfWindowInterop` 处理 WinForms/WPF 所有者句柄桥接与非模态键盘互操作；所有 WPF 窗口随系统 Per-Monitor DPI 原生矢量缩放（`UiDpiScale` 仅保留服务 WinForms 透明排行榜浮窗 `RaceLeaderboardForm`）。

@@ -13,6 +13,7 @@ internal sealed partial class PracticeWorldPaletteWindow : ModernWindow
     public PracticeWorldPaletteWindow(AppSettings settings)
     {
         InitializeComponent();
+        InputMethod.SetIsInputMethodEnabled(this, false);
 
         this.settings = settings;
         Title = Localizer.Get("Save Selector", settings);
@@ -30,11 +31,17 @@ internal sealed partial class PracticeWorldPaletteWindow : ModernWindow
 
         PreviewKeyDown += OnPalettePreviewKeyDown;
         SlotListBox.PreviewMouseLeftButtonUp += OnSlotMouseLeftButtonUp;
-        Loaded += (_, _) =>
+        ContentRendered += (_, _) =>
         {
+            if (!IsVisible)
+            {
+                return;
+            }
+
             Activate();
             Focus();
             Keyboard.Focus(SlotListBox);
+            AppLog.Debug("practice.selector.focus", new { active = IsActive, keyboardFocus = IsKeyboardFocusWithin });
         };
     }
 

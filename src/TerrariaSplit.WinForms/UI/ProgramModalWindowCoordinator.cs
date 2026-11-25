@@ -172,7 +172,8 @@ internal sealed class ProgramModalWindowCoordinator
         {
             _ = window.Dispatcher.BeginInvoke(new Action(() =>
             {
-                if (window.IsVisible && window.IsEnabled)
+                IntPtr handle = WpfWindowInterop.GetHandle(window);
+                if (window.IsVisible && window.IsEnabled && handle != IntPtr.Zero && NativeMethods.IsWindowEnabled(handle))
                 {
                     layerController.ActivateCurrentModal();
                 }
