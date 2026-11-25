@@ -4,7 +4,7 @@
 
 
 
-<img src="docs/images/readme-main.png" alt="TerrariaSplit 计时器预览">
+<img src="docs/images/readme-main-pic.png" alt="TerrariaSplit 计时器预览">
 
 <br>
 <br>
