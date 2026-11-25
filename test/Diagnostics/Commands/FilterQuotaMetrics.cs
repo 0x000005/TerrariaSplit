@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using TerrariaSplit.Compatibility;
 
 namespace TerrariaSplit.Diagnostics;
 
@@ -50,7 +51,7 @@ internal static class FilterQuotaMetrics
                 var watch=Stopwatch.StartNew(); bool accepted; string reason; int? pass=null;
                 if(slot==0)
                 {
-                    var result=await current.EvaluateAsync(settings,seed,TerrariaWorldGenerationVersion.Modern1458,CancellationToken.None);
+                    var result=await current.EvaluateAsync(settings,seed,TerrariaResourceJudgeVersion.Version1461,CancellationToken.None);
                     accepted=result.AcceptSeed; reason=result.Detail; pass=result.Judge?.CheckpointPassIndex;
                     if(!result.CanUsePrediction || result.IsCandidateFailure)state.Errors++;
                 }

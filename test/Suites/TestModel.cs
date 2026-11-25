@@ -128,7 +128,7 @@ internal sealed class TestDirectory : IDisposable
         }
     }
 
-    private static string FindSourceRoot()
+    internal static string FindSourceRoot()
     {
         DirectoryInfo? current = new(AppContext.BaseDirectory);
         while (current is not null && !File.Exists(System.IO.Path.Combine(current.FullName, "TerrariaSplit.slnx")))

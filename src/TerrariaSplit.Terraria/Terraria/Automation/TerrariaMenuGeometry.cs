@@ -46,10 +46,8 @@ public readonly record struct TerrariaMenuGeometry(
     {
         // Terraria's PreDrawMenu scales menu UI up to a logical 900px height unless disabled in config.
         float scale = GetMainMenuScale(clientSize.Height, mainMenuUpscaleDisabled);
-        TerrariaMenuProfile selectedProfile = string.IsNullOrWhiteSpace(profile.Name)
-            ? TerrariaMenuProfile.Modern1458
-            : profile;
-        return new TerrariaMenuGeometry(scale, clientSize.Width / scale, clientSize.Height / scale, selectedProfile);
+        if (string.IsNullOrWhiteSpace(profile.Name)) throw new ArgumentException("A selected menu implementation is required.", nameof(profile));
+        return new TerrariaMenuGeometry(scale, clientSize.Width / scale, clientSize.Height / scale, profile);
     }
 
     public Point MainMenuSinglePlayer()

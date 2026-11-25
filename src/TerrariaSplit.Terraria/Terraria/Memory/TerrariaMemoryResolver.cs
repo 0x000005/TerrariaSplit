@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+using TerrariaSplit.Compatibility;
 using Process = System.Diagnostics.Process;
 
 namespace TerrariaSplit.Terraria.Memory;
@@ -107,7 +108,7 @@ internal sealed class TerrariaMemoryResolver
     {
         isGameMenu = false;
         IntPtr gameMenuAddress = runtimeLayout?.Core.GameMenuStaticFieldAddress ?? IntPtr.Zero;
-        return gameMenuAddress != IntPtr.Zero &&
+        return runtimeLayout?.ValidationError(TerrariaFeature.GameStateDetection) is null && gameMenuAddress != IntPtr.Zero &&
             memory.TryReadBool(gameMenuAddress, out isGameMenu);
     }
 
@@ -130,19 +131,19 @@ internal sealed class TerrariaMemoryResolver
     {
         _ = readPlan;
         _ = EnsureRuntimeLayout(memory, out TerrariaRuntimeMemoryLayout layout);
-        TerrariaItemMemoryLayout? itemLayout = readPlan.ReadsItemFacts
+        TerrariaItemMemoryLayout? itemLayout = readPlan.ReadsItemFacts && layout.ValidationError(TerrariaFeature.ItemDetection) is null
             ? layout.Item
             : null;
-        TerrariaNpcMemoryLayout? npcLayout = readPlan.ReadsNpcFacts
+        TerrariaNpcMemoryLayout? npcLayout = readPlan.ReadsNpcFacts && layout.ValidationError(TerrariaFeature.NpcDetection) is null
             ? layout.Npc
             : null;
-        TerrariaBiomeMemoryLayout? biomeLayout = readPlan.ReadsBiomeFacts
+        TerrariaBiomeMemoryLayout? biomeLayout = readPlan.ReadsBiomeFacts && layout.ValidationError(TerrariaFeature.BiomeDetection) is null
             ? layout.Biome
             : null;
         IntPtr localPlayerAddress = ResolveLocalPlayerAddress(memory, itemLayout, biomeLayout);
 
         return new TerrariaMemoryContext(
-            readPlan.ReadsBossFacts ? layout.Boss : null,
+            readPlan.ReadsBossFacts && layout.ValidationError(TerrariaFeature.BossAndEventDetection) is null ? layout.Boss : null,
             localPlayerAddress,
             itemLayout,
             npcLayout,

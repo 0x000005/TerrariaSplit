@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+using TerrariaSplit.Compatibility;
 using TerrariaSplit.Terraria.WorldGeneration;
 
 namespace TerrariaSplit.Terraria.Automation;
@@ -48,7 +49,7 @@ internal sealed class WorldSeedFilterEvaluator : IDisposable
     public async Task<IReadOnlyList<WorldSeedFilterPrediction>> EvaluateBatchAsync(
         AutoCreateWorldSettings settings,
         IReadOnlyList<string> seedTexts,
-        TerrariaWorldGenerationVersion worldGenerationVersion,
+        TerrariaResourceJudgeVersion judgeVersion,
         CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
@@ -59,7 +60,7 @@ internal sealed class WorldSeedFilterEvaluator : IDisposable
         {
             var results = new List<WorldSeedFilterPrediction>(seedTexts.Count);
             foreach (string seed in seedTexts)
-                results.Add(await EvaluateAsync(settings, seed, worldGenerationVersion, cancellationToken).ConfigureAwait(false));
+                results.Add(await EvaluateAsync(settings, seed, judgeVersion, cancellationToken).ConfigureAwait(false));
             return results;
         }
 
@@ -71,7 +72,7 @@ internal sealed class WorldSeedFilterEvaluator : IDisposable
                 () => EvaluateAsync(
                     settings,
                     seedText,
-                    worldGenerationVersion,
+                    judgeVersion,
                     cancellationToken),
                 cancellationToken);
         }
@@ -81,16 +82,16 @@ internal sealed class WorldSeedFilterEvaluator : IDisposable
 
     public async Task<WorldSeedFilterPrediction> EvaluateAsync(
         AutoCreateWorldSettings settings, string seedText,
-        TerrariaWorldGenerationVersion worldGenerationVersion, CancellationToken cancellationToken)
+        TerrariaResourceJudgeVersion judgeVersion, CancellationToken cancellationToken)
     {
         string traceId = Guid.NewGuid().ToString("N");
         var clock = Stopwatch.StartNew();
-        WorldFilterTrace.Write("candidate.start", new { traceId, seedText, worldGenerationVersion,
+        WorldFilterTrace.Write("candidate.start", new { traceId, seedText, judgeVersion,
             settings.WorldDifficulty, settings.WorldSize, settings.EnableCheats, parallelCandidates,
-            requirements = RequestedRequirements(settings), requestedThreads = parallelCandidates ? 1 : 0 });
+            requirements = RequestedRequirements(settings, judgeVersion), requestedThreads = parallelCandidates ? 1 : 0 });
         try
         {
-            var result = await EvaluateCoreAsync(settings, seedText, worldGenerationVersion, cancellationToken).ConfigureAwait(false);
+            var result = await EvaluateCoreAsync(settings, seedText, judgeVersion, cancellationToken).ConfigureAwait(false);
             WorldFilterTrace.Write("candidate.end", new { traceId, seedText, elapsedMs = clock.Elapsed.TotalMilliseconds,
                 result.Kind, result.Detail, result.AcceptSeed, result.CanUsePrediction, result.IsCandidateFailure,
                 hasNativeResult = result.Judge is not null, judge = result.Judge });
@@ -108,7 +109,7 @@ internal sealed class WorldSeedFilterEvaluator : IDisposable
     private async Task<WorldSeedFilterPrediction> EvaluateCoreAsync(
         AutoCreateWorldSettings settings,
         string seedText,
-        TerrariaWorldGenerationVersion worldGenerationVersion,
+        TerrariaResourceJudgeVersion judgeVersion,
         CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
@@ -141,7 +142,7 @@ internal sealed class WorldSeedFilterEvaluator : IDisposable
                 seedText,
                 gameMode,
                 cancellationToken,
-                RequestedRequirements(settings),
+                RequestedRequirements(settings, judgeVersion),
                 threads: parallelCandidates ? 1 : 0).ConfigureAwait(false);
         }
         catch (Exception ex)
@@ -205,7 +206,8 @@ internal sealed class WorldSeedFilterEvaluator : IDisposable
         disposed = true;
     }
 
-    internal static ResourceJudgeRequirements RequestedRequirements(AutoCreateWorldSettings settings)
+    internal static ResourceJudgeRequirements RequestedRequirements(AutoCreateWorldSettings settings,
+        TerrariaResourceJudgeVersion judgeVersion = TerrariaResourceJudgeVersion.Version1461)
     {
         int worldWidth = AutoCreateWorldSize.Width(settings.WorldSize);
         int worldHeight = AutoCreateWorldSize.Height(settings.WorldSize);
@@ -228,7 +230,8 @@ internal sealed class WorldSeedFilterEvaluator : IDisposable
                 AutoCreateWorldEvil.Crimson => TerrariaWorldSeedOptions.CrimsonEvilCode,
                 AutoCreateWorldEvil.Corruption => TerrariaWorldSeedOptions.CorruptionEvilCode,
                 _ => throw new InvalidOperationException("Random world evil must be resolved before seed evaluation.")
-            });
+            },
+            TerrariaVersion: TerrariaResourceJudgeBuilds.ForVersion(judgeVersion).Version);
     }
 
     private static string? UnsupportedJudgeScope(AutoCreateWorldSettings settings)

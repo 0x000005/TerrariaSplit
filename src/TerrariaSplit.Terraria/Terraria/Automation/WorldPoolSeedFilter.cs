@@ -1,4 +1,5 @@
 using System.Globalization;
+using TerrariaSplit.Compatibility;
 using TerrariaSplit.Terraria.WorldGeneration;
 
 namespace TerrariaSplit.Terraria.Automation;
@@ -28,7 +29,7 @@ internal sealed class WorldPoolSeedFilter : IDisposable
     public void Reset() => consecutiveCandidateFailures = 0;
 
     public async Task<WorldPoolSeedFilterResult> FilterBatchAsync(AutoCreateWorldSettings settings,
-        TerrariaWorldGenerationVersion version, CancellationToken cancellationToken)
+        TerrariaResourceJudgeVersion version, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var candidates = Enumerable.Range(0, Concurrency).Select(_ =>

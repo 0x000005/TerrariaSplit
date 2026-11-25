@@ -74,19 +74,7 @@ namespace TerrariaSplit.MemoryBridge.Payload
                     stardustWorm,
                     naturalParty
                 };
-                string[] auditedHashes =
-                {
-                    "077F2FCF98F7030285BA73588231D90896FC24B0151BFB7FBADFA8C2279D0EF5",
-                    "30681168D462E9D45D852F361F1AAB401A56E4C27CAC110B9282C74BA7C64726",
-                    "CE9F513AEC5CF7E14502DD3EC4CD8BC87B00254BB74CBDE0A3558C2CD75F7D14",
-                    "9545494DE52EE8C8A343F3CB2A015D2616D52889400BA122BAE486B0069F4E9B",
-                    "B2106482F6187310491B3940A86722C212349684BCC01196F10FEF0614D3E92A",
-                    "663A6976D13624EF235C2F8C0AAB0C5264F252FB83D92062A7945076B63E40CA",
-                    "731A393D98C0C50F9E4C907FBC1C7AED4696AE80F251DFB171BFBFF32CFA2802",
-                    "E9CE0E824D6580D9A8B5DBA80BD170485C6172AF30FA15FD632529909BFB5E4E",
-                    "FC685CEBB78615458D66AFE0EEBB1CC338C105013DA3500DAEF9E40B9C08B7F2"
-                };
-                if (!MethodsMatch(auditedMethods, auditedHashes))
+                if (!MethodsMatch(auditedMethods))
                 {
                     return 62;
                 }

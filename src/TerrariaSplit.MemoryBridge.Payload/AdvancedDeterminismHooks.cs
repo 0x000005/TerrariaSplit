@@ -111,25 +111,7 @@ namespace TerrariaSplit.MemoryBridge.Payload
                 MethodInfo teleport = playerType.GetMethod("TeleportationPotion", BindingFlags.Instance | BindingFlags.Public, null, Type.EmptyTypes, null);
                 MethodInfo prefix = itemType.GetMethod("Prefix", BindingFlags.Instance | BindingFlags.Public, null, new[] { typeof(int), typeof(bool).MakeByRefType() }, null);
                 MethodInfo[] methods = { shakeTree, potDrops, potFruit, tileDrops, tileDropResolver, treeDropResolver, tileBaitDrops, check2x1, checkOrb, openBossBag, openFishingCrate, openHerbBag, openCanOfWorms, teleport, prefix };
-                string[] hashes =
-                {
-                    "0DFF48319CBB1E7E23D32DE705450B8F0113FCDF2EEA5B40B79A317A92669BBE",
-                    "F958799927308BB444E676CBD8D61891F0398D240CA91F0D9F31CFB98F72FAE6",
-                    "654B79F693E8B3D00C5C81B8C1F92E3F9085BBFE8FDC0F5B1132C1FDCC589173",
-                    "6DC6A82681C0E0DE3C839D02CBDD54C7D5F1D9A3F1384221FEE877BBD0D59C2E",
-                    "9EE37E14C9C1261873E203346DC934C290A13B13ECAEC92AA1599B19DDD3430B",
-                    "F12306844455C584BB9DD812A21B36F6FA2F205D60E0445A83A2660A3FF9DBE2",
-                    "46548D424CA46A631928D3ADF17461528277C660866D2A0A102A9168ADC29EC0",
-                    "58880C93231255287D973EC1C57A1520AD17AB2D3F3A4E38F7960071F4C23EAC",
-                    "062C366545787819F898B127A1D87C8C51F68C1D529605B3C1A446C0802E3551",
-                    "702F6D7EF9825119D34F9AADC0FD2AA11F73ED3BD8AB93E4A384D73AD6E55CB4",
-                    "203E00B2E611302386E06117F0FF8EDFC71091A8B27DF97229191458BE5CE6CE",
-                    "88B07C6989C339B6C46122114EB24946E68F281DF10DA917EC979AE7C21B0A70",
-                    "4B66352EBB1AFCB6BB854432E1AE28DAD48062504F57EA854F657BBE44626725",
-                    "DC54C18641D46826E650A15B94D767BD367CFD6F08941AE9D4CEAC57F5CF249F",
-                    "45BEF7914D6F790ACDEF1925026C186613D04CEF5665D2946B4E680BD013B1D8"
-                };
-                if (!MethodsMatch(methods, hashes))
+                if (!MethodsMatch(methods))
                 {
                     return 31;
                 }
@@ -235,17 +217,7 @@ namespace TerrariaSplit.MemoryBridge.Payload
                 string[] luckNames = { "RollLuck", "RollBadLuck", "RollOnlyBadLuck", "RollBadLuckExtreme", "RollOnlyBadLuckExtreme" };
                 MethodInfo[] luckMethods = luckNames.Select(name => luckType.GetMethod(name, BindingFlags.Static | BindingFlags.Public, null, new[] { typeof(float), typeof(int) }, null)).ToArray();
                 MethodInfo[] methods = new[] { craftDiscount, shimmer }.Concat(luckMethods).ToArray();
-                string[] hashes =
-                {
-                    "B8E57DAB0E09D4BA72239CD53541C06D032A48D2F441E74DB4EE01068B56D43B",
-                    "4031277142B9EB4EEDEA24C94A68BC17D3430E21A7EC3682FEFA875446615115",
-                    "A7359C293AF8D349C45566065E94847FC4ADF108165C240A3160D4EE795BFD5B",
-                    "48BF34705B55E79C6F982B8ED2C958398EEEC01F187918B974A40857D368B412",
-                    "77603BDF64C34F0932D7D81AB8DB91A0BADF708170BB7B5AA2EA776052A0B081",
-                    "CCD762343E7C5EC814734535AB0010D3DB4000EFDCA8C73EB600EB36C97084AC",
-                    "63BAC858D369C6E5C908ED9765413D9F054A59FA685C313A50EF80603C9A401E"
-                };
-                if (!MethodsMatch(methods, hashes))
+                if (!MethodsMatch(methods))
                 {
                     return 42;
                 }
@@ -337,17 +309,7 @@ namespace TerrariaSplit.MemoryBridge.Payload
                 }
 
                 MethodInfo[] providerMethods = new[] { initialize, smashAltar, bulb, geRunner, oreRunner }.Concat(randomWorldPoints).ToArray();
-                string[] providerHashes =
-                {
-                    "EE6E02E568AB5E372BD2B0DA0A8C547BB8137AD90811C8778974B4216A6647CC",
-                    "FBDA48BF920344C56A3E7E19637ABD52B45ABC63049D609AD8C68FF1EA5623EF",
-                    "D652B8CC3385AAB8DA699F0E92D0F0475EA79F512B9D24E2E607F5AE0E428C18",
-                    "2F3CB22E28DC9BABAFFCFB77413E1D78598AAE778E44C836BBD2C57E793FC0E9",
-                    "C8328B8206502072E2A8F71565AA5087A37E1DD5839C8F86E50A1EEF7578DF57",
-                    "5AAA2B97C267FC50021BAB00F627F5EEC60F0680B79A39DB24D0F3D9918D5CB1",
-                    "32E7E00B0A807C314ECDA48E15F5540F94B2766A00989BEBF14E04F546680AB5"
-                };
-                if (!MethodsMatch(providerMethods, providerHashes) || lunar == null || attemptBulb == null || !HasExpectedBody(lunar, "C4D29B8361480CC4E793DC71C7A7847EF93E702CECAE140AA053B8517BF157CB"))
+                if (!MethodsMatch(providerMethods) || lunar == null || attemptBulb == null || !HasExpectedBody(lunar))
                 {
                     return 52;
                 }
@@ -412,7 +374,8 @@ namespace TerrariaSplit.MemoryBridge.Payload
             playerType = null;
             itemType = null;
             tileType = null;
-            if (terraria == null || terraria.GetName().Version != new Version(1, 4, 5, 8) || terraria.ManifestModule.ModuleVersionId != SupportedMvid)
+            if (terraria == null || !TerrariaSplit.Compatibility.TerrariaFeatureCatalog.SupportsRaceBuild(
+                TerrariaSplit.Compatibility.TerrariaFeature.RaceRandomControl, terraria.GetName().Version, terraria.ManifestModule.ModuleVersionId))
             {
                 return false;
             }
@@ -436,16 +399,11 @@ namespace TerrariaSplit.MemoryBridge.Payload
             return mainRandomField != null && worldGenRandomGetter != null && unifiedRandomNextMethod != null && unifiedRandomNextRangeMethod != null;
         }
 
-        private static bool MethodsMatch(MethodInfo[] methods, string[] hashes)
+        private static bool MethodsMatch(MethodInfo[] methods)
         {
-            if (methods.Length != hashes.Length)
-            {
-                return false;
-            }
-
             for (int index = 0; index < methods.Length; index++)
             {
-                if (methods[index] == null || !HasExpectedBody(methods[index], hashes[index]))
+                if (methods[index] == null || !HasExpectedBody(methods[index]))
                 {
                     return false;
                 }
@@ -456,19 +414,7 @@ namespace TerrariaSplit.MemoryBridge.Payload
 
         private static bool HasExpectedLuckCallSites(Assembly terraria)
         {
-            string[] expected =
-            {
-                "06000937@0007->0600245C",
-                "06000938@0007->0600245D",
-                "06000939@0007->0600245E",
-                "0600093A@0007->0600245F",
-                "0600093B@0007->06002460",
-                "06003EB8@0007->0600245C",
-                "06003EB9@0007->0600245D",
-                "06003EBA@0007->0600245E",
-                "06003EBB@0007->0600245F",
-                "06003EBC@0007->06002460"
-            };
+            var expected = TerrariaHookAudit1461.LuckCallSites;
             try
             {
                 var oneByte = new Dictionary<byte, OpCode>();

@@ -62,8 +62,8 @@ namespace TerrariaSplit.MemoryBridge.Payload
                 }
             }
 
-            if (terraria == null || terraria.GetName().Version != new Version(1, 4, 5, 8) ||
-                terraria.ManifestModule.ModuleVersionId != SupportedMvid)
+            if (terraria == null || !TerrariaSplit.Compatibility.TerrariaFeatureCatalog.SupportsRaceBuild(
+                TerrariaSplit.Compatibility.TerrariaFeature.RacePreparation, terraria.GetName().Version, terraria.ManifestModule.ModuleVersionId))
             {
                 return new PayloadCommandResult(41, "The Terraria player creator is not compatible with this client.", false);
             }

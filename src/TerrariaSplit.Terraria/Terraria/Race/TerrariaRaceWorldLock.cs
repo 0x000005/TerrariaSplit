@@ -3,6 +3,7 @@ using System.Globalization;
 using System.IO.Pipes;
 using System.Reflection;
 using System.Text;
+using TerrariaSplit.Compatibility;
 using TerrariaSplit.Configuration;
 using TerrariaSplit.MemoryBridge.Protocol;
 using TerrariaSplit.Race.InGame;
@@ -455,6 +456,14 @@ internal sealed class TerrariaRaceWorldLockService : ITerrariaRaceWorldLockServi
                 "Terraria.exe must be running before the Race menu can open.");
         }
 
+        TerrariaFeatureMatch menuCapability = TerrariaFeatureCatalog.Resolve(TerrariaFeature.RaceInGameUi,
+            terraria.MainModule?.FileVersionInfo.FileVersion);
+        if (!menuCapability.CanAttempt)
+        {
+            SetState(TerrariaRaceWorldLockState.Inactive);
+            return TerrariaRaceWorldLockResult.Failure("The Race menu is unavailable: " + menuCapability.Diagnostic, terraria.Id);
+        }
+
         TerrariaRaceWorldLockResult startupReady = await WaitForTerrariaStartupAsync(
             terraria,
             cancellationToken).ConfigureAwait(false);
@@ -619,6 +628,22 @@ internal sealed class TerrariaRaceWorldLockService : ITerrariaRaceWorldLockServi
                 SetState(TerrariaRaceWorldLockState.Inactive);
                 return TerrariaRaceWorldLockResult.Failure(
                     "Terraria.exe must be running before the Race package can become ready.");
+            }
+
+            string? gameVersion = terraria.MainModule?.FileVersionInfo.FileVersion;
+            var requiredFeatures = new List<TerrariaFeature> { TerrariaFeature.RacePreparation };
+            if ((target.Determinism.EnabledCapabilities & ~TerrariaSplit.Race.Determinism.RaceDeterminismProtocol.WorldLockCapability) != 0)
+                requiredFeatures.Add(TerrariaFeature.RaceRandomControl);
+            if (target.BossFailurePenaltyEnabled)
+                requiredFeatures.Add(TerrariaFeature.RaceBossPenalty);
+            foreach (TerrariaFeature feature in requiredFeatures)
+            {
+                TerrariaFeatureMatch capability = TerrariaFeatureCatalog.Resolve(feature, gameVersion);
+                if (!capability.CanAttempt)
+                {
+                    SetState(TerrariaRaceWorldLockState.Inactive);
+                    return TerrariaRaceWorldLockResult.Failure("Race preparation is unavailable: " + capability.Diagnostic, terraria.Id);
+                }
             }
 
             TerrariaRaceWorldLockResult startupReady = await WaitForTerrariaStartupAsync(
@@ -1651,6 +1676,7 @@ internal sealed class TerrariaRaceWorldLockService : ITerrariaRaceWorldLockServi
         yield return Path.Combine(directory, BootstrapFileName);
         yield return Path.Combine(directory, PayloadFileName);
         yield return Path.Combine(directory, "0Harmony.dll");
+        yield return Path.Combine(directory, "TerrariaSplit.Compatibility.dll");
         yield return Path.Combine(directory, "TerrariaSplit.Race.Determinism.dll");
         yield return Path.Combine(directory, "TerrariaSplit.Race.InGame.dll");
         yield return Path.Combine(directory, "terraria-compatibility.json");

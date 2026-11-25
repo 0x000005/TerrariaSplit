@@ -1,10 +1,14 @@
 using System.Diagnostics;
+using TerrariaSplit.Compatibility;
 
 namespace TerrariaSplit.Terraria.Processes;
 
 internal readonly record struct TerrariaServerTarget(string ExePath, string? FileVersion)
 {
-    public bool IsLegacy1449 => TerrariaMenuProfile.IsLegacy1449Version(FileVersion);
+    public TerrariaFeatureMatch GenerationCapability => TerrariaFeatureCatalog.Resolve(TerrariaFeature.BackgroundWorldCreation, FileVersion);
+    public TerrariaFeatureMatch FilteringCapability => TerrariaFeatureCatalog.Resolve(TerrariaFeature.SeedFiltering, FileVersion);
+    public TerrariaResourceJudgeBuild FilteringBuild => TerrariaResourceJudgeBuilds.ForGameVersion(FileVersion);
+    public bool IsLegacy1449 => GenerationCapability.Implementation == TerrariaImplementation.LegacyServer;
 }
 
 // Resolves the path to TerrariaServer.exe, which ships alongside Terraria.exe in the

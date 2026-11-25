@@ -27,7 +27,8 @@ internal sealed record RuntimeLayoutDto(
     WorldGenerationLayoutDto WorldGeneration,
     int ResolvedFieldCount,
     MenuAutomationLayoutDto? MenuAutomation,
-    RuntimeStartupLayoutDto? Startup);
+    RuntimeStartupLayoutDto? Startup,
+    Dictionary<string, string>? CapabilityErrors = null);
 
 internal sealed record RuntimeStartupLayoutDto(long ShowSplashAddress, long EngineLoadedAddress, bool ReadyAtProbe);
 

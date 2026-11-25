@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using TerrariaSplit.Compatibility;
 
 namespace TerrariaSplit.Configuration;
 
@@ -9,7 +10,7 @@ public static class WorldPoolSignature
 {
     // Terraria's world generator is version-sensitive. Keep this as a visible pool
     // signature component instead of an opaque "v1" format marker.
-    private const string DefaultTerrariaVersion = "1.4.5.8";
+    private const string DefaultTerrariaVersion = "1.4.6.1";
 
     public static string From(AppSettings settings)
     {
@@ -48,7 +49,11 @@ public static class WorldPoolSignature
             ? AutoCreatePyramidFilterItem.NormalizeMaskOrAll(autoCreate.PyramidFilterItemMask)
             : 0;
         string pyramidItems = "pyramidItems=" + pyramidItemMask.ToString(CultureInfo.InvariantCulture);
-        string pyramidDepth = "resourceFilterV6Sizes;pyramidMaxDepth=" + (pyramidEnabled
+        string normalizedVersion = NormalizeTerrariaVersion(terrariaVersion);
+        bool filteringAvailable = TerrariaFeatureCatalog.Resolve(TerrariaFeature.SeedFiltering, normalizedVersion).CanAttempt;
+        string generationId = filteringAvailable
+            ? TerrariaResourceJudgeBuilds.ForGameVersion(normalizedVersion).GenerationCompatibilityId : "unavailable";
+        string pyramidDepth = "resourceFilterV7;generation=" + generationId + ";pyramidMaxDepth=" + (pyramidEnabled
             ? AutoCreatePyramidFilterDepth.Normalize(autoCreate.PyramidMaximumDepth)
             : 0).ToString(CultureInfo.InvariantCulture);
         int pyramidCoinPileMinimum = pyramidEnabled
@@ -76,7 +81,7 @@ public static class WorldPoolSignature
                 "featherfall=" + AutoCreateResourceMinimum.NormalizePotions(autoCreate.ResourceFilterFeatherfallPotionMinimum).ToString(CultureInfo.InvariantCulture))
             : "resource=0";
         string nameLanguage = "name=" + TerrariaLanguageCodes.FromAppLanguage(appLanguage);
-        return string.Join("|", NormalizeTerrariaVersion(terrariaVersion), size, difficulty, evil, specialSeeds, secretSeeds, fixedSeed, cheats, pyramid, pyramidItems, pyramidDepth, pyramidCoinPiles, crimsonCorridor, resourceFilter, nameLanguage);
+        return string.Join("|", normalizedVersion, size, difficulty, evil, specialSeeds, secretSeeds, fixedSeed, cheats, pyramid, pyramidItems, pyramidDepth, pyramidCoinPiles, crimsonCorridor, resourceFilter, nameLanguage);
     }
 
     public static string NormalizeTerrariaVersion(string? terrariaVersion)

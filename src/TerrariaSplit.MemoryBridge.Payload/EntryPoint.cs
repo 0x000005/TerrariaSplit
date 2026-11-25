@@ -10,6 +10,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using HarmonyLib;
+using TerrariaSplit.Compatibility;
 using TerrariaSplit.Race.Determinism;
 using TerrariaSplit.Race.InGame;
 
@@ -17,13 +18,6 @@ namespace TerrariaSplit.MemoryBridge.Payload
 {
     public static partial class EntryPoint
     {
-        private static readonly Guid SupportedMvid = new Guid("2c29f6c3-4bd9-4add-9c58-da159804e083");
-        private const string SupportedWorldRejectionHash = "E9C56E6469D94B4826D10F16B81C280A6B7104ED50D2986E355971CF591BD420";
-        private const string SupportedSelectPlayerHash = "B1117FCF620E7A23D7C67E1C70686F262DC7C55F77444979D1FE46C6D1666B17";
-        private const string SupportedCharacterListCompareHash = "7CA160FDBC59061FD5288EBCDACEB63038887912AABA39F1AB38254687792043";
-        private const string SupportedWorldListCompareHash = "64D691F39703CE3692363F0CEEEF0A026D8BE78BA14B962407300004326A6992";
-        private const string SupportedCharacterListDrawHash = "EF24A02B76A647644A2D2023DB0E283657DCE0730EF643A44A23B6AB253BA30B";
-        private const string SupportedWorldListDrawHash = "5344E3CD635722239B64FC0A13B0576E258E03484659763038A605643A3B77E8";
         private const string HarmonyId = "TerrariaSplit.MemoryBridge";
 
         private static readonly object PatchSync = new object();
@@ -373,9 +367,8 @@ namespace TerrariaSplit.MemoryBridge.Payload
 
                 Assembly terraria = AppDomain.CurrentDomain.GetAssemblies()
                     .FirstOrDefault(candidate => string.Equals(candidate.GetName().Name, "Terraria", StringComparison.Ordinal));
-                if (terraria == null ||
-                    terraria.GetName().Version != new Version(1, 4, 5, 8) ||
-                    terraria.ManifestModule.ModuleVersionId != SupportedMvid)
+                if (terraria == null || !TerrariaFeatureCatalog.SupportsRaceBuild(
+                    TerrariaFeature.RaceRandomControl, terraria.GetName().Version, terraria.ManifestModule.ModuleVersionId))
                 {
                     return 20;
                 }
@@ -455,11 +448,8 @@ namespace TerrariaSplit.MemoryBridge.Payload
                     return 22;
                 }
 
-                if (!HasExpectedBody(dropItemsMethod, "F2F9F13B0144C956F9192D6D106389F0E0649876A4B3F824B29FCABED4F40A17") ||
-                    !HasExpectedBody(bossSuppliesMethod, "E6CCC4BA794A8A31F9314C91DC007C9B9DA911AFDDFC11FC715677B17D30F415") ||
-                    !HasExpectedBody(dropMoneyMethod, "8480354A07FB5A0F30CD94C2667AE2FE2F201A04F47CEDE5051C0253CFC0C690") ||
-                    !HasExpectedBody(dropHealsMethod, "7A7C3410A8ED440EDFE8CB61F4038D50CE7BE3497A90C199BFB4601B53E84B51") ||
-                    !HasExpectedBody(resolveRuleMethod, "EF137BCA302965EA276E4F1B8030689057506DBFCB37C1D790ECD5705E3C577D"))
+                if (!HasExpectedBody(dropItemsMethod) || !HasExpectedBody(bossSuppliesMethod) ||
+                    !HasExpectedBody(dropMoneyMethod) || !HasExpectedBody(dropHealsMethod) || !HasExpectedBody(resolveRuleMethod))
                 {
                     return 23;
                 }
@@ -721,12 +711,13 @@ namespace TerrariaSplit.MemoryBridge.Payload
                     return 10;
                 }
 
-                if (terraria.GetName().Version != new Version(1, 4, 5, 8))
+                if (!TerrariaFeatureCatalog.Resolve(TerrariaFeature.RacePreparation, terraria.GetName().Version.ToString()).CanAttempt)
                 {
                     return 11;
                 }
 
-                if (terraria.ManifestModule.ModuleVersionId != SupportedMvid)
+                if (!TerrariaFeatureCatalog.SupportsRaceBuild(TerrariaFeature.RacePreparation,
+                    terraria.GetName().Version, terraria.ManifestModule.ModuleVersionId))
                 {
                     return 12;
                 }
@@ -854,12 +845,9 @@ namespace TerrariaSplit.MemoryBridge.Payload
                     return 14;
                 }
 
-                if (!HasExpectedBody(worldRejectionMethod, SupportedWorldRejectionHash) ||
-                    !HasExpectedBody(selectPlayerMethod, SupportedSelectPlayerHash) ||
-                    !HasExpectedBody(characterListCompareMethod, SupportedCharacterListCompareHash) ||
-                    !HasExpectedBody(worldListCompareMethod, SupportedWorldListCompareHash) ||
-                    !HasExpectedBody(characterListDrawMethod, SupportedCharacterListDrawHash) ||
-                    !HasExpectedBody(worldListDrawMethod, SupportedWorldListDrawHash))
+                if (!HasExpectedBody(worldRejectionMethod) || !HasExpectedBody(selectPlayerMethod) ||
+                    !HasExpectedBody(characterListCompareMethod) || !HasExpectedBody(worldListCompareMethod) ||
+                    !HasExpectedBody(characterListDrawMethod) || !HasExpectedBody(worldListDrawMethod))
                 {
                     return 15;
                 }
@@ -1376,11 +1364,11 @@ namespace TerrariaSplit.MemoryBridge.Payload
             return patches != null && patches.Transpilers.Any(patch => patch.owner == HarmonyId);
         }
 
-        private static bool HasExpectedBody(MethodInfo method, string expectedHash)
+        private static bool HasExpectedBody(MethodInfo method)
         {
             MethodBody body = method.GetMethodBody();
             byte[] il = body == null ? null : body.GetILAsByteArray();
-            return il != null && string.Equals(Hash(il), expectedHash, StringComparison.Ordinal);
+            return TerrariaHookAudit1461.MatchesMethod(method.MetadataToken, method.Module.ModuleVersionId, il);
         }
 
         private static string Hash(byte[] data)

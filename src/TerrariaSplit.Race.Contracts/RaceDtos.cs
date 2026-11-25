@@ -207,7 +207,7 @@ public static class RaceTerrariaCompatibility
 {
     public const string TerrariaVersion =
         TerrariaSplit.Race.Determinism.RaceDeterminismProtocol.TerrariaVersion;
-    public const int WorldFileVersion = 326;
+    public const int WorldFileVersion = TerrariaSplit.Compatibility.TerrariaBuilds.Race1461WorldFileVersion;
     public const string Id =
         TerrariaSplit.Race.Determinism.RaceDeterminismProtocol.TerrariaCompatibilityId;
 
@@ -218,7 +218,8 @@ public static class RaceTerrariaCompatibility
 
     public static bool IsSupportedVersion(string? terrariaVersion)
     {
-        return string.Equals(terrariaVersion?.Trim(), TerrariaVersion, StringComparison.Ordinal);
+        return TerrariaSplit.Compatibility.TerrariaFeatureCatalog.Resolve(
+            TerrariaSplit.Compatibility.TerrariaFeature.RacePreparation, terrariaVersion).CanAttempt;
     }
 }
 

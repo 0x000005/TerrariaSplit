@@ -36,7 +36,7 @@ internal sealed class EnterWorldWorkflow : IDisposable
             }
 
             TerrariaMenuProfile menuProfile = TerrariaMenuProfile.ResolveRunningProcess();
-            if (TerrariaMenuObserver.IsSupported(TerrariaMenuProfile.TryGetRunningTerrariaFileVersion()))
+            if (menuProfile.Kind == TerrariaMenuProfileKind.Modern1458)
                 await automation.ConfigureModernMenuAsync(cancellationToken);
             TerrariaMenuGeometry geometry = TerrariaMenuGeometry.From(activation.ClientSize, menuProfile);
             FileAppLogger.Instance.Info($"Enter world automation using menu profile: {menuProfile.Name}.");

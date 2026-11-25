@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Text.Json;
+using TerrariaSplit.Compatibility;
 using Process = System.Diagnostics.Process;
 
 namespace TerrariaSplit.Terraria.Automation;
@@ -23,9 +24,11 @@ public readonly record struct TerrariaMenuProfile(
     bool SupportsPyramidSeedPreScreen,
     bool SupportsJourneyWorldDifficulty)
 {
+    public string GameVersion { get; init; } = string.Empty;
+
     public static TerrariaMenuProfile Modern1458 { get; } = new(
         TerrariaMenuProfileKind.Modern1458,
-        "Terraria 1.4.5.8 menu",
+        "Terraria 1.4.5+ state-driven menu",
         UsesLegacyCharacterCreationWizard: false,
         UsesLegacyWorldCreationWizard: false,
         SupportsPlayerTemplatePaste: true,
@@ -33,11 +36,11 @@ public readonly record struct TerrariaMenuProfile(
         SupportsAdvancedSeedMenu: true,
         SupportsSpecialSeedButtons: true,
         SupportsPyramidSeedPreScreen: true,
-        SupportsJourneyWorldDifficulty: true);
+        SupportsJourneyWorldDifficulty: true) { GameVersion = "1.4.5.8" };
 
     public static TerrariaMenuProfile Legacy1449 { get; } = new(
         TerrariaMenuProfileKind.Legacy1449,
-        "Terraria 1.4.4.9 legacy menu",
+        "Terraria 1.4.4 legacy menu",
         UsesLegacyCharacterCreationWizard: false,
         UsesLegacyWorldCreationWizard: true,
         SupportsPlayerTemplatePaste: true,
@@ -45,30 +48,24 @@ public readonly record struct TerrariaMenuProfile(
         SupportsAdvancedSeedMenu: false,
         SupportsSpecialSeedButtons: false,
         SupportsPyramidSeedPreScreen: false,
-        SupportsJourneyWorldDifficulty: true);
+        SupportsJourneyWorldDifficulty: true) { GameVersion = "1.4.4.9" };
 
     public static TerrariaMenuProfile FromVersion(string? fileVersion)
     {
-        return IsLegacy1449Version(fileVersion)
-            ? Legacy1449
-            : Modern1458;
+        TerrariaFeatureMatch match = TerrariaFeatureCatalog.Resolve(TerrariaFeature.ForegroundWorldCreation, fileVersion);
+        if (!match.CanAttempt) throw new InvalidOperationException("Terraria menu automation is unavailable: " + match.Diagnostic);
+        TerrariaMenuProfile profile = match.Implementation switch
+        {
+            TerrariaImplementation.LegacyMenu => Legacy1449,
+            TerrariaImplementation.StateDrivenMenu => Modern1458,
+            _ => throw new InvalidOperationException("No menu implementation is registered: " + match.Diagnostic)
+        };
+        return profile with { GameVersion = match.Version.ToString() };
     }
 
     internal static TerrariaMenuProfile ResolveRunningProcess()
     {
         return FromVersion(TryGetRunningTerrariaFileVersion());
-    }
-
-    internal static bool IsLegacy1449Version(string? fileVersion)
-    {
-        if (string.IsNullOrWhiteSpace(fileVersion))
-        {
-            return false;
-        }
-
-        string normalized = fileVersion.Trim();
-        return normalized.StartsWith("1.4.4.9", StringComparison.OrdinalIgnoreCase) ||
-            normalized.StartsWith("v1.4.4.9", StringComparison.OrdinalIgnoreCase);
     }
 
     internal static string? TryGetRunningTerrariaFileVersion()

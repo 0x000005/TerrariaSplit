@@ -150,6 +150,13 @@ public sealed class WorldPoolFillService : IDisposable
             return false;
         }
 
+        if (!serverTarget.Value.GenerationCapability.CanAttempt ||
+            (WorldSeedFilterEvaluator.IsEnabledFor(autoCreate) && !serverTarget.Value.FilteringCapability.CanAttempt))
+        {
+            ClearPendingSeeds();
+            return false;
+        }
+
         string signature = WorldPoolRuntimeVersion.SignatureFromServerTarget(current, serverTarget.Value);
         if (!string.Equals(seedFilterSignature, signature, StringComparison.Ordinal))
         {
@@ -165,9 +172,7 @@ public sealed class WorldPoolFillService : IDisposable
         bool filtering = WorldSeedFilterEvaluator.IsEnabledFor(autoCreate);
         if (filtering && acceptedSeeds.Count == 0)
         {
-            TerrariaWorldGenerationVersion version = serverTarget.Value.IsLegacy1449
-                ? TerrariaWorldGenerationVersion.Legacy1449 : TerrariaWorldGenerationVersion.Modern1458;
-            WorldPoolSeedFilterResult batch = await seedFilter.FilterBatchAsync(autoCreate, version, cancellationToken);
+            WorldPoolSeedFilterResult batch = await seedFilter.FilterBatchAsync(autoCreate, serverTarget.Value.FilteringBuild.Version, cancellationToken);
             if (!IsGenerationStillCurrent(signature)) return true;
             if (batch.Failure is { } failure)
             {

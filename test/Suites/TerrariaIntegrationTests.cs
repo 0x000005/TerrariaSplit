@@ -2,6 +2,7 @@ using System.Drawing;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using System.Text;
+using TerrariaSplit.Compatibility;
 using TerrariaSplit.Race.Determinism;
 using TerrariaSplit.Race.InGame;
 using TerrariaSplit.Terraria;
@@ -23,9 +24,9 @@ internal static class TerrariaIntegrationTests
         yield return TestCase.Sync("diagnostic world scanner measures the opening-side surface distance", TestSuite.Core, PyramidWorldScannerDepth);
         yield return TestCase.Async("native jungle seed judge preserves protocol and returns seed-only analysis", TestSuite.Native, JungleSeedJudgeNativeJourney, timeoutSeconds: 90);
         yield return TestCase.Async("native pyramid filters distinguish sandstorm bottle from flying carpet", TestSuite.Native, PyramidItemIdentity, timeoutSeconds: 90);
-        yield return TestCase.Sync("resource judge v6 rejects legacy and incomplete protocol payloads", TestSuite.Core, ResourceJudgeProtocolV2);
+        yield return TestCase.Sync("resource judge ABI7 rejects legacy and incomplete protocol payloads", TestSuite.Core, ResourceJudgeProtocolV2);
         yield return TestCase.Sync("resource judge scales world-size thresholds and disables Crimson in Corruption", TestSuite.Core, ResourceJudgeWorldSizes);
-        yield return TestCase.Async("native resource judge ABI6 accepts every world size and evil", TestSuite.Native, ResourceJudgeNativeWorldSizes, timeoutSeconds: 180);
+        yield return TestCase.Async("native resource judge ABI7 accepts every world size and evil", TestSuite.Native, ResourceJudgeNativeWorldSizes, timeoutSeconds: 180);
         yield return TestCase.Sync("resource judge validates early reject metadata", TestSuite.Core, ResourceJudgeSkyProtocol);
         yield return TestCase.Sync("resource judge sizes single-world budgets by available physical cores", TestSuite.Core, ResourceJudgePhysicalCoreBudget);
         yield return TestCase.Async("resource judge forwards its reserved thread budget", TestSuite.Core, ResourceJudgeForwardsBudget);
@@ -40,7 +41,7 @@ internal static class TerrariaIntegrationTests
         yield return TestCase.Async("world seed filter classifies native generation failures as candidate failures", TestSuite.Core, WorldSeedFilterGenerationFailureJourney);
         yield return TestCase.Async("UI seed filtering skips candidate failures and stops after three consecutive failures", TestSuite.Core, UiSeedCandidateFailureJourney, timeoutSeconds: 10);
         yield return TestCase.Async("pyramid generation failure preserves diagnostics and skips candidates", TestSuite.Core, PyramidBoundaryFailureJourney, timeoutSeconds: 30);
-        yield return TestCase.Async("world seed filter keeps an uncertain partial jungle route", TestSuite.Native, WorldSeedFilterPartialRouteJourney, timeoutSeconds: 30);
+        yield return TestCase.Async("world seed filter consumes native route decisions without treating an ordinary miss as generation failure", TestSuite.Native, WorldSeedFilterPartialRouteJourney, timeoutSeconds: 30);
         yield return TestCase.Sync("race seed filter concurrency uses eighty percent of processors", TestSuite.Core, RaceSeedFilterConcurrency);
         yield return TestCase.Async("background seed filtering uses rounded-up twenty percent concurrency and single-threaded DLL calls", TestSuite.Core, BackgroundSeedFiltering);
         yield return TestCase.Async("random evil filters preserve each candidate evil through generation without enabling dormant Crimson filters", TestSuite.Core, RandomEvilFiltering);
@@ -57,7 +58,7 @@ internal static class TerrariaIntegrationTests
         yield return TestCase.Async("window coordinate transform round-trips logical and physical client centers", TestSuite.Windows, WindowCoordinateTransform);
         yield return TestCase.Sync("exclusive fullscreen automation uses the active client coordinate space", TestSuite.Core, FullscreenAutomationCoordinateSpace);
         yield return TestCase.Sync("race UI reflection targets compatible runtime fields and preserves deferred failures", TestSuite.Core, RaceUiRuntimeSafety);
-        yield return TestCase.Sync("Terraria 1.4.5.8 catalogs and world files reject obsolete identifiers and versions", TestSuite.Core, Terraria1458CompatibilityCatalog);
+        yield return TestCase.Sync("item catalog identifiers remain stable while Race accepts only the current world-file version", TestSuite.Core, Terraria1458CompatibilityCatalog);
     }
 
     private static void Terraria1458CompatibilityCatalog()
@@ -77,16 +78,21 @@ internal static class TerrariaIntegrationTests
         Check.True(SplitCatalog.TryGetTarget("item:6195", out SplitTargetDefinition newestItem));
         Check.Equal("Guide to Old World Parkour (Inactive)", newestItem.DisplayName);
         Check.False(SplitCatalog.TryGetTarget("item:6196", out _));
+        Check.Equal("Jack O' Lantern Launcher", TerrariaItemCatalog.ById[1784].DisplayName);
+        Check.Equal("Jack O' Lantern Mask", TerrariaItemCatalog.ById[1857].DisplayName);
 
         byte[] currentWorld = CreateMinimalWorld();
         using var currentStream = new MemoryStream(currentWorld, writable: false);
         Check.True(RaceWorldFileValidator.TryValidateWorldStream(currentStream, out _));
 
-        byte[] obsoleteWorld = (byte[])currentWorld.Clone();
-        BitConverter.GetBytes(319).CopyTo(obsoleteWorld, 0);
-        using var obsoleteStream = new MemoryStream(obsoleteWorld, writable: false);
-        Check.False(RaceWorldFileValidator.TryValidateWorldStream(obsoleteStream, out string detail));
-        Check.True(detail.Contains("319", StringComparison.Ordinal));
+        foreach (int obsoleteVersion in new[] { 319, 326 })
+        {
+            byte[] obsoleteWorld = (byte[])currentWorld.Clone();
+            BitConverter.GetBytes(obsoleteVersion).CopyTo(obsoleteWorld, 0);
+            using var obsoleteStream = new MemoryStream(obsoleteWorld, writable: false);
+            Check.False(RaceWorldFileValidator.TryValidateWorldStream(obsoleteStream, out string detail));
+            Check.True(detail.Contains(obsoleteVersion.ToString(), StringComparison.Ordinal));
+        }
     }
 
     private static void BiomeZoneBatchRead()
@@ -478,7 +484,7 @@ internal static class TerrariaIntegrationTests
         for(int size=1;size<=3;size++)for(int evil=1;evil<=2;evil++)
         {
             string seed=size==2 && evil==2?"492550619":"540278984";
-            var q=new ResourceJudgeRequirements(PyramidItemMask:7,WorldSize:size,Evil:evil);
+            var q=new ResourceJudgeRequirements(PyramidItemMask:7,WorldSize:size,Evil:evil, TerrariaVersion: TerrariaResourceJudgeVersion.Version1458);
             var r=await client.AnalyzeAsync(seed,JungleSeedJudgeGameMode.Classic,cancellationToken,q,threads:1);
             Check.True(r.Complete);Check.Equal(40,r.PlannedEndPass);Check.Equal("PyramidFast",r.ExecutionPath);
             if((size==2 && evil==2) || (size==3 && evil==1))Check.Equal(JungleSeedJudgeDecision.Accepted,r.Decision!.Value);
@@ -493,8 +499,8 @@ internal static class TerrariaIntegrationTests
         Check.True(JungleSeedJudgeProtocolSerializer.DeserializeResponse(json, "protocol").Complete);
         foreach (string invalid in new[]
         {
-            json.Replace("\"protocolVersion\":6", "\"protocolVersion\":5", StringComparison.Ordinal),
-            json.Replace("filter-v6-sizes-pass97", "filter-v5-pass97", StringComparison.Ordinal),
+            json.Replace("\"protocolVersion\":7", "\"protocolVersion\":6", StringComparison.Ordinal),
+            json.Replace("filter-v7-sizes-pass97", "filter-v6-sizes-pass97", StringComparison.Ordinal),
             json.Replace("\"decision\":\"Accepted\"", "\"decision\":null", StringComparison.Ordinal),
             json[..^1] + ",\"metrics\":{}}"
         })
@@ -544,6 +550,8 @@ internal static class TerrariaIntegrationTests
             Check.Equal(expected, WorldFilterThreadPolicy.Automatic(cores));
         Check.Equal(1, WorldFilterThreadPolicy.Select(1, 16));
         Check.Equal(2, WorldFilterThreadPolicy.Select(8, 2));
+        Check.Equal(6, WorldFilterThreadPolicy.Select(7, 16));
+        Check.Equal(6, WorldFilterThreadPolicy.Select(8, 16));
         byte[] data = new byte[32 * 6];
         for (int index = 0; index < 6; index++)
         {
@@ -618,27 +626,27 @@ internal static class TerrariaIntegrationTests
         };
         settings.SpecialSeeds = AutoCreateSpecialWorldSeed.Zenith;
         settings.SecretSeeds = "abandoned manors";
-        Check.True((await evaluator.EvaluateAsync(settings, "abandoned manors|540278984", TerrariaWorldGenerationVersion.Modern1458, cancellationToken)).AcceptSeed);
+        Check.True((await evaluator.EvaluateAsync(settings, "abandoned manors|540278984", TerrariaResourceJudgeVersion.Version1458, cancellationToken)).AcceptSeed);
         Check.Equal("540278984", analyzedSeed); Check.Equal(1, calls); Check.Equal(1, requestedThreads);
         Check.Equal(1, requested!.PyramidItemMask); Check.Equal(2, requested.PyramidGoldMinimum);
         Check.Equal(30, requested.PyramidMaximumDepth); Check.Equal(550, requested.JungleMinimumY);
         // Previously rejected managed seeds must now reach the authoritative DLL.
-        var accepted = await evaluator.EvaluateAsync(settings, "702683177", TerrariaWorldGenerationVersion.Modern1458, cancellationToken);
+        var accepted = await evaluator.EvaluateAsync(settings, "702683177", TerrariaResourceJudgeVersion.Version1458, cancellationToken);
         Check.True(accepted.AcceptSeed);
         Check.True(accepted.Judge is not null);
         Check.Equal(2, calls);
         decision = JungleSeedJudgeDecision.Rejected;
-        Check.False((await evaluator.EvaluateAsync(settings, "540278984", TerrariaWorldGenerationVersion.Legacy1449, cancellationToken)).AcceptSeed);
+        Check.False((await evaluator.EvaluateAsync(settings, "540278984", TerrariaResourceJudgeVersion.Version1458, cancellationToken)).AcceptSeed);
         Check.Equal(3, calls);
         decision = JungleSeedJudgeDecision.Accepted;
         using var race = new WorldSeedFilterEvaluator(client, parallelCandidates: true);
         int beforeRaceEvaluation = calls;
-        Check.True((await race.EvaluateAsync(settings, "702683177", TerrariaWorldGenerationVersion.Legacy1449, cancellationToken)).AcceptSeed);
+        Check.True((await race.EvaluateAsync(settings, "702683177", TerrariaResourceJudgeVersion.Version1458, cancellationToken)).AcceptSeed);
         Check.Equal(beforeRaceEvaluation + 1, calls);
-        Check.True((await race.EvaluateAsync(settings, "540278984", TerrariaWorldGenerationVersion.Modern1458, cancellationToken)).AcceptSeed);
+        Check.True((await race.EvaluateAsync(settings, "540278984", TerrariaResourceJudgeVersion.Version1458, cancellationToken)).AcceptSeed);
         Check.Equal(1, requestedThreads);
         settings.EnablePyramidFilter = false;
-        Check.True((await evaluator.EvaluateAsync(settings, "702683177", TerrariaWorldGenerationVersion.Modern1458, cancellationToken)).AcceptSeed);
+        Check.True((await evaluator.EvaluateAsync(settings, "702683177", TerrariaResourceJudgeVersion.Version1458, cancellationToken)).AcceptSeed);
         Check.Equal(0, requested!.PyramidItemMask);
         settings.EnablePyramidFilter = true;
         settings.RequireCrimsonBetweenDungeonAndSpawn = false;
@@ -676,24 +684,24 @@ internal static class TerrariaIntegrationTests
         }, TimeSpan.FromSeconds(10), new SemaphoreSlim(2, 2));
         var settings = new AutoCreateWorldSettings { PyramidFilterItemMask = 7 };
         using var filter = new WorldPoolSeedFilter(8, client, () => Interlocked.Increment(ref sequence).ToString());
-        var batch = await filter.FilterBatchAsync(settings, TerrariaWorldGenerationVersion.Modern1458, cancellationToken);
+        var batch = await filter.FilterBatchAsync(settings, TerrariaResourceJudgeVersion.Version1458, cancellationToken);
         Check.Equal(2, maximumActive);
         Check.True(batch.Failure is null);
         Check.Sequence(["2"], batch.AcceptedSeeds.Select(candidate => candidate.SeedText));
         using var cancelled = new CancellationTokenSource();
         cancelled.Cancel();
         await Check.ThrowsAsync<OperationCanceledException>(() => filter.FilterBatchAsync(settings,
-            TerrariaWorldGenerationVersion.Modern1458, cancelled.Token));
+            TerrariaResourceJudgeVersion.Version1458, cancelled.Token));
         Check.Equal(2, sequence);
 
         var failingClient = new JungleSeedJudgeNativeClient((seed, _, id, _, _) =>
             CreateFilterJudgeResult(seed, id, JungleSeedJudgeStatus.GenerationFailed),
             TimeSpan.FromSeconds(1), new SemaphoreSlim(2, 2));
         using var failingFilter = new WorldPoolSeedFilter(8, failingClient, () => "1");
-        Check.True((await failingFilter.FilterBatchAsync(settings, TerrariaWorldGenerationVersion.Modern1458, cancellationToken)).Failure is null);
-        Check.True((await failingFilter.FilterBatchAsync(settings, TerrariaWorldGenerationVersion.Modern1458, cancellationToken)).Failure is not null);
+        Check.True((await failingFilter.FilterBatchAsync(settings, TerrariaResourceJudgeVersion.Version1458, cancellationToken)).Failure is null);
+        Check.True((await failingFilter.FilterBatchAsync(settings, TerrariaResourceJudgeVersion.Version1458, cancellationToken)).Failure is not null);
         failingFilter.Reset();
-        Check.True((await failingFilter.FilterBatchAsync(settings, TerrariaWorldGenerationVersion.Modern1458, cancellationToken)).Failure is null);
+        Check.True((await failingFilter.FilterBatchAsync(settings, TerrariaResourceJudgeVersion.Version1458, cancellationToken)).Failure is null);
     }
 
     private static async Task RandomEvilFiltering(CancellationToken token)
@@ -738,7 +746,7 @@ internal static class TerrariaIntegrationTests
         }, TimeSpan.FromSeconds(5), new SemaphoreSlim(2, 2));
         int sequence = 0, evilDraws = 0;
         using var filter = new WorldPoolSeedFilter(8, client, () => (++sequence).ToString(), () => ++evilDraws);
-        var batch = await filter.FilterBatchAsync(settings, TerrariaWorldGenerationVersion.Modern1458, token);
+        var batch = await filter.FilterBatchAsync(settings, TerrariaResourceJudgeVersion.Version1458, token);
         Check.True(batch.Failure is null); Check.Equal(2, batch.AcceptedSeeds.Count);
         Check.Equal(2, evilDraws);
         foreach (WorldPoolSeedCandidate candidate in batch.AcceptedSeeds)
@@ -815,7 +823,7 @@ internal static class TerrariaIntegrationTests
                 return CreateFilterJudgeResult(seed, id, JungleSeedJudgeStatus.Complete);
             }, TimeSpan.FromSeconds(1), new SemaphoreSlim(1, 1));
             using var evaluator = new WorldSeedFilterEvaluator(client, parallelCandidates: race);
-            Check.True((await evaluator.EvaluateAsync(settings, "123", TerrariaWorldGenerationVersion.Modern1458, cancellationToken)).AcceptSeed);
+            Check.True((await evaluator.EvaluateAsync(settings, "123", TerrariaResourceJudgeVersion.Version1458, cancellationToken)).AcceptSeed);
         }
         Check.Equal(2, calls);
 
@@ -879,7 +887,8 @@ internal static class TerrariaIntegrationTests
         foreach (int depth in new[] { 0, 1200 })
         {
             var result = await client.AnalyzeAsync(seed, JungleSeedJudgeGameMode.Classic, cancellationToken,
-                new ResourceJudgeRequirements(PyramidItemMask: selectedMask, PyramidMaximumDepth: depth), threads: 1);
+                new ResourceJudgeRequirements(PyramidItemMask: selectedMask, PyramidMaximumDepth: depth,
+                    TerrariaVersion: TerrariaResourceJudgeVersion.Version1458), threads: 1);
             Check.True(result.Complete);
             Check.Equal(depth == 0 ? "PyramidFast" : "FullPrefix", result.ExecutionPath);
             Check.Equal(selectedMask == expectedMask ? JungleSeedJudgeDecision.Accepted : JungleSeedJudgeDecision.Rejected,
@@ -932,7 +941,7 @@ internal static class TerrariaIntegrationTests
                 TimeSpan.FromSeconds(1), new SemaphoreSlim(1, 1));
             using var evaluator = new WorldSeedFilterEvaluator(client);
             var result = await evaluator.EvaluateAsync(CandidateFailureSettings(), "1",
-                TerrariaWorldGenerationVersion.Modern1458, cancellationToken);
+                TerrariaResourceJudgeVersion.Version1458, cancellationToken);
             Check.Equal(decision == JungleSeedJudgeDecision.Accepted, result.AcceptSeed);
             Check.False(result.IsCandidateFailure);
             Check.Equal(0, WorldSeedFilterFailurePolicy.Advance(2, result));
@@ -975,7 +984,7 @@ internal static class TerrariaIntegrationTests
         WorldSeedFilterPrediction prediction = await evaluator.EvaluateAsync(
             settings,
             "1083872473",
-            TerrariaWorldGenerationVersion.Modern1458,
+            TerrariaResourceJudgeVersion.Version1458,
             cancellationToken);
 
         Check.True(prediction.CanUsePrediction);
@@ -1064,7 +1073,7 @@ internal static class TerrariaIntegrationTests
         WorldSeedFilterPrediction prediction = await evaluator.EvaluateAsync(
             settings,
             "12345",
-            TerrariaWorldGenerationVersion.Modern1458,
+            TerrariaResourceJudgeVersion.Version1458,
             cancellationToken);
 
         Check.True(prediction.CanUsePrediction);
@@ -1105,7 +1114,7 @@ internal static class TerrariaIntegrationTests
             TimeSpan.FromSeconds(1), new SemaphoreSlim(1, 1));
         using var evaluator = new WorldSeedFilterEvaluator(nativeClient: failureClient);
         WorldSeedFilterPrediction prediction = await evaluator.EvaluateAsync(
-            settings, "1320009733", TerrariaWorldGenerationVersion.Modern1458, cancellationToken);
+            settings, "1320009733", TerrariaResourceJudgeVersion.Version1458, cancellationToken);
         Check.True(prediction.IsCandidateFailure);
         Check.False(prediction.IsFatal);
         Check.False(prediction.AcceptSeed);
@@ -1123,7 +1132,7 @@ internal static class TerrariaIntegrationTests
         Check.True(WorldSeedFilterFailurePolicy.FormatLimitReached(failures, prediction)
             .Contains(prediction.Detail, StringComparison.Ordinal));
         WorldSeedFilterPrediction nativeFailure = await evaluator.EvaluateAsync(
-            settings, "540278984", TerrariaWorldGenerationVersion.Modern1458, cancellationToken);
+            settings, "540278984", TerrariaResourceJudgeVersion.Version1458, cancellationToken);
         Check.True(nativeFailure.IsCandidateFailure);
         Check.True(nativeFailure.Detail.Contains("injected generation failure", StringComparison.Ordinal));
         Check.Equal(2, nativeCalls);
@@ -1218,14 +1227,13 @@ internal static class TerrariaIntegrationTests
         WorldSeedFilterPrediction prediction = await evaluator.EvaluateAsync(
             settings,
             "1160429121",
-            TerrariaWorldGenerationVersion.Modern1458,
+            TerrariaResourceJudgeVersion.Version1458,
             cancellationToken);
 
-        Check.False(prediction.CanUsePrediction);
-        Check.True(prediction.IsCandidateFailure);
-        Check.True(prediction.Detail.Contains(
-            "routeStatus=Partial",
-            StringComparison.Ordinal));
+        Check.True(prediction.CanUsePrediction);
+        Check.False(prediction.IsCandidateFailure);
+        Check.True(prediction.Judge?.Complete == true);
+        Check.Equal(prediction.Judge!.Decision == JungleSeedJudgeDecision.Accepted, prediction.AcceptSeed);
     }
 
     private static void RaceSeedFilterConcurrency()
@@ -1657,11 +1665,13 @@ internal static class TerrariaIntegrationTests
 
     private static JungleSeedJudgeResult CreateFilterJudgeResult(string seedText, string requestId, JungleSeedJudgeStatus status)
     {
-        return new JungleSeedJudgeResult(JungleSeedJudgeProtocol.Version, requestId, JungleSeedJudgeProtocol.CompatibilityId,
+        TerrariaResourceJudgeBuild build = TerrariaResourceJudgeBuilds.Version1461;
+        return new JungleSeedJudgeResult(JungleSeedJudgeProtocol.Version, requestId, build.CompatibilityId,
             status, seedText, status == JungleSeedJudgeStatus.Complete ? JungleSeedJudgeDecision.Accepted : null,
             status == JungleSeedJudgeStatus.Complete ? "RequirementsSatisfied" : null,
             97, 97, "FullPrefix", false, 0, 1, 1, 1, 1,
-            status == JungleSeedJudgeStatus.Complete ? null : "pass 34 (Beaches): candidate generation failed");
+            status == JungleSeedJudgeStatus.Complete ? null : "pass 34 (Beaches): candidate generation failed",
+            build.TerrariaVersion, build.GenerationCompatibilityId);
     }
 
     private sealed record FakeSeedPlan(

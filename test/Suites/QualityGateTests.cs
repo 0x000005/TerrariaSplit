@@ -23,19 +23,21 @@ internal static class QualityGateTests
         var allowed = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase)
         {
             ["TerrariaSplit.Application"] = Set("TerrariaSplit.Configuration", "TerrariaSplit.Domain", "TerrariaSplit.Infrastructure"),
-            ["TerrariaSplit.Configuration"] = Set("TerrariaSplit.Domain"),
+            ["TerrariaSplit.Configuration"] = Set("TerrariaSplit.Compatibility", "TerrariaSplit.Domain"),
+            ["TerrariaSplit.Compatibility"] = Set(),
             ["TerrariaSplit.Domain"] = Set(),
             ["TerrariaSplit.Infrastructure"] = Set(),
             ["TerrariaSplit.Infrastructure.Windows"] = Set("TerrariaSplit.Infrastructure"),
-            ["TerrariaSplit.MemoryBridge"] = Set(),
+            ["TerrariaSplit.MemoryBridge"] = Set("TerrariaSplit.Compatibility"),
             ["TerrariaSplit.Race.Client"] = Set("TerrariaSplit.Configuration", "TerrariaSplit.Domain", "TerrariaSplit.Race.Contracts"),
-            ["TerrariaSplit.Race.Contracts"] = Set("TerrariaSplit.Race.Determinism"),
-            ["TerrariaSplit.Race.Determinism"] = Set(),
+            ["TerrariaSplit.Race.Contracts"] = Set("TerrariaSplit.Compatibility", "TerrariaSplit.Race.Determinism"),
+            ["TerrariaSplit.Race.Determinism"] = Set("TerrariaSplit.Compatibility"),
             ["TerrariaSplit.Race.InGame"] = Set(),
             ["TerrariaSplit.Race.Server"] = Set("TerrariaSplit.Race.Contracts"),
             ["TerrariaSplit.Statistics"] = Set("TerrariaSplit.Configuration", "TerrariaSplit.Domain"),
             ["TerrariaSplit.Storage"] = Set("TerrariaSplit.Application", "TerrariaSplit.Configuration", "TerrariaSplit.Domain", "TerrariaSplit.Infrastructure"),
             ["TerrariaSplit.Terraria"] = Set(
+                "TerrariaSplit.Compatibility",
                 "TerrariaSplit.Application",
                 "TerrariaSplit.Configuration",
                 "TerrariaSplit.Domain",
@@ -57,7 +59,7 @@ internal static class QualityGateTests
                 "TerrariaSplit.Statistics",
                 "TerrariaSplit.Storage",
                 "TerrariaSplit.Terraria"),
-            ["TerrariaSplit.MemoryBridge.Payload"] = Set("TerrariaSplit.Race.Determinism", "TerrariaSplit.Race.InGame")
+            ["TerrariaSplit.MemoryBridge.Payload"] = Set("TerrariaSplit.Compatibility", "TerrariaSplit.Race.Determinism", "TerrariaSplit.Race.InGame")
         };
         foreach ((string project, HashSet<string> references) in graph)
         {
@@ -113,9 +115,12 @@ internal static class QualityGateTests
             "terraria-compatibility.json")));
         JsonElement supportedClient = compatibilityManifest.RootElement
             .GetProperty("supportedClients")[0];
-        Check.Equal("1.4.5.8", supportedClient.GetProperty("terrariaVersion").GetString());
+        Check.Equal("1.4.6.1", supportedClient.GetProperty("terrariaVersion").GetString());
+        Check.Equal(TerrariaSplit.Compatibility.TerrariaBuilds.Race1461.Version.ToString(), supportedClient.GetProperty("terrariaVersion").GetString());
+        Check.Equal(TerrariaSplit.Compatibility.TerrariaBuilds.Race1461.ModuleVersionId,
+            Guid.Parse(supportedClient.GetProperty("moduleVersionId").GetString()!));
         Check.Equal(
-            "EF137BCA302965EA276E4F1B8030689057506DBFCB37C1D790ECD5705E3C577D",
+            "328B5B6542F495AD933DB7758A5D7E7A882C27219B4A44A321758AD16834AC5D",
             supportedClient
                 .GetProperty("methods")
                 .GetProperty("Terraria.GameContent.ItemDropRules.ItemDropResolver.ResolveRule(Terraria.GameContent.ItemDropRules.IItemDropRule,Terraria.GameContent.ItemDropRules.DropAttemptInfo)")

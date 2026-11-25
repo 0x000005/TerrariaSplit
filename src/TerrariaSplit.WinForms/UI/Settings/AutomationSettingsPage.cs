@@ -313,7 +313,7 @@ internal sealed partial class AutomationSettingsPage : SettingsPageBase
         SettingsUiFactory.AddSectionControl(
             createSection,
             Factory.CreateWrappedFieldLabel(
-                "Terraria 1.4.5.8 waits for game state automatically. Delay settings below apply to Terraria 1.4.4.9.",
+                "Terraria 1.4.5 and later wait for game state automatically. Delay settings below apply to Terraria 1.4.4.",
                 UiTheme.Text));
 
         SettingsUiFactory.AddSectionControl(createSection, Factory.CreateSubsectionLabel("Player options"));

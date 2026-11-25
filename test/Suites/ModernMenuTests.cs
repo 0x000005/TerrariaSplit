@@ -443,7 +443,8 @@ internal static class ModernMenuTests
     {
         Check.True(TerrariaMenuObserver.IsSupported("1.4.5.8"));
         Check.False(TerrariaMenuObserver.IsSupported("1.4.4.9"));
-        Check.False(TerrariaMenuObserver.IsSupported("1.4.5.7"));
+        Check.True(TerrariaMenuObserver.IsSupported("1.4.5.7"));
+        Check.True(TerrariaMenuObserver.IsSupported("1.4.6"));
         Check.False(TerrariaMenuObserver.IsSupported(null));
         var context = new TerrariaAutomationContext("legacy");
         context.ConfigureTiming(new AutoCreateWorldSettings { ClickFocusDelayMilliseconds = 73, InputPressDurationMilliseconds = 89 });
@@ -526,6 +527,14 @@ internal static class ModernMenuTests
         RuntimeLayoutResponse decoded = System.Text.Json.JsonSerializer.Deserialize<RuntimeLayoutResponse>(json)!;
         Check.Equal(game.StartTimeUtcTicks, decoded.Layout!.ProcessStartTimeUtcTicks);
         Check.Equal(1000L, decoded.Layout.MenuAutomation!.Statics["MenuUI"]);
+        RuntimeLayoutDto partial = decoded.Layout with
+        {
+            CapabilityErrors = new Dictionary<string, string> { ["ItemDetection"] = "Missing item field." }
+        };
+        RuntimeLayoutDto decodedPartial = System.Text.Json.JsonSerializer.Deserialize<RuntimeLayoutDto>(
+            System.Text.Json.JsonSerializer.Serialize(partial))!;
+        Check.Equal("Missing item field.", decodedPartial.ToRuntimeMemoryLayout()
+            .ValidationError(TerrariaSplit.Compatibility.TerrariaFeature.ItemDetection));
     }
 
     private static async Task ColdStartupJourney(CancellationToken token)
@@ -549,8 +558,9 @@ internal static class ModernMenuTests
         Check.True(ReferenceEquals(ready, await cache.GetAsync(game, null, token)));
         // A stale/incomplete existing entry must also be rejected, rather than reused forever.
         ready.MenuAutomation!.Statics["Evil"] = 0;
-        Check.False(cache.TryGet(game, out _));
-        Check.Equal(3000L, (await cache.GetAsync(game, null, token)).MenuAutomation!.Statics["Evil"]);
+        Check.False(cache.TryGet(game, out _, TerrariaSplit.Compatibility.TerrariaFeature.ForegroundWorldCreation));
+        Check.True(cache.TryGet(game, out _));
+        Check.Equal(3000L, (await cache.GetAsync(game, null, token, TerrariaSplit.Compatibility.TerrariaFeature.ForegroundWorldCreation)).MenuAutomation!.Statics["Evil"]);
         Check.Equal(3, probes);
 
         foreach (string defect in new[] { "Evil", "generatingWorld", "WorldOptions", "Keyboard", "ReferenceList._items", "startup", "words" })
@@ -563,9 +573,12 @@ internal static class ModernMenuTests
             else incomplete.MenuAutomation!.Statics[defect] = 0;
             int attempts = 0;
             var recovering = new TerrariaRuntimeLayoutCache(_ => Task.FromResult(++attempts == 1 ? incomplete : Layout(5000)));
-            await Check.ThrowsAsync<InvalidOperationException>(async () => { _ = await recovering.GetAsync(game, null, token); });
-            Check.False(recovering.TryGet(game, out _));
-            Check.True((await recovering.GetAsync(game, null, token)).CacheValidationError() is null);
+            await Check.ThrowsAsync<InvalidOperationException>(async () => { _ = await recovering.GetAsync(game, null, token,
+                TerrariaSplit.Compatibility.TerrariaFeature.ForegroundWorldCreation); });
+            Check.False(recovering.TryGet(game, out _, TerrariaSplit.Compatibility.TerrariaFeature.ForegroundWorldCreation));
+            Check.True(recovering.TryGet(game, out _));
+            Check.True((await recovering.GetAsync(game, null, token, TerrariaSplit.Compatibility.TerrariaFeature.ForegroundWorldCreation))
+                .ValidationError(TerrariaSplit.Compatibility.TerrariaFeature.ForegroundWorldCreation) is null);
             Check.Equal(2, attempts);
         }
         TerrariaRuntimeMemoryLayout legacy = Layout(1) with { TerrariaVersion = "1.4.4.9", MenuAutomation = null, Startup = null };

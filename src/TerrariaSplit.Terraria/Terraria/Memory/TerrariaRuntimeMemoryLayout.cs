@@ -1,3 +1,5 @@
+using TerrariaSplit.Compatibility;
+
 namespace TerrariaSplit.Terraria.Memory;
 
 internal sealed record TerrariaRuntimeMemoryLayout(
@@ -11,14 +13,38 @@ internal sealed record TerrariaRuntimeMemoryLayout(
     TerrariaWorldGenerationMemoryLayout WorldGeneration,
     int ResolvedFieldCount,
     TerrariaSplit.MemoryBridge.Protocol.MenuAutomationLayoutDto? MenuAutomation = null,
-    TerrariaSplit.MemoryBridge.Protocol.RuntimeStartupLayoutDto? Startup = null)
+    TerrariaSplit.MemoryBridge.Protocol.RuntimeStartupLayoutDto? Startup = null,
+    IReadOnlyDictionary<string, string>? CapabilityErrors = null)
 {
     public bool HasCore => Core.GameMenuStaticFieldAddress != IntPtr.Zero;
 
     public string? CacheValidationError()
     {
         if (!HasCore) return "Runtime layout has no game-menu address.";
-        if (!Version.TryParse(TerrariaVersion?.Trim().TrimStart('v'), out Version? version) || version != new Version(1, 4, 5, 8)) return null;
+        if (Startup is { ReadyAtProbe: false }) return "Terraria startup has not completed.";
+        return null;
+    }
+
+    public string? ValidationError(TerrariaFeature feature)
+    {
+        TerrariaFeatureMatch match = TerrariaFeatureCatalog.Resolve(feature, TerrariaVersion);
+        if (!match.CanAttempt) return match.Diagnostic;
+        if (CapabilityErrors?.TryGetValue(feature.ToString(), out string? error) == true) return error;
+        return feature switch
+        {
+            TerrariaFeature.GameStateDetection => CacheValidationError(),
+            TerrariaFeature.BossAndEventDetection => Boss.ResolvedFactCount > 0 ? null : "Boss and event fields are unavailable.",
+            TerrariaFeature.ItemDetection => Item is not null ? null : "Item fields are unavailable.",
+            TerrariaFeature.BiomeDetection => Biome is not null ? null : "Biome fields are unavailable.",
+            TerrariaFeature.NpcDetection => Npc is not null ? null : "NPC fields are unavailable.",
+            TerrariaFeature.ForegroundWorldCreation when match.Implementation == TerrariaImplementation.LegacyMenu => null,
+            TerrariaFeature.ForegroundWorldCreation when match.Implementation == TerrariaImplementation.StateDrivenMenu => MenuValidationError(),
+            _ => throw new ArgumentException("This feature is not owned by the runtime layout.", nameof(feature))
+        };
+    }
+
+    private string? MenuValidationError()
+    {
         if (Startup is not { ReadyAtProbe: true, ShowSplashAddress: not 0, EngineLoadedAddress: not 0 })
             return "Waiting for Terraria startup: showSplash=false and IsEngineLoaded=true.";
         return MenuAutomation is null ? "Runtime layout has no menu metadata." : MenuAutomation.ValidationError();

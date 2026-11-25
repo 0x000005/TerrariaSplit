@@ -67,7 +67,7 @@ internal sealed class JungleSeedJudgeNativeClient
         this.requestTimeout = ValidateRequestTimeout(requestTimeout);
         this.nativeCallGate = nativeCallGate;
         budgetReservationGate = new SemaphoreSlim(1, 1);
-        if (maximumLeaseThreads is < 1 or > WorldFilterThreadPolicy.MaximumThreads) throw new ArgumentOutOfRangeException(nameof(maximumLeaseThreads));
+        if (maximumLeaseThreads is < 1 or > WorldFilterThreadPolicy.MaximumExecutionThreads) throw new ArgumentOutOfRangeException(nameof(maximumLeaseThreads));
         this.maximumLeaseThreads = maximumLeaseThreads;
     }
 
@@ -272,7 +272,7 @@ internal sealed class JungleSeedJudgeNativeClient
                         libraryHandle,
                         "TerrariaSplitWorldFilterGetAbiVersion");
                 int abiVersion = getAbiVersion();
-                if (abiVersion != 6)
+                if (abiVersion != JungleSeedJudgeProtocol.Version)
                 {
                     throw new InvalidDataException(
                         $"Unsupported native world-filter ABI {abiVersion}.");
@@ -341,7 +341,8 @@ internal sealed class JungleSeedJudgeNativeClient
                 WorldFilterTrace.Write("native.response", new { seedText, requestId, responseJson = responseJson.Length <= 32768 ? responseJson : responseJson[..32768] });
                 var result = JungleSeedJudgeProtocolSerializer.DeserializeResponse(
                     responseJson,
-                    requestId);
+                    requestId,
+                    requirements.TerrariaVersion);
                 if (result.Status == JungleSeedJudgeStatus.Complete && (result.PlannedEndPass != requirements.EndPass ||
                     result.ExecutionPath != (requirements.PyramidFastEligible ? "PyramidFast" : "FullPrefix")))
                     throw new InvalidDataException("World Filter returned a different filter plan.");
@@ -368,13 +369,14 @@ internal sealed class JungleSeedJudgeNativeClient
         }
     }
 
-    [StructLayout(LayoutKind.Sequential)]
-    private readonly struct NativeRequirements
+    [StructLayout(LayoutKind.Sequential, Pack = 4)]
+    internal readonly struct NativeRequirements
     {
         public readonly uint Size;
         public readonly int PyramidItemMask, PyramidGoldMinimum, PyramidMaximumDepth, CrimsonMaximumDistance,
             JungleMinimumY, JungleItemMask, LifeCrystalMinimum, SpelunkerPotionMinimum, FeatherfallPotionMinimum,
             StarfuryMaximumDistance, FinchStaffMaximumDistance, WorldSize, Evil;
+        public readonly int TerrariaVersion;
         public NativeRequirements(ResourceJudgeRequirements q)
         {
             Size = (uint)Marshal.SizeOf<NativeRequirements>();
@@ -384,6 +386,7 @@ internal sealed class JungleSeedJudgeNativeClient
             FeatherfallPotionMinimum = q.FeatherfallPotionMinimum; StarfuryMaximumDistance = q.StarfuryMaximumDistance;
             FinchStaffMaximumDistance = q.FinchStaffMaximumDistance;
             WorldSize = q.WorldSize; Evil = q.Evil;
+            TerrariaVersion = (int)q.TargetBuild.Version;
         }
     }
 

@@ -38,8 +38,8 @@ namespace TerrariaSplit.MemoryBridge.Payload
                     }
                 }
 
-                if (terraria == null || terraria.GetName().Version != new Version(1, 4, 5, 8) ||
-                    terraria.ManifestModule.ModuleVersionId != SupportedMvid)
+                if (terraria == null || !TerrariaSplit.Compatibility.TerrariaFeatureCatalog.SupportsRaceBuild(
+                    TerrariaSplit.Compatibility.TerrariaFeature.RacePreparation, terraria.GetName().Version, terraria.ManifestModule.ModuleVersionId))
                 {
                     return new PayloadCommandResult(48, "The Terraria Race start helper is not compatible with this client.", false);
                 }
@@ -66,6 +66,8 @@ namespace TerrariaSplit.MemoryBridge.Payload
                 MethodInfo selectPlayer = mainType == null || playerFileDataType == null
                     ? null
                     : mainType.GetMethod("SelectPlayer", BindingFlags.Static | BindingFlags.Public, null, new[] { playerFileDataType }, null);
+                MethodInfo clearPendingPlayerSelect = mainType == null ? null : mainType.GetMethod(
+                    "ClearPendingPlayerSelectCallbacks", BindingFlags.Static | BindingFlags.Public, null, Type.EmptyTypes, null);
                 MethodInfo setWorldActive = worldFileDataType == null
                     ? null
                     : worldFileDataType.GetMethod("SetAsActive", BindingFlags.Instance | BindingFlags.Public, null, Type.EmptyTypes, null);
@@ -78,7 +80,7 @@ namespace TerrariaSplit.MemoryBridge.Payload
                 FieldInfo statusText = mainType == null ? null : mainType.GetField("statusText", BindingFlags.Static | BindingFlags.Public);
                 if (gameMenu == null || playerList == null || worldList == null || menuMultiplayer == null || menuServer == null ||
                     menuMode == null || queue == null || loadPlayers == null || loadWorlds == null ||
-                    selectPlayer == null || setWorldActive == null ||
+                    selectPlayer == null || clearPendingPlayerSelect == null || setWorldActive == null ||
                     playWorld == null || saveAndQuit == null || statusText == null)
                 {
                     return new PayloadCommandResult(48, "The Terraria Race start helper is unavailable.", false);
@@ -110,6 +112,7 @@ namespace TerrariaSplit.MemoryBridge.Payload
                             throw new InvalidOperationException("The assigned Race player is unavailable.");
                         }
 
+                        clearPendingPlayerSelect.Invoke(null, null);
                         selectPlayer.Invoke(null, new[] { assignedPlayer });
                         // Race worlds are downloaded while Terraria is already at the
                         // menu. Refresh explicitly so a world from a newly joined room

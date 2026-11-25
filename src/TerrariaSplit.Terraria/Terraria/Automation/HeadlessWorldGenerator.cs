@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
+using TerrariaSplit.Compatibility;
 using TerrariaSplit.Terraria.WorldGeneration;
 using Process = System.Diagnostics.Process;
 
@@ -66,6 +67,10 @@ internal sealed class HeadlessWorldGenerator : IDisposable
         IProgress<int>? progress = null,
         bool skipSeedFilter = false)
     {
+        if (!serverTarget.GenerationCapability.CanAttempt)
+            return HeadlessWorldGenResult.Unavailable(serverTarget.GenerationCapability.Diagnostic);
+        if (!skipSeedFilter && WorldSeedFilterEvaluator.IsEnabledFor(settings) && !serverTarget.FilteringCapability.CanAttempt)
+            return HeadlessWorldGenResult.Unavailable(serverTarget.FilteringCapability.Diagnostic);
         settings = TerrariaWorldSeedOptions.ResolveRandomEvil(settings, () => TerrariaSeedRandom.NextShared(2) + 1);
         using HeadlessGenerationLease? lease = HeadlessGenerationLease.TryAcquire(GenerationMutexName);
         if (lease is null)
@@ -93,15 +98,11 @@ internal sealed class HeadlessWorldGenerator : IDisposable
 
         if (!skipSeedFilter && WorldSeedFilterEvaluator.IsEnabledFor(settings))
         {
-            TerrariaWorldGenerationVersion worldGenerationVersion =
-                serverTarget.IsLegacy1449
-                    ? TerrariaWorldGenerationVersion.Legacy1449
-                    : TerrariaWorldGenerationVersion.Modern1458;
             WorldSeedFilterPrediction prediction =
                 await seedFilterEvaluator.EvaluateAsync(
                     settings,
                     request.ExpectedMetadata.SeedText,
-                    worldGenerationVersion,
+                    serverTarget.FilteringBuild.Version,
                     cancellationToken);
             if (!prediction.CanUsePrediction)
             {
@@ -181,9 +182,17 @@ internal sealed class HeadlessWorldGenerator : IDisposable
         out HeadlessWorldGenerationRequest request,
         out string detail)
     {
-        return serverTarget.IsLegacy1449
-            ? TryBuildLegacy1449GenerationRequest(appLanguage, settings, seedOverride, worldNameOverride, out request, out detail)
-            : TryBuildModernGenerationRequest(appLanguage, settings, seedOverride, worldNameOverride, out request, out detail);
+        switch (serverTarget.GenerationCapability.Implementation)
+        {
+            case TerrariaImplementation.LegacyServer:
+                return TryBuildLegacy1449GenerationRequest(appLanguage, settings, seedOverride, worldNameOverride, out request, out detail);
+            case TerrariaImplementation.ModernServer:
+                return TryBuildModernGenerationRequest(appLanguage, settings, seedOverride, worldNameOverride, out request, out detail);
+            default:
+                request = default;
+                detail = serverTarget.GenerationCapability.Diagnostic;
+                return false;
+        }
     }
 
     private bool TryBuildModernGenerationRequest(

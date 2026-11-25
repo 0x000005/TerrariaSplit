@@ -41,6 +41,7 @@
       <TerrariaSplitMemoryBridgeBuiltFile Include="$(TerrariaSplitMemoryBridgeBuildOutputDirectory)**\*.*" />
       <TerrariaSplitMemoryBridgeRuntimeFile Include="$(TerrariaSplitMemoryBridgePayloadOutputDirectory)TerrariaSplit.MemoryBridge.Payload.dll" />
       <TerrariaSplitMemoryBridgeRuntimeFile Include="$(TerrariaSplitMemoryBridgePayloadOutputDirectory)0Harmony.dll" />
+      <TerrariaSplitMemoryBridgeRuntimeFile Include="$(TerrariaSplitMemoryBridgePayloadOutputDirectory)TerrariaSplit.Compatibility.dll" />
       <TerrariaSplitMemoryBridgeRuntimeFile Include="$(TerrariaSplitMemoryBridgePayloadOutputDirectory)TerrariaSplit.Race.Determinism.dll" />
       <TerrariaSplitMemoryBridgeRuntimeFile Include="$(TerrariaSplitMemoryBridgePayloadOutputDirectory)TerrariaSplit.Race.InGame.dll" />
       <TerrariaSplitMemoryBridgeRuntimeFile Include="$(TerrariaSplitMemoryBridgeCompatibilityManifest)" />
@@ -73,6 +74,7 @@
       </ResolvedFileToPublish>
       <TerrariaSplitMemoryBridgeRuntimeFile Include="$(TerrariaSplitMemoryBridgePayloadOutputDirectory)TerrariaSplit.MemoryBridge.Payload.dll" />
       <TerrariaSplitMemoryBridgeRuntimeFile Include="$(TerrariaSplitMemoryBridgePayloadOutputDirectory)0Harmony.dll" />
+      <TerrariaSplitMemoryBridgeRuntimeFile Include="$(TerrariaSplitMemoryBridgePayloadOutputDirectory)TerrariaSplit.Compatibility.dll" />
       <TerrariaSplitMemoryBridgeRuntimeFile Include="$(TerrariaSplitMemoryBridgePayloadOutputDirectory)TerrariaSplit.Race.Determinism.dll" />
       <TerrariaSplitMemoryBridgeRuntimeFile Include="$(TerrariaSplitMemoryBridgePayloadOutputDirectory)TerrariaSplit.Race.InGame.dll" />
       <TerrariaSplitMemoryBridgeRuntimeFile Include="$(TerrariaSplitMemoryBridgeCompatibilityManifest)" />
@@ -91,6 +93,7 @@
       <TerrariaSplitMemoryBridgePublishedFile Include="$(TerrariaSplitMemoryBridgePublishOutputDirectory)TerrariaSplit.MemoryBridge.exe" />
       <TerrariaSplitMemoryBridgeRuntimeFile Include="$(TerrariaSplitMemoryBridgePayloadOutputDirectory)TerrariaSplit.MemoryBridge.Payload.dll" />
       <TerrariaSplitMemoryBridgeRuntimeFile Include="$(TerrariaSplitMemoryBridgePayloadOutputDirectory)0Harmony.dll" />
+      <TerrariaSplitMemoryBridgeRuntimeFile Include="$(TerrariaSplitMemoryBridgePayloadOutputDirectory)TerrariaSplit.Compatibility.dll" />
       <TerrariaSplitMemoryBridgeRuntimeFile Include="$(TerrariaSplitMemoryBridgePayloadOutputDirectory)TerrariaSplit.Race.Determinism.dll" />
       <TerrariaSplitMemoryBridgeRuntimeFile Include="$(TerrariaSplitMemoryBridgePayloadOutputDirectory)TerrariaSplit.Race.InGame.dll" />
       <TerrariaSplitMemoryBridgeRuntimeFile Include="$(TerrariaSplitMemoryBridgeCompatibilityManifest)" />

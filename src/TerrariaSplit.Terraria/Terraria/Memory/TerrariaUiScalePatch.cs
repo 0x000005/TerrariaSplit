@@ -2,14 +2,13 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices;
+using TerrariaSplit.Compatibility;
 
 namespace TerrariaSplit.Terraria.Memory;
 
 internal sealed class TerrariaUiScalePatch
 {
     public const int TargetScalePercent = 300;
-    private const string Unsupported1449VersionPrefix = "1.4.4.9";
-    private const string Unsupported1449VersionPrefixWithV = "v1.4.4.9";
     private const int ModuleReadChunkSize = 64 * 1024;
 
     private static readonly UIntPtr MemoryBasicInformationSize =
@@ -93,6 +92,37 @@ internal sealed class TerrariaUiScalePatch
             Replacement: [0x00, 0x00, 0x40, 0x40])
     ];
 
+
+    private static readonly PatchOperation[] Operations146 =
+    [
+        CreateOperation("mouse slider display range",
+            [
+                0x7E, 0x91, 0x0D, 0x00, 0x04, 0x22, 0x00, 0x00, 0x00, 0x3F, 0x59, 0x22,
+                0x00, 0x00, 0xC0, 0x3F, 0x5B, 0x22, 0x00, 0x00, 0x00, 0x00, 0x22, 0x00,
+                0x00, 0x80, 0x3F, 0x28, 0x51, 0x01, 0x00, 0x0A, 0x16, 0x14, 0x28, 0xFE,
+                0x01, 0x00, 0x06
+            ], 12, [0x00, 0x00, 0x20, 0x40]),
+        CreateOperation("mouse slider assignment range",
+            [
+                0x11, 0x2C, 0x22, 0x00, 0x00, 0xC0, 0x3F, 0x5A, 0x22, 0x00, 0x00, 0x00,
+                0x3F, 0x58, 0x80, 0x91, 0x0D, 0x00, 0x04
+            ], 3, [0x00, 0x00, 0x20, 0x40]),
+        CreateOperation("gamepad slider range",
+            [
+                0x28, 0x8E, 0x0C, 0x00, 0x06, 0x22, 0x00, 0x00, 0x00, 0x3F, 0x22, 0x00,
+                0x00, 0x00, 0x40, 0x28, 0x76, 0x17, 0x00, 0x06, 0x7B, 0xAC, 0x11, 0x00,
+                0x04, 0x22, 0x33, 0x33, 0xB3, 0x3E, 0x28, 0x8D, 0x16, 0x00, 0x06, 0x28,
+                0x90, 0x0C, 0x00, 0x06
+            ], 11, [0x00, 0x00, 0x40, 0x40])
+    ];
+
+    private static PatchOperation CreateOperation(string name, byte[] original, int offset, byte[] replacement)
+    {
+        byte[] patched = (byte[])original.Clone();
+        replacement.CopyTo(patched, offset);
+        return new PatchOperation(name, original, patched, offset, replacement);
+    }
+
     public TerrariaUiScalePatchResult TryApply()
     {
         using Process? process = TerrariaProcessFinder.FindNewest();
@@ -115,11 +145,12 @@ internal sealed class TerrariaUiScalePatch
                 return TerrariaUiScalePatchResult.Failed(process.Id, "Terraria main module is unavailable.");
             }
 
-            if (IsKnownUnsupportedVersion(mainModule.FileVersionInfo.FileVersion))
+            TerrariaFeatureMatch capability = TerrariaFeatureCatalog.Resolve(TerrariaFeature.UiScale, mainModule.FileVersionInfo.FileVersion);
+            if (!capability.CanAttempt)
             {
                 return TerrariaUiScalePatchResult.Unsupported(
                     process.Id,
-                    "Terraria UI scale patch does not support Terraria 1.4.4.9 yet; no bytes were written.");
+                    "Terraria UI scale patch is unavailable: " + capability.Diagnostic);
             }
 
             if (!ReadModuleBytes(handle.Value, mainModule, out byte[] moduleBytes, out string failure))
@@ -127,7 +158,7 @@ internal sealed class TerrariaUiScalePatch
                 return TerrariaUiScalePatchResult.Failed(process.Id, failure);
             }
 
-            TerrariaUiScalePatchPlan plan = CreatePlan(moduleBytes, mainModule.BaseAddress);
+            TerrariaUiScalePatchPlan plan = CreatePlan(moduleBytes, mainModule.BaseAddress, capability.Implementation);
             if (!plan.CanApply)
             {
                 return TerrariaUiScalePatchResult.Failed(process.Id, plan.Message);
@@ -156,24 +187,21 @@ internal sealed class TerrariaUiScalePatch
         }
     }
 
-    internal static bool IsKnownUnsupportedVersion(string? fileVersion)
-    {
-        if (string.IsNullOrWhiteSpace(fileVersion))
-        {
-            return false;
-        }
-
-        return fileVersion.StartsWith(Unsupported1449VersionPrefix, StringComparison.OrdinalIgnoreCase) ||
-            fileVersion.StartsWith(Unsupported1449VersionPrefixWithV, StringComparison.OrdinalIgnoreCase);
-    }
-
-    internal static TerrariaUiScalePatchPlan CreatePlan(byte[] moduleBytes, IntPtr moduleBaseAddress)
+    internal static TerrariaUiScalePatchPlan CreatePlan(byte[] moduleBytes, IntPtr moduleBaseAddress,
+        TerrariaImplementation implementation = TerrariaImplementation.UiScale145)
     {
         var writes = new List<PatchWrite>();
         var statuses = new List<string>();
         bool anyAlreadyApplied = false;
 
-        foreach (PatchOperation operation in Operations)
+        PatchOperation[] operations = implementation switch
+        {
+            TerrariaImplementation.UiScale145 => Operations,
+            TerrariaImplementation.UiScale146 => Operations146,
+            _ => []
+        };
+        if (operations.Length == 0) return TerrariaUiScalePatchPlan.Failed("No UI scale patch is registered for this implementation.");
+        foreach (PatchOperation operation in operations)
         {
             List<int> originalMatches = FindAll(moduleBytes, operation.OriginalPattern);
             List<int> patchedMatches = FindAll(moduleBytes, operation.PatchedPattern);
@@ -214,10 +242,10 @@ internal sealed class TerrariaUiScalePatch
             $"Terraria UI scale enhancement will be patched to {TargetScalePercent}% ({string.Join("; ", statuses)}).");
     }
 
-    internal static byte[] ApplyToBufferForTest(byte[] moduleBytes)
+    internal static byte[] ApplyToBufferForTest(byte[] moduleBytes, TerrariaImplementation implementation = TerrariaImplementation.UiScale145)
     {
         byte[] copy = (byte[])moduleBytes.Clone();
-        TerrariaUiScalePatchPlan plan = CreatePlan(copy, IntPtr.Zero);
+        TerrariaUiScalePatchPlan plan = CreatePlan(copy, IntPtr.Zero, implementation);
         if (!plan.CanApply)
         {
             throw new InvalidOperationException(plan.Message);

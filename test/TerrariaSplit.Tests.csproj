@@ -13,11 +13,14 @@
 
   <ItemGroup>
     <Compile Include="Suites\*.cs" />
+    <Compile Include="..\src\TerrariaSplit.MemoryBridge.Payload\TerrariaHookAudit1461.cs"
+             Link="Support\TerrariaHookAudit1461.cs" />
     <Compile Include="..\src\TerrariaSplit.MemoryBridge.Payload\RaceUiReflection.cs"
              Link="Support\RaceUiReflection.cs" />
     <Compile Include="..\src\TerrariaSplit.MemoryBridge.Payload\RaceUiRuntimeFailure.cs"
              Link="Support\RaceUiRuntimeFailure.cs" />
     <ProjectReference Include="..\src\TerrariaSplit.Application\TerrariaSplit.Application.csproj" />
+    <ProjectReference Include="..\src\TerrariaSplit.Compatibility\TerrariaSplit.Compatibility.csproj" />
     <ProjectReference Include="..\src\TerrariaSplit.Configuration\TerrariaSplit.Configuration.csproj" />
     <ProjectReference Include="..\src\TerrariaSplit.Domain\TerrariaSplit.Domain.csproj" />
     <ProjectReference Include="..\src\TerrariaSplit.Infrastructure\TerrariaSplit.Infrastructure.csproj" />

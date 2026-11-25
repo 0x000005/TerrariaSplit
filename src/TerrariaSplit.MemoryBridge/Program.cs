@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text.Json;
+using TerrariaSplit.Compatibility;
 using TerrariaSplit.MemoryBridge.Protocol;
 
 namespace TerrariaSplit.MemoryBridge;
@@ -355,6 +356,7 @@ internal static class Program
 
         using Process process = Process.GetProcessById(targetProcessId);
         string? version = process.MainModule?.FileVersionInfo.FileVersion;
+        if (!TerrariaFeatureCatalog.Resolve(TerrariaFeature.GameStateDetection, version).CanAttempt) return false;
         long startTime = process.StartTime.ToUniversalTime().Ticks;
         using DataTarget target = DataTarget.CreateSnapshotAndAttach(targetProcessId);
         ClrInfo? clrInfo = target.ClrVersions.FirstOrDefault();
@@ -373,7 +375,8 @@ internal static class Program
         }
 
         CoreLayoutDto core = ResolveCoreLayout(mainType, domain);
-        bool modernMenu = Version.TryParse(version?.Trim().TrimStart('v'), out Version? parsed) && parsed == new Version(1, 4, 5, 8);
+        TerrariaFeatureMatch menuCapability = TerrariaFeatureCatalog.Resolve(TerrariaFeature.ForegroundWorldCreation, version);
+        bool modernMenu = menuCapability.CanAttempt && menuCapability.Implementation == TerrariaImplementation.StateDrivenMenu;
         RuntimeStartupLayoutDto? startup = null;
         if (modernMenu)
         {
@@ -382,8 +385,8 @@ internal static class Program
             bool ready = splash != 0 && engine != 0 &&
                 mainType.GetStaticFieldByName("showSplash")!.Read<bool>(domain) == false &&
                 mainType.GetStaticFieldByName("IsEngineLoaded")!.Read<bool>(domain);
-            startup = new(splash, engine, ready);
-            if (!ready)
+            if (splash != 0 && engine != 0) startup = new(splash, engine, ready);
+            if (startup is { ReadyAtProbe: false })
             {
                 // Startup-only result. The controller waits on these two live bools before one full resolution.
                 layout = new(version, startTime, core, new(new()), null, null, null, null,
@@ -391,10 +394,22 @@ internal static class Program
                 return core.GameMenuStaticFieldAddress != 0;
             }
         }
-        Dictionary<string, long> bossFacts = ResolveBossFactAddresses(mainType, npcType, domain);
-        PlayerItemLayoutDto? item = ResolveItemLayout(runtime, mainType, domain);
-        NpcLayoutDto? npc = ResolveNpcLayout(runtime, mainType, domain);
-        BiomeLayoutDto? biome = ResolveBiomeLayout(runtime, mainType, domain);
+        var capabilityErrors = new Dictionary<string, string>(StringComparer.Ordinal);
+        T? ResolveOptional<T>(TerrariaFeature feature, Func<T?> resolve) where T : class
+        {
+            if (!TerrariaFeatureCatalog.Resolve(feature, version).CanAttempt) return null;
+            try { return resolve(); }
+            catch (InvalidOperationException ex)
+            {
+                capabilityErrors[feature.ToString()] = ex.Message;
+                return null;
+            }
+        }
+        Dictionary<string, long> bossFacts = ResolveOptional(TerrariaFeature.BossAndEventDetection,
+            () => ResolveBossFactAddresses(mainType, npcType, domain)) ?? new(StringComparer.OrdinalIgnoreCase);
+        PlayerItemLayoutDto? item = ResolveOptional(TerrariaFeature.ItemDetection, () => ResolveItemLayout(runtime, mainType, domain));
+        NpcLayoutDto? npc = ResolveOptional(TerrariaFeature.NpcDetection, () => ResolveNpcLayout(runtime, mainType, domain));
+        BiomeLayoutDto? biome = ResolveOptional(TerrariaFeature.BiomeDetection, () => ResolveBiomeLayout(runtime, mainType, domain));
         SeedUiLayoutDto? seedUi = ResolveSeedUiLayout(runtime, core.MenuUiStaticFieldAddress);
         WorldGenerationLayoutDto worldGeneration = ResolveWorldGenerationLayout(runtime, core.StatusTextStaticFieldAddress, domain);
         int resolvedFieldCount =
@@ -406,7 +421,8 @@ internal static class Program
             CountSeedFields(seedUi) +
             CountWorldGenerationFields(worldGeneration);
 
-        MenuAutomationLayoutDto? menu = modernMenu ? ResolveMenuAutomation(runtime, mainType, domain) : null;
+        MenuAutomationLayoutDto? menu = modernMenu
+            ? ResolveOptional(TerrariaFeature.ForegroundWorldCreation, () => ResolveMenuAutomation(runtime, mainType, domain)) : null;
         if (process.HasExited) throw new InvalidOperationException("Terraria exited during layout discovery.");
         layout = new RuntimeLayoutDto(
             version,
@@ -420,7 +436,8 @@ internal static class Program
             worldGeneration,
             resolvedFieldCount,
             menu,
-            startup);
+            startup,
+            capabilityErrors);
         return core.GameMenuStaticFieldAddress != 0 || resolvedFieldCount > 0;
     }
 

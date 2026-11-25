@@ -17,6 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\TerrariaSplit.Compatibility\TerrariaSplit.Compatibility.csproj" />
     <ProjectReference Include="..\TerrariaSplit.Application\TerrariaSplit.Application.csproj" />
     <ProjectReference Include="..\TerrariaSplit.Configuration\TerrariaSplit.Configuration.csproj" />
     <ProjectReference Include="..\TerrariaSplit.Domain\TerrariaSplit.Domain.csproj" />

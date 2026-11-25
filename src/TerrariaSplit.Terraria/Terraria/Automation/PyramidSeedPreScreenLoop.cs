@@ -1,3 +1,5 @@
+using TerrariaSplit.Compatibility;
+
 namespace TerrariaSplit.Terraria.Automation;
 
 internal interface IPyramidSeedRandomizer
@@ -41,22 +43,22 @@ internal sealed class PyramidSeedPreScreenLoop
         IPyramidVisibleSeedReader seedReader,
         CancellationToken cancellationToken)
     {
-        TerrariaWorldGenerationVersion worldGenerationVersion =
-            menuProfile.Kind == TerrariaMenuProfileKind.Legacy1449
-                ? TerrariaWorldGenerationVersion.Legacy1449
-                : TerrariaWorldGenerationVersion.Modern1458;
-        if (worldGenerationVersion != TerrariaWorldGenerationVersion.Modern1458)
+        TerrariaFeatureMatch capability = TerrariaFeatureCatalog.Resolve(TerrariaFeature.SeedFiltering, menuProfile.GameVersion);
+        if (!capability.CanAttempt)
+            return new PyramidSeedPreScreenLoopResult(PyramidSeedPreScreenLoopStatus.RequiredPredictionUnavailable, 0, null, capability.Diagnostic);
+        TerrariaResourceJudgeVersion judgeVersion = TerrariaResourceJudgeBuilds.ForGameVersion(menuProfile.GameVersion).Version;
+        if (menuProfile.Kind == TerrariaMenuProfileKind.Legacy1449)
         {
             return await RunSerialAsync(
                 settings,
-                worldGenerationVersion,
+                judgeVersion,
                 randomizer,
                 seedReader,
                 cancellationToken);
         }
 
         const int batchSize = 1;
-        WorldFilterTrace.Write("filter-loop.policy", new { batchSize, worldGenerationVersion });
+        WorldFilterTrace.Write("filter-loop.policy", new { batchSize, judgeVersion });
         int attempt = 0;
         int consecutiveCandidateFailures = 0;
         int consecutiveSeedReadFailures = 0;
@@ -76,7 +78,7 @@ internal sealed class PyramidSeedPreScreenLoop
                     $"falling back to serial click/read filtering: {predictionDetail}");
                 return await RunSerialAsync(
                     settings,
-                    worldGenerationVersion,
+                    judgeVersion,
                     randomizer,
                     seedReader,
                     cancellationToken,
@@ -92,7 +94,7 @@ internal sealed class PyramidSeedPreScreenLoop
                 await evaluator.EvaluateBatchAsync(
                     settings,
                     predictedSeeds,
-                    worldGenerationVersion,
+                    judgeVersion,
                     cancellationToken);
 
             int decisionIndex = -1;
@@ -239,7 +241,7 @@ internal sealed class PyramidSeedPreScreenLoop
 
     private async Task<PyramidSeedPreScreenLoopResult> RunSerialAsync(
         AutoCreateWorldSettings settings,
-        TerrariaWorldGenerationVersion worldGenerationVersion,
+        TerrariaResourceJudgeVersion judgeVersion,
         IPyramidSeedRandomizer randomizer,
         IPyramidVisibleSeedReader seedReader,
         CancellationToken cancellationToken,
@@ -298,7 +300,7 @@ internal sealed class PyramidSeedPreScreenLoop
             WorldSeedFilterPrediction prediction = await evaluator.EvaluateAsync(
                 settings,
                 readResult.SeedText,
-                worldGenerationVersion,
+                judgeVersion,
                 cancellationToken);
             consecutiveCandidateFailures =
                 WorldSeedFilterFailurePolicy.Advance(

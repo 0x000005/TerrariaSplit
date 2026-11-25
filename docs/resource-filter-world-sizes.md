@@ -1,6 +1,6 @@
 # 世界筛选的尺寸规则
 
-支持小/中/大世界、猩红/腐化和四种游戏模式。世界邪恶类型需明确选择；随机邪恶仍不启用高级筛选，固定种子仍禁用筛选。地牢侧猩红选项在腐化世界禁用，即使旧设置保留勾选也不提交该条件。
+支持小/中/大世界、猩红/腐化和四种游戏模式。随机邪恶在每个候选中先解析为具体邪恶类型；固定种子禁用筛选。地牢侧猩红选项仅在适用的猩红候选中提交，腐化候选不会提交保留的猩红条件。
 
 | 条件 | 小世界 | 中世界 | 大世界 |
 |---|---|---|---|
@@ -15,6 +15,6 @@
 
 设置和联机协议存储小世界基准档位，切换尺寸不会重复放大设置。WorldSeedFilterEvaluator在生成请求时换算实际距离和Y，距离按整数除法向下取整。DLL接收实际格数，不再次缩放；资源代价上限由DLL按世界高度换算。
 
-DLL ABI/JSON协议6，兼容标识terraria-1.4.5.8-resource-judge-filter-v6-sizes-pass97。56字节结构末尾worldSize=1/2/3、evil=1腐化/2猩红。组合条件共用一次生成并沿用各Pass早拒时点。默认构建和发布使用TerrariaResourceJudge/out/resourcejudge-release/current中的DLL；旧ABI5和旧PGO发布不兼容，不自动回退。
+DLL ABI/JSON协议7，60字节四字节对齐结构保留原字段，在偏移56追加terrariaVersion：1458或1461。1.4.4/1.4.5组使用1458，1.4.6+组使用1461；worldSize=1/2/3，evil=1腐化/2猩红。组合条件共用一次生成并沿用各Pass早拒时点。返回的terrariaVersion、版本对应的compatibilityId和generationCompatibilityId都必须匹配请求。
 
-WorldFilter.targets在构建和发布时复制默认DLL，覆盖输出目录中残留的旧版本。先生成或安装ResourceJudge的ABI6发布，再构建主程序。当前默认DLL已使用覆盖三尺寸、两邪恶和四模式的PGO构建，训练与测量见[报告](../../TerrariaResourceJudge/test/Reports/WorldSizesPgo20261020/README.md)。
+WorldFilter.targets在构建和发布时复制resourcejudge-release/current中的ABI7 DLL，覆盖输出目录的旧版本。当前为GCC严格Release，无PGO/LTO；发布及验证见[报告](../../TerrariaResourceJudge/test/Reports/VersionSync20261125/README.md)。不兼容ABI6，不自动回退；世界池按版本及生成指纹隔离。

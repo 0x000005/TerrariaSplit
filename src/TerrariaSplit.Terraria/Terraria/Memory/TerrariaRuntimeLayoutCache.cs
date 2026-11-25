@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json;
+using TerrariaSplit.Compatibility;
 using TerrariaSplit.MemoryBridge.Protocol;
 
 namespace TerrariaSplit.Terraria.Memory;
@@ -28,7 +29,8 @@ internal sealed class TerrariaRuntimeLayoutCache(Func<TerrariaProcessIdentity, T
         public Task<TerrariaRuntimeMemoryLayout>? Pending;
     }
 
-    public bool TryGet(TerrariaProcessIdentity identity, out TerrariaRuntimeMemoryLayout? layout)
+    public bool TryGet(TerrariaProcessIdentity identity, out TerrariaRuntimeMemoryLayout? layout,
+        TerrariaFeature requiredFeature = TerrariaFeature.GameStateDetection)
     {
         lock (gate)
         {
@@ -38,12 +40,14 @@ internal sealed class TerrariaRuntimeLayoutCache(Func<TerrariaProcessIdentity, T
                 current!.Layout = null;
                 layout = null;
             }
+            if (layout?.ValidationError(requiredFeature) is not null) layout = null;
             return layout is not null;
         }
     }
 
     public async Task<TerrariaRuntimeMemoryLayout> GetAsync(
-        TerrariaProcessIdentity identity, TerrariaRuntimeMemoryLayout? invalidatedLayout, CancellationToken token)
+        TerrariaProcessIdentity identity, TerrariaRuntimeMemoryLayout? invalidatedLayout, CancellationToken token,
+        TerrariaFeature requiredFeature = TerrariaFeature.GameStateDetection)
     {
         token.ThrowIfCancellationRequested();
         Task<TerrariaRuntimeMemoryLayout> pending;
@@ -53,8 +57,10 @@ internal sealed class TerrariaRuntimeLayoutCache(Func<TerrariaProcessIdentity, T
             // New readers reuse the result. A lost memory address explicitly invalidates that result.
             if (current.Layout is { } cached)
             {
-                if (!ReferenceEquals(cached, invalidatedLayout) && cached.CacheValidationError() is null) return cached;
-                current.Layout = null;
+                if (ReferenceEquals(cached, invalidatedLayout) || cached.CacheValidationError() is not null)
+                    current.Layout = null;
+                else if (cached.ValidationError(requiredFeature) is null)
+                    return cached;
             }
             if (current.Pending is null || current.Pending.IsCompleted)
             {
@@ -63,7 +69,9 @@ internal sealed class TerrariaRuntimeLayoutCache(Func<TerrariaProcessIdentity, T
             pending = current.Pending;
         }
         // Cancelling automation must not cancel discovery awaited by normal monitoring.
-        return await pending.WaitAsync(token).ConfigureAwait(false);
+        TerrariaRuntimeMemoryLayout resolved = await pending.WaitAsync(token).ConfigureAwait(false);
+        if (resolved.ValidationError(requiredFeature) is { } failure) throw new InvalidOperationException(failure);
+        return resolved;
     }
 
     private async Task<TerrariaRuntimeMemoryLayout> ProbeAndStoreAsync(Entry entry)
@@ -105,11 +113,12 @@ internal sealed class TerrariaRuntimeLayoutCache(Func<TerrariaProcessIdentity, T
             using Process process = Process.GetProcessById(identity.ProcessId);
             if (TerrariaProcessIdentity.FromProcess(process) != identity) throw new InvalidOperationException("Runtime layout target changed before validation.");
             var memory = new ProcessMemoryReader(process);
-            if (!memory.TryReadBool(layout.Core.GameMenuStaticFieldAddress, out _) ||
-                layout.MenuAutomation is { } menu &&
-                    (!memory.TryReadInt32(new IntPtr(menu.Statics["menuMode"]), out _) ||
-                     !memory.TryReadBool(new IntPtr(menu.Statics["generatingWorld"]), out _)))
+            if (!memory.TryReadBool(layout.Core.GameMenuStaticFieldAddress, out _))
                 throw new InvalidOperationException("Resolved runtime layout failed its live memory-read validation.");
+            if (layout.ValidationError(TerrariaFeature.ForegroundWorldCreation) is null && layout.MenuAutomation is { } menu &&
+                (!memory.TryReadInt32(new IntPtr(menu.Statics["menuMode"]), out _) ||
+                 !memory.TryReadBool(new IntPtr(menu.Statics["generatingWorld"]), out _)))
+                layout = layout with { MenuAutomation = null };
         }
         FileAppLogger.Instance.Info($"MemoryBridge shared runtime-layout probe completed; pid={identity.ProcessId}; elapsedMs={clock.Elapsed.TotalMilliseconds:F0}; fields={layout.ResolvedFieldCount}; menuTypes={layout.MenuAutomation?.Types.Count ?? 0}.");
         return layout;

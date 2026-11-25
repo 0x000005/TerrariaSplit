@@ -1,0 +1,88 @@
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Security.Cryptography;
+using TerrariaSplit.Compatibility;
+
+namespace TerrariaSplit.MemoryBridge.Payload
+{
+    // Audited against the exact Race build. Method tokens are valid only with its MVID.
+    internal static class TerrariaHookAudit1461
+    {
+        private static readonly Dictionary<int, string> MethodHashes = new Dictionary<int, string>
+        {
+            { 0x0600327A, "9753218103F57137485EC4FB3011A67B1D4FD417B05C2B77F78348E0FBE20873" }, // Terraria.GameContent.UI.Elements.UIWorldListItem.TryMovingToRejectionMenuIfNeeded(System.Int32)
+            { 0x06000FEA, "B8162331208B5113CC09CB2F4DF5D78342F15B89EC23A1A8B2C6B58E2461EB21" }, // Terraria.Main.SelectPlayer(Terraria.IO.PlayerFileData)
+            { 0x060031F1, "0F3DF8C1198C1DB2DC372C782F9D916C509949D0FB91318C1C9BBE741CADFA05" }, // Terraria.GameContent.UI.Elements.UICharacterListItem.CompareTo(System.Object)
+            { 0x06003280, "46DAB0D5CA6D4B63B0C770B381BE71BF3370B10D73E10CB940A40C40EF313969" }, // Terraria.GameContent.UI.Elements.UIWorldListItem.CompareTo(System.Object)
+            { 0x060031F5, "ADB9D62CEBC25A474CFB619865E4B70059B64ED3D05206309332ACA32E309107" }, // Terraria.GameContent.UI.Elements.UICharacterListItem.DrawSelf(Microsoft.Xna.Framework.Graphics.SpriteBatch)
+            { 0x06003284, "2E77343BAC613E791EC54D45B0D6533E9F9649DC55F888F02727A125C3919CEC" }, // Terraria.GameContent.UI.Elements.UIWorldListItem.DrawSelf(Microsoft.Xna.Framework.Graphics.SpriteBatch)
+            { 0x06000697, "82D1C8D64F5FB9B4E35509C4E7DEFDDCAACBEBC8B2D9681557261F398B95D6F8" }, // Terraria.NPC.NPCLoot_DropItems(Terraria.Player)
+            { 0x06000699, "D66993E487D0A0BFF68D02C8B786D9EA099E3D8FBE7C67D8D88057486BC0BECB" }, // Terraria.NPC.DoDeathEvents_DropBossPotionsAndHearts()
+            { 0x060006A7, "3C787670507A2B1CDBEBDCD51FECA088A756BB79B4EF73D53E5D5321D042CB02" }, // Terraria.NPC.NPCLoot_DropMoney(Terraria.Player)
+            { 0x0600069E, "B0A1ED54332F2318C458B3CB611BB84525EBFBB9AE2C18943DAD82ACD45DB966" }, // Terraria.NPC.NPCLoot_DropHeals(Terraria.Player)
+            { 0x060029B1, "328B5B6542F495AD933DB7758A5D7E7A882C27219B4A44A321758AD16834AC5D" }, // Terraria.GameContent.ItemDropRules.ItemDropResolver.ResolveRule(Terraria.GameContent.ItemDropRules.IItemDropRule,Terraria.GameContent.ItemDropRules.DropAttemptInfo)
+            { 0x06001394, "86769B5B8454AD9EF58729609656F4F1E9F1FF9AC0F2425B1C02AA9E210A2B63" }, // Terraria.WorldGen.ShakeTree(System.Int32,System.Int32)
+            { 0x06001341, "2C94D81F24859519AA35CA5DB69987130E3746D82C1542E7729E08AC88526CA1" }, // Terraria.WorldGen.SpawnThingsFromPot(System.Int32,System.Int32,System.Int32,System.Int32,System.Int32)
+            { 0x06001340, "F5A556BC718569785B5D8B43A634C5FE593714C10598E48806CE4D258FF57694" }, // Terraria.WorldGen.GetFruitForPot(System.Int32,System.Int32,System.Int32)
+            { 0x0600139B, "A507E259CAEDC1E6C6A3F73B7BCC179B851A09288AC95A0EB2CDC46D409778EF" }, // Terraria.WorldGen.KillTile_DropItems(System.Int32,System.Int32,Terraria.Tile,System.Boolean)
+            { 0x0600139C, "0FE432C2401FD0FA7BBC8683C253510FC14112A766E4C4461F423DFEF7479D80" }, // Terraria.WorldGen.KillTile_GetItemDrops(System.Int32,System.Int32,Terraria.Tile,System.Int32&,System.Int32&,System.Int32&,System.Int32&,System.Boolean&,System.Boolean)
+            { 0x060013A2, "45B11080F11D214AF33D20178701D5EDED8652B523B601A041BFF732FD147242" }, // Terraria.WorldGen.KillTile_GetTreeDrops(System.Int32,System.Int32,Terraria.Tile,System.Boolean&,System.Boolean&,System.Int32&,System.Int32&)
+            { 0x060013A3, "C95736E2609EFBF8C93AF87C217E117272107B4BB2A7AFD557FF512069B6BAA2" }, // Terraria.WorldGen.KillTile_DropBait(System.Int32,System.Int32,Terraria.Tile)
+            { 0x060012DC, "18F6C99B2BABAC925E84B152D63D81F8AD2ADFCDF9E4AD1925F0919088069396" }, // Terraria.WorldGen.Check2x1(System.Int32,System.Int32,System.UInt16)
+            { 0x06001330, "AB3D4F73FEF2CC67807CE8D7BC4FD9EAEB3767D3E559C1828563BA7E826006C4" }, // Terraria.WorldGen.CheckOrb(System.Int32,System.Int32,System.Int32)
+            { 0x06000900, "62796CA059AD4C27EA5AE0A35520E0ECEA589DC4B8DCA4A759C4DDBA6F2B6F9F" }, // Terraria.Player.OpenBossBag(System.Int32)
+            { 0x06000902, "3CB85FC2620BA7841B8EFB0AEC11FF13F07DBB6FABCEF9158788D8A6775B35CC" }, // Terraria.Player.OpenFishingCrate(System.Int32)
+            { 0x06000907, "850617756382DE483E425FB69880B42502F19047D3B7D74231A8CFF09DB2898B" }, // Terraria.Player.OpenHerbBag(System.Int32)
+            { 0x06000908, "C78483B7FC30BD0B5938295ECD0453C8AFDDB15AE3C5F3BF0081C80DF44F8659" }, // Terraria.Player.OpenCanofWorms(System.Int32)
+            { 0x06000BD4, "CBF3930B0222200C7640797A2D2E5EAAAE0EDBD354499333838543F4FEA34404" }, // Terraria.Player.TeleportationPotion()
+            { 0x060007A2, "E196E2CBAF99957E4418D74177D570BD48AEEACF3D27A8F10102479562A82336" }, // Terraria.Item.Prefix(System.Int32,System.Boolean&)
+            { 0x06000547, "703603BC5AFE2BFBF620A79F88958C94C1455EA7D0A70FD95AFE76624D5E361F" }, // Terraria.Recipe.GetIngredientCraftingDiscount(Terraria.Player,Terraria.Recipe+RequiredItemEntry)
+            { 0x0600149D, "6AE7B69100A427EE13AB0CA9D81FBFDD5D1D947F8FA44C8B1DB597DBCD69308F" }, // Terraria.WorldItem.GetShimmered()
+            { 0x060024DE, "DCC8EB25EDDA2A26299CD6F734892E0E69D99A8635085683DA7523A72F912CBE" }, // Terraria.GameContent.Luck.RollLuck(System.Single,System.Int32)
+            { 0x060024DF, "41A5465D539E0E0CAED39535C9B4A781256ADF8AA761D03F4CFE48EFF4D444F8" }, // Terraria.GameContent.Luck.RollBadLuck(System.Single,System.Int32)
+            { 0x060024E0, "77AE4B84D3330F3C4061AE6EBF59EB1BAFDAEC3E9C8DDDE9A1F410E6EF2A5824" }, // Terraria.GameContent.Luck.RollOnlyBadLuck(System.Single,System.Int32)
+            { 0x060024E1, "AD637C810A699F819F23BC6724578249B31706647B347EE0E9798D25D73DEF82" }, // Terraria.GameContent.Luck.RollBadLuckExtreme(System.Single,System.Int32)
+            { 0x060024E2, "73B5123D7B3E049200F8F3C74ABBC9F6E59B3F0243D968625CEEE27FE6572610" }, // Terraria.GameContent.Luck.RollOnlyBadLuckExtreme(System.Single,System.Int32)
+            { 0x0600123F, "FCA8AE6820A930F4F4A283CB6937F04C8A90F196573DE6E81F44C42EBD3A020C" }, // Terraria.WorldGen.initializeHardMode()
+            { 0x060012EB, "5C4F101B13E3C3086DD23A18F903D481AC22BB365C0B13D2CD16744461DA978C" }, // Terraria.WorldGen.SmashAltar(System.Int32,System.Int32)
+            { 0x060012EA, "EA297CD044C8FFB4FBE42179668F357E94BD90E5FAB56C6C14C0BF041983DAC6" }, // Terraria.WorldGen.OreRunner(System.Int32,System.Int32,System.Double,System.Int32,System.Int32,System.Int32,System.Nullable{Microsoft.Xna.Framework.Rectangle},System.Int32,System.Int32)
+            { 0x0600140B, "29EC668000488BD63E18E103B62284AD50A12DA4D7B9DDAE9AC20A66253A5EC7" }, // Terraria.WorldGen.GERunner(System.Int32,System.Int32,System.Double,System.Double,System.Boolean)
+            { 0x0600121C, "B6A801D050EE4E754495350B07FAE907E7590BFB34D894E51E944EBAF67AC5F2" }, // Terraria.WorldGen.RandomWorldPoint(System.Int32)
+            { 0x0600121D, "53FBDE79E9A1BE245B98D79CF1D23BD85EA7DA9A6E965DAAB2DBBCD377621DED" }, // Terraria.WorldGen.RandomWorldPoint(System.Int32,System.Int32,System.Int32,System.Int32)
+            { 0x06001459, "14E8599654FDF71A57C1A1A335047EB6E7B66B53B9915468DD084D2D141AC2F5" }, // Terraria.WorldGen.TriggerLunarApocalypse()
+            { 0x060013FB, "372AE93EE263F3811D2061288AB9DE1299DE41D2827B668756139B33AB79CB0A" }, // Terraria.WorldGen.GeneratePlanteraBulbOnAllMechsDefeated()
+            { 0x06000FD9, "C8937F5B72A6705946296D6FC776A5BF93A286C848E065652E4534C8D3767073" }, // Terraria.Main.UpdateTime()
+            { 0x06000FDD, "CA19A0FDAF61B9F28945B43653F4B919BC6720F7F04F4080DE19E624AE6DA5D4" }, // Terraria.Main.UpdateTime_StartNight(System.Boolean&)
+            { 0x06000FDE, "41441424F9DA872698D9113E99186EBBC06175382B0C135E320D34AFEC36CEDE" }, // Terraria.Main.UpdateTime_StartDay(System.Boolean&)
+            { 0x06000FE2, "AA8F7DF62D7F25ED29BFF6A4CF67015BDEFB101F02953D62FC1798AEEE46DD01" }, // Terraria.Main.UpdateTime_SpawnTownNPCs()
+            { 0x0600118F, "9388413CD9BACB0B9A9DF378237FFF300E33C360255A783BC416EF7FF9DC82DF" }, // Terraria.WorldGen.playWorldCallBack(System.Object)
+            { 0x06003FBB, "19F97356DD596F079FE1827D14CF7BFF5BF08FE03DCB450907641AE5B83E9E24" }, // Terraria.NPC+Spawner.SpawnAnNPC(System.Int32,System.Int32,System.Int32,System.Int32,System.Boolean,System.Int32)
+            { 0x0600060D, "9045E7B1A2BB8EBAD7AB2FABFF7B10901009F312807C7742A8780C981BBC4812" }, // Terraria.NPC.SpawnStardustMark_StardustTower()
+            { 0x0600060E, "964CAA7BF864D40787D3C1B1207EF0E518A84CD9DA905A81B43F04E41572A654" }, // Terraria.NPC.SpawnStardustMark_StardustWorm()
+            { 0x060038B0, "D26DE4E418BD5612CC52C41510AB4FD881F13158B220A5820C26E77ED6DC687B" }, // Terraria.GameContent.Events.BirthdayParty.NaturalAttempt()
+        };
+
+        internal static ReadOnlyCollection<string> LuckCallSites { get; } = Array.AsReadOnly(new[]
+        {
+            "06000985@0007->060024DE",
+            "06000986@0007->060024DF",
+            "06000987@0007->060024E0",
+            "06000988@0007->060024E1",
+            "06000989@0007->060024E2",
+            "06003FBF@0007->060024DE",
+            "06003FC0@0007->060024DF",
+            "06003FC1@0007->060024E0",
+            "06003FC2@0007->060024E1",
+            "06003FC3@0007->060024E2",
+        });
+
+        internal static bool MatchesMethod(int token, Guid moduleVersionId, byte[] il)
+        {
+            if (moduleVersionId != TerrariaBuilds.Race1461.ModuleVersionId || il == null || !MethodHashes.TryGetValue(token, out var expected))
+                return false;
+            using (SHA256 sha256 = SHA256.Create())
+                return string.Equals(BitConverter.ToString(sha256.ComputeHash(il)).Replace("-", string.Empty), expected, StringComparison.Ordinal);
+        }
+    }
+}

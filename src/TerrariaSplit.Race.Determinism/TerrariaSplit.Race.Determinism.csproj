@@ -8,4 +8,7 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\TerrariaSplit.Compatibility\TerrariaSplit.Compatibility.csproj" />
+  </ItemGroup>
 </Project>

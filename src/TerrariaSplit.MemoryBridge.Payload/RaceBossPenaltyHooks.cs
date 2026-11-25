@@ -102,6 +102,14 @@ namespace TerrariaSplit.MemoryBridge.Payload
             out MethodInfo playerSpawnMethod,
             out MethodInfo itemNewItemMethod)
         {
+            if (!TerrariaSplit.Compatibility.TerrariaFeatureCatalog.SupportsRaceBuild(
+                TerrariaSplit.Compatibility.TerrariaFeature.RaceBossPenalty, mainType.Assembly.GetName().Version,
+                mainType.Assembly.ManifestModule.ModuleVersionId))
+            {
+                checkActiveMethod = encourageDespawnMethod = deathInterfaceDrawMethod = checkDeadMethod =
+                    aiMethod = playerSpawnMethod = itemNewItemMethod = null;
+                return false;
+            }
             checkActiveMethod = npcType.GetMethod(
                 "CheckActive",
                 BindingFlags.Instance | BindingFlags.Public,

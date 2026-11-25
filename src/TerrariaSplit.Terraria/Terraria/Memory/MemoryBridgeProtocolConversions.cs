@@ -17,7 +17,10 @@ internal static class MemoryBridgeProtocolConversions
             layout.WorldGeneration.ToWorldGenerationLayout(),
             layout.ResolvedFieldCount,
             layout.MenuAutomation,
-            layout.Startup);
+            layout.Startup,
+            layout.CapabilityErrors is { } errors
+                ? new System.Collections.ObjectModel.ReadOnlyDictionary<string, string>(new Dictionary<string, string>(errors, StringComparer.Ordinal))
+                : null);
     }
 
     private static TerrariaCoreMemoryLayout ToCoreLayout(this CoreLayoutDto layout)

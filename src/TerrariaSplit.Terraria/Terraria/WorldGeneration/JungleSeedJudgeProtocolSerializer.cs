@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using TerrariaSplit.Compatibility;
 
 namespace TerrariaSplit.Terraria.WorldGeneration;
 
@@ -13,7 +14,8 @@ internal static class JungleSeedJudgeProtocolSerializer
         Converters = { new JsonStringEnumConverter() }
     };
 
-    public static JungleSeedJudgeResult DeserializeResponse(string responseJson, string expectedRequestId)
+    public static JungleSeedJudgeResult DeserializeResponse(string responseJson, string expectedRequestId,
+        TerrariaResourceJudgeVersion expectedVersion = TerrariaResourceJudgeVersion.Version1461)
     {
         JungleSeedJudgeResult result;
         try
@@ -22,8 +24,13 @@ internal static class JungleSeedJudgeProtocolSerializer
                 ?? throw new InvalidDataException("World filter returned an empty JSON value.");
         }
         catch (JsonException ex) { throw new InvalidDataException("World filter returned invalid protocol JSON.", ex); }
-        if (result.ProtocolVersion != JungleSeedJudgeProtocol.Version || result.CompatibilityId != JungleSeedJudgeProtocol.CompatibilityId)
+        TerrariaResourceJudgeBuild build = TerrariaResourceJudgeBuilds.ForVersion(expectedVersion);
+        if (result.ProtocolVersion != JungleSeedJudgeProtocol.Version || result.CompatibilityId != build.CompatibilityId)
             throw new InvalidDataException("World Filter protocol/compatibility mismatch.");
+        if ((result.Complete || result.TerrariaVersion is not null) && result.TerrariaVersion != build.TerrariaVersion)
+            throw new InvalidDataException($"World Filter Terraria version mismatch: expected {build.TerrariaVersion}, got {result.TerrariaVersion ?? "missing"}.");
+        if ((result.Complete || result.GenerationCompatibilityId is not null) && result.GenerationCompatibilityId != build.GenerationCompatibilityId)
+            throw new InvalidDataException($"World Filter generation compatibility mismatch: expected {build.GenerationCompatibilityId}, got {result.GenerationCompatibilityId ?? "missing"}.");
         if (result.RequestId != expectedRequestId) throw new InvalidDataException("World Filter requestId mismatch.");
         if (result.Status == JungleSeedJudgeStatus.Complete && !ValidDecision(result))
             throw new InvalidDataException("Complete World Filter response has invalid decision data.");

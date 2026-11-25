@@ -1,3 +1,4 @@
+using TerrariaSplit.Compatibility;
 using TerrariaSplit.Terraria.Processes;
 
 namespace TerrariaSplit.Terraria.Automation;
@@ -87,6 +88,10 @@ public sealed class TerrariaRaceWorldGenerationService : IDisposable
             return TerrariaRaceWorldGenerationResult.Failure("TerrariaServer.exe was not found.");
         }
 
+        TerrariaFeatureMatch capability = TerrariaFeatureCatalog.Resolve(TerrariaFeature.RacePreparation, serverTarget.Value.FileVersion);
+        if (!capability.CanAttempt)
+            return TerrariaRaceWorldGenerationResult.Failure("The TerrariaServer build cannot generate a Race world: " + capability.Diagnostic);
+
         AutoCreateWorldSettings generationSettings = CloneRaceSettings(settings);
         HeadlessWorldGenResult result = await generator.GenerateAsync(
             serverTarget.Value,
@@ -157,11 +162,10 @@ public sealed class TerrariaRaceWorldGenerationService : IDisposable
                 "TerrariaServer.exe was not found.");
         }
 
+        if (!serverTarget.Value.FilteringCapability.CanAttempt)
+            return TerrariaRaceSeedFilterBatchResult.Fatal(seedTexts.Count, serverTarget.Value.FilteringCapability.Diagnostic);
         AutoCreateWorldSettings filterSettings = CloneRaceSettings(settings);
-        TerrariaWorldGenerationVersion worldGenerationVersion =
-            serverTarget.Value.IsLegacy1449
-                ? TerrariaWorldGenerationVersion.Legacy1449
-                : TerrariaWorldGenerationVersion.Modern1458;
+        TerrariaResourceJudgeVersion judgeVersion = serverTarget.Value.FilteringBuild.Version;
         var tasks = new Task<SeedFilterEvaluation>[seedTexts.Count];
         EnsureSeedFilterEvaluatorCount(seedTexts.Count);
         for (int index = 0; index < seedTexts.Count; index++)
@@ -172,7 +176,7 @@ public sealed class TerrariaRaceWorldGenerationService : IDisposable
                 filterSettings,
                 seedTexts[candidateIndex],
                 candidateIndex,
-                worldGenerationVersion,
+                judgeVersion,
                 cancellationToken), cancellationToken);
         }
 
@@ -257,13 +261,13 @@ public sealed class TerrariaRaceWorldGenerationService : IDisposable
         AutoCreateWorldSettings settings,
         string seedText,
         int batchIndex,
-        TerrariaWorldGenerationVersion worldGenerationVersion,
+        TerrariaResourceJudgeVersion judgeVersion,
         CancellationToken cancellationToken)
     {
         WorldSeedFilterPrediction prediction = await evaluator.EvaluateAsync(
             settings,
             seedText,
-            worldGenerationVersion,
+                judgeVersion,
             cancellationToken);
         return new SeedFilterEvaluation(
             seedText,

@@ -38,7 +38,8 @@ internal sealed class CreateWorldWorkflow : IDisposable
         {
             AutoCreateWorldSettings autoCreate = settings.Automation.AutoCreate;
             ApplyTiming(autoCreate);
-            bool modernMenus = TerrariaMenuObserver.IsSupported(TerrariaMenuProfile.TryGetRunningTerrariaFileVersion());
+            TerrariaMenuProfile menuProfile = TerrariaMenuProfile.ResolveRunningProcess();
+            bool modernMenus = menuProfile.Kind == TerrariaMenuProfileKind.Modern1458;
             if (modernMenus) automation.Window.WindowActivationDelayMilliseconds = 0;
             CreateWorldActivationStep activation = await ActivateTerrariaAsync(cancellationToken);
             if (!activation.Succeeded)
@@ -48,7 +49,6 @@ internal sealed class CreateWorldWorkflow : IDisposable
                     "Create world automation could not activate Terraria window.");
             }
 
-            TerrariaMenuProfile menuProfile = TerrariaMenuProfile.ResolveRunningProcess();
             TerrariaMenuGeometry geometry = TerrariaMenuGeometry.From(activation.ClientSize, menuProfile);
             FileAppLogger.Instance.Info($"Create world automation using menu profile: {menuProfile.Name}.");
             if (modernMenus) await automation.ConfigureModernMenuAsync(cancellationToken);

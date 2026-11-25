@@ -7,6 +7,7 @@
 
 ## 模块边界
 - `Domain`：纯计时、路线、条件、比较规则；不依赖 UI、文件系统、进程或调度。
+- `Compatibility`：版本组、功能实现映射及构建兼容数据；不执行平台副作用。
 - `Configuration`：当前设置 schema、默认值、归一化、序列化和语言资源。
 - `Application`：command、effect、event、snapshot 与 runtime 编排；不执行平台副作用。
 - `Infrastructure` / `Infrastructure.Windows`：通用基础设施与 Windows 平台封装。
@@ -37,5 +38,5 @@
 - metrics/trace：`dotnet run --project test\TerrariaSplit.Diagnostics.csproj --no-restore -- <命令及参数>`。
 
 ## 原生资源筛选
-- 使用相邻 TerrariaResourceJudge 当前发布 DLL；ABI6。单世界默认 max(1,min(6,floor(3×亲和性内可用物理核心数/4)))，把实际预留预算传给 DLL；多候选并发时每世界1线程。
+- 使用相邻 TerrariaResourceJudge 当前发布 DLL；ABI7，60字节输入。1.4.4/1.4.5组选1458，1.4.6+组选1461。单世界默认 max(1,min(6,floor(3×亲和性内可用物理核心数/4)))，把实际预留预算传给 DLL；多候选并发时每世界1线程。
 - 线程规则与发布指纹见 `docs/resource-judge-thread-policy.md`。拓扑识别属于 Infrastructure.Windows，预算策略属于 Terraria.WorldGeneration。
