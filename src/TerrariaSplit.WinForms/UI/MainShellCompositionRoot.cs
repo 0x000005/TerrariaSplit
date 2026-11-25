@@ -13,12 +13,13 @@ internal static class MainShellCompositionRoot
         var settingsRepository = new AppSettingsRepository(runtimeDataPaths, splitTimeSets);
         StartupDiagnostics.RecordTrace("StartupRepositoriesCreated");
         ISettingsSnapshotFactory settingsSnapshots = new SettingsSnapshotFactory();
-        IAppLogger logger = FileAppLogger.Instance;
+        ILogger logger = AppLog.ForSource();
         var runFinalization = new RunFinalizationPersistence(
             runStatsRepository,
             splitTimeSets,
             confirmPersonalBestUpdate);
         AppSettings settings = settingsRepository.Load();
+        AppLog.SetMinimumLevel(settings.Advanced.MinimumLogLevel);
         StartupDiagnostics.RecordTrace("StartupSettingsLoaded");
         var applicationController = new ApplicationController(
             settings,
@@ -77,7 +78,7 @@ internal static class MainShellCompositionRoot
 
     public static TerrariaMonitorCoordinator CreateMonitorCoordinator(
         Action<Action> dispatch,
-        IAppLogger logger)
+        ILogger logger)
     {
         return new TerrariaMonitorCoordinator(
             new TerrariaWorldWatcher(),
@@ -126,7 +127,7 @@ internal static class MainShellCompositionRoot
         ProgramModalWindowCoordinator modalWindows,
         Control owner,
         Action clearPendingMenuActions,
-        IAppLogger logger)
+        ILogger logger)
     {
         return new AutomationShell(
             worldPoolStore,

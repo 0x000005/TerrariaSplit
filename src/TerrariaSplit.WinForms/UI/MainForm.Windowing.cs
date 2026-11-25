@@ -15,7 +15,7 @@ internal sealed partial class MainForm : Form
         catch (Exception ex)
         {
             update.Discard();
-            appLogger.Error(ex, "Failed to start application update helper.");
+            appLogger.LogError(ex, "Failed to start application update helper.");
             using var dialog = new SettingsMessageDialog(
                 Localizer.Get("TerrariaSplit Update", settings),
                 string.Format(Localizer.Get("Update failed: {0}", settings), ex.Message),
@@ -126,7 +126,7 @@ internal sealed partial class MainForm : Form
         string message = string.IsNullOrWhiteSpace(result.Message)
             ? Localizer.Get("Failed to save settings.", settings)
             : result.Message;
-        appLogger.Info(message);
+        appLogger.LogDebug("Settings save failure was reported to the UI.");
     }
 
     private void ShowHotkeyWarning(string message)
@@ -201,7 +201,7 @@ internal sealed partial class MainForm : Form
         }
         catch (Exception ex)
         {
-            appLogger.Error(ex, "Status icon preload failed during shutdown.");
+            appLogger.LogError(ex, "Status icon preload failed during shutdown.");
         }
 
         overlayShell.Dispose();

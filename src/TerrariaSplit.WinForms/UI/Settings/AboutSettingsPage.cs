@@ -172,7 +172,7 @@ internal sealed class AboutSettingsPage : SettingsPageBase
         }
         catch (Exception ex)
         {
-            FileAppLogger.Instance.Error(ex, "Application update failed.");
+            AppLog.ForSource().LogError(ex, "Application update failed.");
             SetIdle(string.Format(Context.Localize("Update failed: {0}"), ex.Message));
         }
         finally

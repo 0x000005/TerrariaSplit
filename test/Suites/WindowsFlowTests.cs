@@ -13,6 +13,7 @@ internal static class WindowsFlowTests
         yield return TestCase.Sync("overlay restores a visible multi-monitor position and keeps dense layouts inside composite bounds", TestSuite.Windows, OverlayLayoutJourney);
         yield return TestCase.Sync("timer reserves stable proportional-font slots for milliseconds and indicators", TestSuite.Windows, TimerProportionalFontLayoutJourney);
         yield return TestCase.Sync("rendering color effects and icons use deterministic render resources", TestSuite.Windows, RenderingResourceJourney);
+        yield return TestCase.Sync("timer record colors follow the final enabled main split and the selected reference", TestSuite.Windows, TimerRecordEndpointJourney);
         yield return TestCase.Async("completion animation text settings persist with shared styles and live previews", TestSuite.Windows, CompletionTextJourney);
         yield return TestCase.Sync("expanded current condition follows early delta timing after a prior condition completes", TestSuite.Windows, ExpandedConditionEarlyDeltaJourney);
         yield return TestCase.Sync("cheat filter indicator uses yellow orange and red priority", TestSuite.Core, CheatFilterIndicatorPriority);
@@ -244,6 +245,11 @@ internal static class WindowsFlowTests
         colors.ColorTextBoxes[nameof(UiColorSettings.DeltaEqualText)].Text = "#456789";
         colors.ColorTextBoxes[nameof(UiColorSettings.TimerEqualText)].Text = "#ABCDEF";
         AdvancedSettingsPage advanced = form.PageHost.GetOrCreatePage<AdvancedSettingsPage>(SettingsPageId.Advanced);
+        Check.Sequence(new[] { "DEBUG", "INFO", "WARN", "ERROR", "No logging" }, advanced.MinimumLogLevelBox.Items.Cast<string>());
+        Check.Equal(3, advanced.MinimumLogLevelBox.SelectedIndex);
+        advanced.MinimumLogLevelBox.SelectedIndex = 4;
+        Check.Equal("NONE", form.PageHost.CreateAppliedSnapshot().Advanced.MinimumLogLevel);
+        advanced.MinimumLogLevelBox.SelectedIndex = 0;
         Check.False(advanced.EnableManualSplitBox.Checked);
         Check.False(advanced.ManualSplitKeyBox.Enabled);
         advanced.EnableManualSplitBox.Checked = true;
@@ -274,6 +280,8 @@ internal static class WindowsFlowTests
         Check.Equal("#456789", draft.Overlay.Colors.DeltaEqualText);
         Check.Equal("#ABCDEF", draft.Overlay.Colors.TimerEqualText);
         Check.True(draft.Advanced.EnableManualSplit);
+        Check.Equal("DEBUG", draft.Advanced.MinimumLogLevel);
+        Check.Equal("ERROR", source.Advanced.MinimumLogLevel);
         Check.Equal(
             (System.Windows.Forms.Keys.Control | System.Windows.Forms.Keys.F7).ToString(),
             draft.Hotkeys.ManualSplitKey);
@@ -634,13 +642,12 @@ internal static class WindowsFlowTests
         AutomationResult result = AutomationResult.Failure(
             "Could not choose an accepted world seed.",
             "Seed 1320621295 could not be predicted: prediction status Error.",
-            exception,
-            useDetailedFailureReport: true);
-        Check.True(AutomationFailureReport.TryBuild(result, out string report));
+            exception, failureCode: "filter.failed");
+        string report = AutomationFailureReport.Build(result);
 
         Check.True(report.Contains(result.UserMessage, StringComparison.Ordinal));
         Check.True(report.Contains(result.DiagnosticMessage, StringComparison.Ordinal));
-        Check.True(report.Contains("Advanced seed pre-screen internal exception", StringComparison.Ordinal));
+        Check.True(report.Contains("filter.failed", StringComparison.Ordinal));
         Check.True(report.Contains("System.InvalidOperationException", StringComparison.Ordinal));
         Check.True(report.Contains("inner failure", StringComparison.Ordinal));
         Check.False(report.Contains("Occurred at", StringComparison.Ordinal));
@@ -650,26 +657,24 @@ internal static class WindowsFlowTests
         AutomationResult ordinaryFailure = AutomationResult.Failure(
             "Could not create or select the Terraria player.",
             "Create world automation failed before world selection.");
-        Check.False(AutomationFailureReport.TryBuild(ordinaryFailure, out string ordinaryReport));
-        Check.Equal(string.Empty, ordinaryReport);
-        string ordinarySummary = AutomationFailureReport.BuildSummary(ordinaryFailure);
-        Check.True(ordinarySummary.Contains("Automation step failure", StringComparison.Ordinal));
+        string ordinarySummary = AutomationFailureReport.Build(ordinaryFailure);
+        Check.True(ordinarySummary.Contains("automation.failed", StringComparison.Ordinal));
         Check.True(ordinarySummary.Contains(ordinaryFailure.UserMessage, StringComparison.Ordinal));
         Check.True(ordinarySummary.Contains(ordinaryFailure.DiagnosticMessage, StringComparison.Ordinal));
 
         AutomationResult filterFailure = AutomationResult.Failure(
             "Could not choose an accepted world seed.",
             "status=CandidateFailuresExceeded; attempts=18; detail=native generation failed",
-            useDetailedFailureReport: true);
-        Check.True(AutomationFailureReport.TryBuild(filterFailure, out string filterReport));
-        Check.True(filterReport.Contains("Advanced seed pre-screen failure", StringComparison.Ordinal));
+            failureCode: "filter.failed");
+        string filterReport = AutomationFailureReport.Build(filterFailure);
+        Check.True(filterReport.Contains("filter.failed", StringComparison.Ordinal));
         Check.True(filterReport.Contains("CandidateFailuresExceeded", StringComparison.Ordinal));
 
         AutomationResult unrelatedException = AutomationResult.Failure(
             "Create world automation failed unexpectedly.",
             "Unhandled create world automation error.",
             new InvalidOperationException("outside advanced seed pre-screen"));
-        Check.False(AutomationFailureReport.TryBuild(unrelatedException, out _));
+        Check.True(AutomationFailureReport.Build(unrelatedException).Contains("System.InvalidOperationException", StringComparison.Ordinal));
 
         string longReport = report + Environment.NewLine +
             string.Join(
@@ -919,6 +924,52 @@ internal static class WindowsFlowTests
         for (int x = 0; x < bitmap.Width; x++)
             if (bitmap.GetPixel(x, y).A > 0) count++;
         return count;
+    }
+
+    private static void TimerRecordEndpointJourney()
+    {
+        foreach (bool moonLordFirst in new[] { false, true })
+        {
+            AppSettings settings = ApplicationFlowTests.CreateFinalMainRouteSettings(moonLordFirst);
+            settings.Overlay.EnableTimerGradientColor = false;
+            settings.Comparison.UsePersonalBestAsReferenceTime = false;
+            ReferenceSplitSet reference = ReferenceSplitSetService.GetActiveReferenceSet(settings);
+            foreach (SplitConditionDataRow row in SplitConditionDataRows.Build(settings))
+                reference.Splits[row.Key] = TimeText.FormatRecord(TimeSpan.FromSeconds(row.SplitId == "pb-first" ? 10 : 30));
+            UiPalette palette = UiPalette.From(settings.Overlay.Colors);
+            (int First, int Finish, bool Record)[] cases = [(8, 35, false), (12, 25, true), (8, 30, false)];
+            foreach (var sample in cases)
+            {
+                SplitStatusSnapshot[] statuses = ApplicationFlowTests.CreateFinalMainStatuses(settings, sample.First, sample.Finish);
+                foreach (bool milliseconds in new[] { false, true })
+                {
+                    TextRenderStyle style = OverlayTextStyles.GetTimerTextStyle(settings, statuses, statuses.Length,
+                        SplitTimerPhase.Paused, TimeSpan.FromSeconds(sample.Finish), palette, milliseconds);
+                    Check.Equal((sample.Record ? palette.TimerRecordText : palette.TimerNoRecordText).ToArgb(), style.Fill.ToArgb());
+                    Check.Equal((sample.Record ? palette.TimerRecordTextOutline : palette.TimerNoRecordTextOutline).ToArgb(), style.Outline.ToArgb());
+                    Check.Equal((sample.Record ? palette.TimerRecordTextShadow : palette.TimerNoRecordTextShadow).ToArgb(), style.Shadow.ToArgb());
+                }
+            }
+
+            SplitStatusSnapshot[] ongoing = ApplicationFlowTests.CreateFinalMainStatuses(settings, 8, finishSeconds: null);
+            int attachedIndex = Array.FindIndex(ongoing, status => status.Definition.IsAttached);
+            ongoing[attachedIndex] = ongoing[attachedIndex] with { Time = TimeSpan.FromSeconds(5) };
+            int finishIndex = Array.FindIndex(ongoing, status => status.Definition.Id == "pb-finish");
+            TextRenderStyle running = OverlayTextStyles.GetTimerTextStyle(settings, ongoing, finishIndex,
+                SplitTimerPhase.Running, TimeSpan.FromSeconds(12), palette, milliseconds: false);
+            Check.Equal(palette.TimerAheadText.ToArgb(), running.Fill.ToArgb());
+            Check.Equal(palette.TimerPausedText.ToArgb(), OverlayTextStyles.GetTimerTextStyle(settings, ongoing, finishIndex,
+                SplitTimerPhase.Paused, TimeSpan.FromSeconds(12), palette, false).Fill.ToArgb());
+            Check.Equal(palette.TimerText.ToArgb(), OverlayTextStyles.GetTimerTextStyle(settings, ongoing, finishIndex,
+                SplitTimerPhase.NotStarted, TimeSpan.Zero, palette, false).Fill.ToArgb());
+
+            settings.Comparison.UsePersonalBestAsReferenceTime = true;
+            foreach (SplitConditionDataRow row in SplitConditionDataRows.ForSplit(settings, "pb-finish"))
+                settings.Comparison.PersonalBestTimes[row.Key] = TimeText.FormatRecord(TimeSpan.FromSeconds(40));
+            SplitStatusSnapshot[] completed = ApplicationFlowTests.CreateFinalMainStatuses(settings, 8, 35);
+            Check.Equal(palette.TimerRecordText.ToArgb(), OverlayTextStyles.GetTimerTextStyle(settings, completed, completed.Length,
+                SplitTimerPhase.Paused, TimeSpan.FromSeconds(35), palette, false).Fill.ToArgb());
+        }
     }
 
     private static void RenderingResourceJourney()

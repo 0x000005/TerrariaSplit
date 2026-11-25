@@ -4,12 +4,12 @@ internal sealed class RaceSettingsCoordinator
 {
     private readonly Func<RaceSettings> getCurrentSettings;
     private readonly Action<RaceSettings> updateSettings;
-    private readonly IAppLogger logger;
+    private readonly ILogger logger;
 
     public RaceSettingsCoordinator(
         Func<RaceSettings> getCurrentSettings,
         Action<RaceSettings> updateSettings,
-        IAppLogger logger)
+        ILogger logger)
     {
         this.getCurrentSettings = getCurrentSettings;
         this.updateSettings = updateSettings;
@@ -32,7 +32,7 @@ internal sealed class RaceSettingsCoordinator
         }
         catch (Exception ex)
         {
-            logger.Error(ex, operationName + " failed.");
+            logger.LogError(ex, operationName + " failed.");
             return false;
         }
     }

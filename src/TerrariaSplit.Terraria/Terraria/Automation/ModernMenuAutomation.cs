@@ -95,7 +95,7 @@ internal sealed class ModernMenuAutomation : IPyramidVisibleSeedReader, IDisposa
             last = observer.Read();
             if (predicate(last))
             {
-                FileAppLogger.Instance.Info($"State-driven menu {step}; elapsedMs={clock.Elapsed.TotalMilliseconds:F0}; {last.Detail}");
+                AppLog.ForSource().LogDebug($"State-driven menu {step}; elapsedMs={clock.Elapsed.TotalMilliseconds:F0}; {last.Detail}");
                 return last;
             }
             await delay(PollInterval, token).ConfigureAwait(false);
@@ -142,7 +142,7 @@ internal sealed class ModernMenuAutomation : IPyramidVisibleSeedReader, IDisposa
                 }
                 catch (TimeoutException ex) { throw new TimeoutException($"{step}: {targetDetail}. {ex.Message}", ex); }
                 Point point = located.Point;
-                WorldFilterTrace.Write("automation.button-target", new { step, attempt, target, point, detail = located.Detail });
+                AppLog.Debug("automation.button-target", new { step, attempt, target, point, detail = located.Detail });
                 if (!input.Position(point, out string detail)) throw new MenuInputException(step + ": " + detail);
                 TerrariaMenuSnapshot before = await Wait($"hover at {point.X},{point.Y}", s => SourceReady(s) &&
                     s.CursorAt(point) && (!s.UsesMenuUi || s.Hover != IntPtr.Zero));
@@ -185,7 +185,7 @@ internal sealed class ModernMenuAutomation : IPyramidVisibleSeedReader, IDisposa
             }
             catch (Exception ex) when ((ex is TimeoutException or MenuInputException) && attempt < AutomationRetryPolicy.MaxAttempts)
             {
-                FileAppLogger.Instance.Info($"State-driven menu {step} / attempt {attempt}/{AutomationRetryPolicy.MaxAttempts} failed; retryDelayMs=50; error={ex.Message}");
+                AppLog.ForSource().LogDebug($"State-driven menu {step} / attempt {attempt}/{AutomationRetryPolicy.MaxAttempts} failed; retryDelayMs=50; error={ex.Message}");
                 await delay(AutomationRetryPolicy.Delay, token);
             }
         }

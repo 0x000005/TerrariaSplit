@@ -6,6 +6,12 @@ internal static class Program
 {
     private static async Task<int> Main(string[] args)
     {
+        using var diagnosticDirectory = new TestDirectory("test-host-logging");
+        AppLog.Initialize(new AppLogOptions
+        {
+            FilePath = diagnosticDirectory.Combine("terrariasplit.log"), FallbackDirectory = diagnosticDirectory.Combine("fallback")
+        });
+        using AppLogProvider logger = AppLog.Provider;
         TestCase[] tests = TestCatalog.All().ToArray();
         if (args.Contains("--list", StringComparer.OrdinalIgnoreCase))
         {
@@ -65,6 +71,7 @@ internal static class TestCatalog
     {
         return CoreAndRunTests.All()
             .Concat(InfrastructureFlowTests.All())
+            .Concat(LoggingFlowTests.All())
             .Concat(ApplicationFlowTests.All())
             .Concat(ConfigurationStorageFlowTests.All())
             .Concat(TerrariaIntegrationTests.All())

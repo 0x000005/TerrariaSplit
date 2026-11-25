@@ -458,6 +458,7 @@ internal static class ApplicationUpdateCommandLine
             return 2;
         }
 
+        using var operation = AppLog.BeginOperation("Apply application update", new { target, package });
         try
         {
             if (!WaitForProcess(parentPid, TimeSpan.FromMinutes(2)))
@@ -477,9 +478,11 @@ internal static class ApplicationUpdateCommandLine
         }
         catch (Exception ex)
         {
+            AppFault fault = AppLog.Failure("Update", "update.install.failed", "Application update failed.",
+                "The updater attempted to restore the previous installation.", ex);
             try
             {
-                File.WriteAllText(Path.Combine(work!, "update-error.log"), ex.ToString());
+                File.WriteAllText(Path.Combine(work!, "update-error.json"), JsonSerializer.Serialize(fault), System.Text.Encoding.UTF8);
             }
             catch
             {
@@ -488,11 +491,10 @@ internal static class ApplicationUpdateCommandLine
             SettingsMessageDialog.ShowThemed(
                 null,
                 "TerrariaSplit Update",
-                "TerrariaSplit update failed and the previous version was restored.\n\n" + ex.Message +
-                "\n\nTerrariaSplit 更新失败，已尝试恢复原版本。",
+                fault.ToReport(),
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error,
-                static key => key);
+                static key => key, selectableMessage: true, fault: fault);
             string executable = Path.Combine(target!, ApplicationUpdatePackage.MainExecutableName);
             if (File.Exists(executable))
             {

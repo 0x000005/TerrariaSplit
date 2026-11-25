@@ -106,7 +106,7 @@ public readonly record struct TerrariaMenuProfile(
         }
         catch (Exception ex)
         {
-            FileAppLogger.Instance.Error(ex, "Failed to read Terraria main menu scale setting.");
+            AppLog.ForSource().LogWarning(ex, "Could not read the Terraria menu scale; using the default scale.");
             return false;
         }
     }
@@ -132,7 +132,7 @@ public readonly record struct TerrariaMenuProfile(
         }
         catch (Exception ex)
         {
-            FileAppLogger.Instance.Error(ex, "Failed to read Terraria fullscreen settings.");
+            AppLog.ForSource().LogWarning(ex, "Could not read Terraria fullscreen settings; using window geometry.");
             return false;
         }
     }

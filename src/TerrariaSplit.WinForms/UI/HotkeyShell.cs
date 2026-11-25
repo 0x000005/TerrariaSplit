@@ -62,7 +62,9 @@ internal sealed class HotkeyShell : IDisposable
 
     public bool TryGetAction(Message message, out HotkeyAction action)
     {
-        return hotkeys.TryGetAction(message, out action);
+        bool handled = hotkeys.TryGetAction(message, out action);
+        if (handled) AppLog.Debug("hotkey.received", new { action });
+        return handled;
     }
 
     private void ShowRegistrationWarnings(AppSettings settings, IReadOnlyList<HotkeyRegistrationWarning> warnings)

@@ -6,7 +6,7 @@ internal sealed class AutomationRunner<TRequest> : IDisposable
     private readonly string name;
     private readonly Func<TRequest, CancellationToken, Task<AutomationResult>> runAsync;
     private readonly Action? dispose;
-    private readonly IAppLogger logger;
+    private readonly ILogger logger;
     private CancellationTokenSource? runCancellation;
     private bool isRunning;
 
@@ -14,12 +14,12 @@ internal sealed class AutomationRunner<TRequest> : IDisposable
         string name,
         Func<TRequest, CancellationToken, Task<AutomationResult>> runAsync,
         Action? dispose = null,
-        IAppLogger? logger = null)
+        ILogger? logger = null)
     {
         this.name = name;
         this.runAsync = runAsync;
         this.dispose = dispose;
-        this.logger = logger ?? NullAppLogger.Instance;
+        this.logger = logger ?? NullLogger.Instance;
     }
 
     public bool IsRunning
@@ -61,7 +61,7 @@ internal sealed class AutomationRunner<TRequest> : IDisposable
                 return false;
             }
 
-            logger.Info($"{name} automation cancellation requested.");
+            logger.LogInformation($"{name} automation cancellation requested.");
             runCancellation.Cancel();
             return true;
         }
@@ -69,21 +69,26 @@ internal sealed class AutomationRunner<TRequest> : IDisposable
 
     private async Task<AutomationResult> RunWithTrackedCancellationAsync(TRequest request, CancellationTokenSource linkedCancellation)
     {
+        using var operation = AppLog.BeginOperation(name, request);
         try
         {
-            return await runAsync(request, linkedCancellation.Token);
+            AutomationResult result = await runAsync(request, linkedCancellation.Token);
+            if (result.Failed) return result.RecordFailure();
+            AppLog.Event(LogLevel.Information, "Automation", result.Cancelled ? "automation.cancelled" : "automation.completed",
+                new { name, result.DiagnosticMessage });
+            return result;
         }
         catch (OperationCanceledException)
         {
+            AppLog.Event(LogLevel.Information, "Automation", "automation.cancelled", new { name });
             return AutomationResult.CancelledByUser($"{name} automation was cancelled.");
         }
         catch (Exception ex)
         {
-            logger.Error(ex, $"{name} automation failed.");
             return AutomationResult.Failure(
                 $"{name} automation failed.",
                 $"{name} automation threw an unhandled exception.",
-                ex);
+                ex).RecordFailure();
         }
         finally
         {

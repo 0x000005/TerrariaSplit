@@ -27,6 +27,14 @@ internal sealed class PyramidSeedPreScreenLoop
 
     private readonly WorldSeedFilterEvaluator evaluator;
     private readonly Action<string> logInfo;
+    private long lastProgressTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
+
+    private void ReportProgress(int attempts)
+    {
+        if (System.Diagnostics.Stopwatch.GetElapsedTime(lastProgressTimestamp) < TimeSpan.FromSeconds(5)) return;
+        lastProgressTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
+        AppLog.Event(LogLevel.Information, "Filter", "filter.progress", new { attempts });
+    }
 
     public PyramidSeedPreScreenLoop(
         WorldSeedFilterEvaluator evaluator,
@@ -58,7 +66,7 @@ internal sealed class PyramidSeedPreScreenLoop
         }
 
         const int batchSize = 1;
-        WorldFilterTrace.Write("filter-loop.policy", new { batchSize, judgeVersion });
+        AppLog.Debug("filter-loop.policy", new { batchSize, judgeVersion });
         int attempt = 0;
         int consecutiveCandidateFailures = 0;
         int consecutiveSeedReadFailures = 0;
@@ -140,6 +148,7 @@ internal sealed class PyramidSeedPreScreenLoop
             for (int clickIndex = 0; clickIndex < clickCount; clickIndex++)
             {
                 attempt++;
+                ReportProgress(attempt);
                 if (await randomizer.RandomizeVisibleSeedAsync(attempt, cancellationToken))
                 {
                     continue;
@@ -259,6 +268,7 @@ internal sealed class PyramidSeedPreScreenLoop
         {
             cancellationToken.ThrowIfCancellationRequested();
             attempt++;
+            ReportProgress(attempt);
             string? seedBeforeRandomize = seedReader.ReadCurrentSeed() ?? lastVisibleSeed;
 
             if (!await randomizer.RandomizeVisibleSeedAsync(attempt, cancellationToken))

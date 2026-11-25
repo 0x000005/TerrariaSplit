@@ -58,7 +58,7 @@ internal sealed partial class MainForm : Form
                 : System.Diagnostics.Stopwatch.GetElapsedTime(queuedTimestamp);
             if (dispatchDelay >= TimeSpan.FromMilliseconds(250))
             {
-                appLogger.Info($"UI control tick dispatch was delayed by {dispatchDelay.TotalMilliseconds:F0} ms.");
+                appLogger.LogInformation($"UI control tick dispatch was delayed by {dispatchDelay.TotalMilliseconds:F0} ms.");
             }
 
             if (CanDispatchToUiThread())
@@ -269,11 +269,31 @@ internal sealed partial class MainForm : Form
 
     private void HandleWatcherPollCompleted(WatcherPollNotification notification)
     {
+        int previousSplit = currentSplitIndex;
+        SplitTimerPhase previousPhase = timerPhase;
         AcceptAppliedRuntimeCommandSequence(notification.RuntimeCommandSequence);
         runtimeShell.ApplyWatcherNotification(notification);
         UpdateConfiguredRefreshIntervals();
         ApplicationUpdate update = applicationController.HandleSystemEvent(new RuntimeWatcherSystemEvent(notification));
         ApplyApplicationUpdate(update);
+
+        if (currentSplitIndex != previousSplit || timerPhase != previousPhase)
+        {
+            AppLog.Event(LogLevel.Information, "Timer", "timer.progress", new
+            {
+                previousSplit, currentSplit = currentSplitIndex, previousPhase, phase = timerPhase
+            });
+            AppLog.Debug("timer.trigger.evidence", new { notification.Snapshot.Facts });
+        }
+        if (notification.Snapshot.IsAttached != notification.PreviousSnapshot.IsAttached ||
+            notification.Snapshot.IsReady != notification.PreviousSnapshot.IsReady ||
+            notification.Snapshot.ProcessId != notification.PreviousSnapshot.ProcessId ||
+            notification.Snapshot.IsGameMenu != notification.PreviousSnapshot.IsGameMenu)
+            AppLog.Event(LogLevel.Information, "Memory", "game.state.changed", new
+            {
+                notification.Snapshot.IsAttached, notification.Snapshot.IsReady,
+                notification.Snapshot.ProcessId, notification.Snapshot.IsGameMenu, notification.Snapshot.Status
+            });
 
         UpdateOverlayLayoutContextIfChanged();
         ProcessUiTick();
@@ -292,6 +312,7 @@ internal sealed partial class MainForm : Form
 
     private void ExecuteAppCommandNow(AppCommand command)
     {
+        AppLog.Event(LogLevel.Information, "Timer", "app.command", new { command = command.GetType().Name });
         if (runtimeServices is not null)
         {
             bool raceModeEnabled = runtimeServices.RaceShell.IsRaceEnabled;

@@ -25,8 +25,8 @@
     <EnableCompressionInSingleFile>false</EnableCompressionInSingleFile>
     <PublishTrimmed>false</PublishTrimmed>
     <PublishAot>false</PublishAot>
-    <DebugType>none</DebugType>
-    <DebugSymbols>false</DebugSymbols>
+    <DebugType>embedded</DebugType>
+    <DebugSymbols>true</DebugSymbols>
     <PublishDir>$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '..\..\publish\TerrariaSplit-v$(FileVersion)-$(RuntimeIdentifier)'))</PublishDir>
   </PropertyGroup>
 

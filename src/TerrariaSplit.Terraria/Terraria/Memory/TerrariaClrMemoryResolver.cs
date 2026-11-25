@@ -127,7 +127,7 @@ internal sealed class TerrariaClrMemoryResolver
             lastError = null;
             lastExitCode = 0;
             layout = resolvedLayout;
-            FileAppLogger.Instance.Info($"Terraria shared runtime layout ready; pid={identity.ProcessId}; elapsedMs={Stopwatch.GetElapsedTime(started).TotalMilliseconds:F0}.");
+            AppLog.ForSource().LogInformation($"Terraria shared runtime layout ready; pid={identity.ProcessId}; elapsedMs={Stopwatch.GetElapsedTime(started).TotalMilliseconds:F0}.");
             return true;
         }
         catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or System.ComponentModel.Win32Exception)
@@ -135,7 +135,7 @@ internal sealed class TerrariaClrMemoryResolver
             pendingResolution = null;
             lastError = ex.Message;
             lastExitCode = null;
-            FileAppLogger.Instance.Info($"Terraria shared runtime layout unavailable; pid={identity.ProcessId}; error={lastError}.");
+            AppLog.ForSource().LogInformation($"Terraria shared runtime layout unavailable; pid={identity.ProcessId}; error={lastError}.");
         }
 
         return false;

@@ -37,7 +37,7 @@ internal sealed class PyramidSeedPreScreenAutomation : IDisposable
         {
             if (readerPreparationTask is null)
             {
-                FileAppLogger.Instance.Info(
+                AppLog.ForSource().LogInformation(
                     "Visible seed reader prewarm started at new-world entry.");
                 readerPreparationTask = Task.Run(
                     () => TerrariaVisibleSeedReader.Prepare(automation.DelayAsync));
@@ -54,8 +54,8 @@ internal sealed class PyramidSeedPreScreenAutomation : IDisposable
         if (!geometry.Profile.SupportsPyramidSeedPreScreen)
         {
             string unsupportedProfileDetail = $"{geometry.Profile.Name} does not expose the modern advanced seed randomize control.";
-            FileAppLogger.Instance.Info($"Pyramid seed pre-screen skipped: {unsupportedProfileDetail}");
-            return PyramidSeedPreScreenAutomationResult.FromFailed(unsupportedProfileDetail, detailedDiagnostics: true);
+            AppLog.ForSource().LogInformation($"Pyramid seed pre-screen skipped: {unsupportedProfileDetail}");
+            return PyramidSeedPreScreenAutomationResult.FromFailed(unsupportedProfileDetail);
         }
 
         if (!IsEnabledFor(settings))
@@ -76,12 +76,12 @@ internal sealed class PyramidSeedPreScreenAutomation : IDisposable
             await AcquireVisibleSeedReaderAsync(cancellationToken);
         if (seedReader is null)
         {
-            return PyramidSeedPreScreenAutomationResult.FromFailed(detail, detailedDiagnostics: true);
+            return PyramidSeedPreScreenAutomationResult.FromFailed(detail);
         }
 
         using (seedReader)
         {
-            FileAppLogger.Instance.Info("World seed pre-screen active for small Crimson world; seedReadTimeout=1000ms.");
+            AppLog.ForSource().LogInformation("World seed pre-screen active for small Crimson world; seedReadTimeout=1000ms.");
             return await RunLoopAsync(
                 settings,
                 geometry,
@@ -107,12 +107,12 @@ internal sealed class PyramidSeedPreScreenAutomation : IDisposable
             await AcquireVisibleSeedReaderAsync(cancellationToken);
         if (seedReader is null)
         {
-            return PyramidSeedPreScreenAutomationResult.FromFailed(detail, detailedDiagnostics: true);
+            return PyramidSeedPreScreenAutomationResult.FromFailed(detail);
         }
 
         using (seedReader)
         {
-            FileAppLogger.Instance.Info("World seed pre-screen active for 1.4.4.9 small Crimson world; seedReadTimeout=1000ms.");
+            AppLog.ForSource().LogInformation("World seed pre-screen active for 1.4.4.9 small Crimson world; seedReadTimeout=1000ms.");
             return await RunLoopAsync(
                 settings,
                 geometry,
@@ -133,18 +133,20 @@ internal sealed class PyramidSeedPreScreenAutomation : IDisposable
     {
         try
         {
-            WorldFilterTrace.Write("filter-loop.start", new { profile = geometry.Profile.Name,
+            AppLog.Event(LogLevel.Information, "Filter", "filter.start", new { geometry.Profile.Name, settings });
+            AppLog.Debug("filter-loop.start", new { profile = geometry.Profile.Name,
                 requirements = WorldSeedFilterEvaluator.RequestedRequirements(settings), settings.WorldDifficulty,
                 settings.ClickFocusDelayMilliseconds, settings.InputPressDurationMilliseconds,
                 settings.WindowActivationDelayMilliseconds });
-            var loop = new PyramidSeedPreScreenLoop(evaluator, FileAppLogger.Instance.Info);
+            var loop = new PyramidSeedPreScreenLoop(evaluator, message => AppLog.ForSource().LogDebug(message));
             PyramidSeedPreScreenLoopResult result = await loop.RunAsync(
                 settings,
                 geometry.Profile,
                 randomizer,
                 seedReader,
                 cancellationToken);
-            WorldFilterTrace.Write("filter-loop.end", new { result.Status, result.Attempts, result.AcceptedSeed, result.Detail });
+            AppLog.Debug("filter-loop.end", new { result.Status, result.Attempts, result.AcceptedSeed, result.Detail });
+            AppLog.Event(LogLevel.Information, "Filter", "filter.end", new { result.Status, result.Attempts, result.AcceptedSeed });
             return result.Status switch
             {
                 PyramidSeedPreScreenLoopStatus.Accepted => PyramidSeedPreScreenAutomationResult.FromAccepted(),
@@ -156,7 +158,7 @@ internal sealed class PyramidSeedPreScreenAutomation : IDisposable
                         settings,
                         geometry,
                         randomizeTarget),
-                    detailedDiagnostics: true)
+                    exception: null)
             };
         }
         catch (OperationCanceledException)
@@ -165,7 +167,6 @@ internal sealed class PyramidSeedPreScreenAutomation : IDisposable
         }
         catch (Exception ex)
         {
-            FileAppLogger.Instance.Error(ex, "Advanced seed pre-screen loop failed unexpectedly.");
             return PyramidSeedPreScreenAutomationResult.FromFailed(
                 BuildLoopFailureDetail(
                     "InternalException",
@@ -174,7 +175,6 @@ internal sealed class PyramidSeedPreScreenAutomation : IDisposable
                     settings,
                     geometry,
                     randomizeTarget),
-                detailedDiagnostics: true,
                 exception: ex);
         }
     }
@@ -241,7 +241,7 @@ internal sealed class PyramidSeedPreScreenAutomation : IDisposable
                 TerrariaVisibleSeedReaderPreparation preparation =
                     await preparationTask.WaitAsync(cancellationToken)
                         .ConfigureAwait(false);
-                FileAppLogger.Instance.Info(
+                AppLog.ForSource().LogInformation(
                     $"Visible seed reader prewarm completed; " +
                     $"elapsedMs={preparation.Duration.TotalMilliseconds:F0}; " +
                     $"detail={preparation.Detail}");
@@ -250,7 +250,7 @@ internal sealed class PyramidSeedPreScreenAutomation : IDisposable
                     return (preparation.Reader, preparation.Detail);
                 }
 
-                FileAppLogger.Instance.Info(
+                AppLog.ForSource().LogInformation(
                     "Visible seed reader prewarm did not produce a reader; " +
                     "retrying synchronously at the seed screen.");
             }
@@ -262,7 +262,7 @@ internal sealed class PyramidSeedPreScreenAutomation : IDisposable
             }
             catch (Exception ex)
             {
-                FileAppLogger.Instance.Info(
+                AppLog.ForSource().LogInformation(
                     "Visible seed reader prewarm failed; retrying synchronously " +
                     "at the seed screen: " + ex.Message);
             }
@@ -370,7 +370,6 @@ internal enum PyramidSeedPreScreenAutomationStatus
 internal readonly record struct PyramidSeedPreScreenAutomationResult(
     PyramidSeedPreScreenAutomationStatus Status,
     string Detail,
-    bool DetailedDiagnostics = false,
     Exception? Exception = null)
 {
     public bool CanCreateWorld => Status == PyramidSeedPreScreenAutomationStatus.Accepted;
@@ -380,11 +379,9 @@ internal readonly record struct PyramidSeedPreScreenAutomationResult(
 
     public static PyramidSeedPreScreenAutomationResult FromFailed(
         string detail,
-        bool detailedDiagnostics = false,
         Exception? exception = null) =>
         new(
             PyramidSeedPreScreenAutomationStatus.Failed,
             detail,
-            detailedDiagnostics,
             exception);
 }

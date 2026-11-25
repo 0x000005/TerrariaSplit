@@ -84,22 +84,26 @@ internal sealed class WorldSeedFilterEvaluator : IDisposable
         AutoCreateWorldSettings settings, string seedText,
         TerrariaResourceJudgeVersion judgeVersion, CancellationToken cancellationToken)
     {
-        string traceId = Guid.NewGuid().ToString("N");
+        using var candidate = AppLog.For("Filter").BeginScope(new Dictionary<string, object?>
+        {
+            ["candidateId"] = Guid.NewGuid().ToString("N"), ["seed"] = seedText
+        });
+        string? traceId = AppLog.OperationId;
         var clock = Stopwatch.StartNew();
-        WorldFilterTrace.Write("candidate.start", new { traceId, seedText, judgeVersion,
+        AppLog.Debug("candidate.start", new { traceId, seedText, judgeVersion,
             settings.WorldDifficulty, settings.WorldSize, settings.EnableCheats, parallelCandidates,
             requirements = RequestedRequirements(settings, judgeVersion), requestedThreads = parallelCandidates ? 1 : 0 });
         try
         {
             var result = await EvaluateCoreAsync(settings, seedText, judgeVersion, cancellationToken).ConfigureAwait(false);
-            WorldFilterTrace.Write("candidate.end", new { traceId, seedText, elapsedMs = clock.Elapsed.TotalMilliseconds,
+            AppLog.Debug("candidate.end", new { traceId, seedText, elapsedMs = clock.Elapsed.TotalMilliseconds,
                 result.Kind, result.Detail, result.AcceptSeed, result.CanUsePrediction, result.IsCandidateFailure,
                 hasNativeResult = result.Judge is not null, judge = result.Judge });
             return result;
         }
         catch (Exception ex)
         {
-            WorldFilterTrace.Write("candidate.error", new { traceId, seedText,
+            AppLog.Debug("candidate.error", new { traceId, seedText,
                 elapsedMs = clock.Elapsed.TotalMilliseconds, cancelled = cancellationToken.IsCancellationRequested,
                 error = ex.ToString() });
             throw;
@@ -134,7 +138,7 @@ internal sealed class WorldSeedFilterEvaluator : IDisposable
         JungleSeedJudgeGameMode gameMode = ResolveGameMode(settings.WorldDifficulty);
         JungleSeedJudgeResult judge;
         Stopwatch stopwatch = Stopwatch.StartNew();
-        FileAppLogger.Instance.Info(
+        AppLog.ForSource().LogDebug(
             $"World seed judge starting seed {seedText}; mode={gameMode}.");
         try
         {
@@ -149,6 +153,7 @@ internal sealed class WorldSeedFilterEvaluator : IDisposable
             when (ex is TimeoutException ||
                 ex is IOException and not FileNotFoundException)
         {
+            AppLog.ForSource().LogWarning(ex, "A candidate was skipped after a transient resource judge failure. Seed={Seed}", seedText);
             return WorldSeedFilterPrediction.Rejected(
                 $"seed judge transient failure; skip seed; seed={seedText}, " +
                 $"mode={gameMode}: {ex.Message}",
@@ -164,7 +169,7 @@ internal sealed class WorldSeedFilterEvaluator : IDisposable
         }
         finally
         {
-            FileAppLogger.Instance.Info(
+            AppLog.ForSource().LogDebug(
                 $"World seed judge completed seed {seedText}; mode={gameMode}; " +
                 $"elapsedMs={stopwatch.Elapsed.TotalMilliseconds:F0}.");
         }
@@ -174,9 +179,10 @@ internal sealed class WorldSeedFilterEvaluator : IDisposable
             string detail =
                 $"seed judge status {judge.Status}; seed={seedText}, mode={gameMode}: " +
                 judge.Detail;
-            FileAppLogger.Instance.Info(detail);
+            AppLog.ForSource().LogDebug(detail);
             if (IsCandidateFailure(judge.Status))
             {
+                AppLog.Event(LogLevel.Warning, "Filter", "candidate.skipped", new { seedText, judge.Status, judge.Detail });
                 return WorldSeedFilterPrediction.CandidateFailure(
                     detail,
                     judge);

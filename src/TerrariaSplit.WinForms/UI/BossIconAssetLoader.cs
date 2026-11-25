@@ -9,7 +9,7 @@ internal static class BossIconAssetLoader
     public static void LoadInitialAssets(
         BossIconAssetRegistry registry,
         IReadOnlyList<SplitStatusSnapshot> statuses,
-        IAppLogger logger)
+        ILogger logger)
     {
         StartupDiagnostics.RecordTrace("IconPreloadStarted");
         LoadDefinitions(registry, statuses.Select(status => status.Definition), logger);
@@ -19,7 +19,7 @@ internal static class BossIconAssetLoader
     public static void LoadDefinitions(
         BossIconAssetRegistry registry,
         IEnumerable<SplitDefinition> definitions,
-        IAppLogger logger)
+        ILogger logger)
     {
         foreach (SplitDefinition definition in definitions)
         {
@@ -53,7 +53,7 @@ internal static class BossIconAssetLoader
                 }
                 catch (Exception ex)
                 {
-                    logger.Error(ex, $"Failed to load overlay icon: {fileName}");
+                    logger.LogError(ex, $"Failed to load overlay icon: {fileName}");
                 }
             }
         }

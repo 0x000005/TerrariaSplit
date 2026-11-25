@@ -60,6 +60,7 @@ public static class SettingsSectionNormalizer
 
     public static void NormalizeAdvanced(AdvancedSettings advanced)
     {
+        advanced.MinimumLogLevel = DiagnosticLogLevels.Normalize(advanced.MinimumLogLevel);
         advanced.RtssExecutablePath = advanced.RtssExecutablePath?.Trim() ?? string.Empty;
         advanced.RtssOverlayX = Math.Clamp(advanced.RtssOverlayX, -10000, 10000);
         advanced.RtssOverlayY = Math.Clamp(advanced.RtssOverlayY, -10000, 10000);

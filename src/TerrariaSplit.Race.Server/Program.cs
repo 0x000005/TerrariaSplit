@@ -3,8 +3,27 @@ using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.SignalR;
 using TerrariaSplit.Race.Contracts;
 using TerrariaSplit.Race.Server;
+using TerrariaSplit.Infrastructure;
 
+AppLog.Initialize(new AppLogOptions
+{
+    FilePath = Path.Combine(AppContext.BaseDirectory, "terrariasplit-race-server.log"),
+    MinimumLevel = AppLog.ParseLevel(Environment.GetEnvironmentVariable(AppLog.LevelEnvironmentVariable)),
+    ConsoleOutput = true
+});
+using AppLogProvider logProvider = AppLog.Provider;
+AppDomain.CurrentDomain.UnhandledException += (_, failure) =>
+{
+    AppLog.Failure("Race.Server", "server.unhandled", "The race server encountered an unhandled exception.",
+        "Source: process", failure.ExceptionObject as Exception);
+    try { logProvider.FlushAsync().GetAwaiter().GetResult(); }
+    catch (TimeoutException) { }
+};
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
+builder.Logging.ClearProviders();
+builder.Logging.SetMinimumLevel(LogLevel.Trace);
+builder.Logging.AddFilter<AppLogProvider>(null, LogLevel.Trace);
+builder.Logging.AddProvider(logProvider);
 builder.WebHost.ConfigureKestrel(options =>
 {
     options.Limits.MaxRequestBodySize = 128L * 1024 * 1024;
@@ -16,6 +35,7 @@ builder.Services.Configure<FormOptions>(options =>
 builder.Services.AddSignalR(options =>
 {
     options.MaximumReceiveMessageSize = 8 * 1024 * 1024;
+    options.AddFilter<RaceHubLoggingFilter>();
 });
 builder.Services.AddSingleton<IRaceRecordStore>(_ =>
     new FileRaceRecordStore(Path.Combine(AppContext.BaseDirectory, "Data", "RaceRecords")));
@@ -30,6 +50,16 @@ builder.Services.AddSingleton<RaceWorldUploadCoordinator>();
 builder.Services.AddHostedService<RaceRoomCleanupService>();
 
 WebApplication app = builder.Build();
+AppLog.BindFactory(app.Services.GetRequiredService<ILoggerFactory>());
+app.Use(async (context, next) =>
+{
+    using var operation = AppLog.BeginOperation("Race HTTP request", new
+    {
+        method = context.Request.Method, path = context.Request.Path.Value, requestId = context.TraceIdentifier
+    });
+    await next(context);
+    AppLog.Debug("server.request.completed", new { context.Response.StatusCode });
+});
 app.MapGet("/", () => "TerrariaSplit Race Server");
 app.MapPost(
     "/api/race/rooms/{roomCode}/world",
@@ -132,6 +162,7 @@ app.MapPost(
         }
         catch (Exception ex) when (ex is BadHttpRequestException or IOException or InvalidDataException or UnauthorizedAccessException)
         {
+            AppLog.Failure("Race.Server", "race.world.upload.failed", "World upload failed.", "Room: " + roomCode, ex);
             return Results.Json(
                 RaceOperationResult<RaceRoomState>.Failure(RaceErrors.InvalidRequest, "Upload failed: " + ex.Message),
                 statusCode: StatusCodes.Status400BadRequest);

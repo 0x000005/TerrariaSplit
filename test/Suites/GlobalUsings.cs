@@ -11,3 +11,4 @@ global using TerrariaSplit.Storage;
 global using TerrariaSplit.UI;
 global using TerrariaSplit.UI.Settings;
 global using TerrariaSplit.UI.Updating;
+global using Microsoft.Extensions.Logging;

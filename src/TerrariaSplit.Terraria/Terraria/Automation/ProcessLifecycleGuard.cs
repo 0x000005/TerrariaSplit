@@ -119,7 +119,7 @@ internal sealed class ProcessLifecycleGuard : IDisposable
         }
         catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception or NotSupportedException or ObjectDisposedException)
         {
-            FileAppLogger.Instance.Error(ex, failureMessage);
+            AppLog.ForSource().LogError(ex, failureMessage);
         }
         finally
         {

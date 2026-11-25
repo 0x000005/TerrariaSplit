@@ -263,32 +263,30 @@ internal sealed class RunFinalizer
             return null;
         }
 
-        SplitStatusSnapshot? moonLordStatus = statuses.FirstOrDefault(status =>
-            !status.Definition.IsAttached &&
-            SplitCatalog.IsMoonLordSplit(status.Definition));
-        if (moonLordStatus?.Time is not TimeSpan moonLordTime)
+        // Runtime statuses contain enabled entries in route order.
+        SplitStatusSnapshot? finalMainStatus = statuses.LastOrDefault(status => !status.Definition.IsAttached);
+        if (finalMainStatus?.Time is not TimeSpan finalTime)
         {
             return null;
         }
 
-        bool hasExistingMoonLordTime = SplitConditionDataRows.TryGetSplitTime(
+        bool hasExistingFinalTime = SplitConditionDataRows.TryGetSplitTime(
             routeSettings,
             baselineSettings.Comparison.PersonalBestTimes,
-            moonLordStatus.Definition,
-            out TimeSpan existingMoonLordTime);
-        string existingMoonLordText = hasExistingMoonLordTime
-            ? TimeText.FormatRecord(existingMoonLordTime)
+            finalMainStatus.Definition,
+            out TimeSpan existingFinalTime);
+        string existingFinalText = hasExistingFinalTime
+            ? TimeText.FormatRecord(existingFinalTime)
             : string.Empty;
-        if (hasExistingMoonLordTime &&
-            existingMoonLordTime <= moonLordTime)
+        if (hasExistingFinalTime && existingFinalTime <= finalTime)
         {
             return null;
         }
 
         return new PendingPersonalBestTimeUpdate(
-            moonLordStatus.Definition.DisplayName,
-            existingMoonLordText,
-            TimeText.FormatRecord(moonLordTime),
+            finalMainStatus.Definition.DisplayName,
+            existingFinalText,
+            TimeText.FormatRecord(finalTime),
             BuildCompletedSplitValues(routeSettings, statuses));
     }
 

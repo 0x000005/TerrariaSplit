@@ -6,10 +6,10 @@ namespace TerrariaSplit.UI;
 
 internal sealed class RaceWorldFileWorkspace
 {
-    private readonly IAppLogger logger;
+    private readonly ILogger logger;
     private readonly TimeProvider timeProvider;
 
-    public RaceWorldFileWorkspace(IAppLogger logger, TimeProvider? timeProvider = null)
+    public RaceWorldFileWorkspace(ILogger logger, TimeProvider? timeProvider = null)
     {
         this.logger = logger;
         this.timeProvider = timeProvider ?? TimeProvider.System;
@@ -58,7 +58,7 @@ internal sealed class RaceWorldFileWorkspace
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                logger.Error(ex, "Race generated world cleanup failed.");
+                logger.LogError(ex, "Race generated world cleanup failed.");
             }
         }
     }

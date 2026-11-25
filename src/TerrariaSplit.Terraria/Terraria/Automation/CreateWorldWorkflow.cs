@@ -50,7 +50,7 @@ internal sealed class CreateWorldWorkflow : IDisposable
             }
 
             TerrariaMenuGeometry geometry = TerrariaMenuGeometry.From(activation.ClientSize, menuProfile);
-            FileAppLogger.Instance.Info($"Create world automation using menu profile: {menuProfile.Name}.");
+            AppLog.ForSource().LogInformation($"Create world automation using menu profile: {menuProfile.Name}.");
             if (modernMenus) await automation.ConfigureModernMenuAsync(cancellationToken);
 
             // Cleanup must precede pooled-world installation and player creation:
@@ -80,7 +80,7 @@ internal sealed class CreateWorldWorkflow : IDisposable
             if (poolInstall.InstalledWorld is WorldPoolItem installedWorld)
             {
                 worldPoolInstallWorkflow.RemoveInstalled(worldGenSignature, installedWorld);
-                FileAppLogger.Instance.Info(
+                AppLog.ForSource().LogInformation(
                     $"Create world automation installed pooled world {installedWorld.WorldFileName}; " +
                     "stopped at world select.");
                 return AutomationResult.Success(
@@ -95,7 +95,6 @@ internal sealed class CreateWorldWorkflow : IDisposable
         }
         catch (Exception ex)
         {
-            FileAppLogger.Instance.Error(ex, "Create world automation failed.");
             return AutomationResult.Failure(
                 "Create world automation failed.",
                 "Create world automation threw an unhandled exception.",
@@ -163,7 +162,7 @@ internal sealed class CreateWorldWorkflow : IDisposable
                 "Create world automation failed while configuring or creating the world.");
         }
 
-        FileAppLogger.Instance.Info(
+        AppLog.ForSource().LogInformation(
             $"Create world automation entered post-click stage; " +
             $"zenith={settings.EnableZenithStarCatch}, cheats={settings.EnableCheats}.");
         await zenithStarCatchAutomation.RunAsync(settings, cancellationToken);
@@ -180,7 +179,7 @@ internal sealed class CreateWorldWorkflow : IDisposable
     {
         TerrariaSaveInventorySnapshot inventory = savePreparation.ReadInventorySnapshot();
         string saveRoot = TerrariaSavePaths.SaveRoot();
-        FileAppLogger.Instance.Info(
+        AppLog.ForSource().LogInformation(
             $"Create world automation preserved existing save files; " +
             $"players={inventory.PlayerFiles}, worlds={inventory.WorldFiles}, " +
             $"favoritePlayers={inventory.FavoritePlayers}, favoriteWorlds={inventory.FavoriteWorlds}.");

@@ -75,7 +75,7 @@ internal sealed class HeadlessWorldGenerator : IDisposable
         using HeadlessGenerationLease? lease = HeadlessGenerationLease.TryAcquire(GenerationMutexName);
         if (lease is null)
         {
-            FileAppLogger.Instance.Info("World pool headless generation skipped because another generator is already running.");
+            AppLog.ForSource().LogInformation("World pool headless generation skipped because another generator is already running.");
             return HeadlessWorldGenResult.Skipped;
         }
 
@@ -91,7 +91,7 @@ internal sealed class HeadlessWorldGenerator : IDisposable
                 out HeadlessWorldGenerationRequest request,
                 out string requestDetail))
         {
-            FileAppLogger.Instance.Info($"World pool headless generation skipped: {requestDetail}");
+            AppLog.ForSource().LogInformation($"World pool headless generation skipped: {requestDetail}");
             scratch.Clean();
             return HeadlessWorldGenResult.Skipped;
         }
@@ -106,7 +106,7 @@ internal sealed class HeadlessWorldGenerator : IDisposable
                     cancellationToken);
             if (!prediction.CanUsePrediction)
             {
-                FileAppLogger.Instance.Info(
+                AppLog.ForSource().LogInformation(
                     $"World pool seed filter failed closed for seed " +
                     $"{request.ExpectedMetadata.SeedText}: {prediction.Detail}");
                 scratch.Clean();
@@ -114,14 +114,14 @@ internal sealed class HeadlessWorldGenerator : IDisposable
             }
             if (prediction.CanUsePrediction && !prediction.AcceptSeed)
             {
-                FileAppLogger.Instance.Info(
+                AppLog.ForSource().LogInformation(
                     $"World pool seed filter rejected seed " +
                     $"{request.ExpectedMetadata.SeedText}: {prediction.Detail}");
                 scratch.Clean();
                 return HeadlessWorldGenResult.Rejected(prediction.Detail);
             }
 
-            FileAppLogger.Instance.Info($"World pool seed filter accepted seed {request.ExpectedMetadata.SeedText}: {prediction.Detail}");
+            AppLog.ForSource().LogInformation($"World pool seed filter accepted seed {request.ExpectedMetadata.SeedText}: {prediction.Detail}");
         }
 
         List<string> serverArguments = new(request.ServerArguments);
@@ -142,7 +142,7 @@ internal sealed class HeadlessWorldGenerator : IDisposable
 
         if (worldPath is null)
         {
-            FileAppLogger.Instance.Info("World pool headless generation produced no world file.");
+            AppLog.ForSource().LogError("World pool headless generation produced no world file.");
             scratch.Clean();
             return HeadlessWorldGenResult.Miss;
         }
@@ -157,10 +157,10 @@ internal sealed class HeadlessWorldGenerator : IDisposable
         }
         else
         {
-            FileAppLogger.Instance.Info($"World pool could not read generated world metadata: {detail}");
+            AppLog.ForSource().LogError($"World pool could not read generated world metadata: {detail}");
         }
 
-        FileAppLogger.Instance.Info(
+        AppLog.ForSource().LogInformation(
             $"World pool headless generation world='{Path.GetFileName(worldPath)}': " +
             $"metadata={metadataDetail}, expected={request.ExpectedDetail}, " +
             $"mode={request.ModeDetail}, keep={keep}.");
@@ -343,7 +343,7 @@ internal sealed class HeadlessWorldGenerator : IDisposable
         }
         catch (Exception ex) when (ex is InvalidOperationException or IOException or ObjectDisposedException)
         {
-            FileAppLogger.Instance.Error(ex, "World pool failed to write scripted TerrariaServer input.");
+            AppLog.ForSource().LogError(ex, "World pool failed to write scripted TerrariaServer input.");
         }
     }
 
@@ -458,7 +458,7 @@ internal sealed class HeadlessWorldGenerator : IDisposable
             Process process = Process.GetProcessById(marker.ProcessId);
             if (IsMarkedServerProcess(process, marker, serverExePath))
             {
-                FileAppLogger.Instance.Info($"Stopping stale world pool TerrariaServer.exe process {marker.ProcessId}.");
+                AppLog.ForSource().LogInformation($"Stopping stale world pool TerrariaServer.exe process {marker.ProcessId}.");
                 ProcessLifecycleGuard.TryKill(process, "World pool failed to stop headless Terraria server.");
             }
             else
@@ -702,7 +702,7 @@ internal sealed class HeadlessWorldGenerator : IDisposable
             catch (Exception ex) when (ex is UnauthorizedAccessException or IOException or System.ComponentModel.Win32Exception)
             {
                 mutex?.Dispose();
-                FileAppLogger.Instance.Error(ex, "World pool failed to acquire headless generation mutex.");
+                AppLog.ForSource().LogError(ex, "World pool failed to acquire headless generation mutex.");
                 return null;
             }
         }

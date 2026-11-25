@@ -16,7 +16,7 @@ internal sealed partial class MainForm : Form
 
     private readonly StartupCore startupCore;
     private readonly ISettingsSnapshotFactory settingsSnapshots;
-    private readonly IAppLogger appLogger;
+    private readonly ILogger appLogger;
     private readonly HotkeyShell hotkeyShell;
     private readonly ApplicationController applicationController;
     private readonly RuntimeShell runtimeShell = new(
@@ -184,7 +184,7 @@ internal sealed partial class MainForm : Form
 
     private static bool SilentPersonalBestUpdateConfirmation(string promptText)
     {
-        FileAppLogger.Instance.Info(
+        AppLog.ForSource().LogInformation(
             "Personal best update confirmation handled silently during runtime: " + promptText);
         return true;
     }

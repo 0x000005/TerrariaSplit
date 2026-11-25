@@ -7,9 +7,9 @@ public sealed class TerrariaWorldAutomation : IDisposable
     private readonly AutomationRunner<AppSettings> createWorldRunner;
     private readonly AutomationRunner<EnterWorldAutomationRequest> enterWorldRunner;
 
-    public TerrariaWorldAutomation(IWorldPoolStore? worldPool = null, IAppLogger? logger = null)
+    public TerrariaWorldAutomation(IWorldPoolStore? worldPool = null, ILogger? logger = null)
     {
-        logger ??= NullAppLogger.Instance;
+        logger ??= NullLogger.Instance;
         this.worldPool = worldPool;
         createWorldRunner = new AutomationRunner<AppSettings>(
             "Create world",

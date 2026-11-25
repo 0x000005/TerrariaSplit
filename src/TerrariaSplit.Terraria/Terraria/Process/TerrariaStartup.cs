@@ -14,7 +14,7 @@ internal static class TerrariaStartup
         if (TerrariaProcessIdentity.FromProcess(process) != identity)
             throw new InvalidOperationException("Terraria restarted while waiting for startup.");
         var memory = new ProcessMemoryReader(process);
-        FileAppLogger.Instance.Info($"Waiting for Terraria loading to finish; pid={identity.ProcessId}; no complete runtime layout has been cached.");
+        AppLog.ForSource().LogInformation($"Waiting for Terraria loading to finish; pid={identity.ProcessId}; no complete runtime layout has been cached.");
         while (!process.HasExited)
         {
             if (!TryReadReadiness(memory, startup, out bool ready))

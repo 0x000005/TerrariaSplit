@@ -39,7 +39,7 @@ internal sealed class ClipboardBackupScope : IDisposable, IAsyncDisposable
                 try { scope.Prepare(recoverMismatch: attempt > 1); return scope; }
                 catch (ExternalException ex) when (attempt < MaxAttempts)
                 {
-                    FileAppLogger.Instance.Info($"Clipboard prepare attempt {attempt}/{MaxAttempts} failed; retryDelayMs=50; {ex.Message}");
+                    AppLog.ForSource().LogInformation($"Clipboard prepare attempt {attempt}/{MaxAttempts} failed; retryDelayMs=50; {ex.Message}");
                     await delay(RetryDelay, token);
                 }
             }
@@ -61,7 +61,6 @@ internal sealed class ClipboardBackupScope : IDisposable, IAsyncDisposable
         catch (Exception ex)
         {
             scope.Dispose(); scope = null;
-            FileAppLogger.Instance.Error(ex, "Automation failed to set clipboard text.");
             return AutomationResult.Failure("Could not write to the Windows clipboard.", "Automation failed to set and verify clipboard text.", ex);
         }
     }
@@ -105,7 +104,7 @@ internal sealed class ClipboardBackupScope : IDisposable, IAsyncDisposable
         if (!string.Equals(actual, text, StringComparison.Ordinal))
             throw new ClipboardMismatchException($"Clipboard text mismatch: ownedSequence={ownedSequence}; actualSequence={after}; expectedLength={text.Length}; actualLength={actual.Length}.");
         if (after != ownedSequence)
-            FileAppLogger.Instance.Info($"Clipboard sequence changed but template text still matches; ownedSequence={ownedSequence}; actualSequence={after}; restore ownership was not reclaimed.");
+            AppLog.ForSource().LogInformation($"Clipboard sequence changed but template text still matches; ownedSequence={ownedSequence}; actualSequence={after}; restore ownership was not reclaimed.");
     }
 
     public async Task EnsureTextAsync(CancellationToken token)
@@ -121,7 +120,7 @@ internal sealed class ClipboardBackupScope : IDisposable, IAsyncDisposable
             }
             catch (ExternalException ex) when (attempt < MaxAttempts)
             {
-                FileAppLogger.Instance.Info($"Clipboard verification attempt {attempt}/{MaxAttempts} failed; retryDelayMs=50; {ex.Message}");
+                AppLog.ForSource().LogInformation($"Clipboard verification attempt {attempt}/{MaxAttempts} failed; retryDelayMs=50; {ex.Message}");
                 await delay(RetryDelay, token);
             }
         }
@@ -146,7 +145,7 @@ internal sealed class ClipboardBackupScope : IDisposable, IAsyncDisposable
                 catch (ExternalException) when (attempt < MaxAttempts) { Thread.Sleep(RetryDelay); }
             }
         }
-        catch (Exception ex) { FileAppLogger.Instance.Error(ex, "Automation failed to restore clipboard data."); }
+        catch (Exception ex) { AppLog.ForSource().LogError(ex, "Automation failed to restore clipboard data."); }
         finally { (previousData as IDisposable)?.Dispose(); }
     }
 
@@ -162,7 +161,7 @@ internal sealed class ClipboardBackupScope : IDisposable, IAsyncDisposable
                 catch (ExternalException) when (attempt < MaxAttempts) { await Task.Delay(RetryDelay); }
             }
         }
-        catch (Exception ex) { FileAppLogger.Instance.Error(ex, "Automation failed to restore clipboard data."); }
+        catch (Exception ex) { AppLog.ForSource().LogError(ex, "Automation failed to restore clipboard data."); }
         finally { (previousData as IDisposable)?.Dispose(); }
     }
 
@@ -195,12 +194,12 @@ internal sealed class SystemAutomationClipboard : IAutomationClipboard
                 try { sourceValue = source.GetData(format, autoConvert: false); }
                 catch (ExternalException ex)
                 {
-                    FileAppLogger.Instance.Info($"Clipboard backup skipped unavailable format {format}: {ex.Message}");
+                    AppLog.ForSource().LogInformation($"Clipboard backup skipped unavailable format {format}: {ex.Message}");
                     continue;
                 }
                 if (sourceValue is null)
                 {
-                    FileAppLogger.Instance.Info($"Clipboard backup skipped unavailable format {format}.");
+                    AppLog.ForSource().LogInformation($"Clipboard backup skipped unavailable format {format}.");
                     continue;
                 }
                 object value = sourceValue switch

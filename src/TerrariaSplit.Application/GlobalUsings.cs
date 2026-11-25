@@ -7,3 +7,5 @@ global using TerrariaSplit.Domain.Formatting;
 global using TerrariaSplit.Infrastructure;
 global using TerrariaSplit.Localization;
 global using TerrariaSplit.Models;
+global using Microsoft.Extensions.Logging;
+global using Microsoft.Extensions.Logging.Abstractions;

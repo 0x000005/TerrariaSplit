@@ -623,6 +623,7 @@ public static class AppSettingsCloner
         source ??= new AdvancedSettings();
         return new AdvancedSettings
         {
+            MinimumLogLevel = source.MinimumLogLevel,
             EnableManualSplit = source.EnableManualSplit,
             EnableTerrariaUiScalePatch = source.EnableTerrariaUiScalePatch,
             EnableRtssOverlay = source.EnableRtssOverlay,

@@ -17,7 +17,7 @@ internal static class SettingsSerializer
         }
         catch (Exception ex)
         {
-            FileAppLogger.Instance.Error(ex, $"Failed to read {description}: {path}");
+            AppLog.ForSource().LogError(ex, $"Failed to read {description}: {path}");
             return default;
         }
     }
@@ -30,7 +30,7 @@ internal static class SettingsSerializer
         }
         catch (Exception ex)
         {
-            FileAppLogger.Instance.Error(ex, $"Failed to read {description}.");
+            AppLog.ForSource().LogError(ex, $"Failed to read {description}.");
             return default;
         }
     }
@@ -99,7 +99,7 @@ internal static class SettingsSerializer
         }
         catch (Exception ex)
         {
-            FileAppLogger.Instance.Error(ex, $"Failed to read {description} with embedded defaults.");
+            AppLog.ForSource().LogError(ex, $"Failed to read {description} with embedded defaults.");
             shouldWriteDefaults = true;
             return DeserializeSettings(CreateEmbeddedDefaultsNode());
         }
@@ -150,7 +150,7 @@ internal static class SettingsSerializer
         }
         catch (Exception ex)
         {
-            FileAppLogger.Instance.Error(ex, $"Failed to read {description} with defaults.");
+            AppLog.ForSource().LogError(ex, $"Failed to read {description} with defaults.");
             shouldWriteDefaults = true;
             return AppSettingsCloner.Clone(defaults);
         }
@@ -189,7 +189,7 @@ internal static class SettingsSerializer
         catch (Exception ex)
         {
             json = string.Empty;
-            FileAppLogger.Instance.Error(ex, $"Ignored invalid settings file: {path}");
+            AppLog.ForSource().LogError(ex, $"Ignored invalid settings file: {path}");
             return false;
         }
     }
@@ -207,7 +207,7 @@ internal static class SettingsSerializer
         }
         catch (Exception ex)
         {
-            FileAppLogger.Instance.Error(ex, "Failed to read settings JSON object.");
+            AppLog.ForSource().LogError(ex, "Failed to read settings JSON object.");
             return null;
         }
     }

@@ -18,7 +18,7 @@ public sealed class WorldPoolFillService : IDisposable
     private readonly Queue<WorldPoolSeedCandidate> acceptedSeeds = new();
     private string? seedFilterSignature;
     private readonly ISettingsSnapshotFactory settingsSnapshots;
-    private readonly IAppLogger logger;
+    private readonly ILogger logger;
     private readonly object sync = new();
     private AppSettings? settings;
     private CancellationTokenSource? cancellation;
@@ -29,14 +29,14 @@ public sealed class WorldPoolFillService : IDisposable
     public WorldPoolFillService(
         IWorldPoolStore store,
         ISettingsSnapshotFactory settingsSnapshots,
-        IAppLogger? logger = null,
+        ILogger? logger = null,
         IRuntimeDataPaths? paths = null)
     {
         this.store = store;
         generator = new HeadlessWorldGenerator(paths);
         seedFilter = new WorldPoolSeedFilter(Environment.ProcessorCount);
         this.settingsSnapshots = settingsSnapshots;
-        this.logger = logger ?? NullAppLogger.Instance;
+        this.logger = logger ?? NullLogger.Instance;
     }
 
     // Called at startup and whenever settings are applied. Refreshing the signature clears
@@ -95,7 +95,7 @@ public sealed class WorldPoolFillService : IDisposable
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "World pool fill iteration failed.");
+                logger.LogError(ex, "World pool fill iteration failed.");
             }
 
             if (generated)
@@ -143,7 +143,7 @@ public sealed class WorldPoolFillService : IDisposable
                 if (!loggedMissingServer)
                 {
                     loggedMissingServer = true;
-                    logger.Info("World pool fill is idle because TerrariaServer.exe could not be located.");
+                    logger.LogInformation("World pool fill is idle because TerrariaServer.exe could not be located.");
                 }
             }
 
@@ -169,6 +169,10 @@ public sealed class WorldPoolFillService : IDisposable
             return false;
         }
 
+        using var operation = AppLog.BeginOperation("World pool generation", new
+        {
+            signature, serverVersion = serverTarget.Value.FileVersion, autoCreate
+        });
         bool filtering = WorldSeedFilterEvaluator.IsEnabledFor(autoCreate);
         if (filtering && acceptedSeeds.Count == 0)
         {
@@ -176,11 +180,11 @@ public sealed class WorldPoolFillService : IDisposable
             if (!IsGenerationStillCurrent(signature)) return true;
             if (batch.Failure is { } failure)
             {
-                logger.Info($"World pool seed filtering stopped: {failure}");
+                AppLog.Failure("Filter", "world-pool.filter.failed", "Background seed filtering failed.", failure);
                 return false;
             }
             foreach (WorldPoolSeedCandidate seed in batch.AcceptedSeeds) acceptedSeeds.Enqueue(seed);
-            logger.Info($"World pool filtered {seedFilter.Concurrency} candidates with one native thread each; accepted={acceptedSeeds.Count}.");
+            logger.LogInformation($"World pool filtered {seedFilter.Concurrency} candidates with one native thread each; accepted={acceptedSeeds.Count}.");
             if (acceptedSeeds.Count == 0) return true;
         }
         if (!IsGenerationStillCurrent(signature)) return true;
@@ -195,7 +199,7 @@ public sealed class WorldPoolFillService : IDisposable
                 IsGenerationStillCurrent(signature) &&
                 store.TryAdd(signature, result.WorldPath, result.Metadata, out WorldPoolItem item))
             {
-                logger.Info(
+                logger.LogInformation(
                     $"World pool banked world {item.WorldFileName}; pool now holds " +
                     $"{store.Count(signature)}/{autoCreate.WorldPoolTargetCount}.");
             }

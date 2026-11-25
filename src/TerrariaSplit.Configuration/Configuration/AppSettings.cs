@@ -451,6 +451,7 @@ public sealed class RaceLeaderboardColumnColorSettings
 
 public sealed class AdvancedSettings
 {
+    public string MinimumLogLevel { get; set; } = DiagnosticLogLevels.Default;
     public bool EnableManualSplit { get; set; }
     public bool EnableTerrariaUiScalePatch { get; set; }
     public bool EnableRtssOverlay { get; set; }

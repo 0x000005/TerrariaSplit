@@ -21,3 +21,5 @@ global using TerrariaSplit.UI.Input;
 global using TerrariaSplit.UI.Rendering;
 global using TerrariaSplit.UI.Settings;
 global using TerrariaSplit.UI.Updating;
+global using Microsoft.Extensions.Logging;
+global using Microsoft.Extensions.Logging.Abstractions;

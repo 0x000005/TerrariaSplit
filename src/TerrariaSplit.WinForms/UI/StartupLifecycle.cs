@@ -194,11 +194,6 @@ internal static class StartupDiagnostics
 
     public static void RecordTrace(string stage)
     {
-        if (string.IsNullOrWhiteSpace(TracePath))
-        {
-            return;
-        }
-
         long now = Stopwatch.GetTimestamp();
         long origin = Interlocked.CompareExchange(ref traceOriginTimestamp, now, 0);
         if (origin == 0)
@@ -206,7 +201,10 @@ internal static class StartupDiagnostics
             origin = now;
         }
 
-        TraceEntries.Enqueue(new StartupTraceEntry(stage, Stopwatch.GetElapsedTime(origin, now).TotalMilliseconds));
+        double elapsed = Stopwatch.GetElapsedTime(origin, now).TotalMilliseconds;
+        AppLog.Event(LogLevel.Debug, "Startup", "startup.stage", new { stage, elapsedMs = elapsed });
+        // CSV output remains an explicit test-harness export, not a second application log.
+        if (!string.IsNullOrWhiteSpace(TracePath)) TraceEntries.Enqueue(new StartupTraceEntry(stage, elapsed));
     }
 
     public static void FlushTrace()
@@ -227,7 +225,7 @@ internal static class StartupDiagnostics
         }
         catch (Exception ex)
         {
-            FileAppLogger.Instance.Error(ex, "Failed to write startup trace.");
+            AppLog.ForSource().LogError(ex, "Failed to write startup trace.");
         }
     }
 
@@ -251,7 +249,7 @@ internal static class StartupDiagnostics
         }
         catch (Exception ex)
         {
-            FileAppLogger.Instance.Error(ex, $"Failed to signal startup event from {environmentVariable}.");
+            AppLog.ForSource().LogError(ex, $"Failed to signal startup event from {environmentVariable}.");
         }
     }
 

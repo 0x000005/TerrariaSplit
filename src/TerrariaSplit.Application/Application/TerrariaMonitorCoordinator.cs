@@ -29,16 +29,16 @@ public sealed class TerrariaMonitorCoordinator : IDisposable
         ITerrariaUiScalePatchApplier uiScalePatchApplier,
         Action<Action> dispatch,
         Func<int, bool> isProcessStillRunning,
-        IAppLogger? logger = null,
+        ILogger? logger = null,
         Action<string>? logInfo = null,
         Action<Exception, string>? logError = null,
         Func<DateTime>? utcNowProvider = null,
         Func<bool>? shouldYieldDispatch = null)
     {
         this.watcher = watcher;
-        logger ??= NullAppLogger.Instance;
-        Action<string> infoLogger = logInfo ?? logger.Info;
-        this.logError = logError ?? logger.Error;
+        logger ??= NullLogger.Instance;
+        Action<string> infoLogger = logInfo ?? (message => logger.LogInformation(message));
+        this.logError = logError ?? ((exception, message) => logger.LogError(exception, message));
         Func<DateTime> nowProvider = utcNowProvider ?? (() => DateTime.UtcNow);
         runtimeProcessor = new WatcherRuntimeProcessor(RuntimePendingMenuGraceDuration);
         runtimeCommands = new RuntimeCommandSequencer(runtimeProcessor);

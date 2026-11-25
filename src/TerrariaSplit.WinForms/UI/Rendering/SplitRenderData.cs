@@ -291,10 +291,10 @@ internal static class OverlayTextStyles
             return CreateTimerTextStyle(settings, palette.TimerText, palette.TimerTextOutline, palette.TimerTextShadow, milliseconds);
         }
 
-        if (TryGetCompletedMoonLordStatus(statuses, out SplitStatusSnapshot moonLordStatus, out TimeSpan moonLordTime) &&
-            ReferenceSplitSetService.TryGetReferenceSplit(settings, moonLordStatus.Definition, out TimeSpan moonLordReference))
+        if (TryGetCompletedFinalMainStatus(statuses, out SplitStatusSnapshot finalMainStatus, out TimeSpan finalTime) &&
+            ReferenceSplitSetService.TryGetReferenceSplit(settings, finalMainStatus.Definition, out TimeSpan finalReference))
         {
-            return moonLordTime < moonLordReference
+            return finalTime < finalReference
                 ? CreateTimerTextStyle(
                     settings,
                     palette.TimerRecordText,
@@ -306,53 +306,6 @@ internal static class OverlayTextStyles
                     palette.TimerNoRecordText,
                     palette.TimerNoRecordTextOutline,
                     palette.TimerNoRecordTextShadow,
-                    milliseconds);
-        }
-
-        if (statuses.Count > 0 && statuses[^1].Time is TimeSpan finalTime)
-        {
-            bool hasFinalReference = TryGetTimerComparisonReference(
-                settings,
-                statuses,
-                statuses.Count - 1,
-                out TimeSpan finalReference);
-            if (hasFinalReference && finalTime < finalReference)
-            {
-                return CreateTimerTextStyle(
-                    settings,
-                    palette.TimerRecordText,
-                    palette.TimerRecordTextOutline,
-                    palette.TimerRecordTextShadow,
-                    milliseconds);
-            }
-
-            if (hasFinalReference && settings.Overlay.EnableTimerGradientColor)
-            {
-                return GetTimerGradientTextStyle(settings, finalTime - finalReference, palette, milliseconds);
-            }
-
-            if (hasFinalReference && finalTime == finalReference)
-            {
-                return CreateTimerTextStyle(
-                    settings,
-                    palette.TimerEqualText,
-                    palette.TimerEqualTextOutline,
-                    palette.TimerEqualTextShadow,
-                    milliseconds);
-            }
-
-            return timerPhase == SplitTimerPhase.Paused
-                ? CreateTimerTextStyle(
-                    settings,
-                    palette.TimerPausedText,
-                    palette.TimerPausedTextOutline,
-                    palette.TimerPausedTextShadow,
-                    milliseconds)
-                : CreateTimerTextStyle(
-                    settings,
-                    palette.TimerBehindText,
-                    palette.TimerBehindTextOutline,
-                    palette.TimerBehindTextShadow,
                     milliseconds);
         }
 
@@ -520,24 +473,21 @@ internal static class OverlayTextStyles
         return Math.Clamp(opacityPercent, 0, 100) / 100f;
     }
 
-    private static bool TryGetCompletedMoonLordStatus(
+    private static bool TryGetCompletedFinalMainStatus(
         IReadOnlyList<SplitStatusSnapshot> statuses,
-        out SplitStatusSnapshot moonLordStatus,
-        out TimeSpan moonLordTime)
+        out SplitStatusSnapshot finalMainStatus,
+        out TimeSpan finalTime)
     {
-        SplitStatusSnapshot? match = statuses.FirstOrDefault(status =>
-            !status.IsSkipped &&
-            status.Time is not null &&
-            SplitCatalog.IsMoonLordSplit(status.Definition));
-        if (match?.Time is TimeSpan time)
+        SplitStatusSnapshot? match = statuses.LastOrDefault(status => !status.Definition.IsAttached);
+        if (match is { IsSkipped: false, Time: TimeSpan time })
         {
-            moonLordStatus = match;
-            moonLordTime = time;
+            finalMainStatus = match;
+            finalTime = time;
             return true;
         }
 
-        moonLordStatus = null!;
-        moonLordTime = TimeSpan.Zero;
+        finalMainStatus = null!;
+        finalTime = TimeSpan.Zero;
         return false;
     }
 }

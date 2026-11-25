@@ -109,7 +109,7 @@ public sealed class TerrariaSavePreparation
         }
         catch (Exception ex)
         {
-            FileAppLogger.Instance.Error(ex, $"Failed to read Terraria favorites file: {path}");
+            AppLog.ForSource().LogError(ex, $"Failed to read Terraria favorites file: {path}");
             return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         }
     }

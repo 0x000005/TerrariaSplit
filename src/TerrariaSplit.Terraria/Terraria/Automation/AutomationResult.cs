@@ -9,7 +9,16 @@ public sealed record AutomationResult(
 {
     public bool Failed => !Succeeded && !Cancelled;
 
-    public bool UseDetailedFailureReport { get; init; }
+    public string FailureCode { get; init; } = "automation.failed";
+    public string? Stage { get; init; }
+    public AppFault? Fault { get; init; }
+
+    public AutomationResult RecordFailure()
+    {
+        if (!Failed || Fault is not null) return this;
+        using var stage = AppLog.BeginStep(Stage ?? Exception?.Data["AutomationStage"]?.ToString() ?? "Workflow");
+        return this with { Fault = AppLog.Failure("Automation", FailureCode, UserMessage, DiagnosticMessage, Exception) };
+    }
 
     public static AutomationResult Success(string diagnostic = "")
     {
@@ -25,11 +34,13 @@ public sealed record AutomationResult(
         string userMessage,
         string diagnostic,
         Exception? exception = null,
-        bool useDetailedFailureReport = false)
+        string failureCode = "automation.failed",
+        string? stage = null)
     {
         return new AutomationResult(false, false, userMessage, diagnostic, exception)
         {
-            UseDetailedFailureReport = useDetailedFailureReport
+            FailureCode = failureCode,
+            Stage = stage
         };
     }
 }

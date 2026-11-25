@@ -14,3 +14,5 @@ global using TerrariaSplit.Terraria.Memory;
 global using TerrariaSplit.Terraria.Processes;
 global using TerrariaSplit.Terraria.WorldGeneration;
 global using TerrariaSplit.Terraria.WorldGeneration.Simulation;
+global using Microsoft.Extensions.Logging;
+global using Microsoft.Extensions.Logging.Abstractions;

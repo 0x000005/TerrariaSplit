@@ -1,12 +1,6 @@
-# Automation
+# Automation 局部约束
 
-## 边界
-- 编排菜单点击、人物/世界创建、进入世界、存档、世界池和筛塔流程。
-- 不实现世界生成模拟、内存布局解析或 UI 绘制。
-
-## 约束
-- 步骤必须可取消、可记录；坐标和页面判断集中到现有 geometry/reader。
-- 金字塔预筛只是创建前预测，创建后 `.wld` 二验必须保留。
-- 世界文件顺序读取，不并行扫描；官方生成规则放在 `WorldGeneration/`。
-- 修改流程或失败策略时运行 Automation 与 Pyramid seed pre-screen 聚焦测试；真实窗口路径需说明人工验证。
-- 预筛维护参考 `pyramid-prescan-maintenance.md`。
+- 仅编排窗口激活、菜单驱动、存档准备、世界池安装与筛种循环；不实现生成模拟、内存布局解析或 UI 绘制。
+- 所有步骤必须可取消、可记录；菜单坐标与页面判定集中在现有 `TerrariaMenuGeometry` / `TerrariaMenuObserver`。
+- 存档清理/清点必须在世界池安装与建人之前执行；后台世界池仅操作私有 scratch 目录，严禁触碰用户 `Players/`/`Worlds/`。
+- 生产筛选统一通过 `WorldSeedFilterEvaluator` 调用原生 ABI7 DLL；改动流程或失败策略后运行自动化与筛选聚焦测试。

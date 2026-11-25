@@ -29,7 +29,8 @@ internal sealed class SettingsMessageDialog : Form
         MessageBoxButtons buttons,
         MessageBoxIcon icon,
         Func<string, string> localize,
-        bool selectableMessage = false)
+        bool selectableMessage = false,
+        AppFault? fault = null)
     {
         using var dialog = new SettingsMessageDialog(
             title,
@@ -37,7 +38,7 @@ internal sealed class SettingsMessageDialog : Form
             buttons,
             icon,
             localize,
-            selectableMessage);
+            selectableMessage, fault);
         dialog.Shown += (_, _) =>
         {
             dialog.BringToFront();
@@ -53,7 +54,8 @@ internal sealed class SettingsMessageDialog : Form
         MessageBoxButtons buttons,
         MessageBoxIcon icon,
         Func<string, string> localize,
-        bool selectableMessage = false)
+        bool selectableMessage = false,
+        AppFault? fault = null)
     {
         Text = title;
         StartPosition = FormStartPosition.CenterParent;
@@ -90,7 +92,7 @@ internal sealed class SettingsMessageDialog : Form
             CreateFooter(
                 buttons,
                 localize,
-                selectableMessage),
+                selectableMessage, fault),
             0,
             2);
         Controls.Add(root);
@@ -271,7 +273,8 @@ internal sealed class SettingsMessageDialog : Form
     private Control CreateFooter(
         MessageBoxButtons buttons,
         Func<string, string> localize,
-        bool selectableMessage)
+        bool selectableMessage,
+        AppFault? fault)
     {
         var footer = new FlowLayoutPanel
         {
@@ -317,6 +320,14 @@ internal sealed class SettingsMessageDialog : Form
             UiTheme.StyleButton(copyDetailsButton, minimumWidth: 140);
             copyDetailsButton.Click += (_, _) => CopyDisplayedMessage();
             footer.Controls.Add(copyDetailsButton);
+        }
+
+        if (fault is not null)
+        {
+            var export = new Button { Text = localize("Export diagnostics") };
+            UiTheme.StyleButton(export, minimumWidth: 140);
+            export.Click += async (_, _) => await DiagnosticExportDialog.ExportAsync(this, fault);
+            footer.Controls.Add(export);
         }
 
         if (AcceptButton is null && footer.Controls.OfType<Button>().FirstOrDefault() is Button firstButton)

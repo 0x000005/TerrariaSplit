@@ -74,6 +74,7 @@ internal sealed class ApplicationShellEffectExecutor
         switch (effect)
         {
             case SubmitRuntimeCommandEffect submit:
+                AppLog.Event(LogLevel.Debug, "Timer", "timer.command", new { command = submit.Command });
                 submitRuntimeCommand(submit.Command);
                 break;
             case StopAllSoundsEffect:
@@ -106,6 +107,7 @@ internal sealed class ApplicationShellEffectExecutor
                 {
                     showSettingsSaveFailure(saveResult);
                 }
+                else AppLog.Event(LogLevel.Information, "Storage", "settings.saved");
                 break;
             case ShowPersistenceFailureEffect failure:
                 showSettingsSaveFailure(failure.Result);
@@ -138,6 +140,11 @@ internal sealed class ApplicationShellEffectExecutor
                 resetRaceProgressReports();
                 break;
             case QueueRaceProgressReportsEffect queueRaceProgress:
+                if (queueRaceProgress.RunStarted || queueRaceProgress.RunCompleted)
+                    AppLog.Event(LogLevel.Information, "Timer", "timer.run.state", new
+                    {
+                        queueRaceProgress.RunStarted, queueRaceProgress.RunCompleted
+                    });
                 queueRaceProgressReports(queueRaceProgress.RunStarted, queueRaceProgress.RunCompleted);
                 break;
             case RecordRunStatisticsEffect recordRun:

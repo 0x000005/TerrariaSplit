@@ -6,3 +6,4 @@ global using TerrariaSplit.Infrastructure;
 global using TerrariaSplit.Localization;
 global using TerrariaSplit.Models;
 global using TerrariaSplit.Storage;
+global using Microsoft.Extensions.Logging;

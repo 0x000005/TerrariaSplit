@@ -224,7 +224,7 @@ internal sealed partial class RaceShell
 
     private void PrepareInGameMenuForHookRecovery(string message)
     {
-        logger.Info("Terraria Race hook is offline; waiting to reattach. " + message);
+        logger.LogInformation("Terraria Race hook is offline; waiting to reattach. " + message);
         ResetInGameNavigation();
         ResetInGameActionSnapshots();
         Volatile.Write(ref inGameMenuLastActionId, 0);
@@ -302,14 +302,21 @@ internal sealed partial class RaceShell
                 state.WorldSettings?.BossPenaltyEnabledKinds ?? 0,
                 kinds))
         {
+            AppLog.Debug("race.penalty.ignored", new { reason = "Disabled, invalid, or outside an active race." });
             return;
         }
 
+        using var operation = AppLog.BeginOperation("Boss penalty settlement", new
+        {
+            room = state.RoomCode, kinds, penaltyMilliseconds, settlementId
+        });
         bool applied = await applyRacePenalty(
             TimeSpan.FromMilliseconds(penaltyMilliseconds),
             cancellationToken).ConfigureAwait(false);
         if (!applied)
         {
+            AppLog.Failure("Race", "race.penalty.apply.failed", "Could not apply the boss time penalty.",
+                "The timer did not acknowledge the penalty command.");
             return;
         }
 
@@ -320,10 +327,10 @@ internal sealed partial class RaceShell
             cancellationToken).ConfigureAwait(false);
         if (!settled.Succeeded)
         {
-            logger.Error(
-                new InvalidOperationException(settled.Message),
-                "Race boss settlement failed after applying the time penalty.");
+            AppLog.Failure("Race", "race.penalty.settlement.failed",
+                "Boss settlement failed after applying the time penalty.", settled.Message);
         }
+        else AppLog.Event(LogLevel.Information, "Race", "race.penalty.settled", new { kinds, penaltyMilliseconds, settlementId });
     }
 
     private void RecordSentInGameSnapshot(RaceInGameSnapshot snapshot)
@@ -924,7 +931,7 @@ internal sealed partial class RaceShell
         }
         catch (Exception ex) when (ex is IOException or InvalidOperationException or HttpRequestException or TimeoutException)
         {
-            logger.Error(ex, "In-game Race world preparation failed.");
+            logger.LogError(ex, "In-game Race world preparation failed.");
             SetInGameOperationFailure(operationId, ex.Message);
         }
         finally

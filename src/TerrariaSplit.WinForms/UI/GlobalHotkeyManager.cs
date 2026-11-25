@@ -32,12 +32,12 @@ internal sealed class GlobalHotkeyManager : IHotkeyRegistrationManager
     private const uint ModNoRepeat = 0x4000;
 
     private readonly Dictionary<int, HotkeyAction> actionsById = new();
-    private readonly IAppLogger logger;
+    private readonly ILogger logger;
     private IntPtr handle;
 
-    public GlobalHotkeyManager(IAppLogger? logger = null)
+    public GlobalHotkeyManager(ILogger? logger = null)
     {
-        this.logger = logger ?? NullAppLogger.Instance;
+        this.logger = logger ?? NullLogger.Instance;
     }
 
     public IReadOnlyList<HotkeyRegistrationWarning> RegisterConfiguredHotkeys(IntPtr windowHandle, AppSettings settings)
@@ -79,13 +79,13 @@ internal sealed class GlobalHotkeyManager : IHotkeyRegistrationManager
     {
         if (keys == Keys.None)
         {
-            logger.Info($"Skipped unassigned hotkey for {action}.");
+            logger.LogDebug($"Skipped unassigned hotkey for {action}.");
             return;
         }
 
         if (!TryCreateChord(keys, out HotkeyChord chord))
         {
-            logger.Info($"Ignored invalid hotkey for {action}: {keys}.");
+            logger.LogWarning($"Ignored invalid hotkey for {action}: {keys}.");
             warnings.Add(new HotkeyRegistrationWarning(
                 action,
                 keys,
@@ -96,7 +96,7 @@ internal sealed class GlobalHotkeyManager : IHotkeyRegistrationManager
 
         if (!registeredChords.Add(chord))
         {
-            logger.Info($"Ignored duplicate hotkey for {action}: {keys}.");
+            logger.LogWarning($"Ignored duplicate hotkey for {action}: {keys}.");
             warnings.Add(new HotkeyRegistrationWarning(
                 action,
                 keys,
@@ -114,7 +114,7 @@ internal sealed class GlobalHotkeyManager : IHotkeyRegistrationManager
 
         int error = Marshal.GetLastWin32Error();
         string detail = new Win32Exception(error).Message;
-        logger.Info($"Failed to register hotkey for {action}: {keys}. {detail}");
+        logger.LogError("Could not register hotkey. Action={Action}, Keys={Keys}, Win32Error={Error}", action, keys, error);
         warnings.Add(new HotkeyRegistrationWarning(
             action,
             keys,

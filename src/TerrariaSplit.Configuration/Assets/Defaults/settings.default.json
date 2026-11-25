@@ -1247,6 +1247,7 @@
         ]
     },
     "Advanced": {
+        "MinimumLogLevel": "ERROR",
         "EnableManualSplit": false,
         "EnableTerrariaUiScalePatch": false,
         "EnableRtssOverlay": false,

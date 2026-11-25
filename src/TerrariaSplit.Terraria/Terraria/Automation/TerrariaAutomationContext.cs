@@ -13,6 +13,7 @@ internal sealed class TerrariaAutomationContext
     private bool escapeCancellationLogged;
 
     public string LastFailureDiagnostic { get; private set; } = string.Empty;
+    public string? LastFailureStage { get; private set; }
 
     public TerrariaAutomationContext(string name)
     {
@@ -32,6 +33,8 @@ internal sealed class TerrariaAutomationContext
 
     public void EndModernMenu() { ModernMenu?.Dispose(); ModernMenu = null; }
 
+    public void RecordFailure(string step, string detail) => Log(new AutomationStepResult(step, false, Detail: detail));
+
     public void ConfigureTiming(AutoCreateWorldSettings settings)
     {
         Window.WindowActivationDelayMilliseconds = settings.WindowActivationDelayMilliseconds;
@@ -44,6 +47,7 @@ internal sealed class TerrariaAutomationContext
         EndModernMenu();
         escapeCancellationLogged = false;
         LastFailureDiagnostic = string.Empty;
+        LastFailureStage = null;
         ClearEscapeKeyState();
     }
 
@@ -76,23 +80,26 @@ internal sealed class TerrariaAutomationContext
         CancellationToken cancellationToken)
     {
         var clock = Stopwatch.StartNew();
-        bool trace = name.Contains("world", StringComparison.OrdinalIgnoreCase);
-        if (trace) WorldFilterTrace.Write("automation.step-start", new { name, step });
+        using var scope = AppLog.BeginStep(step);
+        AppLog.Debug("automation.step.start", new { name, step });
         try
         {
             ThrowIfCancellationRequested(cancellationToken);
             bool success = await action(cancellationToken);
-            if (trace) WorldFilterTrace.Write("automation.step-end", new { name, step, success, elapsedMs = clock.Elapsed.TotalMilliseconds });
+            if (!success) LastFailureStage = step;
+            AppLog.Debug("automation.step.end", new { name, step, success, elapsedMs = clock.Elapsed.TotalMilliseconds });
             return success;
         }
         catch (OperationCanceledException)
         {
-            if (trace) WorldFilterTrace.Write("automation.step-cancelled", new { name, step, elapsedMs = clock.Elapsed.TotalMilliseconds });
+            AppLog.Debug("automation.step.cancelled", new { name, step, elapsedMs = clock.Elapsed.TotalMilliseconds });
             throw;
         }
         catch (Exception ex)
         {
-            FileAppLogger.Instance.Error(ex, $"{name} automation step '{step}' failed.");
+            ex.Data["AutomationStage"] = step;
+            LastFailureStage = step;
+            AppLog.Debug("automation.step.exception", new { name, step, error = ex.ToString() });
             throw;
         }
     }
@@ -230,7 +237,7 @@ internal sealed class TerrariaAutomationContext
         if (!escapeCancellationLogged)
         {
             escapeCancellationLogged = true;
-            FileAppLogger.Instance.Info($"{name} automation cancelled by Escape.");
+            AppLog.ForSource().LogInformation($"{name} automation cancelled by Escape.");
         }
 
         throw new OperationCanceledException($"{name} automation cancelled by Escape.", cancellationToken);
@@ -252,8 +259,9 @@ internal sealed class TerrariaAutomationContext
         if (!result.Success)
         {
             LastFailureDiagnostic = result.ToLogMessage();
+            LastFailureStage = result.Step;
         }
 
-        FileAppLogger.Instance.Info(result.ToLogMessage());
+        AppLog.ForSource().LogDebug(result.ToLogMessage());
     }
 }

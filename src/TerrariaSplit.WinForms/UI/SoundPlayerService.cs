@@ -47,7 +47,7 @@ internal sealed class SoundPlayerService
                 }
                 catch (Exception ex)
                 {
-                    FileAppLogger.Instance.Error(ex, $"Failed to play sound: {resolvedPath}");
+                    AppLog.ForSource().LogError(ex, $"Failed to play sound: {resolvedPath}");
                 }
                 finally
                 {
@@ -72,7 +72,7 @@ internal sealed class SoundPlayerService
                 activeSound.Player.Dispose();
             }
 
-            FileAppLogger.Instance.Error(ex, $"Failed to play sound: {resolvedPath}");
+            AppLog.ForSource().LogError(ex, $"Failed to play sound: {resolvedPath}");
         }
     }
 
@@ -98,7 +98,7 @@ internal sealed class SoundPlayerService
             }
             catch (Exception ex)
             {
-                FileAppLogger.Instance.Error(ex, "Failed to stop sound.");
+                AppLog.ForSource().LogError(ex, "Failed to stop sound.");
             }
         }
     }

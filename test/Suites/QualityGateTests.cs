@@ -33,7 +33,7 @@ internal static class QualityGateTests
             ["TerrariaSplit.Race.Contracts"] = Set("TerrariaSplit.Compatibility", "TerrariaSplit.Race.Determinism"),
             ["TerrariaSplit.Race.Determinism"] = Set("TerrariaSplit.Compatibility"),
             ["TerrariaSplit.Race.InGame"] = Set(),
-            ["TerrariaSplit.Race.Server"] = Set("TerrariaSplit.Race.Contracts"),
+            ["TerrariaSplit.Race.Server"] = Set("TerrariaSplit.Race.Contracts", "TerrariaSplit.Infrastructure"),
             ["TerrariaSplit.Statistics"] = Set("TerrariaSplit.Configuration", "TerrariaSplit.Domain"),
             ["TerrariaSplit.Storage"] = Set("TerrariaSplit.Application", "TerrariaSplit.Configuration", "TerrariaSplit.Domain", "TerrariaSplit.Infrastructure"),
             ["TerrariaSplit.Terraria"] = Set(

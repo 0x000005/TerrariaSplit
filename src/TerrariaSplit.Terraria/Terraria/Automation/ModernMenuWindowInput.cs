@@ -9,7 +9,7 @@ internal sealed class ModernMenuWindowInput(TerrariaWindowController window) : I
     public bool Position(Point point, out string detail)
     {
         bool success = window.TryPositionClient(_ => point, out Point resolved, out Size clientSize, out detail);
-        WorldFilterTrace.Write("automation.position", new { point, resolved, clientSize, success,
+        AppLog.Debug("automation.position", new { point, resolved, clientSize, success,
             detail = success ? window.LastCoordinateDiagnostic : detail });
         return success;
     }

@@ -39,7 +39,7 @@ internal sealed class ZenithStarCatchAutomation
 
         string stopStage = AutoCreateZenithStarCatchStage.Normalize(settings.ZenithStarCatchStopStage);
         double speedMultiplier = AutoCreateZenithStarCatchSpeed.GetMultiplier(settings.ZenithStarCatchSpeedSliderValue);
-        FileAppLogger.Instance.Info($"Create world automation will catch Zenith stars through {stopStage} at speed {speedMultiplier:0.0}.");
+        AppLog.ForSource().LogInformation($"Create world automation will catch Zenith stars through {stopStage} at speed {speedMultiplier:0.0}.");
 
         using ITerrariaWorldWatcher watcher = watcherFactory();
         var path = new CursorPath(speedMultiplier);
@@ -63,7 +63,7 @@ internal sealed class ZenithStarCatchAutomation
                     {
                         if (stopwatch.Elapsed > AttachGracePeriod)
                         {
-                            FileAppLogger.Instance.Info("Create world automation could not resolve Terraria client bounds for Zenith star catch.");
+                            AppLog.ForSource().LogInformation("Create world automation could not resolve Terraria client bounds for Zenith star catch.");
                             return;
                         }
                     }
@@ -81,7 +81,7 @@ internal sealed class ZenithStarCatchAutomation
                     {
                         if (stopwatch.Elapsed > AttachGracePeriod)
                         {
-                            FileAppLogger.Instance.Info("Create world automation could not attach watcher during Zenith star catch.");
+                            AppLog.ForSource().LogInformation("Create world automation could not attach watcher during Zenith star catch.");
                             return;
                         }
                     }
@@ -89,7 +89,7 @@ internal sealed class ZenithStarCatchAutomation
                     {
                         if (snapshot.IsReady && snapshot.IsGameMenu == false)
                         {
-                            FileAppLogger.Instance.Info("Create world automation stopped Zenith star catch after leaving the menu generation screen.");
+                            AppLog.ForSource().LogInformation("Create world automation stopped Zenith star catch after leaving the menu generation screen.");
                             return;
                         }
 
@@ -101,7 +101,7 @@ internal sealed class ZenithStarCatchAutomation
 
                         if (observedTrackedPass && AutoCreateZenithStarCatchStage.ShouldStopAtPass(stopStage, currentPassName))
                         {
-                            FileAppLogger.Instance.Info($"Create world automation stopped Zenith star catch at world generation pass '{currentPassName}'.");
+                            AppLog.ForSource().LogInformation($"Create world automation stopped Zenith star catch at world generation pass '{currentPassName}'.");
                             return;
                         }
                     }
@@ -118,7 +118,7 @@ internal sealed class ZenithStarCatchAutomation
                 await automation.DelayAsync(CursorStepInterval, cancellationToken);
             }
 
-            FileAppLogger.Instance.Info("Create world automation stopped Zenith star catch after reaching the safety timeout.");
+            AppLog.ForSource().LogInformation("Create world automation stopped Zenith star catch after reaching the safety timeout.");
         }
         finally
         {

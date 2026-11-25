@@ -101,12 +101,12 @@ internal sealed class OverlayWindowController : IDisposable
         {
             if (!RenderNow())
             {
-                FileAppLogger.Instance.Info($"Layered overlay update failed. Win32Error={Marshal.GetLastWin32Error()}.");
+                AppLog.ForSource().LogError($"Layered overlay update failed. Win32Error={Marshal.GetLastWin32Error()}.");
             }
         }
         catch (Exception ex)
         {
-            FileAppLogger.Instance.Error(ex, "Layered overlay render failed.");
+            AppLog.ForSource().LogError(ex, "Layered overlay render failed.");
         }
         finally
         {
@@ -165,14 +165,14 @@ internal sealed class OverlayWindowController : IDisposable
 
             if (!render(renderTarget))
             {
-                FileAppLogger.Instance.Info($"Layered overlay region update failed. Win32Error={Marshal.GetLastWin32Error()}.");
+                AppLog.ForSource().LogError($"Layered overlay region update failed. Win32Error={Marshal.GetLastWin32Error()}.");
             }
 
             return true;
         }
         catch (Exception ex)
         {
-            FileAppLogger.Instance.Error(ex, "Layered overlay region render failed.");
+            AppLog.ForSource().LogError(ex, "Layered overlay region render failed.");
             return true;
         }
         finally

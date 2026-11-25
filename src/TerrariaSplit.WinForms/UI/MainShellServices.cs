@@ -7,7 +7,7 @@ internal sealed record StartupCore(
     ISettingsRepository SettingsRepository,
     Func<AppSettings, OperationResult> SaveSettings,
     ISettingsSnapshotFactory SettingsSnapshots,
-    IAppLogger AppLogger,
+    ILogger AppLogger,
     IHotkeyRegistrationManager HotkeyManager,
     OverlayRenderResources RenderResources,
     Task StatusIconPreloadTask,

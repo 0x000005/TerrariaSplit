@@ -23,6 +23,7 @@ internal static class ConfigurationStorageFlowTests
         settings.General.Language = "Chinese";
         settings.General.AlwaysOnTop = true;
         settings.Advanced.EnableManualSplit = true;
+        settings.Advanced.MinimumLogLevel = " debug ";
         settings.Hotkeys.ManualSplitKey = "Control, F7";
         settings.Route.VisibleGroupCountLimit = -20;
         settings.Race.ServerUrl = "  https://example.test/race  ";
@@ -76,6 +77,7 @@ internal static class ConfigurationStorageFlowTests
         Check.Equal("毁灭者", TerrariaSplit.Localization.Localizer.Get("Destroyer", loaded));
         Check.True(loaded.General.AlwaysOnTop);
         Check.True(loaded.Advanced.EnableManualSplit);
+        Check.Equal("DEBUG", loaded.Advanced.MinimumLogLevel);
         Check.Equal("Control, F7", loaded.Hotkeys.ManualSplitKey);
         Check.True(loaded.Route.VisibleGroupCountLimit > 0);
         Check.Equal("https://example.test/race", loaded.Race.ServerUrl);

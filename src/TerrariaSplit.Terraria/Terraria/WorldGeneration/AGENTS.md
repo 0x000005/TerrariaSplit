@@ -1,13 +1,5 @@
-# WorldGeneration
+# WorldGeneration 局部约束
 
-## 边界
-- 负责金字塔预筛模型、范围判断、结果整理和模拟入口；实现由 `TerrariaSplit.Terraria` 直接拥有，不重复源码链接或另设 façade。
-- 不执行窗口点击、文件删除或 UI 展示。
-
-## 约束
-- 原生资源筛选支持小/中/大世界、两邪恶和四模式的普通数字种子；旧托管金字塔预筛的支持范围与原生接口分别维护。
-- 预测状态、金字塔、物品摘要和耗时由统一结果表达，不让调用方重新推断。
-- 筛选规则必须能追溯到官方机制或解析错误；数据集指标只用于验证。
-- 逻辑改动先运行 Pyramid seed pre-screen 聚焦测试；影响 FP/FN 或性能时再运行 Release metrics。
-
-- 原生线程默认按可用物理核心数的3/4向下取整，最少1、最多6；并发候选固定每世界1线程。已预留预算必须原样传给DLL。
+- 负责原生 ABI7 客户端（`JungleSeedJudgeNativeClient`）、线程预算策略（`WorldFilterThreadPolicy`）与统一筛选结果模型，不执行窗口点击、删档或 UI 展示。
+- 单世界线程默认 `max(1,min(6,floor(3×可用物理核/4)))`，并发候选固定每世界 1 线程；实际预留预算原样传给 DLL，超时后须等原生调用返回再释放租约。
+- 校验响应中的 `terrariaVersion`、`compatibilityId` 与 `generationCompatibilityId`，仅接受 ABI7 且指纹一致的响应。

@@ -175,7 +175,7 @@ internal sealed partial class MainForm : Form
 
     private void ShowStartupFailure(Exception exception)
     {
-        appLogger.Error(exception, "TerrariaSplit runtime initialization failed.");
+        appLogger.LogError(exception, "TerrariaSplit runtime initialization failed.");
         if (windowShell.IsClosing || IsDisposed || Disposing)
         {
             return;

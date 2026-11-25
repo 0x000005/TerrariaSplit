@@ -8,6 +8,16 @@ internal sealed class MemoryBridgeClient
     private const string ExecutableName = "TerrariaSplit.MemoryBridge.exe";
 
     public MemoryBridgeCommandResult Execute(
+        string command, TimeSpan timeout, params string[] arguments)
+    {
+        var clock = Stopwatch.StartNew();
+        AppLog.Debug("memory.command.start", new { command, arguments, timeoutMs = timeout.TotalMilliseconds });
+        MemoryBridgeCommandResult result = ExecuteCore(command, timeout, arguments);
+        LogResult(command, result, clock.Elapsed);
+        return result;
+    }
+
+    private MemoryBridgeCommandResult ExecuteCore(
         string command,
         TimeSpan timeout,
         params string[] arguments)
@@ -49,6 +59,27 @@ internal sealed class MemoryBridgeClient
     }
 
     public async Task<MemoryBridgeCommandResult> ExecuteAsync(
+        string command, TimeSpan timeout, CancellationToken cancellationToken, params string[] arguments)
+    {
+        var clock = Stopwatch.StartNew();
+        AppLog.Debug("memory.command.start", new { command, arguments, timeoutMs = timeout.TotalMilliseconds });
+        try
+        {
+            MemoryBridgeCommandResult result = await ExecuteCoreAsync(command, timeout, cancellationToken, arguments).ConfigureAwait(false);
+            LogResult(command, result, clock.Elapsed);
+            return result;
+        }
+        catch (OperationCanceledException)
+        {
+            AppLog.Debug("memory.command.cancelled", new { command, elapsedMs = clock.Elapsed.TotalMilliseconds });
+            throw;
+        }
+    }
+
+    private static void LogResult(string command, MemoryBridgeCommandResult result, TimeSpan elapsed)
+        => AppLog.Debug("memory.command.end", new { command, elapsedMs = elapsed.TotalMilliseconds, result });
+
+    private async Task<MemoryBridgeCommandResult> ExecuteCoreAsync(
         string command,
         TimeSpan timeout,
         CancellationToken cancellationToken,

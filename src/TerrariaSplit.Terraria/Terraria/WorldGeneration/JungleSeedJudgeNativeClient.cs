@@ -85,9 +85,9 @@ internal sealed class JungleSeedJudgeNativeClient
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(
             cancellationToken);
         deadline.CancelAfter(requestTimeout);
-        string traceId = Guid.NewGuid().ToString("N");
+        string? traceId = AppLog.OperationId;
         var clock = Stopwatch.StartNew();
-        WorldFilterTrace.Write("native.queue", new { traceId, seedText, gameMode, requirements,
+        AppLog.Debug("native.queue", new { traceId, seedText, gameMode, requirements,
             requestedThreads = threads, maximumLeaseThreads, availableBudget = nativeCallGate.CurrentCount,
             timeoutMs = requestTimeout.TotalMilliseconds });
         int leaseThreads;
@@ -104,7 +104,7 @@ internal sealed class JungleSeedJudgeNativeClient
         catch (OperationCanceledException)
             when (!cancellationToken.IsCancellationRequested)
         {
-            WorldFilterTrace.Write("native.queue-timeout", new { traceId, seedText, elapsedMs = clock.Elapsed.TotalMilliseconds });
+            AppLog.Debug("native.queue-timeout", new { traceId, seedText, elapsedMs = clock.Elapsed.TotalMilliseconds });
             if (singleWorldLease) SingleWorldGate.Release();
             throw CreateTimeoutException();
         }
@@ -115,25 +115,25 @@ internal sealed class JungleSeedJudgeNativeClient
         }
 
         double queueMs = clock.Elapsed.TotalMilliseconds;
-        WorldFilterTrace.Write("native.budget-acquired", new { traceId, seedText, queueMs, leaseThreads });
+        AppLog.Debug("native.budget-acquired", new { traceId, seedText, queueMs, leaseThreads });
         string requestId = Interlocked.Increment(ref nextRequestId)
             .ToString(CultureInfo.InvariantCulture);
         Task<JungleSeedJudgeResult> nativeCall = Task.Run(
             () =>
             {
                 double enteredMs = clock.Elapsed.TotalMilliseconds;
-                WorldFilterTrace.Write("native.enter", new { traceId, seedText, requestId,
+                AppLog.Debug("native.enter", new { traceId, seedText, requestId,
                     threadPoolWaitMs = enteredMs - queueMs, leaseThreads, requestedThreads = threads });
                 try
                 {
                     var result = analyze(seedText, gameMode, requestId, requirements, leaseThreads);
-                    WorldFilterTrace.Write("native.return", new { traceId, seedText, requestId,
+                    AppLog.Debug("native.return", new { traceId, seedText, requestId,
                         nativeWallMs = clock.Elapsed.TotalMilliseconds - enteredMs, totalMs = clock.Elapsed.TotalMilliseconds, result });
                     return result;
                 }
                 catch (Exception ex)
                 {
-                    WorldFilterTrace.Write("native.error", new { traceId, seedText, requestId,
+                    AppLog.Debug("native.error", new { traceId, seedText, requestId,
                         elapsedMs = clock.Elapsed.TotalMilliseconds, error = ex.ToString() });
                     throw;
                 }
@@ -150,7 +150,7 @@ internal sealed class JungleSeedJudgeNativeClient
             catch (OperationCanceledException)
                 when (!cancellationToken.IsCancellationRequested)
             {
-                WorldFilterTrace.Write("native.wait-timeout", new { traceId, seedText,
+                AppLog.Debug("native.wait-timeout", new { traceId, seedText,
                     elapsedMs = clock.Elapsed.TotalMilliseconds, nativeStillRunning = !nativeCall.IsCompleted });
                 throw CreateTimeoutException();
             }
@@ -166,7 +166,7 @@ internal sealed class JungleSeedJudgeNativeClient
                     {
                         _ = completed.Exception;
                         gate.Release(leaseThreads);
-                        WorldFilterTrace.Write("native.late-release", new { traceId, seedText, leaseThreads,
+                        AppLog.Debug("native.late-release", new { traceId, seedText, leaseThreads,
                             elapsedMs = clock.Elapsed.TotalMilliseconds });
                         if (singleWorldLease) SingleWorldGate.Release();
                     },
@@ -278,7 +278,7 @@ internal sealed class JungleSeedJudgeNativeClient
                         $"Unsupported native world-filter ABI {abiVersion}.");
                 }
 
-                WorldFilterTrace.LibraryLoaded(libraryPath, abiVersion);
+                AppLog.LibraryLoaded(libraryPath, abiVersion);
                 return new NativeApi(
                     GetExport<AnalyzeDelegate>(
                         libraryHandle,
@@ -338,7 +338,11 @@ internal sealed class JungleSeedJudgeNativeClient
                     startIndex: 0,
                     responseLength);
                 string responseJson = Encoding.UTF8.GetString(responseUtf8);
-                WorldFilterTrace.Write("native.response", new { seedText, requestId, responseJson = responseJson.Length <= 32768 ? responseJson : responseJson[..32768] });
+                AppLog.Debug("native.response", new
+                {
+                    seedText, requestId, responseLength = responseJson.Length, truncated = responseJson.Length > 32768,
+                    responseJson = responseJson.Length <= 32768 ? responseJson : responseJson[..32768]
+                });
                 var result = JungleSeedJudgeProtocolSerializer.DeserializeResponse(
                     responseJson,
                     requestId,

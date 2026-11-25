@@ -12,7 +12,7 @@ internal sealed class AutomationShell : IDisposable
     private readonly ProgramModalWindowCoordinator modalWindows;
     private readonly Control owner;
     private readonly Action clearPendingMenuActions;
-    private readonly IAppLogger logger;
+    private readonly ILogger logger;
 
     public AutomationShell(
         WorldPoolStore worldPoolStore,
@@ -21,7 +21,7 @@ internal sealed class AutomationShell : IDisposable
         ProgramModalWindowCoordinator modalWindows,
         Control owner,
         Action clearPendingMenuActions,
-        IAppLogger logger)
+        ILogger logger)
     {
         this.getSettings = getSettings;
         this.settingsSnapshots = settingsSnapshots;
@@ -41,11 +41,11 @@ internal sealed class AutomationShell : IDisposable
         try
         {
             AutomationResult result = await worldAutomation.StartCreateWorldAsync(settingsSnapshots.CreateSnapshot(getSettings()));
-            HandleAutomationResult(result, "Create World", "World generation failed.");
+            await HandleAutomationResultAsync(result, "Create World", "World generation failed.");
         }
         catch (Exception ex)
         {
-            HandleAutomationResult(
+            await HandleAutomationResultAsync(
                 AutomationResult.Failure(
                     "Create world automation failed unexpectedly.",
                     "Unhandled create world automation error.",
@@ -101,7 +101,7 @@ internal sealed class AutomationShell : IDisposable
         OperationResult validation = EnterWorldSaveInstaller.Validate(selectedSlot);
         if (validation.Failed)
         {
-            logger.Info(validation.Message);
+            logger.LogInformation(validation.Message);
             return;
         }
 
@@ -112,11 +112,11 @@ internal sealed class AutomationShell : IDisposable
             AutomationResult result = await worldAutomation.StartEnterWorldAsync(
                 settingsSnapshots.CreateSnapshot(getSettings()),
                 selectedSlot);
-            HandleAutomationResult(result, "Practice world", "Failed");
+            await HandleAutomationResultAsync(result, "Practice world", "Failed");
         }
         catch (Exception ex)
         {
-            HandleAutomationResult(
+            await HandleAutomationResultAsync(
                 AutomationResult.Failure(
                     "Practice world automation failed unexpectedly.",
                     "Unhandled practice world automation error.",
@@ -126,7 +126,7 @@ internal sealed class AutomationShell : IDisposable
         }
     }
 
-    private void HandleAutomationResult(
+    private async Task HandleAutomationResultAsync(
         AutomationResult result,
         string titleKey,
         string failureMessageKey)
@@ -135,41 +135,34 @@ internal sealed class AutomationShell : IDisposable
         {
             if (!string.IsNullOrWhiteSpace(result.DiagnosticMessage))
             {
-                logger.Info(result.DiagnosticMessage);
+                logger.LogInformation(result.DiagnosticMessage);
             }
 
             return;
         }
 
-        if (result.Exception is not null)
-        {
-            logger.Error(result.Exception, result.DiagnosticMessage);
-        }
-        else if (!string.IsNullOrWhiteSpace(result.DiagnosticMessage))
-        {
-            logger.Info(result.DiagnosticMessage);
-        }
-
-        bool hasDetailedFailureReport = AutomationFailureReport.TryBuild(result, out string detailedFailureReport);
-        string detail = hasDetailedFailureReport
-            ? detailedFailureReport
-            : AutomationFailureReport.BuildSummary(result);
+        result = result.RecordFailure();
+        try { await AppLog.Provider.FlushAsync(TimeSpan.FromMilliseconds(500)); }
+        catch (TimeoutException) { }
+        if (owner.IsDisposed || owner.Disposing) return;
+        if (result.Fault is { } fault) result = result with { Fault = fault with { LogPath = AppLog.Provider.LogPath } };
+        string detail = AutomationFailureReport.Build(result);
         ShowAutomationFailure(
             titleKey,
             failureMessageKey,
             detail,
-            selectableDetail: hasDetailedFailureReport);
+            fault: result.Fault);
     }
 
     private void ShowAutomationFailure(
         string titleKey,
         string failureMessageKey,
         string detail,
-        bool selectableDetail = false)
+        AppFault? fault = null)
     {
         AppSettings settings = getSettings();
         string title = Localizer.Get(titleKey, settings);
-        string failureMessage = Localizer.Get(failureMessageKey, settings);
+        string failureMessage = failureMessageKey;
         string message = string.IsNullOrWhiteSpace(detail)
             ? failureMessage
             : failureMessage + Environment.NewLine + detail;
@@ -179,7 +172,8 @@ internal sealed class AutomationShell : IDisposable
             MessageBoxButtons.OK,
             MessageBoxIcon.Warning,
             key => Localizer.Get(key, settings),
-            selectableDetail);
+            selectableMessage: true,
+            fault: fault);
         modalWindows.ShowDialog(dialog, ModalWindowOptions.ForceTopMostForeground);
     }
 }

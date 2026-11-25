@@ -96,7 +96,7 @@ internal sealed class TerrariaRuntimeLayoutCache(Func<TerrariaProcessIdentity, T
     private static async Task<TerrariaRuntimeMemoryLayout> ProbeAsync(TerrariaProcessIdentity identity)
     {
         var clock = Stopwatch.StartNew();
-        FileAppLogger.Instance.Info($"MemoryBridge shared runtime-layout probe starting; pid={identity.ProcessId}.");
+        AppLog.ForSource().LogInformation($"MemoryBridge shared runtime-layout probe starting; pid={identity.ProcessId}.");
         MemoryBridgeCommandResult result = await new MemoryBridgeClient().ExecuteAsync(
             MemoryBridgeCommands.RuntimeLayout, TimeSpan.FromSeconds(15), CancellationToken.None,
             identity.ProcessId.ToString(CultureInfo.InvariantCulture)).ConfigureAwait(false);
@@ -120,7 +120,7 @@ internal sealed class TerrariaRuntimeLayoutCache(Func<TerrariaProcessIdentity, T
                  !memory.TryReadBool(new IntPtr(menu.Statics["generatingWorld"]), out _)))
                 layout = layout with { MenuAutomation = null };
         }
-        FileAppLogger.Instance.Info($"MemoryBridge shared runtime-layout probe completed; pid={identity.ProcessId}; elapsedMs={clock.Elapsed.TotalMilliseconds:F0}; fields={layout.ResolvedFieldCount}; menuTypes={layout.MenuAutomation?.Types.Count ?? 0}.");
+        AppLog.ForSource().LogInformation($"MemoryBridge shared runtime-layout probe completed; pid={identity.ProcessId}; elapsedMs={clock.Elapsed.TotalMilliseconds:F0}; fields={layout.ResolvedFieldCount}; menuTypes={layout.MenuAutomation?.Types.Count ?? 0}.");
         return layout;
     }
 }

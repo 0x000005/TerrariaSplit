@@ -1,42 +1,59 @@
-# Agent 工作说明
+# TerrariaSplit 开发与维护约束
 
-## 构建
-- `restore` 与后续阶段分开；日常开发只构建目标项目并复用增量缓存，提交前或发布验证才使用 `-m:1 -p:UseSharedCompilation=false`。
-- 出现“0 错误但失败”或大量 `dotnet` 子进程时立即停止，只清理确认属于本次时间窗的残留进程，再以单节点重试。
-- SDK 中间输出统一位于仓库根 `.build/`；最终发布目录统一位于 `publish/产品名-v版本-平台/`；测试运行时临时文件只放 `test/Temp/`，需保留的结果放 `test/Results/`。
-
-## 模块边界
-- `Domain`：纯计时、路线、条件、比较规则；不依赖 UI、文件系统、进程或调度。
-- `Compatibility`：版本组、功能实现映射及构建兼容数据；不执行平台副作用。
-- `Configuration`：当前设置 schema、默认值、归一化、序列化和语言资源。
-- `Application`：command、effect、event、snapshot 与 runtime 编排；不执行平台副作用。
-- `Infrastructure` / `Infrastructure.Windows`：通用基础设施与 Windows 平台封装。
-- `Storage` / `Statistics`：用户数据持久化与统计展示模型，不拥有计时状态机。
-- `Terraria`：进程、内存、窗口、存档、自动化及世界生成模拟；不依赖 UI shell。
-- `Race.Contracts` / `Race.Client` / `Race.Server`：联机协议、客户端会话与服务器状态；客户端不依赖 UI 或平台日志实现。
-- `Race.Determinism`：联机确定性算法与共享协议常量；保持可跨目标框架复用。
-- `Race.InGame`：游戏内联机消息与状态模型；不依赖 WinForms shell。
-- `WinForms`：组合根、交互、overlay、设置和程序更新；页面事件保持薄，副作用走 shell、host 或专用执行器。
-- `MemoryBridge`：统一的 x86 内存控制单元；控制进程负责 CLRMD 探测、受控内存读取与注入启动，内部 Payload/Bootstrap 负责 Terraria 进程内规则。参数、协议、权限、JSON、导出符号或位数变化要同步消费方、测试和构建目标。
-- `test`：自定义测试宿主；`docs`：用户与维护者文档。
-
-## 工作原则
-- 外部输入先转换为项目内命令、事件或稳定模型；跨线程和跨层数据使用不可变 snapshot/view state。
-- 应用层表达意图，WinForms、Terraria、Storage 等外层执行副作用；不要为局部功能引入第二套架构。
-- 设置变更同时检查默认值、归一化、保存、当前 run 收尾和 UI 刷新。
-- 优先复用现有 helper、模型和测试风格；必要时参考 `..\reference\Terraria1458`。
+> 架构全景与模块细节见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)；产品语义、UI 与业务规则见 [docs/DESIGN.md](docs/DESIGN.md)；原生筛选器 ABI7 契约见 `../TerrariaResourceJudge/docs/ABI.md`。
 
 ## 常用命令
-- 还原：`dotnet restore TerrariaSplit.slnx -m:1`
-- 日常构建：`dotnet build src\TerrariaSplit.WinForms\TerrariaSplit.WinForms.csproj --no-restore`
-- 全量构建：`dotnet build TerrariaSplit.slnx --no-restore -m:1 -p:UseSharedCompilation=false`
-- 测试：全量构建后运行 `dotnet run --project test\TerrariaSplit.Tests.csproj --no-build`
-- 运行：`dotnet run --project src\TerrariaSplit.WinForms\TerrariaSplit.WinForms.csproj --no-build`
-- 完整发布：`pwsh -NoProfile -File eng\Publish-Release.ps1`；客户端与 win-x64/linux-x64 Server 会写入带统一版本号的 `publish/` 子目录，只生成目录，不自动压缩。
-- 跳过内存控制单元构建：追加 `-p:TerrariaSplitSkipMemoryBridge=true`。
-- 金字塔聚焦测试：设置 `$env:TERRARIA_SPLIT_TEST_FILTER='Pyramid seed pre-screen'` 后运行测试命令。
-- metrics/trace：`dotnet run --project test\TerrariaSplit.Diagnostics.csproj --no-restore -- <命令及参数>`。
 
-## 原生资源筛选
-- 使用相邻 TerrariaResourceJudge 当前发布 DLL；ABI7，60字节输入。1.4.4/1.4.5组选1458，1.4.6+组选1461。单世界默认 max(1,min(6,floor(3×亲和性内可用物理核心数/4)))，把实际预留预算传给 DLL；多候选并发时每世界1线程。
-- 线程规则与发布指纹见 `docs/resource-judge-thread-policy.md`。拓扑识别属于 Infrastructure.Windows，预算策略属于 Terraria.WorldGeneration。
+- **还原**（首次签出或增删依赖后）：
+  ```powershell
+  dotnet restore TerrariaSplit.slnx -m:1
+  ```
+- **日常构建与运行客户端**（复用增量缓存）：
+  ```powershell
+  dotnet build src\TerrariaSplit.WinForms\TerrariaSplit.WinForms.csproj --no-restore
+  dotnet run --project src\TerrariaSplit.WinForms\TerrariaSplit.WinForms.csproj --no-build
+  ```
+- **构建并运行测试**（执行测试前须先构建测试项目或全量解决方案）：
+  ```powershell
+  dotnet build test\TerrariaSplit.Tests.csproj --no-restore
+  dotnet run --project test\TerrariaSplit.Tests.csproj --no-build
+  ```
+- **提交/发布前确定性全量构建**：
+  ```powershell
+  dotnet build TerrariaSplit.slnx --no-restore -m:1 -p:UseSharedCompilation=false
+  ```
+- **发布与清理**（发布仅产出目录，不自动压缩）：
+  ```powershell
+  pwsh -NoProfile -File eng\Publish-Release.ps1 -Version <X.Y.Z.W>   # 支持 -ClientOnly / -ServerOnly
+  pwsh -NoProfile -File eng\Clean-Workspace.ps1 -Execute -IncludeIde
+  ```
+- **专项选项**：
+  - 跳过 MemoryBridge 构建：`-p:TerrariaSplitSkipMemoryBridge=true`
+  - 原生集成套件：`$env:TERRARIA_SPLIT_TEST_SUITE='Native'` 后运行测试
+  - 聚焦测试：`$env:TERRARIA_SPLIT_TEST_FILTER='<关键字>'` 后运行测试
+  - 诊断工具：`dotnet run --project test\TerrariaSplit.Diagnostics.csproj --no-restore -- <命令及参数>`
+
+## 核心工程红线
+
+以下架构边界由 `QualityGateTests` 持续校验：
+
+- **单向依赖**：严格保持 17 个生产项目的声明依赖方向——全图无环、`Terraria` 不依赖 `Storage` 或 `WinForms`、`Race.Client` 不依赖 UI、`Domain` 与 `Application` 保持零平台副作用。
+- **单向数据流**：外部输入统一转为 `AppCommand`/`SystemEvent`，经 `ApplicationController` 产出 `ApplicationEffect` 与 `DisplayInvalidation`，由外层 Shell/执行器落地副作用；跨线程一律传递不可变快照。
+- **跨位数统一入口**：所有 32 位 CLRMD 探测与注入统一走 `TerrariaSplit.MemoryBridge`（`win-x86`），不在其他项目另建注入器或探测进程；修改协议、参数或位数时同步更新 `MemoryBridge.targets`、`Payload`/`Bootstrap`、消费方与测试。
+- **版本与竞速门禁**：普通功能按 `1.4.4`/`1.4.5`/`1.4.6+` 版本组路由；竞速功能必须精确匹配 `TerrariaBuilds.Race1461` 的版本、`ModuleVersionId` 与世界格式 `329`。
+- **原生筛选契约**：
+  - 生产筛选统一调用 `../TerrariaResourceJudge/out/resourcejudge-release/current/TerrariaSplit.WorldFilter.dll`（60 字节 ABI7，`1.4.4`/`1.4.5` 传 `1458`，`1.4.6+` 传 `1461`），仅接受版本与指纹一致的响应；
+  - 单世界自动预算 `max(1,min(6,floor(3×可用物理核/4)))` 原样传给 DLL，多候选并发固定每世界 1 线程；
+  - 物理核识别归 `Infrastructure.Windows`，预算策略归 `Terraria.WorldGeneration`。
+- **日志与故障规范**：
+  - 共享接口为 `Microsoft.Extensions.Logging`（`AppLog`），`Domain` 零日志依赖，`Race.Client` 仅接收 `ILoggerFactory`；
+  - 日志消息、事件码、字段名与故障报告统一使用英文，并由 `TERRARIA_SPLIT_LOG_LEVEL` 控制环境变量级别；
+  - 级别分工：候选未命中与重试记 `DEBUG`，用户取消记 `INFO`，可恢复降级记 `WARN`，最终操作失败经 `AppLog.Failure` 记一次 `ERROR`（向上传播只补充上下文，不重复记同级 `ERROR`）；禁止逐轮询 tick 输出日志。
+
+## 构建、目录与变更联动
+
+- **构建输出与版本真源**：中间产物由 [Directory.Build.props](Directory.Build.props) 统一托管在 `.build/`，禁止在单个 `.csproj` 中配置 `BaseOutputPath`/`OutputPath` 或使用 `dotnet build -o`；版本号唯一真源为 `TerrariaSplitProductVersion`，发布产物输出至 `publish/<产品名>-v<版本>-<平台>/`。
+- **数据隔离**：用户数据（`Settings/`、`Data/`、`Worlds/`、`terrariasplit.log`）严禁写入 `src/` 或打入发布包；测试临时文件只放 `test/Temp/`，保留结果放 `test/Results/`。
+- **构建进程异常**：若出现无编译错误但构建失败或 `dotnet` 子进程异常堆积，先停止并仅清理本次残留进程，再以 `-m:1` 重试。
+- **设置项变更联动**：新增或修改设置项时同步核对 `settings.default.json`、`AppSettingsCloner`、`SettingsNormalizer`、持久化、当前 run 收尾、UI 绑定与 `WorldPoolSignature`。
+- **参考与局部约束**：优先复用现有 helper、主题控件、模型与测试风格；核对游戏原版实现时只读参考 `..\reference\Terraria1458` / `..\reference\Terraria1460`；修改重点子目录前先阅读对应目录下的局部 `AGENTS.md`。

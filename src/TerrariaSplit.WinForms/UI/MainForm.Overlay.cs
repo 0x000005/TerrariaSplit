@@ -33,6 +33,7 @@ internal sealed partial class MainForm : Form
 
     private void ApplyLoadedSettings(AppSettings? previousSettings = null, int splitCount = -1)
     {
+        AppLog.SetMinimumLevel(settings.Advanced.MinimumLogLevel);
         MarkStatusOverlayStaticContentDirty();
         Rectangle? referenceCompositeBounds = overlayShell.WindowsInitialized
             ? overlayShell.BoundsController.CompositeBounds
@@ -498,7 +499,7 @@ internal sealed partial class MainForm : Form
         if (result.Status != lastRtssOverlayStatus ||
             !string.Equals(message, lastRtssOverlayMessage, StringComparison.Ordinal))
         {
-            appLogger.Info($"RTSS overlay status: {message}");
+            appLogger.LogInformation($"RTSS overlay status: {message}");
             lastRtssOverlayStatus = result.Status;
             lastRtssOverlayMessage = message;
         }

@@ -139,7 +139,7 @@ internal sealed partial class RaceShell
         RaceInGamePage previous = inGameNavigation.Current;
         if (!inGameNavigation.TryMove(transition, IsHostInCurrentRoom))
         {
-            logger.Info(
+            logger.LogInformation(
                 $"Ignored invalid Terraria Race page transition: {previous} -> {transition}.");
             return false;
         }

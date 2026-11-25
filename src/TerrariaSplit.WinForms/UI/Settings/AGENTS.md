@@ -1,11 +1,5 @@
-# Settings UI
+# Settings UI 局部约束
 
-## 边界
-- 负责设置分页、控件工厂、懒加载、页面生命周期和字段绑定。
-- 设置语义、默认值和归一化属于 Configuration；安装、重启、热键和自动化副作用必须回到 shell/host。
-
-## 约束
-- 页面联动使用 `SettingsModelChange`，不直接持有其他页面控件。
-- 优先复用现有 factory、themed 控件和 page base。
-- 页面可调用注入的 UI 服务；异步操作必须可取消，并在页面/窗口释放时停止。
-- 修改字段绑定时验证打开、编辑、保存、重载；新增页面或跨层动作时补设置窗口及对应服务测试。
+- 仅负责 10 页设置控件构建、懒加载、生命周期与字段绑定；默认值与归一化归 `Configuration`，安装/重启/热键/自动化副作用必须回交 Shell/Host。
+- 跨页联动统一走 `SettingsModelChange` / `ISettingsModelListener`，禁止直接持有其他页面控件；优先复用 `SettingsUiFactory`、自绘 `Themed*` 控件与 `SettingsPageBase`。
+- 异步操作必须可取消并在页面/窗体释放时停止；改动绑定时验证打开、编辑、保存与重载闭环。

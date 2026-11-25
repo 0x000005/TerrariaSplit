@@ -20,7 +20,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
     private const int RaceRandomWorldMaxAttempts = 250_000;
     private const int RaceVerifiedGenerationProgressMaximum = 80;
     private const int RaceDirectGenerationProgressMaximum = 90;
-    private readonly RaceClientSession session = new();
+    private readonly RaceClientSession session = new(AppLog.Factory);
     private readonly RaceRouteOverrideController routeOverride;
     private readonly TerrariaRaceWorldGenerationService worldGeneration = new();
     private readonly ITerrariaRaceWorldLockService worldLock;
@@ -28,7 +28,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
     private readonly SemaphoreSlim worldLockLifecycleGate = new(1, 1);
     private readonly SemaphoreSlim restartLifecycleGate = new(1, 1);
     private readonly object hostWorldPreparationSync = new();
-    private readonly IAppLogger logger;
+    private readonly ILogger logger;
     private readonly RaceWorldFileWorkspace worldFiles;
     private readonly Func<AppSettings> getSettings;
     private readonly Func<AppSettings> getBaseSettings;
@@ -78,7 +78,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
 
     public RaceShell(
         ISettingsSnapshotFactory settingsSnapshots,
-        IAppLogger logger,
+        ILogger logger,
         Func<AppSettings> getSettings,
         Func<AppSettings> getBaseSettings,
         Func<ApplicationViewState> getViewState,
@@ -112,10 +112,11 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
         this.raceTimerColorChanged = raceTimerColorChanged;
         this.resetRaceTimer = resetRaceTimer;
         this.worldLock = worldLock ?? new TerrariaRaceWorldLockService();
-        progressTransport = new RaceProgressTransport(session, logger.Info, logger.Error);
+        progressTransport = new RaceProgressTransport(session,
+            message => logger.LogDebug(message), (exception, message) => logger.LogError(exception, message));
         speechCoordinator = new RaceSpeechCoordinator(
             new WindowsRaceSpeechEngine(),
-            ex => logger.Error(ex, "Race voice announcement failed."));
+            ex => logger.LogError(ex, "Race voice announcement failed."));
         speechCoordinator.ApplySettings(getSettings().Race?.Voice ?? new RaceVoiceSettings());
         this.worldLock.HealthFailed += HandleWorldLockHealthFailed;
         draftState = RacePanelDraftState.FromSettings(getSettings());
@@ -209,7 +210,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
         }
         catch (Exception ex)
         {
-            logger.Error(ex, "Race enabled setting save failed.");
+            logger.LogError(ex, "Race enabled setting save failed.");
         }
     }
 
@@ -357,7 +358,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
             Role = RacePanelRole.Host
         });
 
-        logger.Info("Race room creation is deferred until a world is uploaded.");
+        logger.LogInformation("Race room creation is deferred until a world is uploaded.");
         return Task.CompletedTask;
     }
 
@@ -415,7 +416,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
             }
             catch (Exception ex) when (IsRaceConnectionExitException(ex))
             {
-                logger.Info("Race close room failed; leaving local room state. " + ex.Message);
+                logger.LogInformation("Race close room failed; leaving local room state. " + ex.Message);
             }
 
             await LeaveLocalRoomStateAsync();
@@ -442,6 +443,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
         RaceWorldSettings worldSettings,
         IProgress<int>? progress = null)
     {
+        using var operation = AppLog.BeginOperation("Generate random race world", worldSettings);
         progress = CreateClampedProgress(progress);
         SaveDraftState(draftState with { Role = RacePanelRole.Host });
         localWorldPath = null;
@@ -467,11 +469,12 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
         string seedText,
         IProgress<int>? progress = null)
     {
+        using var operation = AppLog.BeginOperation("Generate fixed-seed race world", new { seedText, worldSettings });
         progress = CreateClampedProgress(progress);
         localWorldPath = null;
         if (string.IsNullOrWhiteSpace(seedText))
         {
-            logger.Info("Race custom seed world generation ignored because seed is empty.");
+            logger.LogInformation("Race custom seed world generation ignored because seed is empty.");
             return RacePanelWorldGenerationResult.Failure(Localize("A seed is required."));
         }
 
@@ -581,7 +584,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
                 await CloseCreatedRoomAfterFailedUploadAsync();
             }
 
-            logger.Error(ex, "Race world upload failed.");
+            logger.LogError(ex, "Race world upload failed.");
             result = RaceOperationResult<RaceRoomState>.Failure(
                 "world_upload_failed",
                 string.IsNullOrWhiteSpace(ex.Message) ? "Upload failed." : ex.Message);
@@ -620,7 +623,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
         }
         catch (Exception ex) when (ex is InvalidOperationException or HttpRequestException or OperationCanceledException or TimeoutException)
         {
-            logger.Error(ex, "Race room cleanup after upload failure failed.");
+            logger.LogError(ex, "Race room cleanup after upload failure failed.");
         }
     }
 
@@ -804,7 +807,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
         }
         catch (Exception ex) when (ex is IOException or InvalidOperationException or HttpRequestException or OperationCanceledException or TimeoutException)
         {
-            logger.Error(ex, "Race restart failed.");
+            logger.LogError(ex, "Race restart failed.");
             if (restartState is not null)
             {
                 await MarkRestartUnavailableAsync(restartState.PackageRevision, ex.Message);
@@ -839,7 +842,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
         }
         catch (Exception ex) when (IsRaceConnectionExitException(ex))
         {
-            logger.Info("Race restart unavailable update failed: " + ex.Message);
+            logger.LogInformation("Race restart unavailable update failed: " + ex.Message);
         }
     }
 
@@ -851,14 +854,14 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
         RaceWorldFileInfo? worldFile = state.WorldFile;
         if (worldFile is null)
         {
-            logger.Info("Race room has no uploaded world yet.");
+            logger.LogInformation("Race room has no uploaded world yet.");
             return;
         }
 
         string serverFileName = worldFiles.NormalizeFileName(worldFile.FileName);
         if (string.IsNullOrWhiteSpace(serverFileName))
         {
-            logger.Info("Race room world file has an empty filename.");
+            logger.LogInformation("Race room world file has an empty filename.");
             return;
         }
 
@@ -897,7 +900,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
                     cancellationToken);
             }
 
-            logger.Info("Race world download failed: " + download.Message);
+            AppLog.Failure("Race", "race.world.download.failed", "Could not download the race world.", download.Message);
             return;
         }
 
@@ -942,7 +945,8 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
             reuseWorldGenerationCancellation);
         if (!attempt.Succeeded)
         {
-            logger.Info("Race world generation failed: " + attempt.Message);
+            if (attempt.Cancelled) logger.LogInformation("Race world generation was cancelled.");
+            else AppLog.Failure("Race", "race.world.generation.failed", "Race world generation failed.", attempt.Message, attempt.Exception);
             return RacePanelWorldGenerationResult.Failure(attempt.Message);
         }
 
@@ -961,7 +965,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
         CancellationToken cancellationToken = ResetWorldGenerationCancellation();
         AutoCreateWorldSettings filterSettings =
             RaceWorldSettingsFactory.ToAutoCreateWorldSettings(worldSettings);
-        logger.Info(
+        logger.LogInformation(
             $"Race seed pre-filter starting with {concurrency} workers " +
             $"({Environment.ProcessorCount} logical processors, 80% policy).");
         int evaluatedSeeds = 0;
@@ -987,7 +991,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
             evaluatedSeeds += batch.EvaluatedCount;
             if (batch.HasFatalError)
             {
-                logger.Info("Race seed pre-filter failed: " + batch.FatalError);
+                AppLog.Failure("Race", "race.filter.failed", "Race seed filtering failed.", batch.FatalError);
                 return RacePanelWorldGenerationResult.Failure(batch.FatalError);
             }
 
@@ -1014,7 +1018,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
                         reuseWorldGenerationCancellation: true);
                 if (worldAttempt.Succeeded)
                 {
-                    logger.Info(
+                    logger.LogInformation(
                         $"Race world generated after {generationAttempt} parallel pre-filter attempts: " +
                         worldAttempt.WorldPath);
                     progress?.Report(90);
@@ -1023,7 +1027,8 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
 
                 if (!worldAttempt.Retryable)
                 {
-                    logger.Info("Race world generation failed: " + worldAttempt.Message);
+                    if (worldAttempt.Cancelled) logger.LogInformation("Race world generation was cancelled.");
+                    else AppLog.Failure("Race", "race.world.generation.failed", "Race world generation failed.", worldAttempt.Message, worldAttempt.Exception);
                     return RacePanelWorldGenerationResult.Failure(worldAttempt.Message);
                 }
 
@@ -1034,7 +1039,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
         string message = string.IsNullOrWhiteSpace(lastFailure)
             ? $"Race found no verified world after {attempts} generated worlds."
             : $"Race found no verified world after {attempts} generated worlds. Last verification failure: {lastFailure}";
-        logger.Info(message);
+        AppLog.Failure("Race", "race.filter.exhausted", "No acceptable race world was found.", message);
         return RacePanelWorldGenerationResult.Failure(message);
     }
 
@@ -1084,12 +1089,11 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
         }
         catch (OperationCanceledException)
         {
-            return RaceLocalWorldGenerationAttempt.Failure(Localize("World generation cancelled."), retryable: false);
+            return RaceLocalWorldGenerationAttempt.Failure(Localize("World generation cancelled."), retryable: false) with { Cancelled = true };
         }
         catch (Exception ex)
         {
-            logger.Error(ex, "Race world generation failed.");
-            return RaceLocalWorldGenerationAttempt.Failure(ex.Message, retryable: false);
+            return RaceLocalWorldGenerationAttempt.Failure(ex.Message, retryable: false) with { Exception = ex };
         }
     }
 
@@ -1121,7 +1125,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
             }
             catch (Exception ex) when (IsRaceConnectionExitException(ex))
             {
-                logger.Info("Race leave room failed; leaving local room state. " + ex.Message);
+                logger.LogInformation("Race leave room failed; leaving local room state. " + ex.Message);
                 await session.LeaveLocalAsync(DisposeRaceSessionTimeout);
             }
 
@@ -1232,7 +1236,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
             }
             catch (Exception ex) when (ex is IOException or InvalidOperationException or OperationCanceledException or ObjectDisposedException)
             {
-                logger.Error(ex, "Race determinism reset failed.");
+                logger.LogError(ex, "Race determinism reset failed.");
                 MarkPackageUnavailable(state, ex.Message);
                 progressTransport.Clear();
                 return;
@@ -1240,7 +1244,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
 
             if (!reset.Succeeded)
             {
-                logger.Info("Race determinism reset failed: " + reset.Message);
+            logger.LogError("Race determinism reset failed: {Detail}", reset.Message);
                 MarkPackageUnavailable(state, reset.Message);
                 progressTransport.Clear();
                 return;
@@ -1295,7 +1299,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
         }
         catch (Exception ex)
         {
-            logger.Error(ex, "Race host world preparation shutdown failed.");
+            logger.LogError(ex, "Race host world preparation shutdown failed.");
         }
         UnlockRaceWorldForDispose();
         CloseWindows();
@@ -1335,16 +1339,16 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
                     CancellationToken.None,
                     TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
                     TaskScheduler.Default);
-                logger.Info("Race session disposal timed out during shutdown; continuing application exit.");
+                logger.LogInformation("Race session disposal timed out during shutdown; continuing application exit.");
             }
         }
         catch (AggregateException ex)
         {
-            logger.Error(ex.Flatten(), "Race session disposal failed during shutdown.");
+            logger.LogError(ex.Flatten(), "Race session disposal failed during shutdown.");
         }
         catch (Exception ex)
         {
-            logger.Error(ex, "Race session disposal failed during shutdown.");
+            logger.LogError(ex, "Race session disposal failed during shutdown.");
         }
     }
 
@@ -1352,7 +1356,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
     {
         if (!routeOverride.TryCreatePackage(route, out SettingsRouteOverridePackage package, out string detail))
         {
-            logger.Info("Race route override ignored: " + detail);
+            logger.LogInformation("Race route override ignored: " + detail);
             return false;
         }
 
@@ -1366,7 +1370,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
             applyRouteOverride(package);
             if (!routeOverride.MarkApplied(package))
             {
-                logger.Info("Race route override ignored: " + RaceRouteOverrideController.AlreadyAppliedDetail);
+                logger.LogInformation("Race route override ignored: " + RaceRouteOverrideController.AlreadyAppliedDetail);
                 clearRouteOverride();
                 return false;
             }
@@ -1384,7 +1388,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
                 routeOverride.Clear();
             }
 
-            logger.Error(ex, "Race route override application failed.");
+            logger.LogError(ex, "Race route override application failed.");
             return false;
         }
     }
@@ -1465,7 +1469,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
             LogRaceOperationFailure(preparation, "prepare host Race world");
             if (!worldLockResult.Succeeded && IsTerrariaProcessUnavailable(worldLockResult.Message))
             {
-                logger.Info("Race world uploaded; waiting for Terraria to start before installing the hook.");
+                logger.LogInformation("Race world uploaded; waiting for Terraria to start before installing the hook.");
             }
         }
         catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
@@ -1477,7 +1481,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or InvalidOperationException or HttpRequestException or TimeoutException)
         {
-            logger.Error(ex, "Race host world preparation failed.");
+            logger.LogError(ex, "Race host world preparation failed.");
             if (IsCurrentPackage(state))
             {
                 RaceOperationResult<RaceRoomState> failure = await session.UpdatePreparationStatusAsync(
@@ -1737,12 +1741,12 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
                 kind).ConfigureAwait(false);
             if (!result.Succeeded)
             {
-                logger.Info("Race in-game message was not shown: " + result.Message);
+                logger.LogInformation("Race in-game message was not shown: " + result.Message);
             }
         }
         catch (Exception ex)
         {
-            logger.Error(ex, "Race in-game message failed.");
+            logger.LogError(ex, "Race in-game message failed.");
         }
     }
 
@@ -1780,7 +1784,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
             return;
         }
 
-        logger.Info(
+        logger.LogInformation(
             $"Race room resume failed. Room={failure.RoomCode} " +
             $"Error={failure.ErrorCode} Message={failure.Message}.");
         form?.UpdateRaceState(session.State);
@@ -1960,7 +1964,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
 
             if (!started.Succeeded)
             {
-                logger.Info("Race synchronized start could not return to the menu, show the countdown, and enter the assigned world: " + started.Message);
+                AppLog.Failure("Race", "race.start.failed", "Could not complete the synchronized race start.", started.Message);
             }
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
@@ -1968,7 +1972,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
         }
         catch (Exception ex) when (ex is IOException or InvalidOperationException or TimeoutException)
         {
-            logger.Error(ex, "Race synchronized start failed.");
+            logger.LogError(ex, "Race synchronized start failed.");
         }
         finally
         {
@@ -2079,7 +2083,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
             }
             catch (Exception ex) when (IsRaceConnectionExitException(ex))
             {
-                logger.Info("Race mark ready for existing world failed: " + ex.Message);
+                logger.LogInformation("Race mark ready for existing world failed: " + ex.Message);
             }
         });
     }
@@ -2129,7 +2133,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
                 }
                 catch (Exception ex) when (IsRaceConnectionExitException(ex))
                 {
-                    logger.Info("Race local room cleanup after remote exit failed: " + ex.Message);
+                    logger.LogInformation("Race local room cleanup after remote exit failed: " + ex.Message);
                 }
             }
 
@@ -2162,7 +2166,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
         }
         catch (Exception ex) when (ex is InvalidOperationException or IOException or HttpRequestException or TimeoutException)
         {
-            logger.Error(ex, "Race automatic world download failed.");
+            logger.LogError(ex, "Race automatic world download failed.");
             if (session.State?.PackageRevision == state.PackageRevision)
             {
                 _ = await session.UpdatePreparationStatusAsync(
@@ -2248,7 +2252,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
             string error = string.IsNullOrWhiteSpace(detail)
                 ? "The Race world identity could not be read."
                 : detail;
-            logger.Info("Race world lock rejected the world file: " + error);
+            AppLog.Failure("Race", "race.world.invalid", "The race world file was rejected.", error);
             return TerrariaRaceWorldLockResult.Failure(error);
         }
 
@@ -2297,7 +2301,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
         {
-            logger.Info("Race Plantera bulb plan failed: " + ex.Message);
+            logger.LogInformation("Race Plantera bulb plan failed: " + ex.Message);
             return TerrariaRaceWorldLockResult.Failure("The Race world could not be analyzed for Plantera bulb placement: " + ex.Message);
         }
         finally
@@ -2306,7 +2310,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
         }
         if (!result.Succeeded)
         {
-            logger.Info("Race world lock failed: " + result.Message);
+            AppLog.Failure("Race", "race.world.lock.failed", "Could not lock the race world.", result.Message);
             if (scheduleRetry && IsTerrariaProcessUnavailable(result.Message))
             {
                 ScheduleWorldLockRetry(worldPath, determinism);
@@ -2385,7 +2389,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
 
     private void HandleWorldLockHealthFailed(TerrariaRaceWorldLockResult failure)
     {
-        logger.Info("Race hook heartbeat failed: " + failure.Message);
+        logger.LogWarning("Race hook heartbeat failed; reattachment will be attempted. Detail={Detail}", failure.Message);
         if (!disposed && session.State is RaceRoomState state)
         {
             if (IsTerrariaProcessUnavailable(failure.Message) &&
@@ -2468,7 +2472,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
                 }
                 catch (Exception ex) when (IsRaceConnectionExitException(ex))
                 {
-                    logger.Info("Race hook retry stopped: " + ex.Message);
+                    logger.LogInformation("Race hook retry stopped: " + ex.Message);
                     return;
                 }
             }
@@ -2509,16 +2513,16 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
             TerrariaRaceWorldLockResult result = await worldLock.UnlockAsync().ConfigureAwait(false);
             if (!result.Succeeded)
             {
-                logger.Info("Race world unlock failed: " + result.Message);
+            logger.LogError("Race world unlock failed: {Detail}", result.Message);
             }
         }
         catch (OperationCanceledException) when (timeout.IsCancellationRequested)
         {
-            logger.Info("Race world unlock timed out; local room cleanup will continue.");
+            logger.LogError("Race world unlock timed out; local room cleanup will continue.");
         }
         catch (Exception ex) when (ex is IOException or InvalidOperationException or OperationCanceledException or ObjectDisposedException)
         {
-            logger.Error(ex, "Race world unlock failed.");
+            logger.LogError(ex, "Race world unlock failed.");
         }
         finally
         {
@@ -2536,12 +2540,12 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
             Task unlock = worldLock.UnlockAsync();
             if (!unlock.Wait(DisposeWorldLockTimeout))
             {
-                logger.Info("Race world unlock timed out during shutdown; restarting Terraria clears the lock.");
+                logger.LogError("Race world unlock timed out during shutdown; restarting Terraria clears the lock.");
             }
         }
         catch (Exception ex) when (ex is AggregateException or IOException or InvalidOperationException or ObjectDisposedException)
         {
-            logger.Error(ex, "Race world unlock failed during shutdown.");
+            logger.LogError(ex, "Race world unlock failed during shutdown.");
         }
     }
 
@@ -2564,7 +2568,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
         }
         catch (Exception ex)
         {
-            logger.Error(ex, "Race timer reset after receiving world failed.");
+            logger.LogError(ex, "Race timer reset after receiving world failed.");
         }
     }
 
@@ -2922,7 +2926,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
         string detail = string.IsNullOrWhiteSpace(result.Message)
             ? result.ErrorCode
             : $"{result.ErrorCode}: {result.Message}";
-        logger.Info($"Race {operation} failed: {detail}");
+        AppLog.Failure("Race", "race.operation.failed", "Race operation failed: " + operation, detail);
     }
 
     private void MarkPackageUnavailable(RaceRoomState state, string error)
@@ -2945,7 +2949,7 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
             }
             catch (Exception ex) when (IsRaceConnectionExitException(ex))
             {
-                logger.Info("Race package-unavailable update failed: " + ex.Message);
+                logger.LogInformation("Race package-unavailable update failed: " + ex.Message);
             }
         });
     }
@@ -3049,6 +3053,8 @@ internal sealed partial class RaceShell : IRacePanelShell, IDisposable
         string Message,
         bool Retryable)
     {
+        public bool Cancelled { get; init; }
+        public Exception? Exception { get; init; }
         public static RaceLocalWorldGenerationAttempt Success(string worldPath)
         {
             return new RaceLocalWorldGenerationAttempt(true, worldPath, string.Empty, false);

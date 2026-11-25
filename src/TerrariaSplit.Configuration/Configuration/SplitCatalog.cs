@@ -239,11 +239,6 @@ public static class SplitCatalog
         return BossByTargetId.TryGetValue(targetId, out descriptor!);
     }
 
-    public static bool IsMoonLordSplit(SplitDefinition definition)
-    {
-        return definition.ContainsTarget(MoonLord);
-    }
-
     public static string CreateItemTargetId(int itemId)
     {
         return $"item:{itemId}";

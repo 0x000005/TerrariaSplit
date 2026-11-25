@@ -109,7 +109,7 @@ internal sealed class PracticeWorldSelectorForm : Form
         PracticeWorldSlot slot = slots[index];
         if (!slot.IsConfigured)
         {
-            FileAppLogger.Instance.Info($"Practice world slot {index + 1} is not configured.");
+            AppLog.ForSource().LogInformation($"Practice world slot {index + 1} is not configured.");
             DialogResult = DialogResult.Cancel;
             Close();
             return;

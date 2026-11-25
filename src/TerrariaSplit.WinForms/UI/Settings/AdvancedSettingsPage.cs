@@ -19,6 +19,7 @@ internal sealed class AdvancedSettingsPage : SettingsPageBase
     private readonly ThemedDropDownList readyUiControlHzBox = new();
     private readonly ThemedDropDownList runningStatusPaintHzBox = new();
     private readonly ThemedDropDownList timerOverlayRefreshHzBox = new();
+    private readonly ThemedDropDownList minimumLogLevelBox = new();
 
     public override SettingsPageId Id => SettingsPageId.Advanced;
 
@@ -35,6 +36,7 @@ internal sealed class AdvancedSettingsPage : SettingsPageBase
     internal ThemedDropDownList ReadyUiControlHzBox => readyUiControlHzBox;
     internal ThemedDropDownList RunningStatusPaintHzBox => runningStatusPaintHzBox;
     internal ThemedDropDownList TimerOverlayRefreshHzBox => timerOverlayRefreshHzBox;
+    internal ThemedDropDownList MinimumLogLevelBox => minimumLogLevelBox;
 
     protected override Control BuildPage(SettingsPageContext context)
     {
@@ -68,6 +70,8 @@ internal sealed class AdvancedSettingsPage : SettingsPageBase
         }
 
         settings.Advanced ??= new AdvancedSettings();
+        settings.Advanced.MinimumLogLevel = DiagnosticLogLevels.All.ElementAtOrDefault(minimumLogLevelBox.SelectedIndex)
+            ?? DiagnosticLogLevels.Default;
         settings.Advanced.EnableManualSplit = enableManualSplitBox.Checked;
         settings.Hotkeys.ManualSplitKey = manualSplitKeyBox.Hotkey.ToString();
         settings.Advanced.EnableTerrariaUiScalePatch = enableTerrariaUiScalePatchBox.Checked;
@@ -184,6 +188,20 @@ internal sealed class AdvancedSettingsPage : SettingsPageBase
         Factory.AddSettingRow(performanceGrid, "Main timer refresh rate", timerOverlayRefreshHzBox);
         SettingsUiFactory.AddSectionControl(performanceSection, performanceGrid);
         SettingsUiFactory.AddSection(parent, performanceSection);
+
+        minimumLogLevelBox.Dock = DockStyle.Fill;
+        foreach (string level in DiagnosticLogLevels.All)
+            minimumLogLevelBox.Items.Add(level == DiagnosticLogLevels.None ? Context.Localize("No logging") : level);
+        minimumLogLevelBox.SelectedIndex = DiagnosticLogLevels.All.ToList().IndexOf(
+            DiagnosticLogLevels.Normalize(Draft.Advanced?.MinimumLogLevel));
+        TableLayoutPanel loggingSection = Factory.CreateSection("Logging");
+        TableLayoutPanel loggingGrid = Factory.CreateTwoColumnGrid(280f);
+        Factory.AddSettingRow(loggingGrid, "Minimum log level", minimumLogLevelBox);
+        SettingsUiFactory.AddSectionControl(loggingSection, loggingGrid);
+        Button exportDiagnostics = Factory.CreateSmallButton("Export diagnostics");
+        exportDiagnostics.Click += async (_, _) => await DiagnosticExportDialog.ExportAsync(Owner);
+        SettingsUiFactory.AddSectionControl(loggingSection, Factory.CreateButtonPanel(exportDiagnostics));
+        SettingsUiFactory.AddSection(parent, loggingSection);
     }
 
     private static void ConfigureCheckBox(CheckBox checkBox, bool selected)

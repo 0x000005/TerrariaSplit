@@ -10,6 +10,7 @@ internal static class ApplicationFlowTests
         yield return TestCase.Sync("manual split starts an idle run without completing a split", TestSuite.Flow, ManualSplitStartsIdleRun);
         yield return TestCase.Sync("manual split completes exactly one advanced split at the timer time without inventing conditions", TestSuite.Flow, ManualSplitJourney);
         yield return TestCase.Sync("run finalization emits persistence effects and commits personal best settings only after every snapshot succeeds", TestSuite.Flow, RunFinalizationJourney);
+        yield return TestCase.Sync("cumulative personal best uses the final enabled main split and preserves eligibility and snapshot commit rules", TestSuite.Flow, CumulativePersonalBestEndpointJourney);
     }
 
     private static void CommandJourney()
@@ -384,8 +385,11 @@ internal static class ApplicationFlowTests
         FinalizePersonalBestEffect failedPersistence = reset.Effects.OfType<FinalizePersonalBestEffect>().Single();
         Check.True(failedPersistence.Plan.RequiresConfirmation);
         Check.True(failedPersistence.Plan.SegmentSnapshot is not null);
+        Check.True(failedPersistence.Plan.TimeSnapshot is not null);
         string segmentKey = failedPersistence.Plan.SegmentBestValues!.Keys.Single();
         string originalSegmentValue = controller.BaseSettings.Comparison.PersonalBestSegmentTimes[segmentKey];
+        string timeKey = failedPersistence.Plan.PersonalBestTimes!.Keys.Single();
+        string originalTimeValue = controller.BaseSettings.Comparison.PersonalBestTimes[timeKey];
 
         OperationResult snapshotFailure = OperationResult.Failure("Injected personal best snapshot failure.");
         ApplicationUpdate failed = controller.HandleSystemEvent(new PersonalBestFinalizationSystemEvent(
@@ -396,6 +400,7 @@ internal static class ApplicationFlowTests
                 TimeSnapshot: null,
                 Failures: [snapshotFailure])));
         Check.Equal(originalSegmentValue, controller.BaseSettings.Comparison.PersonalBestSegmentTimes[segmentKey]);
+        Check.Equal(originalTimeValue, controller.BaseSettings.Comparison.PersonalBestTimes[timeKey]);
         Check.Equal(0, failed.Effects.OfType<SaveSettingsEffect>().Count());
         Check.Equal(1, failed.Effects.OfType<ShowPersistenceFailureEffect>().Count());
 
@@ -412,21 +417,160 @@ internal static class ApplicationFlowTests
                 request.Splits,
                 StringComparer.OrdinalIgnoreCase)
         };
+        var timeSnapshot = new ReferenceSplitSet
+        {
+            Name = "Finalization_Test_Time_Snapshot",
+            Splits = new Dictionary<string, string>(successfulPersistence.Plan.TimeSnapshot!.Splits, StringComparer.OrdinalIgnoreCase)
+        };
         ApplicationUpdate succeeded = controller.HandleSystemEvent(new PersonalBestFinalizationSystemEvent(
             new PersonalBestFinalizationResult(
                 successfulPersistence.Plan.PlanId,
                 Approved: true,
                 snapshot,
-                TimeSnapshot: null,
+                TimeSnapshot: timeSnapshot,
                 Failures: [])));
 
         Check.Equal(
             successfulPersistence.Plan.SegmentBestValues![segmentKey],
             controller.BaseSettings.Comparison.PersonalBestSegmentTimes[segmentKey]);
         Check.Equal(snapshot.Name, controller.BaseSettings.Comparison.ActivePersonalBestSegmentSet);
+        Check.Equal(successfulPersistence.Plan.PersonalBestTimes![timeKey], controller.BaseSettings.Comparison.PersonalBestTimes[timeKey]);
+        Check.Equal(timeSnapshot.Name, controller.BaseSettings.Comparison.ActivePersonalBestTimeSet);
         Check.Equal(1, succeeded.Effects.OfType<SaveSettingsEffect>().Count());
         Check.True(succeeded.DisplayInvalidations.Any(
             item => item.Level == DisplayRefreshLevel.SplitProgress));
+    }
+
+    private static void CumulativePersonalBestEndpointJourney()
+    {
+        (string Name, bool MoonLordFirst, int First, int Finish, int? PreviousFinish, bool Update)[] cases =
+        [
+            ("route without Moon Lord", false, 10, 20, 30, true),
+            ("first cumulative record", false, 10, 20, null, true),
+            ("Moon Lord improved but route finish did not", true, 8, 35, 30, false),
+            ("Moon Lord slowed but route finish improved", true, 12, 25, 30, true),
+            ("equal route finish", false, 10, 30, 30, false),
+            ("slower route finish", false, 10, 35, 30, false)
+        ];
+        foreach (var sample in cases)
+        {
+            AppSettings settings = CreateFinalMainRouteSettings(sample.MoonLordFirst);
+            foreach (SplitConditionDataRow row in SplitConditionDataRows.ForSplit(settings, "pb-finish"))
+                settings.Comparison.PersonalBestTimes[row.Key] = sample.PreviousFinish is int previous
+                    ? TimeText.FormatRecord(TimeSpan.FromSeconds(previous)) : string.Empty;
+            SplitStatusSnapshot[] statuses = CreateFinalMainStatuses(settings, sample.First, sample.Finish);
+            Check.Equal(3, statuses.Length);
+            var finalizer = new RunFinalizer();
+            PersonalBestFinalizationPlan? plan = finalizer.CreatePersonalBestPlan(1, settings, settings, statuses);
+            if ((plan?.TimeSnapshot is not null) != sample.Update)
+                throw new InvalidOperationException($"{sample.Name}: cumulative PB update did not match the final main split comparison.");
+            if (!sample.Update) continue;
+
+            PersonalBestSnapshotRequest request = plan!.TimeSnapshot!;
+            Check.Equal("Route Finish", request.BossName);
+            Check.Equal(TimeText.FormatRecord(TimeSpan.FromSeconds(sample.Finish)), request.NewTime);
+            Check.Equal(sample.PreviousFinish is int oldFinish ? TimeText.FormatRecord(TimeSpan.FromSeconds(oldFinish)) : string.Empty, request.PreviousTime);
+            SplitDefinition finish = statuses.Single(status => status.Definition.Id == "pb-finish").Definition;
+            Check.True(SplitConditionDataRows.TryGetSplitTime(settings, request.Splits, finish, out TimeSpan savedFinish));
+            Check.Equal(TimeSpan.FromSeconds(sample.Finish), savedFinish);
+            Check.Equal(2, request.Splits.Count);
+
+            var segmentSnapshot = plan.SegmentSnapshot is { } segment ? new ReferenceSplitSet
+            {
+                Name = "Segment Snapshot", Splits = new(segment.Splits, StringComparer.OrdinalIgnoreCase)
+            } : null;
+            var oldValues = new Dictionary<string, string>(settings.Comparison.PersonalBestTimes);
+            Check.False(RunFinalizer.TryApplySuccessfulPlan(settings, plan,
+                new(plan.PlanId, Approved: true, segmentSnapshot, TimeSnapshot: null, Failures: []), out var failures));
+            Check.True(failures.Count > 0);
+            Check.Sequence(oldValues.OrderBy(pair => pair.Key), settings.Comparison.PersonalBestTimes.OrderBy(pair => pair.Key));
+            var timeSnapshot = new ReferenceSplitSet { Name = "Time Snapshot", Splits = new(request.Splits, StringComparer.OrdinalIgnoreCase) };
+            Check.True(RunFinalizer.TryApplySuccessfulPlan(settings, plan,
+                new(plan.PlanId, Approved: true, segmentSnapshot, timeSnapshot, Failures: []), out failures));
+            Check.Equal(0, failures.Count);
+            Check.Sequence(request.Splits.OrderBy(pair => pair.Key), settings.Comparison.PersonalBestTimes.OrderBy(pair => pair.Key));
+        }
+
+        AppSettings moonLordFinish = CreateFinalMainRouteSettings(moonLordFirst: true);
+        (moonLordFinish.Route.SplitRoute[0], moonLordFinish.Route.SplitRoute[2]) =
+            (moonLordFinish.Route.SplitRoute[2], moonLordFinish.Route.SplitRoute[0]);
+        SettingsNormalizer.Normalize(moonLordFinish);
+        foreach (SplitConditionDataRow row in SplitConditionDataRows.ForSplit(moonLordFinish, "pb-first"))
+            moonLordFinish.Comparison.PersonalBestTimes[row.Key] = TimeText.FormatRecord(TimeSpan.FromSeconds(10));
+        PersonalBestSnapshotRequest moonLordRequest = new RunFinalizer().CreatePersonalBestPlan(1, moonLordFinish, moonLordFinish,
+            CreateFinalMainStatuses(moonLordFinish, 8, 5))!.TimeSnapshot!;
+        Check.Equal(TimeText.FormatRecord(TimeSpan.FromSeconds(8)), moonLordRequest.NewTime);
+
+        AppSettings eligible = CreateFinalMainRouteSettings(moonLordFirst: false);
+        SplitStatusSnapshot[] complete = CreateFinalMainStatuses(eligible, 10, 20);
+        var eligibilityFinalizer = new RunFinalizer();
+        foreach (int index in Enumerable.Range(0, complete.Length).Where(index => !complete[index].Definition.IsAttached))
+        {
+            foreach (bool skipped in new[] { false, true })
+            {
+                SplitStatusSnapshot[] incomplete = complete.ToArray();
+                incomplete[index] = incomplete[index] with { Time = skipped ? incomplete[index].Time : null, IsSkipped = skipped };
+                Check.True(eligibilityFinalizer.CreatePersonalBestPlan(1, eligible, eligible, incomplete)?.TimeSnapshot is null);
+            }
+        }
+        Check.True(eligibilityFinalizer.CreatePersonalBestPlan(1, eligible, eligible, [])?.TimeSnapshot is null);
+        Check.True(eligibilityFinalizer.CreatePersonalBestPlan(1, eligible, eligible,
+            complete.Where(status => status.Definition.IsAttached).ToArray())?.TimeSnapshot is null);
+        eligible.Comparison.AutoUpdatePersonalBestData = false;
+        Check.True(eligibilityFinalizer.CreatePersonalBestPlan(1, eligible, eligible, complete) is null);
+
+        AppSettings multiple = CreateFinalMainRouteSettings(moonLordFirst: false);
+        multiple.Route.SplitRoute.Single(entry => entry.Id == "pb-finish").Condition = SplitCondition.All([
+            SplitCondition.Fact("event:pb-finish-a"), SplitCondition.Fact("event:pb-finish-b")]);
+        SettingsNormalizer.Normalize(multiple);
+        var previousTimes = new[] { 25, 30 };
+        SplitConditionDataRow[] rows = SplitConditionDataRows.ForSplit(multiple, "pb-finish").ToArray();
+        for (int index = 0; index < rows.Length; index++)
+            multiple.Comparison.PersonalBestTimes[rows[index].Key] = TimeText.FormatRecord(TimeSpan.FromSeconds(previousTimes[index]));
+        SplitStatusSnapshot[] multiStatuses = CreateFinalMainStatuses(multiple, 10, 28);
+        int finishIndex = Array.FindIndex(multiStatuses, status => status.Definition.Id == "pb-finish");
+        multiStatuses[finishIndex] = multiStatuses[finishIndex] with
+        {
+            FactCompletionTimes = new Dictionary<string, TimeSpan>
+            {
+                ["event:pb-finish-a"] = TimeSpan.FromSeconds(20), ["event:pb-finish-b"] = TimeSpan.FromSeconds(28)
+            }
+        };
+        PersonalBestSnapshotRequest multiRequest = eligibilityFinalizer.CreatePersonalBestPlan(1, multiple, multiple, multiStatuses)!.TimeSnapshot!;
+        Check.Equal(TimeText.FormatRecord(TimeSpan.FromSeconds(28)), multiRequest.NewTime);
+        Check.Equal(TimeText.FormatRecord(TimeSpan.FromSeconds(30)), multiRequest.PreviousTime);
+        Check.Equal(TimeText.FormatRecord(TimeSpan.FromSeconds(20)), multiRequest.Splits[rows[0].Key]);
+        Check.Equal(TimeText.FormatRecord(TimeSpan.FromSeconds(28)), multiRequest.Splits[rows[1].Key]);
+    }
+
+    internal static AppSettings CreateFinalMainRouteSettings(bool moonLordFirst)
+    {
+        AppSettings settings = AppSettingsDefaults.Create();
+        settings.Route.SplitRoute =
+        [
+            new() { Id = "pb-first", DisplayName = "First Main", Condition = SplitCondition.Fact(
+                moonLordFirst ? "boss:moon-lord:defeated" : "event:pb-first") },
+            new() { Id = "pb-attached", IsAttached = true, Condition = SplitCondition.Fact("event:pb-attached") },
+            new() { Id = "pb-finish", DisplayName = "Route Finish", Condition = SplitCondition.Fact("event:pb-finish") },
+            new() { Id = "pb-disabled", Enabled = false, Condition = SplitCondition.Fact("event:pb-disabled") }
+        ];
+        settings.Comparison.AutoUpdatePersonalBestData = true;
+        settings.Comparison.PersonalBestTimes.Clear();
+        SettingsNormalizer.Normalize(settings);
+        foreach (SplitConditionDataRow row in SplitConditionDataRows.Build(settings))
+            settings.Comparison.PersonalBestTimes[row.Key] = TimeText.FormatRecord(TimeSpan.FromSeconds(row.SplitId == "pb-first" ? 10 : 30));
+        return settings;
+    }
+
+    internal static SplitStatusSnapshot[] CreateFinalMainStatuses(AppSettings settings, int firstSeconds, int? finishSeconds)
+    {
+        return SplitCatalog.Build(settings).Select(definition =>
+        {
+            TimeSpan? time = definition.Id == "pb-first" ? TimeSpan.FromSeconds(firstSeconds)
+                : definition.Id == "pb-finish" && finishSeconds.HasValue ? TimeSpan.FromSeconds(finishSeconds.Value) : null;
+            return new SplitStatusSnapshot(definition, time, IsSkipped: false,
+                CompletedFactKeys: time.HasValue ? definition.Condition.GetFactConditions().Select(condition => condition.FactKey).ToArray() : []);
+        }).ToArray();
     }
 
     private static void PublishRuntimeStatuses(

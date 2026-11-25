@@ -2,17 +2,15 @@ namespace TerrariaSplit.UI;
 
 internal static class AutomationFailureReport
 {
-    public static string BuildSummary(AutomationResult result)
+    public static string Build(AutomationResult result)
     {
         ArgumentNullException.ThrowIfNull(result);
 
+        if (result.Fault is not null) return result.Fault.ToReport();
         List<string> sections = [];
         AddSection(
             sections,
-            "Failure type",
-            result.Exception is null
-                ? "Automation step failure"
-                : "Internal code exception");
+            "Failure code", result.FailureCode);
         AddSection(sections, "Reason", result.UserMessage);
         if (!string.Equals(
                 result.DiagnosticMessage?.Trim(),
@@ -22,47 +20,9 @@ internal static class AutomationFailureReport
             AddSection(sections, "Diagnostic", result.DiagnosticMessage);
         }
 
-        if (sections.Count == 1)
-        {
-            AddSection(sections, "Diagnostic", "No additional failure details were provided.");
-        }
+        if (result.Exception is not null) AddSection(sections, "Exception", result.Exception.ToString());
 
         return string.Join(Environment.NewLine + Environment.NewLine, sections);
-    }
-
-    public static bool TryBuild(
-        AutomationResult result,
-        out string report)
-    {
-        ArgumentNullException.ThrowIfNull(result);
-        if (!result.UseDetailedFailureReport)
-        {
-            report = string.Empty;
-            return false;
-        }
-
-        List<string> sections = [];
-        AddSection(
-            sections,
-            "Failure type",
-            result.Exception is null
-                ? "Advanced seed pre-screen failure"
-                : "Advanced seed pre-screen internal exception");
-        if (result.Exception is not null)
-        {
-            AddSection(sections, "Exception", result.Exception.ToString());
-        }
-        AddSection(sections, "Diagnostic", result.DiagnosticMessage);
-        if (!string.Equals(
-                result.DiagnosticMessage?.Trim(),
-                result.UserMessage?.Trim(),
-                StringComparison.Ordinal))
-        {
-            AddSection(sections, "User message", result.UserMessage);
-        }
-
-        report = string.Join(Environment.NewLine + Environment.NewLine, sections);
-        return true;
     }
 
     private static void AddSection(

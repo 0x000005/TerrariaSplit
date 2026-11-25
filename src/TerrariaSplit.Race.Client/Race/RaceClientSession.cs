@@ -4,6 +4,9 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.SignalR.Client;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.DependencyInjection;
 using TerrariaSplit.Race.Contracts;
 
 namespace TerrariaSplit.Race.Client;
@@ -25,26 +28,31 @@ public sealed class RaceClientSession : IAsyncDisposable
         TimeSpan.FromSeconds(8)
     ];
     private readonly HttpClient httpClient;
+    private readonly ILoggerFactory loggerFactory;
+    private readonly ILogger logger;
     private readonly Func<TimeSpan, CancellationToken, Task> uploadDelayAsync;
     private HubConnection? connection;
     private RaceRoomState? state;
     private string serverUrl = string.Empty;
     private string lastPackageRevision = string.Empty;
 
-    public RaceClientSession()
+    public RaceClientSession(ILoggerFactory? loggerFactory = null)
         : this(
             new HttpClient(),
             string.Empty,
-            static (delay, cancellationToken) => Task.Delay(delay, cancellationToken))
+            static (delay, cancellationToken) => Task.Delay(delay, cancellationToken), loggerFactory)
     {
     }
 
     internal RaceClientSession(
         HttpClient httpClient,
         string serverUrl,
-        Func<TimeSpan, CancellationToken, Task> uploadDelayAsync)
+        Func<TimeSpan, CancellationToken, Task> uploadDelayAsync,
+        ILoggerFactory? loggerFactory = null)
     {
         this.httpClient = httpClient;
+        this.loggerFactory = loggerFactory ?? NullLoggerFactory.Instance;
+        logger = this.loggerFactory.CreateLogger<RaceClientSession>();
         this.serverUrl = serverUrl.TrimEnd('/');
         this.uploadDelayAsync = uploadDelayAsync;
     }
@@ -108,10 +116,11 @@ public sealed class RaceClientSession : IAsyncDisposable
         }
 
         serverUrl = normalized;
-        HubConnection nextConnection = new HubConnectionBuilder()
+        var connectionBuilder = new HubConnectionBuilder()
             .WithUrl(CombineHubUrl(normalized))
-            .WithAutomaticReconnect(RaceReconnectRetryPolicy.Instance)
-            .Build();
+            .WithAutomaticReconnect(RaceReconnectRetryPolicy.Instance);
+        connectionBuilder.Services.AddSingleton(loggerFactory);
+        HubConnection nextConnection = connectionBuilder.Build();
         nextConnection.On<RacePackageChanged>(
             "RacePackageChanged",
             update => ApplyPackageChanged(nextConnection, update));
@@ -865,14 +874,21 @@ public sealed class RaceClientSession : IAsyncDisposable
         TRequest request,
         CancellationToken cancellationToken)
     {
+        using var scope = logger.BeginScope(new Dictionary<string, object?>
+        {
+            ["requestId"] = Guid.NewGuid().ToString("N"), ["method"] = methodName, ["room"] = RoomCode
+        });
+        logger.LogDebug("Race request started. Method={Method}", methodName);
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(HubInvokeTimeout);
         try
         {
-            return await RequiredConnection.InvokeAsync<RaceOperationResult<RaceRoomState>>(
+            RaceOperationResult<RaceRoomState> result = await RequiredConnection.InvokeAsync<RaceOperationResult<RaceRoomState>>(
                 methodName,
                 request,
                 timeout.Token);
+            logger.LogDebug("Race request completed. Method={Method}, Succeeded={Succeeded}, Detail={Detail}", methodName, result.Succeeded, result.Message);
+            return result;
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
@@ -1245,6 +1261,9 @@ public sealed class RaceClientSession : IAsyncDisposable
             return;
         }
 
+        logger.Log(next is RaceServerConnectionStatus.Reconnecting or RaceServerConnectionStatus.ConnectionFailed
+            ? LogLevel.Warning : LogLevel.Information,
+            "Race connection state changed. Previous={Previous}, Current={Current}", ConnectionStatus, next);
         ConnectionStatus = next;
         ConnectionStatusChanged?.Invoke(this, EventArgs.Empty);
     }

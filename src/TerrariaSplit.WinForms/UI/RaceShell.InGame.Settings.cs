@@ -293,7 +293,7 @@ internal sealed partial class RaceShell
         }
         catch (Exception ex) when (ex is IOException or InvalidOperationException or ObjectDisposedException)
         {
-            logger.Info("Race menu close failed: " + ex.Message);
+            logger.LogInformation("Race menu close failed: " + ex.Message);
         }
     }
 
@@ -328,9 +328,9 @@ internal sealed partial class RaceShell
 
         _ = CloseInGameMenuBestEffortAsync();
         string detail = string.IsNullOrWhiteSpace(message)
-            ? Localize("Unable to open the Terraria Race page.")
+            ? "Unable to open the Terraria race page."
             : message;
-        logger.Info("Terraria Race page failed: " + detail);
+        AppLog.Failure("Race", "race.menu.failed", "Could not open the in-game race page.", detail);
         _ = PostOwnerThread(() => ReportInGameMenuFailureOnOwnerThread(detail));
     }
 
