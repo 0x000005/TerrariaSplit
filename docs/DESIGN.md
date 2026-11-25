@@ -75,8 +75,9 @@ TerrariaSplit 面向 Terraria 速通、日常分段练习、自动化刷图与�
   - 修改单段时自动保持时间序列单调递增（不得早于前序已完成段，且自动推高后续更早的已完段）；修改总时间时自动将超过总时间的已完成段钳制到总时间；
   - 进入竞速房间后自动禁用编辑。
 - **统计页面（`StatisticsWindow`）**：
-  - 顶部提供 **参考记录** 与 **选定记录**（历史运行列表）双下拉选择器；
-  - 下方表格按路线顺序列出每个分段/子条件的：参考累计、当前/选定累计、参考单段、选定单段、历史累计 PB 与历史单段最佳；多条件主分组以子条件像素图标逐行展开并纵向合并共享单段列。
+  - 顶部提供 **选择一局**（左）与 **参考局**（右）双下拉选择器，下方展示汇总卡（`本局`、`参考`、`PB`、`Sum of Best`）；启用“使用 PB 作为参考时间”时隐藏 `PB` 卡片与表中两列 PB 时间、并将 `本局` 卡片扩为两格宽；单段最佳不完整时隐藏 `Sum of Best` 卡片；参考或本局时间不完整时保留显示 `--`；
+  - 表格按路线顺序呈现 **分段 | 该局累计时间 | 参考累计时间 | 个人最佳累计时间 | 该局单段时间 | 参考单段时间 | 个人最佳单段时间**（不含差值列），各时间列按等宽数字右对齐后整块居中于居中表头下；
+  - 右侧单段时间单元格自动向上合并其上方所有附属分组及同主分组多条件子行直至上一个主分组下方，直接标明完整的一段；动图（`.gif`）与垂直帧序列物品图标仅显示第 1 帧。
 
 ---
 
@@ -128,18 +129,18 @@ TerrariaSplit 面向 Terraria 速通、日常分段练习、自动化刷图与�
 ## 5. 管理窗口 UI 设计系统（Settings / Statistics / Race）
 
 ### 5.1 Windows 11 Fluent 2 Dark 紧凑视觉规范（WPF `UI/Wpf/Theme`）
-所有管理窗口（`SettingsWindow`、`RaceWindow`、`StatisticsWindow`、`PracticeWorldPaletteWindow` 与 `ModernMessageDialog` / `ModernTimeEditDialog`）统一采用基于 WPF 的 **Windows 11 Fluent 2 Dark** 紧凑桌面视觉体系，启用原生 DWM 深色模式、窗口圆角、**Mica**（主窗口）/ **Acrylic**（练习世界面板）背景材质与极简无多余装饰的单套标题栏控件：
+所有管理窗口（`SettingsWindow`、`RaceWindow`、`StatisticsWindow`、`PracticeWorldPaletteWindow` 与 `ModernMessageDialog` / `ModernTimeEditDialog`）统一采用基于 `.NET 10` 官方 `PresentationFramework.Fluent`（`Fluent.Dark.xaml`）底座的 **Windows 11 Fluent 2 Dark** 紧凑桌面视觉体系，启用原生 DWM 深色模式、窗口圆角、**Mica**（主窗口）/ **Acrylic**（练习世界面板）背景材质与极简无多余装饰的单套标题栏控件：
 
 | 语义角色 | 色值 / 材质 | 用途 |
 |---|---|---|
-| `WindowBg` / `Mica` | `#202020` + Win11 Mica（回退纯中性炭灰） | 窗口主画布与无边框自定义标题栏 |
-| `SidebarBg` / `Surface` | `#242424` / `rgba(255,255,255,0.04)` | 左侧导航栏、设置卡片与数据表格表面 |
-| `ControlFill` / `Field` | `rgba(255,255,255,0.05)` / `#1C1C1C` | 按钮、输入框、下拉框与数字框表面 |
+| `WindowBg` / `PageLayerBg` | `#202020` + Win11 Mica（内容区采用不透明中性层启用硬件 ClearType） | 窗口主画布、无边框标题栏与页面背景层 |
+| `SidebarBg` / `Surface` | `#242424` / `#2B2B2B` | 左侧导航栏、设置卡片与数据表格表面 |
+| `ControlFill` / `Field` | `rgba(255,255,255,0.06)` / `#252525` | 按钮、输入框、下拉框与数字框表面 |
 | `Border` / `Divider` | `rgba(255,255,255,0.08)` | 1px 卡片边框、行间分隔线与控件描边 |
 | `Accent` | `#60CDFF`（Hover `#78D6FF` / Pressed `#4CC2FF`） | 主操作按钮、激活态 Toggle、选中导航指示条与焦点下划线 |
-| `TextPrimary` / `TextSecondary` | `#FFFFFF` / `#C5C5C5` | 正文、行标签与次级表头/禁用态文字 |
+| `TextPrimary` / `TextSecondary` | `#FFFFFF` / `#C5C5C5` | 正文、行标签与次级表头/禁用态文字（警告提示直接采用黄字 `#F5C97B`，不额外套框） |
 
-所有 WPF 管理窗口遵循 **紧凑桌面密度令牌**（`TitleBarHeight = 34`、`ControlHeight = 26`、`Toggle = 32×18`、`TableRowHeight = 30`、`NavItemHeight = 28`）与原生 Per-Monitor DPI 矢量缩放；仅保留透明排行榜浮窗 `RaceLeaderboardForm` 沿用 WinForms 渲染与 `UiDpiScale`。
+所有 WPF 管理窗口遵循 **紧凑桌面密度令牌**（`TitleBarHeight = 34`、`ControlHeight = 26`、`Toggle = 36×18`、`SettingRowHeight = 36`、`TableRowHeight = 34`、`TableHeaderHeight = 28`、`NavItemHeight = 30`）、静态清晰字体（`Segoe UI, Microsoft YaHei UI` + 动态高 DPI `TextFormattingMode`）与原生 Per-Monitor DPI 矢量缩放；全站表格除首列外统一表头居中，常规设置行与表格行各自保持统一行高；仅保留透明排行榜浮窗 `RaceLeaderboardForm` 沿用 WinForms 渲染与 `UiDpiScale`。
 
 ### 5.2 主浮层交互入口与 10 页设置信息架构
 - **主浮层右键菜单（`MainFormContextMenuBuilder`）**：

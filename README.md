@@ -1,8 +1,13 @@
 <div align="center">
 
-# TerrariaSplit
 
-**面向 Terraria 速通、练习与联机竞速的 Windows 分段计时器**
+
+
+
+<img src="docs/images/readme-main.png" alt="TerrariaSplit 计时器预览">
+
+<br>
+<br>
 
 <p>
   <img src="https://img.shields.io/badge/Platform-Windows%20x64-0078D6?style=flat-square" alt="Windows x64">
@@ -10,16 +15,10 @@
   <img src="https://img.shields.io/badge/License-MIT-blue?style=flat-square" alt="MIT License">
 </p>
 
-<p>
-  <a href="docs/README.en.md">English</a> ·
-  <strong>简体中文</strong>
-</p>
-
-<img src="docs/images/readme-main.png" alt="TerrariaSplit 计时器预览" width="360">
 
 </div>
 
----
+
 
 **TerrariaSplit** 是一款专为 Terraria 打造的轻量级 Windows 透明分段计时器。进入世界自动起表、击败 Boss 或达成自定义目标自动分片，并内置统计对比、一键创图刷图与多人联机竞速模式，帮助你在单人冲榜、分段练习与好友对战中专注游戏本身。
 

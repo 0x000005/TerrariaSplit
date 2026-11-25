@@ -1,8 +1,10 @@
 <div align="center">
 
-# TerrariaSplit
 
-**A Windows split timer for Terraria speedrunning, practice, and multiplayer races**
+<img src="images/readme-main.png" alt="TerrariaSplit 计时器预览">
+
+<br>
+<br>
 
 <p>
   <img src="https://img.shields.io/badge/Platform-Windows%20x64-0078D6?style=flat-square" alt="Windows x64">
@@ -10,16 +12,10 @@
   <img src="https://img.shields.io/badge/License-MIT-blue?style=flat-square" alt="MIT License">
 </p>
 
-<p>
-  <strong>English</strong> ·
-  <a href="../README.md">简体中文</a>
-</p>
-
-<img src="images/readme-main.png" alt="TerrariaSplit timer preview" width="360">
 
 </div>
 
----
+
 
 **TerrariaSplit** is a lightweight, transparent Windows split timer built for Terraria. It starts automatically when you enter a world, splits on boss kills or custom objectives, tracks statistics and personal bests, automates world creation and seed filtering, and powers synchronized multiplayer races.
 

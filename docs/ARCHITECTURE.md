@@ -389,12 +389,12 @@ sequenceDiagram
   - `HighPrecisionScheduler` 组合 `timeBeginPeriod(1)`、Windows 高分辨率 `WaitableTimer`（`0.1ms` 保护窗）与最后 `1ms` 自旋等待，保证高帧率计时与轮询的低抖动精度。
 
 ### 9.3 WPF Fluent 2 紧凑管理界面体系（Settings / Statistics / Race / Palette / Dialogs）
-- **显示与输入时序**：预创建 HWND 可能提前触发 `Loaded`；窗口初始定位、布局收敛与焦点设置在 `ContentRendered` 执行。快捷键控件禁用输入法组合，并解析系统键、输入法与死键事件中的原始按键；设置输入框在无水平宽度约束时使用固定测量宽度，避免长路径与模板文本撑大页面。
-- **工作区约束**：管理窗口打开及 DPI 变化时按自身所在屏幕工作区约束尺寸与位置，小屏幕下同步放宽最小尺寸，设置页允许横向滚动；模态弹窗跟随所属窗口定位，不再按鼠标所在屏幕重新定位。
+- **显示与输入时序**：预创建 HWND 可能提前触发 `Loaded`；窗口初始定位、布局收敛与焦点设置在 `ContentRendered` 执行（含 `PracticeWorldPaletteWindow` 渲染后激活与 10 槽位主键盘/小键盘数字直选）。`HotkeyCaptureBox` 禁用输入法组合并解析系统键、输入法与死键事件中的原始按键；`LayoutTextBox` 在无水平宽度约束时使用固定测量宽度，避免长路径与模板文本撑大页面。
+- **工作区约束**：管理窗口打开及 DPI 变化时按自身所在屏幕工作区约束尺寸与位置，小屏幕下同步放宽最小尺寸，设置页允许横向滚动；模态弹窗跟随所属窗口定位，不再按鼠标所在屏幕重新定位，并在恢复焦点时尊重原生禁用状态的所有者窗口。
 - **WinForms 浮层与 WPF 管理界面共存**：在 `TerrariaSplit.WinForms.csproj` 中启用 `<UseWPF>true</UseWPF>`（保持 17 个生产项目拓扑与依赖图零变动）；实时透明浮层（`MainForm`、`TimerOverlayForm`、`RaceLeaderboardForm`）继续由 WinForms 分层窗口与 GDI+ 管线渲染，全部交互式管理窗口统一收口于 `UI/Wpf/{Theme,Controls,Converters,Dialogs,Settings,Race,Windows,Interop}`。
-- **Fluent 2 Dark 底座与窗口互操作**：`ModernWindow` 结合 `DwmWindowNative` 提供 Win11 DWM 深色模式、窗口圆角、原生 Mica / Acrylic 背景材质与单套自定义标题栏控件；`ThemeManager` 加载 `Colors.xaml`、`Typography.xaml`、`Density.Compact.xaml` 与 `Controls.xaml` 资源字典；`WpfWindowInterop` 处理 WinForms/WPF 所有者句柄桥接与非模态键盘互操作；所有 WPF 窗口随系统 Per-Monitor DPI 原生矢量缩放（`UiDpiScale` 仅保留服务 WinForms 透明排行榜浮窗 `RaceLeaderboardForm`）。
+- **Fluent 2 Dark 底座与清晰度/互操作**：`ModernWindow` 结合 `DwmWindowNative` 提供 Win11 DWM 深色模式、窗口圆角、原生 Mica / Acrylic 背景材质、动态高 DPI 文本格式模式（高 DPI 用 `Ideal`、100% 用 `Display`）与单套 `Segoe Fluent Icons` 自定义标题栏控件；`WpfThemeManager` 按 `Controls.xaml`（合并 `.NET 10` `PresentationFramework.Fluent/Themes/Fluent.Dark.xaml`）→ `Colors.*.xaml`（不透明中性层支撑硬件 ClearType）→ `Density.*.xaml`（默认 `Density.Compact.xaml`）顺序加载资源字典；`WpfWindowInterop` 处理 WinForms/WPF 所有者句柄桥接与非模态键盘互操作；所有 WPF 窗口随系统 Per-Monitor DPI 原生矢量缩放（`UiDpiScale` 仅保留服务 WinForms 透明排行榜浮窗 `RaceLeaderboardForm`）。
 - **10 页懒加载设置架构**：`SettingsWindow` 注册 10 个 WPF 页面（`General`、`Splits`、`Data`、`Ui`、`Effects`、`Automation`、`Sounds`、`Colors`、`Advanced`、`About`）；页面仅在首次选中时构建，跨页联动通过 `SettingsModelChange` / `ISettingsModelListener` 解耦，保存时按依赖顺序逐页 `Apply` 并穿插 `SettingsNormalizer.Normalize`。
-- **其余桌面窗口**：`RaceWindow`（5 页模块化竞速控制台：`Connection`、`Penalty`、`UI`、`Colors`、`Voice`）、`StatisticsWindow`（支持多条件主组子行像素图标展开与共享单段列纵向合并）、`PracticeWorldPaletteWindow`（Acrylic 命令面板风格练习世界选择器）以及 `ModernMessageDialog` / `ModernTimeEditDialog` 模态对话框。
+- **其余桌面窗口**：`RaceWindow`（5 页模块化竞速控制台：`Connection`、`Penalty`、`UI`、`Colors`、`Voice`）、`StatisticsWindow`（支持附属分组与多条件主分组共享单段列向上纵向合并、PB 参考模式及不完整 SoB 动态折叠、对齐居中时间列与 `WpfIconHelper` 动图/帧序列首帧提取）、`PracticeWorldPaletteWindow`（Acrylic 命令面板风格练习世界选择器）以及 `ModernMessageDialog` / `ModernTimeEditDialog` 模态对话框。
 
 ---
 
