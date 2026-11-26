@@ -60,19 +60,45 @@ internal static class SplitCompletionAnimationRenderer
         }
 
         TimeSpan fadeDuration = GetFadeDuration(duration);
+        TimeSpan listFadeDuration = GetListFadeDuration(duration);
         if (elapsed < fadeDuration)
         {
-            return EaseInOut((float)(elapsed.TotalMilliseconds / fadeDuration.TotalMilliseconds));
+            return EaseInOut((float)((elapsed - listFadeDuration).TotalMilliseconds /
+                (fadeDuration - listFadeDuration).TotalMilliseconds));
         }
 
         TimeSpan fadeOutStart = duration - fadeDuration;
         if (elapsed > fadeOutStart)
         {
-            return EaseInOut((float)((duration - elapsed).TotalMilliseconds / fadeDuration.TotalMilliseconds));
+            return EaseInOut((float)((duration - listFadeDuration - elapsed).TotalMilliseconds /
+                (fadeDuration - listFadeDuration).TotalMilliseconds));
         }
 
         return 1f;
     }
+
+    public static bool IsOutgoingListPhase(TimeSpan elapsed, TimeSpan duration) =>
+        elapsed < GetListFadeDuration(duration);
+
+    public static bool IsIncomingListPhase(TimeSpan elapsed, TimeSpan duration) =>
+        elapsed >= duration - GetListFadeDuration(duration);
+
+    public static float GetListOpacity(TimeSpan elapsed, TimeSpan duration)
+    {
+        TimeSpan listFade = GetListFadeDuration(duration);
+        if (IsOutgoingListPhase(elapsed, duration))
+        {
+            return 1f - EaseInOut((float)(elapsed.TotalMilliseconds / listFade.TotalMilliseconds));
+        }
+
+        return IsIncomingListPhase(elapsed, duration)
+            ? EaseInOut((float)((elapsed - (duration - listFade)).TotalMilliseconds / listFade.TotalMilliseconds))
+            : 0f;
+    }
+
+    // The list uses 40% of each existing fade window; the Boss uses the remaining 60%.
+    private static TimeSpan GetListFadeDuration(TimeSpan duration) =>
+        TimeSpan.FromTicks(GetFadeDuration(duration).Ticks * 2 / 5);
 
     public static SplitCompletionDeltaMotion GetDeltaMotion(
         TimeSpan elapsed,
@@ -157,6 +183,11 @@ internal static class SplitCompletionAnimationRenderer
 
     public static Rectangle GetAnimationBounds(OverlayRenderContext context)
     {
+        if (context.CompletionGeometry is SplitCompletionAnimationGeometry geometry)
+        {
+            return geometry.Bounds;
+        }
+
         (int firstRowIndex, int lastRowIndex) = GetRenderedRowRange(context);
         Rectangle firstVisibleRow = context.Layout.GetRowRect(firstRowIndex);
         Rectangle lastVisibleRow = context.Layout.GetRowRect(lastRowIndex);
@@ -165,6 +196,17 @@ internal static class SplitCompletionAnimationRenderer
         int visibleCenterY = firstVisibleRow.Top + (lastVisibleRow.Bottom - firstVisibleRow.Top) / 2;
         int animationTop = visibleCenterY - animationHeight / 2;
         return new Rectangle(firstVisibleRow.X, animationTop, firstVisibleRow.Width, animationHeight);
+    }
+
+    public static SplitCompletionAnimationGeometry CaptureGeometry(
+        Graphics graphics,
+        OverlayRenderContext context,
+        OverlayRenderResources resources)
+    {
+        OverlayRenderContext naturalContext = context with { CompletionGeometry = null };
+        Rectangle bounds = GetAnimationBounds(naturalContext);
+        return new SplitCompletionAnimationGeometry(bounds,
+            GetCenterX(graphics, naturalContext, resources, naturalContext.Layout.TimerRect, bounds));
     }
 
     private static (int FirstRowIndex, int LastRowIndex) GetRenderedRowRange(OverlayRenderContext context)
@@ -487,6 +529,11 @@ internal static class SplitCompletionAnimationRenderer
         Rectangle timerRect,
         Rectangle listBounds)
     {
+        if (context.CompletionGeometry is SplitCompletionAnimationGeometry geometry)
+        {
+            return geometry.CenterX;
+        }
+
         if (!context.Settings.Overlay.Columns.Timer.Show && !context.Settings.Overlay.Columns.TimerMilliseconds.Show)
         {
             return listBounds.Left + listBounds.Width / 2f;

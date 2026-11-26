@@ -152,6 +152,7 @@ internal sealed partial class MainForm : Form
             contextMenu,
             settings,
             !IsRaceRoomActive,
+            settingsShell.CanSwitchSettingsFile,
             !IsRaceModeActive,
             OpenStatistics,
             raceShell.OpenRaceEntryPoint,

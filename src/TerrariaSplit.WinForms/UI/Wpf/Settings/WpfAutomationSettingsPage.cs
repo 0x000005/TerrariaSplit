@@ -709,8 +709,7 @@ internal sealed class WpfAutomationSettingsPage : WpfSettingsPageBase
         var card = WpfSettingsUi.CreateCard(
             Localize("Load World"),
             out StackPanel body,
-            subtitle: Localize("Load World copies the selected player and/or world files to Terraria's save folder, then opens Single Player."),
-            contentPadding: new Thickness(14, 6, 14, 8));
+            subtitle: Localize("Load World copies the selected player and/or world files to Terraria's save folder, then opens Single Player."));
 
         body.Children.Add(WpfSettingsUi.CreateNoticeBanner(
             Localize("Do not choose players or worlds in the default save location."),

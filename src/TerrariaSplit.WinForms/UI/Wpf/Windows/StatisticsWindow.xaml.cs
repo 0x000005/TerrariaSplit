@@ -41,6 +41,8 @@ internal sealed partial class StatisticsWindow : ModernWindow
 
         ApplyLocalizedLabels();
         ApplyReferenceModeLayout();
+        ShowComparisonToggle.Checked += (_, _) => RefreshTable();
+        ShowComparisonToggle.Unchecked += (_, _) => RefreshTable();
         PopulateSelectors();
         RefreshTable();
     }
@@ -61,7 +63,7 @@ internal sealed partial class StatisticsWindow : ModernWindow
 
     internal string ReferenceTotalDisplayText => KpiReferenceValue.Text;
 
-    internal string TotalDeltaDisplayText => KpiDeltaText.Text;
+    internal string ReferenceTotalDeltaDisplayText => KpiReferenceDeltaText.Text;
 
     private void SyncHeaderPaddingWithScrollBar()
     {
@@ -80,6 +82,7 @@ internal sealed partial class StatisticsWindow : ModernWindow
         Title = Localizer.Get("Statistics", settings);
         ReferenceRunLabel.Text = Localizer.Get("Reference run", settings);
         SelectedRunLabel.Text = Localizer.Get("Selected run", settings);
+        ShowComparisonToggle.Content = Localizer.Get("Show comparison", settings);
 
         KpiSelectedLabel.Text = Localizer.Get("Run", settings);
         KpiReferenceLabel.Text = Localizer.Get("Reference", settings);
@@ -193,18 +196,18 @@ internal sealed partial class StatisticsWindow : ModernWindow
         List<StatisticsTableRow> rawRows = StatisticsTableBuilder.Build(settings, referenceSet, personalSplits);
         totalConditionRowCount = rawRows.Count;
 
-        WpfBrush successBrush = ResolveBrush("SuccessBrush");
-        WpfBrush dangerBrush = ResolveBrush("DangerBrush");
         WpfBrush warningBrush = ResolveBrush("WarningBrush");
         WpfBrush primaryBrush = ResolveBrush("TextPrimaryBrush");
         WpfBrush mutedBrush = ResolveBrush("TextMutedBrush");
+        UiPalette palette = UiPalette.From(settings.Overlay.Colors);
+        bool showComparison = ShowComparisonToggle.IsChecked == true;
 
         bool hidePb = settings.Comparison.UsePersonalBestAsReferenceTime;
         GridLength pbColLength = hidePb ? new GridLength(0) : new GridLength(120);
         Visibility pbColVisibility = hidePb ? Visibility.Collapsed : Visibility.Visible;
 
-        var rawGroups = new List<(List<(string DisplayName, BitmapSource? Icon, string PersonalTime, string RefTime, string PbTime)> SubRows, string PersonalSeg, WpfBrush PersonalSegFg, FontWeight PersonalSegWeight, string RefSeg, string PbSeg)>();
-        var pendingSubRows = new List<(string DisplayName, BitmapSource? Icon, string PersonalTime, string RefTime, string PbTime)>();
+        var rawGroups = new List<(List<(string DisplayName, BitmapSource? Icon, string PersonalTime, WpfBrush PersonalTimeFg, string RefTime, string PbTime)> SubRows, string PersonalSeg, WpfBrush PersonalSegFg, FontWeight PersonalSegWeight, string RefSeg, string PbSeg)>();
+        var pendingSubRows = new List<(string DisplayName, BitmapSource? Icon, string PersonalTime, WpfBrush PersonalTimeFg, string RefTime, string PbTime)>();
         TimeSpan sumOfBest = TimeSpan.Zero;
         int mainGroupCount = 0;
         int validSobSegments = 0;
@@ -220,10 +223,19 @@ internal sealed partial class StatisticsWindow : ModernWindow
             {
                 StatisticsTableRow row = rawRows[index + offset];
                 BitmapSource? icon = ResolveRowIcon(row.ConditionRow.SplitId, offset);
+                WpfBrush personalTimeBrush = primaryBrush;
+                if (showComparison &&
+                    TimeText.TryParse(row.PersonalTimeText, out TimeSpan personalTime) &&
+                    TimeText.TryParse(row.ReferenceTimeText, out TimeSpan referenceTime))
+                {
+                    personalTimeBrush = CreateComparisonBrush(personalTime - referenceTime, palette);
+                }
+
                 pendingSubRows.Add((
                     row.DisplayName,
                     icon,
                     row.PersonalTimeText,
+                    personalTimeBrush,
                     row.ReferenceTimeText,
                     row.PersonalBestText));
             }
@@ -238,6 +250,7 @@ internal sealed partial class StatisticsWindow : ModernWindow
                 }
 
                 bool isGoldSegment =
+                    showComparison &&
                     TimeText.TryParse(first.PersonalSegmentText, out TimeSpan personalSeg) &&
                     TimeText.TryParse(first.PersonalBestSegmentText, out TimeSpan pbSegment) &&
                     personalSeg <= pbSegment;
@@ -270,7 +283,7 @@ internal sealed partial class StatisticsWindow : ModernWindow
         {
             totalConditionRowCount = 1;
             rawGroups.Add((
-                [(Localizer.Get("No splits", settings), null, "--", "--", "--")],
+                [(Localizer.Get("No splits", settings), null, "--", primaryBrush, "--", "--")],
                 "--",
                 mutedBrush,
                 FontWeights.Normal,
@@ -300,6 +313,7 @@ internal sealed partial class StatisticsWindow : ModernWindow
                     r.DisplayName,
                     r.Icon,
                     r.PersonalTime,
+                    r.PersonalTimeFg,
                     personalTimeWidth,
                     ResolveTimeAlignment(r.PersonalTime),
                     r.RefTime,
@@ -332,7 +346,7 @@ internal sealed partial class StatisticsWindow : ModernWindow
         }
 
         RowsItemsControl.ItemsSource = groups;
-        UpdateKpiCards(referenceSet, personalSplits, sumOfBest, mainGroupCount, validSobSegments, successBrush, dangerBrush);
+        UpdateKpiCards(referenceSet, personalSplits, sumOfBest, mainGroupCount, validSobSegments, palette);
         SyncHeaderPaddingWithScrollBar();
     }
 
@@ -353,8 +367,7 @@ internal sealed partial class StatisticsWindow : ModernWindow
         TimeSpan sumOfBest,
         int mainGroupCount,
         int validSobSegments,
-        WpfBrush successBrush,
-        WpfBrush dangerBrush)
+        UiPalette palette)
     {
         SplitRouteEntry? finalMain = settings.Route.SplitRoute.LastOrDefault(entry => entry.Enabled && !entry.IsAttached);
         bool hasSelected = TryGetFinalMainTime(personalSplits, finalMain, out TimeSpan selectedTotal);
@@ -372,17 +385,41 @@ internal sealed partial class StatisticsWindow : ModernWindow
             hidePb: settings.Comparison.UsePersonalBestAsReferenceTime,
             hideSob: !hasCompleteSob);
 
-        if (hasSelected && hasReference)
+        TimeSpan? selected = hasSelected ? selectedTotal : null;
+        UpdateTotalComparison(KpiReferenceDeltaText, selected, hasReference ? referenceTotal : null, palette);
+        UpdateTotalComparison(KpiPbDeltaText, selected, hasPb ? pbTotal : null, palette);
+        UpdateTotalComparison(KpiSobDeltaText, selected, hasCompleteSob ? sumOfBest : null, palette);
+    }
+
+    private void UpdateTotalComparison(
+        System.Windows.Controls.TextBlock label,
+        TimeSpan? selectedTotal,
+        TimeSpan? comparisonTotal,
+        UiPalette palette)
+    {
+        if (ShowComparisonToggle.IsChecked != true || selectedTotal is null || comparisonTotal is null)
         {
-            TimeSpan delta = selectedTotal - referenceTotal;
-            KpiDeltaText.Text = FormatDelta(delta);
-            KpiDeltaText.Foreground = delta <= TimeSpan.Zero ? successBrush : dangerBrush;
-            KpiDeltaText.Visibility = Visibility.Visible;
+            label.Text = string.Empty;
+            label.Visibility = Visibility.Collapsed;
+            return;
         }
-        else
-        {
-            KpiDeltaText.Visibility = Visibility.Collapsed;
-        }
+
+        TimeSpan delta = selectedTotal.Value - comparisonTotal.Value;
+        label.Text = FormatDelta(delta);
+        label.Foreground = CreateComparisonBrush(delta, palette);
+        label.Visibility = Visibility.Visible;
+    }
+
+    private WpfBrush CreateComparisonBrush(TimeSpan delta, UiPalette palette)
+    {
+        System.Drawing.Color color = OverlayColorMath.GetDeltaComparisonColor(
+            settings,
+            new SplitComparison(delta, ShowDelta: true),
+            palette,
+            settings.Overlay.EnableDeltaGradientColor);
+        var brush = new SolidColorBrush(System.Windows.Media.Color.FromArgb(color.A, color.R, color.G, color.B));
+        brush.Freeze();
+        return brush;
     }
 
     private bool TryGetFinalMainTime(IReadOnlyDictionary<string, string> values, SplitRouteEntry? finalMain, out TimeSpan time)
@@ -444,22 +481,23 @@ internal sealed partial class StatisticsWindow : ModernWindow
     {
         string sign = delta < TimeSpan.Zero ? "-" : "+";
         TimeSpan abs = delta.Duration();
-        if (abs.TotalMinutes >= 1d)
+        if (abs >= TimeSpan.FromMinutes(1))
         {
             return string.Format(
                 CultureInfo.InvariantCulture,
-                "{0}{1}:{2:00}.{3:0}",
+                "{0}{1}:{2:00}.{3:00}",
                 sign,
-                (int)abs.TotalMinutes,
+                abs.Ticks / TimeSpan.TicksPerMinute,
                 abs.Seconds,
-                abs.Milliseconds / 100);
+                abs.Milliseconds / 10);
         }
 
         return string.Format(
             CultureInfo.InvariantCulture,
-            "{0}{1:0.0}s",
+            "{0}{1}.{2:00}",
             sign,
-            abs.TotalSeconds);
+            abs.Seconds,
+            abs.Milliseconds / 10);
     }
 
     private double MeasureAlignedColumnWidth(IEnumerable<(string Text, FontWeight Weight)> values, double columnWidth)
@@ -509,6 +547,7 @@ internal sealed partial class StatisticsWindow : ModernWindow
         string DisplayName,
         BitmapSource? Icon,
         string PersonalTimeText,
+        WpfBrush PersonalTimeForeground,
         double PersonalTimeWidth,
         TextAlignment PersonalTimeAlignment,
         string ReferenceTimeText,

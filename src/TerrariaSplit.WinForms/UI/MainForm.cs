@@ -148,6 +148,7 @@ internal sealed partial class MainForm : Form
             timerOverlayHost,
             startupCore.RenderResources,
             startupCore.OverlayAnimations);
+        overlayWindowController.PreparingFrame += PrepareStatusOverlayFrame;
         _ = timerOverlayHost.StartAsync(runtimeBootstrapper.CancellationToken);
         modalWindows = MainShellCompositionRoot.CreateModalWindowCoordinator(this, overlayShell.TimerOverlayHost);
         mainWindowModalInputRouter = MainShellCompositionRoot.CreateModalInputRouter(
@@ -157,7 +158,7 @@ internal sealed partial class MainForm : Form
 
         overlayShell.TimerOverlayHost.DragDeltaRequested += delta => overlayShell.BoundsController.MoveBy(delta);
         overlayShell.TimerOverlayHost.DragCompleted += PersistOverlayWindowPosition;
-        overlayShell.TimerOverlayHost.UserResizeBoundsChanged += bounds => overlayShell.BoundsController.HandleTimerResize(bounds);
+        overlayShell.TimerOverlayHost.UserResizeBoundsChanged += HandleTimerOverlayUserResize;
         overlayShell.TimerOverlayHost.RightClickRequested += HandleTimerOverlayRightClickRequested;
         overlayShell.TimerOverlayHost.Activated += QueueMainWindowForegroundGroupSync;
         overlayShell.TimerOverlayHost.ModalActivationRequested += () => modalWindows.ActivateCurrentModal();

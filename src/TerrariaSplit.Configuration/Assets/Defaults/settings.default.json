@@ -703,6 +703,7 @@
                 "UseAdvancedConditionEditor": false
             }
         ],
+        "ActiveRouteName": "",
         "ExpandSplitDetails": true,
         "CollapseSplitDetailsOnCompletion": true,
         "EnableVisibleGroupCountLimit": false,

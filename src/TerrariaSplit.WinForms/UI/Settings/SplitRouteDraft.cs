@@ -8,7 +8,7 @@ internal sealed class SplitRouteDraft
     {
         Entries.Clear();
         Entries.AddRange(route.SplitRoute.Select(CloneEntry));
-        if (Entries.Count == 0)
+        if (Entries.Count == 0 && string.IsNullOrWhiteSpace(route.ActiveRouteName))
         {
             Entries.AddRange(SplitCatalog.CreateDefaultRoute().Select(CloneEntry));
         }

@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Runtime.InteropServices;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using TerrariaSplit.Race.Contracts;
 using TerrariaSplit.Localization;
 using TerrariaSplit.UI.Wpf;
@@ -10,6 +11,8 @@ using TerrariaSplit.UI.Wpf.Interop;
 using TerrariaSplit.UI.Wpf.Theme;
 using TerrariaSplit.UI.Wpf.Windows;
 using TerrariaSplit.UI.Wpf.Settings;
+using Brush = System.Windows.Media.Brush;
+using Color = System.Windows.Media.Color;
 
 namespace TerrariaSplit.Tests;
 
@@ -21,9 +24,11 @@ internal static class WpfFoundationTests
         yield return TestCase.Async("wpf modern window and compact controls enforce contracts and live theme switching", TestSuite.Windows, ModernWindowAndControlsJourney);
         yield return TestCase.Async("wpf modern dialogs, practice palette and statistics window initialize cleanly", TestSuite.Windows, Stage1WindowsJourney);
         yield return TestCase.Async("wpf race window initializes all five pages and reacts to room state updates", TestSuite.Windows, RaceWindowJourney);
+        yield return TestCase.Async("wpf race pages align first rows and table headers across languages and densities", TestSuite.Windows, RacePageLayoutJourney);
         yield return TestCase.Async("wpf management windows and dialogs fit scaled and secondary-screen work areas", TestSuite.Windows, WindowWorkingAreaJourney);
         yield return TestCase.Async("wpf hotkey capture accepts Tab and modifier chords and clears on Escape", TestSuite.Windows, HotkeyCaptureJourney);
         yield return TestCase.Async("wpf statistics totals evaluate the final main condition rather than the final row", TestSuite.Windows, StatisticsTotalsJourney);
+        yield return TestCase.Async("wpf statistics comparison toggle controls total deltas and cumulative and segment colors", TestSuite.Windows, StatisticsComparisonJourney);
         yield return TestCase.Async("wpf modal windows preserve owner layering and restore interaction after closing", TestSuite.Windows, ModalWindowLayerJourney);
         yield return TestCase.Async("wpf shortcut capture resolves letters digits and IME and dead-key events", TestSuite.Windows, ImeHotkeyJourney);
         yield return TestCase.Async("wpf settings text fields keep layout width independent of long paths and templates", TestSuite.Windows, TextInputLayoutJourney);
@@ -273,7 +278,9 @@ internal static class WpfFoundationTests
             Check.Equal(TimeText.FormatRecord(TimeSpan.FromMinutes(expectedMinutes)), window.PersonalBestDisplayText);
             Check.Equal(TimeText.FormatRecord(TimeSpan.FromMinutes(expectedMinutes + 2)), window.SelectedTotalDisplayText);
             Check.Equal(TimeText.FormatRecord(TimeSpan.FromMinutes(expectedMinutes + 10)), window.ReferenceTotalDisplayText);
-            Check.Equal("-8:00.0", window.TotalDeltaDisplayText);
+            Check.Equal(string.Empty, window.ReferenceTotalDeltaDisplayText);
+            ((System.Windows.Controls.CheckBox)window.FindName("ShowComparisonToggle")).IsChecked = true;
+            Check.Equal("-8:00.00", window.ReferenceTotalDeltaDisplayText);
             window.Close();
 
             if (mode == "All")
@@ -284,6 +291,162 @@ internal static class WpfFoundationTests
                 incomplete.Close();
             }
         }
+    }, cancellationToken);
+
+    private static Task StatisticsComparisonJourney(CancellationToken cancellationToken) => StaTestHost.RunAsync(() =>
+    {
+        WpfBootstrap.EnsureInitialized();
+        AppSettings settings = AppSettingsDefaults.Create();
+        settings.General.Language = LanguageNames.English;
+        settings.Comparison.UsePersonalBestAsReferenceTime = false;
+        settings.Overlay.EnableDeltaGradientColor = false;
+        settings.Overlay.Colors.DeltaAheadText = "#00AA00";
+        settings.Overlay.Colors.DeltaEqualText = "#EEEEEE";
+        settings.Overlay.Colors.DeltaBehindText = "#CC0000";
+        List<SplitCondition> facts = settings.Route.SplitRoute.Take(3)
+            .Select(entry => entry.Condition.ToFlatGroup().GetFactConditions().First().Clone()).ToList();
+        settings.Route.SplitRoute =
+        [
+            new SplitRouteEntry { Id = "stats-first", DisplayName = "First", Enabled = true, Condition = facts[0] },
+            new SplitRouteEntry { Id = "stats-attached", DisplayName = "Attached", Enabled = true, IsAttached = true, Condition = facts[1] },
+            new SplitRouteEntry { Id = "stats-final", DisplayName = "Final", Enabled = true, Condition = facts[2] }
+        ];
+        IReadOnlyList<SplitConditionDataRow> rows = SplitConditionDataRows.Build(settings);
+        var personal = new Dictionary<string, string>();
+        var reference = new ReferenceSplitSet { Name = "Reference" };
+        settings.Comparison.PersonalBestTimes.Clear();
+        settings.Comparison.PersonalBestSegmentTimes = new Dictionary<string, string>
+        {
+            ["stats-first"] = "0:50.00",
+            ["stats-final"] = "1:15.00"
+        };
+        int[] personalSeconds = [50, 70, 130];
+        int[] referenceSeconds = [60, 70, 120];
+        int[] pbSeconds = [55, 65, 140];
+        for (int i = 0; i < rows.Count; i++)
+        {
+            personal[rows[i].Key] = TimeText.FormatRecord(TimeSpan.FromSeconds(personalSeconds[i]));
+            reference.Splits[rows[i].Key] = TimeText.FormatRecord(TimeSpan.FromSeconds(referenceSeconds[i]));
+            settings.Comparison.PersonalBestTimes[rows[i].Key] = TimeText.FormatRecord(TimeSpan.FromSeconds(pbSeconds[i]));
+        }
+
+        settings.Comparison.ReferenceSplitSets = [reference];
+        settings.Comparison.ActiveReferenceSplitSet = reference.Name;
+        using var dir = new TestDirectory("wpf-statistics-comparison");
+        var timeSets = new SplitTimeSetRepository(new AppContextRuntimeDataPaths(dir.Path));
+        timeSets.SaveLastRun(personal);
+        var window = new StatisticsWindow(settings, new RunStatsRepository(timeSets), timeSets);
+        var toggle = (System.Windows.Controls.CheckBox)window.FindName("ShowComparisonToggle");
+        var items = (System.Windows.Controls.ItemsControl)window.FindName("RowsItemsControl");
+        System.Windows.Controls.TextBlock Label(string name) => (System.Windows.Controls.TextBlock)window.FindName(name);
+        StatisticsWindow.StatisticsGroupView[] Groups() => items.Items.Cast<StatisticsWindow.StatisticsGroupView>().ToArray();
+        Color BrushColor(Brush brush) => ((SolidColorBrush)brush).Color;
+        Color primaryColor = BrushColor((Brush)window.FindResource("TextPrimaryBrush"));
+
+        Check.False(toggle.IsChecked == true);
+        Check.Equal("Show comparison", (string)toggle.Content);
+        foreach (string name in new[] { "KpiReferenceDeltaText", "KpiPbDeltaText", "KpiSobDeltaText" })
+        {
+            Check.Equal(Visibility.Collapsed, Label(name).Visibility);
+            Check.Equal(string.Empty, Label(name).Text);
+        }
+
+        Check.Equal("Run time", Label("ColSelTimeHeader").Text);
+        Check.Equal("Reference time", Label("ColRefTimeHeader").Text);
+        Check.Equal("PB time", Label("ColPbTimeHeader").Text);
+        Check.Equal("Run segment", Label("ColSelSegHeader").Text);
+        Check.Equal("Reference segment", Label("ColRefSegHeader").Text);
+        Check.Equal("PB segment", Label("ColPbSegHeader").Text);
+        foreach (StatisticsWindow.StatisticsGroupView group in Groups())
+        {
+            Check.Equal(primaryColor, BrushColor(group.PersonalSegmentForeground));
+            Check.Equal(FontWeights.Normal, group.PersonalSegmentFontWeight);
+            foreach (StatisticsWindow.StatisticsSubRowView row in group.SubRows)
+            {
+                Check.Equal(primaryColor, BrushColor(row.PersonalTimeForeground));
+            }
+        }
+
+        toggle.IsChecked = true;
+        Check.Equal("+10.00", Label("KpiReferenceDeltaText").Text);
+        Check.Equal("-10.00", Label("KpiPbDeltaText").Text);
+        Check.Equal("+5.00", Label("KpiSobDeltaText").Text);
+        foreach (string name in new[] { "KpiReferenceDeltaText", "KpiPbDeltaText", "KpiSobDeltaText" })
+        {
+            Check.Equal(Visibility.Visible, Label(name).Visibility);
+        }
+
+        Color[] expectedColors = [Color.FromRgb(0, 170, 0), Color.FromRgb(238, 238, 238), Color.FromRgb(204, 0, 0)];
+        StatisticsWindow.StatisticsSubRowView[] coloredRows = Groups().SelectMany(group => group.SubRows).ToArray();
+        Check.Equal(3, coloredRows.Length);
+        for (int i = 0; i < coloredRows.Length; i++)
+        {
+            Check.Equal(expectedColors[i], BrushColor(coloredRows[i].PersonalTimeForeground));
+        }
+
+        Check.Equal(BrushColor((Brush)window.FindResource("WarningBrush")), BrushColor(Groups()[0].PersonalSegmentForeground));
+        Check.Equal(FontWeights.SemiBold, Groups()[0].PersonalSegmentFontWeight);
+        Check.Equal(primaryColor, BrushColor(Groups()[1].PersonalSegmentForeground));
+        Check.True(Groups()[1].IsMultiRowGroup);
+
+        var content = (FrameworkElement)window.Content;
+        foreach (double width in new[] { 920d, 1020d })
+        {
+            content.Measure(new System.Windows.Size(width, 500));
+            content.Arrange(new Rect(0, 0, width, 500));
+            content.UpdateLayout();
+            var selectedCombo = (System.Windows.Controls.ComboBox)window.FindName("SelectedRunComboBox");
+            var referenceCombo = (System.Windows.Controls.ComboBox)window.FindName("ReferenceRunComboBox");
+            Check.True(referenceCombo.ActualWidth > 100 && referenceCombo.ActualWidth < selectedCombo.ActualWidth);
+            Rect referenceBounds = referenceCombo.TransformToAncestor(content).TransformBounds(new Rect(referenceCombo.RenderSize));
+            Rect toggleBounds = toggle.TransformToAncestor(content).TransformBounds(new Rect(toggle.RenderSize));
+            Check.True(toggleBounds.Left > referenceBounds.Right);
+            foreach (string name in new[] { "KpiReferenceDeltaText", "KpiPbDeltaText", "KpiSobDeltaText" })
+            {
+                var comparisonLine = (FrameworkElement)Label(name).Parent;
+                Check.True(comparisonLine.DesiredSize.Width <= comparisonLine.ActualWidth + 0.1);
+            }
+        }
+
+        settings.Overlay.EnableDeltaGradientColor = true;
+        settings.Overlay.DeltaGradientThresholdSeconds = 20;
+        settings.Overlay.DeltaGradientCurve = DeltaGradientCurves.Linear;
+        toggle.IsChecked = false;
+        toggle.IsChecked = true;
+        coloredRows = Groups().SelectMany(group => group.SubRows).ToArray();
+        Check.Equal(Color.FromRgb(119, 204, 119), BrushColor(coloredRows[0].PersonalTimeForeground));
+        Check.Equal(Color.FromRgb(221, 119, 119), BrushColor(coloredRows[2].PersonalTimeForeground));
+
+        reference.Splits.Remove(rows[0].Key);
+        reference.Splits.Remove(rows[^1].Key);
+        settings.Comparison.PersonalBestSegmentTimes.Clear();
+        toggle.IsChecked = false;
+        toggle.IsChecked = true;
+        Check.Equal(primaryColor, BrushColor(Groups()[0].SubRows[0].PersonalTimeForeground));
+        Check.Equal(Visibility.Collapsed, Label("KpiReferenceDeltaText").Visibility);
+        Check.Equal(Visibility.Collapsed, ((FrameworkElement)window.FindName("KpiSobCard")).Visibility);
+        Check.Equal(Visibility.Collapsed, Label("KpiSobDeltaText").Visibility);
+        Check.Equal(Visibility.Visible, Label("KpiPbDeltaText").Visibility);
+
+        toggle.IsChecked = false;
+        Check.Equal(string.Empty, Label("KpiPbDeltaText").Text);
+        Check.Equal(primaryColor, BrushColor(Groups()[0].PersonalSegmentForeground));
+        window.Close();
+
+        settings.Comparison.UsePersonalBestAsReferenceTime = true;
+        var pbWindow = new StatisticsWindow(settings, new RunStatsRepository(timeSets), timeSets);
+        ((System.Windows.Controls.CheckBox)pbWindow.FindName("ShowComparisonToggle")).IsChecked = true;
+        Check.Equal("-10.00", pbWindow.ReferenceTotalDeltaDisplayText);
+        Check.Equal(Visibility.Collapsed, ((FrameworkElement)pbWindow.FindName("KpiPbCard")).Visibility);
+        Check.False(((System.Windows.Controls.ComboBox)pbWindow.FindName("ReferenceRunComboBox")).IsEnabled);
+        pbWindow.Close();
+
+        var emptyTimeSets = new SplitTimeSetRepository(new AppContextRuntimeDataPaths(dir.Combine("empty")));
+        var emptyWindow = new StatisticsWindow(settings, new RunStatsRepository(emptyTimeSets), emptyTimeSets);
+        ((System.Windows.Controls.CheckBox)emptyWindow.FindName("ShowComparisonToggle")).IsChecked = true;
+        Check.Equal("--", emptyWindow.SelectedTotalDisplayText);
+        Check.Equal(string.Empty, emptyWindow.ReferenceTotalDeltaDisplayText);
+        emptyWindow.Close();
     }, cancellationToken);
 
     private static Task ModalWindowLayerJourney(CancellationToken cancellationToken) => StaTestHost.RunAsync(() =>
@@ -525,7 +688,81 @@ internal static class WpfFoundationTests
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool IsWindowEnabled(IntPtr window);
 
-    private sealed class FakeRacePanelShell : IRacePanelShell
+    private static Task RacePageLayoutJourney(CancellationToken cancellationToken) => StaTestHost.RunAsync(() =>
+    {
+        foreach (string language in new[] { "Chinese", "English" })
+        foreach (WpfDensityPreset density in Enum.GetValues<WpfDensityPreset>())
+        {
+            AppSettings settings = AppSettingsDefaults.Create();
+            settings.General.Language = language;
+            var shell = new FakeRacePanelShell(settings);
+            var window = new RaceWindow(shell);
+            using var settingsWindow = new SettingsWindow(settings);
+            var settingsColorContent = (System.Windows.Controls.StackPanel)settingsWindow.PageHost.Pages
+                .Single(entry => entry.Id == SettingsPageId.Colors).Nav.Content;
+            var settingsColorIcon = settingsColorContent.Children.OfType<System.Windows.Shapes.Path>().Single();
+            WpfThemeManager.ApplyTheme(window, WpfThemePreset.FluentMica, density);
+            try
+            {
+                var navigation = (System.Windows.Controls.StackPanel)window.FindName("NavPanel");
+                var host = (System.Windows.Controls.Grid)window.FindName("PageHostGrid");
+                Check.Equal(5, navigation.Children.Count);
+                foreach (System.Windows.Controls.RadioButton nav in navigation.Children)
+                {
+                    nav.IsChecked = true;
+                    FrameworkElement page = host.Children.OfType<FrameworkElement>()
+                        .Single(child => child.Visibility == Visibility.Visible);
+                    var content = (System.Windows.Controls.StackPanel)nav.Content;
+                    string title = content.Children.OfType<System.Windows.Controls.TextBlock>().Single().Text;
+                    if (title == shell.Localize("Colors"))
+                    {
+                        var raceColorIcon = content.Children.OfType<System.Windows.Shapes.Path>().Single();
+                        Check.Equal(settingsColorIcon.Data.ToString(), raceColorIcon.Data.ToString());
+                    }
+                    foreach (double width in new[] { 850d, 1100d })
+                    {
+                        page.Measure(new System.Windows.Size(width, 740));
+                        page.Arrange(new Rect(0, 0, width, 740));
+                        page.UpdateLayout();
+                        SettingsInteractionTests.AssertFirstCardRowsCentered(page,
+                            $"race page={title}; language={language}; density={density}; width={width}");
+                        var scroll = (System.Windows.Controls.ScrollViewer)page;
+                        var stack = (System.Windows.Controls.StackPanel)scroll.Content;
+                        foreach (SettingCard card in stack.Children.OfType<SettingCard>())
+                        {
+                            Check.Equal(0d, card.ContentPadding.Bottom);
+                            var body = (System.Windows.Controls.StackPanel)card.Content;
+                            FrameworkElement last = body.Children.OfType<FrameworkElement>().Last();
+                            if (last is System.Windows.Controls.Button or System.Windows.Controls.StackPanel)
+                            {
+                                Check.Equal(10d, last.Margin.Bottom);
+                            }
+                        }
+                    }
+
+                    if (Environment.GetEnvironmentVariable("TERRARIA_SPLIT_CAPTURE_RACE_LAYOUT") == "1" &&
+                        (title == shell.Localize("Colors") || title == shell.Localize("Voice")))
+                    {
+                        string name = title == shell.Localize("Colors") ? "Colors" : "Voice";
+                        string directory = Path.Combine(TestDirectory.FindSourceRoot(), "test", "Results", "RaceLayout");
+                        Directory.CreateDirectory(directory);
+                        using FileStream output = File.Create(Path.Combine(directory, $"{name}-{language}-{density}.png"));
+                        var bitmap = new RenderTargetBitmap(1650, 450, 144, 144, PixelFormats.Pbgra32);
+                        bitmap.Render(page);
+                        var encoder = new PngBitmapEncoder();
+                        encoder.Frames.Add(BitmapFrame.Create(bitmap));
+                        encoder.Save(output);
+                    }
+                }
+            }
+            finally
+            {
+                window.Close();
+            }
+        }
+    }, cancellationToken);
+
+    private sealed class FakeRacePanelShell(AppSettings? localizationSettings = null) : IRacePanelShell
     {
         public RaceRoomState? State => null;
         public bool IsRaceEnabled => false;
@@ -538,7 +775,7 @@ internal static class WpfFoundationTests
         public RaceBossPenaltySettings BossPenaltySettings { get; private set; } = new();
         public RaceVoiceSettings VoiceSettings { get; private set; } = new();
         public IReadOnlyList<RaceVoiceOption> InstalledVoices => [];
-        public string Localize(string key) => key;
+        public string Localize(string key) => localizationSettings is null ? key : Localizer.Get(key, localizationSettings);
         public void SaveRaceEnabled(bool enabled) { }
         public void SaveDraftState(RacePanelDraftState draftState) => DraftState = draftState;
         public void OpenInGameMenu() { }

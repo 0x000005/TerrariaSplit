@@ -18,7 +18,10 @@ internal sealed record OverlayRenderContext(
     DateTime NowUtc,
     bool IgnoreVisibleGroupLimit = false,
     Color? TimerFillOverride = null,
-    CheatFilterIndicatorLevel CheatFilterIndicator = CheatFilterIndicatorLevel.None)
+    CheatFilterIndicatorLevel CheatFilterIndicator = CheatFilterIndicatorLevel.None,
+    OverlayRenderContext? OutgoingSplitList = null,
+    float OutgoingListOpacity = 1f,
+    SplitCompletionAnimationGeometry? CompletionGeometry = null)
 {
     public float ScaleFactor => GetScaleFactor(Settings);
 
@@ -51,7 +54,19 @@ internal sealed record OverlayRenderContext(
 
 internal readonly record struct OverlayRenderResult(
     bool SplitCompletionAnimationActive,
-    bool AnimatedIconsActive = false);
+    bool AnimatedIconsActive = false,
+    float ListOpacity = 1f,
+    bool OutgoingListRendered = false);
+
+internal readonly record struct SplitCompletionAnimationGeometry(Rectangle Bounds, float CenterX)
+{
+    public SplitCompletionAnimationGeometry Offset(Point delta)
+    {
+        Rectangle bounds = Bounds;
+        bounds.Offset(delta);
+        return new SplitCompletionAnimationGeometry(bounds, CenterX + delta.X);
+    }
+}
 
 internal sealed record OverlayFrame(
     AppSettings Settings,

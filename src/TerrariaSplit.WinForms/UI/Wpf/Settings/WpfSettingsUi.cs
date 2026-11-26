@@ -60,7 +60,7 @@ internal static class WpfSettingsUi
             Header = header ?? string.Empty,
             Subtitle = subtitle ?? string.Empty,
             HeaderAction = headerAction,
-            ContentPadding = contentPadding ?? new Thickness(14, 4, 14, 4),
+            ContentPadding = contentPadding ?? new Thickness(14, 0, 14, 0),
             Content = body
         };
         return card;

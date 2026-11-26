@@ -41,8 +41,7 @@ internal sealed class WpfRaceVoicePage
         {
             var card = WpfSettingsUi.CreateCard(
                 Localize("Voice announcements"),
-                out StackPanel body,
-                contentPadding: new Thickness(14, 4, 14, 10));
+                out StackPanel body);
 
             voiceEnabledBox = WpfSettingsUi.CreateToggleSwitch(voiceSettings.Enabled);
             voiceEnabledBox.Checked += (_, _) => UpdateAvailability();
@@ -90,7 +89,7 @@ internal sealed class WpfRaceVoicePage
             var actions = new StackPanel
             {
                 Orientation = WpfOrientation.Horizontal,
-                Margin = new Thickness(0, 10, 0, 0)
+                Margin = new Thickness(0, 10, 0, 10)
             };
             WpfButton applyBtn = WpfSettingsUi.CreateButton(Localize("Apply voice settings"), minWidth: 112);
             applyBtn.Margin = new Thickness(0, 0, 6, 0);

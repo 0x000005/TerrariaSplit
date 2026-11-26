@@ -224,7 +224,7 @@ stateDiagram-v2
 ## 4. 领域核心与配置兼容层（`Domain` / `Compatibility` / `Configuration`）
 
 ### 4.1 `Domain`：纯计时与三值逻辑状态机
-- **`SplitTimer`**：记录 `Phase`（`NotStarted` / `Running` / `Paused`）、`ElapsedBeforePause` 与 `RunningSinceTimestamp`（`Stopwatch.GetTimestamp()`），支持竞速 `AddElapsedPenalty(TimeSpan)` 与练习模式 `SetPracticeElapsed`，并提供值类型 `SplitTimerState` 供跨线程零拷贝快照。
+- **`SplitTimer`**：记录 `Phase`（`NotStarted` / `Running` / `Paused`）、`ElapsedBeforePause` 与 `RunningSinceTimestamp`（`Stopwatch.GetTimestamp()`），支持竞速 `AddElapsedPenalty(TimeSpan)` 与右键修改时间 `SetPracticeElapsed`，并提供值类型 `SplitTimerState` 供跨线程零拷贝快照。
 - **`SplitCondition` & `TerrariaGameFacts`**：
   - `TerrariaGameFacts` 是大小写不敏感的不可变事实字典（`FactValue` 支持 `Unknown` / `Boolean` / `Integer`），构造时预计算排序 `StatusHash` 用于快速相等比较。
   - `SplitCondition` 支持递归树（`All` / `Any` / `AtLeast` / `Fact`）及 `IsTrue` / `IsFalse` / `AtLeast` / `Equal` 比较，返回三值结果 `SplitConditionResult`（`Unknown` / `False` / `True`），避免内存尚未就绪时把“未知”误判为“未完成”或“已完成”。
@@ -382,6 +382,7 @@ sequenceDiagram
 ### 9.2 双透明分层窗口与高性能渲染管线
 - **为什么要拆分为两个窗口**：Split 分段列表（`MainForm`）大部分时间静止，仅在状态变化、Boss 动画或图标帧动时重绘；而底部主计时器（`TimerOverlayForm`）需要 60~144Hz 持续刷新毫秒数字。将后者放到独立 STA 线程 `TimerOverlayThread` 后，高频计时绘制与主线程 UI 弹窗、设置交互、列表重绘彻底零互相阻塞。
 - **逻辑复合布局**：`OverlayCompositeLayoutCalculator` 根据缩放比例、保留行数（至少为动画预留 7 行）、字号及描边/阴影溢血（bleed）计算单一 `CompositeBounds`，切分为 `StatusScreenBounds` 与 `TimerScreenBounds`；任一窗口拖拽或边缘缩放均由 `OverlayBoundsController` 同步联动并持久化窗口坐标。
+- **完成过渡**：`OverlayAnimationController` 保存上一帧列表展示快照及相对计时器的固定动画几何；`MainForm` 在 `OverlayWindowController.PreparingFrame` 中统一提交延迟布局，先清空旧分层画面再移动／调整状态窗，并在 Boss 显示期间暂时扩展状态窗绘制范围。`OverlayRenderer` 只消费快照和几何，按独立的列表／Boss 透明度阶段绘制，不触发窗口或业务副作用。
 - **DIBSection + 脏矩形局部提交**：[LayeredWindowRenderTarget](../src/TerrariaSplit.Infrastructure.Windows/Infrastructure/LayeredWindowRenderTarget.cs) 维护持久化 32-bit ARGB `DIBSection` 与非托管 `UPDATELAYEREDWINDOWINFO` 缓冲，支持全帧 `Render` 与局部裁剪 `RenderRegion`（通过 `UpdateLayeredWindowIndirect` 仅向 DWM 提交 `dirtyRect`），实现无锯齿像素级 Alpha 透明，并支持 `WS_EX_LAYERED | WS_EX_TRANSPARENT` 鼠标穿透。
 - **纯绘制渲染层（`UI/Rendering/`）**：严格遵循无副作用原则——`OverlayFrameBuilder` 构建不可变帧模型，`SplitListRenderer` / `TimerRenderer` / `SplitCompletionAnimationRenderer` 绘制内容，`TextEffectRenderer` 对描边/阴影采用 3 倍超采样（`SupersampleScale = 3`）离屏合成再回贴，`OverlayRenderResources` 与 `BossIconCache` 集中持有并复用 GDI+ 字体与位图资源。
 - **RTSS 全屏 OSD 与高精度调度**：
@@ -402,10 +403,11 @@ sequenceDiagram
 
 - **用户数据与产物严格隔离**（通过 `IRuntimeDataPaths` / `AppContextRuntimeDataPaths` 注入，不写入 `src/` 或发布源）：
   - `Settings/`：用户配置文件（默认 `settings.json` 及自定义多配置）、`active-profile.txt` 记忆当前配置；
-  - `Data/`：拆分存储的参考时间集、累计 PB 快照集、单段最佳快照集、历史运行记录（`SplitTimeSetRepository` / `RunStatsRepository`）；
+  - `Data/`：拆分存储的参考时间集、累计 PB 快照集、单段最佳快照集、历史运行记录（`SplitTimeSetRepository` / `RunStatsRepository`）；`Data/routes/` 独立存放共享路线定义（`RoutePresetRepository`）；
   - `Worlds/`（及世界池子目录）：练习存档、世界池索引 `world-pool.json` 与预生成 `.wld`、私有 `scratch/` 临时目录；
   - `terrariasplit.log`（客户端）与 `terrariasplit-race-server.log`（服务端）：UTF-8 JSON Lines 滚动日志（程序目录不可写时自动回退至 `%LOCALAPPDATA%\TerrariaSplit`）。
 - **持久化可靠性**：`JsonFileStore` 统一处理序列化与安全读写；`AppSettingsRepository` 启动时会验证候选配置文件合法性并在损坏时回退默认配置；保存失败一律通过 `OperationResult` 回传应用层并弹窗提示，不静默吞错。
+- **路线与配置分离**：配置保存 `Route.ActiveRouteName`，`Route.SplitRoute` 仅用于内置默认值、运行快照与竞速传输，写配置文件时移除；路线库目录在加载时通过 `Route.Presets` 提供给设置草稿，不参与 JSON 配置与竞速序列化。路线保存按加载会话的内容指纹判断实际编辑，兼容应用层克隆快照，避免陈旧的非路线设置保存回写共享路线；真实竞争编辑返回失败，阻止写入配置文件。
 - **统计聚合**：`StatisticsTableBuilder` 将当前路线配置、选定参考时间集、选定运行记录及累计/单段 PB 投影为不可变 `StatisticsTableRow` 列表供 `StatisticsWindow` 展示。
 
 ---

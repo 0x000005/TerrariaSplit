@@ -339,7 +339,7 @@ internal sealed class WpfAnimationSettingsPage : WpfSettingsPageBase
     private void PopulateAnimationOutlineGrid()
     {
         List<RouteGroup> groups = SplitRouteGroups.Build(Draft).ToList();
-        string signature = string.Join('\u001F', groups.Select(group => group.Key));
+        string signature = string.Join('\u001F', groups.Select(group => $"{group.Key}\u001E{SplitRouteGroups.GetGroupDisplayName(group, Draft)}"));
         if (animationGridSignature == signature && animationOutlineControls.Count > 0)
         {
             foreach (RouteGroup group in groups)

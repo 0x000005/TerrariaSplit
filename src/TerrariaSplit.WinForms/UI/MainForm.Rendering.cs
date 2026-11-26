@@ -5,6 +5,19 @@ namespace TerrariaSplit.UI;
 
 internal sealed partial class MainForm : Form
 {
+    private DateTime statusFrameTimestampUtc = DateTime.UtcNow;
+
+    private void PrepareStatusOverlayFrame()
+    {
+        statusFrameTimestampUtc = DateTime.UtcNow;
+        if (overlayShell.WindowsInitialized && overlayShell.Animations.SplitCompletionAnimation is not null &&
+            overlayShell.Animations.CanApplyCompletionLayout(settings, statusFrameTimestampUtc))
+        {
+            UpdateOverlayLayoutContext(GetCurrentReservedLayoutRowCount(), GetCurrentLayoutRowCount(),
+                force: false, preparingAnimationFrame: true);
+        }
+    }
+
     private void DrawStatusOverlay(Graphics graphics)
     {
         bool traceFirstRender = Interlocked.Increment(ref statusRenderCount) == 1;
@@ -22,6 +35,9 @@ internal sealed partial class MainForm : Form
 
         startupCore.StatusIconPreloadTask.GetAwaiter().GetResult();
 
+        OverlayCompositeLayout compositeLayout = overlayShell.BoundsController.CurrentLayout;
+        layout = new SplitLayout(compositeLayout.ToStatusLocal(layout.FirstRowRect),
+            compositeLayout.ToStatusLocal(layout.TimerRect), layout.RowGap);
         TimeSpan elapsed = timerElapsed;
         bool ignoreVisibleGroupLimit = ShouldIgnoreVisibleGroupLimitForCompletedRun();
         var context = new OverlayRenderContext(
@@ -37,10 +53,13 @@ internal sealed partial class MainForm : Form
             overlayShell.MouseClickThrough,
             overlayShell.Animations.SplitCompletionAnimation,
             overlayShell.Animations.SegmentBestDeltaHighlights,
-            DateTime.UtcNow,
+            statusFrameTimestampUtc,
             ignoreVisibleGroupLimit,
             TimerFillOverride: runtimeServices?.RaceShell.GetMainTimerRankColor(timerPhase, splitStatuses),
-            CheatFilterIndicator: GetCheatFilterIndicatorLevel());
+            CheatFilterIndicator: GetCheatFilterIndicatorLevel(),
+            OutgoingSplitList: overlayShell.Animations.OutgoingSplitList,
+            OutgoingListOpacity: overlayShell.Animations.OutgoingListOpacity,
+            CompletionGeometry: overlayShell.Animations.ResolveGeometry(compositeLayout));
         OverlayRenderResult result = OverlayRenderer.RenderStatus(
             graphics,
             context,
@@ -50,6 +69,13 @@ internal sealed partial class MainForm : Form
         {
             StartupDiagnostics.RecordTrace("StatusContentRendered");
         }
+        if (result.ListOpacity > 0f && !result.OutgoingListRendered && context.Statuses.Count > 0)
+        {
+            overlayShell.Animations.RecordListPresentation(context,
+                SplitCompletionAnimationRenderer.CaptureGeometry(graphics, context, overlayShell.RenderResources),
+                compositeLayout);
+        }
+
         overlayShell.Animations.UpdateAfterRender(result);
         DrawStartupIndicator(graphics);
 
@@ -215,6 +241,11 @@ internal sealed partial class MainForm : Form
     {
         rowIndex = -1;
         rowRect = Rectangle.Empty;
+        if (overlayShell.Animations.SplitCompletionAnimation is not null)
+        {
+            return false;
+        }
+
         IReadOnlyList<SplitStatusSnapshot> statuses = splitStatuses;
         if (!TryGetLayout(out SplitLayout layout))
         {

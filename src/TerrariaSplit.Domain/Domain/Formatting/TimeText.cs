@@ -19,7 +19,7 @@ public static class TimeText
             return false;
         }
 
-        if (!double.TryParse(parts[^1], NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out double seconds))
+        if (!decimal.TryParse(parts[^1], NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out decimal seconds))
         {
             return false;
         }
@@ -41,8 +41,23 @@ public static class TimeText
             return false;
         }
 
-        time = TimeSpan.FromHours(hours) + TimeSpan.FromMinutes(minutes) + TimeSpan.FromSeconds(seconds);
+        decimal ticks = (decimal)hours * TimeSpan.TicksPerHour +
+            (decimal)minutes * TimeSpan.TicksPerMinute +
+            decimal.Truncate(seconds * TimeSpan.TicksPerSecond);
+        if (ticks > TimeSpan.MaxValue.Ticks)
+        {
+            return false;
+        }
+
+        time = TimeSpan.FromTicks((long)ticks);
         return true;
+    }
+
+    public static TimeSpan ToRecordPrecision(TimeSpan time)
+    {
+        // Normalize cumulative endpoints before subtraction so all record consumers share the same centiseconds.
+        const long ticksPerHundredth = TimeSpan.TicksPerMillisecond * 10;
+        return TimeSpan.FromTicks(time.Ticks - time.Ticks % ticksPerHundredth);
     }
 
     public static string FormatSplit(TimeSpan time)
@@ -55,6 +70,7 @@ public static class TimeText
 
     public static string FormatRecord(TimeSpan time)
     {
+        time = ToRecordPrecision(time);
         int hours = (int)time.TotalHours;
         string ms = (time.Milliseconds / 10).ToString("00");
         return hours > 0

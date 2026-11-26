@@ -72,6 +72,11 @@ internal class ModernWindow : Window
         // Preparing an HWND can raise Loaded before Show; defer window changes until it is shown.
         ContentRendered += (_, _) =>
         {
+            if (!IsVisible)
+            {
+                return;
+            }
+
             EnsureNativeTitlebarContentsRemoved();
             WpfWindowInterop.FitToWorkingArea(this);
         };

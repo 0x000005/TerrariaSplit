@@ -127,11 +127,12 @@ public static class StatisticsTableBuilder
 
         if (!hasBaseline)
         {
-            previousSplit = split;
+            previousSplit = TimeText.ToRecordPrecision(split);
             hasBaseline = true;
             return "--";
         }
 
+        split = TimeText.ToRecordPrecision(split);
         TimeSpan segment = split - previousSplit;
         previousSplit = split;
         return segment >= TimeSpan.Zero

@@ -12,7 +12,7 @@ internal static class SplitTimingComparisons
         if (settings.Comparison.PersonalBestSegmentTimes.TryGetValue(groupKey, out string? value) &&
             TimeText.TryParse(value, out TimeSpan parsed))
         {
-            segment = parsed;
+            segment = TimeText.ToRecordPrecision(parsed);
             return true;
         }
 
@@ -61,7 +61,7 @@ internal static class SplitTimingComparisons
             }
         }
 
-        segmentTime = groupSplitTime - previousGroupSplitTime;
+        segmentTime = TimeText.ToRecordPrecision(groupSplitTime) - TimeText.ToRecordPrecision(previousGroupSplitTime);
         if (segmentTime < TimeSpan.Zero)
         {
             segmentTime = TimeSpan.Zero;
@@ -98,7 +98,7 @@ internal static class SplitTimingComparisons
             }
         }
 
-        segmentTime = splitTime - previousSplitTime;
+        segmentTime = TimeText.ToRecordPrecision(splitTime) - TimeText.ToRecordPrecision(previousSplitTime);
         if (segmentTime < TimeSpan.Zero)
         {
             segmentTime = TimeSpan.Zero;

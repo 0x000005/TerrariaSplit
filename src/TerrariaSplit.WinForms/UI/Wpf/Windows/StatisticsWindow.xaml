@@ -10,6 +10,17 @@
                        MinHeight="420"
                        ShowInTaskbar="True"
                        WindowStartupLocation="CenterScreen">
+    <controls:ModernWindow.Resources>
+        <Style x:Key="TotalComparisonTextStyle" TargetType="TextBlock">
+            <Setter Property="Margin" Value="8,0,0,1" />
+            <Setter Property="VerticalAlignment" Value="Bottom" />
+            <Setter Property="FontFamily" Value="{DynamicResource MonoFontFamily}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Typography.NumeralAlignment" Value="Tabular" />
+            <Setter Property="Visibility" Value="Collapsed" />
+        </Style>
+    </controls:ModernWindow.Resources>
     <Border Background="{DynamicResource PageLayerBgBrush}"
             RenderOptions.ClearTypeHint="Enabled">
     <Grid Margin="14,10,14,14">
@@ -34,12 +45,24 @@
                 <ComboBox x:Name="SelectedRunComboBox" />
             </StackPanel>
 
-            <StackPanel Grid.Column="2">
-                <TextBlock x:Name="ReferenceRunLabel"
-                           Style="{DynamicResource SubtleTextStyle}"
-                           Margin="1,0,0,4" />
-                <ComboBox x:Name="ReferenceRunComboBox" />
-            </StackPanel>
+            <Grid Grid.Column="2">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0">
+                    <TextBlock x:Name="ReferenceRunLabel"
+                               Style="{DynamicResource SubtleTextStyle}"
+                               Margin="1,0,0,4" />
+                    <ComboBox x:Name="ReferenceRunComboBox" />
+                </StackPanel>
+                <CheckBox x:Name="ShowComparisonToggle"
+                          Grid.Column="1"
+                          Style="{DynamicResource ToggleSwitchStyle}"
+                          VerticalAlignment="Bottom"
+                          Margin="16,0,0,3"
+                          IsChecked="False" />
+            </Grid>
         </Grid>
 
         <!-- Clean Neutral Summary Strip -->
@@ -63,22 +86,13 @@
                     Padding="11,8">
                 <StackPanel>
                     <TextBlock x:Name="KpiSelectedLabel" Style="{DynamicResource SubtleTextStyle}" />
-                    <StackPanel Orientation="Horizontal" Margin="0,3,0,0" VerticalAlignment="Center">
-                        <TextBlock x:Name="KpiSelectedValue"
-                                   FontFamily="{DynamicResource MonoFontFamily}"
-                                   FontSize="{DynamicResource FontSizeKpi}"
-                                   FontWeight="SemiBold"
-                                   Foreground="{DynamicResource TextPrimaryBrush}"
-                                   Typography.NumeralAlignment="Tabular" />
-                        <TextBlock x:Name="KpiDeltaText"
-                                   Margin="8,0,0,1"
-                                   VerticalAlignment="Bottom"
-                                   FontFamily="{DynamicResource MonoFontFamily}"
-                                   FontSize="11"
-                                   FontWeight="SemiBold"
-                                   Typography.NumeralAlignment="Tabular"
-                                   Visibility="Collapsed" />
-                    </StackPanel>
+                    <TextBlock x:Name="KpiSelectedValue"
+                               Margin="0,3,0,0"
+                               FontFamily="{DynamicResource MonoFontFamily}"
+                               FontSize="{DynamicResource FontSizeKpi}"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
+                               Typography.NumeralAlignment="Tabular" />
                 </StackPanel>
             </Border>
 
@@ -91,13 +105,15 @@
                     Padding="11,8">
                 <StackPanel>
                     <TextBlock x:Name="KpiReferenceLabel" Style="{DynamicResource SubtleTextStyle}" />
-                    <TextBlock x:Name="KpiReferenceValue"
-                               Margin="0,3,0,0"
-                               FontFamily="{DynamicResource MonoFontFamily}"
-                               FontSize="{DynamicResource FontSizeKpi}"
-                               FontWeight="SemiBold"
-                               Foreground="{DynamicResource TextPrimaryBrush}"
-                               Typography.NumeralAlignment="Tabular" />
+                    <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
+                        <TextBlock x:Name="KpiReferenceValue"
+                                   FontFamily="{DynamicResource MonoFontFamily}"
+                                   FontSize="{DynamicResource FontSizeKpi}"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                   Typography.NumeralAlignment="Tabular" />
+                        <TextBlock x:Name="KpiReferenceDeltaText" Style="{StaticResource TotalComparisonTextStyle}" />
+                    </StackPanel>
                 </StackPanel>
             </Border>
 
@@ -110,13 +126,15 @@
                     Padding="11,8">
                 <StackPanel>
                     <TextBlock x:Name="KpiPbLabel" Style="{DynamicResource SubtleTextStyle}" />
-                    <TextBlock x:Name="KpiPbValue"
-                               Margin="0,3,0,0"
-                               FontFamily="{DynamicResource MonoFontFamily}"
-                               FontSize="{DynamicResource FontSizeKpi}"
-                               FontWeight="SemiBold"
-                               Foreground="{DynamicResource TextPrimaryBrush}"
-                               Typography.NumeralAlignment="Tabular" />
+                    <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
+                        <TextBlock x:Name="KpiPbValue"
+                                   FontFamily="{DynamicResource MonoFontFamily}"
+                                   FontSize="{DynamicResource FontSizeKpi}"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                   Typography.NumeralAlignment="Tabular" />
+                        <TextBlock x:Name="KpiPbDeltaText" Style="{StaticResource TotalComparisonTextStyle}" />
+                    </StackPanel>
                 </StackPanel>
             </Border>
 
@@ -129,13 +147,15 @@
                     Padding="11,8">
                 <StackPanel>
                     <TextBlock x:Name="KpiSobLabel" Style="{DynamicResource SubtleTextStyle}" />
-                    <TextBlock x:Name="KpiSobValue"
-                               Margin="0,3,0,0"
-                               FontFamily="{DynamicResource MonoFontFamily}"
-                               FontSize="{DynamicResource FontSizeKpi}"
-                               FontWeight="SemiBold"
-                               Foreground="{DynamicResource TextPrimaryBrush}"
-                               Typography.NumeralAlignment="Tabular" />
+                    <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
+                        <TextBlock x:Name="KpiSobValue"
+                                   FontFamily="{DynamicResource MonoFontFamily}"
+                                   FontSize="{DynamicResource FontSizeKpi}"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                   Typography.NumeralAlignment="Tabular" />
+                        <TextBlock x:Name="KpiSobDeltaText" Style="{StaticResource TotalComparisonTextStyle}" />
+                    </StackPanel>
                 </StackPanel>
             </Border>
         </Grid>
@@ -241,6 +261,7 @@
                                                             <TextBlock Grid.Column="1"
                                                                        Text="{Binding PersonalTimeText}"
                                                                        Style="{DynamicResource MonoTabularTextStyle}"
+                                                                       Foreground="{Binding PersonalTimeForeground}"
                                                                        Width="{Binding PersonalTimeWidth}"
                                                                        TextAlignment="{Binding PersonalTimeAlignment}"
                                                                        HorizontalAlignment="Center"
@@ -249,7 +270,7 @@
                                                             <TextBlock Grid.Column="2"
                                                                        Text="{Binding ReferenceTimeText}"
                                                                        Style="{DynamicResource MonoTabularTextStyle}"
-                                                                       Foreground="{DynamicResource TextMutedBrush}"
+                                                                       Foreground="{DynamicResource TextSecondaryBrush}"
                                                                        Width="{Binding ReferenceTimeWidth}"
                                                                        TextAlignment="{Binding ReferenceTimeAlignment}"
                                                                        HorizontalAlignment="Center"
@@ -295,7 +316,7 @@
                                                 <TextBlock Grid.Column="1"
                                                            Text="{Binding ReferenceSegmentText}"
                                                            Style="{DynamicResource MonoTabularTextStyle}"
-                                                           Foreground="{DynamicResource TextMutedBrush}"
+                                                           Foreground="{DynamicResource TextSecondaryBrush}"
                                                            Width="{Binding ReferenceSegmentWidth}"
                                                            TextAlignment="{Binding ReferenceSegmentAlignment}"
                                                            HorizontalAlignment="Center"
@@ -304,7 +325,7 @@
                                                 <TextBlock Grid.Column="2"
                                                            Text="{Binding PersonalBestSegmentText}"
                                                            Style="{DynamicResource MonoTabularTextStyle}"
-                                                           Foreground="{DynamicResource TextMutedBrush}"
+                                                           Foreground="{DynamicResource TextSecondaryBrush}"
                                                            Width="{Binding PersonalBestSegmentWidth}"
                                                            TextAlignment="{Binding PersonalBestSegmentAlignment}"
                                                            HorizontalAlignment="Center"

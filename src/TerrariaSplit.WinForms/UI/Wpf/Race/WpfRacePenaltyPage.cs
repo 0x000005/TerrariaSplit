@@ -29,8 +29,7 @@ internal sealed class WpfRacePenaltyPage
         {
             var card = WpfSettingsUi.CreateCard(
                 Localize("Penalty"),
-                out StackPanel body,
-                contentPadding: new Thickness(14, 4, 14, 10));
+                out StackPanel body);
 
             body.Children.Add(CreateHeaderRow());
 
@@ -43,7 +42,7 @@ internal sealed class WpfRacePenaltyPage
 
             applyButton = WpfSettingsUi.CreateButton(Localize("Apply penalty settings"), minWidth: 120);
             applyButton.HorizontalAlignment = WpfHorizontalAlignment.Left;
-            applyButton.Margin = new Thickness(0, 10, 0, 0);
+            applyButton.Margin = new Thickness(0, 10, 0, 10);
             applyButton.Click += (_, _) => SaveBossPenaltySettings();
             body.Children.Add(applyButton);
 

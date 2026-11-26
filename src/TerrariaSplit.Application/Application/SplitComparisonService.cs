@@ -16,7 +16,9 @@ public static class SplitComparisonService
 
         if (status.Time is TimeSpan splitTime)
         {
-            return new SplitComparison(splitTime - referenceTime, ShowDelta: true);
+            return new SplitComparison(
+                TimeText.ToRecordPrecision(splitTime) - TimeText.ToRecordPrecision(referenceTime),
+                ShowDelta: true);
         }
 
         return GetRunningComparison(
@@ -55,7 +57,9 @@ public static class SplitComparisonService
             return SplitComparison.Empty;
         }
 
-        return new SplitComparison(splitTime - referenceSplit, ShowDelta: true);
+        return new SplitComparison(
+            TimeText.ToRecordPrecision(splitTime) - TimeText.ToRecordPrecision(referenceSplit),
+            ShowDelta: true);
     }
 
     public static SplitComparison GetPersonalBestSegmentComparison(
@@ -68,7 +72,7 @@ public static class SplitComparisonService
             return SplitComparison.Empty;
         }
 
-        return new SplitComparison(segmentTime - personalBestSegment, ShowDelta: true);
+        return new SplitComparison(TimeText.ToRecordPrecision(segmentTime) - personalBestSegment, ShowDelta: true);
     }
 
     public static bool TryGetPersonalBestSegment(

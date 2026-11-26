@@ -12,6 +12,7 @@ internal static class WindowsFlowTests
         yield return TestCase.Async("settings window exposes About last, displays the executable version and owns update cancellation", TestSuite.Windows, AboutPageJourney);
         yield return TestCase.Async("settings window opens every page and produces a normalized draft without mutating the source", TestSuite.Windows, SettingsDraftJourney);
         yield return TestCase.Async("all-icons mode exposes per-target optional files and preserves them across mode changes", TestSuite.Windows, AllIconFilesJourney);
+        yield return TestCase.Async("split editor preserves advanced validation and conversion warnings without a status strip", TestSuite.Windows, SplitEditorValidationJourney);
         yield return TestCase.Sync("overlay restores a visible multi-monitor position and keeps dense layouts inside composite bounds", TestSuite.Windows, OverlayLayoutJourney);
         yield return TestCase.Sync("timer reserves stable proportional-font slots for milliseconds and indicators", TestSuite.Windows, TimerProportionalFontLayoutJourney);
         yield return TestCase.Sync("rendering color effects and icons use deterministic render resources", TestSuite.Windows, RenderingResourceJourney);
@@ -153,6 +154,55 @@ internal static class WindowsFlowTests
         SplitDefinition definition = SplitCatalog.Build(draft).Single();
         Check.Sequence([customPath, "twins.png"], definition.IconFileNames);
         Check.Sequence([SplitCatalog.Destroyer, SplitCatalog.Twins], definition.IconKeys);
+    }, cancellationToken);
+
+    private static Task SplitEditorValidationJourney(CancellationToken cancellationToken) => StaTestHost.RunAsync(() =>
+    {
+        AppSettings settings = AppSettingsDefaults.Create();
+        settings.General.Language = "English";
+        List<SplitCondition> facts = settings.Route.SplitRoute.Take(3)
+            .Select(entry => entry.Condition.ToFlatGroup().GetFactConditions().First().Clone()).ToList();
+        SplitCondition nested = SplitCondition.All([facts[0], SplitCondition.AtLeast([facts[1], facts[2]], 1)]);
+        Check.False(SplitConditionEditorMode.CanUseBasicEditor(nested));
+        settings.Route.SplitRoute =
+        [
+            new SplitRouteEntry
+            {
+                Id = "split:advanced-test", DisplayName = "Advanced", Enabled = true,
+                Condition = nested, UseAdvancedConditionEditor = true
+            }
+        ];
+        var warnings = new List<string>();
+        using var window = new SettingsWindow(settings,
+            messageBoxPresenter: (_, message, _, _, _) =>
+            {
+                warnings.Add(message);
+                return DialogResult.OK;
+            },
+            applicationUpdateService: new FakeUpdateService(new Version(1, 0, 0, 0)));
+        window.PageHost.Select(SettingsPageId.Splits);
+        WpfSplitSettingsPage page = window.PageHost.GetOrCreatePage<WpfSplitSettingsPage>(SettingsPageId.Splits);
+        Check.True(page.AdvancedConditionModeForTests);
+        page.AdvancedConditionButtonForTests.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
+        Check.True(page.AdvancedConditionModeForTests);
+        Check.Equal(1, warnings.Count);
+        Check.Equal("Advanced condition cannot be converted to basic editor without losing structure.", warnings[0]);
+
+        page.AdvancedConditionBoxForTests.Text = "ALL(";
+        Check.False(window.TryApplyForTests(out string error));
+        Check.False(string.IsNullOrWhiteSpace(error));
+        page.AdvancedConditionBoxForTests.Text = SplitConditionText.Format(nested, settings.General.Language);
+        Check.True(window.TryApplyForTests(out _));
+        Check.True(window.Result.Route.SplitRoute.Single().UseAdvancedConditionEditor);
+        Check.Equal(SplitConditionText.Format(nested, settings.General.Language),
+            SplitConditionText.Format(window.Result.Route.SplitRoute.Single().Condition, settings.General.Language));
+
+        page.AdvancedConditionBoxForTests.Text = SplitConditionText.Format(SplitCondition.All(facts), settings.General.Language);
+        page.AdvancedConditionButtonForTests.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
+        Check.False(page.AdvancedConditionModeForTests);
+        Check.Equal(1, warnings.Count);
+        Check.True(window.TryApplyForTests(out _));
+        Check.False(window.Result.Route.SplitRoute.Single().UseAdvancedConditionEditor);
     }, cancellationToken);
 
     private static Task SettingsDraftJourney(CancellationToken cancellationToken) => StaTestHost.RunAsync(() =>
@@ -386,6 +436,7 @@ internal static class WindowsFlowTests
         new MainFormContextMenuBuilder().Rebuild(
             contextMenu,
             resourceDraft,
+            canOpenSettings: true,
             canSwitchSettingsFile: true,
             canUseStandardAutomation: true,
             static () => { },
@@ -407,6 +458,7 @@ internal static class WindowsFlowTests
         new MainFormContextMenuBuilder().Rebuild(
             contextMenu,
             resourceDraft,
+            canOpenSettings: false,
             canSwitchSettingsFile: false,
             canUseStandardAutomation: false,
             static () => { },

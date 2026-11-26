@@ -72,7 +72,6 @@ public static class SettingsSplitSetNormalizer
         {
             set.Name = string.IsNullOrWhiteSpace(set.Name) ? fallbackName : set.Name.Trim();
             set.Splits ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            SettingsNormalizationHelpers.RemoveKeysExcept(set.Splits, validKeySet);
             foreach (string key in validKeySet)
             {
                 set.Splits.TryAdd(key, string.Empty);

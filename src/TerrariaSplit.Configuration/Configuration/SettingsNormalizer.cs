@@ -16,6 +16,8 @@ public static class SettingsNormalizer
         settings.Advanced ??= defaults.Advanced;
         settings.General.Language = LanguageNames.Normalize(settings.General.Language);
         settings.Route.SplitRoute ??= new List<SplitRouteEntry>();
+        settings.Route.Presets ??= new List<RoutePreset>();
+        settings.Route.ActiveRouteName = settings.Route.ActiveRouteName?.Trim() ?? string.Empty;
         settings.Comparison.ReferenceSplitSets ??= new List<ReferenceSplitSet>();
         settings.Comparison.PersonalBestTimeSets ??= new List<ReferenceSplitSet>();
         settings.Comparison.PersonalBestSegmentSets ??= new List<ReferenceSplitSet>();
@@ -95,7 +97,10 @@ public static class SettingsNormalizer
 
         if (settings.Route.SplitRoute.Count == 0)
         {
-            settings.Route.SplitRoute = SplitCatalog.CreateDefaultRoute();
+            if (string.IsNullOrWhiteSpace(settings.Route.ActiveRouteName))
+            {
+                settings.Route.SplitRoute = SplitCatalog.CreateDefaultRoute();
+            }
             return;
         }
 
@@ -125,7 +130,7 @@ public static class SettingsNormalizer
             normalized.Add(entry);
         }
 
-        if (normalized.Count == 0)
+        if (normalized.Count == 0 && string.IsNullOrWhiteSpace(settings.Route.ActiveRouteName))
         {
             normalized = SplitCatalog.CreateDefaultRoute();
         }
@@ -315,7 +320,10 @@ public static class SettingsNormalizer
 
     private static void RemoveUnknownCumulativeKeys(AppSettings settings, HashSet<string> conditionRowKeys)
     {
-        SettingsNormalizationHelpers.RemoveKeysExcept(settings.Comparison.PersonalBestTimes, conditionRowKeys);
+        var retainedKeys = new HashSet<string>(conditionRowKeys, StringComparer.OrdinalIgnoreCase);
+        retainedKeys.UnionWith(settings.Route.Presets.SelectMany(preset => SplitConditionDataRows.BuildKeys(preset.SplitRoute)));
+        retainedKeys.UnionWith(settings.Comparison.PersonalBestTimeSets.SelectMany(set => set.Splits?.Keys.AsEnumerable() ?? []));
+        SettingsNormalizationHelpers.RemoveKeysExcept(settings.Comparison.PersonalBestTimes, retainedKeys);
     }
 
     private static void RemoveUnknownRouteGroupKeys(AppSettings settings)
@@ -323,6 +331,9 @@ public static class SettingsNormalizer
         HashSet<string> validGroupKeys = SplitRouteGroups.Build(settings)
             .Select(group => group.Key)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        validGroupKeys.UnionWith(settings.Route.Presets.SelectMany(preset => preset.SplitRoute)
+            .Where(entry => entry.Enabled && !entry.IsAttached).Select(entry => entry.Id));
+        validGroupKeys.UnionWith(settings.Comparison.PersonalBestSegmentSets.SelectMany(set => set.Splits?.Keys.AsEnumerable() ?? []));
         SettingsNormalizationHelpers.RemoveKeysExcept(settings.Comparison.PersonalBestSegmentTimes, validGroupKeys);
         SettingsNormalizationHelpers.RemoveKeysExcept(settings.Overlay.SplitCompletionSplitComparisons, validGroupKeys);
         SettingsNormalizationHelpers.RemoveKeysExcept(settings.Overlay.SplitCompletionSegmentComparisons, validGroupKeys);

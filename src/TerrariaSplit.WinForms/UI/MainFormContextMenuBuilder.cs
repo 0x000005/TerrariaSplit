@@ -22,6 +22,7 @@ internal sealed class MainFormContextMenuBuilder
     public void Rebuild(
         ContextMenuStrip menu,
         AppSettings settings,
+        bool canOpenSettings,
         bool canSwitchSettingsFile,
         bool canUseStandardAutomation,
         Action openStatistics,
@@ -37,7 +38,7 @@ internal sealed class MainFormContextMenuBuilder
         var settingsItem = new ToolStripMenuItem(Localizer.Get("Settings...", settings))
         {
             Name = SettingsItemName,
-            Enabled = canSwitchSettingsFile
+            Enabled = canOpenSettings
         };
         settingsItem.Click += (_, _) => openSettings();
         menu.Items.Add(settingsItem);

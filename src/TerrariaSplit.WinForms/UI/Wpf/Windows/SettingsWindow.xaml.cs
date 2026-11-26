@@ -7,14 +7,14 @@ namespace TerrariaSplit.UI.Wpf.Windows;
 
 internal sealed partial class SettingsWindow : ModernWindow, IWpfSettingsWindowOwner, IDisposable
 {
-    private const string IconGeneral = "M 7,4.2 A 2.8,2.8 0 1 1 6.99,4.2 Z M 7,1.2 V 2.5 M 7,11.5 V 12.8 M 1.2,7 H 2.5 M 11.5,7 H 12.8 M 2.9,2.9 L 3.8,3.8 M 10.2,10.2 L 11.1,11.1 M 11.1,2.9 L 10.2,3.8 M 3.8,10.2 L 2.9,11.1";
-    private const string IconRoute = "M 2,3 H 12 M 2,7 H 12 M 2,11 H 9";
-    private const string IconData = "M 2,3.5 C 2,2.2 12,2.2 12,3.5 C 12,4.8 2,4.8 2,3.5 Z M 2,3.5 V 10.5 C 2,11.8 12,11.8 12,10.5 V 3.5 M 2,7 C 2,8.3 12,8.3 12,7";
+    private const string IconGeneral = "M 14,17 H 5 M 19,7 H 10 M 20,17 A 3,3 0 1 0 14,17 A 3,3 0 1 0 20,17 Z M 10,7 A 3,3 0 1 0 4,7 A 3,3 0 1 0 10,7 Z";
+    private const string IconRoute = "M 9,5 H 17.5 A 3.5,3.5 0 0 1 17.5,12 H 6.5 A 3.5,3.5 0 0 0 6.5,19 H 15 M 21,19 A 3,3 0 1 0 15,19 A 3,3 0 1 0 21,19 Z M 9,5 A 3,3 0 1 0 3,5 A 3,3 0 1 0 9,5 Z";
+    private const string IconData = "M 15,3 V 21 M 5,3 H 19 A 2,2 0 0 1 21,5 V 19 A 2,2 0 0 1 19,21 H 5 A 2,2 0 0 1 3,19 V 5 A 2,2 0 0 1 5,3 Z M 21,9 H 3 M 21,15 H 3";
     private const string IconUi = "M 1.5,2.5 H 12.5 V 11.5 H 1.5 Z M 1.5,5.5 H 12.5 M 5.5,5.5 V 11.5";
     private const string IconEffects = "M 7,1.5 L 8.4,5.6 L 12.5,7 L 8.4,8.4 L 7,12.5 L 5.6,8.4 L 1.5,7 L 5.6,5.6 Z";
     private const string IconAutomation = "M 7.8,1.5 L 2.8,7.8 H 6.8 L 6.2,12.5 L 11.2,6.2 H 7.2 Z";
     private const string IconSounds = "M 2,5.5 H 4.5 L 7.8,2.8 V 11.2 L 4.5,8.5 H 2 Z M 9.8,4.8 C 10.8,5.8 10.8,8.2 9.8,9.2 M 11.5,3.2 C 13,5 13,9 11.5,10.8";
-    private const string IconColors = "M 7,1.5 C 3.8,1.5 1.5,4 1.5,7 C 1.5,10 3.8,12.5 7,12.5 C 8.4,12.5 9.2,11.7 9.2,10.7 C 9.2,10 8.8,9.4 9.6,9.1 C 11.4,8.6 12.5,7.4 12.5,5.8 C 12.5,3.3 10.1,1.5 7,1.5 Z";
+    private const string IconColors = "M 12,22 A 10,10 0 0 1 12,2 A 10,9 0 0 1 22,11 A 5,5 0 0 1 17,16 H 14.75 A 1.75,1.75 0 0 0 13.35,18.8 L 13.65,19.2 A 1.75,1.75 0 0 1 12.25,22 Z M 14,6.5 A 0.5,0.5 0 1 0 13,6.5 A 0.5,0.5 0 1 0 14,6.5 Z M 18,10.5 A 0.5,0.5 0 1 0 17,10.5 A 0.5,0.5 0 1 0 18,10.5 Z M 7,12.5 A 0.5,0.5 0 1 0 6,12.5 A 0.5,0.5 0 1 0 7,12.5 Z M 9,7.5 A 0.5,0.5 0 1 0 8,7.5 A 0.5,0.5 0 1 0 9,7.5 Z";
     private const string IconAdvanced = "M 2,4 H 12 M 2,10 H 12 M 5,2.2 V 5.8 M 9,8.2 V 11.8";
     private const string IconAbout = "M 7,1.5 A 5.5,5.5 0 1 1 6.99,1.5 Z M 7,6.2 V 10.2 M 7,4.2 V 4.3";
 

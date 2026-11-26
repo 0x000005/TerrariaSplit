@@ -50,6 +50,8 @@ internal sealed class SettingsShell : IDisposable
 
     public bool IsOpen => isOpen;
 
+    public bool CanSwitchSettingsFile => !isOpen && !isRaceRoomActive();
+
     public void Open()
     {
         if (isRaceRoomActive())
@@ -89,7 +91,7 @@ internal sealed class SettingsShell : IDisposable
 
     public void SwitchSettingsFile(string path)
     {
-        if (isRaceRoomActive())
+        if (!CanSwitchSettingsFile)
         {
             return;
         }

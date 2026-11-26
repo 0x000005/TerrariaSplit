@@ -10,12 +10,6 @@ internal static class SplitSettingsRouteValidator
         out string message)
     {
         message = string.Empty;
-        if (routeEntries.Count == 0)
-        {
-            message = localize("Route must contain at least one split.");
-            return false;
-        }
-
         HashSet<string> ids = new(StringComparer.OrdinalIgnoreCase);
         foreach (SplitRouteEntry entry in routeEntries)
         {

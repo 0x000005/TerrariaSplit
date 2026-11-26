@@ -56,8 +56,7 @@ internal sealed class WpfRaceLeaderboardPages
         {
             var card = WpfSettingsUi.CreateCard(
                 Localize("Leaderboard display"),
-                out StackPanel body,
-                contentPadding: new Thickness(14, 4, 14, 10));
+                out StackPanel body);
 
             body.Children.Add(CreateInterfaceHeader());
             body.Children.Add(CreateInterfaceRow(KeyRank, "Rank", leaderboardSettings.Rank, leaderboardSettings.RankAlignment, leaderboardSettings.TextEffects.Rank));
@@ -78,7 +77,7 @@ internal sealed class WpfRaceLeaderboardPages
 
             WpfButton applyBtn = WpfSettingsUi.CreateButton(Localize("Apply UI settings"), minWidth: 112);
             applyBtn.HorizontalAlignment = WpfHorizontalAlignment.Left;
-            applyBtn.Margin = new Thickness(0, 10, 0, 0);
+            applyBtn.Margin = new Thickness(0, 10, 0, 10);
             applyBtn.Click += (_, _) => SaveLeaderboardSettings();
             body.Children.Add(applyBtn);
 
@@ -97,8 +96,7 @@ internal sealed class WpfRaceLeaderboardPages
 
             var card = WpfSettingsUi.CreateCard(
                 Localize("Colors"),
-                out StackPanel body,
-                contentPadding: new Thickness(14, 4, 14, 10));
+                out StackPanel body);
 
             useRankColorForMainTimerBox = WpfSettingsUi.CreateToggleSwitch(leaderboardSettings.UseRankColorForMainTimer);
             WpfSettingsUi.AddSettingRow(body, Localize("Use rank color for main timer"), useRankColorForMainTimerBox);
@@ -112,7 +110,7 @@ internal sealed class WpfRaceLeaderboardPages
 
             WpfButton applyBtn = WpfSettingsUi.CreateButton(Localize("Apply color settings"), minWidth: 112);
             applyBtn.HorizontalAlignment = WpfHorizontalAlignment.Left;
-            applyBtn.Margin = new Thickness(0, 10, 0, 0);
+            applyBtn.Margin = new Thickness(0, 10, 0, 10);
             applyBtn.Click += (_, _) => SaveLeaderboardSettings();
             body.Children.Add(applyBtn);
 

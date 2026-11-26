@@ -15,6 +15,8 @@ internal static class WpfBootstrap
             return;
         }
 
+        Controls.ComboBoxWheelGuard.Register();
+
         // Register the pack:// URI scheme when WPF runs inside a WinForms host without App.xaml.
         _ = PackUriHelper.UriSchemePack;
         if (!UriParser.IsKnownScheme("pack"))

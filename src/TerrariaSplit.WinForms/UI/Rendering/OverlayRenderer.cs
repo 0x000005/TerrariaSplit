@@ -19,7 +19,15 @@ internal static class OverlayRenderer
         bool animationVisible = animationActive &&
             animationOpacity > 0.01f &&
             context.SplitCompletionAnimation is not null;
-        float listOpacity = animationVisible ? 1f - animationOpacity : 1f;
+        TimeSpan duration = SplitCompletionAnimationRenderer.GetAnimationDuration(context.Settings);
+        bool outgoingList = animationActive && SplitCompletionAnimationRenderer.IsOutgoingListPhase(animationElapsed, duration);
+        float listOpacity = animationActive
+            ? SplitCompletionAnimationRenderer.GetListOpacity(animationElapsed, duration)
+            : 1f;
+        if (outgoingList)
+        {
+            listOpacity *= context.OutgoingListOpacity;
+        }
 
         if (!animationActive)
         {
@@ -29,7 +37,10 @@ internal static class OverlayRenderer
         resources.BossIcons.BeginRenderFrame();
         if (ShouldRenderSplitList(listOpacity))
         {
-            SplitListRenderer.Render(graphics, context, resources, listOpacity, clipBounds);
+            OverlayRenderContext listContext = outgoingList && context.OutgoingSplitList is not null
+                ? context.OutgoingSplitList
+                : context;
+            SplitListRenderer.Render(graphics, listContext, resources, listOpacity, clipBounds);
         }
 
         if (animationVisible && context.SplitCompletionAnimation is not null)
@@ -43,7 +54,8 @@ internal static class OverlayRenderer
                 animationOpacity);
         }
 
-        return new OverlayRenderResult(animationActive, resources.BossIcons.AnimatedIconUsedInCurrentFrame);
+        return new OverlayRenderResult(animationActive, resources.BossIcons.AnimatedIconUsedInCurrentFrame,
+            listOpacity, outgoingList);
     }
 
     internal static bool ShouldRenderSplitList(float opacity)

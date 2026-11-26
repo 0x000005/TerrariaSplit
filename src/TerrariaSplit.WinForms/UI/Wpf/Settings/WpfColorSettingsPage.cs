@@ -31,7 +31,7 @@ internal sealed class WpfColorSettingsPage : WpfSettingsPageBase
         Draft.Overlay.Colors ??= new UiColorSettings();
 
         // UI Colors
-        var uiCard = WpfSettingsUi.CreateCard(Localize("UI Colors"), out StackPanel uiBody, contentPadding: new Thickness(14, 4, 14, 8));
+        var uiCard = WpfSettingsUi.CreateCard(Localize("UI Colors"), out StackPanel uiBody);
         uiBody.Children.Add(CreateColorTableHeader(Localize("Text type"), Localize("Text"), Localize("Outline"), Localize("Shadow")));
         for (int i = 0; i < SettingsDescriptors.TextColors.Count; i++)
         {
@@ -47,7 +47,7 @@ internal sealed class WpfColorSettingsPage : WpfSettingsPageBase
         parent.Children.Add(uiCard);
 
         // Icon Colors
-        var iconCard = WpfSettingsUi.CreateCard(Localize("Icon Colors"), out StackPanel iconBody, contentPadding: new Thickness(14, 4, 14, 8));
+        var iconCard = WpfSettingsUi.CreateCard(Localize("Icon Colors"), out StackPanel iconBody);
         iconBody.Children.Add(CreateTwoColorTableHeader(Localize("Icon type"), Localize("Outline"), Localize("Shadow")));
         ColorDescriptor outline = GetIconColorDescriptor(nameof(UiColorSettings.IconOutline));
         ColorDescriptor shadow = GetIconColorDescriptor(nameof(UiColorSettings.IconShadow));
@@ -57,7 +57,7 @@ internal sealed class WpfColorSettingsPage : WpfSettingsPageBase
         parent.Children.Add(iconCard);
 
         // Animation Colors
-        var animCard = WpfSettingsUi.CreateCard(Localize("Animation Colors"), out StackPanel animBody, contentPadding: new Thickness(14, 4, 14, 8));
+        var animCard = WpfSettingsUi.CreateCard(Localize("Animation Colors"), out StackPanel animBody);
         animBody.Children.Add(CreateColorTableHeader(Localize("Text type"), Localize("Text"), Localize("Outline"), Localize("Shadow")));
         for (int i = 0; i < SettingsDescriptors.AnimationColors.Count; i++)
         {

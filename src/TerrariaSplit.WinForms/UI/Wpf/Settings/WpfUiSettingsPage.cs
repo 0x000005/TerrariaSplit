@@ -171,7 +171,7 @@ internal sealed class WpfUiSettingsPage : WpfSettingsPageBase
 
     private void AddSplitDisplaySection(StackPanel parent)
     {
-        var card = WpfSettingsUi.CreateCard(Localize("Split display"), out StackPanel body, contentPadding: new Thickness(14, 4, 14, 8));
+        var card = WpfSettingsUi.CreateCard(Localize("Split display"), out StackPanel body);
 
         iconNameGapBox = WpfSettingsUi.CreateNumberBox(Draft.Overlay.Columns.IconNameGap, 0, 1000, width: NumColWidth - 8);
         nameTimeGapBox = WpfSettingsUi.CreateNumberBox(Draft.Overlay.Columns.NameTimeGap, 0, 1000, width: NumColWidth - 8);
@@ -368,7 +368,7 @@ internal sealed class WpfUiSettingsPage : WpfSettingsPageBase
 
     private void AddMainTimerSection(StackPanel parent)
     {
-        var card = WpfSettingsUi.CreateCard(Localize("Main timer"), out StackPanel body, contentPadding: new Thickness(14, 4, 14, 8));
+        var card = WpfSettingsUi.CreateCard(Localize("Main timer"), out StackPanel body);
 
         body.Children.Add(CreateTimerHeader());
         body.Children.Add(CreateTimerRow(UiColumnDescriptors.Timer, EnsureColumn(Draft.Overlay.Columns, UiColumnDescriptors.Timer), isLast: false));

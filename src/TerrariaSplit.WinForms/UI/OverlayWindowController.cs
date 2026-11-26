@@ -39,6 +39,8 @@ internal sealed class OverlayWindowController : IDisposable
 
     public event Action? FirstFrameRendered;
 
+    public event Action? PreparingFrame;
+
     public OverlayWindowController(
         Form owner,
         Func<Graphics, bool> draw,
@@ -158,6 +160,7 @@ internal sealed class OverlayWindowController : IDisposable
         renderInProgress = true;
         try
         {
+            PreparingFrame?.Invoke();
             if (owner.ClientSize.Width <= 0 || owner.ClientSize.Height <= 0)
             {
                 return true;
@@ -183,6 +186,16 @@ internal sealed class OverlayWindowController : IDisposable
 
     public bool RenderNow(Func<Graphics, bool>? drawOverride = null)
     {
+        if (!owner.IsHandleCreated || owner.IsDisposed || owner.Disposing || disposed)
+        {
+            return false;
+        }
+
+        if (drawOverride is null)
+        {
+            PreparingFrame?.Invoke();
+        }
+
         if (!owner.IsHandleCreated || owner.ClientSize.Width <= 0 || owner.ClientSize.Height <= 0)
         {
             return false;

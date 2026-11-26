@@ -1,7 +1,7 @@
 <div align="center">
 
 
-<img src="images/readme-main-pic.png" alt="TerrariaSplit 计时器预览">
+<img src="images/readme-main-pic.png" alt="main">
 
 <br>
 <br>
@@ -12,21 +12,23 @@
   <img src="https://img.shields.io/badge/License-MIT-blue?style=flat-square" alt="MIT License">
 </p>
 
-
+<p>
+  <strong>English</strong> ·
+  <a href="../README.md">简体中文</a>
+</p>
 </div>
 
 
 
-**TerrariaSplit** is a lightweight, transparent Windows split timer built for Terraria. It starts automatically when you enter a world, splits on boss kills or custom objectives, tracks statistics and personal bests, automates world creation and seed filtering, and powers synchronized multiplayer races.
+**TerrariaSplit** is a lightweight Windows split timer built for Terraria. It starts automatically when you enter a world, splits on boss kills or custom objectives, tracks statistics and personal bests, automates world creation and seed filtering, and powers synchronized multiplayer races.
 
 ## ✨ Highlights
 
 - **🎯 Automatic Splitting & Custom Routes**
   - Detects **boss defeats**, **item pickups**, **town NPC arrivals**, and **biome entry** automatically.
   - Supports multi-target logic ("all", "any", "at least N"), main & attached groups, and customizable visible row windows.
-  - Includes **Practice Mode** so you can click directly on any split or total time to edit it.
 - **🎨 Customizable Transparent Overlay**
-  - Borderless transparent floating overlay with one-key **mouse click-through**, plus compact **RTSS OSD** support for fullscreen Terraria.
+  - Borderless transparent floating overlay with **mouse click-through**, plus compact **RTSS OSD** support for fullscreen Terraria.
   - Customize columns, fonts, opacity, colors, outlines, and shadows.
   - Features boss icon lighting, current-stage focus highlight, delta color gradients, segment-best highlights, boss defeat animations, and custom sound effects.
 - **📊 Run Statistics & Personal Bests**
@@ -36,7 +38,7 @@
   - One-click world creation (including special & secret seeds), quick practice save loading, and Zenith auto star catch.
   - Filter seeds by pyramids, dungeon-side Crimson, Finch Staff / Starfury chests, and jungle depth/resources, with an optional background world pool for instant starts.
 - **🏆 Multiplayer Race Mode**
-  - Host a 4-digit room sharing the same world, route, and reference times with live progress tracking, a floating leaderboard, an in-game Race menu, and optional voice announcements.
+  - Host a room sharing the same world, route, and reference times with live progress tracking, a floating leaderboard, an in-game Race menu, and optional voice announcements.
   - Supports fair RNG control and configurable boss failure time penalties.
 
 ## 🚀 Quick Start
@@ -63,7 +65,7 @@
 | One-click world creation | Legacy delay-based | ✅ State-driven | ✅ State-driven |
 | Automatic seed filtering | ✅ Supported | ✅ Supported | ✅ Supported |
 | Extended UI scaling | ❌ Unsupported | ✅ Supported | ✅ Supported |
-| Multiplayer Race | ❌ Unsupported | ❌ Unsupported | ✅ Official `1.4.6.1` only |
+| Multiplayer Race | ❌ Unsupported | ❌ Unsupported | ✅ Supported |
 
 ## 🌐 Hosting a Race Server
 
@@ -80,7 +82,6 @@ Multiplayer Race requires a standalone **TerrariaSplit Race Server** (Windows / 
 ```
 
 - Replace `5000` with your preferred port. For players outside your LAN, make sure the port is reachable via a public IP, port forwarding, or a tunnel.
-- When upgrading to `1.13.0.0+`, update **both the client and Race Server together**.
 
 ## ❓ FAQ
 

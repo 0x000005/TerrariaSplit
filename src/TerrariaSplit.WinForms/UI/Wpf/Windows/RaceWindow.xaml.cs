@@ -13,7 +13,7 @@ internal sealed partial class RaceWindow : ModernWindow
     private const string IconConnection = "M 3.5,9.5 A 4.8,4.8 0 0 1 10.5,9.5 M 1.5,7 A 7.8,7.8 0 0 1 12.5,7 M 7,11.5 A 0.8,0.8 0 1 1 6.99,11.5 Z";
     private const string IconPenalty = "M 7,2.2 A 4.8,4.8 0 1 1 6.99,2.2 Z M 7,4.2 V 7.2 L 9.2,8.4";
     private const string IconUi = "M 1.5,2.5 H 12.5 V 11.5 H 1.5 Z M 1.5,5.5 H 12.5 M 5.5,5.5 V 11.5";
-    private const string IconColors = "M 7,1.5 C 3.8,1.5 1.5,4 1.5,7 C 1.5,10 3.8,12.5 7,12.5 C 8.4,12.5 9.2,11.7 9.2,10.7 C 9.2,10 8.8,9.4 9.6,9.1 C 11.4,8.6 12.5,7.4 12.5,5.8 C 12.5,3.3 10.1,1.5 7,1.5 Z";
+    private const string IconColors = "M 12,22 A 10,10 0 0 1 12,2 A 10,9 0 0 1 22,11 A 5,5 0 0 1 17,16 H 14.75 A 1.75,1.75 0 0 0 13.35,18.8 L 13.65,19.2 A 1.75,1.75 0 0 1 12.25,22 Z M 14,6.5 A 0.5,0.5 0 1 0 13,6.5 A 0.5,0.5 0 1 0 14,6.5 Z M 18,10.5 A 0.5,0.5 0 1 0 17,10.5 A 0.5,0.5 0 1 0 18,10.5 Z M 7,12.5 A 0.5,0.5 0 1 0 6,12.5 A 0.5,0.5 0 1 0 7,12.5 Z M 9,7.5 A 0.5,0.5 0 1 0 8,7.5 A 0.5,0.5 0 1 0 9,7.5 Z";
     private const string IconVoice = "M 2,5.5 H 4.5 L 7.8,2.8 V 11.2 L 4.5,8.5 H 2 Z M 9.8,4.8 C 10.8,5.8 10.8,8.2 9.8,9.2 M 11.5,3.2 C 13,5 13,9 11.5,10.8";
 
     private enum RacePageId

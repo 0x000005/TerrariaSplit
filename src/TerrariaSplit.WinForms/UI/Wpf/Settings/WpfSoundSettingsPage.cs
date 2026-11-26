@@ -36,7 +36,7 @@ internal sealed class WpfSoundSettingsPage : WpfSettingsPageBase
     {
         Draft.Overlay.Sounds ??= new UiSoundSettings();
 
-        var card = WpfSettingsUi.CreateCard(Localize("Sounds"), out StackPanel body, contentPadding: new Thickness(14, 6, 14, 8));
+        var card = WpfSettingsUi.CreateCard(Localize("Sounds"), out StackPanel body);
         IReadOnlyList<SoundDescriptor> descriptors = SettingsDescriptors.Sounds;
         for (int i = 0; i < descriptors.Count; i++)
         {

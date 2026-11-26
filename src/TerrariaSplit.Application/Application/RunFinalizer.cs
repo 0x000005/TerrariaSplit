@@ -170,8 +170,9 @@ internal sealed class RunFinalizer
                 continue;
             }
 
-            TimeSpan segmentTime = groupSplitTime - previousGroupSplitTime;
-            previousGroupSplitTime = groupSplitTime;
+            TimeSpan recordSplitTime = TimeText.ToRecordPrecision(groupSplitTime);
+            TimeSpan segmentTime = recordSplitTime - previousGroupSplitTime;
+            previousGroupSplitTime = recordSplitTime;
             if (segmentTime < TimeSpan.Zero)
             {
                 continue;
@@ -179,7 +180,7 @@ internal sealed class RunFinalizer
 
             if (baselineSettings.Comparison.PersonalBestSegmentTimes.TryGetValue(group.Key, out string? existingText) &&
                 TimeText.TryParse(existingText, out TimeSpan existingSegment) &&
-                existingSegment <= segmentTime)
+                TimeText.ToRecordPrecision(existingSegment) <= segmentTime)
             {
                 continue;
             }
@@ -270,6 +271,7 @@ internal sealed class RunFinalizer
             return null;
         }
 
+        finalTime = TimeText.ToRecordPrecision(finalTime);
         bool hasExistingFinalTime = SplitConditionDataRows.TryGetSplitTime(
             routeSettings,
             baselineSettings.Comparison.PersonalBestTimes,
@@ -278,7 +280,7 @@ internal sealed class RunFinalizer
         string existingFinalText = hasExistingFinalTime
             ? TimeText.FormatRecord(existingFinalTime)
             : string.Empty;
-        if (hasExistingFinalTime && existingFinalTime <= finalTime)
+        if (hasExistingFinalTime && TimeText.ToRecordPrecision(existingFinalTime) <= finalTime)
         {
             return null;
         }

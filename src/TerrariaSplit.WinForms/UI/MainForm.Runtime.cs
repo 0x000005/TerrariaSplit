@@ -631,7 +631,13 @@ internal sealed partial class MainForm : Form
 
     private void ClearSplitCompletionAnimation()
     {
+        if (overlayShell.Animations.SplitCompletionAnimation is not null && overlayShell.WindowsInitialized)
+        {
+            overlayShell.WindowController.RenderNow(static _ => true);
+        }
+
         overlayShell.Animations.ClearSplitCompletionAnimation();
+        UpdateOverlayLayoutContextIfChanged();
         UpdateStatusPaintSchedulerState();
         QueueStatusOverlayRender();
     }

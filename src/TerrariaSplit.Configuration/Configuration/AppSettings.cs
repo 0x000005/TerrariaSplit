@@ -72,6 +72,9 @@ public sealed class HotkeySettings
 
 public sealed class RouteSettings
 {
+    public string ActiveRouteName { get; set; } = string.Empty;
+    [JsonIgnore]
+    public List<RoutePreset> Presets { get; set; } = new();
     public List<SplitRouteEntry> SplitRoute { get; set; } = new();
     public bool ExpandSplitDetails { get; set; } = true;
     public bool CollapseSplitDetailsOnCompletion { get; set; } = true;

@@ -412,14 +412,36 @@ internal sealed partial class MainForm : Form
         UpdateOverlayLayoutContext(GetCurrentReservedLayoutRowCount(), GetCurrentLayoutRowCount(), force: false);
     }
 
-    private void UpdateOverlayLayoutContext(int reservedRowCount, int visibleRowCount, bool force)
+    private void UpdateOverlayLayoutContext(int reservedRowCount, int visibleRowCount, bool force,
+        bool preparingAnimationFrame = false)
     {
-        if (!overlayShell.ApplyLayoutRowCounts(reservedRowCount, visibleRowCount, force))
+        DateTime now = preparingAnimationFrame ? statusFrameTimestampUtc : DateTime.UtcNow;
+        SplitCompletionAnimation? animation = overlayShell.Animations.SplitCompletionAnimation;
+        if (!force && animation is not null &&
+            (!preparingAnimationFrame || !overlayShell.Animations.CanApplyCompletionLayout(settings, now)))
         {
             return;
         }
 
-        overlayShell.BoundsController.UpdateContext(settings, reservedRowCount, visibleRowCount);
+        if (animation is not null)
+        {
+            overlayShell.Animations.MarkCompletionLayoutApplied();
+        }
+
+        Rectangle? requiredBounds = overlayShell.Animations.GetRequiredStatusBounds(settings, now);
+        if (!overlayShell.ApplyLayoutRowCounts(reservedRowCount, visibleRowCount, force, requiredBounds))
+        {
+            return;
+        }
+
+        if (animation is not null && overlayShell.WindowsInitialized)
+        {
+            // Remove the previous layered surface before moving/resizing its window.
+            // The regular render immediately publishes the new frame at the fixed animation anchor.
+            overlayShell.WindowController.RenderNow(static _ => true);
+        }
+
+        overlayShell.BoundsController.UpdateContext(settings, reservedRowCount, visibleRowCount, requiredBounds);
         MarkStatusOverlayStaticContentDirty();
     }
 
@@ -448,7 +470,27 @@ internal sealed partial class MainForm : Form
             return;
         }
 
-        overlayShell.BoundsController.HandleStatusResize(new Rectangle(Location, ClientSize));
+        Rectangle requestedBounds = new(Location, ClientSize);
+        bool resized = requestedBounds.Size != overlayShell.BoundsController.CurrentLayout.StatusScreenBounds.Size;
+        if (resized)
+        {
+            ClearSplitCompletionAnimation();
+            overlayShell.Animations.Clear();
+        }
+
+        overlayShell.BoundsController.HandleStatusResize(requestedBounds);
+        if (resized)
+        {
+            UpdateOverlayLayoutContextIfChanged();
+        }
+    }
+
+    private void HandleTimerOverlayUserResize(Rectangle bounds)
+    {
+        ClearSplitCompletionAnimation();
+        overlayShell.Animations.Clear();
+        overlayShell.BoundsController.HandleTimerResize(bounds);
+        UpdateOverlayLayoutContextIfChanged();
     }
 
     private void PublishTimerOverlaySnapshot(bool force = false)

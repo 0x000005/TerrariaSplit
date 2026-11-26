@@ -129,7 +129,9 @@ internal static class OverlayFrameBuilder
 
         if (row.CompletionTime is TimeSpan completion)
         {
-            return new SplitComparison(completion - reference, ShowDelta: true);
+            return new SplitComparison(
+                TimeText.ToRecordPrecision(completion) - TimeText.ToRecordPrecision(reference),
+                ShowDelta: true);
         }
 
         return SplitComparisonService.GetRunningComparison(

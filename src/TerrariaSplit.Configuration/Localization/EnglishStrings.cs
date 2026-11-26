@@ -6,6 +6,12 @@ internal sealed class EnglishStrings : ILocalizedStringProvider
     {
         { "Initializing...", "Initializing..." },
         { "Startup failed", "Startup failed" },
+        { "Selected run time column", "Run time" },
+        { "Reference time column", "Reference time" },
+        { "Personal best time column", "PB time" },
+        { "Selected run segment time column", "Run segment" },
+        { "Reference segment time column", "Reference segment" },
+        { "Personal best segment time column", "PB segment" },
         { "TerrariaSplit could not finish initialization and must close.", "TerrariaSplit could not finish initialization and must close." },
         { "Race...", "Race..." },
         { "Race", "Race" },

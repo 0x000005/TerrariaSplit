@@ -29,7 +29,7 @@ internal static class SplitCompletionAnimationFactory
         return new SplitCompletionAnimation(
             displayDefinition,
             segmentTime,
-            splitTime,
+            TimeText.ToRecordPrecision(splitTime),
             SplitComparisonService.GetReferenceSplitComparison(settings, definition, splitTime),
             SplitComparisonService.GetPersonalBestSegmentComparison(settings, definition, segmentTime),
             SplitRenderData.IsSplitCompletionSplitComparisonEnabled(settings, groupKey),

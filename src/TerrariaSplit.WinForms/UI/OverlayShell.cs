@@ -6,6 +6,7 @@ internal sealed class OverlayShell : IDisposable
 {
     private int appliedReservedRowCount = -1;
     private int appliedVisibleRowCount = -1;
+    private Rectangle? appliedStatusBoundsRelativeToTimer;
     private OverlayWindowController? windowController;
     private OverlayBoundsController? boundsController;
     private TimerOverlayWindowHost? timerOverlayHost;
@@ -159,22 +160,26 @@ internal sealed class OverlayShell : IDisposable
         SuppressStatusBoundsFeedback = false;
     }
 
-    public bool ApplyLayoutRowCounts(int reservedRowCount, int visibleRowCount, bool force)
+    public bool ApplyLayoutRowCounts(int reservedRowCount, int visibleRowCount, bool force,
+        Rectangle? statusBoundsRelativeToTimer = null)
     {
         if (!force &&
             reservedRowCount == appliedReservedRowCount &&
-            visibleRowCount == appliedVisibleRowCount)
+            visibleRowCount == appliedVisibleRowCount &&
+            statusBoundsRelativeToTimer == appliedStatusBoundsRelativeToTimer)
         {
             return false;
         }
 
         appliedReservedRowCount = reservedRowCount;
         appliedVisibleRowCount = visibleRowCount;
+        appliedStatusBoundsRelativeToTimer = statusBoundsRelativeToTimer;
         return true;
     }
 
     public void Dispose()
     {
+        animations?.Clear();
         timerOverlayHost?.Dispose();
         windowController?.Dispose();
         renderResources?.Dispose();

@@ -90,6 +90,7 @@ internal sealed class ApplicationShellEffectExecutor
                 toggleMouseClickThrough();
                 break;
             case ClearOverlayAnimationEffect:
+                clearSplitCompletionAnimation();
                 overlayAnimations.Clear();
                 break;
             case ClearSplitCompletionAnimationEffect:

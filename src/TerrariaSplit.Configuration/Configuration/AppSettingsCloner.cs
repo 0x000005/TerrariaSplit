@@ -17,6 +17,16 @@ public static class AppSettingsCloner
             Clone(source.Advanced));
     }
 
+    public static List<SplitRouteEntry> CloneRouteEntries(IEnumerable<SplitRouteEntry> entries) => entries.Select(Clone).ToList();
+
+    public static RoutePreset CloneRoutePreset(RoutePreset source) => new()
+    {
+        Name = source.Name,
+        SplitRoute = CloneRouteEntries(source.SplitRoute),
+        LoadedFingerprint = source.LoadedFingerprint,
+        StorageSessionId = source.StorageSessionId
+    };
+
     public static RaceSettings CloneRaceSettings(RaceSettings source)
     {
         ArgumentNullException.ThrowIfNull(source);
@@ -90,6 +100,8 @@ public static class AppSettingsCloner
         source ??= new RouteSettings();
         return new RouteSettings
         {
+            ActiveRouteName = source.ActiveRouteName,
+            Presets = (source.Presets ?? []).Select(CloneRoutePreset).ToList(),
             SplitRoute = (source.SplitRoute ?? []).Select(Clone).ToList(),
             ExpandSplitDetails = source.ExpandSplitDetails,
             CollapseSplitDetailsOnCompletion = source.CollapseSplitDetailsOnCompletion,

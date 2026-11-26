@@ -95,6 +95,12 @@ internal sealed class WpfDataSettingsPage : WpfSettingsPageBase
             : PersonalBestSetService.GetActivePersonalBestSegmentSet(settings).Name;
     }
 
+    public override void OnDeselected()
+    {
+        SaveReferenceTextBoxes();
+        SavePersonalBestTextBoxes();
+    }
+
     public override void OnModelChanged(SettingsModelChange change)
     {
         if (change != SettingsModelChange.RouteChanged)
@@ -102,6 +108,8 @@ internal sealed class WpfDataSettingsPage : WpfSettingsPageBase
             return;
         }
 
+        SaveReferenceTextBoxes();
+        SavePersonalBestTextBoxes();
         PopulateReferenceDataGrid();
         PopulatePersonalBestTimeGrid();
         PopulatePersonalBestSegmentGrid();
@@ -196,7 +204,7 @@ internal sealed class WpfDataSettingsPage : WpfSettingsPageBase
         }
 
         List<SplitConditionDataRow> rows = SplitConditionDataRows.Build(Draft).ToList();
-        string signature = string.Join('\u001F', rows.Select(row => row.Key));
+        string signature = string.Join('\u001F', rows.Select(row => $"{row.Key}\u001E{row.DisplayName}"));
         if (referenceDataSignature == signature && splitTextBoxes.Count > 0)
         {
             LoadReferenceTextBoxes();
@@ -229,7 +237,7 @@ internal sealed class WpfDataSettingsPage : WpfSettingsPageBase
         }
 
         List<SplitConditionDataRow> rows = SplitConditionDataRows.Build(Draft).ToList();
-        string signature = string.Join('\u001F', rows.Select(row => row.Key));
+        string signature = string.Join('\u001F', rows.Select(row => $"{row.Key}\u001E{row.DisplayName}"));
         if (personalBestTimeGridSignature == signature && personalBestTimeTextBoxes.Count > 0)
         {
             foreach (SplitConditionDataRow row in rows)
@@ -268,7 +276,7 @@ internal sealed class WpfDataSettingsPage : WpfSettingsPageBase
         }
 
         List<RouteGroup> groups = SplitRouteGroups.Build(Draft).ToList();
-        string signature = string.Join('\u001F', groups.Select(group => group.Key));
+        string signature = string.Join('\u001F', groups.Select(group => $"{group.Key}\u001E{SplitRouteGroups.GetGroupDisplayName(group, Draft)}"));
         if (personalBestSegmentGridSignature == signature && personalBestSegmentTextBoxes.Count > 0)
         {
             foreach (RouteGroup group in groups)

@@ -8,6 +8,7 @@ public sealed class AppSettingsRepository : ISettingsRepository
     private readonly IRuntimeDataPaths paths;
     private readonly SplitTimeSetRepository splitTimeSets;
     private readonly SplitSetLoader splitSetLoader;
+    private readonly RoutePresetRepository routes;
     private string activeSettingsPath;
 
     public AppSettingsRepository(IRuntimeDataPaths? paths = null, SplitTimeSetRepository? splitTimeSets = null)
@@ -15,6 +16,7 @@ public sealed class AppSettingsRepository : ISettingsRepository
         this.paths = paths ?? AppContextRuntimeDataPaths.Default;
         this.splitTimeSets = splitTimeSets ?? new SplitTimeSetRepository(this.paths);
         splitSetLoader = new SplitSetLoader(this.splitTimeSets);
+        routes = new RoutePresetRepository(this.paths);
         activeSettingsPath = Path.Combine(SettingsDirectory, DefaultSettingsFileName);
     }
 
@@ -63,6 +65,7 @@ public sealed class AppSettingsRepository : ISettingsRepository
             ? ReadSettingsDocument(SettingsPath)
             : ReadSettingsDocument(SettingsPath, validatedJson);
         AppSettings settings = document.Settings;
+        bool importedRoute = routes.LoadInto(settings, SettingsPath, document.ShouldSaveDefaults);
         string activeReferenceSplitSet = settings.Comparison.ActiveReferenceSplitSet;
         string activePersonalBestTimeSet = settings.Comparison.ActivePersonalBestTimeSet;
         string activePersonalBestSegmentSet = settings.Comparison.ActivePersonalBestSegmentSet;
@@ -75,7 +78,7 @@ public sealed class AppSettingsRepository : ISettingsRepository
             activePersonalBestSegmentSet);
         splitSetLoader.LoadInto(settings);
 
-        if (document.ShouldSaveDefaults)
+        if (document.ShouldSaveDefaults || importedRoute)
         {
             Save(settings);
         }
@@ -95,9 +98,17 @@ public sealed class AppSettingsRepository : ISettingsRepository
     public OperationResult Save(AppSettings settings)
     {
         AppSettings snapshot = AppSettingsCloner.Clone(settings);
-        SettingsNormalizer.Normalize(snapshot);
         try
         {
+            routes.PrepareSave(snapshot.Route);
+            SettingsNormalizer.Normalize(snapshot);
+            RoutePresetService.CaptureActive(snapshot.Route);
+            OperationResult routeResult = routes.Save(snapshot.Route);
+            if (routeResult.Failed)
+            {
+                return routeResult;
+            }
+
             OperationResult referenceResult = splitTimeSets.SaveReferenceSets(
                 snapshot.Comparison.ReferenceSplitSets);
             if (referenceResult.Failed)

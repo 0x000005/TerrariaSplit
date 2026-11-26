@@ -31,6 +31,10 @@ internal sealed class WpfSplitSettingsPage : WpfSettingsPageBase
     private readonly SplitRouteListController routeController = new();
     private readonly SplitConditionEditorController conditionController = new();
     private SplitSettingsCommitService commitService = null!;
+    private WpfComboBox routePresetBox = null!;
+    private WpfTextBox newRouteNameBox = null!;
+    private WpfButton addRouteButton = null!;
+    private bool updatingRouteSelection;
 
     private WpfComboBox targetKindBox = null!;
     private WpfTextBox targetSearchBox = null!;
@@ -56,7 +60,6 @@ internal sealed class WpfSplitSettingsPage : WpfSettingsPageBase
     private StackPanel allIconFilesBody = null!;
     private readonly Dictionary<string, WpfTextBox> allIconFileBoxes = new(StringComparer.OrdinalIgnoreCase);
 
-    private TextBlock statusLabel = null!;
     private bool updatingUi;
     private bool allIconFilesSectionExpanded;
 
@@ -68,6 +71,10 @@ internal sealed class WpfSplitSettingsPage : WpfSettingsPageBase
     private List<SplitRouteEntry> RouteEntries => routeDraft.Entries;
 
     public override SettingsPageId Id => SettingsPageId.Splits;
+
+    internal WpfComboBox RoutePresetBoxForTests => routePresetBox;
+    internal WpfTextBox NewRouteNameBoxForTests => newRouteNameBox;
+    internal WpfButton AddRouteButtonForTests => addRouteButton;
 
     internal WpfTextBox TargetSearchBoxForTests => targetSearchBox;
     internal WpfListBox TargetListForTests => targetList;
@@ -98,15 +105,21 @@ internal sealed class WpfSplitSettingsPage : WpfSettingsPageBase
             () => conditionController.AdvancedError,
             context.Localize,
             context.NotifyModelChanged);
+        RoutePresetService.CaptureActive(Draft.Route);
         routeDraft.LoadFrom(Draft.Route);
 
-        FrameworkElement page = WpfSettingsUi.CreateScrollPage(BuildSections);
+        ScrollViewer page = WpfSettingsUi.CreateScrollPage(BuildSections);
+        page.HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled;
 
         RefreshTargetList();
         RefreshRouteList();
         if (routeList.Items.Count > 0)
         {
             routeList.SelectedIndex = 0;
+        }
+        else
+        {
+            ClearSelectedRouteControls();
         }
 
         return page;
@@ -115,7 +128,6 @@ internal sealed class WpfSplitSettingsPage : WpfSettingsPageBase
     public override void Apply(AppSettings settings)
     {
         SplitCommitResult result = commitService.CommitTo(settings, SplitCommitMode.StrictApply);
-        SetStatus(result.Message);
         if (!result.Succeeded)
         {
             throw new SettingsApplyFailedException(result.Message);
@@ -124,16 +136,24 @@ internal sealed class WpfSplitSettingsPage : WpfSettingsPageBase
 
     public override void OnDeselected()
     {
-        SplitCommitResult result = commitService.CommitTo(Draft, SplitCommitMode.LenientDeselection);
-        if (!result.Succeeded || result.RouteChanged)
-        {
-            SetStatus(result.Message);
-        }
+        _ = commitService.CommitTo(Draft, SplitCommitMode.LenientDeselection);
     }
 
     private void BuildSections(StackPanel parent)
     {
-        var routeCard = WpfSettingsUi.CreateCard(Localize("Route"), out StackPanel body, contentPadding: new Thickness(14, 8, 14, 10));
+        var routeCard = WpfSettingsUi.CreateCard(Localize("Route"), out StackPanel body);
+        routePresetBox = WpfSettingsUi.CreateComboBox(180);
+        PopulateRoutePresetBox();
+        routePresetBox.SelectionChanged += (_, _) => SwitchRoutePreset();
+        newRouteNameBox = WpfSettingsUi.CreateTextBox(string.Empty, placeholder: Localize("New route name"), width: 164);
+        newRouteNameBox.Margin = new Thickness(8, 0, 6, 0);
+        addRouteButton = WpfSettingsUi.CreateButton(Localize("Add"), minWidth: 68);
+        addRouteButton.Click += (_, _) => AddRoutePreset();
+        var routeControls = new StackPanel { Orientation = WpfOrientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        routeControls.Children.Add(routePresetBox);
+        routeControls.Children.Add(newRouteNameBox);
+        routeControls.Children.Add(addRouteButton);
+        WpfSettingsUi.AddSettingRow(body, Localize("Active route"), routeControls);
 
         Grid columns = WpfSettingsUi.CreateColumnGrid(
             new GridLength(1, GridUnitType.Star),
@@ -141,6 +161,23 @@ internal sealed class WpfSplitSettingsPage : WpfSettingsPageBase
             new GridLength(1, GridUnitType.Star),
             new GridLength(12),
             new GridLength(1, GridUnitType.Star));
+        columns.Margin = new Thickness(0, 0, 0, 8);
+        columns.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        columns.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        Grid headers = WpfSettingsUi.CreateColumnGrid(
+            new GridLength(1, GridUnitType.Star), new GridLength(12),
+            new GridLength(1, GridUnitType.Star), new GridLength(12),
+            new GridLength(1, GridUnitType.Star));
+        string[] titles = ["Candidates", "Group", "Condition"];
+        for (int index = 0; index < titles.Length; index++)
+        {
+            TextBlock title = WpfSettingsUi.CreateTableHeaderText(Localize(titles[index]), TextAlignment.Left);
+            Grid.SetColumn(title, index * 2);
+            headers.Children.Add(title);
+        }
+        Border headerRow = WpfSettingsUi.CreateTableHeaderContainer(headers);
+        Grid.SetColumnSpan(headerRow, 5);
+        columns.Children.Add(headerRow);
 
         FrameworkElement targetCol = BuildTargetColumn();
         FrameworkElement routeCol = BuildRouteColumn();
@@ -148,33 +185,112 @@ internal sealed class WpfSplitSettingsPage : WpfSettingsPageBase
         Grid.SetColumn(targetCol, 0);
         Grid.SetColumn(routeCol, 2);
         Grid.SetColumn(condCol, 4);
+        Grid.SetRow(targetCol, 1);
+        Grid.SetRow(routeCol, 1);
+        Grid.SetRow(condCol, 1);
         columns.Children.Add(targetCol);
         columns.Children.Add(routeCol);
         columns.Children.Add(condCol);
         body.Children.Add(columns);
 
-        statusLabel = new TextBlock
-        {
-            Margin = new Thickness(0, 8, 0, 0),
-            TextWrapping = TextWrapping.Wrap,
-            Visibility = Visibility.Collapsed
-        };
-        statusLabel.SetResourceReference(TextBlock.FontSizeProperty, "FontSizeSub");
-        statusLabel.SetResourceReference(TextBlock.ForegroundProperty, "WarningBrush");
-        body.Children.Add(statusLabel);
-
         parent.Children.Add(routeCard);
 
         // Conditional all-icons file overrides card
-        allIconFilesCard = WpfSettingsUi.CreateCard(Localize("Icon files"), out allIconFilesBody, contentPadding: new Thickness(14, 6, 14, 8));
+        allIconFilesCard = WpfSettingsUi.CreateCard(Localize("Icon files"), out allIconFilesBody);
         allIconFilesCard.Visibility = Visibility.Collapsed;
         parent.Children.Add(allIconFilesCard);
+    }
+
+    private void PopulateRoutePresetBox()
+    {
+        updatingRouteSelection = true;
+        try
+        {
+            routePresetBox.Items.Clear();
+            foreach (RoutePreset preset in Draft.Route.Presets)
+            {
+                routePresetBox.Items.Add(preset.Name);
+            }
+
+            routePresetBox.SelectedItem = Draft.Route.ActiveRouteName;
+        }
+        finally
+        {
+            updatingRouteSelection = false;
+        }
+    }
+
+    private bool CommitBeforeRouteSelection()
+    {
+        SplitCommitResult result = commitService.CommitTo(Draft, SplitCommitMode.StrictApply);
+        if (result.Succeeded)
+        {
+            return true;
+        }
+
+        PopulateRoutePresetBox();
+        Dialogs.ShowWarning(result.Message, Localize("TerrariaSplit Settings"));
+        return false;
+    }
+
+    private void SwitchRoutePreset()
+    {
+        if (updatingRouteSelection || routePresetBox.SelectedItem is not string name ||
+            name.Equals(Draft.Route.ActiveRouteName, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        if (CommitBeforeRouteSelection() && RoutePresetService.Select(Draft.Route, name))
+        {
+            ReloadSelectedRoute();
+        }
+    }
+
+    private void AddRoutePreset()
+    {
+        string name = newRouteNameBox.Text.Trim();
+        if (!RoutePresetService.IsValidName(name) ||
+            Draft.Route.Presets.Any(preset => preset.Name.Equals(name, StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
+
+        if (CommitBeforeRouteSelection() && RoutePresetService.Add(Draft.Route, name))
+        {
+            newRouteNameBox.Clear();
+            PopulateRoutePresetBox();
+            ReloadSelectedRoute();
+        }
+    }
+
+    private void ReloadSelectedRoute()
+    {
+        SettingsNormalizer.Normalize(Draft);
+        RoutePresetService.CaptureActive(Draft.Route);
+        routeController.ClearLoadedEntry();
+        routeController.ClearDirty();
+        routeDragIndex = -1;
+        conditionDragIndex = -1;
+        conditionController.AdvancedError = string.Empty;
+        routeDraft.LoadFrom(Draft.Route);
+        RefreshRouteList();
+        if (routeList.Items.Count > 0)
+        {
+            routeList.SelectedIndex = 0;
+            LoadSelectedRouteEntry();
+        }
+        else
+        {
+            ClearSelectedRouteControls();
+        }
+
+        Context.NotifyModelChanged(SettingsModelChange.RouteChanged);
     }
 
     private FrameworkElement BuildTargetColumn()
     {
         var panel = new StackPanel { Orientation = WpfOrientation.Vertical };
-        panel.Children.Add(WpfSettingsUi.CreateSubHeader(Localize("Candidates"), new Thickness(0, 0, 0, 6)));
 
         targetKindBox = WpfSettingsUi.CreateComboBox();
         targetKindBox.Items.Add(new SplitTargetKindOption(SplitTargetKind.Boss, Localize("Boss")));
@@ -212,7 +328,6 @@ internal sealed class WpfSplitSettingsPage : WpfSettingsPageBase
     private FrameworkElement BuildRouteColumn()
     {
         var panel = new StackPanel { Orientation = WpfOrientation.Vertical };
-        panel.Children.Add(WpfSettingsUi.CreateSubHeader(Localize("Group"), new Thickness(0, 0, 0, 6)));
 
         splitNameBox = WpfSettingsUi.CreateTextBox(string.Empty, placeholder: Localize("Display name"));
         splitNameBox.TextChanged += (_, _) => MarkSelectedEntryDirty();
@@ -263,22 +378,9 @@ internal sealed class WpfSplitSettingsPage : WpfSettingsPageBase
     private FrameworkElement BuildConditionColumn()
     {
         var panel = new StackPanel { Orientation = WpfOrientation.Vertical };
-        panel.Children.Add(WpfSettingsUi.CreateSubHeader(Localize("Condition"), new Thickness(0, 0, 0, 6)));
 
         conditionMatchModeBox = WpfSettingsUi.CreateComboBox();
         conditionMatchModeBox.SelectionChanged += (_, _) => UpdateSelectedConditionMatchCount();
-
-        Grid matchRow = WpfSettingsUi.CreateColumnGrid(GridLength.Auto, new GridLength(1, GridUnitType.Star), GridLength.Auto);
-        TextBlock prefix = WpfSettingsUi.CreateRowLabel(Localize("Satisfy"));
-        prefix.Margin = new Thickness(0, 0, 5, 0);
-        TextBlock suffix = WpfSettingsUi.CreateRowLabel(Localize("Conditions suffix"));
-        suffix.Margin = new Thickness(5, 0, 0, 0);
-        Grid.SetColumn(prefix, 0);
-        Grid.SetColumn(conditionMatchModeBox, 1);
-        Grid.SetColumn(suffix, 2);
-        matchRow.Children.Add(prefix);
-        matchRow.Children.Add(conditionMatchModeBox);
-        matchRow.Children.Add(suffix);
 
         itemQuantityBox = WpfSettingsUi.CreateTextBox("1", placeholder: Localize("Quantity"), mono: true, centerAlign: true);
         itemQuantityBox.Padding = new Thickness(8, 0, 8, 0);
@@ -299,13 +401,10 @@ internal sealed class WpfSplitSettingsPage : WpfSettingsPageBase
 
             MarkSelectedEntryDirty();
         };
-        iconOverrideBox.DropDownClosed += (_, _) =>
-        {
-            if (!updatingUi && !conditionController.UpdatingSettings)
-            {
-                PickCustomIconOverrideFileIfSelected();
-            }
-        };
+        _ = new ComboBoxSelectionCommitHandler(
+            iconOverrideBox,
+            () => !updatingUi && !conditionController.UpdatingSettings && !Owner.IsDisposed,
+            PickCustomIconOverrideFileIfSelected);
 
         iconOverrideFileBox = WpfSettingsUi.CreateTextBox(string.Empty, placeholder: Localize("Custom image"));
         iconOverrideFileBox.Visibility = Visibility.Collapsed;
@@ -318,7 +417,7 @@ internal sealed class WpfSplitSettingsPage : WpfSettingsPageBase
         };
 
         Grid topGrid = CreateTopPropertiesGrid();
-        AddCompactPropRow(topGrid, 0, Localize("Match"), matchRow);
+        AddCompactPropRow(topGrid, 0, Localize("Match"), conditionMatchModeBox);
         AddCompactPropRow(topGrid, 1, Localize("Quantity"), itemQuantityBox);
         AddCompactPropRow(topGrid, 2, Localize("Icon"), iconOverrideBox);
         panel.Children.Add(topGrid);
@@ -373,19 +472,36 @@ internal sealed class WpfSplitSettingsPage : WpfSettingsPageBase
     private static WpfButton CreateCompactActionButton(string text)
     {
         WpfButton button = WpfSettingsUi.CreateButton(text);
+        button.MinWidth = 0;
         button.Padding = new Thickness(6, 0, 6, 0);
-        button.ToolTip = text;
+        button.HorizontalContentAlignment = WpfHorizontalAlignment.Stretch;
+        SetCompactActionButtonText(button, text);
         return button;
+    }
+
+    private static void SetCompactActionButtonText(WpfButton button, string text)
+    {
+        button.Content = new TextBlock
+        {
+            Text = text,
+            TextAlignment = TextAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        button.ToolTip = text;
     }
 
     private static Grid CreateTopPropertiesGrid()
     {
-        var grid = new Grid { Height = 102, Margin = new Thickness(0, 0, 0, 8) };
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(54) });
+        var grid = new Grid { Margin = new Thickness(0, 0, 0, 8) };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(72) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(34) });
-        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(34) });
-        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(34) });
+        for (int index = 0; index < 3; index++)
+        {
+            var row = new RowDefinition { Height = GridLength.Auto };
+            row.SetResourceReference(RowDefinition.MinHeightProperty, "SettingRowHeight");
+            grid.RowDefinitions.Add(row);
+        }
         return grid;
     }
 
@@ -417,12 +533,6 @@ internal sealed class WpfSplitSettingsPage : WpfSettingsPageBase
         VirtualizingPanel.SetIsVirtualizing(list, true);
         VirtualizingPanel.SetVirtualizationMode(list, VirtualizationMode.Recycling);
         return list;
-    }
-
-    private void SetStatus(string message)
-    {
-        statusLabel.Text = message ?? string.Empty;
-        statusLabel.Visibility = string.IsNullOrWhiteSpace(message) ? Visibility.Collapsed : Visibility.Visible;
     }
 
     // ==================== Target Library ====================
@@ -732,7 +842,6 @@ internal sealed class WpfSplitSettingsPage : WpfSettingsPageBase
     {
         if (!TryGetSelectedTarget(out SplitTargetDefinition target))
         {
-            SetStatus(Localize("Select a target first."));
             return;
         }
 
@@ -754,7 +863,6 @@ internal sealed class WpfSplitSettingsPage : WpfSettingsPageBase
         });
 
         routeController.MarkDirty();
-        SetStatus(string.Empty);
         routeDraft.NormalizeAttachedRouteFlags();
         RefreshRouteList();
         routeList.SelectedIndex = RouteEntries.Count - 1;
@@ -791,13 +899,11 @@ internal sealed class WpfSplitSettingsPage : WpfSettingsPageBase
 
         if (!TryGetSelectedTarget(out SplitTargetDefinition target))
         {
-            SetStatus(Localize("Select a target first."));
             return;
         }
 
         if (!TryGetSelectedRouteEntry(out SplitRouteEntry entry))
         {
-            SetStatus(Localize("Select a split first."));
             return;
         }
 
@@ -814,20 +920,17 @@ internal sealed class WpfSplitSettingsPage : WpfSettingsPageBase
         RefreshIconOverrideOptions(previousOverride);
         entry.IconOverride = GetCurrentIconOverride();
         routeController.MarkDirty();
-        SetStatus(string.Empty);
     }
 
     private void CopySelectedTargetReferenceId()
     {
         if (!TryGetSelectedTarget(out SplitTargetDefinition target))
         {
-            SetStatus(Localize("Select a target first."));
             return;
         }
 
         string targetId = SplitTargetTokenFormatter.Format(target);
         FormsClipboard.SetText(targetId);
-        SetStatus(string.Format(CultureInfo.InvariantCulture, Localize("Copied target ID: {0}"), targetId));
     }
 
     private void RemoveSelectedFact()
@@ -910,7 +1013,6 @@ internal sealed class WpfSplitSettingsPage : WpfSettingsPageBase
         }
 
         conditionController.AdvancedError = message;
-        SetStatus(message);
         Dialogs.ShowWarning(message, Localize("TerrariaSplit Settings"));
     }
 
@@ -920,7 +1022,6 @@ internal sealed class WpfSplitSettingsPage : WpfSettingsPageBase
         bool updateText = true,
         bool markDirty = true)
     {
-        bool changed = conditionController.AdvancedMode != enabled;
         conditionController.AdvancedMode = enabled;
         if (updateEntry && TryGetSelectedRouteEntry(out SplitRouteEntry entry) && entry.UseAdvancedConditionEditor != enabled)
         {
@@ -947,12 +1048,8 @@ internal sealed class WpfSplitSettingsPage : WpfSettingsPageBase
 
         advancedConditionBox.Visibility = enabled ? Visibility.Visible : Visibility.Collapsed;
         conditionList.Visibility = enabled ? Visibility.Collapsed : Visibility.Visible;
-        advancedConditionButton.Content = Localize(enabled ? "Switch to basic" : "Switch to advanced");
+        SetCompactActionButtonText(advancedConditionButton, Localize(enabled ? "Switch to basic" : "Switch to advanced"));
         UpdateConditionEditorAvailability();
-        if (changed)
-        {
-            SetStatus(string.Empty);
-        }
     }
 
     private void UpdateAdvancedConditionFromText()
@@ -962,13 +1059,12 @@ internal sealed class WpfSplitSettingsPage : WpfSettingsPageBase
             return;
         }
 
-        if (!TryCommitAdvancedConditionText(updateStatusOnFailure: true))
+        if (!TryCommitAdvancedConditionText())
         {
             return;
         }
 
         routeController.MarkDirty();
-        SetStatus(string.Empty);
     }
 
     private bool TryCommitCurrentEditor()
@@ -979,7 +1075,7 @@ internal sealed class WpfSplitSettingsPage : WpfSettingsPageBase
             return true;
         }
 
-        if (TryCommitAdvancedConditionText(updateStatusOnFailure: true))
+        if (TryCommitAdvancedConditionText())
         {
             return true;
         }
@@ -992,7 +1088,7 @@ internal sealed class WpfSplitSettingsPage : WpfSettingsPageBase
         return false;
     }
 
-    private bool TryCommitAdvancedConditionText(bool updateStatusOnFailure = true)
+    private bool TryCommitAdvancedConditionText()
     {
         if (!conditionController.AdvancedMode)
         {
@@ -1002,11 +1098,6 @@ internal sealed class WpfSplitSettingsPage : WpfSettingsPageBase
         if (!SplitConditionText.TryParse(advancedConditionBox.Text, Draft.General.Language, out SplitCondition condition, out string errorMessage))
         {
             conditionController.AdvancedError = errorMessage;
-            if (updateStatusOnFailure)
-            {
-                SetStatus(errorMessage);
-            }
-
             return false;
         }
 
@@ -1029,10 +1120,17 @@ internal sealed class WpfSplitSettingsPage : WpfSettingsPageBase
     private void UpdateConditionEditorAvailability()
     {
         bool basic = !conditionController.AdvancedMode;
-        conditionMatchModeBox.IsEnabled = basic;
-        conditionList.IsEnabled = basic;
-        removeConditionButton.IsEnabled = basic;
-        addTargetToSelectedGroupButton.Content = Localize(basic ? "Add to selected group" : "Copy ID");
+        bool hasEntry = TryGetSelectedRouteEntry(out _);
+        splitNameBox.IsEnabled = hasEntry;
+        splitEnabledBox.IsEnabled = hasEntry;
+        iconOverrideBox.IsEnabled = hasEntry;
+        advancedConditionBox.IsEnabled = hasEntry;
+        advancedConditionButton.IsEnabled = hasEntry;
+        conditionMatchModeBox.IsEnabled = hasEntry && basic;
+        conditionList.IsEnabled = hasEntry && basic;
+        removeConditionButton.IsEnabled = hasEntry && basic;
+        addTargetToSelectedGroupButton.IsEnabled = hasEntry;
+        SetCompactActionButtonText(addTargetToSelectedGroupButton, Localize(basic ? "Add to selected group" : "Copy ID"));
         LoadSelectedConditionSettings();
     }
 
@@ -1085,7 +1183,6 @@ internal sealed class WpfSplitSettingsPage : WpfSettingsPageBase
             UseBasicConditionFromList();
             entry.Condition = GetCurrentCondition();
             routeController.MarkDirty();
-            SetStatus(string.Empty);
         }
     }
 
@@ -1101,7 +1198,6 @@ internal sealed class WpfSplitSettingsPage : WpfSettingsPageBase
             UseBasicConditionFromList();
             entry.Condition = GetCurrentCondition();
             routeController.MarkDirty();
-            SetStatus(string.Empty);
         }
     }
 
@@ -1114,7 +1210,7 @@ internal sealed class WpfSplitSettingsPage : WpfSettingsPageBase
         try
         {
             conditionMatchModeBox.Items.Clear();
-            string allText = Localize("All");
+            string allText = Localize("All conditions");
             if (conditionCount <= 0)
             {
                 conditionMatchModeBox.Items.Add(new MatchModeOption(1, allText));
@@ -1126,7 +1222,7 @@ internal sealed class WpfSplitSettingsPage : WpfSettingsPageBase
                 {
                     conditionMatchModeBox.Items.Add(new MatchModeOption(
                         count,
-                        string.Format(CultureInfo.InvariantCulture, Localize("At least {0}"), count)));
+                        string.Format(CultureInfo.InvariantCulture, Localize("At least {0} conditions"), count)));
                 }
             }
 

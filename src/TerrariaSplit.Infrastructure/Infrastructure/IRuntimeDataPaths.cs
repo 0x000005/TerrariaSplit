@@ -6,6 +6,8 @@ public interface IRuntimeDataPaths
 
     string SettingsDirectory { get; }
 
+    string RoutesDirectory { get; }
+
     string ReferenceTimesDirectory { get; }
 
     string LastRunTimesDirectory { get; }

@@ -56,7 +56,9 @@ internal sealed class SplitSettingsCommitService
         }
 
         target.Route.SplitRoute = routeDraft.CreateSnapshot();
+        RoutePresetService.CaptureActive(target.Route);
         SettingsNormalizer.Normalize(target);
+        RoutePresetService.CaptureActive(target.Route);
 
         bool routeChanged = routeController.Dirty;
         if (routeChanged)

@@ -37,9 +37,15 @@ internal static class SettingsSerializer
 
     public static OperationResult WriteSettings(string path, AppSettings settings)
     {
-        string json = JsonSerializer.Serialize(
+        JsonNode document = JsonSerializer.SerializeToNode(
             new SettingsDocument(settings),
-            SettingsJsonContext.Default.SettingsDocument);
+            SettingsJsonContext.Default.SettingsDocument)!;
+        if (!string.IsNullOrWhiteSpace(settings.Route.ActiveRouteName))
+        {
+            (document["Settings"]?["Route"] as JsonObject)?.Remove("SplitRoute");
+        }
+
+        string json = document.ToJsonString(JsonFileStore.JsonOptions);
         return JsonFileStore.TryWriteText(path, json, "settings");
     }
 

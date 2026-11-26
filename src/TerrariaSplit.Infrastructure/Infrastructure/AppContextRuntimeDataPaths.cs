@@ -15,6 +15,8 @@ public sealed class AppContextRuntimeDataPaths : IRuntimeDataPaths
 
     public string SettingsDirectory => Path.Combine(baseDirectory, "Settings");
 
+    public string RoutesDirectory => Path.Combine(DataDirectory, "routes");
+
     public string ReferenceTimesDirectory => Path.Combine(DataDirectory, "reference-times");
 
     public string LastRunTimesDirectory => Path.Combine(DataDirectory, "last-times");

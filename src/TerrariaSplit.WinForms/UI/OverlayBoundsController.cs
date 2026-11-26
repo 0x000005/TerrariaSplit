@@ -8,6 +8,7 @@ internal sealed class OverlayBoundsController
     private AppSettings settings;
     private int statusCount;
     private int visibleStatusCount;
+    private Rectangle? statusBoundsRelativeToTimer;
     private Rectangle compositeBounds;
     private OverlayCompositeLayout currentLayout;
 
@@ -36,11 +37,13 @@ internal sealed class OverlayBoundsController
         ApplyCompositeBounds(initialCompositeBounds, preserveTimerLocation: false);
     }
 
-    public void UpdateContext(AppSettings settings, int statusCount, int visibleStatusCount)
+    public void UpdateContext(AppSettings settings, int statusCount, int visibleStatusCount,
+        Rectangle? statusBoundsRelativeToTimer = null)
     {
         this.settings = settings;
         this.statusCount = statusCount;
         this.visibleStatusCount = visibleStatusCount;
+        this.statusBoundsRelativeToTimer = statusBoundsRelativeToTimer;
         if (IsInitialized)
         {
             ApplyCompositeBounds(compositeBounds, preserveTimerLocation: true);
@@ -97,6 +100,14 @@ internal sealed class OverlayBoundsController
             {
                 return;
             }
+        }
+
+        if (statusBoundsRelativeToTimer is Rectangle requiredBounds)
+        {
+            requiredBounds.Offset(layout.TimerScreenBounds.Location);
+            Rectangle statusBounds = Rectangle.Union(layout.StatusScreenBounds, requiredBounds);
+            statusBounds.Offset(-normalizedBounds.X, -normalizedBounds.Y);
+            layout = layout with { StatusLocalBounds = statusBounds };
         }
 
         compositeBounds = normalizedBounds;
