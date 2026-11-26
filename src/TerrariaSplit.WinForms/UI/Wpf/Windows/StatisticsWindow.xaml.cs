@@ -40,7 +40,6 @@ internal sealed partial class StatisticsWindow : ModernWindow
         RowsScrollViewer.SizeChanged += (_, _) => SyncHeaderPaddingWithScrollBar();
 
         ApplyLocalizedLabels();
-        ApplyReferenceModeLayout();
         ShowComparisonToggle.Checked += (_, _) => RefreshTable();
         ShowComparisonToggle.Unchecked += (_, _) => RefreshTable();
         PopulateSelectors();
@@ -96,18 +95,6 @@ internal sealed partial class StatisticsWindow : ModernWindow
         SetHeader(ColSelSegHeader, Localizer.Get("Selected run segment time column", settings));
         SetHeader(ColRefSegHeader, Localizer.Get("Reference segment time column", settings));
         SetHeader(ColPbSegHeader, Localizer.Get("Personal best segment time column", settings));
-    }
-
-    private void ApplyReferenceModeLayout()
-    {
-        bool hidePb = settings.Comparison.UsePersonalBestAsReferenceTime;
-        GridLength pbLength = hidePb ? new GridLength(0) : new GridLength(120);
-        Visibility pbVisibility = hidePb ? Visibility.Collapsed : Visibility.Visible;
-
-        HeaderPbTimeCol.Width = pbLength;
-        HeaderPbSegCol.Width = pbLength;
-        ColPbTimeHeader.Visibility = pbVisibility;
-        ColPbSegHeader.Visibility = pbVisibility;
     }
 
     private void UpdateKpiStripLayout(bool hidePb, bool hideSob)
@@ -291,12 +278,20 @@ internal sealed partial class StatisticsWindow : ModernWindow
                 "--"));
         }
 
+        bool hidePbSegment = validSobSegments == 0;
+        GridLength pbSegmentColLength = hidePbSegment ? new GridLength(0) : new GridLength(120);
+        Visibility pbSegmentColVisibility = hidePbSegment ? Visibility.Collapsed : Visibility.Visible;
+        HeaderPbTimeCol.Width = pbColLength;
+        ColPbTimeHeader.Visibility = pbColVisibility;
+        HeaderPbSegCol.Width = pbSegmentColLength;
+        ColPbSegHeader.Visibility = pbSegmentColVisibility;
+
         double personalTimeWidth = MeasureAlignedColumnWidth(rawGroups.SelectMany(g => g.SubRows).Select(r => (r.PersonalTime, FontWeights.Normal)), 110d);
         double refTimeWidth = MeasureAlignedColumnWidth(rawGroups.SelectMany(g => g.SubRows).Select(r => (r.RefTime, FontWeights.Normal)), 110d);
         double pbTimeWidth = hidePb ? double.NaN : MeasureAlignedColumnWidth(rawGroups.SelectMany(g => g.SubRows).Select(r => (r.PbTime, FontWeights.Normal)), 120d);
         double personalSegWidth = MeasureAlignedColumnWidth(rawGroups.Select(g => (g.PersonalSeg, g.PersonalSegWeight)), 110d);
         double refSegWidth = MeasureAlignedColumnWidth(rawGroups.Select(g => (g.RefSeg, FontWeights.Normal)), 110d);
-        double pbSegWidth = hidePb ? double.NaN : MeasureAlignedColumnWidth(rawGroups.Select(g => (g.PbSeg, FontWeights.Normal)), 120d);
+        double pbSegWidth = hidePbSegment ? double.NaN : MeasureAlignedColumnWidth(rawGroups.Select(g => (g.PbSeg, FontWeights.Normal)), 120d);
 
         var groups = new List<StatisticsGroupView>(rawGroups.Count);
         foreach (var group in rawGroups)
@@ -342,7 +337,8 @@ internal sealed partial class StatisticsWindow : ModernWindow
                 pbSegWidth,
                 ResolveTimeAlignment(group.PbSeg),
                 pbColLength,
-                pbColVisibility));
+                pbSegmentColLength,
+                pbSegmentColVisibility));
         }
 
         RowsItemsControl.ItemsSource = groups;
@@ -574,6 +570,7 @@ internal sealed partial class StatisticsWindow : ModernWindow
         string PersonalBestSegmentText,
         double PersonalBestSegmentWidth,
         TextAlignment PersonalBestSegmentAlignment,
-        GridLength PbColumnLength,
-        Visibility PbColumnVisibility);
+        GridLength PbTimeColumnLength,
+        GridLength PbSegmentColumnLength,
+        Visibility PbSegmentColumnVisibility);
 }

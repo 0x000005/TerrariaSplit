@@ -340,6 +340,29 @@ internal static class WpfFoundationTests
         var items = (System.Windows.Controls.ItemsControl)window.FindName("RowsItemsControl");
         System.Windows.Controls.TextBlock Label(string name) => (System.Windows.Controls.TextBlock)window.FindName(name);
         StatisticsWindow.StatisticsGroupView[] Groups() => items.Items.Cast<StatisticsWindow.StatisticsGroupView>().ToArray();
+        void AssertPersonalBestColumns(StatisticsWindow target, bool showTime, bool showSegment)
+        {
+            Check.Equal(showTime ? Visibility.Visible : Visibility.Collapsed,
+                ((FrameworkElement)target.FindName("ColPbTimeHeader")).Visibility);
+            Check.Equal(showSegment ? Visibility.Visible : Visibility.Collapsed,
+                ((FrameworkElement)target.FindName("ColPbSegHeader")).Visibility);
+            Check.Equal(showTime ? 120d : 0d,
+                ((System.Windows.Controls.ColumnDefinition)target.FindName("HeaderPbTimeCol")).Width.Value);
+            Check.Equal(showSegment ? 120d : 0d,
+                ((System.Windows.Controls.ColumnDefinition)target.FindName("HeaderPbSegCol")).Width.Value);
+            var targetItems = (System.Windows.Controls.ItemsControl)target.FindName("RowsItemsControl");
+            foreach (StatisticsWindow.StatisticsGroupView group in targetItems.Items)
+            {
+                Check.Equal(showTime ? 120d : 0d, group.PbTimeColumnLength.Value);
+                Check.Equal(showSegment ? 120d : 0d, group.PbSegmentColumnLength.Value);
+                Check.Equal(showSegment ? Visibility.Visible : Visibility.Collapsed, group.PbSegmentColumnVisibility);
+                foreach (StatisticsWindow.StatisticsSubRowView row in group.SubRows)
+                {
+                    Check.Equal(showTime ? 120d : 0d, row.PbColumnLength.Value);
+                    Check.Equal(showTime ? Visibility.Visible : Visibility.Collapsed, row.PbColumnVisibility);
+                }
+            }
+        }
         Color BrushColor(Brush brush) => ((SolidColorBrush)brush).Color;
         Color primaryColor = BrushColor((Brush)window.FindResource("TextPrimaryBrush"));
 
@@ -357,6 +380,7 @@ internal static class WpfFoundationTests
         Check.Equal("Run segment", Label("ColSelSegHeader").Text);
         Check.Equal("Reference segment", Label("ColRefSegHeader").Text);
         Check.Equal("PB segment", Label("ColPbSegHeader").Text);
+        AssertPersonalBestColumns(window, showTime: true, showSegment: true);
         foreach (StatisticsWindow.StatisticsGroupView group in Groups())
         {
             Check.Equal(primaryColor, BrushColor(group.PersonalSegmentForeground));
@@ -427,6 +451,7 @@ internal static class WpfFoundationTests
         Check.Equal(Visibility.Collapsed, ((FrameworkElement)window.FindName("KpiSobCard")).Visibility);
         Check.Equal(Visibility.Collapsed, Label("KpiSobDeltaText").Visibility);
         Check.Equal(Visibility.Visible, Label("KpiPbDeltaText").Visibility);
+        AssertPersonalBestColumns(window, showTime: true, showSegment: false);
 
         toggle.IsChecked = false;
         Check.Equal(string.Empty, Label("KpiPbDeltaText").Text);
@@ -434,11 +459,21 @@ internal static class WpfFoundationTests
         window.Close();
 
         settings.Comparison.UsePersonalBestAsReferenceTime = true;
+        settings.Comparison.PersonalBestSegmentTimes["stats-final"] = "0:00.00";
         var pbWindow = new StatisticsWindow(settings, new RunStatsRepository(timeSets), timeSets);
-        ((System.Windows.Controls.CheckBox)pbWindow.FindName("ShowComparisonToggle")).IsChecked = true;
+        var pbToggle = (System.Windows.Controls.CheckBox)pbWindow.FindName("ShowComparisonToggle");
+        pbToggle.IsChecked = true;
         Check.Equal("-10.00", pbWindow.ReferenceTotalDeltaDisplayText);
         Check.Equal(Visibility.Collapsed, ((FrameworkElement)pbWindow.FindName("KpiPbCard")).Visibility);
         Check.False(((System.Windows.Controls.ComboBox)pbWindow.FindName("ReferenceRunComboBox")).IsEnabled);
+        AssertPersonalBestColumns(pbWindow, showTime: false, showSegment: true);
+        Check.Equal(Visibility.Collapsed, ((FrameworkElement)pbWindow.FindName("KpiSobCard")).Visibility);
+        settings.Comparison.PersonalBestSegmentTimes.Clear();
+        pbToggle.IsChecked = false;
+        AssertPersonalBestColumns(pbWindow, showTime: false, showSegment: false);
+        settings.Comparison.PersonalBestSegmentTimes["stats-first"] = "0:50.00";
+        pbToggle.IsChecked = true;
+        AssertPersonalBestColumns(pbWindow, showTime: false, showSegment: true);
         pbWindow.Close();
 
         var emptyTimeSets = new SplitTimeSetRepository(new AppContextRuntimeDataPaths(dir.Combine("empty")));
