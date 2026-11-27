@@ -176,7 +176,8 @@ public sealed class TerrariaWindowController
         Func<Size, Point> resolvePoint,
         out Point resolvedPoint,
         out Size clientSize,
-        out string failureDetail)
+        out string failureDetail,
+        bool validateLogicalClientBounds = true)
     {
         ArgumentNullException.ThrowIfNull(resolvePoint);
         resolvedPoint = Point.Empty;
@@ -214,8 +215,9 @@ public sealed class TerrariaWindowController
         activatedWindowHandle = handle;
         clientSize = coordinateSpace.LogicalClientSize;
         resolvedPoint = resolvePoint(clientSize);
-        if (resolvedPoint.X < 0 || resolvedPoint.Y < 0 ||
-            resolvedPoint.X >= clientSize.Width || resolvedPoint.Y >= clientSize.Height)
+        if (validateLogicalClientBounds &&
+            (resolvedPoint.X < 0 || resolvedPoint.Y < 0 ||
+             resolvedPoint.X >= clientSize.Width || resolvedPoint.Y >= clientSize.Height))
         {
             failureDetail =
                 $"Terraria UI point ({resolvedPoint.X},{resolvedPoint.Y}) is outside logical client " +

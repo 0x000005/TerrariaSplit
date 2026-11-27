@@ -8,7 +8,9 @@ internal sealed class ModernMenuWindowInput(TerrariaWindowController window) : I
     public bool IsForeground => window.IsInputForeground;
     public bool Position(Point point, out string detail)
     {
-        bool success = window.TryPositionClient(_ => point, out Point resolved, out Size clientSize, out detail);
+        // Game button coordinates are already checked against the game screen, not the Windows DPI-logical client.
+        bool success = window.TryPositionClient(_ => point, out Point resolved, out Size clientSize, out detail,
+            validateLogicalClientBounds: false);
         AppLog.Debug("automation.position", new { point, resolved, clientSize, success,
             detail = success ? window.LastCoordinateDiagnostic : detail });
         return success;
